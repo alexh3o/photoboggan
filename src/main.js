@@ -612,21 +612,29 @@ function showWriteToast(message, isWriting = false) {
 async function setSelectionRating(rating) {
   const targets = [...selectedIndices].map(index => photos[index]).filter(Boolean);
   if (!targets.length) return;
-  showWriteToast(`Écriture en cours pour ${targets.length} fichier${targets.length > 1 ? 's' : ''}…`, true);
+  // Si toutes les photos sélectionnées ont déjà exactement cette note, 
+  // on considère qu'on veut l'effacer (passer à 0).
+  const allAlreadyHaveRating = targets.every(photo => photo.rating === rating);
+  const finalRating = allAlreadyHaveRating ? 0 : rating;
+  const actionText = finalRating === 0 ? 'Suppression de la note' : `Écriture en cours pour ${targets.length} fichier${targets.length > 1 ? 's' : ''} (note : ${finalRating})…`;
+  showWriteToast(actionText, true);
   const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
       id: photo.id,
       path: photo.path,
-      rating,
+      rating: finalRating,
       colorFlag: photo.color_flag || 'none',
   })));
   const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
   const failures = results.filter(result => result.status === 'rejected');
-  for (const photo of successful) photo.rating = rating;
+  for (const photo of successful) photo.rating = finalRating;
   updateUIOnSelection();
   if (isFullscreen && successful.length) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
-  showWriteToast(`${successful.length} fichier${successful.length > 1 ? 's' : ''} modifié${successful.length > 1 ? 's' : ''}${failures.length ? ` · ${failures.length} échec${failures.length > 1 ? 's' : ''}` : ''}`);
-  if (failures.length) {
+  const successMessage = finalRating === 0 
+    ? `Note supprimée pour ${successful.length} fichier${successful.length > 1 ? 's' : ''}`
+    : `${successful.length} fichier${successful.length > 1 ? 's' : ''} modifié${successful.length > 1 ? 's' : ''}`;
+    showWriteToast(`${successMessage}${failures.length ? ` · ${failures.length} échec${failures.length > 1 ? 's' : ''}` : ''}`);
+    if (failures.length) {
     const firstError = failures[0].reason;
     document.getElementById('selection-rating-caption').textContent = `Échec d'écriture : ${firstError}`;
   }
@@ -644,7 +652,7 @@ window.addEventListener('keydown', (e) => {
     else fullscreenRating.classList.add('hidden');
     return;
   }
-  if (/^[1-5]$/.test(e.key) && selectedIndices.size > 0) {
+  if (/^[0-5]$/.test(e.key) && selectedIndices.size > 0) {
     e.preventDefault();
     setSelectionRating(Number(e.key));
     return;
