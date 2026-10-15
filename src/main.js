@@ -1,6 +1,37 @@
 import './styles.css';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
+// AJOUT BARRE TITRE
+window.addEventListener('DOMContentLoaded', () => {
+  const appWindow = getCurrentWindow();
+  console.log("Fenêtre Tauri initialisée pour la barre de titre");
+
+  document.getElementById('titlebar-minimize')?.addEventListener('click', () => {
+    console.log("Clic sur Minimiser");
+    appWindow.minimize().catch(err => console.error("Erreur minimize:", err));
+  });
+
+  document.getElementById('titlebar-maximize')?.addEventListener('click', async () => {
+    console.log("Clic sur Maximiser");
+    try {
+      const isMax = await appWindow.isMaximized();
+      if (isMax) {
+        await appWindow.unmaximize();
+      } else {
+        await appWindow.maximize();
+      }
+    } catch (err) {
+      console.error("Erreur maximize/unmaximize:", err);
+    }
+  });
+
+  document.getElementById('titlebar-close')?.addEventListener('click', () => {
+    console.log("Clic sur Fermer");
+    appWindow.close().catch(err => console.error("Erreur close:", err));
+  });
+});
 
 // ETAT
 let photos = [];
