@@ -6,6 +6,8 @@ L'application a été pensée pour un objectif précis : accélérer drastiqueme
 
 ⚠️ **Avertissement (Beta)** : Ce logiciel est actuellement en version bêta, fourni sans aucune garantie (« as is »), <u>à utiliser à vos risques et périls</u>. Il est fortement recommandé d'<u>effectuer une sauvegarde complète de vos photos</u> avant toute utilisation.
 
+![Aperçu de Photofile](D:\Soft\Photofile\Photofile\screenshots\photofile_9pnYgRmcUT.jpg)
+
 # 🚀 Fonctionnalités principales
 
 **Zéro copie, respect de l'arborescence** : Vos fichiers restent strictement là où ils sont. Aucune modification de structure ni duplication de fichiers n'est effectuée sur votre disque.
@@ -53,6 +55,28 @@ Développé pour offrir des performances natives maximales grâce à une archite
 L'application est actuellement disponible en français. Une architecture multilingue (avec l'anglais par défaut) sera intégrée dans les prochaines versions.
 
 
+
+# ⛶ Screenshots
+
+![Aperçu de Photofile](D:\Soft\Photofile\Photofile\screenshots\photofile_D62drnmLzg.jpg)
+
+*Vue plein écran*
+
+
+
+![Aperçu de Photofile](D:\Soft\Photofile\Photofile\screenshots\photofile_VPAX3vJOkt.jpg)
+
+*Miniatures seules & Mode clair*
+
+![Aperçu de Photofile](D:\Soft\Photofile\Photofile\screenshots\photofile_3UdcAhXK98.jpg)
+
+*Mode Comparer*
+
+
+
+![Aperçu de Photofile](D:\Soft\Photofile\Photofile\screenshots\photofile_9sLSsMjmtq.jpg)
+
+*Paramètres*
 
 # 📄 Licence
 
