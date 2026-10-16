@@ -12,6 +12,7 @@ pub struct ExifMetadata {
     pub focal_length: String,
     pub manufacturer: String,
     pub camera_model: String,
+    pub lens_model: String,
     pub width: i32,
     pub height: i32,
     pub rating: i32,
@@ -285,6 +286,9 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             let raw_model = field.display_value().with_unit(&exif).to_string();
             // Supprime les guillemets englobants s'il y en a
             meta.camera_model = raw_model.trim_matches('"').trim().to_string();
+        }
+        if let Some(field) = exif.get_field(Tag::LensModel, In::PRIMARY) {
+            meta.lens_model = field.display_value().with_unit(&exif).to_string().trim_matches('"').trim().to_string();
         }
         if let Some(field) = exif.get_field(Tag::PixelXDimension, In::PRIMARY) {
             if let Some(value) = field.value.get_uint(0) { meta.width = value as i32; }

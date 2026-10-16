@@ -17,6 +17,7 @@ pub struct Photo {
     pub focal_length: String,
     pub manufacturer: String,
     pub camera_model: String,
+    pub lens_model: String,
     pub width: i32,
     pub height: i32,
     pub file_size: i64,
@@ -79,6 +80,7 @@ pub fn init_db(db_path: &str) -> DbPool {
     // Upgrade existing libraries without discarding the catalog.
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN keywords TEXT NOT NULL DEFAULT ''", []);
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN caption TEXT NOT NULL DEFAULT ''", []);
+    let _ = conn.execute("ALTER TABLE photos ADD COLUMN lens_model TEXT NOT NULL DEFAULT ''", []);
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
@@ -120,13 +122,13 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
 
     let sql = if folder_filter.is_some() {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model 
          FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
          AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
          ORDER BY date_taken DESC LIMIT ?3 OFFSET ?4"
     } else {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model 
          FROM photos ORDER BY date_taken DESC LIMIT ? OFFSET ?"
     };
 
@@ -147,6 +149,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 focal_length: row.get(7)?,
                 manufacturer: row.get(8)?,
                 camera_model: row.get(9)?,
+                lens_model: row.get(17)?,
                 width: row.get(10)?,
                 height: row.get(11)?,
                 file_size: row.get(12)?,
@@ -170,6 +173,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 focal_length: row.get(7)?,
                 manufacturer: row.get(8)?,
                 camera_model: row.get(9)?,
+                lens_model: row.get(17)?,
                 width: row.get(10)?,
                 height: row.get(11)?,
                 file_size: row.get(12)?,

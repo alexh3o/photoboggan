@@ -145,6 +145,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String) {
                 focal_length: exif_data.focal_length,
                 manufacturer: exif_data.manufacturer,
                 camera_model: exif_data.camera_model,
+                lens_model: exif_data.lens_model,
                 width: exif_data.width,
                 height: exif_data.height,
                 file_size,
@@ -176,8 +177,8 @@ fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManag
     {
         let mut stmt = conn.prepare_cached(
             "INSERT INTO photos 
-            (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
                 filename=excluded.filename, date_taken=excluded.date_taken,
                 aperture=excluded.aperture, shutter_speed=excluded.shutter_speed,
@@ -185,14 +186,14 @@ fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManag
                 camera_model=excluded.camera_model, width=excluded.width,
                 height=excluded.height, file_size=excluded.file_size,
                 rating=excluded.rating, color_flag=excluded.color_flag,
-                keywords=excluded.keywords, caption=excluded.caption"
+                keywords=excluded.keywords, caption=excluded.caption, lens_model=excluded.lens_model"
         ).unwrap();
 
         for p in photos {
             let _ = stmt.execute(params![
                 p.path, p.filename, p.date_taken, p.aperture, p.shutter_speed, 
                 p.iso, p.focal_length, p.manufacturer, p.camera_model, p.width, p.height, p.file_size,
-                p.rating, p.color_flag, p.keywords, p.caption
+                p.rating, p.color_flag, p.keywords, p.caption, p.lens_model
             ]);
         }
     }
