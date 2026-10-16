@@ -569,9 +569,11 @@ function updateUIOnSelection() {
     updateFullscreenRatingStars();
     if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
 
+    document.getElementById('exif-filename').textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '-';
     document.getElementById('exif-date').textContent = photo.date_taken || '-';
     document.getElementById('exif-manufacturer').textContent = photo.manufacturer || '-';
     document.getElementById('exif-model').textContent = photo.camera_model || '-';
+    document.getElementById('exif-lens').textContent = photo.lens_model || '-';
     document.getElementById('exif-focal').textContent = photo.focal_length || '-';
     document.getElementById('exif-aperture').textContent = formatAperture(photo.aperture);
     document.getElementById('exif-shutter').textContent = formatShutterSpeed(photo.shutter_speed);
@@ -602,7 +604,7 @@ function showPhotoDimensions(photo) {
   const width = fromDatabase ? photo.width : photo.measuredWidth;
   const height = fromDatabase ? photo.height : photo.measuredHeight;
   if (width > 0 && height > 0) {
-    element.textContent = `${width} x ${height}`;
+    element.textContent = `${width} x ${height} (${(width * height / 1000000).toFixed(1)} MP)`;
     return;
   }
   element.textContent = '-';

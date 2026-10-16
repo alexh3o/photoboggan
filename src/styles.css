@@ -191,7 +191,7 @@ button.active { background: var(--accent); border-color: var(--accent); color: #
 .exif-section h3 { font-size: 11px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
 .exif-section ul { list-style: none; }
 .exif-section li { margin-bottom: 10px; font-size: 12px; color: var(--text-faint); }
-.exif-section li span { color: var(--text-strong); display: block; margin-top: 3px; font-size: 13px; }
+.exif-section li span { color: var(--text-strong); display: block; margin-top: 3px; font-size: 13px; overflow-wrap: anywhere; }
 
 /* FULLSCREEN */
 #fullscreen-view { position: fixed; inset: 0; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; cursor: zoom-out; }
