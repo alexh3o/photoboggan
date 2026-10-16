@@ -6,7 +6,7 @@
 - [ ] UI: zooming in full screen navigation
 - [x] Manage xmp color flags and add filters
 - [ ] Add open image in explorer actions (1 image only)
-- [ ] Add mouse and keyvoard shortcuts information
+- [ ] Add mouse and keyboard shortcuts information
 - [ ] Allow ESC to close parameters
 - [ ] Add copy selection to actions (folder selection, clipboard)
 - [x] Add exif lens in informations panel
