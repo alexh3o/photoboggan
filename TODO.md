@@ -4,7 +4,7 @@
 
 - [x] UI: add filename to info panel
 - [ ] UI: zooming in full screen navigation
-- [ ] Manage xmp color flags and add filters
+- [x] Manage xmp color flags and add filters
 - [ ] Add open image in explorer actions (1 image only)
 - [ ] Add mouse and keyvoard shortcuts information
 - [ ] Allow ESC to close parameters
