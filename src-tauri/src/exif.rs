@@ -500,6 +500,93 @@ fn update_xmp_label(xml: &str, label: Option<&str>) -> String {
     updated
 }
 
+// Conversion des flags couleur standard vers digikam et photoshop (numériques)
+fn color_to_urgency_and_digikam(flag: &str) -> Option<i32> {
+    match normalize_color_flag(flag) {
+        "red" => Some(1),
+        "orange" => Some(2),
+        "yellow" => Some(3),
+        "green" => Some(4),
+        "blue" => Some(5),
+        "magenta" => Some(6),
+        "grey" => Some(7),
+        "black" => Some(8),
+        "white" => Some(9),
+        _ => None,
+    }
+}
+
+fn update_photoshop_urgency(xml: &str, urgency: Option<i32>) -> String {
+    let mut updated = xml.to_string();
+    let name = "photoshop:Urgency";
+    
+    // Nettoyage préalable de l'attribut s'il existe déjà
+    updated = remove_xmp_attribute(&updated, name);
+
+    if let Some(val) = urgency {
+        let val_str = val.to_string();
+        if let Some(description) = updated.find("<rdf:Description") {
+            if let Some(open_end_relative) = updated[description..].find('>') {
+                let mut insert_at = description + open_end_relative;
+                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
+                let namespace = if updated[..insert_at].contains("xmlns:photoshop=") { "" } else { " xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\"" };
+                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{val_str}\""));
+            }
+        }
+    }
+    updated
+}
+
+fn update_digikam_color_label(xml: &str, label_id: Option<i32>) -> String {
+    let mut updated = xml.to_string();
+    let name = "digikam:ColorLabel";
+    
+    // Nettoyage préalable
+    updated = remove_xmp_attribute(&updated, name);
+
+    if let Some(val) = label_id {
+        let val_str = val.to_string();
+        if let Some(description) = updated.find("<rdf:Description") {
+            if let Some(open_end_relative) = updated[description..].find('>') {
+                let mut insert_at = description + open_end_relative;
+                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
+                let namespace = if updated[..insert_at].contains("xmlns:digikam=") { "" } else { " xmlns:digikam=\"http://www.digikam.org/ns/1.0/\"" };
+                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{val_str}\""));
+            }
+        }
+    }
+    updated
+}
+
+/// Helper pour supprimer un attribut XMP existant (ex: photoshop:Urgency ou digikam:ColorLabel)
+fn remove_xmp_attribute(xml: &str, name: &str) -> String {
+    let mut updated = xml.to_string();
+    let mut search_from = 0;
+    while let Some(relative) = updated[search_from..].find(name) {
+        let start = search_from + relative;
+        let name_end = start + name.len();
+        let bytes = updated.as_bytes();
+        let mut pos = name_end;
+        while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
+        if start > 0 && bytes[start - 1].is_ascii_whitespace() && bytes.get(pos) == Some(&b'=') {
+            pos += 1;
+            while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
+            if let Some(quote @ (b'"' | b'\'')) = bytes.get(pos).copied() {
+                let value_start = pos + 1;
+                if let Some(end_relative) = bytes[value_start..].iter().position(|b| *b == quote) {
+                    let mut attribute_start = start;
+                    while attribute_start > 0 && bytes[attribute_start - 1].is_ascii_whitespace() { attribute_start -= 1; }
+                    updated.replace_range(attribute_start..value_start + end_relative + 1, "");
+                    search_from = attribute_start;
+                    continue;
+                }
+            }
+        }
+        search_from = name_end;
+    }
+    updated
+}
+
 /// Applique uniquement ce qui est demandé : `rating` (`None` = note inchangée) et `label`
 /// (`None` = label inchangé, `Some(None)` = label retiré, `Some(Some(v))` = label écrit).
 fn update_xmp_metadata(xml: &str, rating: Option<i32>, label: Option<Option<&str>>) -> String {
@@ -510,7 +597,16 @@ fn update_xmp_metadata(xml: &str, rating: Option<i32>, label: Option<Option<&str
             if label.is_none() { return updated; }
             updated = EMPTY_XMP_PACKET.to_string();
         }
+        // label xmp standard
         updated = update_xmp_label(&updated, label);
+        // Couleurs dans Photoshop Urgency et digiKam ColorLabel
+        let color_str = match label {
+            Some(val) => val,
+            None => "",
+        };
+        let urgency_val = if color_str.is_empty() { None } else { color_to_urgency_and_digikam(color_str) };
+        updated = update_photoshop_urgency(&updated, urgency_val);
+        updated = update_digikam_color_label(&updated, urgency_val);
     }
     updated
 }
