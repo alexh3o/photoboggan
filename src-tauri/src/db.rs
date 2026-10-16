@@ -15,6 +15,7 @@ pub struct Photo {
     pub shutter_speed: String,
     pub iso: i32,
     pub focal_length: String,
+    pub manufacturer: String,
     pub camera_model: String,
     pub width: i32,
     pub height: i32,
@@ -64,6 +65,7 @@ pub fn init_db(db_path: &str) -> DbPool {
             shutter_speed TEXT,
             iso INTEGER,
             focal_length TEXT,
+            manufacturer TEXT,
             camera_model TEXT,
             width INTEGER,
             height INTEGER,
@@ -118,13 +120,13 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
 
     let sql = if folder_filter.is_some() {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, camera_model, width, height, file_size, rating, color_flag, keywords, caption 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption 
          FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
          AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
          ORDER BY date_taken DESC LIMIT ?3 OFFSET ?4"
     } else {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, camera_model, width, height, file_size, rating, color_flag, keywords, caption 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption 
          FROM photos ORDER BY date_taken DESC LIMIT ? OFFSET ?"
     };
 
@@ -143,14 +145,15 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 shutter_speed: row.get(5)?,
                 iso: row.get(6)?,
                 focal_length: row.get(7)?,
-                camera_model: row.get(8)?,
-                width: row.get(9)?,
-                height: row.get(10)?,
-                file_size: row.get(11)?,
-                rating: row.get(12)?,
-                color_flag: row.get(13)?,
-                keywords: row.get(14)?,
-                caption: row.get(15)?,
+                manufacturer: row.get(8)?,
+                camera_model: row.get(9)?,
+                width: row.get(10)?,
+                height: row.get(11)?,
+                file_size: row.get(12)?,
+                rating: row.get(13)?,
+                color_flag: row.get(14)?,
+                keywords: row.get(15)?,
+                caption: row.get(16)?,
             })
         }).unwrap();
         photo_iter.filter_map(|p| p.ok()).collect()
@@ -165,14 +168,15 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 shutter_speed: row.get(5)?,
                 iso: row.get(6)?,
                 focal_length: row.get(7)?,
-                camera_model: row.get(8)?,
-                width: row.get(9)?,
-                height: row.get(10)?,
-                file_size: row.get(11)?,
-                rating: row.get(12)?,
-                color_flag: row.get(13)?,
-                keywords: row.get(14)?,
-                caption: row.get(15)?,
+                manufacturer: row.get(8)?,
+                camera_model: row.get(9)?,
+                width: row.get(10)?,
+                height: row.get(11)?,
+                file_size: row.get(12)?,
+                rating: row.get(13)?,
+                color_flag: row.get(14)?,
+                keywords: row.get(15)?,
+                caption: row.get(16)?,
             })
         }).unwrap();
         photo_iter.filter_map(|p| p.ok()).collect()

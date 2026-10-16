@@ -10,6 +10,7 @@ pub struct ExifMetadata {
     pub shutter_speed: String,
     pub iso: i32,
     pub focal_length: String,
+    pub manufacturer: String,
     pub camera_model: String,
     pub width: i32,
     pub height: i32,
@@ -276,8 +277,14 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
         if let Some(field) = exif.get_field(Tag::FocalLength, In::PRIMARY) {
             meta.focal_length = format!("{}", field.display_value().with_unit(&exif));
         }
+        // --- Récupération du Fabricant (Make) ---
+        if let Some(field) = exif.get_field(Tag::Make, In::PRIMARY) {
+            meta.manufacturer = field.display_value().with_unit(&exif).to_string().trim_matches('"').trim().to_string();
+        }
         if let Some(field) = exif.get_field(Tag::Model, In::PRIMARY) {
-            meta.camera_model = field.display_value().with_unit(&exif).to_string();
+            let raw_model = field.display_value().with_unit(&exif).to_string();
+            // Supprime les guillemets englobants s'il y en a
+            meta.camera_model = raw_model.trim_matches('"').trim().to_string();
         }
         if let Some(field) = exif.get_field(Tag::PixelXDimension, In::PRIMARY) {
             if let Some(value) = field.value.get_uint(0) { meta.width = value as i32; }

@@ -570,6 +570,7 @@ function updateUIOnSelection() {
     if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
 
     document.getElementById('exif-date').textContent = photo.date_taken || '-';
+    document.getElementById('exif-manufacturer').textContent = photo.manufacturer || '-';
     document.getElementById('exif-model').textContent = photo.camera_model || '-';
     document.getElementById('exif-focal').textContent = photo.focal_length || '-';
     document.getElementById('exif-aperture').textContent = formatAperture(photo.aperture);
