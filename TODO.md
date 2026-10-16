@@ -7,15 +7,15 @@
 - [x] Manage xmp color flags and add filters
 - [ ] Add open image in explorer actions (1 image only)
 - [ ] Add mouse and keyboard shortcuts information
-- [ ] Allow ESC to close parameters
+- [x] Allow ESC to close parameters
 - [ ] Add copy selection to actions (folder selection, clipboard)
 - [x] Add exif lens in informations panel
 - [ ] Variable texts and icons size instead of fixed
 - [ ] Add filters reset
-- [ ] Manage accent colour for buttons (currently blue)
-- [ ] UI: Colour "Filtres"" button for homogeneity
+- [x] Manage accent colour for buttons (currently blue)
+- [x] UI: Colour "Filtres"" button for homogeneity
 - [x] UI: add MP size
-- [ ] About modal
+- [x] About modal
 
 ## 💡 Ideas and longer term evolutions
 
