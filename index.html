@@ -6,6 +6,17 @@
   <title>Photofile</title>
 </head>
 <body>
+  <div id="titlebar" class="titlebar">
+    <div class="titlebar-drag-region" data-tauri-drag-region>
+      <img src="/src-tauri/icons/32x32.png" class="titlebar-icon" alt="logo" />
+      <span class="titlebar-title">Photofile</span>
+    </div>
+    <div class="titlebar-controls">
+      <button id="titlebar-minimize" class="titlebar-btn">─</button>
+      <button id="titlebar-maximize" class="titlebar-btn">☐</button>
+      <button id="titlebar-close" class="titlebar-btn close-btn">✕</button>
+    </div>
+  </div>
   <div id="app">
     <header class="top-bar">
       <div class="panel-toggles">

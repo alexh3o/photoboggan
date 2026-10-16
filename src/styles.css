@@ -214,3 +214,54 @@ button.active { background: var(--accent); border-color: var(--accent); color: #
 .settings-folder-item { display: flex; justify-content: space-between; align-items: center; background: var(--row-bg); padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 12px; }
 .btn-delete-folder { background: #c0392b; color: #fff; border: none; padding: 4px 8px; font-size: 11px; border-radius: 3px; }
 .btn-delete-folder:hover { background: #e74c3c; }
+
+/* Title Bar */
+.titlebar {
+  height: 32px;
+  background-color: var(--bg-secondary, #1e1e1e);
+  color: var(--text-primary, #ffffff);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  font-size: 12px;
+}
+.titlebar-drag-region {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-left: 10px;
+  gap: 8px;
+  -webkit-app-region: drag;
+}
+.titlebar-icon {
+  width: 16px;
+  height: 16px;
+}
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+.titlebar-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  width: 40px;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}
+.titlebar-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.titlebar-btn.close-btn:hover {
+  background-color: #e81123;
+  color: white;
+}
