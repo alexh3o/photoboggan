@@ -226,6 +226,11 @@ function addKeywordFilter(value) {
   applyPhotoFilters();
 }
 
+function decodeHtmlEntities(text) {
+  const doc = new DOMParser().parseFromString(String(text || ''), 'text/html');
+  return doc.documentElement.textContent;
+}
+
 // ==========================================
 // ARBORESCENCE & FILTRES
 // ==========================================
@@ -573,8 +578,8 @@ function updateUIOnSelection() {
     showPhotoDimensions(photo);
     document.getElementById('exif-size').textContent = `${(photo.file_size / 1024 / 1024).toFixed(2)} MB`;
     document.getElementById('exif-rating').textContent = photo.rating > 0 ? `${'★'.repeat(photo.rating)} (${photo.rating}/5)` : '-';
-    document.getElementById('exif-keywords').textContent = photo.keywords || '-';
-    document.getElementById('exif-caption').textContent = photo.caption || '-';
+    document.getElementById('exif-keywords').textContent = decodeHtmlEntities(photo.keywords) || '-';
+    document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
   }
 }
 
