@@ -139,10 +139,20 @@ button.active { background: var(--active-button); border-color: var(--active-but
 .thumbnail { position: absolute; width: var(--item-size); height: var(--item-size); padding: 4px; cursor: pointer; }
 .thumbnail-inner { 
   position: relative; width: 100%; height: 100%; 
-  background-color: var(--thumb-bg); border: 2px solid transparent; border-radius: 4px;
+  background-color: var(--thumb-bg); border: 2px solid transparent; border-radius: 4px; 
+  overflow: hidden;
   transition: border-color 0.15s ease;
+}/* Effet de zoom avant et légère élévation au survol de la miniature */
+.thumbnail:hover .thumbnail-inner {
+  transform: scale(1.01); /* Ajustez entre 1.02 et 1.05 selon vos préférences */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10; /* S'assure que la miniature survolée passe au-dessus des voisines pendant le zoom */
 }
-.thumbnail-inner > img { width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-drag: none; user-select: none; }
+.thumbnail-inner > img {
+  width: 100%; height: 100%; object-fit: cover;display: block; -webkit-user-drag: none; user-select: none;
+  opacity: 0; /* fondu à l'apparition : la classe .loaded est ajoutée dès que l'image est chargée */
+  transition: transform 0.3s ease, opacity 0.15s ease; /* Transition fluide pour l'image */ }
+.thumbnail-inner > img.loaded { opacity: 1; }
 .thumbnail.justified .thumbnail-inner { border: 0; border-radius: 0; }
 .thumbnail.justified.selected .thumbnail-inner { outline: 2px solid var(--selected-border); outline-offset: -2px; }
 .thumbnail.selected .thumbnail-inner { border-color: var(--selected-border); }

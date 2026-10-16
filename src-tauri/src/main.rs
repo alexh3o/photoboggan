@@ -57,13 +57,26 @@ fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-#[tauri::command]
+// Commandes du cache de miniatures en `async` : elles s'exécutent hors du thread principal de Tauri
+// (sinon chaque accès disque bloque la boucle d'événements de la fenêtre).
+#[tauri::command(async)]
 fn get_cached_thumbnail_path(app: tauri::AppHandle, source_path: String) -> Result<Option<String>, String> {
     let path = thumbnail_cache_file(&app, &source_path)?;
     Ok(path.is_file().then(|| path.to_string_lossy().into_owned()))
 }
 
-#[tauri::command]
+// Version par lots : un seul aller-retour IPC pour plusieurs miniatures.
+// Le résultat suit l'ordre de `source_paths` (None = pas de miniature en cache).
+#[tauri::command(async)]
+fn get_cached_thumbnail_paths(app: tauri::AppHandle, source_paths: Vec<String>) -> Vec<Option<String>> {
+    source_paths.iter().map(|source_path| {
+        thumbnail_cache_file(&app, source_path).ok()
+            .filter(|path| path.is_file())
+            .map(|path| path.to_string_lossy().into_owned())
+    }).collect()
+}
+
+#[tauri::command(async)]
 fn save_thumbnail_cache(app: tauri::AppHandle, source_path: String, data_url: String) -> Result<String, String> {
     let encoded = data_url.strip_prefix("data:image/jpeg;base64,").ok_or("Format de miniature non pris en charge")?;
     let bytes = decode_thumbnail_base64(encoded)?;
@@ -241,6 +254,7 @@ fn main() {
             remove_folder,
             get_photos_paginated,
             get_cached_thumbnail_path,
+            get_cached_thumbnail_paths,
             save_thumbnail_cache,
             rescan_all_folders,
             update_photo_metadata
