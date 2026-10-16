@@ -102,7 +102,7 @@ button.active { background: var(--accent); border-color: var(--accent); color: #
 .active-keyword-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .active-keyword-filters button { padding: 4px 7px; background: #29485c; border-color: #376782; color: #fff; font-size: 0.7rem; }
 .color-filter-label { display: block; margin: 0.875rem 0 6px; }
-.color-bar { display: flex; flex-wrap: wrap; gap: 2px; }
+.color-bar { display: flex; flex-wrap: nowrap; gap: 2px; }
 .color-square { position: relative; width: 1.25rem; height: 1.25rem; padding: 0; border: 1px solid var(--control-border); border-radius: 3px; background: var(--flag-color); }
 .color-square:hover { background: var(--flag-color); filter: brightness(1.15); }
 .color-square.checked { outline: 2px solid var(--btn-text); outline-offset: 1px; }
@@ -200,6 +200,9 @@ button.active { background: var(--accent); border-color: var(--accent); color: #
 .exif-section ul { list-style: none; }
 .exif-section li { margin-bottom: 10px; font-size: 0.75rem; color: var(--text-faint); }
 .exif-section li span { color: var(--text-strong); display: block; margin-top: 3px; font-size: 0.8rem; overflow-wrap: anywhere; }
+.exif-section li span#exif-manufacturer, .exif-section li span#exif-model,  
+  .exif-section li span#exif-size, .exif-section li span#exif-rating, .exif-section li span#exif-shutter, .exif-section li span#exif-color,
+  .exif-section li span#exif-aperture, .exif-section li span#exif-focal, .exif-section li span#exif-iso {display: inline;}
 
 /* FULLSCREEN */
 #fullscreen-view { position: fixed; inset: 0; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; cursor: zoom-out; }
