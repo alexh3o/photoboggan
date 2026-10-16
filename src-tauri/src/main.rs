@@ -206,13 +206,23 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
 }
 
 #[tauri::command]
-fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rating: i32, color_flag: String) -> Result<(), String> {
-    exif::write_rating_metadata(&path, rating).map_err(|e| e.to_string())?;
+fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rating: Option<i32>, color_flag: Option<String>) -> Result<(), String> {
+    // Seules les valeurs fournies sont modifiées : écrire la note ne touche pas au xmp:Label (qui peut contenir
+    // une valeur non reconnue par l'application), et inversement.
+    let rating = rating.map(|value| value.clamp(0, 5));
+    let label = match color_flag.as_deref() {
+        Some(flag) => Some(exif::label_for_color_flag(flag)?),
+        None => None,
+    };
+    if rating.is_none() && label.is_none() { return Ok(()); }
+    exif::write_xmp_metadata(&path, rating, label).map_err(|e| e.to_string())?;
     let conn = state.db_pool.get().unwrap();
-    conn.execute(
-        "UPDATE photos SET rating = ?, color_flag = ? WHERE id = ?",
-        params![rating, color_flag, id],
-    ).map_err(|e| e.to_string())?;
+    if let Some(rating) = rating {
+        conn.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|e| e.to_string())?;
+    }
+    if let Some(flag) = color_flag {
+        conn.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(&flag), id]).map_err(|e| e.to_string())?;
+    }
 
     Ok(())
 }

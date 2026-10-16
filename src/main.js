@@ -41,12 +41,27 @@ let folderTreePhotos = [];
 let currentFolderFilter = null;
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
 let keywordFilters = [];
+let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
 let isFullscreen = false;
 let fullscreenRatingPinned = false;
 let fullscreenRatingTimeout = null;
 const fullscreenImageCache = new Map();
+
+// COULEURS (XMP Label) : clé stockée en base, libellé affiché. La couleur visuelle est dans le CSS (.flag-<clé>).
+const COLOR_FLAGS = [
+  { key: 'red', label: 'Rouge' },
+  { key: 'orange', label: 'Orange' },
+  { key: 'yellow', label: 'Jaune' },
+  { key: 'green', label: 'Vert' },
+  { key: 'blue', label: 'Bleu' },
+  { key: 'magenta', label: 'Magenta' },
+  { key: 'grey', label: 'Gris' },
+  { key: 'black', label: 'Noir' },
+  { key: 'white', label: 'Blanc' },
+];
+const colorFlagLabels = new Map(COLOR_FLAGS.map(flag => [flag.key, flag.label]));
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
 const DEFAULT_SELECTION_COLOR = '#3498db';
@@ -182,6 +197,7 @@ function applyPhotoFilters() {
   renderedThumbnailNodes.clear();
   photos = loadedPhotos.filter(photo => (ratingThreshold < 0 || photo.rating > ratingThreshold)
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
+    && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && matchesDateFilter(photo));
   selectedIndices.clear();
   lastSelectedIndex = 0;
@@ -560,6 +576,7 @@ function handleSelection(index, event) {
 function updateUIOnSelection() {
   renderVisibleItems(); 
   updateRatingAction();
+  updateColorAction();
   renderPreview();
   if (selectedIndices.size > 0 && photos[lastSelectedIndex]) {
     const photo = photos[lastSelectedIndex];
@@ -581,6 +598,7 @@ function updateUIOnSelection() {
     showPhotoDimensions(photo);
     document.getElementById('exif-size').textContent = `${(photo.file_size / 1024 / 1024).toFixed(2)} MB`;
     document.getElementById('exif-rating').textContent = photo.rating > 0 ? `${'★'.repeat(photo.rating)} (${photo.rating}/5)` : '-';
+    document.getElementById('exif-color').textContent = colorFlagLabels.get(photo.color_flag) || '-';
     document.getElementById('exif-keywords').textContent = decodeHtmlEntities(photo.keywords) || '-';
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
   }
@@ -648,6 +666,62 @@ function showWriteToast(message, isWriting = false) {
   if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), 3500);
 }
 
+// Carré de couleur cliquable, utilisé par la barre de filtre et par la barre d'écriture.
+function createColorSquare(flag) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `color-square flag-${flag.key}`;
+  button.dataset.flag = flag.key;
+  button.title = flag.label;
+  button.setAttribute('aria-label', flag.label);
+  button.setAttribute('aria-pressed', 'false');
+  return button;
+}
+
+function setColorSquareChecked(button, checked) {
+  button.classList.toggle('checked', checked);
+  button.setAttribute('aria-pressed', String(checked));
+}
+
+// Barre d'écriture : met en évidence la couleur de la photo de référence de la sélection (une seule couleur possible).
+function updateColorAction() {
+  if (selectedIndices.size === 0) return;
+  const selectedPhoto = photos[selectedIndices.has(lastSelectedIndex) ? lastSelectedIndex : selectedIndices.values().next().value];
+  const flag = selectedPhoto?.color_flag || 'none';
+  document.querySelectorAll('#selection-color-flags button').forEach(button => setColorSquareChecked(button, button.dataset.flag === flag));
+  const count = selectedIndices.size;
+  document.getElementById('selection-color-caption').textContent = count > 1
+    ? `${count} photos sélectionnées · appliquer à toutes`
+    : (colorFlagLabels.has(flag) ? `Couleur actuelle : ${colorFlagLabels.get(flag)}` : 'Cliquez pour attribuer une couleur');
+}
+
+async function setSelectionColorFlag(flag) {
+  const targets = [...selectedIndices].map(index => photos[index]).filter(Boolean);
+  if (!targets.length) return;
+  // Comme pour la note : si toutes les photos sélectionnées ont déjà cette couleur, on l'efface.
+  const finalFlag = targets.every(photo => (photo.color_flag || 'none') === flag) ? 'none' : flag;
+  const plural = targets.length > 1 ? 's' : '';
+  showWriteToast(finalFlag === 'none'
+    ? `Suppression de la couleur pour ${targets.length} fichier${plural}…`
+    : `Écriture en cours pour ${targets.length} fichier${plural} (couleur : ${colorFlagLabels.get(finalFlag)})…`, true);
+  // Seule la couleur est envoyée : la note de chaque fichier n'est pas réécrite.
+  const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
+    id: photo.id,
+    path: photo.path,
+    colorFlag: finalFlag,
+  })));
+  const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
+  const failures = results.filter(result => result.status === 'rejected');
+  for (const photo of successful) photo.color_flag = finalFlag;
+  updateUIOnSelection();
+  const successPlural = successful.length > 1 ? 's' : '';
+  const successMessage = finalFlag === 'none'
+    ? `Couleur supprimée pour ${successful.length} fichier${successPlural}`
+    : `${successful.length} fichier${successPlural} modifié${successPlural}`;
+  showWriteToast(`${successMessage}${failures.length ? ` · ${failures.length} échec${failures.length > 1 ? 's' : ''}` : ''}`);
+  if (failures.length) document.getElementById('selection-color-caption').textContent = `Échec d'écriture : ${failures[0].reason}`;
+}
+
 async function setSelectionRating(rating) {
   const targets = [...selectedIndices].map(index => photos[index]).filter(Boolean);
   if (!targets.length) return;
@@ -661,7 +735,6 @@ async function setSelectionRating(rating) {
       id: photo.id,
       path: photo.path,
       rating: finalRating,
-      colorFlag: photo.color_flag || 'none',
   })));
   const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
   const failures = results.filter(result => result.status === 'rejected');
@@ -880,6 +953,26 @@ document.getElementById('btn-toggle-exif').addEventListener('click', event => {
 });
 
 document.getElementById('rating-filter').addEventListener('change', applyPhotoFilters);
+
+// Filtre par couleur : plusieurs carrés peuvent être cochés (une photo est affichée si elle a l'une des couleurs cochées).
+const colorFilterBar = document.getElementById('color-filter-bar');
+colorFilterBar.replaceChildren(...COLOR_FLAGS.map(createColorSquare));
+colorFilterBar.addEventListener('click', event => {
+  const button = event.target instanceof Element ? event.target.closest('.color-square') : null;
+  if (!button) return;
+  const key = button.dataset.flag;
+  if (colorFilters.has(key)) colorFilters.delete(key); else colorFilters.add(key);
+  setColorSquareChecked(button, colorFilters.has(key));
+  applyPhotoFilters();
+});
+
+// Écriture de la couleur sur la sélection : une seule couleur, un nouveau clic sur la couleur active l'efface.
+const selectionColorBar = document.getElementById('selection-color-flags');
+selectionColorBar.replaceChildren(...COLOR_FLAGS.map(createColorSquare));
+selectionColorBar.addEventListener('click', event => {
+  const button = event.target instanceof Element ? event.target.closest('.color-square') : null;
+  if (button) setSelectionColorFlag(button.dataset.flag);
+});
 document.getElementById('keyword-filter-input').addEventListener('change', event => addKeywordFilter(event.target.value));
 document.getElementById('keyword-filter-input').addEventListener('keydown', event => {
   if (event.key === 'Enter') { event.preventDefault(); addKeywordFilter(event.target.value); }

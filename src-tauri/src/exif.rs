@@ -160,27 +160,63 @@ fn parse_xmp(path: &Path) -> (i32, String, String) {
         if let Some(parent) = path.parent() { sources.push(parent.join(stem).with_extension("xmp")); }
     }
     let mut rating = None;
+    let mut color_flag: Option<String> = None;
     let mut keywords = Vec::new();
     // The image itself is the source of truth when it contains an XMP packet.
     if let Some(embedded) = read_embedded_jpeg_xmp(path) {
-        let (found_rating, found_keywords) = parse_xmp_text(&embedded);
+        let (found_rating, found_color, found_keywords) = parse_xmp_text(&embedded);
         rating = found_rating;
+        color_flag = found_color;
         keywords = found_keywords;
     }
     for source in sources {
-        if rating.is_some() && !keywords.is_empty() { break; }
+        if rating.is_some() && color_flag.is_some() && !keywords.is_empty() { break; }
         if let Ok(text) = fs::read_to_string(source) {
-            let (found_rating, found_keywords) = parse_xmp_text(&text);
+            let (found_rating, found_color, found_keywords) = parse_xmp_text(&text);
             if rating.is_none() { rating = found_rating; }
+            if color_flag.is_none() { color_flag = found_color; }
             if keywords.is_empty() { keywords = found_keywords; }
         }
     }
-    (rating.unwrap_or(0).clamp(0, 5), "none".to_string(), keywords.join(", "))
+    (rating.unwrap_or(0).clamp(0, 5), color_flag.unwrap_or_else(|| "none".to_string()), keywords.join(", "))
 }
 
-fn parse_xmp_text(xml: &str) -> (Option<i32>, Vec<String>) {
+/// Couleur (clé stockée en base) -> valeur écrite dans xmp:Label.
+const COLOR_LABELS: [(&str, &str); 9] = [
+    ("red", "Red"), ("orange", "Orange"), ("yellow", "Yellow"), ("green", "Green"), ("blue", "Blue"),
+    ("magenta", "Magenta"), ("grey", "Grey"), ("black", "Black"), ("white", "White"),
+];
+
+/// Convertit une valeur xmp:Label en clé de couleur (« none » si vide ou non reconnue, ex. « Approved »).
+/// Lecture tolérante : insensible à la casse, « Gray » = « Grey », « Purple » (Lightroom) = « magenta ».
+pub fn normalize_color_flag(label: &str) -> &'static str {
+    match xml_unescape(label).trim().to_ascii_lowercase().as_str() {
+        "red" => "red",
+        "orange" => "orange",
+        "yellow" => "yellow",
+        "green" => "green",
+        "blue" => "blue",
+        "magenta" | "purple" => "magenta",
+        "grey" | "gray" => "grey",
+        "black" => "black",
+        "white" => "white",
+        _ => "none",
+    }
+}
+
+/// Valeur à écrire dans xmp:Label pour une couleur : `Ok(None)` pour « none » (le label est retiré).
+pub fn label_for_color_flag(flag: &str) -> Result<Option<&'static str>, String> {
+    let normalized = normalize_color_flag(flag);
+    if normalized == "none" {
+        return if matches!(flag.trim().to_ascii_lowercase().as_str(), "" | "none") { Ok(None) } else { Err(format!("Couleur inconnue : {flag}")) };
+    }
+    Ok(COLOR_LABELS.iter().find(|(key, _)| *key == normalized).map(|(_, label)| *label))
+}
+
+fn parse_xmp_text(xml: &str) -> (Option<i32>, Option<String>, Vec<String>) {
     let rating = xmp_value(xml, &["xmp:Rating", "Rating"])
         .and_then(|v| v.parse::<i32>().ok());
+    let color_flag = xmp_value(xml, &["xmp:Label"]).map(|value| normalize_color_flag(&value).to_string());
     let mut keywords = Vec::new();
     if let Some(start) = xml.find("<dc:subject") {
         if let Some(open_end) = xml[start..].find('>') {
@@ -199,7 +235,7 @@ fn parse_xmp_text(xml: &str) -> (Option<i32>, Vec<String>) {
             }
         }
     }
-    (rating, keywords)
+    (rating, color_flag, keywords)
 }
 
 fn xml_unescape(text: &str) -> String {
@@ -370,13 +406,123 @@ fn update_xmp_rating(xml: &str, rating: i32) -> String {
     } else { updated }
 }
 
-/// Writes xmp:Rating into JPEG APP1 XMP, preserving the rest of the JPEG and its metadata.
+const EMPTY_XMP_PACKET: &str = "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>";
+
+/// Écrit (`Some`) ou retire (`None`) xmp:Label, que le paquet l'exprime en élément ou en attribut,
+/// sans toucher au reste du paquet XMP.
+fn update_xmp_label(xml: &str, label: Option<&str>) -> String {
+    let mut updated = xml.to_string();
+    let name = "xmp:Label";
+    let opening = format!("<{name}");
+    let closing = format!("</{name}>");
+    let mut placed = false;
+
+    // Forme élément : <xmp:Label>Red</xmp:Label> (ou <xmp:Label/>). Les doublons sont supprimés.
+    let mut search_from = 0;
+    while let Some(relative) = updated[search_from..].find(&opening) {
+        let start = search_from + relative;
+        let after = start + opening.len();
+        let boundary_ok = updated.as_bytes().get(after).is_some_and(|b| *b == b'>' || *b == b'/' || b.is_ascii_whitespace());
+        if !boundary_ok { search_from = after; continue; }
+        let Some(open_end_relative) = updated[start..].find('>') else { break; };
+        let open_end = start + open_end_relative;
+        if updated.as_bytes()[open_end - 1] == b'/' {
+            match (label, placed) {
+                (Some(value), false) => {
+                    let element = format!("<{name}>{value}</{name}>");
+                    updated.replace_range(start..open_end + 1, &element);
+                    placed = true;
+                    search_from = start + element.len();
+                }
+                _ => { updated.replace_range(start..open_end + 1, ""); search_from = start; }
+            }
+            continue;
+        }
+        let content_start = open_end + 1;
+        let Some(close_relative) = updated[content_start..].find(&closing) else { break; };
+        let content_end = content_start + close_relative;
+        match (label, placed) {
+            (Some(value), false) => {
+                updated.replace_range(content_start..content_end, value);
+                placed = true;
+                search_from = content_start + value.len() + closing.len();
+            }
+            _ => { updated.replace_range(start..content_end + closing.len(), ""); search_from = start; }
+        }
+    }
+
+    // Forme attribut : xmp:Label="Red"
+    let mut search_from = 0;
+    while let Some(relative) = updated[search_from..].find(name) {
+        let start = search_from + relative;
+        let name_end = start + name.len();
+        let found = {
+            let bytes = updated.as_bytes();
+            let mut pos = name_end;
+            while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
+            let mut result = None;
+            if start > 0 && bytes[start - 1].is_ascii_whitespace() && bytes.get(pos) == Some(&b'=') {
+                pos += 1;
+                while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
+                if let Some(quote @ (b'"' | b'\'')) = bytes.get(pos).copied() {
+                    let value_start = pos + 1;
+                    if let Some(end_relative) = bytes[value_start..].iter().position(|b| *b == quote) {
+                        let mut attribute_start = start;
+                        while attribute_start > 0 && bytes[attribute_start - 1].is_ascii_whitespace() { attribute_start -= 1; }
+                        result = Some((attribute_start, value_start, value_start + end_relative));
+                    }
+                }
+            }
+            result
+        };
+        let Some((attribute_start, value_start, value_end)) = found else { search_from = name_end; continue; };
+        match (label, placed) {
+            (Some(value), false) => {
+                updated.replace_range(value_start..value_end, value);
+                placed = true;
+                search_from = value_start + value.len();
+            }
+            _ => { updated.replace_range(attribute_start..value_end + 1, ""); search_from = attribute_start; }
+        }
+    }
+
+    // Absent : ajout en attribut du premier rdf:Description.
+    if let (Some(value), false) = (label, placed) {
+        if let Some(description) = updated.find("<rdf:Description") {
+            if let Some(open_end_relative) = updated[description..].find('>') {
+                let mut insert_at = description + open_end_relative;
+                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
+                let namespace = if updated[..insert_at].contains("xmlns:xmp=") { "" } else { " xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"" };
+                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{value}\""));
+            }
+        }
+    }
+    updated
+}
+
+/// Applique uniquement ce qui est demandé : `rating` (`None` = note inchangée) et `label`
+/// (`None` = label inchangé, `Some(None)` = label retiré, `Some(Some(v))` = label écrit).
+fn update_xmp_metadata(xml: &str, rating: Option<i32>, label: Option<Option<&str>>) -> String {
+    let mut updated = xml.to_string();
+    if let Some(rating) = rating { updated = update_xmp_rating(&updated, rating); }
+    if let Some(label) = label {
+        if !updated.contains("rdf:Description") {
+            if label.is_none() { return updated; }
+            updated = EMPTY_XMP_PACKET.to_string();
+        }
+        updated = update_xmp_label(&updated, label);
+    }
+    updated
+}
+
+/// Writes xmp:Rating and/or xmp:Label into JPEG APP1 XMP, preserving the rest of the JPEG and its metadata.
+/// Only the provided values are modified (see `update_xmp_metadata`).
 /// Other image formats continue to use a sidecar because they have different container layouts.
-pub fn write_rating_metadata(image_path: &str, rating: i32) -> std::io::Result<()> {
+pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
     let path = Path::new(image_path);
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     if extension != "jpg" && extension != "jpeg" {
-        return write_xmp_sidecar(path, rating);
+        return write_xmp_sidecar(path, rating, label);
     }
 
     let data = fs::read(path)?;
@@ -386,7 +532,7 @@ pub fn write_rating_metadata(image_path: &str, rating: i32) -> std::io::Result<(
     let packet = if let Some((segment_start, segment_end, packet_start)) = find_jpeg_xmp_segment(&data) {
         let packet = std::str::from_utf8(&data[packet_start..segment_end])
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Le paquet XMP JPEG n'est pas en UTF-8"))?;
-        let updated_packet = update_xmp_rating(packet, rating);
+        let updated_packet = update_xmp_metadata(packet, rating, label);
         let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + updated_packet.len());
         payload.extend_from_slice(JPEG_XMP_HEADER);
         payload.extend_from_slice(updated_packet.as_bytes());
@@ -403,7 +549,8 @@ pub fn write_rating_metadata(image_path: &str, rating: i32) -> std::io::Result<(
         output.extend_from_slice(&data[segment_end..]);
         output
     } else {
-        let packet = update_xmp_rating("", rating);
+        let packet = update_xmp_metadata("", rating, label);
+        if packet.is_empty() { return Ok(()); } // rien à retirer d'un fichier sans XMP
         let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + packet.len());
         payload.extend_from_slice(JPEG_XMP_HEADER);
         payload.extend_from_slice(packet.as_bytes());
@@ -429,7 +576,7 @@ pub fn write_rating_metadata(image_path: &str, rating: i32) -> std::io::Result<(
     Ok(())
 }
 
-fn write_xmp_sidecar(image_path: &Path, rating: i32) -> std::io::Result<()> {
+fn write_xmp_sidecar(image_path: &Path, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
     let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
     let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
     let sidecar = if appended.exists() { appended }
@@ -440,5 +587,7 @@ fn write_xmp_sidecar(image_path: &Path, rating: i32) -> std::io::Result<()> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error),
     };
-    fs::write(sidecar, update_xmp_rating(&xml, rating))
+    let updated = update_xmp_metadata(&xml, rating, label);
+    if updated.is_empty() { return Ok(()); } // rien à retirer d'un sidecar inexistant
+    fs::write(sidecar, updated)
 }

@@ -50,6 +50,8 @@
             <option value="2">≥ 3 étoiles</option><option value="3">≥ 4 étoiles</option>
             <option value="4">5 étoiles</option>
           </select>
+          <span id="color-filter-label" class="color-filter-label">Couleur</span>
+          <div id="color-filter-bar" class="color-bar" role="group" aria-labelledby="color-filter-label"></div>
           <label for="keyword-filter-input" class="keyword-filter-label">Mots-clés (&)</label>
           <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" autocomplete="off" />
           <datalist id="keyword-options"></datalist>
@@ -68,7 +70,8 @@
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
         </section>
         <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection">
-          <h3>Note de la sélection</h3>
+          <h3>Sélection/Modification</h3>
+          <h4>Note</h4>
           <div id="selection-rating-stars" class="selection-rating-stars" role="group" aria-label="Attribuer une note de 1 à 5">
             <button type="button" data-rating="1" aria-label="Attribuer 1 étoile">★</button>
             <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles">★</button>
@@ -77,6 +80,9 @@
             <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles">★</button>
           </div>
           <span id="selection-rating-caption">Cliquez pour noter</span>
+          <h4 class="selection-color-title">Couleur</h4>
+          <div id="selection-color-flags" class="color-bar" role="group" aria-label="Attribuer une couleur"></div>
+          <span id="selection-color-caption">Cliquez pour attribuer une couleur</span>
         </section>
       </aside>
 
@@ -110,6 +116,7 @@
           <li><strong>Dimensions :</strong> <span id="exif-dim">-</span></li>
           <li><strong>Poids :</strong> <span id="exif-size">-</span></li>
           <li><strong>Note :</strong> <span id="exif-rating">-</span></li>
+          <li><strong>Couleur :</strong> <span id="exif-color">-</span></li>
           <li><strong>Mots-clés :</strong> <span id="exif-keywords">-</span></li>
           <li><strong>Description :</strong> <span id="exif-caption">-</span></li>
         </ul>
