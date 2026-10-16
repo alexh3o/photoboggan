@@ -4,6 +4,8 @@
   --text-light: #e0e0e0;
   --accent: #3498db;
   --selected-border: #3498db;
+  --active-button: #3498db;
+  --active-button-text: #fff;
   --item-size: 160px;
   color-scheme: dark;
   --border: #333;
@@ -70,15 +72,15 @@ body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif
 .settings-check { justify-content: flex-start; gap: 8px; margin: 4px 0 12px; cursor: pointer; }
 .settings-check input { accent-color: var(--accent); }
 .accent-picker { display: flex; align-items: center; gap: 8px; }
-.accent-swatch { width: 1.4rem; height: 1.4rem; padding: 0; border-radius: 50%; }
-.accent-swatch.active { outline: 2px solid var(--btn-text); outline-offset: 2px; }
+.accent-swatch, .button-swatch { width: 1.4rem; height: 1.4rem; padding: 0; border-radius: 50%; }
+.accent-swatch.active, .button-swatch.active { outline: 2px solid var(--btn-text); outline-offset: 2px; }
 .accent-picker input[type="color"] { width: 30px; height: 26px; padding: 0; border: 1px solid var(--control-border); border-radius: 4px; background: transparent; cursor: pointer; }
 .thumbnail-size-control { display: flex; gap: 7px; align-items: center; color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; }
 .thumbnail-size-control input { width: 8rem; accent-color: var(--accent); }
 .thumbnail-size-control span { min-width: 3rem; color: var(--text-strong); font-variant-numeric: tabular-nums; }
 button { background: var(--control-bg); color: var(--btn-text); border: 1px solid var(--control-border); padding: 6px 0.875rem; cursor: pointer; border-radius: 4px; font-size: 0.8rem; }
 button:hover { background: var(--control-hover); }
-button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.active { background: var(--active-button); border-color: var(--active-button); color: var(--active-button-text); }
 .btn-highlight { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; padding: 8px; font-weight: bold; margin-bottom: 12px; }
 
 .main-content { display: flex; flex: 1; overflow: hidden; }
@@ -220,6 +222,17 @@ button.active { background: var(--accent); border-color: var(--accent); color: #
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border); }
 .close-x { background: transparent; border: none; font-size: 1.25rem; color: var(--text-faint); cursor: pointer; }
 .close-x:hover { color: var(--btn-text); background: transparent; }
+.modal-header-actions { display: flex; align-items: center; gap: 4px; }
+.modal-header-actions .close-x { display: inline-flex; align-items: center; padding: 4px 8px; }
+
+/* MODALE À PROPOS */
+.about-card { width: min(380px, calc(100vw - 40px)); }
+.about-body { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px 16px; text-align: center; }
+.about-logo { width: 128px; height: 128px; margin-bottom: 8px; object-fit: contain; }
+.about-name { font-size: 1.25rem; font-weight: bold; color: var(--text-strong); }
+.about-version { color: var(--text-muted); font-size: 0.85rem; }
+.about-link { margin-top: 6px; color: var(--accent); font-size: 0.85rem; text-decoration: underline; cursor: pointer; }
+.about-link:hover { filter: brightness(1.2); }
 .modal-body { padding: 16px; max-height: 70vh; overflow-y: auto; }
 #settings-folder-list { list-style: none; }
 .settings-folder-item { display: flex; justify-content: space-between; align-items: center; background: var(--row-bg); padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75rem; }
