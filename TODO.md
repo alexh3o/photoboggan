@@ -16,6 +16,7 @@
 - [x] UI: Colour "Filtres"" button for homogeneity
 - [x] UI: add MP size
 - [x] About modal
+- [ ] Intercepter menu bouton droit
 
 ## 💡 Ideas and longer term evolutions
 

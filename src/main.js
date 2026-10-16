@@ -121,29 +121,130 @@ function scheduleJustifiedRelayout() {
   }, 80);
 }
 
+// Marge de pré-rendu (en hauteurs de fenêtre de grille) de part et d'autre de la zone visible :
+// les miniatures en cache sont déjà chargées quand elles arrivent à l'écran.
+const THUMBNAIL_OVERSCAN_SCREENS = 1;
+
+// Recherche dans le cache par lots : toutes les demandes d'un même rendu partent dans le même appel IPC.
+const THUMBNAIL_LOOKUP_BATCH_SIZE = 128;
+const pendingThumbnailLookups = new Map();
+let thumbnailLookupFlushScheduled = false;
+
+function lookupCachedThumbnail(sourcePath) {
+  let lookup = thumbnailCacheLookups.get(sourcePath);
+  if (lookup) return lookup;
+  lookup = new Promise(resolve => pendingThumbnailLookups.set(sourcePath, resolve));
+  thumbnailCacheLookups.set(sourcePath, lookup);
+  if (!thumbnailLookupFlushScheduled) {
+    thumbnailLookupFlushScheduled = true;
+    setTimeout(flushThumbnailLookups, 0);
+  }
+  return lookup;
+}
+
+function flushThumbnailLookups() {
+  thumbnailLookupFlushScheduled = false;
+  const pending = [...pendingThumbnailLookups];
+  pendingThumbnailLookups.clear();
+  for (let start = 0; start < pending.length; start += THUMBNAIL_LOOKUP_BATCH_SIZE) {
+    const batch = pending.slice(start, start + THUMBNAIL_LOOKUP_BATCH_SIZE);
+    invoke('get_cached_thumbnail_paths', { sourcePaths: batch.map(([sourcePath]) => sourcePath) })
+      .catch(() => [])
+      .then(paths => batch.forEach(([, resolve], index) => resolve(paths[index] ?? null)));
+  }
+}
+
+// Génération des miniatures absentes du cache : elle décode l'image originale en pleine résolution,
+// donc le nombre de tâches simultanées est limité pour garder l'interface fluide. Les tâches dont la miniature
+// a quitté le DOM (défilement rapide) sont abandonnées tant qu'elles n'ont pas démarré, et la plus proche
+// de la zone visible passe en premier.
+const MAX_THUMBNAIL_GENERATIONS = Math.max(2, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+let thumbnailGenerationQueue = [];
+let activeThumbnailGenerations = 0;
+let thumbnailPumpScheduled = false;
+
+function takeNextThumbnailGeneration() {
+  thumbnailGenerationQueue = thumbnailGenerationQueue.filter(job => job.image.isConnected && job.image.dataset.sourcePath === job.sourcePath);
+  const viewTop = gridContainer.scrollTop;
+  const viewBottom = viewTop + gridContainer.clientHeight;
+  let best = -1;
+  let bestDistance = Infinity;
+  let bestTop = Infinity;
+  thumbnailGenerationQueue.forEach((job, position) => {
+    const node = job.image.closest('.thumbnail');
+    const top = node?._y ?? 0;
+    const bottom = top + (node?._height ?? 0);
+    const distance = bottom < viewTop ? viewTop - bottom : top > viewBottom ? top - viewBottom : 0;
+    if (distance < bestDistance || (distance === bestDistance && top < bestTop)) {
+      best = position;
+      bestDistance = distance;
+      bestTop = top;
+    }
+  });
+  return best < 0 ? null : thumbnailGenerationQueue.splice(best, 1)[0];
+}
+
+function pumpThumbnailGenerationQueue() {
+  thumbnailPumpScheduled = false;
+  while (activeThumbnailGenerations < MAX_THUMBNAIL_GENERATIONS) {
+    const job = takeNextThumbnailGeneration();
+    if (!job) return;
+    activeThumbnailGenerations++;
+    job.run().catch(() => {}).finally(() => {
+      activeThumbnailGenerations--;
+      pumpThumbnailGenerationQueue();
+    });
+  }
+}
+
+function enqueueThumbnailGeneration(image, sourcePath, run) {
+  thumbnailGenerationQueue.push({ image, sourcePath, run });
+  // Le démarrage est différé d'un tour de boucle pour choisir parmi toutes les demandes d'un même rendu.
+  if (!thumbnailPumpScheduled) {
+    thumbnailPumpScheduled = true;
+    setTimeout(pumpThumbnailGenerationQueue, 0);
+  }
+}
+
+// Apprend le ratio réel depuis l'image chargée (dimensions EXIF absentes en base) et relance la disposition justifiée.
+function updatePhotoAspectRatio(image, photo) {
+  if (!(image.naturalWidth > 0 && image.naturalHeight > 0)) return;
+  const ratio = image.naturalWidth / image.naturalHeight;
+  const previousRatio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 0);
+  if (Math.abs(previousRatio - ratio) > 0.001) {
+    photo.aspectRatio = ratio;
+    scheduleJustifiedRelayout();
+  }
+}
+
 function loadThumbnail(image, sourcePath, photo) {
   image.dataset.sourcePath = sourcePath;
-  let lookup = thumbnailCacheLookups.get(sourcePath);
-  if (!lookup) {
-    lookup = invoke('get_cached_thumbnail_path', { sourcePath }).catch(() => null);
-    thumbnailCacheLookups.set(sourcePath, lookup);
-  }
-  lookup.then(cachedPath => {
+  lookupCachedThumbnail(sourcePath).then(cachedPath => {
     if (!image.isConnected) return;
-    const cachedUrl = cachedPath ? convertFileSrc(cachedPath) : null;
-    image.onload = () => {
-      if (!image.isConnected) return;
-      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-        const ratio = image.naturalWidth / image.naturalHeight;
-        const previousRatio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 0);
-        if (Math.abs(previousRatio - ratio) > 0.001) {
-          photo.aspectRatio = ratio;
-          scheduleJustifiedRelayout();
-        }
-      }
-      if (!cachedUrl) cacheThumbnail(image, sourcePath);
-    };
-    image.src = cachedUrl || convertFileSrc(sourcePath);
+    if (cachedPath) {
+      image.onload = () => {
+        if (!image.isConnected) return;
+        image.classList.add('loaded');
+        updatePhotoAspectRatio(image, photo);
+      };
+      image.src = convertFileSrc(cachedPath);
+      return;
+    }
+    // Pas de miniature en cache : l'original est chargé quand une place se libère dans la file de génération.
+    enqueueThumbnailGeneration(image, sourcePath, async () => {
+      const loaded = new Promise(resolve => {
+        image.onload = () => resolve(true);
+        image.onerror = () => resolve(false);
+      });
+      image.src = convertFileSrc(sourcePath);
+      const success = await loaded;
+      image.onload = null;
+      image.onerror = null;
+      if (!success) return;
+      image.classList.add('loaded');
+      updatePhotoAspectRatio(image, photo);
+      await cacheThumbnail(image, sourcePath);
+    });
   });
 }
 
@@ -409,8 +510,9 @@ function updateVirtualScroller() {
 
 function renderVisibleItems() {
   const scrollTop = gridContainer.scrollTop;
-  const top = Math.max(0, scrollTop - maximumPhotoHeight);
-  const bottom = scrollTop + gridContainer.clientHeight + thumbnailSize;
+  const overscan = Math.round(gridContainer.clientHeight * THUMBNAIL_OVERSCAN_SCREENS);
+  const top = Math.max(0, scrollTop - overscan - maximumPhotoHeight);
+  const bottom = scrollTop + gridContainer.clientHeight + overscan;
   let low = 0, high = photoLayouts.length;
   while (low < high) {
     const middle = (low + high) >> 1;
@@ -432,7 +534,6 @@ function renderVisibleItems() {
       const thumbnailImage = document.createElement('img');
       thumbnailImage.alt = '';
       thumbnailImage.draggable = false;
-      thumbnailImage.loading = 'lazy';
       thumbnailImage.decoding = 'async';
       loadThumbnail(thumbnailImage, photo.path, photo);
       const overlay = document.createElement('div'); overlay.className = 'meta-overlay';
@@ -448,6 +549,7 @@ function renderVisibleItems() {
     }
     const transform = `translate3d(${layout.x}px, ${layout.y}px, 0)`;
     if (div._transform !== transform) { div.style.transform = transform; div._transform = transform; }
+    div._y = layout.y; // utilisé pour prioriser la génération des miniatures proches de la zone visible
     if (div._width !== layout.width) { div.style.width = `${layout.width}px`; div._width = layout.width; }
     if (div._height !== layout.height) { div.style.height = `${layout.height}px`; div._height = layout.height; }
     const padding = thumbnailLayout === 'justified' ? '0' : '4px';
@@ -856,14 +958,7 @@ function closeAbout() {
 }
 document.getElementById('btn-open-about').addEventListener('click', openAbout);
 document.getElementById('btn-close-about').addEventListener('click', closeAbout);
-//document.getElementById('about-github-link').addEventListener('click', async event => {
-//  event.preventDefault();
-//  try {
-//    await invoke('open_project_page');
-//  } catch (error) {
-//    showWriteToast(`Impossible d'ouvrir le lien : ${error}`);
-//  }
-//});
+
 document.getElementById('about-github-link').addEventListener('click', async (e) => {
     e.preventDefault();
     try {
