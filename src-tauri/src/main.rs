@@ -232,6 +232,7 @@ fn main() {
     let db_pool = db::init_db(db_path);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState { db_pool })
         .invoke_handler(tauri::generate_handler![

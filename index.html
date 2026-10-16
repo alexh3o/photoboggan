@@ -20,7 +20,7 @@
   <div id="app">
     <header class="top-bar">
       <div class="panel-toggles">
-        <button id="btn-toggle-sidebar"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> Filtres</button>
+        <button id="btn-toggle-sidebar" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> Filtres</button>
       </div>
       <div class="actions">
         <button id="btn-open-settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg> Paramètres</button>
@@ -143,7 +143,10 @@
       <div class="modal-card">
         <div class="modal-header">
           <h3>Paramètres</h3>
-          <button id="btn-close-settings" class="close-x">&times;</button>
+          <div class="modal-header-actions">
+            <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de Photofile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-help preview-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+            <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
+          </div>
         </div>
         <div class="modal-body">
           <section class="settings-section">
@@ -170,10 +173,37 @@
                 <input id="accent-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée" />
               </span>
             </div>
+            <div class="settings-row">Couleur des boutons actifs
+              <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs">
+                <button type="button" class="button-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu"></button>
+                <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge"></button>
+                <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange"></button>
+                <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune"></button>
+                <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert"></button>
+                <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet"></button>
+                <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose"></button>
+                <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" />
+              </span>
+            </div>
             <label class="settings-row" for="theme-select">Thème
               <select id="theme-select"><option value="dark">Sombre</option><option value="light">Clair</option></select>
             </label>
           </section>
+        </div>
+      </div>
+    </div>
+    <!-- Modale À propos -->
+    <div id="about-modal" class="modal hidden">
+      <div class="modal-card about-card">
+        <div class="modal-header">
+          <h3>À propos</h3>
+          <button id="btn-close-about" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
+        </div>
+        <div class="modal-body about-body">
+          <img class="about-logo" src="/src-tauri/icons/128x128@2x.png" alt="Logo Photofile" />
+          <div class="about-name">Photofile</div>
+          <div class="about-version">Version <span id="about-version">-</span></div>
+          <a id="about-github-link" class="about-link" href="https://github.com/alexh3o/photofile" title="Ouvrir le dépôt GitHub">github.com/alexh3o/photofile</a>
         </div>
       </div>
     </div>

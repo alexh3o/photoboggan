@@ -2,6 +2,8 @@ import './styles.css';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getVersion } from '@tauri-apps/api/app';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -68,9 +70,22 @@ const DEFAULT_SELECTION_COLOR = '#3498db';
 let appTheme = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark';
 const storedSelectionColor = localStorage.getItem('selectionColor') || '';
 let selectionColor = /^#[0-9a-f]{6}$/i.test(storedSelectionColor) ? storedSelectionColor : DEFAULT_SELECTION_COLOR;
+// Couleur des boutons activés (Filtres, Comparer, Aperçu, Info), distincte de la couleur de sélection des miniatures.
+const DEFAULT_ACTIVE_BUTTON_COLOR = '#3498db';
+const storedActiveButtonColor = localStorage.getItem('activeButtonColor') || '';
+let activeButtonColor = /^#[0-9a-f]{6}$/i.test(storedActiveButtonColor) ? storedActiveButtonColor : DEFAULT_ACTIVE_BUTTON_COLOR;
+// Texte noir sur les couleurs très claires (jaune…), blanc sinon, pour rester lisible sur le bouton activé.
+function readableTextColor(hex) {
+  const [r, g, b] = [1, 3, 5]
+    .map(start => parseInt(hex.slice(start, start + 2), 16) / 255)
+    .map(channel => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5 ? '#111' : '#fff';
+}
 function applyAppearance() {
   document.documentElement.dataset.theme = appTheme;
   document.documentElement.style.setProperty('--selected-border', selectionColor);
+  document.documentElement.style.setProperty('--active-button', activeButtonColor);
+  document.documentElement.style.setProperty('--active-button-text', readableTextColor(activeButtonColor));
 }
 applyAppearance();
 
@@ -821,6 +836,55 @@ document.getElementById('btn-close-settings').addEventListener('click', () => {
   settingsModal.classList.add('hidden');
 });
 
+// ==========================================
+// MODALE À PROPOS (ouverte depuis les Paramètres)
+// ==========================================
+const aboutModal = document.getElementById('about-modal');
+const aboutVersion = document.getElementById('about-version');
+async function openAbout() {
+  aboutModal.classList.remove('hidden');
+  if (aboutVersion.dataset.loaded) return;
+  try {
+    aboutVersion.textContent = await getVersion();
+    aboutVersion.dataset.loaded = 'true';
+  } catch (error) {
+    console.error('Version indisponible', error);
+  }
+}
+function closeAbout() {
+  aboutModal.classList.add('hidden');
+}
+document.getElementById('btn-open-about').addEventListener('click', openAbout);
+document.getElementById('btn-close-about').addEventListener('click', closeAbout);
+//document.getElementById('about-github-link').addEventListener('click', async event => {
+//  event.preventDefault();
+//  try {
+//    await invoke('open_project_page');
+//  } catch (error) {
+//    showWriteToast(`Impossible d'ouvrir le lien : ${error}`);
+//  }
+//});
+document.getElementById('about-github-link').addEventListener('click', async (e) => {
+    e.preventDefault();
+    try {
+        await openUrl('https://github.com/alexh3o/photofile');
+    } catch (err) {
+        console.error("Impossible d'ouvrir le lien :", err);
+    }
+});
+
+// ESC ferme la fenêtre la plus haute (À propos, puis Paramètres), même si un champ des paramètres a le focus.
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  if (!aboutModal.classList.contains('hidden')) {
+    event.preventDefault();
+    closeAbout();
+  } else if (!settingsModal.classList.contains('hidden')) {
+    event.preventDefault();
+    settingsModal.classList.add('hidden');
+  }
+});
+
 document.getElementById('btn-add-folder').addEventListener('click', async () => {
   const dir = await open({ directory: true });
   if (dir) {
@@ -834,8 +898,9 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 // ==========================================
 // BOUTONS VUES & SIDEBAR
 // ==========================================
-document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
-  sidebarPanel.classList.toggle('hidden');
+document.getElementById('btn-toggle-sidebar').addEventListener('click', event => {
+  const sidebarVisible = sidebarPanel.classList.toggle('hidden') === false;
+  event.currentTarget.classList.toggle('active', sidebarVisible);
   setTimeout(updateVirtualScroller, 300);
 });
 
@@ -855,10 +920,20 @@ document.getElementById('thumbnail-layout').addEventListener('change', event => 
 const themeSelect = document.getElementById('theme-select');
 const selectionColorInput = document.getElementById('accent-color');
 const selectionColorSwatches = document.querySelectorAll('.accent-swatch');
+const activeButtonColorInput = document.getElementById('active-button-color');
+const activeButtonColorSwatches = document.querySelectorAll('.button-swatch');
 function syncAppearanceControls() {
   themeSelect.value = appTheme;
   selectionColorInput.value = selectionColor;
   selectionColorSwatches.forEach(swatch => swatch.classList.toggle('active', swatch.dataset.color.toLowerCase() === selectionColor.toLowerCase()));
+  activeButtonColorInput.value = activeButtonColor;
+  activeButtonColorSwatches.forEach(swatch => swatch.classList.toggle('active', swatch.dataset.color.toLowerCase() === activeButtonColor.toLowerCase()));
+}
+function setActiveButtonColor(color) {
+  activeButtonColor = color;
+  localStorage.setItem('activeButtonColor', color);
+  applyAppearance();
+  syncAppearanceControls();
 }
 function setSelectionColor(color) {
   selectionColor = color;
@@ -873,6 +948,8 @@ themeSelect.addEventListener('change', event => {
 });
 selectionColorInput.addEventListener('input', event => setSelectionColor(event.target.value));
 selectionColorSwatches.forEach(swatch => swatch.addEventListener('click', () => setSelectionColor(swatch.dataset.color)));
+activeButtonColorInput.addEventListener('input', event => setActiveButtonColor(event.target.value));
+activeButtonColorSwatches.forEach(swatch => swatch.addEventListener('click', () => setActiveButtonColor(swatch.dataset.color)));
 syncAppearanceControls();
 const thumbnailSizeInput = document.getElementById('thumbnail-size');
 const thumbnailSizeValue = document.getElementById('thumbnail-size-value');
