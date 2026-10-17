@@ -165,5 +165,8 @@
   "{count} file copied": "{count} fichier copié",
   "{count} file copied|other": "{count} fichiers copiés",
   "Copy failed: {error}": "Échec de la copie : {error}",
-  "Open failed: {error}": "Échec de l'ouverture : {error}"
+  "Open failed: {error}": "Échec de l'ouverture : {error}",
+  "Thumbnail & Fullscreen": "Miniature & Plein écran",
+  "Information Sheet": "Fiche Information",
+  "i key": "Touche i"
 }

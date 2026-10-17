@@ -234,7 +234,7 @@ function renderMetadataSections(details) {
   });
 }
 
-async function showPhotoInfo(photo) {
+export async function showPhotoInfo(photo) {
   const modal = createModal({ title: `${t('Photo info')} · ${photoName(photo)}`, cardClass: 'info-card' });
   modal.body.classList.add('info-body');
   modal.body.tabIndex = -1;

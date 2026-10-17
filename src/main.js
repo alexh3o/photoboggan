@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo } from './photo-actions.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -924,13 +924,33 @@ async function setSelectionRating(rating) {
 // ==========================================
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-  if (e.key.toLowerCase() === 'n' && isFullscreen) {
+  // Show rating bar Shortcut
+  if (e.key.toLowerCase() === 'r' && isFullscreen) {
     fullscreenRatingPinned = !fullscreenRatingPinned;
     clearTimeout(fullscreenRatingTimeout);
     if (fullscreenRatingPinned) fullscreenRating.classList.remove('hidden');
     else fullscreenRating.classList.add('hidden');
     return;
   }
+  // Tentative modale info -ENCOURS-
+  if (e.key.toLowerCase() === 'i') {
+    console.log("Touche I pressée, photo active :", photos[lastSelectedIndex]);
+    // Si vous utilisez un index de dernière sélection (ex: lastSelectedIndex)
+    if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
+      showPhotoInfo(photos[lastSelectedIndex]);
+      return;
+    }
+
+    // OU si vous utilisez un Set d'indices sélectionnés (ex: selectedIndices)
+    if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
+      const firstIndex = Array.from(selectedIndices)[0];
+      if (photos[firstIndex]) {
+        showPhotoInfo(photos[firstIndex]);
+        return;
+      }
+    }
+  }
+  // Rating shortcuts
   if (/^[0-5]$/.test(e.key) && selectedIndices.size > 0) {
     e.preventDefault();
     setSelectionRating(Number(e.key));
