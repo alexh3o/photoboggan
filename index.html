@@ -23,7 +23,7 @@
         <button id="btn-toggle-sidebar" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> Filtres</button>
       </div>
       <div class="actions">
-        <button id="btn-open-settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
         <label class="thumbnail-size-control" for="thumbnail-size">Taille
           <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" />
           <span id="thumbnail-size-value">160 px</span>
@@ -107,15 +107,18 @@
           <li><strong>Fichier :</strong> <span id="exif-filename">-</span></li>
           <li><strong>Date de prise de vue:</strong> <span id="exif-date">-</span></li>
           <li>
-            <strong>Appareil :</strong> 
-            <span id="exif-manufacturer"></span> 
+            <strong class="exif-label" data-i18n="Manufacturer">Fabricant</strong> 
+            <span id="exif-manufacturer">-</span>
+          </li>
+          <li>
+            <strong class="exif-label" data-i18n="Model">Modèle</strong> 
             <span id="exif-model">-</span>
           </li>
-          <li><strong>Objectif :</strong> <span id="exif-lens">-</span></li>
-          <li><strong>Focale :</strong> <span id="exif-focal">-</span></li>
-          <li><strong>Ouverture :</strong> <span id="exif-aperture">-</span></li>
-          <li><strong>Vitesse :</strong> <span id="exif-shutter">-</span></li>
-          <li><strong>ISO :</strong> <span id="exif-iso">-</span></li>
+          <li><strong class="exif-label" data-i18n="Lens">Objectif</strong> <span id="exif-lens">-</span></li>
+          <li><strong class="exif-label" data-i18n="Focal Length">Focale</strong> <span id="exif-focal">-</span></li>
+          <li><strong class="exif-label" data-i18n="Aperture">Ouverture</strong> <span id="exif-aperture">-</span></li>
+          <li><strong class="exif-label" data-i18n="Shutter Speed">Vitesse</strong> <span id="exif-shutter">-</span></li>
+          <li><strong class="exif-label" data-i18n="ISO">ISO</strong> <span id="exif-iso">-</span></li>
           <li><strong>Dimensions :</strong> <span id="exif-dim">-</span></li>
           <li><strong>Poids :</strong> <span id="exif-size">-</span></li>
           <li><strong>Note :</strong> <span id="exif-rating">-</span></li>
@@ -142,10 +145,10 @@
     <div id="settings-modal" class="modal hidden">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>Paramètres</h3>
+          <h3 data-i18n="Settings">Paramètres</h3>
           <div class="modal-header-actions">
             <button id="btn-open-guide" class="close-x" title="Guide" aria-label="Guide et touches"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
-            <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de Photofile"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-help preview-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+            <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de Photofile" data-i18n-title="About" data-i18n-aria-label="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-help preview-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
             <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
           </div>
         </div>
@@ -159,6 +162,9 @@
           </section>
           <section class="settings-section">
             <h4>Affichage</h4>
+            <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
+              <select id="language-select"></select>
+            </label>
             <label class="settings-row" for="thumbnail-layout">Disposition des miniatures
               <select id="thumbnail-layout"><option value="square">Carrées</option><option value="justified">Justifiées</option><option value="masonry">Encadrées</option></select>
             </label>
@@ -197,13 +203,13 @@
     <div id="about-modal" class="modal hidden">
       <div class="modal-card about-card">
         <div class="modal-header">
-          <h3>À propos</h3>
+          <h3 data-i18n="About">À propos</h3>
           <button id="btn-close-about" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
         </div>
         <div class="modal-body about-body">
           <img class="about-logo" src="/src-tauri/icons/128x128@2x.png" alt="Logo Photofile" />
           <div class="about-name">Photofile</div>
-          <div class="about-version">Version <span id="about-version">-</span></div>
+          <div class="about-version"><span data-i18n="Version">Version</span> <span id="about-version">-</span></div>
           <a id="about-github-link" class="about-link" href="https://github.com/alexh3o/photofile" title="Ouvrir le dépôt GitHub">github.com/alexh3o/photofile</a>
         </div>
       </div>

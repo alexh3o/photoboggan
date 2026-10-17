@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { LANGUAGES, getLanguage, setLanguage, applyTranslations } from './i18n.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -1123,6 +1124,14 @@ selectionColorSwatches.forEach(swatch => swatch.addEventListener('click', () => 
 activeButtonColorInput.addEventListener('input', event => setActiveButtonColor(event.target.value));
 activeButtonColorSwatches.forEach(swatch => swatch.addEventListener('click', () => setActiveButtonColor(swatch.dataset.color)));
 syncAppearanceControls();
+
+// LANGUE (mémorisée localement) : le français est la langue par défaut.
+const languageSelect = document.getElementById('language-select');
+languageSelect.replaceChildren(...Object.entries(LANGUAGES).map(([code, { label }]) => new Option(label, code)));
+languageSelect.value = getLanguage();
+languageSelect.addEventListener('change', event => setLanguage(event.target.value));
+applyTranslations();
+
 const thumbnailSizeInput = document.getElementById('thumbnail-size');
 const thumbnailSizeValue = document.getElementById('thumbnail-size-value');
 thumbnailSizeInput.value = String(thumbnailSize);
