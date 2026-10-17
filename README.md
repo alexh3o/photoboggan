@@ -1,12 +1,12 @@
-# Photofile
-
-<img title="" src="/screenshots/logo256.png" alt="/img" data-align="center" />
-
 <p align="center">
   <b>English</b> | <a href="#francais">Français</a>
 </p>
 
 <div id="english">
+
+# Photofile
+
+<center><img title="" src="/screenshots/logo256.png" alt="/img"></center>
 
 Photofile is a minimalist, local photo library browser and manager.
 
@@ -85,6 +85,11 @@ Project distributed under the MIT license. (See the LICENSE file for details).
 <p align="center">
   <a href="#english">English</a> | Français
 </p>
+
+# Photofile
+
+<center><img title="" src="/screenshots/logo256.png" alt="/img"/></center>
+
 Photofile est un navigateur et gestionnaire de photothèque local, minimaliste.
 
 L'application a été pensée pour un objectif précis : accélérer le processus de tri, de notation et de comparaison de photos sans alourdir le système.
