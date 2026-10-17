@@ -166,5 +166,8 @@
   "{count} file copied": "{count} file copied",
   "{count} file copied|other": "{count} files copied",
   "Copy failed: {error}": "Copy failed: {error}",
-  "Open failed: {error}": "Open failed: {error}"
+  "Open failed: {error}": "Open failed: {error}",
+  "Thumbnail & Fullscreen": "Thumbnail & Fullscreen",
+  "Information Sheet": "Information Sheet",
+  "i key": "i key"
 }
