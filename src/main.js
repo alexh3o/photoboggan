@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, confirmAndDelete } from './photo-actions.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -920,7 +920,7 @@ async function setSelectionRating(rating) {
 }
 
 // ==========================================
-// CLAVIER
+// TOUCHES CLAVIER
 // ==========================================
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
@@ -932,20 +932,45 @@ window.addEventListener('keydown', (e) => {
     else fullscreenRating.classList.add('hidden');
     return;
   }
-  // Tentative modale info -ENCOURS-
+  // Modale info
   if (e.key.toLowerCase() === 'i') {
-    console.log("Touche I pressée, photo active :", photos[lastSelectedIndex]);
-    // Si vous utilisez un index de dernière sélection (ex: lastSelectedIndex)
+    console.log("Touche I pressée, photo active :", photos[lastSelectedIndex], lastSelectedIndex);
+    console.log("lasSelectedIndex :", lastSelectedIndex);
     if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
       showPhotoInfo(photos[lastSelectedIndex]);
       return;
     }
-
-    // OU si vous utilisez un Set d'indices sélectionnés (ex: selectedIndices)
+  }
+  // Copie vers
+  if (e.key.toLowerCase() === 'c') {
+    console.log("Touche C pressée, indice photos actives:", selectedIndices);
     if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
-      const firstIndex = Array.from(selectedIndices)[0];
-      if (photos[firstIndex]) {
-        showPhotoInfo(photos[firstIndex]);
+      const selectedPhotos = Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
+      if (selectedPhotos.length > 0) {
+        copyPhotosTo(selectedPhotos);
+        return;
+      }
+    }
+  }
+  // Copie vers
+  if (e.key.toLowerCase() === 'c') {
+    console.log("Touche C pressée, indice photos actives:", selectedIndices);
+    if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
+      const selectedPhotos = Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
+      if (selectedPhotos.length > 0) {
+        copyPhotosTo(selectedPhotos);
+        return;
+      }
+    }
+  }
+  // Suppression
+  if (e.key === 'Delete') {
+    // Votre code ici 
+    console.log("Touche SUPPR pressée, indice photos actives:", selectedIndices);
+    if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
+      const selectedPhotos = Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
+      if (selectedPhotos.length > 0) {
+        confirmAndDelete(selectedPhotos);
         return;
       }
     }

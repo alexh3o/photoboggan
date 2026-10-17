@@ -252,7 +252,7 @@ export async function showPhotoInfo(photo) {
 // ==========================================
 // SUPPRIMER, COPIER VERS, OUVRIR AVEC
 // ==========================================
-async function confirmAndDelete(targets) {
+export async function confirmAndDelete(targets) {
   const count = targets.length;
   const confirmed = await confirmDialog({
     title: t('Confirm deletion'),
@@ -276,7 +276,7 @@ async function confirmAndDelete(targets) {
 }
 
 // Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
-async function copyPhotosTo(targets) {
+export async function copyPhotosTo(targets) {
   let destination = null;
   try {
     destination = await open({
