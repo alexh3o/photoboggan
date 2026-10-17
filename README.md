@@ -1,5 +1,7 @@
 # Photofile
 
+
+
 <p align="center">
   <b>English</b> | <a href="#francais">Français</a>
 </p>
@@ -32,24 +34,24 @@ The application was designed with a specific goal: to speed up the process of so
 **Metadata & EXIF**:
 
 - Display of essential EXIF data.
-- Direct writing of ratings and tags into EXIF files for maximum portability.
+- Direct writing of ratings and color tags into EXIF files for maximum portability.
 
 # 🛠️ Technical Stack
 
 Developed to deliver maximum native performance through a modern hybrid architecture:
 
-- Desktop application: Tauri v2 (guaranteeing a lightweight, fast, and secure executable).
-- Backend (Performance & Files):
+- Desktop application: Tauri v2.
+- Backend:
   - Rust for execution speed and heavy processing.
   - Rayon for multithreaded traversal and indexing of photo folders.
   - Walkdir for rapid recursive traversal of the local directory tree.
   - Kamadak-exif for ultra-fast extraction of embedded metadata.
-- Database: Locally integrated SQLite (via rusqlite and r2d2 in WAL mode) for instant search and indexing without external dependencies.
-- Frontend: Vue.js 3 / Vite for a reactive and modern interface.
+- Database: Locally integrated SQLite (via rusqlite and r2d2 in WAL mode) .
+- Frontend: Vue.js 3 / Vite.
 
 # 🌍 Language & Internationalization
 
-The application is currently available in French and English.
+The application is currently available in French and English. You can contribute by copying a json file from /src/locales, and translating + sharing it.
 
 # ⛶ Screenshots
 
@@ -72,10 +74,6 @@ The application is currently available in French and English.
 # 📄 License
 
 Project distributed under the MIT license. (See the LICENSE file for details).
-
-
-
-
 
 </div>
 
@@ -111,15 +109,15 @@ L'application a été pensée pour un objectif précis : accélérer le processu
 
 - Affichage des données EXIF essentielles.
 
-- Écriture directe des notes et tags dans les fichiers EXIF pour une portabilité maximale.
+- Écriture directe des notes et tags de couleurs dans les fichiers EXIF pour une portabilité maximale.
 
 # 🛠️ Stack Technique
 
 Développé pour offrir des performances natives maximales grâce à une architecture hybride moderne :
 
-- Application de bureau : Tauri v2 (garantissant un exécutable léger, rapide et sécurisé).
+- Application de bureau : Tauri v2.
 
-- Backend (Performances & Fichiers) :
+- Backend :
 
   - Rust pour la rapidité d'exécution et le traitement lourd.
 
@@ -129,13 +127,13 @@ Développé pour offrir des performances natives maximales grâce à une archite
 
   - Kamadak-exif pour l'extraction ultra-rapide des métadonnées embarquées.
 
-- Base de données : SQLite intégré localement (via rusqlite et r2d2 en mode WAL) pour des recherches et une indexation instantanées sans dépendance externe.
+- Base de données : SQLite intégré localement (via rusqlite et r2d2 en mode WAL).
 
-- Frontend : Vue.js 3 / Vite pour une interface réactive et moderne.
+- Frontend : Vue.js 3 / Vite.
 
 # 🌍 Langue et Internationalisation
 
-L'application est actuellement disponible en français. Une architecture multilingue (avec l'anglais par défaut) sera intégrée dans les prochaines versions.
+L'application est actuellement disponible en français et anglais. Vous pouvez contribuer en récupérant un fichier json de /src/locales, puis en le traduisant et repartageant.
 
 # ⛶ Screenshots
 
