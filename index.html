@@ -20,69 +20,69 @@
   <div id="app">
     <header class="top-bar">
       <div class="panel-toggles">
-        <button id="btn-toggle-sidebar" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> Filtres</button>
+        <button id="btn-toggle-sidebar" class="active" title="Open filters panel" data-i18n-title="Open filters panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Filters">Filtres</span></button>
       </div>
       <div class="actions">
         <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
-        <label class="thumbnail-size-control" for="thumbnail-size">Taille
-          <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" />
+        <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
+          <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
           <span id="thumbnail-size-value">160 px</span>
         </label>
       </div>
       <div class="panel-toggles">
-        <label id="compare-desync" class="compare-option hidden" style="display:none" title="Zoom et déplacement indépendants pour chaque image"><input id="compare-desync-toggle" type="checkbox" /><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-unlink preview-icon"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></svg> Désynchroniser</label>
-        <button id="btn-toggle-compare" title="Comparer jusqu'à 4 photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-swords preview-icon"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg> Comparer</button>
-        <button id="btn-toggle-preview" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image preview-icon"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> Aperçu</button>
-        <button id="btn-toggle-exif" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-text-search preview-icon"><path d="M21 5H3"/><path d="M10 12H3"/><path d="M10 19H3"/><circle cx="17" cy="15" r="3"/><path d="m21 19-1.9-1.9"/></svg> Info</button>
+        <label id="compare-desync" class="compare-option hidden" style="display:none" title="Zoom et déplacement indépendants pour chaque image" data-i18n-title="Unlink move & zoom"><input id="compare-desync-toggle" type="checkbox" /><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-unlink preview-icon"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></svg> <span data-i18n="Desynchronize">Désynchroniser</span></label>
+        <button id="btn-toggle-compare" title="Comparer jusqu'à 4 photos" data-i18n-title="Compare up to 4 photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-swords preview-icon"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg> <span data-i18n="Compare">Comparer</span></button>
+        <button id="btn-toggle-preview" title="Open preview panel" data-i18n-title="Open preview panel" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image preview-icon"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> <span data-i18n="Preview">Aperçu</span></button>
+        <button id="btn-toggle-exif" title="Open info & exif panel" data-i18n-title="Open info & exif panel" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-text-search preview-icon"><path d="M21 5H3"/><path d="M10 12H3"/><path d="M10 19H3"/><circle cx="17" cy="15" r="3"/><path d="m21 19-1.9-1.9"/></svg> <span data-i18n="Info">Info</span></button>
       </div>
     </header>
 
     <main class="main-content">
       <!-- Arborescence dynamique -->
       <aside id="sidebar-panel" class="sidebar-section">
-        <h3>Dossiers</h3>
+        <h3  data-i18n="Folders">Dossiers</h3>
         <ul id="folder-tree"></ul>
-        <section class="photo-filters" aria-label="Filtres photo">
-          <h3>Filtres</h3>
-          <label for="rating-filter">Note</label>
+        <section class="photo-filters" aria-label="Filtres photo" data-i18n-aria-label="Photo filters">
+          <h3 data-i18n="Filters">Filtres</h3>
+          <label for="rating-filter" data-i18n="Rating">Note</label>
           <select id="rating-filter">
-            <option value="-1">Toutes les notes</option><option value="0">≥ 1 étoile</option><option value="1">≥ 2 étoiles</option>
-            <option value="2">≥ 3 étoiles</option><option value="3">≥ 4 étoiles</option>
-            <option value="4">5 étoiles</option>
+            <option value="-1" data-i18n="All ratings">Toutes les notes</option><option value="0" data-i18n="≥ 1 star">≥ 1 étoile</option><option value="1" data-i18n="≥ 2 stars">≥ 2 étoiles</option>
+            <option value="2" data-i18n="≥ 3 stars">≥ 3 étoiles</option><option value="3" data-i18n="≥ 4 stars">≥ 4 étoiles</option>
+            <option value="4" data-i18n="= 5 stars">= 5 étoiles</option>
           </select>
-          <span id="color-filter-label" class="color-filter-label">Couleur</span>
+          <span id="color-filter-label" class="color-filter-label" data-i18n="Color">Couleur</span>
           <div id="color-filter-bar" class="color-bar" role="group" aria-labelledby="color-filter-label"></div>
-          <label for="keyword-filter-input" class="keyword-filter-label">Mots-clés (&)</label>
-          <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" autocomplete="off" />
+          <label for="keyword-filter-input" class="keyword-filter-label" data-i18n="Keywords (&)">Mots-clés (&)</label>
+          <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" data-i18n-placeholder="Choose keyword..." autocomplete="off" />
           <datalist id="keyword-options"></datalist>
           <div id="active-keyword-filters" class="active-keyword-filters" aria-live="polite"></div>
-          <label for="date-filter-input" class="date-filter-label">Date de prise de vue</label>
+          <label for="date-filter-input" class="date-filter-label" data-i18n="Date taken">Date de prise de vue</label>
           <div class="date-filter">
-            <input id="date-filter-input" type="text" placeholder="AAAAMMJJ" maxlength="29" autocomplete="off" spellcheck="false" title="AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH ou AAAAMMJJHHmm — plage : début-fin (formats mélangeables, ex. 20240501-2025)" />
-            <button id="date-filter-calendar" type="button" class="icon-button" title="Choisir dans un calendrier" aria-label="Ouvrir le calendrier">
+            <input id="date-filter-input" type="text" placeholder="AAAAMMJJ" data-i18n-placeholder="YYYYMMDD" maxlength="29" autocomplete="off" spellcheck="false" title="AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH ou AAAAMMJJHHmm — plage : début-fin (formats mélangeables, ex. 20240501-2025)" data-i18n-title="Date format help" />
+            <button id="date-filter-calendar" type="button" class="icon-button" title="Choisir dans un calendrier" data-i18n-title="Pick in calendar" aria-label="Ouvrir le calendrier" data-i18n-aria-label="Open calendar">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days preview-icon"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>
             </button>
-            <button id="date-filter-clear" type="button" class="icon-button" title="Effacer le filtre de date" aria-label="Effacer le filtre de date">
+            <button id="date-filter-clear" type="button" class="icon-button" title="Effacer le filtre de date" aria-label="Effacer le filtre de date" data-i18n-title="Clear date filter" data-i18n-aria-label="Clear date filter">
 			  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash preview-icon"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
 			  
             </button>
           </div>
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
         </section>
-        <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection">
-          <h3>Sélection/Modification</h3>
-          <h4>Note</h4>
-          <div id="selection-rating-stars" class="selection-rating-stars" role="group" aria-label="Attribuer une note de 1 à 5">
-            <button type="button" data-rating="1" aria-label="Attribuer 1 étoile">★</button>
-            <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles">★</button>
-            <button type="button" data-rating="3" aria-label="Attribuer 3 étoiles">★</button>
-            <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles">★</button>
-            <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles">★</button>
+        <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">
+          <h3 data-i18n="Selection & Modification">Sélection/Modification</h3>
+          <h4 data-i18n="Rating">Note</h4>
+          <div id="selection-rating-stars" class="selection-rating-stars" role="group" aria-label="Attribuer une note de 1 à 5" data-i18n-aria-label="Set a rating from 1 to 5">
+            <button type="button" data-rating="1" aria-label="Attribuer 1 étoile" data-i18n-aria-label="Set 1 star">★</button>
+            <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles" data-i18n-aria-label="Set 2 stars">★</button>
+            <button type="button" data-rating="3" aria-label="Attribuer 3 étoiles" data-i18n-aria-label="Set 3 stars">★</button>
+            <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles" data-i18n-aria-label="Set 4 stars">★</button>
+            <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles" data-i18n-aria-label="Set 5 stars">★</button>
           </div>
-          <span id="selection-rating-caption">Cliquez pour noter</span>
-          <h4 class="selection-color-title">Couleur</h4>
-          <div id="selection-color-flags" class="color-bar" role="group" aria-label="Attribuer une couleur"></div>
-          <span id="selection-color-caption">Cliquez pour attribuer une couleur</span>
+          <span id="selection-rating-caption" data-i18n="Click to set a rating">Cliquez pour noter</span>
+          <h4 class="selection-color-title" data-i18n="Color">Couleur</h4>
+          <div id="selection-color-flags" class="color-bar" role="group" aria-label="Attribuer une couleur" data-i18n-aria-label="Set a color"></div>
+          <span id="selection-color-caption" data-i18n="Click to set a color">Cliquez pour attribuer une couleur</span>
         </section>
       </aside>
 
@@ -93,7 +93,7 @@
         </div>
       </section>
 
-      <div id="preview-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionner la grille et l’aperçu" tabindex="0"></div>
+      <div id="preview-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionner la grille et l’aperçu" data-i18n-aria-label="Resize grid and preview" tabindex="0"></div>
 
       <!-- Prévisualisation -->
       <section id="preview-panel" class="preview-section">
@@ -102,10 +102,10 @@
 
       <!-- EXIF -->
       <aside id="exif-panel" class="exif-section">
-        <h3>Métadonnées</h3>
+        <h3 data-i18n="Metadata">Métadonnées</h3>
         <ul id="exif-data">
-          <li><strong>Fichier :</strong> <span id="exif-filename">-</span></li>
-          <li><strong>Date de prise de vue:</strong> <span id="exif-date">-</span></li>
+          <li><strong class="exif-label" data-i18n="File">Fichier</strong> <span id="exif-filename">-</span></li>
+          <li><strong class="exif-label" data-i18n="Date taken">Date de prise de vue</strong> <span id="exif-date">-</span></li>
           <li>
             <strong class="exif-label" data-i18n="Manufacturer">Fabricant</strong> 
             <span id="exif-manufacturer">-</span>
@@ -119,12 +119,12 @@
           <li><strong class="exif-label" data-i18n="Aperture">Ouverture</strong> <span id="exif-aperture">-</span></li>
           <li><strong class="exif-label" data-i18n="Shutter Speed">Vitesse</strong> <span id="exif-shutter">-</span></li>
           <li><strong class="exif-label" data-i18n="ISO">ISO</strong> <span id="exif-iso">-</span></li>
-          <li><strong>Dimensions :</strong> <span id="exif-dim">-</span></li>
-          <li><strong>Poids :</strong> <span id="exif-size">-</span></li>
-          <li><strong>Note :</strong> <span id="exif-rating">-</span></li>
-          <li><strong>Couleur :</strong> <span id="exif-color">-</span></li>
-          <li><strong>Mots-clés :</strong> <span id="exif-keywords">-</span></li>
-          <li><strong>Description :</strong> <span id="exif-caption">-</span></li>
+          <li><strong class="exif-label" data-i18n="Dimensions">Dimensions</strong> <span id="exif-dim">-</span></li>
+          <li><strong class="exif-label" data-i18n="Filesize">Poids</strong> <span id="exif-size">-</span></li>
+          <li><strong class="exif-label" data-i18n="Rating">Note</strong> <span id="exif-rating">-</span></li>
+          <li><strong class="exif-label" data-i18n="Color">Couleur</strong> <span id="exif-color">-</span></li>
+          <li><strong class="exif-label" data-i18n="Keywords">Mots-clés</strong> <span id="exif-keywords">-</span></li>
+          <li><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
         </ul>
       </aside>
     </main>
@@ -132,12 +132,12 @@
     <!-- Vue Plein Écran -->
     <div id="fullscreen-view" class="hidden">
       <img id="fullscreen-image" src="" alt="" />
-      <div id="fullscreen-rating" class="fullscreen-rating hidden" role="group" aria-label="Noter la photo">
-        <button type="button" data-rating="1" aria-label="Attribuer 1 étoile">★</button>
-        <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles">★</button>
-        <button type="button" data-rating="3" aria-label="Attribuer 3 étoiles">★</button>
-        <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles">★</button>
-        <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles">★</button>
+      <div id="fullscreen-rating" class="fullscreen-rating hidden" role="group" aria-label="Noter la photo" data-i18n-aria-label="Rate the photo">
+        <button type="button" data-rating="1" aria-label="Attribuer 1 étoile" data-i18n-aria-label="Set 1 star">★</button>
+        <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles" data-i18n-aria-label="Set 2 stars">★</button>
+        <button type="button" data-rating="3" aria-label="Attribuer 3 étoiles" data-i18n-aria-label="Set 3 stars">★</button>
+        <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles" data-i18n-aria-label="Set 4 stars">★</button>
+        <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles" data-i18n-aria-label="Set 5 stars">★</button>
       </div>
     </div>
 
@@ -147,53 +147,53 @@
         <div class="modal-header">
           <h3 data-i18n="Settings">Paramètres</h3>
           <div class="modal-header-actions">
-            <button id="btn-open-guide" class="close-x" title="Guide" aria-label="Guide et touches"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
+            <button id="btn-open-guide" class="close-x" title="Guide" aria-label="Guide et touches" data-i18n-title="Guide" data-i18n-aria-label="Guide and keys"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
             <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de Photofile" data-i18n-title="About" data-i18n-aria-label="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-help preview-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
-            <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
+            <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
           </div>
         </div>
         <div class="modal-body">
           <section class="settings-section">
-            <h4>Dossiers balayés</h4>
-          <button id="btn-add-folder" class="btn-highlight">+ Ajouter un dossier</button>
-          <button id="btn-rescan-folders" class="btn-highlight">Actualiser notes et mots-clés</button>
-          <label class="settings-row settings-check"><input id="recursive-folder-toggle" type="checkbox" checked /> Inclure les sous-dossiers</label>
+            <h4 data-i18n="Folders">Dossiers balayés</h4>
+          <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
+          <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Refresh ratings & keywords">Actualiser notes et mots-clés</button>
+          <label class="settings-row settings-check"><input id="recursive-folder-toggle" type="checkbox" checked /><p data-i18n="Include subfolders">Inclure les sous-dossiers</p></label>
           <ul id="settings-folder-list"></ul>
           </section>
           <section class="settings-section">
-            <h4>Affichage</h4>
+            <h4 data-i18n="Display">Affichage</h4>
             <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
               <select id="language-select"></select>
             </label>
-            <label class="settings-row" for="thumbnail-layout">Disposition des miniatures
-              <select id="thumbnail-layout"><option value="square">Carrées</option><option value="justified">Justifiées</option><option value="masonry">Encadrées</option></select>
+            <label class="settings-row" for="thumbnail-layout" data-i18n="Thumbnails grid">Disposition des miniatures
+              <select id="thumbnail-layout"><option value="square" data-i18n="Square">Carrées</option><option value="justified" data-i18n="Justified">Justifiées</option><option value="masonry" data-i18n="Framed">Encadrées</option></select>
             </label>
-            <div class="settings-row">Couleur de sélection
-              <span class="accent-picker" role="group" aria-label="Couleur de sélection">
-                <button type="button" class="accent-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu"></button>
-                <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge"></button>
-                <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange"></button>
-                <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune"></button>
-                <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert"></button>
-                <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet"></button>
-                <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose"></button>
-                <input id="accent-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée" />
+            <div class="settings-row" ><span data-i18n="Selection color">Couleur de sélection</span>
+              <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
+                <button type="button" class="accent-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
+                <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
+                <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
+                <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
+                <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
+                <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
+                <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
+                <input id="accent-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
               </span>
             </div>
-            <div class="settings-row">Couleur des boutons actifs
-              <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs">
-                <button type="button" class="button-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu"></button>
-                <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge"></button>
-                <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange"></button>
-                <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune"></button>
-                <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert"></button>
-                <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet"></button>
-                <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose"></button>
-                <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" />
+            <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
+              <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
+                <button type="button" class="button-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
+                <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
+                <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
+                <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
+                <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
+                <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
+                <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
+                <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
               </span>
             </div>
-            <label class="settings-row" for="theme-select">Thème
-              <select id="theme-select"><option value="dark">Sombre</option><option value="light">Clair</option></select>
+            <label class="settings-row" for="theme-select"><span  data-i18n="Theme">Thème</span>
+              <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
             </label>
           </section>
         </div>
@@ -204,13 +204,13 @@
       <div class="modal-card about-card">
         <div class="modal-header">
           <h3 data-i18n="About">À propos</h3>
-          <button id="btn-close-about" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
+          <button id="btn-close-about" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body about-body">
-          <img class="about-logo" src="/src-tauri/icons/128x128@2x.png" alt="Logo Photofile" />
+          <img class="about-logo" src="/src-tauri/icons/128x128@2x.png" alt="Logo Photofile" data-i18n-alt="Photofile logo" />
           <div class="about-name">Photofile</div>
           <div class="about-version"><span data-i18n="Version">Version</span> <span id="about-version">-</span></div>
-          <a id="about-github-link" class="about-link" href="https://github.com/alexh3o/photofile" title="Ouvrir le dépôt GitHub">github.com/alexh3o/photofile</a>
+          <a id="about-github-link" class="about-link" href="https://github.com/alexh3o/photofile" title="Ouvrir le dépôt GitHub" data-i18n-title="Open Github repository">github.com/alexh3o/photofile</a>
         </div>
       </div>
     </div>
@@ -218,15 +218,15 @@
     <div id="guide-modal" class="modal hidden">
       <div class="modal-card guide-card">
         <div class="modal-header">
-          <h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg> Guide</h3>
-          <button id="btn-close-guide" class="close-x" title="Fermer" aria-label="Fermer">&times;</button>
+          <h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg> <span data-i18n="Guide">Guide</span></h3>
+          <button id="btn-close-guide" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body guide-body">
           <table class="table">
-            <tr width="80%"><td><b>Zone</b></td><td><b>Action</b></td><td><b>Contrôle</b></td></tr>
-            <tr><td>Miniatures</td><td>Ouvrir l'image en plein écran</td><td>Double clic depuis la miniature</td></tr>
-            <tr><td>Sélection & Plein Écran</td><td>Noter</td><td>Touches 0 à 5</td></tr>
-            <tr><td>Plein Écran</td><td>Ouvrir la barre de notes</td><td>N</td></tr>
+            <tr width="80%"><td><b data-i18n="Zone">Zone</b></td><td><b data-i18n="Action">Action</b></td><td><b data-i18n="Control">Contrôle</b></td></tr>
+            <tr><td data-i18n="Thumbnails">Miniatures</td><td data-i18n="Open the image in fullscreen">Ouvrir l'image en plein écran</td><td data-i18n="Double-click on the thumbnail">Double clic depuis la miniature</td></tr>
+            <tr><td data-i18n="Selection & Fullscreen">Sélection & Plein Écran</td><td data-i18n="Rate">Noter</td><td data-i18n="Keys 0 to 5">Touches 0 à 5</td></tr>
+            <tr><td data-i18n="Fullscreen">Plein Écran</td><td data-i18n="Open the rating bar">Ouvrir la barre de notes</td><td>N</td></tr>
             <tr></tr>
           </table>
         </div>

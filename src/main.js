@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { LANGUAGES, getLanguage, setLanguage, applyTranslations } from './i18n.js';
+import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -52,19 +52,26 @@ let fullscreenRatingPinned = false;
 let fullscreenRatingTimeout = null;
 const fullscreenImageCache = new Map();
 
-// COULEURS (XMP Label) : clé stockée en base, libellé affiché. La couleur visuelle est dans le CSS (.flag-<clé>).
+// COULEURS (XMP Label) : clé stockée en base, label = clé de traduction du libellé affiché. La couleur visuelle est dans le CSS (.flag-<clé>).
 const COLOR_FLAGS = [
-  { key: 'red', label: 'Rouge' },
+  { key: 'red', label: 'Red' },
   { key: 'orange', label: 'Orange' },
-  { key: 'yellow', label: 'Jaune' },
-  { key: 'green', label: 'Vert' },
-  { key: 'blue', label: 'Bleu' },
+  { key: 'yellow', label: 'Yellow' },
+  { key: 'green', label: 'Green' },
+  { key: 'blue', label: 'Blue' },
   { key: 'magenta', label: 'Magenta' },
-  { key: 'grey', label: 'Gris' },
-  { key: 'black', label: 'Noir' },
-  { key: 'white', label: 'Blanc' },
+  { key: 'grey', label: 'Grey' },
+  { key: 'black', label: 'Black' },
+  { key: 'white', label: 'White' },
 ];
-const colorFlagLabels = new Map(COLOR_FLAGS.map(flag => [flag.key, flag.label]));
+// Libellés traduits au moment de l'affichage (has/get comme une Map, pour ne pas changer les appels existants).
+const colorFlagLabels = {
+  has: key => COLOR_FLAGS.some(flag => flag.key === key),
+  get: key => {
+    const flag = COLOR_FLAGS.find(candidate => candidate.key === key);
+    return flag ? t(flag.label) : undefined;
+  },
+};
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
 const DEFAULT_SELECTION_COLOR = '#3498db';
@@ -381,7 +388,7 @@ function renderKeywordFilters() {
   const active = document.getElementById('active-keyword-filters');
   active.replaceChildren(...keywordFilters.map(keyword => {
     const button = document.createElement('button');
-    button.type = 'button'; button.textContent = `${keyword} ×`; button.title = `Retirer le filtre ${keyword}`;
+    button.type = 'button'; button.textContent = `${keyword} ×`; button.title = t('Remove filter {keyword}', { keyword });
     button.addEventListener('click', () => {
       keywordFilters = keywordFilters.filter(item => item !== keyword);
       renderKeywordFilters(); applyPhotoFilters();
@@ -412,7 +419,7 @@ function renderFolderTree() {
   
   const allItem = document.createElement('li');
   allItem.className = `folder-tree-item ${currentFolderFilter === null ? 'active' : ''}`;
-  allItem.innerHTML = `<span>📚</span> <span>Toutes les photos</span>`;
+  allItem.innerHTML = `<span>📚</span> <span>${t('All photos')}</span>`;
   allItem.addEventListener('click', () => selectFolder(null));
   folderTree.appendChild(allItem);
   const roots = folders.map(folder => ({ path: folder.path.replace(/[\\/]+$/, ''), name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path, children: new Map() }));
@@ -445,7 +452,7 @@ function renderFolderTree() {
     const toggle = document.createElement('button');
     toggle.className = 'folder-tree-toggle';
     toggle.textContent = hasChildren ? (expanded ? '▾' : '▸') : ' ';
-    toggle.setAttribute('aria-label', expanded ? 'Replier le dossier' : 'Déplier le dossier');
+    toggle.setAttribute('aria-label', t(expanded ? 'Collapse folder' : 'Expand folder'));
     toggle.addEventListener('click', event => {
       event.stopPropagation();
       if (expanded) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
@@ -808,8 +815,8 @@ function updateRatingAction() {
   });
   const count = selectedIndices.size;
   document.getElementById('selection-rating-caption').textContent = count > 1
-    ? `${count} photos sélectionnées · appliquer à toutes`
-    : (rating > 0 ? `Note actuelle : ${rating}/5` : 'Cliquez pour attribuer une note');
+    ? t('{count} photos selected · apply to all', { count })
+    : (rating > 0 ? `${labelWithColon('Current rating')} ${rating}/5` : t('Click to set a rating'));
 }
 
 let writeToastTimeout = null;
@@ -830,8 +837,11 @@ function createColorSquare(flag) {
   button.type = 'button';
   button.className = `color-square flag-${flag.key}`;
   button.dataset.flag = flag.key;
-  button.title = flag.label;
-  button.setAttribute('aria-label', flag.label);
+  button.title = t(flag.label);
+  button.setAttribute('aria-label', t(flag.label));
+  // Suivi du changement de langue par applyTranslations().
+  button.setAttribute('data-i18n-title', flag.label);
+  button.setAttribute('data-i18n-aria-label', flag.label);
   button.setAttribute('aria-pressed', 'false');
   return button;
 }
@@ -849,8 +859,8 @@ function updateColorAction() {
   document.querySelectorAll('#selection-color-flags button').forEach(button => setColorSquareChecked(button, button.dataset.flag === flag));
   const count = selectedIndices.size;
   document.getElementById('selection-color-caption').textContent = count > 1
-    ? `${count} photos sélectionnées · appliquer à toutes`
-    : (colorFlagLabels.has(flag) ? `Couleur actuelle : ${colorFlagLabels.get(flag)}` : 'Cliquez pour attribuer une couleur');
+    ? t('{count} photos selected · apply to all', { count })
+    : (colorFlagLabels.has(flag) ? `${labelWithColon('Current color')} ${colorFlagLabels.get(flag)}` : t('Click to set a color'));
 }
 
 async function setSelectionColorFlag(flag) {
@@ -858,10 +868,9 @@ async function setSelectionColorFlag(flag) {
   if (!targets.length) return;
   // Comme pour la note : si toutes les photos sélectionnées ont déjà cette couleur, on l'efface.
   const finalFlag = targets.every(photo => (photo.color_flag || 'none') === flag) ? 'none' : flag;
-  const plural = targets.length > 1 ? 's' : '';
   showWriteToast(finalFlag === 'none'
-    ? `Suppression de la couleur pour ${targets.length} fichier${plural}…`
-    : `Écriture en cours pour ${targets.length} fichier${plural} (couleur : ${colorFlagLabels.get(finalFlag)})…`, true);
+    ? tp('Removing color for {count} file…', targets.length)
+    : tp('Writing {count} file (color: {color})…', targets.length, { color: colorFlagLabels.get(finalFlag) }), true);
   // Seule la couleur est envoyée : la note de chaque fichier n'est pas réécrite.
   const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
     id: photo.id,
@@ -872,12 +881,11 @@ async function setSelectionColorFlag(flag) {
   const failures = results.filter(result => result.status === 'rejected');
   for (const photo of successful) photo.color_flag = finalFlag;
   updateUIOnSelection();
-  const successPlural = successful.length > 1 ? 's' : '';
   const successMessage = finalFlag === 'none'
-    ? `Couleur supprimée pour ${successful.length} fichier${successPlural}`
-    : `${successful.length} fichier${successPlural} modifié${successPlural}`;
-  showWriteToast(`${successMessage}${failures.length ? ` · ${failures.length} échec${failures.length > 1 ? 's' : ''}` : ''}`);
-  if (failures.length) document.getElementById('selection-color-caption').textContent = `Échec d'écriture : ${failures[0].reason}`;
+    ? tp('Color removed for {count} file', successful.length)
+    : tp('{count} file modified', successful.length);
+  showWriteToast(`${successMessage}${failures.length ? ` · ${tp('{count} failure', failures.length)}` : ''}`);
+  if (failures.length) document.getElementById('selection-color-caption').textContent = t('Write failed: {error}', { error: failures[0].reason });
 }
 
 async function setSelectionRating(rating) {
@@ -887,7 +895,7 @@ async function setSelectionRating(rating) {
   // on considère qu'on veut l'effacer (passer à 0).
   const allAlreadyHaveRating = targets.every(photo => photo.rating === rating);
   const finalRating = allAlreadyHaveRating ? 0 : rating;
-  const actionText = finalRating === 0 ? 'Suppression de la note' : `Écriture en cours pour ${targets.length} fichier${targets.length > 1 ? 's' : ''} (note : ${finalRating})…`;
+  const actionText = finalRating === 0 ? t('Removing rating') : tp('Writing {count} file (rating: {rating})…', targets.length, { rating: finalRating });
   showWriteToast(actionText, true);
   const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
       id: photo.id,
@@ -901,12 +909,12 @@ async function setSelectionRating(rating) {
   if (isFullscreen && successful.length) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
   const successMessage = finalRating === 0 
-    ? `Note supprimée pour ${successful.length} fichier${successful.length > 1 ? 's' : ''}`
-    : `${successful.length} fichier${successful.length > 1 ? 's' : ''} modifié${successful.length > 1 ? 's' : ''}`;
-    showWriteToast(`${successMessage}${failures.length ? ` · ${failures.length} échec${failures.length > 1 ? 's' : ''}` : ''}`);
+    ? tp('Rating removed for {count} file', successful.length)
+    : tp('{count} file modified', successful.length);
+    showWriteToast(`${successMessage}${failures.length ? ` · ${tp('{count} failure', failures.length)}` : ''}`);
     if (failures.length) {
     const firstError = failures[0].reason;
-    document.getElementById('selection-rating-caption').textContent = `Échec d'écriture : ${firstError}`;
+    document.getElementById('selection-rating-caption').textContent = t('Write failed: {error}', { error: firstError });
   }
 }
 
@@ -959,7 +967,7 @@ function renderSettingsFolderList() {
     li.className = 'settings-folder-item';
     li.innerHTML = `
       <span title="${f.path}">${f.path}</span>
-      <button class="btn-delete-folder">Supprimer</button>
+      <button class="btn-delete-folder">${t('Delete')}</button>
     `;
     li.querySelector('.btn-delete-folder').addEventListener('click', async () => {
       folders = await invoke('remove_folder', { id: f.id, path: f.path });
@@ -1131,6 +1139,19 @@ languageSelect.replaceChildren(...Object.entries(LANGUAGES).map(([code, { label 
 languageSelect.value = getLanguage();
 languageSelect.addEventListener('change', event => setLanguage(event.target.value));
 applyTranslations();
+// Textes construits en JavaScript : régénérés quand la langue change (les éléments data-i18n le sont par applyTranslations).
+onLanguageChange(() => {
+  renderFolderTree();
+  renderSettingsFolderList();
+  renderKeywordFilters();
+  updateUIOnSelection();
+  updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
+  datePicker.setAttribute('aria-label', t('Choose a date or a range'));
+  if (isDatePickerOpen()) {
+    renderDatePicker();
+    positionDatePicker();
+  }
+});
 
 const thumbnailSizeInput = document.getElementById('thumbnail-size');
 const thumbnailSizeValue = document.getElementById('thumbnail-size-value');
@@ -1272,7 +1293,7 @@ function canAddToSelection(index) {
 }
 
 function showCompareLimitToast() {
-  showWriteToast(`Mode Comparer : ${MAX_COMPARE} photos maximum`);
+  showWriteToast(t('Compare mode: {max} photos maximum', { max: MAX_COMPARE }));
 }
 
 function limitSelectionForCompare() {
@@ -1669,10 +1690,10 @@ function parseDateFilter(text) {
   if (!compact) return { filter: null };
   const token = '(\\d{4}|\\d{6}|\\d{8}|\\d{10}|\\d{12})';
   const match = new RegExp(`^${token}(?:-${token})?$`).exec(compact);
-  if (!match) return { error: 'Format : AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH ou AAAAMMJJHHmm (plage : début-fin)' };
+  if (!match) return { error: t('Date format error') };
   const first = parseDateToken(match[1]);
   const second = match[2] ? parseDateToken(match[2]) : first;
-  if (!first || !second) return { error: 'Date invalide' };
+  if (!first || !second) return { error: t('Invalid date') };
   if (!match[2]) return { filter: { from: first.start, to: first.end } };
   // Plage : début du premier jeton → fin du second. Si c'est à l'envers, on inverse les deux jetons.
   const [begin, finish] = first.start <= second.end ? [first, second] : [second, first];
@@ -1713,11 +1734,12 @@ dateFilterClear.addEventListener('click', () => {
 const datePicker = document.createElement('div');
 datePicker.className = 'date-picker';
 datePicker.setAttribute('role', 'dialog');
-datePicker.setAttribute('aria-label', 'Choisir une date ou une plage');
+datePicker.setAttribute('aria-label', t('Choose a date or a range'));
 datePicker.style.display = 'none';
 document.body.appendChild(datePicker);
-const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-const pickerMonthFormatter = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' });
+// Initiales des jours (semaine commençant le lundi) et mois, selon la langue courante : le 1er janvier 2024 est un lundi.
+const weekdayLabels = () => Array.from({ length: 7 }, (_, day) => new Intl.DateTimeFormat(getLanguage(), { weekday: 'narrow' }).format(new Date(2024, 0, 1 + day)));
+const pickerMonthFormatter = () => new Intl.DateTimeFormat(getLanguage(), { month: 'long', year: 'numeric' });
 let pickerYear = 0;
 let pickerMonth = 0; // 0-11
 let pickStart = null;
@@ -1764,7 +1786,7 @@ function renderDatePicker() {
   const today = todayDateKey();
   const low = pickStart === null ? null : Math.min(pickStart, pickEnd ?? pickStart);
   const high = pickStart === null ? null : Math.max(pickStart, pickEnd ?? pickStart);
-  let cells = WEEKDAY_LABELS.map(label => `<span class="date-picker-weekday">${label}</span>`).join('');
+  let cells = weekdayLabels().map(label => `<span class="date-picker-weekday">${label}</span>`).join('');
   for (let i = 0; i < offset; i++) cells += '<span></span>';
   for (let day = 1; day <= daysInMonth; day++) {
     const key = pickerYear * 10000 + (pickerMonth + 1) * 100 + day;
@@ -1776,14 +1798,14 @@ function renderDatePicker() {
   }
   datePicker.innerHTML = `
     <div class="date-picker-header">
-      <button type="button" data-nav="-12" title="Année précédente" aria-label="Année précédente">«</button>
-      <button type="button" data-nav="-1" title="Mois précédent" aria-label="Mois précédent">‹</button>
-      <span class="date-picker-title">${pickerMonthFormatter.format(first)}</span>
-      <button type="button" data-nav="1" title="Mois suivant" aria-label="Mois suivant">›</button>
-      <button type="button" data-nav="12" title="Année suivante" aria-label="Année suivante">»</button>
+      <button type="button" data-nav="-12" title="${t('Previous year')}" aria-label="${t('Previous year')}">«</button>
+      <button type="button" data-nav="-1" title="${t('Previous month')}" aria-label="${t('Previous month')}">‹</button>
+      <span class="date-picker-title">${pickerMonthFormatter().format(first)}</span>
+      <button type="button" data-nav="1" title="${t('Next month')}" aria-label="${t('Next month')}">›</button>
+      <button type="button" data-nav="12" title="${t('Next year')}" aria-label="${t('Next year')}">»</button>
     </div>
     <div class="date-picker-grid">${cells}</div>
-    <div class="date-picker-hint">Cliquez un jour, puis un second pour une plage.</div>`;
+    <div class="date-picker-hint">${t('Click a day, then a second one for a range.')}</div>`;
 }
 
 function openDatePicker() {

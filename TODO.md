@@ -21,7 +21,7 @@
 ## 💡 Ideas and longer term evolutions
 
 - [ ] Add linux release (and check window resizing)
-- [ ] Add english and manage multilingual
+- [x] Add english and manage multilingual
 - [ ] Allow keywords management & file write
 - [ ] Toast for thumbnails generation, new files...
 - [ ] Shortcuts and mouse settings
