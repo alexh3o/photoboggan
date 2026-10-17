@@ -6,7 +6,7 @@ mod thumbnails;
 
 use tauri::{State, Emitter, Manager};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use rayon::prelude::*;
@@ -262,6 +262,129 @@ fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rati
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+struct FileFailure {
+    path: String,
+    error: String,
+}
+
+#[derive(serde::Serialize)]
+struct DeleteResult {
+    deleted: Vec<String>,
+    failed: Vec<FileFailure>,
+}
+
+#[derive(serde::Serialize)]
+struct CopyResult {
+    copied: usize,
+    failed: Vec<FileFailure>,
+}
+
+// Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
+#[tauri::command(async)]
+fn get_photo_details(path: String) -> exif::MetadataDetails {
+    exif::read_metadata_details(Path::new(&path))
+}
+
+// Suppression définitive (pas de corbeille : ça demanderait une dépendance supplémentaire). Seules les photos du catalogue
+// peuvent être supprimées. Le fichier, sa miniature en cache et sa ligne en base disparaissent ; un éventuel sidecar .xmp est conservé.
+#[tauri::command(async)]
+fn delete_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
+    let conn = state.db_pool.get().map_err(|error| error.to_string())?;
+    let mut deleted = Vec::new();
+    let mut failed = Vec::new();
+    for path in paths {
+        let tracked: bool = conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
+            .unwrap_or(false);
+        if !tracked {
+            failed.push(FileFailure { path, error: "Photo absente du catalogue".into() });
+            continue;
+        }
+        let cache_file = thumbnail_cache_file(&app, &path).ok();
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            // Fichier déjà disparu : on nettoie simplement le catalogue.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                failed.push(FileFailure { path, error: error.to_string() });
+                continue;
+            }
+        }
+        if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
+        let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![path]);
+        deleted.push(path);
+    }
+    Ok(DeleteResult { deleted, failed })
+}
+
+// Nom libre dans le dossier de destination : « photo.jpg », puis « photo (1).jpg », « photo (2).jpg »… (jamais d'écrasement).
+fn unique_destination(directory: &Path, file_name: &std::ffi::OsStr) -> PathBuf {
+    let candidate = directory.join(file_name);
+    if !candidate.exists() { return candidate; }
+    let name = Path::new(file_name);
+    let stem = name.file_stem().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
+    let extension = name.extension().map(|value| format!(".{}", value.to_string_lossy())).unwrap_or_default();
+    let mut index = 1u32;
+    loop {
+        let candidate = directory.join(format!("{stem} ({index}){extension}"));
+        if !candidate.exists() { return candidate; }
+        index += 1;
+    }
+}
+
+// Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
+fn copy_sidecar(source: &Path, target: &Path) {
+    let appended = PathBuf::from(format!("{}.xmp", source.display()));
+    let (from, to) = if appended.is_file() {
+        (appended, PathBuf::from(format!("{}.xmp", target.display())))
+    } else {
+        let compatible = source.with_extension("xmp");
+        if !compatible.is_file() { return; }
+        (compatible, target.with_extension("xmp"))
+    };
+    if !to.exists() { let _ = fs::copy(from, to); }
+}
+
+// Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est jamais écrasé :
+// la copie est renommée (« photo (1).jpg »). Les dossiers suivis ne sont pas rescannés automatiquement.
+#[tauri::command(async)]
+fn copy_photos(paths: Vec<String>, destination: String) -> Result<CopyResult, String> {
+    let destination_dir = Path::new(&destination);
+    if !destination_dir.is_dir() { return Err(format!("Dossier de destination introuvable : {destination}")); }
+    let mut copied = 0;
+    let mut failed = Vec::new();
+    for path in paths {
+        let source = Path::new(&path);
+        let Some(file_name) = source.file_name() else {
+            failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() });
+            continue;
+        };
+        let target = unique_destination(destination_dir, file_name);
+        match fs::copy(source, &target) {
+            Ok(_) => {
+                copy_sidecar(source, &target);
+                copied += 1;
+            }
+            Err(error) => {
+                let _ = fs::remove_file(&target);
+                failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+            }
+        }
+    }
+    Ok(CopyResult { copied, failed })
+}
+
+// Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
+#[tauri::command(async)]
+fn open_with(program: String, paths: Vec<String>) -> Result<(), String> {
+    let program_path = Path::new(&program);
+    if !program_path.is_file() { return Err(format!("Programme introuvable : {program}")); }
+    if let Some(missing) = paths.iter().find(|path| !Path::new(path).is_file()) { return Err(format!("Fichier introuvable : {missing}")); }
+    if paths.is_empty() { return Ok(()); }
+    std::process::Command::new(program_path).args(&paths).spawn().map(|_| ()).map_err(|error| format!("Impossible de lancer {program} : {error}"))
+}
+
 fn main() {
     let db_path = "photos_library.db"; 
     let db_pool = db::init_db(db_path);
@@ -280,7 +403,11 @@ fn main() {
             generate_thumbnail,
             save_thumbnail_cache,
             rescan_all_folders,
-            update_photo_metadata
+            update_photo_metadata,
+            get_photo_details,
+            delete_photos,
+            copy_photos,
+            open_with
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

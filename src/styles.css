@@ -310,3 +310,43 @@ html[lang="en"] .exif-label::after { content: ":"; }
   background-color: #e81123;
   color: white;
 }
+
+/* MENU CONTEXTUEL DES MINIATURES */
+.context-menu { position: fixed; z-index: 11000; min-width: 12rem; padding: 4px; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-size: 0.8rem; }
+.context-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 7px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--text-strong); text-align: left; font-size: 0.8rem; cursor: pointer; }
+.context-menu-item:hover, .context-menu-item:focus-visible, .context-menu-sub.open > .context-menu-item { background: var(--control-hover); outline: none; }
+.context-menu-item.danger { color: #e74c3c; }
+.context-menu-item.has-submenu::after { content: '\25B8'; color: var(--text-faint); }
+.context-menu-sub { position: relative; }
+.context-submenu { display: none; position: absolute; top: -5px; left: 100%; min-width: 12rem; max-width: 22rem; padding: 4px; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+.context-submenu .context-menu-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.context-menu-sub.open > .context-submenu { display: block; }
+.context-menu.submenu-left .context-submenu { left: auto; right: 100%; }
+.context-menu-separator { height: 1px; margin: 4px 2px; background: var(--separator); }
+
+/* FENETRES INFOS ET CONFIRMATION */
+.info-card { width: min(760px, calc(100vw - 40px)); }
+.info-body { user-select: text; outline: none; }
+.info-section { margin-bottom: 1rem; }
+.info-section:last-child { margin-bottom: 0; }
+.info-section h4 { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--separator); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+.info-table { width: 100%; border-collapse: collapse; }
+.info-table td { padding: 3px 10px 3px 0; vertical-align: top; font-size: 0.75rem; color: var(--text-strong); overflow-wrap: anywhere; }
+.info-table td:first-child { width: 36%; color: var(--text-faint); }
+.info-table tr + tr td { border-top: 1px solid var(--separator); }
+.info-empty { color: var(--text-faint); font-size: 0.75rem; }
+.confirm-card { width: min(420px, calc(100vw - 40px)); }
+.confirm-message { margin-bottom: 18px; color: var(--text-strong); font-size: 0.9rem; overflow-wrap: anywhere; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.confirm-actions button { min-width: 4.5rem; }
+.confirm-actions button:focus-visible { outline: 2px solid var(--btn-text); outline-offset: 2px; }
+.btn-danger { background: #c0392b; border-color: #c0392b; color: #fff; font-weight: bold; }
+.btn-danger:hover { background: #e74c3c; }
+
+/* PARAMETRES : PROGRAMMES "OUVRIR AVEC" */
+#settings-program-list { list-style: none; }
+.settings-program-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--row-bg); padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75rem; }
+.settings-program-details { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.settings-program-name { width: 100%; padding: 5px 7px; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; }
+.settings-program-path { color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-program-empty { color: var(--text-faint); font-size: 0.75rem; }

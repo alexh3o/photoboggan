@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
+import { initPhotoActions } from './photo-actions.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -1876,6 +1877,58 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape' && isDatePickerOpen()) closeDatePicker();
 });
 window.addEventListener('resize', closeDatePicker);
+
+// ==========================================
+// MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js)
+// ==========================================
+// Retire de l'affichage les photos dont le fichier vient d'être supprimé, sans recharger la bibliothèque ni remonter la grille.
+// La sélection passe à la photo qui prend la place de la première supprimée.
+function removePhotosFromLibrary(paths) {
+  const removed = new Set(paths);
+  if (removed.size === 0) return;
+  const firstRemovedIndex = photos.findIndex(photo => removed.has(photo.path));
+  const treeSharesLibrary = folderTreePhotos === loadedPhotos;
+  loadedPhotos = loadedPhotos.filter(photo => !removed.has(photo.path));
+  folderTreePhotos = treeSharesLibrary ? loadedPhotos : folderTreePhotos.filter(photo => !removed.has(photo.path));
+  fullscreenImageCache.clear();
+  renderFolderTree();
+  renderKeywordFilters();
+  if (loadedPhotos.length === 0) {
+    applyPhotoFilters(); // plus aucune photo : même traitement que des filtres sans résultat
+    return;
+  }
+  photos = photos.filter(photo => !removed.has(photo.path));
+  for (const node of renderedThumbnailNodes.values()) node.remove();
+  renderedThumbnailNodes.clear();
+  selectedIndices.clear();
+  if (photos.length > 0) {
+    lastSelectedIndex = Math.max(0, Math.min(firstRemovedIndex < 0 ? lastSelectedIndex : firstRemovedIndex, photos.length - 1));
+    selectedIndices.add(lastSelectedIndex);
+  } else {
+    lastSelectedIndex = 0;
+  }
+  updateVirtualScroller();
+  if (photos.length > 0) {
+    updateUIOnSelection();
+  } else {
+    renderPreview();
+    fullscreenImg.src = '';
+    updateRatingAction();
+  }
+}
+
+initPhotoActions({
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  selectOnly: index => {
+    selectedIndices.clear();
+    selectedIndices.add(index);
+    lastSelectedIndex = index;
+    updateUIOnSelection();
+  },
+  removePhotos: removePhotosFromLibrary,
+  showToast: showWriteToast,
+});
 
 // DÉMARRAGE
 loadFolders();

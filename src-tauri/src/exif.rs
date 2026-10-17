@@ -687,3 +687,244 @@ fn write_xmp_sidecar(image_path: &Path, rating: Option<i32>, label: Option<Optio
     if updated.is_empty() { return Ok(()); } // rien à retirer d'un sidecar inexistant
     fs::write(sidecar, updated)
 }
+
+// ---------------------------------------------------------------------------
+// Détail complet des métadonnées (fenêtre « Infos ») : EXIF, XMP et IPTC tels qu'ils sont dans le fichier.
+// ---------------------------------------------------------------------------
+
+#[derive(serde::Serialize)]
+pub struct MetadataEntry {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(serde::Serialize, Default)]
+pub struct MetadataDetails {
+    pub file: Vec<MetadataEntry>,
+    pub exif: Vec<MetadataEntry>,
+    pub xmp: Vec<MetadataEntry>,
+    pub iptc: Vec<MetadataEntry>,
+}
+
+const MAX_DETAIL_VALUE_CHARS: usize = 1000;
+
+fn detail_entry(key: impl Into<String>, value: impl AsRef<str>) -> MetadataEntry {
+    let value = value.as_ref().trim();
+    let value = if value.chars().count() > MAX_DETAIL_VALUE_CHARS {
+        format!("{}…", value.chars().take(MAX_DETAIL_VALUE_CHARS).collect::<String>())
+    } else {
+        value.to_string()
+    };
+    MetadataEntry { key: key.into(), value }
+}
+
+fn read_exif_entries(path: &Path) -> Vec<MetadataEntry> {
+    let Ok(file) = fs::File::open(path) else { return Vec::new(); };
+    let mut reader = std::io::BufReader::new(&file);
+    let Ok(exif) = Reader::new().read_from_container(&mut reader) else { return Vec::new(); };
+    let mut entries = Vec::new();
+    for field in exif.fields() {
+        // Miniature intégrée (IFD 1) et MakerNote (binaire propriétaire) écartés.
+        if field.ifd_num != In::PRIMARY || field.tag == Tag::MakerNote { continue; }
+        let value = field.display_value().with_unit(&exif).to_string();
+        entries.push(detail_entry(field.tag.to_string(), value.trim_matches('"')));
+    }
+    entries
+}
+
+/// Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
+fn read_xmp_packet(path: &Path) -> Option<String> {
+    if let Some(embedded) = read_embedded_jpeg_xmp(path) { return Some(embedded); }
+    let appended = std::path::PathBuf::from(format!("{}.xmp", path.display()));
+    let compatible = path.with_extension("xmp");
+    [appended, compatible].into_iter().find_map(|sidecar| fs::read_to_string(sidecar).ok())
+}
+
+/// Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
+fn xml_tag_end(xml: &str, start: usize) -> Option<usize> {
+    let mut quote: Option<u8> = None;
+    for (offset, byte) in xml.as_bytes()[start..].iter().enumerate() {
+        match (quote, *byte) {
+            (Some(open), current) if current == open => quote = None,
+            (None, b'"') | (None, b'\'') => quote = Some(*byte),
+            (None, b'>') => return Some(start + offset),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn xml_attributes(text: &str) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    let mut rest = text;
+    while let Some(equal) = rest.find('=') {
+        let key = rest[..equal].trim().to_string();
+        let after = rest[equal + 1..].trim_start();
+        let Some(quote) = after.chars().next().filter(|c| *c == '"' || *c == '\'') else { break; };
+        let body = &after[1..];
+        let Some(end) = body.find(quote) else { break; };
+        if !key.is_empty() { result.push((key, body[..end].to_string())); }
+        rest = &body[end + 1..];
+    }
+    result
+}
+
+/// Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
+/// les listes (`rdf:Bag`, `rdf:Seq`, `rdf:Alt`) sont jointes par des virgules et les structures imbriquées ignorées.
+fn list_xmp_properties(xml: &str) -> Vec<MetadataEntry> {
+    let mut entries = Vec::new();
+    let mut pos = 0;
+    let mut property: Option<String> = None;
+    let mut items: Vec<String> = Vec::new();
+    let mut text = String::new();
+    while pos < xml.len() {
+        let Some(relative) = xml[pos..].find('<') else { break; };
+        text.push_str(&xml[pos..pos + relative]);
+        let tag_start = pos + relative;
+        if xml[tag_start..].starts_with("<!--") {
+            pos = xml[tag_start..].find("-->").map_or(xml.len(), |end| tag_start + end + 3);
+            continue;
+        }
+        let Some(tag_end) = xml_tag_end(xml, tag_start) else { break; };
+        let inner = &xml[tag_start + 1..tag_end];
+        pos = tag_end + 1;
+        if inner.starts_with('?') || inner.starts_with('!') {
+            text.clear();
+            continue;
+        }
+        if let Some(closing) = inner.strip_prefix('/') {
+            let name = closing.trim();
+            if name == "rdf:li" {
+                let value = xml_unescape(text.trim());
+                if !value.is_empty() { items.push(value); }
+            } else if property.as_deref() == Some(name) {
+                let values = if items.is_empty() {
+                    let value = xml_unescape(text.trim());
+                    if value.is_empty() { Vec::new() } else { vec![value] }
+                } else {
+                    std::mem::take(&mut items)
+                };
+                if !values.is_empty() { entries.push(detail_entry(name, values.join(", "))); }
+                property = None;
+                items.clear();
+            }
+            text.clear();
+            continue;
+        }
+        let self_closing = inner.ends_with('/');
+        let body = inner.trim_end_matches('/');
+        let name_end = body.find(char::is_whitespace).unwrap_or(body.len());
+        let (name, attributes) = body.split_at(name_end);
+        text.clear();
+        if name == "rdf:Description" {
+            for (key, value) in xml_attributes(attributes) {
+                if key.starts_with("xmlns") || key == "rdf:about" { continue; }
+                entries.push(detail_entry(key, xml_unescape(&value)));
+            }
+        } else if property.is_none() && !self_closing && !name.starts_with("rdf:") && !name.starts_with("x:") {
+            property = Some(name.to_string());
+            items.clear();
+        }
+    }
+    entries
+}
+
+fn iptc_dataset_name(dataset: u8) -> String {
+    let name = match dataset {
+        5 => "ObjectName", 15 => "Category", 20 => "SupplementalCategories", 25 => "Keywords",
+        40 => "SpecialInstructions", 55 => "DateCreated", 60 => "TimeCreated", 80 => "By-line",
+        85 => "By-lineTitle", 90 => "City", 92 => "Sub-location", 95 => "Province-State",
+        100 => "CountryCode", 101 => "CountryName", 103 => "OriginalTransmissionReference",
+        105 => "Headline", 110 => "Credit", 115 => "Source", 116 => "CopyrightNotice",
+        120 => "Caption-Abstract", 122 => "Writer-Editor",
+        other => return format!("2:{other:03}"),
+    };
+    name.to_string()
+}
+
+/// Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
+fn collect_iptc_datasets(iptc: &[u8], grouped: &mut Vec<(u8, Vec<String>)>) {
+    let mut q = 0;
+    while q + 5 <= iptc.len() {
+        if iptc[q] != 0x1c { q += 1; continue; }
+        let record = iptc[q + 1];
+        let dataset = iptc[q + 2];
+        let mut value_len = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
+        let mut header = 5;
+        if value_len & 0x8000 != 0 {
+            let n = value_len & 0x7fff;
+            if n == 0 || n > 4 || q + 5 + n > iptc.len() { break; }
+            value_len = 0;
+            for byte in &iptc[q + 5..q + 5 + n] { value_len = (value_len << 8) | *byte as usize; }
+            header += n;
+        }
+        if q + header + value_len > iptc.len() { break; }
+        if record == 2 {
+            let value = String::from_utf8_lossy(&iptc[q + header..q + header + value_len]).trim().to_string();
+            if !value.is_empty() {
+                match grouped.iter_mut().find(|item| item.0 == dataset) {
+                    Some(item) => { if !item.1.contains(&value) { item.1.push(value); } }
+                    None => grouped.push((dataset, vec![value])),
+                }
+            }
+        }
+        q += header + value_len;
+    }
+}
+
+fn read_iptc_entries(path: &Path) -> Vec<MetadataEntry> {
+    let Ok(file) = fs::File::open(path) else { return Vec::new(); };
+    let mut bytes = Vec::new();
+    if file.take(16 * 1024 * 1024).read_to_end(&mut bytes).is_err() { return Vec::new(); }
+    if bytes.len() < 4 || bytes[0..2] != [0xff, 0xd8] { return Vec::new(); }
+    let mut grouped: Vec<(u8, Vec<String>)> = Vec::new();
+    let mut pos = 2;
+    while pos + 4 <= bytes.len() {
+        if bytes[pos] != 0xff { break; }
+        while pos < bytes.len() && bytes[pos] == 0xff { pos += 1; }
+        if pos >= bytes.len() { break; }
+        let marker = bytes[pos];
+        pos += 1;
+        if marker == 0xda || marker == 0xd9 { break; }
+        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
+        if pos + 2 > bytes.len() { break; }
+        let segment_len = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as usize;
+        if segment_len < 2 || pos + segment_len > bytes.len() { break; }
+        let data = &bytes[pos + 2..pos + segment_len];
+        if marker == 0xed && data.starts_with(b"Photoshop 3.0\0") {
+            let mut p = 14;
+            while p + 12 <= data.len() && &data[p..p + 4] == b"8BIM" {
+                let resource = u16::from_be_bytes([data[p + 4], data[p + 5]]);
+                p += 6;
+                let name_len = data[p] as usize;
+                p += 1 + name_len;
+                if (1 + name_len) % 2 != 0 { p += 1; }
+                if p + 4 > data.len() { break; }
+                let resource_len = u32::from_be_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                p += 4;
+                if p + resource_len > data.len() { break; }
+                if resource == 0x0404 { collect_iptc_datasets(&data[p..p + resource_len], &mut grouped); }
+                p += resource_len;
+                if resource_len % 2 != 0 { p += 1; }
+            }
+        }
+        pos += segment_len;
+    }
+    grouped.into_iter().map(|(dataset, values)| detail_entry(iptc_dataset_name(dataset), values.join(", "))).collect()
+}
+
+/// Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
+pub fn read_metadata_details(path: &Path) -> MetadataDetails {
+    let mut details = MetadataDetails::default();
+    if let Ok(metadata) = fs::metadata(path) {
+        details.file.push(detail_entry("path", path.display().to_string()));
+        details.file.push(detail_entry("size", format!("{:.2} MB", metadata.len() as f64 / 1024.0 / 1024.0)));
+    }
+    if let Some((width, height)) = read_image_dimensions(path) {
+        details.file.push(detail_entry("dimensions", format!("{width} x {height} ({:.1} MP)", width as f64 * height as f64 / 1_000_000.0)));
+    }
+    details.exif = read_exif_entries(path);
+    if let Some(packet) = read_xmp_packet(path) { details.xmp = list_xmp_properties(&packet); }
+    details.iptc = read_iptc_entries(path);
+    details
+}
