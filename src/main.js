@@ -689,19 +689,15 @@ function preloadFullscreenImages(index) {
 }
 
 // Navigation à la molette en plein écran
-let pendingWheelDelta = 0;
-let wheelFramePending = false;
 fullscreenView.addEventListener('wheel', (e) => {
   e.preventDefault();
-  pendingWheelDelta += e.deltaY * (e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight : 1);
-  if (wheelFramePending) return;
-  wheelFramePending = true;
-  requestAnimationFrame(() => {
-    const steps = Math.trunc(pendingWheelDelta / 80);
-    pendingWheelDelta -= steps * 80;
-    wheelFramePending = false;
-    if (steps) navigateToPhotoIndex(lastSelectedIndex + steps);
-  });
+  if (e.deltaY > 0) {
+    // Molette vers le bas / droite -> Photo suivante
+    navigateToPhotoIndex(lastSelectedIndex + 1);
+  } else {
+    // Molette vers le haut / gauche -> Photo précédente
+    navigateToPhotoIndex(lastSelectedIndex - 1);
+  }
 }, { passive: false });
 
 // Double-clic pour quitter le plein écran
