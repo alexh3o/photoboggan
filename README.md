@@ -1,6 +1,6 @@
 # Photofile
 
-
+<img src="/screenshots/logo256.png" title="" alt="/img" data-align="center" />
 
 <p align="center">
   <b>English</b> | <a href="#francais">Français</a>
