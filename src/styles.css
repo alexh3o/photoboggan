@@ -210,6 +210,9 @@ button.active { background: var(--active-button); border-color: var(--active-but
 .exif-section.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
 .exif-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
 .exif-section ul { list-style: none; }
+/* Deux-points des libellés traduits : espace insécable avant en français, collant en anglais */
+.exif-label::after { content: "\00a0:"; }
+html[lang="en"] .exif-label::after { content: ":"; }
 .exif-section li { margin-bottom: 10px; font-size: 0.75rem; color: var(--text-faint); }
 .exif-section li span { color: var(--text-strong); display: block; margin-top: 3px; font-size: 0.8rem; overflow-wrap: anywhere; }
 .exif-section li span#exif-manufacturer, .exif-section li span#exif-model,  

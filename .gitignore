@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Tools
+get_photos.py
+test_photos_github/*
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
