@@ -1,8 +1,8 @@
 # Photofile
 
-Photofile est un navigateur et gestionnaire de photothèque local, minimaliste et ultra-rapide, conçu comme une alternative légère à digikam pour les grandes collections.
+Photofile est un navigateur et gestionnaire de photothèque local, minimaliste.
 
-L'application a été pensée pour un objectif précis : accélérer drastiquement le processus de tri, de notation et de comparaison de photos sans alourdir le système.
+L'application a été pensée pour un objectif précis : accélérer le processus de tri, de notation et de comparaison de photos sans alourdir le système.
 
 ⚠️ **Avertissement (Beta)** : Ce logiciel est actuellement en version bêta, fourni sans aucune garantie (« as is »), <u>à utiliser à vos risques et périls</u>. Il est fortement recommandé d'<u>effectuer une sauvegarde complète de vos photos</u> avant toute utilisation.
 
@@ -54,15 +54,11 @@ Développé pour offrir des performances natives maximales grâce à une archite
 
 L'application est actuellement disponible en français. Une architecture multilingue (avec l'anglais par défaut) sera intégrée dans les prochaines versions.
 
-
-
 # ⛶ Screenshots
 
 ![Aperçu de Photofile](/screenshots/photofile_D62drnmLzg.jpg)
 
 *Vue plein écran*
-
-
 
 ![Aperçu de Photofile](/screenshots/photofile_VPAX3vJOkt.jpg)
 
@@ -71,8 +67,6 @@ L'application est actuellement disponible en français. Une architecture multili
 ![Aperçu de Photofile](/screenshots/photofile_3UdcAhXK98.jpg)
 
 *Mode Comparer*
-
-
 
 ![Aperçu de Photofile](/screenshots/photofile_9sLSsMjmtq.jpg)
 
