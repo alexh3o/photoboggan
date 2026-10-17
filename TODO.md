@@ -2,32 +2,33 @@
 
 ## 🚀 Next in line
 
-- [x] UI: add filename to info panel
-- [ ] UI: zooming in full screen navigation
-- [x] Manage xmp color flags and add filters
-- [ ] Add open image in explorer actions (1 image only)
-- [ ] Add mouse and keyboard shortcuts information
-- [x] Allow ESC to close parameters
-- [ ] Add copy selection to actions (folder selection, clipboard)
-- [x] Add exif lens in informations panel
-- [ ] Variable texts and icons size instead of fixed
-- [ ] Add filters reset
-- [x] Manage accent colour for buttons (currently blue)
-- [x] UI: Colour "Filtres"" button for homogeneity
-- [x] UI: add MP size
-- [x] About modal
-- [ ] Intercepter menu bouton droit
+- [ ] UI: allow zooming in full screen navigation, with +- keys or Ctrl+MouseWheel
+- [ ] Add open image in explorer action (offer option only when 1 image is selected)
+- [ ] Add keyboard shortcuts setting screen
+- [x] Add copy selection to actions (folder selection)
+- [ ] Finish implementing variable (rem) texts and icons size instead of fixed px sizes
+- [ ] Add all filters reset button
+- [x] Intercepter menu bouton droit
+- [ ] Accelerate fullscreen navigation between images (extend cache ?)
+- [ ] Add resizing option in "Copy to" action
+- [ ] Add retain chosen folder in "Copy to" action, and keyboard shortcut
+- [ ] Map widget in Info panel
+- [ ] Add copy to "clipboard" + shortcut
+- [ ] Shortcut: info modal
+- [ ] Shortcut: copy to
+- [ ] Add keyboard shortcuts for "open with" programs
+- [ ] Manage single/multiple selections and right click menu
+- [ ] Manage single/multiple selections and "open with" menu
 
 ## 💡 Ideas and longer term evolutions
 
 - [ ] Add linux release (and check window resizing)
-- [x] Add english and manage multilingual
-- [ ] Allow keywords management & file write
+- [ ] Add mouse settings screen
+- [ ] Allow keywords management & file write (big one)
 - [ ] Toast for thumbnails generation, new files...
-- [ ] Shortcuts and mouse settings
-- [ ] Map
+- [ ] Map screen
 - [ ] Better management of file modifications detection
 
-## ❌ Not planned, that's not the spirit
+## ❌ Not planned, that's not the spirit : use open with
 
 - [ ] Image editing, cropping...
