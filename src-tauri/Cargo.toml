@@ -18,6 +18,10 @@ rusqlite = { version = "0.32.1", features = ["bundled"] }
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.25.0"
 kamadak-exif = "0.6.1"
+# Génération des miniatures en Rust (module thumbnails.rs) : crates en Rust pur, sans bibliothèque native à distribuer.
+# jpeg-decoder sans la fonctionnalité rayon : le parallélisme se fait entre images, pas à l'intérieur d'un décodage.
+jpeg-decoder = { version = "0.3", default-features = false }
+jpeg-encoder = "0.6"
 walkdir = "2.5.0"
 rayon = "1.10.0"
 chrono = "0.4.38"

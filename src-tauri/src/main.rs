@@ -2,6 +2,7 @@
 
 mod db;
 mod exif;
+mod thumbnails;
 
 use tauri::{State, Emitter, Manager};
 use std::fs;
@@ -74,6 +75,27 @@ fn get_cached_thumbnail_paths(app: tauri::AppHandle, source_paths: Vec<String>) 
             .filter(|path| path.is_file())
             .map(|path| path.to_string_lossy().into_owned())
     }).collect()
+}
+
+#[derive(serde::Serialize)]
+struct GeneratedThumbnail {
+    path: String,
+    width: u32,
+    height: u32,
+}
+
+// Génère la miniature (JPEG uniquement) directement dans le cache, hors du webview : décodage réduit,
+// orientation EXIF appliquée, taille réelle renvoyée (ratio exact pour la disposition justifiée).
+// Une erreur (PNG, JPEG CMYK, fichier illisible…) indique à l'interface d'utiliser sa génération de repli.
+#[tauri::command(async)]
+fn generate_thumbnail(app: tauri::AppHandle, source_path: String) -> Result<GeneratedThumbnail, String> {
+    let destination = thumbnail_cache_file(&app, &source_path)?;
+    let size = if destination.is_file() {
+        thumbnails::jpeg_size(&destination)?
+    } else {
+        thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination)?
+    };
+    Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
 }
 
 #[tauri::command(async)]
@@ -255,6 +277,7 @@ fn main() {
             get_photos_paginated,
             get_cached_thumbnail_path,
             get_cached_thumbnail_paths,
+            generate_thumbnail,
             save_thumbnail_cache,
             rescan_all_folders,
             update_photo_metadata

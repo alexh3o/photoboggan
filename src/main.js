@@ -154,11 +154,11 @@ function flushThumbnailLookups() {
   }
 }
 
-// Génération des miniatures absentes du cache : elle décode l'image originale en pleine résolution,
-// donc le nombre de tâches simultanées est limité pour garder l'interface fluide. Les tâches dont la miniature
+// Génération des miniatures absentes du cache (côté Rust, avec repli webview) : le nombre de tâches simultanées
+// est limité pour laisser des cœurs à l'interface. Les tâches dont la miniature
 // a quitté le DOM (défilement rapide) sont abandonnées tant qu'elles n'ont pas démarré, et la plus proche
 // de la zone visible passe en premier.
-const MAX_THUMBNAIL_GENERATIONS = Math.max(2, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+const MAX_THUMBNAIL_GENERATIONS = Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 4) - 1));
 let thumbnailGenerationQueue = [];
 let activeThumbnailGenerations = 0;
 let thumbnailPumpScheduled = false;
@@ -206,14 +206,58 @@ function enqueueThumbnailGeneration(image, sourcePath, run) {
   }
 }
 
-// Apprend le ratio réel depuis l'image chargée (dimensions EXIF absentes en base) et relance la disposition justifiée.
-function updatePhotoAspectRatio(image, photo) {
-  if (!(image.naturalWidth > 0 && image.naturalHeight > 0)) return;
-  const ratio = image.naturalWidth / image.naturalHeight;
+// Apprend le ratio réel de la miniature (dimensions EXIF absentes ou fausses en base) et relance la disposition justifiée.
+function learnPhotoAspectRatio(photo, ratio) {
+  if (!(ratio > 0)) return;
   const previousRatio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 0);
-  if (Math.abs(previousRatio - ratio) > 0.001) {
+  // Tolérance relative de 0,2 % : l'arrondi des dimensions d'une miniature (ex. 512x341) ne doit pas relancer la disposition.
+  if (Math.abs(previousRatio - ratio) > ratio * 0.002) {
     photo.aspectRatio = ratio;
     scheduleJustifiedRelayout();
+  }
+}
+
+function updatePhotoAspectRatio(image, photo) {
+  if (image.naturalWidth > 0 && image.naturalHeight > 0) learnPhotoAspectRatio(photo, image.naturalWidth / image.naturalHeight);
+}
+
+// Affiche une miniature du cache dans l'image et apprend son ratio réel au chargement.
+function showCachedThumbnail(image, cachedPath, photo) {
+  image.onload = () => {
+    if (!image.isConnected) return;
+    image.classList.add('loaded');
+    updatePhotoAspectRatio(image, photo);
+  };
+  image.src = convertFileSrc(cachedPath);
+}
+
+// Repli (PNG, JPEG CMYK, fichier que le backend ne sait pas lire) : ancienne génération dans le webview,
+// limitée à peu de tâches car elle décode l'original en pleine résolution.
+const MAX_WEBVIEW_THUMBNAIL_FALLBACKS = 2;
+let activeWebviewThumbnailFallbacks = 0;
+const webviewThumbnailFallbackWaiters = [];
+
+async function generateThumbnailInWebview(image, sourcePath, photo) {
+  while (activeWebviewThumbnailFallbacks >= MAX_WEBVIEW_THUMBNAIL_FALLBACKS) {
+    await new Promise(resolve => webviewThumbnailFallbackWaiters.push(resolve));
+  }
+  activeWebviewThumbnailFallbacks++;
+  try {
+    const loaded = new Promise(resolve => {
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+    });
+    image.src = convertFileSrc(sourcePath);
+    const success = await loaded;
+    image.onload = null;
+    image.onerror = null;
+    if (!success) return;
+    image.classList.add('loaded');
+    updatePhotoAspectRatio(image, photo);
+    await cacheThumbnail(image, sourcePath);
+  } finally {
+    activeWebviewThumbnailFallbacks--;
+    webviewThumbnailFallbackWaiters.shift()?.();
   }
 }
 
@@ -222,28 +266,24 @@ function loadThumbnail(image, sourcePath, photo) {
   lookupCachedThumbnail(sourcePath).then(cachedPath => {
     if (!image.isConnected) return;
     if (cachedPath) {
-      image.onload = () => {
-        if (!image.isConnected) return;
-        image.classList.add('loaded');
-        updatePhotoAspectRatio(image, photo);
-      };
-      image.src = convertFileSrc(cachedPath);
+      showCachedThumbnail(image, cachedPath, photo);
       return;
     }
-    // Pas de miniature en cache : l'original est chargé quand une place se libère dans la file de génération.
+    // Pas de miniature en cache : génération côté Rust quand une place se libère dans la file de génération.
     enqueueThumbnailGeneration(image, sourcePath, async () => {
-      const loaded = new Promise(resolve => {
-        image.onload = () => resolve(true);
-        image.onerror = () => resolve(false);
-      });
-      image.src = convertFileSrc(sourcePath);
-      const success = await loaded;
-      image.onload = null;
-      image.onerror = null;
-      if (!success) return;
-      image.classList.add('loaded');
-      updatePhotoAspectRatio(image, photo);
-      await cacheThumbnail(image, sourcePath);
+      let generated = null;
+      try {
+        generated = await invoke('generate_thumbnail', { sourcePath });
+      } catch {
+        // Format non géré par le backend : repli ci-dessous.
+      }
+      if (!generated) {
+        await generateThumbnailInWebview(image, sourcePath, photo);
+        return;
+      }
+      thumbnailCacheLookups.set(sourcePath, Promise.resolve(generated.path));
+      if (generated.width > 0 && generated.height > 0) learnPhotoAspectRatio(photo, generated.width / generated.height);
+      if (image.isConnected && image.dataset.sourcePath === sourcePath) showCachedThumbnail(image, generated.path, photo);
     });
   });
 }
@@ -979,6 +1019,43 @@ window.addEventListener('keydown', event => {
     settingsModal.classList.add('hidden');
   }
 });
+
+
+// ==========================================
+// MODALE Guide (ouverte depuis les Paramètres)
+// ==========================================
+const guideModal = document.getElementById('guide-modal');
+const guideVersion = document.getElementById('guide-version');
+async function openGuide() {
+  guideModal.classList.remove('hidden');
+  if (guideVersion.dataset.loaded) return;
+  try {
+    guideVersion.textContent = await getVersion();
+    guideVersion.dataset.loaded = 'true';
+  } catch (error) {
+    console.error('Version indisponible', error);
+  }
+}
+function closeGuide() {
+  guideModal.classList.add('hidden');
+}
+document.getElementById('btn-open-guide').addEventListener('click', openGuide);
+document.getElementById('btn-close-guide').addEventListener('click', closeGuide);
+
+
+
+// ESC ferme la fenêtre la plus haute (À propos, puis Paramètres), même si un champ des paramètres a le focus.
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  if (!guideModal.classList.contains('hidden')) {
+    event.preventDefault();
+    closeGuide();
+  } else if (!settingsModal.classList.contains('hidden')) {
+    event.preventDefault();
+    settingsModal.classList.add('hidden');
+  }
+});
+
 
 document.getElementById('btn-add-folder').addEventListener('click', async () => {
   const dir = await open({ directory: true });
