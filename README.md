@@ -1,5 +1,88 @@
 # Photofile
 
+<p align="center">
+  <b>English</b> | <a href="#francais">Français</a>
+</p>
+
+<div id="english">
+
+Photofile is a minimalist, local photo library browser and manager.
+
+The application was designed with a specific goal: to speed up the process of sorting, rating, and comparing photos without bogging down your system.
+
+⚠️ **Beta Warning**: This software is currently in beta version, provided "as is" without warranty of any kind, <u>use at your own risk</u>. It is strongly recommended to <u>make a complete backup of your photos</u> before any use.
+
+![Photofile Preview](/screenshots/photofile_9pnYgRmcUT.jpg)
+
+# 🚀 Key Features
+
+**Zero copy, folder structure respected**: Your files stay strictly where they are. No structural modifications or file duplications are performed on your disk.
+
+**Smooth navigation & local folders**: Browse your directories in the blink of an eye with a grid of thumbnails and fully adjustable display sizes.
+
+**Fast viewing**: Immediate access to a zoomable fullscreen preview.
+
+**Advanced multi-criteria search**:
+
+- By keywords and ratings.
+- By an ultra-flexible unified date filter (supporting formats from year down to minute: YYYY, YYYYMM, YYYYMMDD, YYYYMMDDHH, YYYYMMDDHHmm, as well as combinable custom ranges).
+
+**Simultaneous Comparison Mode**: Compare 2 to 4 images side by side with synchronized (or independently toggleable) zooms and pans.
+
+**Metadata & EXIF**:
+
+- Display of essential EXIF data.
+- Direct writing of ratings and tags into EXIF files for maximum portability.
+
+# 🛠️ Technical Stack
+
+Developed to deliver maximum native performance through a modern hybrid architecture:
+
+- Desktop application: Tauri v2 (guaranteeing a lightweight, fast, and secure executable).
+- Backend (Performance & Files):
+  - Rust for execution speed and heavy processing.
+  - Rayon for multithreaded traversal and indexing of photo folders.
+  - Walkdir for rapid recursive traversal of the local directory tree.
+  - Kamadak-exif for ultra-fast extraction of embedded metadata.
+- Database: Locally integrated SQLite (via rusqlite and r2d2 in WAL mode) for instant search and indexing without external dependencies.
+- Frontend: Vue.js 3 / Vite for a reactive and modern interface.
+
+# 🌍 Language & Internationalization
+
+The application is currently available in French and English.
+
+# ⛶ Screenshots
+
+![Photofile Preview](/screenshots/photofile_D62drnmLzg.jpg)
+
+*Fullscreen view*
+
+![Photofile Preview](/screenshots/photofile_VPAX3vJOkt.jpg)
+
+*Thumbnails only & Light mode*
+
+![Photofile Preview](/screenshots/photofile_3UdcAhXK98.jpg)
+
+*Comparison mode*
+
+![Photofile Preview](/screenshots/photofile_9sLSsMjmtq.jpg)
+
+*Settings*
+
+# 📄 License
+
+Project distributed under the MIT license. (See the LICENSE file for details).
+
+
+
+
+
+</div>
+
+<div id="francais">
+<p align="center">
+  <a href="#english">English</a> | Français
+</p>
 Photofile est un navigateur et gestionnaire de photothèque local, minimaliste.
 
 L'application a été pensée pour un objectif précis : accélérer le processus de tri, de notation et de comparaison de photos sans alourdir le système.
@@ -75,3 +158,5 @@ L'application est actuellement disponible en français. Une architecture multili
 # 📄 Licence
 
 Projet distribué sous licence MIT. (Voir le fichier LICENSE pour plus de détails).
+
+</div>
