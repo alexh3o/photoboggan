@@ -1,6 +1,6 @@
 # Photofile
 
-<img src="/screenshots/logo256.png" title="" alt="/img" data-align="center" />
+<img title="" src="/screenshots/logo256.png" alt="/img" data-align="center" />
 
 <p align="center">
   <b>English</b> | <a href="#francais">Français</a>
@@ -14,7 +14,7 @@ The application was designed with a specific goal: to speed up the process of so
 
 ⚠️ **Beta Warning**: This software is currently in beta version, provided "as is" without warranty of any kind, <u>use at your own risk</u>. It is strongly recommended to <u>make a complete backup of your photos</u> before any use.
 
-![Photofile Preview](/screenshots/photofile_9pnYgRmcUT.jpg)
+![Photofile Preview](/screenshots/thumbnails-preview-info.jpg)
 
 # 🚀 Key Features
 
