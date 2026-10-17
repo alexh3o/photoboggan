@@ -55,19 +55,23 @@ The application is currently available in French and English. You can contribute
 
 # ⛶ Screenshots
 
-![Photofile Preview](/screenshots/photofile_D62drnmLzg.jpg)
+![Photofile Preview](/screenshots/fullscreen.jpg)
 
 *Fullscreen view*
 
-![Photofile Preview](/screenshots/photofile_VPAX3vJOkt.jpg)
+![Aperçu de Photofile](/screenshots/fullscreen-rating.jpg)
 
-*Thumbnails only & Light mode*
+*Fullscreen view with rating*
 
-![Photofile Preview](/screenshots/photofile_3UdcAhXK98.jpg)
+![Photofile Preview](/screenshots/thumbnails-only.jpg)
 
-*Comparison mode*
+*Thumbnails only*
 
-![Photofile Preview](/screenshots/photofile_9sLSsMjmtq.jpg)
+![Photofile Preview](/screenshots/compare.jpg)
+
+*Comparison mode & light theme*
+
+![Photofile Preview](/screenshots/settings.jpg)
 
 *Settings*
 
@@ -87,7 +91,7 @@ L'application a été pensée pour un objectif précis : accélérer le processu
 
 ⚠️ **Avertissement (Beta)** : Ce logiciel est actuellement en version bêta, fourni sans aucune garantie (« as is »), <u>à utiliser à vos risques et périls</u>. Il est fortement recommandé d'<u>effectuer une sauvegarde complète de vos photos</u> avant toute utilisation.
 
-![Aperçu de Photofile](/screenshots/photofile_9pnYgRmcUT.jpg)
+![Aperçu de Photofile](/screenshots/thumbnails-preview-info.jpg)
 
 # 🚀 Fonctionnalités principales
 
@@ -137,19 +141,23 @@ L'application est actuellement disponible en français et anglais. Vous pouvez c
 
 # ⛶ Screenshots
 
-![Aperçu de Photofile](/screenshots/photofile_D62drnmLzg.jpg)
+![Aperçu de Photofile](/screenshots/fullscreen.jpg)
 
 *Vue plein écran*
 
-![Aperçu de Photofile](/screenshots/photofile_VPAX3vJOkt.jpg)
+![Aperçu de Photofile](/screenshots/fullscreen-rating.jpg)
 
-*Miniatures seules & Mode clair*
+*Vue plein écran et notation*
 
-![Aperçu de Photofile](/screenshots/photofile_3UdcAhXK98.jpg)
+![Aperçu de Photofile](/screenshots/thumbnails-only.jpg)
 
-*Mode Comparer*
+*Miniatures seules*
 
-![Aperçu de Photofile](/screenshots/photofile_9sLSsMjmtq.jpg)
+![Aperçu de Photofile](/screenshots/compare.jpg)
+
+*Mode Comparer et theme clair*
+
+![Aperçu de Photofile](/screenshots/settings.jpg)
 
 *Paramètres*
 
