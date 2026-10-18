@@ -225,7 +225,10 @@ html[lang="en"] .exif-label::after { content: ":"; }
 /* FULLSCREEN */
 #fullscreen-view { position: fixed; inset: 0; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; cursor: zoom-out; }
 #fullscreen-view.hidden { display: none; }
-#fullscreen-view img { max-width: 100vw; max-height: 100vh; object-fit: contain; animation: fadeInImage 0.2s ease; }
+/* L'image est positionnée et zoomée par transform (voir layoutPreviewSlot dans main.js), comme dans l'aperçu : vue entière par défaut, jamais agrandie au-delà de sa taille réelle. */
+#fullscreen-view img { position: absolute; top: 0; left: 0; max-width: none; max-height: none; transform-origin: 0 0; will-change: transform; user-select: none; -webkit-user-drag: none; pointer-events: none; animation: fadeInImage 0.2s ease; }
+#fullscreen-view.zoomed { cursor: grab; }
+#fullscreen-view.zoomed.dragging { cursor: grabbing; }
 .fullscreen-rating { position: absolute; bottom: 1.75px; left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 28px; background: #181818dd; box-shadow: 0 3px 18px #000a; display: flex; gap: 6px; z-index: 2; }
 .fullscreen-rating.hidden { display: none; }
 .fullscreen-rating button { background: transparent; border: 0; padding: 0 3px; color: #666; font-size: 38px; line-height: 1; }

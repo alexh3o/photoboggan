@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, confirmAndDelete } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, confirmAndDelete } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 
 // AJOUT BARRE TITRE
@@ -124,6 +124,10 @@ const scrollContent = document.getElementById('virtual-scroll-content');
 const previewStage = document.getElementById('preview-stage');
 const fullscreenView = document.getElementById('fullscreen-view');
 const fullscreenImg = document.getElementById('fullscreen-image');
+// Zoom du plein écran : même structure qu'une case de l'aperçu (voir layoutPreviewSlot), la vue entière occupe toute la fenêtre (marge 1).
+const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
+let fullscreenLoadToken = 0;
+let fullscreenDrag = null;
 const sidebarPanel = document.getElementById('sidebar-panel');
 const folderTree = document.getElementById('folder-tree');
 const settingsModal = document.getElementById('settings-modal');
@@ -435,7 +439,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     updateUIOnSelection();
   } else {
     renderPreview();
-    fullscreenImg.src = '';
+    clearFullscreenImage();
     updateRatingAction();
     document.getElementById('exif-caption').textContent = '-';
   }
@@ -699,14 +703,74 @@ function openFullscreen(index) {
   fullscreenRatingPinned = false;
   fullscreenRating.classList.add('hidden');
   fullscreenView.classList.remove('hidden');
+  // Toujours en vue entière à l'ouverture (le zoom d'une précédente ouverture n'est pas conservé).
+  fullscreenSlot.zoom = null;
+  fullscreenSlot.center = { x: 0.5, y: 0.5 };
+  layoutFullscreenSlot();
   preloadFullscreenImages(index);
 }
 
 function closeFullscreen() {
   isFullscreen = false;
+  fullscreenDrag = null;
+  fullscreenView.classList.remove('dragging');
   fullscreenView.classList.add('hidden');
   clearTimeout(fullscreenRatingTimeout);
   fullscreenRatingPinned = false;
+}
+
+// Positionne et zoome l'image du plein écran avec la même logique que l'aperçu (rien à faire tant que la fenêtre est masquée).
+function layoutFullscreenSlot() {
+  if (!isFullscreen) return;
+  layoutPreviewSlot(fullscreenSlot);
+  fullscreenView.classList.toggle('zoomed', fullscreenSlot.zoom !== null);
+}
+
+// Affiche la photo en plein écran. Zoom et position repartent de la vue entière seulement quand l'image change : un simple
+// changement de note rappelle cette fonction avec la même image. L'image précédente reste affichée jusqu'à ce que la nouvelle soit
+// prête, puis dimensions, zoom et position sont appliqués d'un coup (pas d'image étirée entre deux photos).
+function showFullscreenPhoto(photo, url) {
+  fullscreenSlot.photo = photo;
+  if (fullscreenSlot.url === url) return;
+  fullscreenSlot.url = url;
+  const token = ++fullscreenLoadToken;
+  const apply = loaded => {
+    if (token !== fullscreenLoadToken) return; // une autre photo a été demandée entre-temps
+    fullscreenSlot.naturalWidth = loaded.naturalWidth;
+    fullscreenSlot.naturalHeight = loaded.naturalHeight;
+    fullscreenSlot.zoom = null;
+    fullscreenSlot.center = { x: 0.5, y: 0.5 };
+    fullscreenImg.style.width = `${loaded.naturalWidth}px`;
+    fullscreenImg.style.height = `${loaded.naturalHeight}px`;
+    fullscreenImg.src = url;
+    layoutFullscreenSlot();
+  };
+  const probe = new Image();
+  probe.onload = () => apply(probe);
+  probe.onerror = () => {
+    if (token !== fullscreenLoadToken) return;
+    // Image illisible : l'élément affiche l'erreur, ce qui lance la vérification de fichier manquant (écouteur « error » plus bas).
+    fullscreenSlot.naturalWidth = 0;
+    fullscreenSlot.naturalHeight = 0;
+    fullscreenSlot.zoom = null;
+    fullscreenImg.src = url;
+  };
+  probe.src = url;
+  if (probe.complete && probe.naturalWidth > 0) { // déjà en mémoire (aperçu, préchargement) : pas d'attente
+    probe.onload = null;
+    apply(probe);
+  }
+}
+
+function clearFullscreenImage() {
+  fullscreenLoadToken++;
+  fullscreenSlot.photo = null;
+  fullscreenSlot.url = '';
+  fullscreenSlot.naturalWidth = 0;
+  fullscreenSlot.naturalHeight = 0;
+  fullscreenSlot.zoom = null;
+  fullscreenImg.src = '';
+  layoutFullscreenSlot();
 }
 
 function navigatePhoto(direction) {
@@ -766,6 +830,35 @@ fullscreenView.addEventListener('wheel', (e) => {
 
 // Double-clic pour quitter le plein écran
 fullscreenView.addEventListener('dblclick', closeFullscreen);
+
+// Plein écran zoomé : on déplace l'image en la faisant glisser à la souris (comme dans l'aperçu) ; le zoom lui-même se commande au clavier (+ / - / *).
+fullscreenView.addEventListener('pointerdown', event => {
+  if (event.button !== 0 || fullscreenSlot.zoom === null) return;
+  if (event.target instanceof Element && event.target.closest('#fullscreen-rating')) return;
+  fullscreenDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  fullscreenView.setPointerCapture(event.pointerId);
+  fullscreenView.classList.add('dragging');
+});
+fullscreenView.addEventListener('pointermove', event => {
+  if (!fullscreenDrag || event.pointerId !== fullscreenDrag.pointerId) return;
+  const dx = event.clientX - fullscreenDrag.x;
+  const dy = event.clientY - fullscreenDrag.y;
+  fullscreenDrag.x = event.clientX;
+  fullscreenDrag.y = event.clientY;
+  const slot = fullscreenSlot;
+  if (slot.zoom === null || !(slot.displayWidth > 0 && slot.displayHeight > 0)) return;
+  slot.center = clampPreviewCenter(slot, slot.center.x - dx / slot.displayWidth, slot.center.y - dy / slot.displayHeight);
+  layoutFullscreenSlot();
+});
+function endFullscreenDrag(event) {
+  if (!fullscreenDrag || event.pointerId !== fullscreenDrag.pointerId) return;
+  fullscreenDrag = null;
+  fullscreenView.classList.remove('dragging');
+}
+fullscreenView.addEventListener('pointerup', endFullscreenDrag);
+fullscreenView.addEventListener('pointercancel', endFullscreenDrag);
+// Redimensionnement de la fenêtre pendant le plein écran : la vue entière et le centre sont recalculés.
+new ResizeObserver(() => layoutFullscreenSlot()).observe(fullscreenView);
 // Image qui ne se charge pas (fichier supprimé hors de l'application) : vérification puis retrait du catalogue si besoin.
 // Le backend revérifie sur le disque : une erreur sur une photo qui existe encore ne retire rien.
 fullscreenImg.addEventListener('error', () => {
@@ -814,7 +907,7 @@ function updateUIOnSelection() {
     const photo = photos[lastSelectedIndex];
     const imgUrl = photoUrl(photo);
     
-    fullscreenImg.src = imgUrl;
+    showFullscreenPhoto(photo, imgUrl);
     updateFullscreenRatingStars();
     if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
 
@@ -990,6 +1083,18 @@ async function setSelectionRating(rating) {
 // ==========================================
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+  // Ctrl+C : copie les photos sélectionnées dans le presse-papiers de l'OS. Traité avant le raccourci « C » seul (Copier vers…),
+  // qui ne doit pas s'ouvrir sur Ctrl+C. Ignoré quand une fenêtre (Paramètres, Guide, Tri…) est ouverte.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
+    if (!document.querySelector('.modal:not(.hidden)')) {
+      const selectedPhotos = [...selectedIndices].sort((a, b) => a - b).map(index => photos[index]).filter(Boolean);
+      if (selectedPhotos.length > 0) {
+        e.preventDefault();
+        copyPhotosToClipboard(selectedPhotos);
+      }
+    }
+    return;
+  }
   // Show rating bar Shortcut
   if (e.key.toLowerCase() === 'r' && isFullscreen) {
     fullscreenRatingPinned = !fullscreenRatingPinned;
@@ -1047,11 +1152,12 @@ window.addEventListener('keydown', (e) => {
     setSelectionRating(Number(e.key));
     return;
   }
-  // Zoom de l'aperçu (+ / - / *), hors plein écran
-  if (!isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomPreviewSteps(1, null, hoveredPreviewSlot); return; }
-    if (e.key === '-') { e.preventDefault(); zoomPreviewSteps(-1, null, hoveredPreviewSlot); return; }
-    if (e.key === '*') { e.preventDefault(); togglePreviewActualSize(null, hoveredPreviewSlot); return; }
+  // Zoom (+ / - / *) : sur l'aperçu (ou l'image survolée en mode désynchronisé), ou sur l'image du plein écran quand il est ouvert
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+    const zoomTarget = isFullscreen ? null : hoveredPreviewSlot;
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomPreviewSteps(1, null, zoomTarget); return; }
+    if (e.key === '-') { e.preventDefault(); zoomPreviewSteps(-1, null, zoomTarget); return; }
+    if (e.key === '*') { e.preventDefault(); togglePreviewActualSize(null, zoomTarget); return; }
   }
   // Navigation
   if (e.key === 'ArrowRight') {
@@ -1573,7 +1679,8 @@ function layoutPreviewSlot(slot) {
   const cellHeight = slot.cell.clientHeight;
   if (!cellWidth || !cellHeight) return;
   const dpr = window.devicePixelRatio || 1;
-  slot.fit = Math.min(1, (cellWidth * PREVIEW_FIT_MARGIN * dpr) / slot.naturalWidth, (cellHeight * PREVIEW_FIT_MARGIN * dpr) / slot.naturalHeight);
+  const fitMargin = slot.fitMargin ?? PREVIEW_FIT_MARGIN; // le plein écran utilise toute la fenêtre (marge 1)
+  slot.fit = Math.min(1, (cellWidth * fitMargin * dpr) / slot.naturalWidth, (cellHeight * fitMargin * dpr) / slot.naturalHeight);
   if (slot.zoom !== null) {
     slot.zoom = Math.min(PREVIEW_MAX_ZOOM, Math.max(slot.fit, slot.zoom));
     if (slot.zoom <= slot.fit + 1e-6) slot.zoom = null;
@@ -1591,6 +1698,7 @@ function layoutPreviewSlot(slot) {
 
 function renderPreviewTransforms() {
   previewSlots.forEach(layoutPreviewSlot);
+  layoutFullscreenSlot();
 }
 
 function createPreviewSlot(photo) {
@@ -1659,17 +1767,20 @@ function previewAnchorAt(slot, clientX, clientY) {
 }
 
 // Centre de la zone affichée : propre à chaque image en mode désynchronisé, sinon partagé.
+// Le plein écran a toujours son propre centre (une seule image, indépendante de l'aperçu).
 function previewCenterOf(slot) {
-  return previewDesynced ? slot.center : previewCenter;
+  return previewDesynced || slot === fullscreenSlot ? slot.center : previewCenter;
 }
 
 function setPreviewCenter(slot, center) {
-  if (previewDesynced) slot.center = center;
+  if (previewDesynced || slot === fullscreenSlot) slot.center = center;
   else previewCenter = center;
 }
 
 // En mode désynchronisé, une action vise l'image concernée ; sinon elle s'applique à toutes.
 function previewSlotsToAffect(targetSlot) {
+  // Plein écran ouvert : les touches + / - / * (et le zoom en général) ne visent que son image.
+  if (isFullscreen) return fullscreenSlot.naturalWidth > 0 ? [fullscreenSlot] : [];
   const loaded = previewSlots.filter(slot => slot.naturalWidth > 0);
   return previewDesynced && targetSlot ? loaded.filter(slot => slot === targetSlot) : loaded;
 }
@@ -1696,7 +1807,7 @@ function zoomPreview(computeTarget, anchor, targetSlot = null) {
     const target = computeTarget(slot, slot.zoom ?? slot.fit);
     slot.zoom = target === null || target <= slot.fit + 1e-6 ? null : Math.min(PREVIEW_MAX_ZOOM, target);
   }
-  if (previewDesynced) {
+  if (previewDesynced || isFullscreen) {
     for (const slot of slots) if (slot.zoom === null) slot.center = { x: 0.5, y: 0.5 };
   } else if (slots.every(slot => slot.zoom === null)) {
     previewCenter = { x: 0.5, y: 0.5 };
@@ -2159,7 +2270,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
     updateUIOnSelection();
   } else {
     renderPreview();
-    fullscreenImg.src = '';
+    clearFullscreenImage();
     updateRatingAction();
   }
 }

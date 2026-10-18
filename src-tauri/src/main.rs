@@ -470,6 +470,62 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|error| format!("Impossible d'afficher {path} : {error}"))
 }
 
+// Place les fichiers dans le presse-papiers de l'OS comme « Copier » dans l'Explorateur : c'est une liste de fichiers, qu'on peut
+// coller dans l'Explorateur, un client mail, une messagerie… Les fichiers inexistants sont ignorés ; renvoie le nombre de fichiers copiés.
+#[tauri::command(async)]
+fn copy_files_to_clipboard(paths: Vec<String>) -> Result<usize, String> {
+    let existing: Vec<&String> = paths.iter().filter(|path| Path::new(path.as_str()).is_file()).collect();
+    if existing.is_empty() {
+        return Err(match paths.first() {
+            Some(path) => format!("Fichier introuvable : {path}"),
+            None => "Aucune photo à copier".into(),
+        });
+    }
+    set_clipboard_files(&existing)?;
+    Ok(existing.len())
+}
+
+// Windows : PowerShell (`Set-Clipboard -LiteralPath`), présent sur toutes les versions de Windows prises en charge, donc sans nouvelle
+// dépendance ni DLL à distribuer. La liste passe par un fichier temporaire UTF-8 (et non par la ligne de commande) pour gérer les
+// accents et les sélections de plusieurs centaines de photos ; le chemin de ce fichier est transmis par une variable d'environnement.
+#[cfg(windows)]
+fn set_clipboard_files(paths: &[&String]) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000; // pas de fenêtre console qui clignote
+
+    let list_file = std::env::temp_dir().join(format!(
+        "photofile-clipboard-{}-{}.txt",
+        std::process::id(),
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()
+    ));
+    let mut content = String::new();
+    for path in paths {
+        content.push_str(path);
+        content.push('\n');
+    }
+    fs::write(&list_file, content.as_bytes()).map_err(|error| error.to_string())?;
+    let script = "$ErrorActionPreference = 'Stop'; \
+        $files = [System.IO.File]::ReadAllLines($env:PHOTOFILE_CLIPBOARD_LIST, [System.Text.Encoding]::UTF8) | Where-Object { $_ }; \
+        Set-Clipboard -LiteralPath $files";
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Sta", "-Command", script])
+        .env("PHOTOFILE_CLIPBOARD_LIST", &list_file)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+    let _ = fs::remove_file(&list_file);
+    let output = output.map_err(|error| format!("Impossible de lancer PowerShell : {error}"))?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!("Écriture dans le presse-papiers impossible : {}", String::from_utf8_lossy(&output.stderr).trim()))
+    }
+}
+
+#[cfg(not(windows))]
+fn set_clipboard_files(_paths: &[&String]) -> Result<(), String> {
+    Err("La copie de fichiers dans le presse-papiers n'est disponible que sous Windows pour le moment".into())
+}
+
 fn main() {
     let db_path = "photos_library.db"; 
     let db_pool = db::init_db(db_path);
@@ -495,7 +551,8 @@ fn main() {
             sync_library,
             copy_photos,
             open_with,
-            reveal_in_file_manager
+            reveal_in_file_manager,
+            copy_files_to_clipboard
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

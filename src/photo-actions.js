@@ -169,7 +169,7 @@ function createModal({ title, cardClass = '', onClose = null }) {
   return { overlay, card, body, close };
 }
 
-// Confirmation Oui / Non ; le focus est sur « Oui » (rouge). Renvoie true uniquement si « Oui » est activé.
+// Confirmation Oui / Non ; le focus est sur « Oui » (rouge) et les flèches du clavier passent de l'un à l'autre. Renvoie true uniquement si « Oui » est activé.
 function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
   return new Promise(resolve => {
     let answer = false;
@@ -193,6 +193,12 @@ function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
     });
     actions.append(cancel, confirm);
     modal.body.append(text, actions);
+    // Flèches : le choix suit la position des boutons (gauche / haut = « Non », droite / bas = « Oui »). Entrée valide le bouton ayant le focus.
+    modal.overlay.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? cancel : confirm).focus();
+    });
     confirm.focus();
   });
 }
@@ -299,6 +305,18 @@ export async function copyPhotosTo(targets) {
     api.showToast(failures && !result.copied
       ? t('Copy failed: {error}', { error: result.failed[0].error })
       : `${tp('{count} file copied', result.copied)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
+  } catch (error) {
+    api.showToast(t('Copy failed: {error}', { error }));
+  }
+}
+
+// Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite
+// dans l'Explorateur, un client mail, une messagerie… (le backend s'occupe du format du presse-papiers).
+export async function copyPhotosToClipboard(targets) {
+  if (!targets.length) return;
+  try {
+    const copied = await invoke('copy_files_to_clipboard', { paths: targets.map(photo => photo.path) });
+    api.showToast(tp('{count} file copied to the clipboard', copied));
   } catch (error) {
     api.showToast(t('Copy failed: {error}', { error }));
   }
@@ -448,6 +466,7 @@ function openThumbnailMenu(event, index) {
   menu.append(
     menuButton(t('Photo info'), () => showPhotoInfo(photo)),
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true }),
+    menuButton(t('Copy'), () => copyPhotosToClipboard(targets)),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
     menuButton(t('Open in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
