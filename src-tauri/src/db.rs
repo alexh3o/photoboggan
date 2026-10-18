@@ -81,6 +81,8 @@ pub fn init_db(db_path: &str) -> DbPool {
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN keywords TEXT NOT NULL DEFAULT ''", []);
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN caption TEXT NOT NULL DEFAULT ''", []);
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN lens_model TEXT NOT NULL DEFAULT ''", []);
+    // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
+    let _ = conn.execute("ALTER TABLE photos ADD COLUMN modified INTEGER NOT NULL DEFAULT 0", []);
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();

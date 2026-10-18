@@ -52,6 +52,12 @@ let isFullscreen = false;
 let fullscreenRatingPinned = false;
 let fullscreenRatingTimeout = null;
 const fullscreenImageCache = new Map();
+// Version des fichiers modifiés hors de l'application (chemin -> horodatage) : ajoutée à l'URL pour ne pas réafficher une image périmée du cache.
+const photoVersions = new Map();
+function photoUrl(photo) {
+  const version = photoVersions.get(photo.path);
+  return convertFileSrc(photo.path) + (version ? `?v=${version}` : '');
+}
 
 // COULEURS (XMP Label) : clé stockée en base, label = clé de traduction du libellé affiché. La couleur visuelle est dans le CSS (.flag-<clé>).
 const COLOR_FLAGS = [
@@ -256,7 +262,7 @@ async function generateThumbnailInWebview(image, sourcePath, photo) {
       image.onload = () => resolve(true);
       image.onerror = () => resolve(false);
     });
-    image.src = convertFileSrc(sourcePath);
+    image.src = photoUrl(photo);
     const success = await loaded;
     image.onload = null;
     image.onerror = null;
@@ -394,8 +400,12 @@ async function loadPhotos() {
   applyPhotoFilters();
 }
 
-function applyPhotoFilters() {
+function applyPhotoFilters({ keepState = false } = {}) {
   const ratingThreshold = Number(document.getElementById('rating-filter').value);
+  // keepState : mise à jour en arrière-plan (synchronisation), la sélection et le défilement sont conservés.
+  const keptPaths = keepState ? [...selectedIndices].map(index => photos[index]?.path).filter(Boolean) : [];
+  const keptLastPath = keepState ? photos[lastSelectedIndex]?.path : null;
+  const keptScrollTop = gridContainer.scrollTop;
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
   photos = loadedPhotos.filter(photo => (ratingThreshold < 0 || photo.rating > ratingThreshold)
@@ -406,8 +416,15 @@ function applyPhotoFilters() {
   lastSelectedIndex = 0;
   gridContainer.scrollTop = 0;
   updateVirtualScroller();
+  if (keepState) {
+    const indexByPath = new Map(photos.map((photo, index) => [photo.path, index]));
+    for (const path of keptPaths) if (indexByPath.has(path)) selectedIndices.add(indexByPath.get(path));
+    lastSelectedIndex = indexByPath.get(keptLastPath) ?? selectedIndices.values().next().value ?? 0;
+    gridContainer.scrollTop = keptScrollTop;
+    renderVisibleItems();
+  }
   if (photos.length > 0) {
-    selectedIndices.add(0);
+    if (selectedIndices.size === 0) selectedIndices.add(0);
     updateUIOnSelection();
   } else {
     renderPreview();
@@ -722,7 +739,7 @@ function preloadFullscreenImages(index) {
       fullscreenImageCache.set(i, image);
       const photoPath = photos[i].path;
       image.onerror = () => checkPhotoMissing(photoPath);
-      image.src = convertFileSrc(photoPath);
+      image.src = photoUrl(photos[i]);
     }
   }
   for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
@@ -788,7 +805,7 @@ function updateUIOnSelection() {
   renderPreview();
   if (selectedIndices.size > 0 && photos[lastSelectedIndex]) {
     const photo = photos[lastSelectedIndex];
-    const imgUrl = convertFileSrc(photo.path);
+    const imgUrl = photoUrl(photo);
     
     fullscreenImg.src = imgUrl;
     updateFullscreenRatingStars();
@@ -841,7 +858,7 @@ function showPhotoDimensions(photo) {
     photo.measuredHeight = probe.naturalHeight;
     if (photos[lastSelectedIndex] === photo) showPhotoDimensions(photo);
   };
-  probe.src = convertFileSrc(photo.path);
+  probe.src = photoUrl(photo);
 }
 
 function updateRatingAction() {
@@ -1461,7 +1478,7 @@ function createPreviewSlot(photo) {
     layoutPreviewSlot(slot);
   });
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
-  img.src = convertFileSrc(photo.path);
+  img.src = photoUrl(photo);
   cell.appendChild(img);
   return slot;
 }
@@ -2026,6 +2043,63 @@ initPhotoActions({
   showToast: showWriteToast,
 });
 
+// ==========================================
+// SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions)
+// ==========================================
+// Lancée au démarrage et quand la fenêtre reprend le focus (on revient en général d'un autre programme après une édition) :
+// aucun minuteur. Le backend compare taille et date de modification et ne relit que les fichiers concernés. Pour rester
+// légère, l'intervalle minimal entre deux passages vaut 10 fois la durée du dernier (au moins 10 s).
+const LIBRARY_SYNC_MIN_INTERVAL_MS = 10000;
+let librarySyncRunning = false;
+let librarySyncNotBefore = 0;
+
+async function syncLibraryWithDisk() {
+  if (librarySyncRunning || Date.now() < librarySyncNotBefore) return;
+  librarySyncRunning = true;
+  const startedAt = Date.now();
+  try {
+    const changes = await invoke('sync_library');
+    if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
+  } catch (error) {
+    console.debug('Synchronisation avec le disque impossible', error);
+  } finally {
+    librarySyncNotBefore = Date.now() + Math.max(LIBRARY_SYNC_MIN_INTERVAL_MS, (Date.now() - startedAt) * 10);
+    librarySyncRunning = false;
+  }
+}
+
+// Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
+async function refreshLibraryAfterSync(changes) {
+  const folderAtStart = currentFolderFilter;
+  const known = new Map(loadedPhotos.map(photo => [photo.path, photo]));
+  const modified = new Set(changes.updated);
+  const query = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter, recursive: includeSubfolders });
+  const [fresh, everything] = await Promise.all([query(folderAtStart), folderAtStart === null ? null : query(null)]);
+  if (folderAtStart !== currentFolderFilter) return; // dossier changé pendant le chargement : le rechargement normal fait foi
+  for (const photo of fresh) {
+    const previous = known.get(photo.path);
+    if (!previous || modified.has(photo.path)) continue;
+    // Ratio et dimensions appris depuis les images : conservés pour ne pas redéclencher la disposition.
+    if (previous.aspectRatio) photo.aspectRatio = previous.aspectRatio;
+    if (previous.measuredWidth) { photo.measuredWidth = previous.measuredWidth; photo.measuredHeight = previous.measuredHeight; }
+  }
+  for (const path of modified) {
+    photoVersions.set(path, Date.now());
+    thumbnailCacheLookups.delete(path); // la miniature du cache change de nom avec la taille et la date du fichier
+  }
+  if (modified.size) {
+    previewSignature = ''; // force le rechargement de l'aperçu
+    fullscreenImageCache.clear();
+  }
+  loadedPhotos = fresh;
+  folderTreePhotos = everything ?? fresh;
+  renderFolderTree();
+  renderKeywordFilters();
+  applyPhotoFilters({ keepState: true });
+}
+
+window.addEventListener('focus', () => { syncLibraryWithDisk(); });
+
 // DÉMARRAGE
 loadFolders();
-loadPhotos();
+loadPhotos().then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures

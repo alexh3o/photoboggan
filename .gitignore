@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+# Local database
+*.db
+
+# Locked files
+package-lock.json
+src-tauri/Cargo.lock
 
 # Tools
 get_photos.py
