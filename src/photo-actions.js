@@ -317,6 +317,16 @@ async function chooseProgramAndOpen(targets) {
   if (program) await openWith(program, targets);
 }
 
+// Affiche la photo dans le gestionnaire de fichiers de l'OS, avec le fichier sélectionné. Une seule photo est montrée :
+// en cas de sélection multiple, c'est celle sous le curseur (celle du clic droit).
+export async function revealInFileManager(photo) {
+  try {
+    await invoke('reveal_in_file_manager', { path: photo.path });
+  } catch (error) {
+    api.showToast(t('Open failed: {error}', { error }));
+  }
+}
+
 // ==========================================
 // MENU CONTEXTUEL DES MINIATURES
 // ==========================================
@@ -439,6 +449,7 @@ function openThumbnailMenu(event, index) {
     menuButton(t('Photo info'), () => showPhotoInfo(photo)),
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true }),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
+    menuButton(t('Open in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
   );
   menu.addEventListener('keydown', onMenuKeydown);
