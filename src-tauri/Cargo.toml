@@ -1,6 +1,6 @@
 [package]
 name = "photofile"
-version = "0.2.0"
+version = "0.2.1"
 description = "Gestionnaire de photos desktop ultra-performant"
 authors = ["alexh3o"]
 edition = "2021"
