@@ -318,6 +318,41 @@ fn delete_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<S
     Ok(DeleteResult { deleted, failed })
 }
 
+// Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
+// Un disque externe débranché ou un partage réseau coupé n'est donc jamais pris pour une suppression de photos.
+fn tracked_root_is_reachable(root: &str) -> bool {
+    let root = Path::new(root);
+    root.is_dir() || root.parent().map_or(false, |parent| parent.is_dir())
+}
+
+fn is_inside_folder(folder: &str, path: &str) -> bool {
+    let normalize = |value: &str| value.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    normalize(path).starts_with(&format!("{}/", normalize(folder)))
+}
+
+// Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
+// (miniature impossible à générer, image qui ne se charge pas). Celles dont le fichier a réellement disparu sont retirées
+// du catalogue, et la liste des chemins retirés est renvoyée. Un fichier présent mais illisible est conservé, et rien n'est
+// retiré si le dossier suivi est injoignable. Le sidecar .xmp et le cache de miniatures ne sont pas touchés (le nom d'une miniature
+// dépend de la taille et de la date du fichier, qui ne sont plus connues).
+#[tauri::command(async)]
+fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<String>, String> {
+    let conn = state.db_pool.get().map_err(|error| error.to_string())?;
+    let reachable_roots: Vec<String> = db::get_folders(&state.db_pool)
+        .into_iter()
+        .map(|folder| folder.path)
+        .filter(|root| tracked_root_is_reachable(root))
+        .collect();
+    let mut removed = Vec::new();
+    for path in paths {
+        let missing = matches!(fs::metadata(&path), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
+        if !missing || !reachable_roots.iter().any(|root| is_inside_folder(root, &path)) { continue; }
+        conn.execute("DELETE FROM photos WHERE path = ?", params![path]).map_err(|error| error.to_string())?;
+        removed.push(path);
+    }
+    Ok(removed)
+}
+
 // Nom libre dans le dossier de destination : « photo.jpg », puis « photo (1).jpg », « photo (2).jpg »… (jamais d'écrasement).
 fn unique_destination(directory: &Path, file_name: &std::ffi::OsStr) -> PathBuf {
     let candidate = directory.join(file_name);
@@ -406,6 +441,7 @@ fn main() {
             update_photo_metadata,
             get_photo_details,
             delete_photos,
+            remove_missing_photos,
             copy_photos,
             open_with
         ])

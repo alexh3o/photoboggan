@@ -287,6 +287,8 @@ function loadThumbnail(image, sourcePath, photo) {
         // Format non géré par le backend : repli ci-dessous.
       }
       if (!generated) {
+        // Fichier supprimé hors de l'application ? On le retire du catalogue au lieu de laisser une miniature noire.
+        if (await checkPhotoMissing(sourcePath)) return;
         await generateThumbnailInWebview(image, sourcePath, photo);
         return;
       }
@@ -332,6 +334,42 @@ function cacheThumbnail(image, sourcePath) {
   })();
   thumbnailCacheWrites.set(sourcePath, task);
   return task;
+}
+
+// ==========================================
+// SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE
+// ==========================================
+// Une photo supprimée hors de l'application reste dans le catalogue tant qu'on ne s'en aperçoit pas. Plutôt que de parcourir
+// le disque, on vérifie au moment où l'affichage échoue (miniature impossible à générer, image qui ne se charge pas) :
+// aucun coût tant que les fichiers sont là. Les demandes sont groupées en un seul appel ; le backend ne retire que les fichiers
+// réellement introuvables dont le dossier suivi est accessible, puis la grille est mise à jour en conservant la sélection.
+const MISSING_CHECK_DELAY_MS = 25;
+let pendingMissingChecks = new Map(); // chemin -> fonctions à appeler avec le résultat
+let missingCheckTimer = null;
+
+// Résout à true si la photo était bien introuvable sur le disque (elle a alors été retirée du catalogue et de la grille).
+function checkPhotoMissing(sourcePath) {
+  return new Promise(resolve => {
+    const waiters = pendingMissingChecks.get(sourcePath);
+    if (waiters) waiters.push(resolve);
+    else pendingMissingChecks.set(sourcePath, [resolve]);
+    if (missingCheckTimer === null) missingCheckTimer = setTimeout(flushMissingChecks, MISSING_CHECK_DELAY_MS);
+  });
+}
+
+async function flushMissingChecks() {
+  missingCheckTimer = null;
+  const batch = [...pendingMissingChecks];
+  pendingMissingChecks = new Map();
+  let removed = [];
+  try {
+    removed = await invoke('remove_missing_photos', { paths: batch.map(([path]) => path) });
+  } catch (error) {
+    console.debug('Vérification des fichiers manquants impossible', error);
+  }
+  const removedPaths = new Set(removed);
+  if (removedPaths.size) removePhotosFromLibrary(removed, { keepSelection: true });
+  for (const [path, waiters] of batch) for (const resolve of waiters) resolve(removedPaths.has(path));
 }
 
 // ==========================================
@@ -682,7 +720,9 @@ function preloadFullscreenImages(index) {
     if (!fullscreenImageCache.has(i)) {
       const image = new Image();
       fullscreenImageCache.set(i, image);
-      image.src = convertFileSrc(photos[i].path);
+      const photoPath = photos[i].path;
+      image.onerror = () => checkPhotoMissing(photoPath);
+      image.src = convertFileSrc(photoPath);
     }
   }
   for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
@@ -702,6 +742,12 @@ fullscreenView.addEventListener('wheel', (e) => {
 
 // Double-clic pour quitter le plein écran
 fullscreenView.addEventListener('dblclick', closeFullscreen);
+// Image qui ne se charge pas (fichier supprimé hors de l'application) : vérification puis retrait du catalogue si besoin.
+// Le backend revérifie sur le disque : une erreur sur une photo qui existe encore ne retire rien.
+fullscreenImg.addEventListener('error', () => {
+  const path = photos[lastSelectedIndex]?.path;
+  if (path && fullscreenImg.getAttribute('src')) checkPhotoMissing(path);
+});
 fullscreenRating.addEventListener('click', event => event.stopPropagation());
 fullscreenRating.querySelectorAll('button').forEach(button => button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating))));
 
@@ -1414,6 +1460,7 @@ function createPreviewSlot(photo) {
     cell.classList.add('loaded');
     layoutPreviewSlot(slot);
   });
+  img.addEventListener('error', () => checkPhotoMissing(photo.path));
   img.src = convertFileSrc(photo.path);
   cell.appendChild(img);
   return slot;
@@ -1924,10 +1971,14 @@ window.addEventListener('resize', closeDatePicker);
 // ==========================================
 // Retire de l'affichage les photos dont le fichier vient d'être supprimé, sans recharger la bibliothèque ni remonter la grille.
 // La sélection passe à la photo qui prend la place de la première supprimée.
-function removePhotosFromLibrary(paths) {
+function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   const removed = new Set(paths);
   if (removed.size === 0) return;
   const firstRemovedIndex = photos.findIndex(photo => removed.has(photo.path));
+  // Retrait en arrière-plan (fichier disparu détecté à l'affichage) : la sélection en cours est conservée si elle n'est pas concernée.
+  const keptPaths = keepSelection ? [...selectedIndices].map(index => photos[index]?.path).filter(path => path && !removed.has(path)) : [];
+  const keptLastPath = keptPaths.length && !removed.has(photos[lastSelectedIndex]?.path) ? photos[lastSelectedIndex]?.path : null;
+  for (const path of removed) thumbnailCacheLookups.delete(path);
   const treeSharesLibrary = folderTreePhotos === loadedPhotos;
   loadedPhotos = loadedPhotos.filter(photo => !removed.has(photo.path));
   folderTreePhotos = treeSharesLibrary ? loadedPhotos : folderTreePhotos.filter(photo => !removed.has(photo.path));
@@ -1942,7 +1993,11 @@ function removePhotosFromLibrary(paths) {
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
   selectedIndices.clear();
-  if (photos.length > 0) {
+  if (keptPaths.length > 0) {
+    const indexByPath = new Map(photos.map((photo, index) => [photo.path, index]));
+    for (const path of keptPaths) if (indexByPath.has(path)) selectedIndices.add(indexByPath.get(path));
+    lastSelectedIndex = indexByPath.get(keptLastPath) ?? selectedIndices.values().next().value ?? 0;
+  } else if (photos.length > 0) {
     lastSelectedIndex = Math.max(0, Math.min(firstRemovedIndex < 0 ? lastSelectedIndex : firstRemovedIndex, photos.length - 1));
     selectedIndices.add(lastSelectedIndex);
   } else {
