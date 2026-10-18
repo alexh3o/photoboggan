@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [x] BUG: pictures deleted out of photofile stay in photofile and leave a black space in thumbnails. Remove when thumbnail or image is called (Lazy way)
-- [ ] UI: sorting order (date modified, date taken, filename), ASC & DESC. Apply for thumbnails and fullscreen navigation
+- [x] UI: sorting order (date modified, date taken, filename), ASC & DESC. Apply for thumbnails and fullscreen navigation
 - [ ] UI: setting to have date group / separator lines 
 - [ ] UI: Thumbnails Scroll momentum when moved by mouse click+hold+release
 - [ ] UI: allow zooming in full screen navigation, with +- keys or Ctrl+MouseWheel

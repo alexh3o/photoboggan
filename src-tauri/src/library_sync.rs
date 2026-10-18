@@ -46,6 +46,17 @@ pub fn modified_millis(metadata: &fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
+/// Enregistre la date de modification (ms) des fichiers qui viennent d'être lus, par chemin.
+pub fn store_modified(conn: &rusqlite::Connection, items: &[(String, i64)]) {
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    if let Ok(mut update) = conn.prepare_cached("UPDATE photos SET modified = ? WHERE path = ?") {
+        for (path, modified) in items {
+            let _ = update.execute(params![modified, path]);
+        }
+    }
+    let _ = conn.execute("COMMIT", []);
+}
+
 // Mêmes formats que le scan initial (run_scan).
 fn is_photo_file(path: &Path) -> bool {
     let name = path.to_string_lossy().to_lowercase();
@@ -74,6 +85,7 @@ fn read_photo(path: &str, file_size: i64) -> Photo {
         color_flag: exif_data.color_flag,
         keywords: exif_data.keywords,
         caption: exif_data.caption,
+        modified: 0, // non utilisé : la date est enregistrée séparément par sync_library
     }
 }
 
