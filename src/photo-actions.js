@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
+import { getIsFullscreen } from './main.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
 // suppression, copie des originaux et « Ouvrir avec ». main.js donne accès à l'état de la grille via initPhotoActions().
@@ -468,7 +469,7 @@ function openThumbnailMenu(event, index) {
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true }),
     menuButton(t('Copy'), () => copyPhotosToClipboard(targets)),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
-    menuButton(t('Open in file explorer'), () => revealInFileManager(photo)),
+    menuButton(t('Show in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
   );
   menu.addEventListener('keydown', onMenuKeydown);
@@ -498,7 +499,7 @@ function onContextMenu(event) {
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
   const thumbnail = target?.closest('.thumbnail');
-  if (!thumbnail) {
+  if (!thumbnail ) {
     closeContextMenu();
     return;
   }

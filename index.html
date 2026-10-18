@@ -242,28 +242,6 @@
         </div>
       </div>
     </div>
-    <!-- Modale Controles -->
-    <!-- <div id="guide-modal" class="modal hidden"> -->
-    <!--   <div class="modal-card guide-card"> -->
-    <!--     <div class="modal-header"> -->
-    <!--       <h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg> <span data-i18n="Guide">Guide</span></h3> -->
-    <!--       <button id="btn-close-guide" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button> -->
-    <!--     </div> -->
-    <!--     <div class="modal-body guide-body"> -->
-    <!--       <table class="table"> -->
-    <!--         <tr width="80%"><td><b data-i18n="Context">Contexte</b></td><td><b data-i18n="Action">Action</b></td><td><b data-i18n="Control">Contrôle</b></td></tr> -->
-    <!--         <tr><td data-i18n="Thumbnails">Miniatures</td><td data-i18n="Open the image in fullscreen">Ouvrir l'image en plein écran</td><td data-i18n="Double-click on the thumbnail">Double clic depuis la miniature</td></tr> -->
-    <!--         <tr><td data-i18n="Thumbnails">Miniatures</td><td data-i18n="Open the context menu">Ouvrir le menu contextuel (infos, supprimer, copier vers, ouvrir avec)</td><td data-i18n="Right-click on the thumbnail">Clic droit sur la miniature</td></tr> -->
-    <!--         <tr><td data-i18n="Selection & Fullscreen">Sélection & Plein Écran</td><td data-i18n="Rate">Noter</td><td data-i18n="Keys 0 to 5">Touches 0 à 5</td></tr> -->
-    <!--         <tr><td data-i18n="Selection & Fullscreen">Sélection & Plein Écran</td><td data-i18n="Copy to…">Copier vers...</td><td>C</td></tr> -->
-    <!--         <tr><td data-i18n="Selection & Fullscreen">Sélection & Plein Écran</td><td data-i18n="Delete">Supprimer</td><td data-i18n="Delete Key">SUPPR</td></tr> -->
-    <!--         <tr><td data-i18n="Thumbnail & Fullscreen">Miniature & Plein écran</td><td data-i18n="Information Sheet">Fiche Information</td><td>I</td></tr> -->
-    <!--         <tr><td data-i18n="Fullscreen">Plein Écran</td><td data-i18n="Open the rating bar">Ouvrir la barre de notes</td><td>R</td></tr> -->
-    <!--         <tr></tr> -->
-    <!--       </table> -->
-    <!--     </div> -->
-    <!--   </div> -->
-    <!-- </div> -->
     <div id="write-toast" class="write-toast hidden" role="status" aria-live="polite"></div> -->
     <div id="task-toast" class="write-toast task-toast hidden" role="status" aria-live="polite"></div>
     <div id="guide-modal" class="modal hidden">
@@ -303,7 +281,7 @@
               <span class="guide-control"><kbd>C</kbd></span>
             </div>
             <div class="guide-row">
-              <span class="guide-action" data-i18n="Copy to the clipboard">Copier dans le presse-papiers</span>
+              <span class="guide-action" data-i18n="Copy to clipboard">Copier dans le presse-papiers</span>
               <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>C</kbd></span>
             </div>
             <div class="guide-row">
@@ -322,6 +300,10 @@
               <span class="guide-action" data-i18n="Information Sheet">Fiche d'information</span>
               <span class="guide-control"><kbd>I</kbd></span>
             </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Show in file explorer">Montrer dans l'explorateur</span>
+              <span class="guide-control"><kbd>E</kbd></span>
+            </div>
           </div>
         
           <!-- Section Plein Écran Uniquement -->
@@ -330,6 +312,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Open the rating bar">Afficher / masquer la barre de notes</span>
               <span class="guide-control"><kbd>R</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Exit fullscreen">Quitter le plein écran</span>
+              <span class="guide-control"><kbd>Double-clic</kbd></span>
             </div>
           </div>
         

@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, confirmAndDelete } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, confirmAndDelete, revealInFileManager } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 
 // AJOUT BARRE TITRE
@@ -719,6 +719,10 @@ function closeFullscreen() {
   fullscreenRatingPinned = false;
 }
 
+export function getIsFullscreen() {
+  return isFullscreen;
+}
+
 // Positionne et zoome l'image du plein écran avec la même logique que l'aperçu (rien à faire tant que la fenêtre est masquée).
 function layoutFullscreenSlot() {
   if (!isFullscreen) return;
@@ -1109,6 +1113,15 @@ window.addEventListener('keydown', (e) => {
     console.log("lasSelectedIndex :", lastSelectedIndex);
     if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
       showPhotoInfo(photos[lastSelectedIndex]);
+      return;
+    }
+  }
+  // Ouvrir dans l'explorateur OS
+  if (e.key.toLowerCase() === 'e') {
+    console.log("Touche E pressée, photo active :", photos[lastSelectedIndex], lastSelectedIndex);
+    console.log("lasSelectedIndex :", lastSelectedIndex);
+    if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
+      revealInFileManager(photos[lastSelectedIndex]);
       return;
     }
   }
