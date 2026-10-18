@@ -53,6 +53,7 @@
   "Light":"Light",
   "Include subfolders":"Include subfolders",
   "Delete":"Delete",
+  "Delete Key": "DEL",
   "Pick in calendar": "Pick in calendar",
   "Click to set a color": "Click to set a color",
   "Click to set a rating": "Click to set a rating",
@@ -124,7 +125,7 @@
   "Custom color": "Custom color",
   "Custom active buttons color": "Custom active buttons color",
   "Photofile logo": "Photofile logo",
-  "Zone": "Zone",
+  "Context": "Context",
   "Action": "Action",
   "Control": "Control",
   "Thumbnails": "Thumbnails",
@@ -168,6 +169,5 @@
   "Copy failed: {error}": "Copy failed: {error}",
   "Open failed: {error}": "Open failed: {error}",
   "Thumbnail & Fullscreen": "Thumbnail & Fullscreen",
-  "Information Sheet": "Information Sheet",
-  "i key": "i key"
+  "Information Sheet": "Information Sheet"
 }
