@@ -6,6 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, confirmAndDelete } from './photo-actions.js';
+import { listen as listenToBackend } from '@tauri-apps/api/event';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -110,6 +111,11 @@ thumbnailSize = Math.max(96, Math.min(512, 96 + Math.round((thumbnailSize - 96) 
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
 let thumbnailLayout = ['square', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'square';
+// TRI DES MINIATURES (critère et ordre mémorisés localement). Par défaut : date de prise de vue, de la plus récente à la plus ancienne (ordre historique de la grille).
+const SORT_KEYS = ['taken', 'modified', 'name'];
+const storedSortKey = localStorage.getItem('photoSortKey');
+let sortKey = SORT_KEYS.includes(storedSortKey) ? storedSortKey : 'taken';
+let sortOrder = localStorage.getItem('photoSortOrder') === 'asc' ? 'asc' : 'desc';
 let photoLayouts = [];
 let layoutContentHeight = 0;
 let maximumPhotoHeight = thumbnailSize;
@@ -412,6 +418,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && matchesDateFilter(photo));
+  photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
   selectedIndices.clear();
   lastSelectedIndex = 0;
   gridContainer.scrollTop = 0;
@@ -1203,6 +1210,101 @@ document.getElementById('thumbnail-layout').addEventListener('change', event => 
   localStorage.setItem('thumbnailLayout', thumbnailLayout);
   updateVirtualScroller();
 });
+// ==========================================
+// TRI DES MINIATURES
+// ==========================================
+// Le tri s'applique à la liste affichée (photos, voir applyPhotoFilters) : il détermine donc à la fois l'ordre de la grille et celui du
+// défilement en plein écran. Il est fait côté interface : la date de modification vient de la base, la date de prise de vue est celle du filtre de date.
+const sortModal = document.getElementById('sort-modal');
+const sortButton = document.getElementById('btn-open-sort');
+const SORT_KEY_LABELS = { taken: 'Date taken', modified: 'Date modified', name: 'Filename' };
+const sortNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }); // « IMG_2 » avant « IMG_10 », comme l'Explorateur
+
+// Valeur de tri d'une photo ; null = information absente (ces photos restent en fin de liste, quel que soit l'ordre).
+function photoSortValue(photo) {
+  if (sortKey === 'name') return photo.filename || photo.path.split(/[\\/]/).pop() || '';
+  if (sortKey === 'modified') return photo.modified > 0 ? photo.modified : null;
+  return photoTimeKey(photo);
+}
+
+function comparePhotosForSort(a, b) {
+  const valueA = photoSortValue(a);
+  const valueB = photoSortValue(b);
+  if (valueA === null || valueB === null) {
+    if (valueA !== valueB) return valueA === null ? 1 : -1;
+  } else {
+    const result = sortKey === 'name' ? sortNameCollator.compare(valueA, valueB) : valueA - valueB;
+    if (result) return sortOrder === 'asc' ? result : -result;
+  }
+  // Égalité (rafale prise dans la même seconde, valeurs absentes…) : ordre stable et prévisible, indépendant du sens choisi.
+  return sortNameCollator.compare(a.filename || '', b.filename || '') || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+}
+
+function sortOrderHint(key, order) {
+  if (key === 'name') return order === 'asc' ? 'A → Z' : 'Z → A';
+  return t(order === 'asc' ? 'Oldest first' : 'Newest first');
+}
+
+// Boutons radio de la modale, aides de l'ordre selon le critère, et infobulle du bouton de la barre du haut (ordre actif au survol).
+function updateSortUI() {
+  sortModal.querySelectorAll('input[name="sort-key"]').forEach(input => { input.checked = input.value === sortKey; });
+  sortModal.querySelectorAll('input[name="sort-order"]').forEach(input => { input.checked = input.value === sortOrder; });
+  document.getElementById('sort-hint-asc').textContent = `(${sortOrderHint(sortKey, 'asc')})`;
+  document.getElementById('sort-hint-desc').textContent = `(${sortOrderHint(sortKey, 'desc')})`;
+  const order = `${t(sortOrder === 'asc' ? 'Ascending' : 'Descending')} (${sortOrderHint(sortKey, sortOrder)})`;
+  const description = `${labelWithColon('Sort')} ${t(SORT_KEY_LABELS[sortKey])} · ${order}`;
+  sortButton.title = description;
+  sortButton.setAttribute('aria-label', description);
+}
+
+// Amène la photo dans la zone visible si elle n'y est pas : après un changement de tri, la photo sélectionnée a changé de place.
+function scrollToPhotoIndex(index) {
+  const layout = photoLayouts.find(item => item.index === index);
+  if (!layout) return;
+  const viewTop = gridContainer.scrollTop;
+  const viewBottom = viewTop + gridContainer.clientHeight;
+  if (layout.y >= viewTop && layout.y + layout.height <= viewBottom) return;
+  gridContainer.scrollTop = Math.max(0, layout.y - (gridContainer.clientHeight - layout.height) / 2);
+  renderVisibleItems();
+}
+
+function applySortChange() {
+  localStorage.setItem('photoSortKey', sortKey);
+  localStorage.setItem('photoSortOrder', sortOrder);
+  updateSortUI();
+  fullscreenImageCache.clear(); // le cache de préchargement est indexé par position dans la liste
+  applyPhotoFilters({ keepState: true }); // sélection conservée (retrouvée par chemin)
+  scrollToPhotoIndex(lastSelectedIndex);
+}
+
+function openSortModal() {
+  sortModal.classList.remove('hidden');
+  // Le focus sur un champ de la modale évite que les raccourcis clavier (SUPPR, C…) visent la grille pendant qu'elle est ouverte.
+  sortModal.querySelector('input[name="sort-key"]:checked')?.focus();
+}
+
+function closeSortModal() {
+  sortModal.classList.add('hidden');
+}
+
+sortButton.addEventListener('click', openSortModal);
+document.getElementById('btn-close-sort').addEventListener('click', closeSortModal);
+sortModal.addEventListener('click', event => { if (event.target === sortModal) closeSortModal(); });
+sortModal.addEventListener('change', event => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  if (input.name === 'sort-key' && SORT_KEYS.includes(input.value)) sortKey = input.value;
+  else if (input.name === 'sort-order') sortOrder = input.value === 'asc' ? 'asc' : 'desc';
+  else return;
+  applySortChange();
+});
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || sortModal.classList.contains('hidden')) return;
+  event.preventDefault();
+  closeSortModal();
+});
+updateSortUI();
+
 const themeSelect = document.getElementById('theme-select');
 const selectionColorInput = document.getElementById('accent-color');
 const selectionColorSwatches = document.querySelectorAll('.accent-swatch');
@@ -1251,6 +1353,7 @@ onLanguageChange(() => {
   renderKeywordFilters();
   updateUIOnSelection();
   updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
+  updateSortUI();
   datePicker.setAttribute('aria-label', t('Choose a date or a range'));
   if (isDatePickerOpen()) {
     renderDatePicker();
@@ -1370,9 +1473,40 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
 document.querySelectorAll('#selection-rating-stars button').forEach(button => {
   button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating)));
 });
+// Rescan complet : relit les métadonnées de tous les fichiers. Un toast affiche le nom de la tâche et son avancement approximatif
+// (événements « rescan-progress » du backend, en pourcentage) ; il disparaît quand la tâche est terminée.
+let rescanRunning = false;
+let rescanPercent = 0;
+const taskToast = document.getElementById('task-toast');
+
+function showTaskToast(name, percent) {
+  taskToast.textContent = `${name} · ${Math.max(0, Math.min(100, Math.round(percent)))} %`;
+  taskToast.classList.remove('hidden');
+}
+
+function hideTaskToast() {
+  taskToast.classList.add('hidden');
+}
+
+listenToBackend('rescan-progress', event => {
+  if (!rescanRunning) return;
+  rescanPercent = Math.max(rescanPercent, Number(event.payload) || 0); // jamais de recul si deux événements arrivent dans le désordre
+  showTaskToast(t('Collection data rescan'), rescanPercent);
+}).catch(error => console.debug('Suivi de la progression indisponible', error));
+
 document.getElementById('btn-rescan-folders').addEventListener('click', async () => {
-  await invoke('rescan_all_folders');
-  await loadPhotos();
+  if (rescanRunning) return;
+  rescanRunning = true;
+  rescanPercent = 0;
+  showTaskToast(t('Collection data rescan'), 0);
+  try {
+    await invoke('rescan_all_folders');
+    showTaskToast(t('Collection data rescan'), 100);
+    await loadPhotos();
+  } finally {
+    rescanRunning = false;
+    hideTaskToast();
+  }
 });
 
 // ==========================================
@@ -2054,7 +2188,7 @@ let librarySyncRunning = false;
 let librarySyncNotBefore = 0;
 
 async function syncLibraryWithDisk() {
-  if (librarySyncRunning || Date.now() < librarySyncNotBefore) return;
+  if (librarySyncRunning || rescanRunning || Date.now() < librarySyncNotBefore) return;
   librarySyncRunning = true;
   const startedAt = Date.now();
   try {

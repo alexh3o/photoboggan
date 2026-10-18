@@ -24,6 +24,7 @@
       </div>
       <div class="actions">
         <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button id="btn-open-sort" type="button" aria-haspopup="dialog"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-down preview-icon"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button>
         <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
           <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
           <span id="thumbnail-size-value">160 px</span>
@@ -204,6 +205,28 @@
         </div>
       </div>
     </div>
+    <!-- Modale de tri des miniatures -->
+    <div id="sort-modal" class="modal hidden">
+      <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="sort-modal-title">
+        <div class="modal-header">
+          <h3 id="sort-modal-title" data-i18n="Sort thumbnails">Trier les miniatures</h3>
+          <button id="btn-close-sort" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
+            <h4 id="sort-key-title" data-i18n="Sort by">Trier par</h4>
+            <label class="settings-row settings-check"><input type="radio" name="sort-key" value="taken" /><span data-i18n="Date taken">Date de prise de vue</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-key" value="modified" /><span data-i18n="Date modified">Date de modification</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-key" value="name" /><span data-i18n="Filename">Nom de fichier</span></label>
+          </section>
+          <section class="settings-section" role="radiogroup" aria-labelledby="sort-order-title">
+            <h4 id="sort-order-title" data-i18n="Order">Ordre</h4>
+            <label class="settings-row settings-check"><input type="radio" name="sort-order" value="asc" /><span data-i18n="Ascending">Croissant</span><span id="sort-hint-asc" class="sort-hint"></span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-order" value="desc" /><span data-i18n="Descending">Décroissant</span><span id="sort-hint-desc" class="sort-hint"></span></label>
+          </section>
+        </div>
+      </div>
+    </div>
     <!-- Modale À propos -->
     <div id="about-modal" class="modal hidden">
       <div class="modal-card about-card">
@@ -241,7 +264,8 @@
     <!--     </div> -->
     <!--   </div> -->
     <!-- </div> -->
-    <!-- <div id="write-toast" class="write-toast hidden" role="status" aria-live="polite"></div> -->
+    <div id="write-toast" class="write-toast hidden" role="status" aria-live="polite"></div> -->
+    <div id="task-toast" class="write-toast task-toast hidden" role="status" aria-live="polite"></div>
     <div id="guide-modal" class="modal hidden">
       <div class="modal-card guide-card">
         <div class="modal-header">

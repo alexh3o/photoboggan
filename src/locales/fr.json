@@ -44,6 +44,7 @@
   "Display":"Affichage",
   "Rescan all collection":"Relire toute la collection (!)",
   "Rescan all data label": "Relire les données de toutes les photos (Peut être long !)",
+  "Collection data rescan": "Rescan des données de la collection",
   "Thumbnails grid":"Disposition des miniatures",
   "Square":"Carré",
   "Justified":"Justifiées",
@@ -169,5 +170,15 @@
   "Copy failed: {error}": "Échec de la copie : {error}",
   "Open failed: {error}": "Échec de l'ouverture : {error}",
   "Thumbnail & Fullscreen": "Miniature & Plein écran",
-  "Information Sheet": "Fiche Information"
+  "Information Sheet": "Fiche Information",
+  "Sort": "Tri",
+  "Sort thumbnails": "Trier les miniatures",
+  "Sort by": "Trier par",
+  "Order": "Ordre",
+  "Date modified": "Date de modification",
+  "Filename": "Nom de fichier",
+  "Ascending": "Croissant",
+  "Descending": "Décroissant",
+  "Oldest first": "plus ancien d'abord",
+  "Newest first": "plus récent d'abord"
 }

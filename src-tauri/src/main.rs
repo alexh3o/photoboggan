@@ -8,6 +8,7 @@ mod thumbnails;
 use tauri::{State, Emitter, Manager};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use rayon::prelude::*;
@@ -124,7 +125,7 @@ fn get_folders(state: State<'_, AppState>) -> Vec<TrackedFolder> {
 #[tauri::command]
 async fn add_folder_and_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String) -> Result<Vec<TrackedFolder>, String> {
     db::add_folder(&state.db_pool, &path)?;
-    run_scan(app, state.db_pool.clone(), path).await;
+    run_scan(app, state.db_pool.clone(), path, None).await;
     Ok(db::get_folders(&state.db_pool))
 }
 
@@ -134,25 +135,34 @@ fn remove_folder(state: State<'_, AppState>, id: i64, path: String) -> Result<Ve
     Ok(db::get_folders(&state.db_pool))
 }
 
-async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String) {
-    let (tx, mut rx) = mpsc::channel(100);
+// `progress` : (rang du dossier, nombre de dossiers) pour publier l'avancement (rescan complet) ; None = pas d'événement.
+async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, progress: Option<(usize, usize)>) {
+    // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
+    // pour que la synchronisation automatique ne la relise pas inutilement.
+    let (tx, mut rx) = mpsc::channel::<(Photo, i64)>(100);
 
     let pool_clone = pool.clone();
     let writer = tokio::spawn(async move {
         let mut buffer = Vec::new();
+        let mut modified_dates: Vec<(String, i64)> = Vec::new();
         let conn = pool_clone.get().unwrap();
-        while let Some(photo) = rx.recv().await {
+        while let Some((photo, modified)) = rx.recv().await {
+            modified_dates.push((photo.path.clone(), modified));
             buffer.push(photo);
             if buffer.len() >= 500 {
                 insert_batch(&conn, &buffer);
+                library_sync::store_modified(&conn, &modified_dates);
                 buffer.clear();
+                modified_dates.clear();
             }
         }
         if !buffer.is_empty() {
             insert_batch(&conn, &buffer);
+            library_sync::store_modified(&conn, &modified_dates);
         }
     });
 
+    let progress_app = app.clone();
     let scanner = tokio::task::spawn_blocking(move || {
         let entries: Vec<_> = WalkDir::new(scan_path)
             .into_iter()
@@ -163,10 +173,24 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String) {
             })
             .collect();
 
+        let total = entries.len().max(1);
+        let step = (total / 100).max(1);
+        let done = AtomicUsize::new(0);
+
         entries.par_iter().for_each(|entry| {
+            // Progression (rescan complet seulement) : un événement environ tous les 1 % du dossier, ramené à l'ensemble
+            // des dossiers suivis. Valeur approximative : l'ordre d'arrivée entre threads n'est pas garanti.
+            let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if let Some((index, count)) = progress {
+                if finished % step == 0 || finished == total {
+                    let percent = (index as f64 + finished as f64 / total as f64) / count.max(1) as f64 * 100.0;
+                    let _ = progress_app.emit("rescan-progress", percent.round() as u32);
+                }
+            }
             let path_str = entry.path().to_string_lossy().to_string();
-            let metadata = entry.metadata().unwrap();
+            let Ok(metadata) = entry.metadata() else { return; };
             let file_size = metadata.len() as i64;
+            let modified = library_sync::modified_millis(&metadata);
             let filename = entry.file_name().to_string_lossy().to_string();
             let exif_data = exif::read_exif(entry.path());
 
@@ -189,9 +213,10 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String) {
                 color_flag: exif_data.color_flag,
                 keywords: exif_data.keywords,
                 caption: exif_data.caption,
+                modified,
             };
 
-            let _ = tx.blocking_send(photo);
+            let _ = tx.blocking_send((photo, modified));
         });
     });
     let _ = scanner.await;
@@ -202,8 +227,9 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String) {
 #[tauri::command]
 async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let folders = db::get_folders(&state.db_pool);
-    for folder in folders {
-        run_scan(app.clone(), state.db_pool.clone(), folder.path).await;
+    let count = folders.len();
+    for (index, folder) in folders.into_iter().enumerate() {
+        run_scan(app.clone(), state.db_pool.clone(), folder.path, Some((index, count))).await;
     }
     Ok(())
 }

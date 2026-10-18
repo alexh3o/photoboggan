@@ -45,6 +45,7 @@
   "Rescan all collection":"Rescan all collection (!)",
   "Rescan all data label": "Read again all files information and metadata for all photos (it can be long !)",
   "Language":"Language",
+  "Collection data rescan": "Collection data rescan",
   "Thumbnails grid":"Thumbnails grid",
   "Square":"Square",
   "Justified":"Justified",
@@ -170,5 +171,15 @@
   "Copy failed: {error}": "Copy failed: {error}",
   "Open failed: {error}": "Open failed: {error}",
   "Thumbnail & Fullscreen": "Thumbnail & Fullscreen",
-  "Information Sheet": "Information Sheet"
+  "Information Sheet": "Information Sheet",
+  "Sort": "Sort",
+  "Sort thumbnails": "Sort thumbnails",
+  "Sort by": "Sort by",
+  "Order": "Order",
+  "Date modified": "Date modified",
+  "Filename": "Filename",
+  "Ascending": "Ascending",
+  "Descending": "Descending",
+  "Oldest first": "oldest first",
+  "Newest first": "newest first"
 }

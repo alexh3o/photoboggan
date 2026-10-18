@@ -25,6 +25,10 @@ pub struct Photo {
     pub color_flag: String,
     pub keywords: String,
     pub caption: String,
+    // Date de modification du fichier (ms depuis 1970) lue en base : sert au tri par date de modification.
+    // Elle n'est pas écrite par les insertions (voir library_sync::store_modified), d'où la valeur 0 des constructions hors lecture.
+    #[serde(default)]
+    pub modified: i64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -124,13 +128,13 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
 
     let sql = if folder_filter.is_some() {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified 
          FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
          AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
          ORDER BY date_taken DESC LIMIT ?3 OFFSET ?4"
     } else {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified 
          FROM photos ORDER BY date_taken DESC LIMIT ? OFFSET ?"
     };
 
@@ -141,6 +145,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
         let prefix = format!("{normalized_folder}/");
         let photo_iter = stmt.query_map(params![prefix, recursive, limit, offset], |row| {
             Ok(Photo {
+                modified: row.get(18)?,
                 id: row.get(0)?,
                 path: row.get(1)?,
                 filename: row.get(2)?,
@@ -165,6 +170,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
     } else {
         let photo_iter = stmt.query_map(params![limit, offset], |row| {
             Ok(Photo {
+                modified: row.get(18)?,
                 id: row.get(0)?,
                 path: row.get(1)?,
                 filename: row.get(2)?,
