@@ -10,7 +10,7 @@
 - [ ] UI: keyboard should allow yes/no selection on validation prompts
 - [x] FIX: framed is actually masonry
 - [ ] FIX: thumbnails are blurry in high sizes
-- [ ] ACTION: Add open image in explorer (offer option only when 1 image is selected)
+- [x] ACTION: Add open image in explorer (offer option only when 1 image is selected)
 - [ ] Add keyboard shortcuts Setting Screen
 - [ ] UI: Finish implementing variable (rem) texts and icons size instead of fixed px sizes
 - [ ] Add reset button for all filters

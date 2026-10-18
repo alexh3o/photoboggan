@@ -462,6 +462,14 @@ fn open_with(program: String, paths: Vec<String>) -> Result<(), String> {
     std::process::Command::new(program_path).args(&paths).spawn().map(|_| ()).map_err(|error| format!("Impossible de lancer {program} : {error}"))
 }
 
+// Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
+// (Explorateur Windows, Finder, gestionnaire de fichiers Linux). Utilise le plugin opener déjà intégré, sans nouvelle dépendance.
+#[tauri::command(async)]
+fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    if !Path::new(&path).is_file() { return Err(format!("Fichier introuvable : {path}")); }
+    tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|error| format!("Impossible d'afficher {path} : {error}"))
+}
+
 fn main() {
     let db_path = "photos_library.db"; 
     let db_pool = db::init_db(db_path);
@@ -486,7 +494,8 @@ fn main() {
             remove_missing_photos,
             sync_library,
             copy_photos,
-            open_with
+            open_with,
+            reveal_in_file_manager
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");
