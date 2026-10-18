@@ -2,6 +2,7 @@
 
 mod db;
 mod exif;
+mod library_sync;
 mod thumbnails;
 
 use tauri::{State, Emitter, Manager};
@@ -252,6 +253,11 @@ fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rati
     if rating.is_none() && label.is_none() { return Ok(()); }
     exif::write_xmp_metadata(&path, rating, label).map_err(|e| e.to_string())?;
     let conn = state.db_pool.get().unwrap();
+    // Le fichier vient d'être réécrit par l'application : on enregistre sa nouvelle taille et sa date pour que la
+    // synchronisation ne le prenne pas pour une modification externe.
+    if let Ok(metadata) = fs::metadata(&path) {
+        let _ = conn.execute("UPDATE photos SET file_size = ?, modified = ? WHERE id = ?", params![metadata.len() as i64, library_sync::modified_millis(&metadata), id]);
+    }
     if let Some(rating) = rating {
         conn.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|e| e.to_string())?;
     }
@@ -353,6 +359,16 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
     Ok(removed)
 }
 
+// Synchronisation incrémentale avec le disque (voir library_sync.rs) : fichiers ajoutés, modifiés ou supprimés hors de l'application.
+// Exécutée hors du thread principal et hors des threads asynchrones ; l'interface la lance au démarrage et au retour de focus.
+#[tauri::command]
+async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncChanges, String> {
+    let pool = state.db_pool.clone();
+    tokio::task::spawn_blocking(move || library_sync::sync_library(&pool))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 // Nom libre dans le dossier de destination : « photo.jpg », puis « photo (1).jpg », « photo (2).jpg »… (jamais d'écrasement).
 fn unique_destination(directory: &Path, file_name: &std::ffi::OsStr) -> PathBuf {
     let candidate = directory.join(file_name);
@@ -442,6 +458,7 @@ fn main() {
             get_photo_details,
             delete_photos,
             remove_missing_photos,
+            sync_library,
             copy_photos,
             open_with
         ])

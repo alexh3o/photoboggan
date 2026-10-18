@@ -7,8 +7,8 @@
 - [ ] UI: setting to have date group / separator lines 
 - [ ] UI: Thumbnails Scroll momentum when moved by mouse click+hold+release
 - [ ] UI: allow zooming in full screen navigation, with +- keys or Ctrl+MouseWheel
-- [ ] UI: keyboard answer change on valdaition prompts
-- [ ] FIX: framed is actually masonry
+- [ ] UI: keyboard should allow yes/no selection on validation prompts
+- [x] FIX: framed is actually masonry
 - [ ] FIX: thumbnails are blurry in high sizes
 - [ ] ACTION: Add open image in explorer (offer option only when 1 image is selected)
 - [ ] Add keyboard shortcuts Setting Screen
@@ -26,7 +26,9 @@
 - [ ] Allow reordering "open with" programs in settings
 - [ ] Manage single/multiple selections and right click menu
 - [ ] Display RAW images
-- [ ] Clarify refresh actions / detail
+- [x] Clarify refresh actions
+- [ ] Split rescan action per collection / tree root folder
+- [ ] Split settings in tabs
 
 ## 💡 Ideas and longer term evolutions
 
@@ -35,7 +37,7 @@
 - [ ] Allow keywords management & file write (big one)
 - [ ] Toast for thumbnails generation, new files...
 - [ ] Map screen
-- [ ] Better management of file modifications detection and handling
+- [x] Better management of file modifications detection and handling
 
 ## ❌ Not planned, that's not the spirit : use open with
 
