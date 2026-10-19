@@ -224,6 +224,21 @@
             <label class="settings-row settings-check"><input type="radio" name="sort-order" value="asc" /><span data-i18n="Ascending">Croissant</span><span id="sort-hint-asc" class="sort-hint"></span></label>
             <label class="settings-row settings-check"><input type="radio" name="sort-order" value="desc" /><span data-i18n="Descending">Décroissant</span><span id="sort-hint-desc" class="sort-hint"></span></label>
           </section>
+          <!-- Séparateurs de la grille : un seul des deux groupes est visible, selon le critère de tri (voir updateSortUI dans main.js) -->
+          <section id="sort-separator-date" class="settings-section" role="radiogroup" aria-labelledby="sort-separator-date-title" hidden>
+            <h4 id="sort-separator-date-title" data-i18n="Separators">Séparateurs</h4>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-date" value="none" /><span data-i18n="No separator">Aucun séparateur</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-date" value="day" /><span data-i18n="By day">Par jour</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-date" value="week" /><span data-i18n="By week">Par semaine</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-date" value="month" /><span data-i18n="By month">Par mois</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-date" value="year" /><span data-i18n="By year">Par année</span></label>
+          </section>
+          <section id="sort-separator-name" class="settings-section" role="radiogroup" aria-labelledby="sort-separator-name-title" hidden>
+            <h4 id="sort-separator-name-title" data-i18n="Separators">Séparateurs</h4>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-name" value="none" /><span data-i18n="No separator">Aucun séparateur</span></label>
+            <label class="settings-row settings-check"><input type="radio" name="sort-separator-name" value="folder" /><span data-i18n="By folder">Par dossier</span></label>
+            <p id="sort-separator-name-note" class="sort-note" data-i18n="Photos are sorted by name within each folder." hidden>Les photos sont triées par nom au sein de chaque dossier.</p>
+          </section>
         </div>
       </div>
     </div>
