@@ -447,6 +447,13 @@ async function loadPhotos() {
   applyPhotoFilters();
 }
 
+function updateFilteredPhotosCount() {
+  const countElement = document.getElementById('filtered-photos-count');
+  if (countElement) {
+    countElement.textContent = tp('{count} photo displayed', photos.length);
+  }
+}
+
 function applyPhotoFilters({ keepState = false } = {}) {
   const ratingThreshold = Number(document.getElementById('rating-filter').value);
   // keepState : mise à jour en arrière-plan (synchronisation), la sélection et le défilement sont conservés.
@@ -480,6 +487,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     updateRatingAction();
     document.getElementById('exif-caption').textContent = '-';
   }
+  updateFilteredPhotosCount();
 }
 
 function renderKeywordFilters() {
@@ -1094,6 +1102,7 @@ function showPhotoDimensions(photo) {
   // fin de rempalacement
 }
 
+
 function updateRatingAction() {
   const panel = document.getElementById('selection-actions');
   if (selectedIndices.size === 0) {
@@ -1101,16 +1110,18 @@ function updateRatingAction() {
     return;
   }
   panel.classList.remove('hidden');
+  const count = selectedIndices.size;
+  const countElement = document.getElementById('selection-count');
+  if (countElement) countElement.textContent = tp('{count} photo selected', count);
+
   const selectedPhoto = photos[selectedIndices.has(lastSelectedIndex) ? lastSelectedIndex : selectedIndices.values().next().value];
   const rating = selectedPhoto?.rating || 0;
   document.querySelectorAll('#selection-rating-stars button').forEach(button => {
     button.classList.toggle('active', Number(button.dataset.rating) <= rating);
   });
-  const count = selectedIndices.size;
-  document.getElementById('selection-rating-caption').textContent = count > 1
-    ? t('{count} photos selected · apply to all', { count })
-    : (rating > 0 ? `${labelWithColon('Current rating')} ${rating}/5` : t('Click to set a rating'));
 }
+
+
 
 let writeToastTimeout = null;
 
@@ -1150,10 +1161,6 @@ function updateColorAction() {
   const selectedPhoto = photos[selectedIndices.has(lastSelectedIndex) ? lastSelectedIndex : selectedIndices.values().next().value];
   const flag = selectedPhoto?.color_flag || 'none';
   document.querySelectorAll('#selection-color-flags button').forEach(button => setColorSquareChecked(button, button.dataset.flag === flag));
-  const count = selectedIndices.size;
-  document.getElementById('selection-color-caption').textContent = count > 1
-    ? t('{count} photos selected · apply to all', { count })
-    : (colorFlagLabels.has(flag) ? `${labelWithColon('Current color')} ${colorFlagLabels.get(flag)}` : t('Click to set a color'));
 }
 
 async function setSelectionColorFlag(flag) {
@@ -1178,7 +1185,6 @@ async function setSelectionColorFlag(flag) {
     ? tp('Color removed for {count} file', successful.length)
     : tp('{count} file modified', successful.length);
   showWriteToast(`${successMessage}${failures.length ? ` · ${tp('{count} failure', failures.length)}` : ''}`);
-  if (failures.length) document.getElementById('selection-color-caption').textContent = t('Write failed: {error}', { error: failures[0].reason });
 }
 
 async function setSelectionRating(rating) {
@@ -1205,10 +1211,6 @@ async function setSelectionRating(rating) {
     ? tp('Rating removed for {count} file', successful.length)
     : tp('{count} file modified', successful.length);
     showWriteToast(`${successMessage}${failures.length ? ` · ${tp('{count} failure', failures.length)}` : ''}`);
-    if (failures.length) {
-    const firstError = failures[0].reason;
-    document.getElementById('selection-rating-caption').textContent = t('Write failed: {error}', { error: firstError });
-  }
 }
 
 // ==========================================
@@ -1722,6 +1724,8 @@ onLanguageChange(() => {
   renderSettingsFolderList();
   renderKeywordFilters();
   updateUIOnSelection();
+  updateRatingAction();
+  updateFilteredPhotosCount();
   updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
   updateSortUI();
   updateVirtualScroller(); // libellés des séparateurs (jours, mois…) dans la nouvelle langue
@@ -2596,6 +2600,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
     return;
   }
   photos = photos.filter(photo => !removed.has(photo.path));
+  updateFilteredPhotosCount();
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
   selectedIndices.clear();

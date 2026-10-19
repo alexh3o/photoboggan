@@ -3,9 +3,9 @@
 ## 🚀 Next in line
 
 - [x] FIX: thumbnails are blurry in high sizes for lanscape orientation in justified layour. Max size is respected only for height.
-- [ ] UI: add photos count in current view at the top of filters
-- [ ] UI: add selected photos count at the top of Selection & Modification, with click to apply text
-- [ ] UI: Suppress "click to set color flag","click to rate" and "Current rating" texts to free space
+- [x] UI: add photos count in current view at the top of filters
+- [x] UI: add selected photos count at the top of Selection & Modification
+- [x] UI: Suppress "click to set color flag","click to rate" and "Current rating" texts to free space
 - [ ] BUG: adding a folder to collection is silent and it can last long, for the whole first reading time. It needs a toast for acknowledgement and some form of progress indicator.
 - [ ] UI: Split settings in tabs
 - [ ] Add choice of database storage, thumbnails and settings location
@@ -39,13 +39,9 @@
 - [ ] Map screen
 - [ ] Add mouse settings screen
 
-  
-
 ## ⚖️ Undecided
 
 - [ ] heic / heif image format support
-
-
 
 ## ❌ Not planned, that's not the spirit : use open with
 

@@ -45,6 +45,7 @@
         <ul id="folder-tree"></ul>
         <section class="photo-filters" aria-label="Filtres photo" data-i18n-aria-label="Photo filters">
           <h3 data-i18n="Filters">Filtres</h3>
+          <span id="filtered-photos-count" class="selection-count"></span>
           <label for="rating-filter" data-i18n="Rating">Note</label>
           <select id="rating-filter">
             <option value="-1" data-i18n="All ratings">Toutes les notes</option><option value="0" data-i18n="≥ 1 star">≥ 1 étoile</option><option value="1" data-i18n="≥ 2 stars">≥ 2 étoiles</option>
@@ -72,6 +73,7 @@
         </section>
         <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">
           <h3 data-i18n="Selection & Modification">Sélection/Modification</h3>
+          <span id="selection-count" class="selection-count"></span>
           <h4 data-i18n="Rating">Note</h4>
           <div id="selection-rating-stars" class="selection-rating-stars" role="group" aria-label="Attribuer une note de 1 à 5" data-i18n-aria-label="Set a rating from 1 to 5">
             <button type="button" data-rating="1" aria-label="Attribuer 1 étoile" data-i18n-aria-label="Set 1 star">★</button>
@@ -80,10 +82,8 @@
             <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles" data-i18n-aria-label="Set 4 stars">★</button>
             <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles" data-i18n-aria-label="Set 5 stars">★</button>
           </div>
-          <span id="selection-rating-caption" data-i18n="Click to set a rating">Cliquez pour noter</span>
           <h4 class="selection-color-title" data-i18n="Color">Couleur</h4>
           <div id="selection-color-flags" class="color-bar" role="group" aria-label="Attribuer une couleur" data-i18n-aria-label="Set a color"></div>
-          <span id="selection-color-caption" data-i18n="Click to set a color">Cliquez pour attribuer une couleur</span>
         </section>
       </aside>
 

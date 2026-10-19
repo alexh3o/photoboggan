@@ -116,7 +116,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
 .selection-color-title { margin-top: 0.875rem; }
 .selection-rating-stars button { background: transparent; border: 0; padding: 2px 3px; color: var(--star-off); font-size: 27px; line-height: 1; }
 .selection-rating-stars button:hover, .selection-rating-stars button.active { color: #ffd43b; }
-#selection-rating-caption, #selection-color-caption { display: block; margin: 7px 0 0 3px; color: var(--text-faint); font-size: 0.7rem; }
+.selection-count {display: block; margin: -2px 0 10px 0; color: var(--text-faint); font-size: 0.75rem; text-align:right }
 .write-toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1000; max-width: min(360px, calc(100vw - 40px)); padding: 12px 16px; border: 1px solid var(--control-border); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; }
 .write-toast.writing { border-color: #d6a900; }
 .write-toast.hidden { display: none; }
