@@ -60,6 +60,33 @@ function photoUrl(photo) {
   return convertFileSrc(photo.path) + (version ? `?v=${version}` : '');
 }
 
+// Ajout extracteur RAW
+const RAW_EXTENSIONS = new Set(['arw', 'cr2', 'cr3', 'nef', 'nrw', 'dng', 'raf', 'orf', 'rw2', 'raw']);
+function isRawPath(path) {
+  const ext = (path || '').split('.').pop()?.toLowerCase();
+  return RAW_EXTENSIONS.has(ext);
+}
+
+const rawPreviewPromises = new Map();
+async function getPhotoDisplayUrl(photo) {
+  if (!photo) return '';
+  if (!isRawPath(photo.path)) {
+    return photoUrl(photo);
+  }
+  let promise = rawPreviewPromises.get(photo.path);
+  if (!promise) {
+    promise = invoke('get_raw_preview_path', { sourcePath: photo.path })
+      .then(cachedPath => convertFileSrc(cachedPath))
+      .catch(err => {
+        console.error('Extraction preview RAW impossible', photo.path, err);
+        return photoUrl(photo);
+      });
+    rawPreviewPromises.set(photo.path, promise);
+  }
+  return promise;
+}
+
+
 // COULEURS (XMP Label) : clé stockée en base, label = clé de traduction du libellé affiché. La couleur visuelle est dans le CSS (.flag-<clé>).
 const COLOR_FLAGS = [
   { key: 'red', label: 'Red' },
@@ -892,8 +919,17 @@ function preloadFullscreenImages(index) {
       const image = new Image();
       fullscreenImageCache.set(i, image);
       const photoPath = photos[i].path;
+      //image.onerror = () => checkPhotoMissing(photoPath);
+      //image.src = photoUrl(photos[i]);
+      // Remplacmeent pur extracts RAW
+      const photo = photos[i];
       image.onerror = () => checkPhotoMissing(photoPath);
-      image.src = photoUrl(photos[i]);
+      getPhotoDisplayUrl(photo).then(url => {
+        if (fullscreenImageCache.get(i) === image) {
+          image.src = url;
+        }
+      });
+      // Finde  remplacement
     }
   }
   for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
@@ -993,9 +1029,13 @@ function updateUIOnSelection() {
   renderPreview();
   if (selectedIndices.size > 0 && photos[lastSelectedIndex]) {
     const photo = photos[lastSelectedIndex];
-    const imgUrl = photoUrl(photo);
     
-    showFullscreenPhoto(photo, imgUrl);
+    getPhotoDisplayUrl(photo).then(imgUrl => {
+      if (photos[lastSelectedIndex] === photo) {
+        showFullscreenPhoto(photo, imgUrl);
+      }
+    });
+
     updateFullscreenRatingStars();
     if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
 
@@ -1046,7 +1086,12 @@ function showPhotoDimensions(photo) {
     photo.measuredHeight = probe.naturalHeight;
     if (photos[lastSelectedIndex] === photo) showPhotoDimensions(photo);
   };
-  probe.src = photoUrl(photo);
+  //probe.src = photoUrl(photo);
+  // rempalcement pour extracteur raw
+  getPhotoDisplayUrl(photo).then(url => {
+    probe.src = url;
+  });
+  // fin de rempalacement
 }
 
 function updateRatingAction() {
@@ -1940,9 +1985,17 @@ function createPreviewSlot(photo) {
     layoutPreviewSlot(slot);
   });
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
-  img.src = photoUrl(photo);
+  //img.src = photoUrl(photo);
+  // Remplacement pour brancher l'extracteur jpeg des raw
+  img.addEventListener('error', () => checkPhotoMissing(photo.path));
+  getPhotoDisplayUrl(photo).then(url => {
+    if (previewSlots.includes(slot)) {
+      img.src = url;
+    }
+  });
   cell.appendChild(img);
   return slot;
+  // Fin de remplacement
 }
 
 // Mode normal : la photo courante. Mode Comparer : la sélection (4 max), dans l'ordre de la grille.
