@@ -40,6 +40,7 @@
   "Size":"Size",
   "Selection color":"Selection color",
   "Add folder":"Add folder",
+  "Scanning folder {folder}…": "Scanning folder “{folder}”…",
   "Active Buttons color":"Active Buttons color",
   "Display":"Display",
   "Rescan all collection":"Rescan all collection (!)",

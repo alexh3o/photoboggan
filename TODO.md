@@ -6,7 +6,7 @@
 - [x] UI: add photos count in current view at the top of filters
 - [x] UI: add selected photos count at the top of Selection & Modification
 - [x] UI: Suppress "click to set color flag","click to rate" and "Current rating" texts to free space
-- [ ] BUG: adding a folder to collection is silent and it can last long, for the whole first reading time. It needs a toast for acknowledgement and some form of progress indicator.
+- [x] BUG: adding a folder to collection is silent and it can last long, for the whole first reading time. It needs a toast for acknowledgement and some form of progress indicator.
 - [ ] UI: Split settings in tabs
 - [ ] Add choice of database storage, thumbnails and settings location
 - [ ] FEAT: Github release update available notification
