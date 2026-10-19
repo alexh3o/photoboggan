@@ -190,5 +190,15 @@
   "Ascending": "Croissant",
   "Descending": "Décroissant",
   "Oldest first": "plus ancien d'abord",
-  "Newest first": "plus récent d'abord"
+  "Newest first": "plus récent d'abord",
+  "Separators": "Séparateurs",
+  "No separator": "Aucun séparateur",
+  "By day": "Par jour",
+  "By week": "Par semaine",
+  "By month": "Par mois",
+  "By year": "Par année",
+  "By folder": "Par dossier",
+  "Photos are sorted by name within each folder.": "Les photos sont triées par nom au sein de chaque dossier.",
+  "Week {week}": "Semaine {week}",
+  "Unknown date": "Date inconnue"
 }

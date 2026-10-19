@@ -116,7 +116,17 @@ const SORT_KEYS = ['taken', 'modified', 'name'];
 const storedSortKey = localStorage.getItem('photoSortKey');
 let sortKey = SORT_KEYS.includes(storedSortKey) ? storedSortKey : 'taken';
 let sortOrder = localStorage.getItem('photoSortOrder') === 'asc' ? 'asc' : 'desc';
+// SÉPARATEURS DE LA GRILLE (mémorisés localement, un choix par famille de tri) : par défaut aucun. Dates (tri par date de prise de vue ou de modification) :
+// par jour, semaine, mois ou année. Nom de fichier : par dossier (le tri par nom se fait alors au sein de chaque dossier).
+const DATE_SEPARATORS = ['none', 'day', 'week', 'month', 'year'];
+const NAME_SEPARATORS = ['none', 'folder'];
+const storedDateSeparator = localStorage.getItem('photoDateSeparator');
+let dateSeparator = DATE_SEPARATORS.includes(storedDateSeparator) ? storedDateSeparator : 'none';
+const storedNameSeparator = localStorage.getItem('photoNameSeparator');
+let nameSeparator = NAME_SEPARATORS.includes(storedNameSeparator) ? storedNameSeparator : 'none';
 let photoLayouts = [];
+let separatorLayouts = []; // { group, y, height, label, title } : lignes de séparation, dans l'ordre de la grille
+const renderedSeparatorNodes = new Map();
 let layoutContentHeight = 0;
 let maximumPhotoHeight = thumbnailSize;
 const gridContainer = document.getElementById('grid-view');
@@ -551,27 +561,27 @@ function selectFolder(path) {
 // ==========================================
 // VIRTUAL SCROLLING
 // ==========================================
-function updateVirtualScroller() {
-  const width = Math.max(1, gridContainer.clientWidth);
-  const gap = thumbnailLayout === 'justified' ? 0 : 6;
-  photoLayouts = [];
-  maximumPhotoHeight = thumbnailSize;
+// Dispose les photos [start, end[ (indices dans photos) à partir de la hauteur offsetY ; renvoie la hauteur occupée par ce groupe.
+// Sans séparateur, c'est une seule plage couvrant toutes les photos ; avec des séparateurs, chaque groupe est disposé séparément (les lignes justifiées, les colonnes de la cascade et la grille carrée repartent à zéro).
+function layoutPhotoRange(start, end, offsetY, width, gap, capLastRow = false) {
+  if (end <= start) return 0;
+  const count = end - start;
   if (thumbnailLayout === 'square') {
     columns = Math.max(1, Math.floor(width / thumbnailSize));
     const cellSize = Math.min(thumbnailSize, width / columns);
-    for (let i = 0; i < photos.length; i++) photoLayouts.push({ index: i, x: (i % columns) * cellSize, y: Math.floor(i / columns) * cellSize, width: cellSize, height: cellSize });
-    layoutContentHeight = Math.ceil(photos.length / columns) * cellSize;
+    for (let n = 0; n < count; n++) photoLayouts.push({ index: start + n, x: (n % columns) * cellSize, y: offsetY + Math.floor(n / columns) * cellSize, width: cellSize, height: cellSize });
+    return Math.ceil(count / columns) * cellSize;
   } else if (thumbnailLayout === 'justified') {
-    let y = 0;
-    let index = 0;
+    let y = offsetY;
+    let index = start;
     const targetHeight = thumbnailSize;
-    while (index < photos.length) {
+    while (index < end) {
       const row = [];
       let ratioSum = 0;
       let bestCount = 0;
       let bestHeight = targetHeight;
       let bestDeviation = Infinity;
-      while (index + row.length < photos.length) {
+      while (index + row.length < end) {
         const photo = photos[index + row.length];
         const ratio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1);
         const count = row.length + 1;
@@ -589,7 +599,9 @@ function updateVirtualScroller() {
       // Une fois la cible atteinte, une image supplémentaire pourrait rendre la ligne trop basse.
       // Les largeurs sont calculées depuis la largeur utile, donc chaque ligne remplit exactement le conteneur.
       const available = Math.max(1, width - gap * (bestCount - 1));
-      const height = available / ratioSum;
+      // Avec des séparateurs, la dernière ligne d'un groupe (souvent 1 ou 2 photos) n'est pas étirée au-delà de la hauteur cible : elle reste alignée à gauche.
+      const fillHeight = available / ratioSum;
+      const height = capLastRow && index + bestCount >= end ? Math.min(fillHeight, targetHeight) : fillHeight;
       maximumPhotoHeight = Math.max(maximumPhotoHeight, height);
       let x = 0;
       for (const item of row.slice(0, bestCount)) {
@@ -600,25 +612,61 @@ function updateVirtualScroller() {
       y += height + gap;
       index += bestCount;
     }
-    layoutContentHeight = Math.max(0, y - gap);
+    return Math.max(0, y - offsetY - gap);
   } else {
     columns = Math.max(1, Math.floor((width + gap) / (thumbnailSize + gap)));
     const columnWidth = (width - gap * (columns - 1)) / columns;
     const columnBottoms = Array(columns).fill(0);
-    for (let i = 0; i < photos.length; i++) {
+    const placed = [];
+    for (let i = start; i < end; i++) {
       let column = 0;
       for (let c = 1; c < columns; c++) if (columnBottoms[c] < columnBottoms[column]) column = c;
       const photo = photos[i];
       const ratio = Math.max(0.2, Math.min(5, photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1));
       const height = columnWidth / ratio;
       const y = columnBottoms[column];
-      photoLayouts.push({ index: i, x: column * (columnWidth + gap), y, width: columnWidth, height });
+      placed.push({ index: i, x: column * (columnWidth + gap), y: offsetY + y, width: columnWidth, height });
       columnBottoms[column] = y + height + gap;
       maximumPhotoHeight = Math.max(maximumPhotoHeight, height);
     }
-    layoutContentHeight = Math.max(0, ...columnBottoms) - gap;
-    photoLayouts.sort((a, b) => a.y - b.y || a.x - b.x);
+    placed.sort((a, b) => a.y - b.y || a.x - b.x);
+    for (const item of placed) photoLayouts.push(item);
+    return Math.max(0, ...columnBottoms) - gap;
   }
+}
+
+// Hauteur d'une ligne de séparation en pixels : mesurée sur un élément invisible pour accepter n'importe quelle unité CSS dans --group-separator-height.
+let separatorProbe = null;
+function separatorHeight() {
+  if (!separatorProbe) {
+    separatorProbe = document.createElement('div');
+    separatorProbe.className = 'group-separator-probe';
+    separatorProbe.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(separatorProbe);
+  }
+  return Math.max(1, separatorProbe.offsetHeight);
+}
+
+function updateVirtualScroller() {
+  const width = Math.max(1, gridContainer.clientWidth);
+  const gap = thumbnailLayout === 'justified' ? 0 : 6;
+  photoLayouts = [];
+  separatorLayouts = [];
+  maximumPhotoHeight = thumbnailSize;
+  const groups = computePhotoGroups();
+  const headerHeight = groups.length ? separatorHeight() : 0;
+  let y = 0;
+  if (!groups.length) {
+    y = layoutPhotoRange(0, photos.length, 0, width, gap);
+  } else {
+    groups.forEach((group, groupIndex) => {
+      separatorLayouts.push({ group: groupIndex, y, height: headerHeight, label: group.label, title: group.title });
+      y += headerHeight;
+      y += layoutPhotoRange(group.start, group.end, y, width, gap, true);
+      if (groupIndex < groups.length - 1) y += gap;
+    });
+  }
+  layoutContentHeight = y;
   scrollContent.style.height = `${Math.max(0, layoutContentHeight)}px`;
   renderVisibleItems();
 }
@@ -679,8 +727,38 @@ function renderVisibleItems() {
     const flagClass = `flag-indicator flag-${photo.color_flag}`;
     if (div._flag.className !== flagClass) div._flag.className = flagClass;
   }
+  renderVisibleSeparators(top, bottom);
   for (const [index, node] of renderedThumbnailNodes) {
     if (!visible.has(index)) { node.remove(); renderedThumbnailNodes.delete(index); }
+  }
+}
+
+// Lignes de séparation visibles (dates ou dossiers) : créées à l'arrivée dans la zone affichée, retirées quand elles en sortent, comme les miniatures.
+// Les nœuds sont indexés par numéro de groupe et mis à jour si le texte ou la position change (changement de tri, de filtre ou de langue).
+function renderVisibleSeparators(top, bottom) {
+  const visible = new Set();
+  for (const separator of separatorLayouts) {
+    if (separator.y + separator.height < top) continue;
+    if (separator.y > bottom) break;
+    visible.add(separator.group);
+    let node = renderedSeparatorNodes.get(separator.group);
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'group-separator';
+      node._text = document.createElement('span');
+      node._text.className = 'group-separator-label';
+      node.appendChild(node._text);
+      renderedSeparatorNodes.set(separator.group, node);
+      scrollContent.appendChild(node);
+    }
+    if (node._label !== separator.label) { node._text.textContent = separator.label; node._label = separator.label; }
+    if (node._title !== separator.title) { node.title = separator.title; node._title = separator.title; }
+    const transform = `translate3d(0, ${separator.y}px, 0)`;
+    if (node._transform !== transform) { node.style.transform = transform; node._transform = transform; }
+    if (node._height !== separator.height) { node.style.height = `${separator.height}px`; node._height = separator.height; }
+  }
+  for (const [group, node] of renderedSeparatorNodes) {
+    if (!visible.has(group)) { node.remove(); renderedSeparatorNodes.delete(group); }
   }
 }
 
@@ -1351,7 +1429,127 @@ function photoSortValue(photo) {
   return photoTimeKey(photo);
 }
 
+// Séparateur actif selon le critère de tri : 'none', 'day', 'week', 'month', 'year' (tri par date) ou 'folder' (tri par nom de fichier).
+function activeSeparator() {
+  return sortKey === 'name' ? nameSeparator : dateSeparator;
+}
+
+// Dossier d'une photo (chemin sans le nom de fichier) et ses segments, calculés une fois pour le tri et le regroupement.
+function photoFolder(photo) {
+  if (photo.folderPath === undefined) {
+    const cut = Math.max(photo.path.lastIndexOf('\\'), photo.path.lastIndexOf('/'));
+    photo.folderPath = cut >= 0 ? photo.path.slice(0, cut) : '';
+    photo.folderSegments = photo.folderPath.split(/[\\/]+/).filter(Boolean);
+  }
+  return photo.folderPath;
+}
+
+// Compare les dossiers segment par segment (le dossier parent passe avant ses sous-dossiers), avec le même ordre naturel que les noms de fichiers.
+function compareFolders(a, b) {
+  photoFolder(a);
+  photoFolder(b);
+  const segmentsA = a.folderSegments;
+  const segmentsB = b.folderSegments;
+  const shared = Math.min(segmentsA.length, segmentsB.length);
+  for (let i = 0; i < shared; i++) {
+    const result = sortNameCollator.compare(segmentsA[i], segmentsB[i]);
+    if (result) return result;
+  }
+  if (segmentsA.length !== segmentsB.length) return segmentsA.length - segmentsB.length;
+  return a.folderPath < b.folderPath ? -1 : a.folderPath > b.folderPath ? 1 : 0;
+}
+
+// Jour de la photo pour le critère de tri par date (prise de vue ou modification), ou null si la date est absente ou invalide.
+function photoSortDateParts(photo) {
+  let dayKey;
+  if (sortKey === 'modified') {
+    if (!(photo.modified > 0)) return null;
+    const date = new Date(photo.modified);
+    dayKey = date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
+  } else {
+    dayKey = photoDateKey(photo);
+  }
+  if (dayKey === null || !isValidDateKey(dayKey)) return null;
+  return { year: Math.floor(dayKey / 10000), month: Math.floor(dayKey / 100) % 100, day: dayKey % 100 };
+}
+
+// Semaine ISO 8601 (du lundi au dimanche, la semaine 1 contient le 4 janvier) : année ISO et numéro de semaine.
+function isoWeekOf({ year, month, day }) {
+  const target = new Date(Date.UTC(year, month - 1, day));
+  target.setUTCDate(target.getUTCDate() - ((target.getUTCDay() + 6) % 7) + 3); // jeudi de la même semaine
+  const isoYear = target.getUTCFullYear();
+  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - ((firstThursday.getUTCDay() + 6) % 7) + 3);
+  return { isoYear, week: 1 + Math.round((target - firstThursday) / (7 * 86400000)) };
+}
+
+// Identifiant du groupe d'une photo : deux photos voisines (la liste est déjà triée) de même identifiant sont dans le même groupe.
+function separatorGroupKey(photo, mode) {
+  if (mode === 'folder') {
+    photoFolder(photo);
+    return photo.folderSegments.join('/').toLowerCase(); // les chemins Windows ne distinguent pas les majuscules
+  }
+  const parts = photoSortDateParts(photo);
+  if (!parts) return 'unknown';
+  if (mode === 'year') return String(parts.year);
+  if (mode === 'month') return `${parts.year}-${parts.month}`;
+  if (mode === 'week') {
+    const { isoYear, week } = isoWeekOf(parts);
+    return `${isoYear}-W${week}`;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+// Texte de la ligne de séparation d'un groupe, d'après sa première photo ; title = infobulle (chemin complet pour un dossier).
+function separatorText(photo, mode) {
+  if (mode === 'folder') {
+    photoFolder(photo);
+    return { label: photo.folderPath || '…', title: photo.folderPath };
+  }
+  const parts = photoSortDateParts(photo);
+  if (!parts) return { label: t('Unknown date'), title: '' };
+  const language = getLanguage();
+  const date = new Date(parts.year, parts.month - 1, parts.day);
+  let label;
+  if (mode === 'year') {
+    label = String(parts.year);
+  } else if (mode === 'month') {
+    label = new Intl.DateTimeFormat(language, { month: 'long', year: 'numeric' }).format(date);
+  } else if (mode === 'week') {
+    const monday = new Date(parts.year, parts.month - 1, parts.day - ((date.getDay() + 6) % 7));
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    const range = new Intl.DateTimeFormat(language, { day: 'numeric', month: 'short', year: 'numeric' }).formatRange(monday, sunday);
+    label = `${t('Week {week}', { week: isoWeekOf(parts).week })} · ${range}`;
+  } else {
+    label = new Intl.DateTimeFormat(language, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+  }
+  return { label: label.charAt(0).toLocaleUpperCase(language) + label.slice(1), title: '' };
+}
+
+// Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
+function computePhotoGroups() {
+  const mode = activeSeparator();
+  if (mode === 'none' || photos.length === 0) return [];
+  const groups = [];
+  let current = null;
+  let currentKey = null;
+  for (let i = 0; i < photos.length; i++) {
+    const key = separatorGroupKey(photos[i], mode);
+    if (current && key === currentKey) continue;
+    if (current) current.end = i;
+    current = { start: i, end: photos.length, ...separatorText(photos[i], mode) };
+    currentKey = key;
+    groups.push(current);
+  }
+  return groups;
+}
+
 function comparePhotosForSort(a, b) {
+  // Tri par nom avec séparateur par dossier : les dossiers d'abord (dans le sens choisi), puis les noms au sein de chaque dossier.
+  if (activeSeparator() === 'folder') {
+    const folderResult = compareFolders(a, b);
+    if (folderResult) return sortOrder === 'asc' ? folderResult : -folderResult;
+  }
   const valueA = photoSortValue(a);
   const valueB = photoSortValue(b);
   if (valueA === null || valueB === null) {
@@ -1373,6 +1571,11 @@ function sortOrderHint(key, order) {
 function updateSortUI() {
   sortModal.querySelectorAll('input[name="sort-key"]').forEach(input => { input.checked = input.value === sortKey; });
   sortModal.querySelectorAll('input[name="sort-order"]').forEach(input => { input.checked = input.value === sortOrder; });
+  sortModal.querySelectorAll('input[name="sort-separator-date"]').forEach(input => { input.checked = input.value === dateSeparator; });
+  sortModal.querySelectorAll('input[name="sort-separator-name"]').forEach(input => { input.checked = input.value === nameSeparator; });
+  document.getElementById('sort-separator-date').hidden = sortKey === 'name'; // les séparateurs proposés dépendent du critère de tri
+  document.getElementById('sort-separator-name').hidden = sortKey !== 'name';
+  document.getElementById('sort-separator-name-note').hidden = nameSeparator !== 'folder';
   document.getElementById('sort-hint-asc').textContent = `(${sortOrderHint(sortKey, 'asc')})`;
   document.getElementById('sort-hint-desc').textContent = `(${sortOrderHint(sortKey, 'desc')})`;
   const order = `${t(sortOrder === 'asc' ? 'Ascending' : 'Descending')} (${sortOrderHint(sortKey, sortOrder)})`;
@@ -1395,6 +1598,8 @@ function scrollToPhotoIndex(index) {
 function applySortChange() {
   localStorage.setItem('photoSortKey', sortKey);
   localStorage.setItem('photoSortOrder', sortOrder);
+  localStorage.setItem('photoDateSeparator', dateSeparator);
+  localStorage.setItem('photoNameSeparator', nameSeparator);
   updateSortUI();
   fullscreenImageCache.clear(); // le cache de préchargement est indexé par position dans la liste
   applyPhotoFilters({ keepState: true }); // sélection conservée (retrouvée par chemin)
@@ -1419,6 +1624,8 @@ sortModal.addEventListener('change', event => {
   if (!(input instanceof HTMLInputElement)) return;
   if (input.name === 'sort-key' && SORT_KEYS.includes(input.value)) sortKey = input.value;
   else if (input.name === 'sort-order') sortOrder = input.value === 'asc' ? 'asc' : 'desc';
+  else if (input.name === 'sort-separator-date' && DATE_SEPARATORS.includes(input.value)) dateSeparator = input.value;
+  else if (input.name === 'sort-separator-name' && NAME_SEPARATORS.includes(input.value)) nameSeparator = input.value;
   else return;
   applySortChange();
 });
@@ -1478,6 +1685,7 @@ onLanguageChange(() => {
   updateUIOnSelection();
   updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
   updateSortUI();
+  updateVirtualScroller(); // libellés des séparateurs (jours, mois…) dans la nouvelle langue
   datePicker.setAttribute('aria-label', t('Choose a date or a range'));
   if (isDatePickerOpen()) {
     renderDatePicker();

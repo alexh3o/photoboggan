@@ -191,5 +191,15 @@
   "Ascending": "Ascending",
   "Descending": "Descending",
   "Oldest first": "oldest first",
-  "Newest first": "newest first"
+  "Newest first": "newest first",
+  "Separators": "Separators",
+  "No separator": "No separator",
+  "By day": "By day",
+  "By week": "By week",
+  "By month": "By month",
+  "By year": "By year",
+  "By folder": "By folder",
+  "Photos are sorted by name within each folder.": "Photos are sorted by name within each folder.",
+  "Week {week}": "Week {week}",
+  "Unknown date": "Unknown date"
 }
