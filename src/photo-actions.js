@@ -453,14 +453,23 @@ function onMenuKeydown(event) {
   }
 }
 
-function openThumbnailMenu(event, index) {
+function openThumbnailMenu(event, index, source = 'grid') {
   closeContextMenu();
   const photos = api.getPhotos();
   const photo = photos[index];
   if (!photo) return;
-  // Comme dans l'Explorateur : clic droit hors sélection = on sélectionne cette photo ; dans la sélection = on agit sur toute la sélection.
-  if (!api.getSelectedIndices().has(index)) api.selectOnly(index);
-  const targets = [...api.getSelectedIndices()].sort((a, b) => a - b).map(selectedIndex => photos[selectedIndex]).filter(Boolean);
+
+  // En vue directe (case d'aperçu ou plein écran), on cible UNIQUEMENT la photo sous le clic.
+  // Sur la grille, on conserve le comportement de sélection groupée.
+  const isDirectView = source === 'preview' || source === 'fullscreen';
+
+  if (!isDirectView && !api.getSelectedIndices().has(index)) {
+    api.selectOnly(index);
+  }
+
+  const targets = isDirectView
+    ? [photo]
+    : [...api.getSelectedIndices()].sort((a, b) => a - b).map(selectedIndex => photos[selectedIndex]).filter(Boolean);
 
   const menu = document.createElement('div');
   menu.className = 'context-menu';
@@ -493,30 +502,32 @@ function openThumbnailMenu(event, index) {
   menu.querySelector('.context-menu-item')?.focus();
 }
 
-// Détermine l'index de la photo visée par le clic droit (miniature, cellule d'aperçu ou plein écran).
-function findTargetPhotoIndex(target) {
-  // 1. Clic droit sur une miniature de la grille
+// Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
+function findTargetPhoto(target) {
   const thumbnail = target?.closest('.thumbnail');
   if (thumbnail && thumbnail.dataset.index !== undefined) {
-    return Number(thumbnail.dataset.index);
+    return { index: Number(thumbnail.dataset.index), source: 'grid' };
   }
-  // 2. Clic droit sur une case d'aperçu (mode normal ou mode comparaison)
+
   const previewCell = target?.closest('.preview-cell');
   if (previewCell?.dataset.path) {
     const photos = api.getPhotos();
     const index = photos.findIndex(photo => photo.path === previewCell.dataset.path);
-    if (index >= 0) return index;
+    if (index >= 0) return { index, source: 'preview' };
   }
-  // 3. Clic droit dans la vue plein écran (sauf sur la barre de notation)
+
   if (target?.closest('#fullscreen-view')) {
-    if (target.closest('#fullscreen-rating')) return -1;
-    return api.getActiveIndex ? api.getActiveIndex() : -1;
+    if (target.closest('#fullscreen-rating')) return null;
+    const index = api.getActiveIndex ? api.getActiveIndex() : -1;
+    return index >= 0 ? { index, source: 'fullscreen' } : null;
   }
-  // 4. Clic droit dans la zone d'aperçu générale
+
   if (target?.closest('#preview-stage, #preview-panel')) {
-    return api.getActiveIndex ? api.getActiveIndex() : -1;
+    const index = api.getActiveIndex ? api.getActiveIndex() : -1;
+    return index >= 0 ? { index, source: 'preview' } : null;
   }
-  return -1;
+
+  return null;
 }
 
 // Remplace le menu du navigateur : menu d'actions sur miniatures, aperçu et plein écran.
@@ -525,12 +536,13 @@ function onContextMenu(event) {
   if (target?.closest('input[type="text"], input:not([type]), textarea')) return;
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
-  const index = findTargetPhotoIndex(target);
-  if (index < 0) {
+
+  const result = findTargetPhoto(target);
+  if (!result) {
     closeContextMenu();
     return;
   }
-  openThumbnailMenu(event, index);
+  openThumbnailMenu(event, result.index, result.source);
 }
 
 // options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting).

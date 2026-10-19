@@ -1272,13 +1272,14 @@ window.addEventListener('keydown', (e) => {
     }
   }
   // Suppression
-  if (e.key === 'Delete') {
-    // Votre code ici 
-    console.log("Touche SUPPR pressée, indice photos actives:", selectedIndices);
+if (e.key === 'Delete') {
     if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
-      const selectedPhotos = Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
-      if (selectedPhotos.length > 0) {
-        confirmAndDelete(selectedPhotos);
+      // En mode comparaison, si la souris survole une photo précise, on n'efface que celle-ci
+      const targetPhotos = (compareMode && hoveredPreviewSlot?.photo)
+        ? [hoveredPreviewSlot.photo]
+        : Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
+      if (targetPhotos.length > 0) {
+        confirmAndDelete(targetPhotos);
         return;
       }
     }
@@ -2581,14 +2582,18 @@ window.addEventListener('resize', closeDatePicker);
 // MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js)
 // ==========================================
 // Retire de l'affichage les photos dont le fichier vient d'être supprimé, sans recharger la bibliothèque ni remonter la grille.
-// La sélection passe à la photo qui prend la place de la première supprimée.
+// En mode comparaison (ou sélection multiple), les autres photos sélectionnées non supprimées sont conservées.
 function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   const removed = new Set(paths);
   if (removed.size === 0) return;
   const firstRemovedIndex = photos.findIndex(photo => removed.has(photo.path));
-  // Retrait en arrière-plan (fichier disparu détecté à l'affichage) : la sélection en cours est conservée si elle n'est pas concernée.
-  const keptPaths = keepSelection ? [...selectedIndices].map(index => photos[index]?.path).filter(path => path && !removed.has(path)) : [];
-  const keptLastPath = keptPaths.length && !removed.has(photos[lastSelectedIndex]?.path) ? photos[lastSelectedIndex]?.path : null;
+
+  // Conserve les autres photos sélectionnées qui n'ont pas été supprimées
+  const remainingSelectedPaths = [...selectedIndices]
+    .map(index => photos[index]?.path)
+    .filter(path => path && !removed.has(path));
+  const keptLastPath = !removed.has(photos[lastSelectedIndex]?.path) ? photos[lastSelectedIndex]?.path : null;
+
   for (const path of removed) thumbnailCacheLookups.delete(path);
   const treeSharesLibrary = folderTreePhotos === loadedPhotos;
   loadedPhotos = loadedPhotos.filter(photo => !removed.has(photo.path));
@@ -2596,18 +2601,26 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   fullscreenImageCache.clear();
   renderFolderTree();
   renderKeywordFilters();
+
   if (loadedPhotos.length === 0) {
     applyPhotoFilters(); // plus aucune photo : même traitement que des filtres sans résultat
     return;
   }
+
   photos = photos.filter(photo => !removed.has(photo.path));
   updateFilteredPhotosCount();
+
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
   selectedIndices.clear();
-  if (keptPaths.length > 0) {
+
+  // Si d'autres photos faisaient partie de la sélection (ex. comparaison de 4 photos dont une est supprimée),
+  // on conserve les survivantes pour continuer la comparaison !
+  if (remainingSelectedPaths.length > 0) {
     const indexByPath = new Map(photos.map((photo, index) => [photo.path, index]));
-    for (const path of keptPaths) if (indexByPath.has(path)) selectedIndices.add(indexByPath.get(path));
+    for (const path of remainingSelectedPaths) {
+      if (indexByPath.has(path)) selectedIndices.add(indexByPath.get(path));
+    }
     lastSelectedIndex = indexByPath.get(keptLastPath) ?? selectedIndices.values().next().value ?? 0;
   } else if (photos.length > 0) {
     lastSelectedIndex = Math.max(0, Math.min(firstRemovedIndex < 0 ? lastSelectedIndex : firstRemovedIndex, photos.length - 1));
@@ -2615,6 +2628,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   } else {
     lastSelectedIndex = 0;
   }
+
   updateVirtualScroller();
   if (photos.length > 0) {
     updateUIOnSelection();
