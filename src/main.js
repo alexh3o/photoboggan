@@ -820,9 +820,14 @@ function preloadFullscreenImages(index) {
   for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
 }
 
-// Navigation à la molette en plein écran
+// Navigation à la molette en plein écran ; avec Ctrl, la molette zoome autour du curseur (comme dans l'aperçu) au lieu de changer de photo.
 fullscreenView.addEventListener('wheel', (e) => {
   e.preventDefault();
+  if (e.ctrlKey) {
+    const steps = wheelZoomSteps(e);
+    if (steps) zoomPreviewSteps(-steps, previewAnchorAt(fullscreenSlot, e.clientX, e.clientY), fullscreenSlot);
+    return;
+  }
   if (e.deltaY > 0) {
     // Molette vers le bas / droite -> Photo suivante
     navigateToPhotoIndex(lastSelectedIndex + 1);
@@ -835,7 +840,7 @@ fullscreenView.addEventListener('wheel', (e) => {
 // Double-clic pour quitter le plein écran
 fullscreenView.addEventListener('dblclick', closeFullscreen);
 
-// Plein écran zoomé : on déplace l'image en la faisant glisser à la souris (comme dans l'aperçu) ; le zoom lui-même se commande au clavier (+ / - / *).
+// Plein écran zoomé : on déplace l'image en la faisant glisser à la souris (comme dans l'aperçu) ; le zoom se commande au clavier (+ / - / *) ou par Ctrl + molette.
 fullscreenView.addEventListener('pointerdown', event => {
   if (event.button !== 0 || fullscreenSlot.zoom === null) return;
   if (event.target instanceof Element && event.target.closest('#fullscreen-rating')) return;
@@ -1850,23 +1855,28 @@ function togglePreviewActualSize(anchor, targetSlot = null) {
   zoomPreview(() => (atActualSize ? null : 1), anchor, targetSlot);
 }
 
+// Nombre de crans de zoom correspondant à un événement de molette, ou 0 si aucun cran n'est atteint : une molette à crans donne un cran par
+// événement (avec un court délai anti-rebond), un pavé tactile envoie de petits déplacements qui sont cumulés. Partagé par l'aperçu et le plein écran.
+function wheelZoomSteps(event) {
+  const delta = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 33 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 400 : 1);
+  if (Math.abs(delta) >= 50) {
+    const now = performance.now();
+    if (now - previewLastWheelStep < 40) return 0;
+    previewLastWheelStep = now;
+    previewWheelDelta = 0;
+    return Math.sign(delta);
+  }
+  previewWheelDelta += delta;
+  const steps = Math.trunc(previewWheelDelta / 100);
+  previewWheelDelta -= steps * 100;
+  return steps;
+}
+
 previewStage.addEventListener('wheel', event => {
   const slot = previewSlotFromEvent(event);
   if (!slot) return;
   event.preventDefault();
-  const delta = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 33 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 400 : 1);
-  let steps = 0;
-  if (Math.abs(delta) >= 50) {
-    const now = performance.now();
-    if (now - previewLastWheelStep < 40) return;
-    previewLastWheelStep = now;
-    previewWheelDelta = 0;
-    steps = Math.sign(delta);
-  } else {
-    previewWheelDelta += delta;
-    steps = Math.trunc(previewWheelDelta / 100);
-    previewWheelDelta -= steps * 100;
-  }
+  const steps = wheelZoomSteps(event);
   if (steps) zoomPreviewSteps(-steps, previewAnchorAt(slot, event.clientX, event.clientY), slot);
 }, { passive: false });
 

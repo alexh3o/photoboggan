@@ -470,8 +470,12 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|error| format!("Impossible d'afficher {path} : {error}"))
 }
 
-// Place les fichiers dans le presse-papiers de l'OS comme « Copier » dans l'Explorateur : c'est une liste de fichiers, qu'on peut
-// coller dans l'Explorateur, un client mail, une messagerie… Les fichiers inexistants sont ignorés ; renvoie le nombre de fichiers copiés.
+// Place les fichiers dans le presse-papiers de l'OS comme « Copier » dans l'explorateur de fichiers : c'est une liste de fichiers, qu'on peut
+// coller dans l'explorateur, un client mail, une messagerie… Les fichiers inexistants sont ignorés ; renvoie le nombre de fichiers copiés.
+// Portable (Windows, macOS, Linux) grâce à la crate clipboard-rs, sans PowerShell ni outil externe.
+use clipboard_rs::{Clipboard, ClipboardContext};
+static CLIPBOARD: std::sync::Mutex<Option<ClipboardContext>> = std::sync::Mutex::new(None);
+
 #[tauri::command(async)]
 fn copy_files_to_clipboard(paths: Vec<String>) -> Result<usize, String> {
     let existing: Vec<&String> = paths.iter().filter(|path| Path::new(path.as_str()).is_file()).collect();
@@ -481,49 +485,46 @@ fn copy_files_to_clipboard(paths: Vec<String>) -> Result<usize, String> {
             None => "Aucune photo à copier".into(),
         });
     }
-    set_clipboard_files(&existing)?;
+    let entries: Vec<String> = existing.iter().map(|path| clipboard_entry(path)).collect();
+    // Le contexte est conservé entre deux appels : sous Linux (X11), c'est le processus de l'appli qui sert le contenu du presse-papiers
+    // aux autres applications, il ne doit donc pas être libéré juste après la copie.
+    let mut guard = CLIPBOARD.lock().map_err(|_| "Presse-papiers indisponible".to_string())?;
+    if guard.is_none() {
+        *guard = Some(ClipboardContext::new().map_err(|error| format!("Presse-papiers indisponible : {error}"))?);
+    }
+    let clipboard = guard.as_ref().ok_or("Presse-papiers indisponible")?;
+    clipboard
+        .set_files(entries)
+        .map_err(|error| format!("Écriture dans le presse-papiers impossible : {error}"))?;
     Ok(existing.len())
 }
 
-// Windows : PowerShell (`Set-Clipboard -LiteralPath`), présent sur toutes les versions de Windows prises en charge, donc sans nouvelle
-// dépendance ni DLL à distribuer. La liste passe par un fichier temporaire UTF-8 (et non par la ligne de commande) pour gérer les
-// accents et les sélections de plusieurs centaines de photos ; le chemin de ce fichier est transmis par une variable d'environnement.
+// Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
+// des URI y seraient écrits comme de faux chemins et le collage ne ferait rien) ; ailleurs, des URI « file:/// ».
 #[cfg(windows)]
-fn set_clipboard_files(paths: &[&String]) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000; // pas de fenêtre console qui clignote
-
-    let list_file = std::env::temp_dir().join(format!(
-        "photofile-clipboard-{}-{}.txt",
-        std::process::id(),
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()
-    ));
-    let mut content = String::new();
-    for path in paths {
-        content.push_str(path);
-        content.push('\n');
-    }
-    fs::write(&list_file, content.as_bytes()).map_err(|error| error.to_string())?;
-    let script = "$ErrorActionPreference = 'Stop'; \
-        $files = [System.IO.File]::ReadAllLines($env:PHOTOFILE_CLIPBOARD_LIST, [System.Text.Encoding]::UTF8) | Where-Object { $_ }; \
-        Set-Clipboard -LiteralPath $files";
-    let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Sta", "-Command", script])
-        .env("PHOTOFILE_CLIPBOARD_LIST", &list_file)
-        .creation_flags(CREATE_NO_WINDOW)
-        .output();
-    let _ = fs::remove_file(&list_file);
-    let output = output.map_err(|error| format!("Impossible de lancer PowerShell : {error}"))?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(format!("Écriture dans le presse-papiers impossible : {}", String::from_utf8_lossy(&output.stderr).trim()))
-    }
+fn clipboard_entry(path: &str) -> String {
+    path.replace('/', "\\")
 }
 
 #[cfg(not(windows))]
-fn set_clipboard_files(_paths: &[&String]) -> Result<(), String> {
-    Err("La copie de fichiers dans le presse-papiers n'est disponible que sous Windows pour le moment".into())
+fn clipboard_entry(path: &str) -> String {
+    file_uri(path)
+}
+
+// URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
+#[cfg(not(windows))]
+fn file_uri(path: &str) -> String {
+    let mut uri = String::from("file://");
+    if !path.starts_with('/') {
+        uri.push('/');
+    }
+    for byte in path.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' | b':' => uri.push(byte as char),
+            _ => uri.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    uri
 }
 
 fn main() {

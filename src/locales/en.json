@@ -149,6 +149,8 @@
   "Copy to clipboard": "Copy to clipboard",
   "Zoom in / out": "Zoom in / out",
   "Actual size / fit": "Actual size (1:1) / fit to window",
+  "Zoom with the wheel": "Zoom around the cursor (fullscreen)",
+  "Mouse wheel": "Wheel",
   "Show in file explorer": "Show in file explorer",
   "Open with": "Open with",
   "Choose…": "Choose…",
