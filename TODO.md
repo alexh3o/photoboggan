@@ -22,8 +22,8 @@
 - [ ] FEAT: Add keyboard shortcuts for "open with" programs
 - [ ] Allow reordering "open with" programs in settings
 - [ ] Manage single/multiple selections and right click menu
-- [ ] FETA: Display RAW images. Use embedded thumbnail, only decode for fullscreen
-- [ ] FEAT: Add heic, heif, webp, avif, tiff, gif images file formats support
+- [x] FETA: Display RAW images. Use embedded thumbnail
+- [x] FEAT: Add webp, avif, gif images file formats support
 - [ ] IMP: Split rescan action per collection / tree root folder
 - [ ] UI: Add total photos count and size, drives, in about view
 
@@ -38,6 +38,14 @@
   - [ ] Handle multiplicity of tag in structure
 - [ ] Map screen
 - [ ] Add mouse settings screen
+
+  
+
+## ⚖️ Undecided
+
+- [ ] heic / heif image format support
+
+
 
 ## ❌ Not planned, that's not the spirit : use open with
 
