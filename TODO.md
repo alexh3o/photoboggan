@@ -2,46 +2,42 @@
 
 ## 🚀 Next in line
 
-- [x] UI: setting to have date group / separator lines 
-- [ ] BUG: last photo(s) takes the whole width in thumbnail view if it couldn't be fitted with others in a line, in justified view. Black space should be allowed
-- [ ] Add possibility to stop rescan
-- [ ] Add max thumbnail size setting (1024 max)
-- [x] UI: Thumbnails Scroll momentum when moved by mouse click+hold+release
-- [x] Alllow zooming with Ctrl+MouseWheel
-- [ ] FIX: thumbnails are blurry in high sizes. Max size is not respected for display
-- [ ] Add keyboard shortcuts Setting Screen
+- [x] FIX: thumbnails are blurry in high sizes for lanscape orientation in justified layour. Max size is respected only for height.
+- [ ] UI: add photos count in current view at the top of filters
+- [ ] UI: add selected photos count at the top of Selection & Modification, with click to apply text
+- [ ] UI: Suppress "click to set color flag","click to rate" and "Current rating" texts to free space
+- [ ] BUG: adding a folder to collection is silent and it can last long, for the whole first reading time. It needs a toast for acknowledgement and some form of progress indicator.
+- [ ] UI: Split settings in tabs
+- [ ] Add choice of database storage, thumbnails and settings location
+- [ ] FEAT: Github release update available notification
+- [ ] IMP: Add possibility to stop rescan
+- [ ] IMP: Add max thumbnail size setting (1024 max)
+- [ ] IMP: Add keyboard shortcuts Setting Screen
 - [ ] UI: Finish implementing variable (rem) texts and icons size instead of fixed px sizes
-- [ ] Add reset button for all filters
-- [ ] Accelerate fullscreen navigation between images with a cache for slow disks
-- [ ] Add resizing option in "Copy to" action
-- [ ] Map widget in Info panel
-- [ ] Add delete command (key + eventually icon) in compare mode
-- [ ] Add keyboard shortcuts for "open with" programs
+- [ ] IMP: Add reset button for all filters
+- [ ] IMP: Accelerate fullscreen navigation between images with a cache for slow disks
+- [ ] FEAT: Add resizing option in "Copy to" action
+- [ ] FEAT: Map widget in Info panel
+- [ ] IMP: Add delete command (key + eventually icon) in compare mode
+- [ ] FEAT: Add keyboard shortcuts for "open with" programs
 - [ ] Allow reordering "open with" programs in settings
 - [ ] Manage single/multiple selections and right click menu
-- [ ] Display RAW images
-- [ ] Split rescan action per collection / tree root folder
-- [ ] Split settings in tabs
-- [ ] Update available notification
-- [ ] BUG: adding a folder to collection is silent for a while, probably for the whole first reading time. It needs a toast
-- [x] Toast for copy to clipboard
-- [ ] UI: add photos count in current view, group with selected photos count just above filters
-- [ ] UI: Suppress "click to set color flag","click to rate" and "Current rating" texts to free space
-- [ ] Add total photos count and size, drives, in about view
-- [ ] Add choice of database storage, thumbnails and settings location
+- [ ] FETA: Display RAW images. Use embedded thumbnail, only decode for fullscreen
+- [ ] FEAT: Add heic, heif, webp, avif, tiff, gif images file formats support
+- [ ] IMP: Split rescan action per collection / tree root folder
+- [ ] UI: Add total photos count and size, drives, in about view
 
 ## 💡 Ideas and longer term evolutions
 
 - [ ] Add linux release
   - [ ] Check window resizing controls
-  - [x] Redo "copy to clipboard" action that uses powershell (windows only)
-- [ ] Add mouse settings screen
 - [ ] Allow keywords management & file write (big one)
   - [ ] Implement tree structure matching existing pictures, handle active/inactive kw in each branch, implement vizualisation per picture, pictures & collection
   - [ ] Allow adding keyword in tree
   - [ ] Allow adding and removing keywords, writing files in all existing formats
   - [ ] Handle multiplicity of tag in structure
 - [ ] Map screen
+- [ ] Add mouse settings screen
 
 ## ❌ Not planned, that's not the spirit : use open with
 

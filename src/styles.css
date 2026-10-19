@@ -86,7 +86,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
 .main-content { display: flex; flex: 1; overflow: hidden; }
 
 /* SIDEBAR */
-.sidebar-section { width: 15rem; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 12px; overflow-y: auto; display: flex; flex-direction: column; transition: width 0.3s ease, padding 0.3s ease; }
+.sidebar-section { width: 15rem; background: var(--bg-panel); border-right: 1px solid var(--border); padding: 12px; padding-bottom: 24px; overflow-y: auto; display: flex; flex-direction: column; transition: width 0.3s ease, padding 0.3s ease; }
 .sidebar-section.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
 .sidebar-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }
 .sidebar-section h4 { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }

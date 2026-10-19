@@ -561,60 +561,59 @@ function selectFolder(path) {
 // ==========================================
 // VIRTUAL SCROLLING
 // ==========================================
+// Ratio largeur/hauteur d'une photo : ratio appris depuis l'image chargée, sinon dimensions EXIF de la base, sinon 1.
+function photoAspectRatio(photo) {
+  return photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1);
+}
 // Dispose les photos [start, end[ (indices dans photos) à partir de la hauteur offsetY ; renvoie la hauteur occupée par ce groupe.
 // Sans séparateur, c'est une seule plage couvrant toutes les photos ; avec des séparateurs, chaque groupe est disposé séparément (les lignes justifiées, les colonnes de la cascade et la grille carrée repartent à zéro).
-function layoutPhotoRange(start, end, offsetY, width, gap, capLastRow = false) {
+// Taille maximale d'affichage : le plus grand côté d'une miniature ne dépasse jamais thumbnailSize (taille de la miniature en cache, au-delà elle serait floue).
+function layoutPhotoRange(start, end, offsetY, width, gap) {
   if (end <= start) return 0;
   const count = end - start;
+  const thumbailSizeCorrected = Math.floor(thumbnailSize / (window.devicePixelRatio || 1));
   if (thumbnailLayout === 'square') {
-    columns = Math.max(1, Math.floor(width / thumbnailSize));
-    const cellSize = Math.min(thumbnailSize, width / columns);
+    columns = Math.max(1, Math.floor(width / thumbailSizeCorrected));
+    const cellSize = Math.min(thumbailSizeCorrected, width / columns);
     for (let n = 0; n < count; n++) photoLayouts.push({ index: start + n, x: (n % columns) * cellSize, y: offsetY + Math.floor(n / columns) * cellSize, width: cellSize, height: cellSize });
     return Math.ceil(count / columns) * cellSize;
   } else if (thumbnailLayout === 'justified') {
     let y = offsetY;
     let index = start;
-    const targetHeight = thumbnailSize;
     while (index < end) {
+      // Une photo de ratio r (largeur/hauteur) ne doit pas dépasser thumbnailSize sur son plus grand côté : sa hauteur est donc limitée à
+      // thumbnailSize / r en paysage et à thumbnailSize en portrait. Le plafond de la ligne est le plus bas de ses photos.
+      // On ajoute des photos jusqu'à ce que la hauteur qui remplit toute la largeur passe sous ce plafond : la hauteur des lignes
+      // varie un peu sous thumbnailSize, mais aucune miniature n'est agrandie au-delà de sa taille réelle.
       const row = [];
       let ratioSum = 0;
-      let bestCount = 0;
-      let bestHeight = targetHeight;
-      let bestDeviation = Infinity;
+      let rowMaxHeight = Infinity;
       while (index + row.length < end) {
-        const photo = photos[index + row.length];
-        const ratio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1);
-        const count = row.length + 1;
-        const candidateRatioSum = ratioSum + ratio;
-        const candidateHeight = Math.max(1, (width - gap * (count - 1)) / candidateRatioSum);
-        const deviation = Math.abs(candidateHeight - targetHeight);
-        if (row.length && deviation > bestDeviation) break;
+        const ratio = photoAspectRatio(photos[index + row.length]);
         row.push({ index: index + row.length, ratio });
-        ratioSum = candidateRatioSum;
-        bestCount = count;
-        bestHeight = candidateHeight;
-        bestDeviation = deviation;
-        if (candidateHeight <= targetHeight) break;
+        ratioSum += ratio;
+        rowMaxHeight = Math.min(rowMaxHeight, thumbailSizeCorrected / Math.max(1, ratio));
+        if ((width - gap * (row.length - 1)) / ratioSum <= rowMaxHeight + 0.01) break;
       }
-      // Une fois la cible atteinte, une image supplémentaire pourrait rendre la ligne trop basse.
-      // Les largeurs sont calculées depuis la largeur utile, donc chaque ligne remplit exactement le conteneur.
-      const available = Math.max(1, width - gap * (bestCount - 1));
-      // Avec des séparateurs, la dernière ligne d'un groupe (souvent 1 ou 2 photos) n'est pas étirée au-delà de la hauteur cible : elle reste alignée à gauche.
+      // Ligne complète : les largeurs sont calculées depuis la largeur utile, donc la ligne remplit exactement le conteneur.
+      // Dernière ligne d'un groupe, avec trop peu de photos pour atteindre le plafond : elle n'est pas étirée, sa hauteur est plafonnée et ses photos restent alignées à gauche.
+      const available = Math.max(1, width - gap * (row.length - 1));
       const fillHeight = available / ratioSum;
-      const height = capLastRow && index + bestCount >= end ? Math.min(fillHeight, targetHeight) : fillHeight;
+      const height = fillHeight <= rowMaxHeight + 0.01 ? fillHeight : rowMaxHeight;
       maximumPhotoHeight = Math.max(maximumPhotoHeight, height);
       let x = 0;
-      for (const item of row.slice(0, bestCount)) {
+      for (const item of row) {
         const itemWidth = item.ratio * height;
         photoLayouts.push({ index: item.index, x, y, width: itemWidth, height });
         x += itemWidth + gap;
       }
       y += height + gap;
-      index += bestCount;
-    }
+           index += row.length;
+          }
     return Math.max(0, y - offsetY - gap);
   } else {
-    columns = Math.max(1, Math.floor((width + gap) / (thumbnailSize + gap)));
+    // Nombre de colonnes arrondi au-dessus : la largeur d'une colonne ne dépasse jamais thumbnailSize.
+    columns = Math.max(1, Math.ceil((width + gap) / (thumbailSizeCorrected + gap)));
     const columnWidth = (width - gap * (columns - 1)) / columns;
     const columnBottoms = Array(columns).fill(0);
     const placed = [];
@@ -623,9 +622,11 @@ function layoutPhotoRange(start, end, offsetY, width, gap, capLastRow = false) {
       for (let c = 1; c < columns; c++) if (columnBottoms[c] < columnBottoms[column]) column = c;
       const photo = photos[i];
       const ratio = Math.max(0.2, Math.min(5, photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1));
-      const height = columnWidth / ratio;
+      // Photo en portrait : sa hauteur est plafonnée à thumbnailSize, elle se réduit alors et se centre dans sa colonne.
+      const height = Math.min(columnWidth / ratio, thumbailSizeCorrected);
+      const itemWidth = height * ratio;
       const y = columnBottoms[column];
-      placed.push({ index: i, x: column * (columnWidth + gap), y: offsetY + y, width: columnWidth, height });
+      placed.push({ index: i, x: column * (columnWidth + gap) + (columnWidth - itemWidth) / 2, y: offsetY + y, width: itemWidth, height });
       columnBottoms[column] = y + height + gap;
       maximumPhotoHeight = Math.max(maximumPhotoHeight, height);
     }
@@ -662,7 +663,7 @@ function updateVirtualScroller() {
     groups.forEach((group, groupIndex) => {
       separatorLayouts.push({ group: groupIndex, y, height: headerHeight, label: group.label, title: group.title });
       y += headerHeight;
-      y += layoutPhotoRange(group.start, group.end, y, width, gap, true);
+      y += layoutPhotoRange(group.start, group.end, y, width, gap);
       if (groupIndex < groups.length - 1) y += gap;
     });
   }
@@ -1182,6 +1183,10 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  // CTrl+D debug to console
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
+    console.log("Display Scaling Ratio: ", window.devicePixelRatio);
+  }
   // Show rating bar Shortcut
   if (e.key.toLowerCase() === 'r' && isFullscreen) {
     fullscreenRatingPinned = !fullscreenRatingPinned;
@@ -1206,17 +1211,6 @@ window.addEventListener('keydown', (e) => {
     if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
       revealInFileManager(photos[lastSelectedIndex]);
       return;
-    }
-  }
-  // Copie vers
-  if (e.key.toLowerCase() === 'c') {
-    console.log("Touche C pressée, indice photos actives:", selectedIndices);
-    if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
-      const selectedPhotos = Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
-      if (selectedPhotos.length > 0) {
-        copyPhotosTo(selectedPhotos);
-        return;
-      }
     }
   }
   // Copie vers
