@@ -19,6 +19,7 @@
 - [ ] Display RAW images
 - [ ] Split rescan action per collection / tree root folder
 - [ ] Split settings in tabs
+- [ ] Update available notification
 - [x] Toast for copy to clipboard
 
 ## 💡 Ideas and longer term evolutions
