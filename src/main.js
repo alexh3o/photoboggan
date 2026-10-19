@@ -80,11 +80,22 @@ window.addEventListener('DOMContentLoaded', () => {
   // MODE IMMERSIF (F11) : fenêtre en plein écran, par-dessus la barre des tâches, sans barre de titre. F11 y entre et en sort.
   // Ne pas confondre avec le plein écran d'une photo (touche F, double-clic).
   let immersiveToggleRunning = false;
+  let maximizedBeforeImmersive = false;
   async function toggleImmersiveMode() {
     if (immersiveToggleRunning) return;
     immersiveToggleRunning = true;
     try {
-      await appWindow.setFullscreen(!(await appWindow.isFullscreen()));
+      if (await appWindow.isFullscreen()) {
+        await appWindow.setFullscreen(false);
+        if (maximizedBeforeImmersive) await appWindow.maximize();
+        maximizedBeforeImmersive = false;
+      } else {
+        // Fenêtre sans décoration maximisée : le plein écran ne redimensionne pas la zone web (elle garde la taille de la zone de travail, sans la barre des tâches).
+        // On la restaure donc d'abord, puis on la maximise de nouveau en sortant du mode immersif.
+        maximizedBeforeImmersive = await appWindow.isMaximized();
+        if (maximizedBeforeImmersive) await appWindow.unmaximize();
+        await appWindow.setFullscreen(true);
+      }
       await syncWindowState();
     } catch (err) {
       console.error("Erreur mode immersif:", err);
@@ -238,6 +249,12 @@ const thumbnailCacheWrites = new Map();
 let scrollRenderPending = false;
 
 let justifiedLayoutTimer = null;
+
+// Marge latérale de la grille : au survol, une miniature grossit de 3 % (voir .thumbnail:hover) et dépasserait de la zone, ce qui ferait
+// apparaître une barre de défilement horizontale. 8 px couvrent l'agrandissement d'une miniature de 512 px (la taille maximale).
+const GRID_SIDE_MARGIN = 8;
+scrollContent.style.left = `${GRID_SIDE_MARGIN}px`;
+scrollContent.style.width = `calc(100% - ${2 * GRID_SIDE_MARGIN}px)`;
 
 function scheduleJustifiedRelayout() {
   clearTimeout(justifiedLayoutTimer);
@@ -747,7 +764,7 @@ function separatorHeight() {
 }
 
 function updateVirtualScroller() {
-  const width = Math.max(1, gridContainer.clientWidth);
+  const width = Math.max(1, gridContainer.clientWidth - 2 * GRID_SIDE_MARGIN);
   const gap = thumbnailLayout === 'justified' ? 0 : 6;
   photoLayouts = [];
   separatorLayouts = [];

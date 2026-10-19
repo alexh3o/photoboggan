@@ -58,9 +58,9 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif; background: var(--bg-dark); color: var(--text-light); overflow: hidden; user-select: none; }
+body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif; background: var(--bg-dark); color: var(--text-light); overflow: hidden; user-select: none; display: flex; flex-direction: column; height: 100vh; }
 
-#app { display: flex; flex-direction: column; height: 100vh; }
+#app { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .actions { display: flex; align-items: center; gap: 12px; }
@@ -126,7 +126,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
 #selection-rating-input, #selection-color-caption { display: block; margin: 7px 0 0 3px; color: var(--text-faint); font-size: 0.7rem; }
 
 /* GRILLE */
-.grid-section { flex: 1 1 0; min-width: 15rem; position: relative; overflow-y: auto; background: var(--grid-bg); }
+.grid-section { flex: 1 1 0; min-width: 15rem; position: relative; overflow-y: auto; overflow-x: hidden; background: var(--grid-bg); }
 .main-content.split-custom:not(.preview-hidden) .grid-section { flex: 0 0 var(--grid-width); }
 .main-content.preview-hidden .grid-section { flex: 1 1 0; }
 .main-content.preview-hidden .preview-section, .main-content.preview-hidden #preview-resizer { display: none !important; }
@@ -286,6 +286,7 @@ html[lang="en"] .exif-label::after { content: ":"; }
 
 /* Title Bar */
 .titlebar {
+  flex: none;
   height: 2.2rem;
   background-color: var(--bg-secondary, #1e1e1e);
   color: var(--text-primary, #ffffff);
