@@ -1955,11 +1955,68 @@ const GRID_DRAG_THRESHOLD = 5; // pixels avant de considérer un glissement (sin
 let gridDrag = null;
 let suppressGridClick = false;
 
+// Inertie : au relâchement d'un glissement rapide, le défilement continue puis ralentit progressivement (décroissance exponentielle,
+// indépendante de la cadence d'affichage). La distance totale parcourue vaut vitesse initiale x GRID_INERTIA_TIME_CONSTANT_MS.
+const GRID_INERTIA_TIME_CONSTANT_MS = 325; // plus la valeur est grande, plus le défilement dure et va loin
+const GRID_INERTIA_VELOCITY_WINDOW_MS = 100; // fenêtre de mesure de la vitesse juste avant le relâchement
+const GRID_INERTIA_MAX_IDLE_MS = 60; // pointeur immobile plus longtemps avant le relâchement : pas d'inertie
+const GRID_INERTIA_MIN_VELOCITY = 0.1; // px/ms nécessaires pour lancer l'inertie
+const GRID_INERTIA_STOP_VELOCITY = 0.02; // px/ms : en dessous, le défilement s'arrête
+const GRID_INERTIA_MAX_VELOCITY = 6; // px/ms
+let gridInertia = null; // { frame, velocity, position, lastTime } pendant l'inertie
+
+// Arrête l'inertie en cours ; renvoie true si la grille était encore en train de défiler.
+function stopGridInertia() {
+  if (!gridInertia) return false;
+  cancelAnimationFrame(gridInertia.frame);
+  gridInertia = null;
+  return true;
+}
+
+function startGridInertia(velocity) {
+  stopGridInertia();
+  const state = { frame: 0, velocity, position: gridContainer.scrollTop, lastTime: performance.now() };
+  gridInertia = state;
+  const step = now => {
+    if (gridInertia !== state) return;
+    // scrollTop modifié ailleurs (barre de défilement, changement de filtre ou de tri…) : l'inertie s'efface.
+    if (Math.abs(gridContainer.scrollTop - state.position) > 2) { stopGridInertia(); return; }
+    const elapsed = Math.min(50, Math.max(0, now - state.lastTime));
+    state.lastTime = now;
+    const decay = Math.exp(-elapsed / GRID_INERTIA_TIME_CONSTANT_MS);
+    state.position += state.velocity * GRID_INERTIA_TIME_CONSTANT_MS * (1 - decay);
+    state.velocity *= decay;
+    const maxScroll = Math.max(0, gridContainer.scrollHeight - gridContainer.clientHeight);
+    const clamped = Math.max(0, Math.min(maxScroll, state.position));
+    gridContainer.scrollTop = clamped;
+    // Haut ou bas de la grille atteint, ou vitesse devenue négligeable : fin du défilement.
+    if (clamped !== state.position || Math.abs(state.velocity) < GRID_INERTIA_STOP_VELOCITY) { stopGridInertia(); return; }
+    state.frame = requestAnimationFrame(step);
+  };
+  state.frame = requestAnimationFrame(step);
+}
+
+// Vitesse mesurée sur les derniers instants du glissement (pointeur immobile avant le relâchement = pas d'inertie).
+function releaseGridInertia(samples, releaseTime) {
+  const last = samples[samples.length - 1];
+  if (!last || releaseTime - last.time > GRID_INERTIA_MAX_IDLE_MS) return;
+  const first = samples[0];
+  const duration = last.time - first.time;
+  if (duration < 8) return; // trop peu de mesures pour estimer une vitesse fiable
+  const velocity = Math.max(-GRID_INERTIA_MAX_VELOCITY, Math.min(GRID_INERTIA_MAX_VELOCITY, -(last.y - first.y) / duration));
+  if (Math.abs(velocity) < GRID_INERTIA_MIN_VELOCITY) return;
+  startGridInertia(velocity);
+}
+
+// La molette reprend la main sur une inertie en cours.
+gridContainer.addEventListener('wheel', stopGridInertia, { passive: true });
+
 gridContainer.addEventListener('pointerdown', event => {
   if (event.button !== 0 || event.pointerType === 'touch') return;
+  const stoppedInertia = stopGridInertia(); // un clic sur la grille qui défile l'arrête
   const bounds = gridContainer.getBoundingClientRect();
   if (event.clientX - bounds.left >= gridContainer.clientWidth) return; // barre de défilement
-  gridDrag = { pointerId: event.pointerId, startY: event.clientY, startScrollTop: gridContainer.scrollTop, active: false };
+  gridDrag = { pointerId: event.pointerId, startY: event.clientY, startScrollTop: gridContainer.scrollTop, active: false, stoppedInertia, samples: [] };
 });
 
 gridContainer.addEventListener('pointermove', event => {
@@ -1972,14 +2029,23 @@ gridContainer.addEventListener('pointermove', event => {
     gridContainer.classList.add('dragging-scroll');
   }
   gridContainer.scrollTop = gridDrag.startScrollTop - delta;
+  // Derniers points du glissement, pour estimer la vitesse au relâchement.
+  const samples = gridDrag.samples;
+  samples.push({ time: event.timeStamp, y: event.clientY });
+  while (samples.length > 1 && event.timeStamp - samples[0].time > GRID_INERTIA_VELOCITY_WINDOW_MS) samples.shift();
 });
 
 function endGridDrag(event) {
   if (!gridDrag || event.pointerId !== gridDrag.pointerId) return;
-  if (gridDrag.active) {
-    suppressGridClick = true; // le clic qui suit un glissement ne doit pas changer la sélection
+  const { active, stoppedInertia, samples } = gridDrag;
+  if (active || stoppedInertia) {
+    // Le clic qui suit un glissement (ou qui vient d'arrêter l'inertie) ne doit pas changer la sélection.
+    suppressGridClick = true;
     setTimeout(() => { suppressGridClick = false; }, 0);
+  }
+  if (active) {
     gridContainer.classList.remove('dragging-scroll');
+    if (event.type === 'pointerup') releaseGridInertia(samples, event.timeStamp); // pas d'inertie si le glissement est annulé
   }
   gridDrag = null;
 }
