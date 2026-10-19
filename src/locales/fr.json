@@ -203,5 +203,9 @@
   "By folder": "Par dossier",
   "Photos are sorted by name within each folder.": "Les photos sont triées par nom au sein de chaque dossier.",
   "Week {week}": "Semaine {week}",
-  "Unknown date": "Date inconnue"
+  "Unknown date": "Date inconnue",
+  "Maximize": "Agrandir",
+  "Restore down": "Restaurer",
+  "Window": "Fenêtre",
+  "Immersive mode": "Mode immersif (barre de titre et barre des tâches masquées)"
 }
