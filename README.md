@@ -7,8 +7,6 @@
 
 <center><img title="" src="/screenshots/logo256.png" alt="/img"></center>
 
-
-
 Photofile is a minimalist, local photo library browser and manager.
 
 The application was designed with a specific goal: 
@@ -17,51 +15,29 @@ The application was designed with a specific goal:
 
 - search and view photos in a large colelction.
 
-
-
-
-
 ⚠️ **Beta Warning**: This software is currently in beta version, provided "as is" without warranty of any kind, <u>use at your own risk</u>. It is strongly recommended to <u>make a complete backup of your photos</u> before any use.
-
-
 
 ![Photofile Preview](/screenshots/thumbnails-preview-info.jpg)
 
-
-
 # 🚀 Key Features
-
-
 
 **Zero copy, folder structure respected**: Your files stay strictly where they are. No structural modifications or file duplications are performed on your disk.
 
-
-
 **Smooth navigation & local folders**: Browse your directories with a grid of thumbnails and fully adjustable display sizes.
 
-
-
 **Fast viewing**: Immediate access to a fullscreen preview.
-
-
 
 **Advanced multi-criteria search**:
 
 - By keywords and ratings.
 - By an ultra-flexible unified date filter (supporting formats from year down to minute: YYYY, YYYYMM, YYYYMMDD, YYYYMMDDHH, YYYYMMDDHHmm, as well as combinable custom ranges).
 
-
-
 **Comparison Mode**: Compare 2 to 4 images side by side with synchronized (or independently toggleable) zooms and pans.
-
-
 
 **Metadata & EXIF**:
 
 - Display of essential EXIF data.
-- Direct writing of ratings and color tags into EXIF files for maximum portability.
-
-
+- Direct writing of ratings and color tags into image files (or XMP sidecar for RAW) for maximum portability
 
 # 🛠️ Technical Stack
 
@@ -76,15 +52,11 @@ Developed to deliver maximum native performance through a modern hybrid architec
 - Database: Locally integrated SQLite (via rusqlite and r2d2 in WAL mode) .
 - Frontend: Vue.js 3 / Vite.
 
-
-
 # 🌍 Language & Internationalization
 
 The application is currently available in French and English.
 
 Contributions are welcome, grab a file in /src/locales, translate and share it again.
-
-
 
 # ⛶ Screenshots
 
@@ -108,15 +80,9 @@ Contributions are welcome, grab a file in /src/locales, translate and share it a
 
 *Settings*
 
-
-
 # 📄 License
 
 Project distributed under the MIT license. (See the LICENSE file for details).
-
-
-
-
 
 </div>
 
@@ -129,8 +95,6 @@ Project distributed under the MIT license. (See the LICENSE file for details).
 
 <center><img title="" src="/screenshots/logo256.png" alt="/img"/></center>
 
-
-
 Photofile est un navigateur et gestionnaire de photothèque local, minimaliste.
 
 L'application a été pensée pour un objectif précis :
@@ -139,31 +103,17 @@ L'application a été pensée pour un objectif précis :
 
 - chercher et visionner dans une large collection de photos
 
-
-
 ⚠️ **Avertissement (Beta)** : Ce logiciel est actuellement en version bêta, fourni sans aucune garantie (« as is »), <u>à utiliser à vos risques et périls</u>. Il est fortement recommandé d'<u>effectuer une sauvegarde complète de vos photos</u> avant toute utilisation.
-
-
 
 ![Aperçu de Photofile](/screenshots/thumbnails-preview-info.jpg)
 
-
-
 # 🚀 Fonctionnalités principales
-
-
 
 **Zéro copie, respect de l'arborescence** : Vos fichiers restent strictement là où ils sont. Aucune modification de structure ni duplication de fichiers n'est effectuée sur votre disque.
 
-
-
 **Navigation fluide et dossiers locaux** : Parcourez vos répertoires avec une grille de miniatures et une taille d'affichage entièrement réglable.
 
-
-
 **Visualisation rapide** : Accès immédiat à un aperçu plein écran.
-
-
 
 **Recherche multicritère avancée** :
 
@@ -171,19 +121,13 @@ L'application a été pensée pour un objectif précis :
 
 - Par filtre de date unifié ultra-flexible (prise en charge des formats de l'année à la minute : AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm, ainsi que des plages personnalisées combinables).
 
-  
-
 **Mode Comparaison** : Comparez 2 à 4 images côte à côte avec des zooms et déplacements synchronisés (désynchronisables à tout moment).
-
-
 
 **Métadonnées et EXIF** :
 
 - Affichage des données EXIF essentielles.
 
-- Écriture directe des notes et tags de couleurs dans les fichiers EXIF pour une portabilité maximale.
-
-
+- Écriture directe des notes et tags de couleurs dans les fichiers images (ou XMP sidecar pour les RAW) pour une portabilité maximale.
 
 # 🛠️ Stack Technique
 
@@ -205,15 +149,11 @@ Développé pour offrir des performances natives maximales grâce à une archite
 
 - Frontend : Vue.js 3 / Vite.
 
-
-
 # 🌍 Langue et Internationalisation
 
 L'application est actuellement disponible en français et anglais.
 
 Les contributions sont bienvenues, vous pouvez prendre un fichier json exemple dans /src/locales, le traduire et repartager.
-
-
 
 # ⛶ Screenshots
 
@@ -236,8 +176,6 @@ Les contributions sont bienvenues, vous pouvez prendre un fichier json exemple d
 ![Aperçu de Photofile](/screenshots/settings.jpg)
 
 *Paramètres*
-
-
 
 # 📄 Licence
 
