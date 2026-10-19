@@ -58,9 +58,27 @@ pub fn store_modified(conn: &rusqlite::Connection, items: &[(String, i64)]) {
 }
 
 // Mêmes formats que le scan initial (run_scan).
-fn is_photo_file(path: &Path) -> bool {
-    let name = path.to_string_lossy().to_lowercase();
-    name.ends_with(".jpg") || name.ends_with(".jpeg") || name.ends_with(".png") || name.ends_with(".raw")
+//fn is_photo_file(path: &Path) -> bool {
+//    let name = path.to_string_lossy().to_lowercase();
+//    name.ends_with(".jpg") || name.ends_with(".jpeg") || name.ends_with(".png") || name.ends_with(".raw")
+//}
+pub const SUPPORTED_EXTENSIONS: &[&str] = &[
+    // Formats standards
+    "jpg", "jpeg", "png", "webp", "avif", "gif", "bmp", "jfif",
+    // Formats RAW
+    "arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "raw",
+    // Tried and removed:
+    // Not working at all: jp2
+    // Thumbnail only: svg
+];
+pub fn is_photo_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| {
+            let ext_lower = ext.to_ascii_lowercase();
+            SUPPORTED_EXTENSIONS.contains(&ext_lower.as_str())
+        })
+        .unwrap_or(false)
 }
 
 fn read_photo(path: &str, file_size: i64) -> Photo {

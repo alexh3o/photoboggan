@@ -100,6 +100,40 @@ fn generate_thumbnail(app: tauri::AppHandle, source_path: String) -> Result<Gene
     Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
 }
 
+// Extraction fichier jpeg intégré au RAW
+fn raw_preview_cache_file(app: &tauri::AppHandle, source_path: &str) -> Result<PathBuf, String> {
+    let metadata = fs::metadata(source_path).map_err(|error| error.to_string())?;
+    let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH)
+        .duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
+    let mut hash = 0xcbf29ce484222325u64;
+    let size_bytes = metadata.len().to_le_bytes();
+    let modified_bytes = modified.to_le_bytes();
+    for byte in source_path.as_bytes().iter().chain(size_bytes.iter()).chain(modified_bytes.iter()) {
+        hash ^= *byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    let cache_dir = app.path().app_cache_dir().map_err(|error| error.to_string())?.join("raw_previews");
+    Ok(cache_dir.join(format!("{hash:016x}.jpg")))
+}
+
+#[tauri::command(async)]
+fn get_raw_preview_path(app: tauri::AppHandle, source_path: String) -> Result<String, String> {
+    let preview_path = raw_preview_cache_file(&app, &source_path)?;
+    if preview_path.is_file() {
+        return Ok(preview_path.to_string_lossy().into_owned());
+    }
+    let jpeg_bytes = thumbnails::extract_raw_preview(Path::new(&source_path))?;
+    let parent = preview_path.parent().ok_or("Dossier de cache invalide")?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    let temp = parent.join(format!("prev-{}-{}.tmp", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()));
+    fs::write(&temp, &jpeg_bytes).map_err(|error| error.to_string())?;
+    if let Err(error) = fs::rename(&temp, &preview_path) {
+        let _ = fs::remove_file(&temp);
+        if !preview_path.is_file() { return Err(error.to_string()); }
+    }
+    Ok(preview_path.to_string_lossy().into_owned())
+}
+
 #[tauri::command(async)]
 fn save_thumbnail_cache(app: tauri::AppHandle, source_path: String, data_url: String) -> Result<String, String> {
     let encoded = data_url.strip_prefix("data:image/jpeg;base64,").ok_or("Format de miniature non pris en charge")?;
@@ -164,13 +198,19 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, progre
 
     let progress_app = app.clone();
     let scanner = tokio::task::spawn_blocking(move || {
+        // Rajout de format depuis la liste SUPPORTED_EXTENSIONS de libary_sync.rs
+        //let entries: Vec<_> = WalkDir::new(scan_path)
+        //    .into_iter()
+        //    .filter_map(|e| e.ok())
+        //    .filter(|e| {
+        //        let p = e.path().to_string_lossy().to_lowercase();
+        //        p.ends_with(".jpg") || p.ends_with(".jpeg") || p.ends_with(".png") || p.ends_with(".raw")
+        //    })
+        //    .collect();
         let entries: Vec<_> = WalkDir::new(scan_path)
             .into_iter()
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                let p = e.path().to_string_lossy().to_lowercase();
-                p.ends_with(".jpg") || p.ends_with(".jpeg") || p.ends_with(".png") || p.ends_with(".raw")
-            })
+            .filter(|e| !e.file_type().is_dir() && library_sync::is_photo_file(e.path()))
             .collect();
 
         let total = entries.len().max(1);
@@ -543,6 +583,7 @@ fn main() {
             get_cached_thumbnail_path,
             get_cached_thumbnail_paths,
             generate_thumbnail,
+            get_raw_preview_path,
             save_thumbnail_cache,
             rescan_all_folders,
             update_photo_metadata,
