@@ -1973,6 +1973,7 @@ function renderPreviewTransforms() {
 function createPreviewSlot(photo) {
   const cell = document.createElement('div');
   cell.className = 'preview-cell';
+  cell.dataset.path = photo.path;
   const img = document.createElement('img');
   img.alt = '';
   img.draggable = false;
@@ -2627,6 +2628,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
 initPhotoActions({
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
+  getActiveIndex: () => lastSelectedIndex,
   selectOnly: index => {
     selectedIndices.clear();
     selectedIndices.add(index);

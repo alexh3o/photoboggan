@@ -356,6 +356,7 @@ function closeContextMenu() {
   document.removeEventListener('pointerdown', onOutsidePointerDown, true);
   window.removeEventListener('blur', closeContextMenu);
   window.removeEventListener('resize', closeContextMenu);
+  window.removeEventListener('wheel', closeContextMenu);
   document.getElementById('grid-view')?.removeEventListener('scroll', closeContextMenu);
 }
 
@@ -487,23 +488,49 @@ function openThumbnailMenu(event, index) {
   document.addEventListener('pointerdown', onOutsidePointerDown, true);
   window.addEventListener('blur', closeContextMenu);
   window.addEventListener('resize', closeContextMenu);
+  window.addEventListener('wheel', closeContextMenu, { passive: true });
   document.getElementById('grid-view')?.addEventListener('scroll', closeContextMenu);
   menu.querySelector('.context-menu-item')?.focus();
 }
 
-// Remplace le menu du navigateur (Copier l'image, Inspecter…) dans toute l'application :
-// menu propre sur les miniatures, aucun menu ailleurs, sauf dans les champs de saisie (copier/coller utiles).
+// Détermine l'index de la photo visée par le clic droit (miniature, cellule d'aperçu ou plein écran).
+function findTargetPhotoIndex(target) {
+  // 1. Clic droit sur une miniature de la grille
+  const thumbnail = target?.closest('.thumbnail');
+  if (thumbnail && thumbnail.dataset.index !== undefined) {
+    return Number(thumbnail.dataset.index);
+  }
+  // 2. Clic droit sur une case d'aperçu (mode normal ou mode comparaison)
+  const previewCell = target?.closest('.preview-cell');
+  if (previewCell?.dataset.path) {
+    const photos = api.getPhotos();
+    const index = photos.findIndex(photo => photo.path === previewCell.dataset.path);
+    if (index >= 0) return index;
+  }
+  // 3. Clic droit dans la vue plein écran (sauf sur la barre de notation)
+  if (target?.closest('#fullscreen-view')) {
+    if (target.closest('#fullscreen-rating')) return -1;
+    return api.getActiveIndex ? api.getActiveIndex() : -1;
+  }
+  // 4. Clic droit dans la zone d'aperçu générale
+  if (target?.closest('#preview-stage, #preview-panel')) {
+    return api.getActiveIndex ? api.getActiveIndex() : -1;
+  }
+  return -1;
+}
+
+// Remplace le menu du navigateur : menu d'actions sur miniatures, aperçu et plein écran.
 function onContextMenu(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('input[type="text"], input:not([type]), textarea')) return;
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
-  const thumbnail = target?.closest('.thumbnail');
-  if (!thumbnail ) {
+  const index = findTargetPhotoIndex(target);
+  if (index < 0) {
     closeContextMenu();
     return;
   }
-  openThumbnailMenu(event, Number(thumbnail.dataset.index));
+  openThumbnailMenu(event, index);
 }
 
 // options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting).
