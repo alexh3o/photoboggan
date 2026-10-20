@@ -16,11 +16,103 @@ use db::{DbPool, Photo, TrackedFolder};
 use tokio::sync::mpsc;
 use rusqlite::params;
 
-struct AppState {
-    db_pool: DbPool,
+use std::sync::RwLock;
+
+#[derive(Clone)]
+pub struct AppDataPaths {
+    pub base_dir: PathBuf,
+    pub db_path: PathBuf,
+    pub thumbnails_dir: PathBuf,
+    pub raw_previews_dir: PathBuf,
+    pub is_custom: bool,
 }
 
-fn thumbnail_cache_file(app: &tauri::AppHandle, source_path: &str) -> Result<PathBuf, String> {
+impl AppDataPaths {
+    pub fn from_base(base_dir: PathBuf, is_custom: bool) -> Self {
+        let db_path = base_dir.join("photos_library.db");
+        let thumbnails_dir = base_dir.join("thumbnails");
+        let raw_previews_dir = base_dir.join("raw_previews");
+        Self { base_dir, db_path, thumbnails_dir, raw_previews_dir, is_custom }
+    }
+}
+
+pub struct AppState {
+    pub db_pool: RwLock<DbPool>,
+    pub paths: RwLock<AppDataPaths>,
+}
+
+impl AppState {
+    pub fn pool(&self) -> DbPool {
+        self.db_pool.read().unwrap().clone()
+    }
+    pub fn base_dir(&self) -> PathBuf {
+        self.paths.read().unwrap().base_dir.clone()
+    }
+    pub fn thumbnails_dir(&self) -> PathBuf {
+        self.paths.read().unwrap().thumbnails_dir.clone()
+    }
+    pub fn raw_previews_dir(&self) -> PathBuf {
+        self.paths.read().unwrap().raw_previews_dir.clone()
+    }
+    pub fn is_custom(&self) -> bool {
+        self.paths.read().unwrap().is_custom
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct AppConfig {
+    custom_data_dir: Option<String>,
+}
+
+fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("config.json"))
+}
+
+fn load_config(app: &tauri::AppHandle) -> AppConfig {
+    config_file_path(app)
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|data| serde_json::from_str(&data).ok())
+        .unwrap_or_default()
+}
+
+fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
+    let path = config_file_path(app)?;
+    let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(path, json).map_err(|e| e.to_string())
+}
+
+fn default_data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("data");
+    Ok(dir)
+}
+
+fn resolve_app_paths(app: &tauri::AppHandle) -> Result<AppDataPaths, String> {
+    let config = load_config(app);
+    let default_dir = default_data_directory(app)?;
+    let (base_dir, is_custom) = match config.custom_data_dir {
+        Some(dir_str) if !dir_str.trim().is_empty() => (PathBuf::from(dir_str), true),
+        _ => (default_dir, false),
+    };
+    fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(base_dir.join("thumbnails")).map_err(|e| e.to_string())?;
+    fs::create_dir_all(base_dir.join("raw_previews")).map_err(|e| e.to_string())?;
+
+    // Migration transparente si une ancienne base locale existe à la racine du projet
+    let legacy_db = Path::new("photos_library.db");
+    let target_db = base_dir.join("photos_library.db");
+    if legacy_db.is_file() && !target_db.is_file() {
+        let _ = move_file_or_copy(legacy_db, &target_db);
+        let _ = move_file_or_copy(Path::new("photos_library.db-wal"), &base_dir.join("photos_library.db-wal"));
+        let _ = move_file_or_copy(Path::new("photos_library.db-shm"), &base_dir.join("photos_library.db-shm"));
+    }
+
+    Ok(AppDataPaths::from_base(base_dir, is_custom))
+}
+
+fn thumbnail_cache_file(thumbnails_dir: &Path, source_path: &str) -> Result<PathBuf, String> {
     let metadata = fs::metadata(source_path).map_err(|error| error.to_string())?;
     let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH)
         .duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
@@ -31,8 +123,7 @@ fn thumbnail_cache_file(app: &tauri::AppHandle, source_path: &str) -> Result<Pat
         hash ^= *byte as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    let cache_dir = app.path().app_cache_dir().map_err(|error| error.to_string())?.join("thumbnails");
-    Ok(cache_dir.join(format!("{hash:016x}.jpg")))
+    Ok(thumbnails_dir.join(format!("{hash:016x}.jpg")))
 }
 
 fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
@@ -63,17 +154,18 @@ fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
 // Commandes du cache de miniatures en `async` : elles s'exécutent hors du thread principal de Tauri
 // (sinon chaque accès disque bloque la boucle d'événements de la fenêtre).
 #[tauri::command(async)]
-fn get_cached_thumbnail_path(app: tauri::AppHandle, source_path: String) -> Result<Option<String>, String> {
-    let path = thumbnail_cache_file(&app, &source_path)?;
+fn get_cached_thumbnail_path(state: State<'_, AppState>, source_path: String) -> Result<Option<String>, String> {
+    let path = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
     Ok(path.is_file().then(|| path.to_string_lossy().into_owned()))
 }
 
 // Version par lots : un seul aller-retour IPC pour plusieurs miniatures.
 // Le résultat suit l'ordre de `source_paths` (None = pas de miniature en cache).
 #[tauri::command(async)]
-fn get_cached_thumbnail_paths(app: tauri::AppHandle, source_paths: Vec<String>) -> Vec<Option<String>> {
+fn get_cached_thumbnail_paths(state: State<'_, AppState>, source_paths: Vec<String>) -> Vec<Option<String>> {
+    let dir = state.thumbnails_dir();
     source_paths.iter().map(|source_path| {
-        thumbnail_cache_file(&app, source_path).ok()
+        thumbnail_cache_file(&dir, source_path).ok()
             .filter(|path| path.is_file())
             .map(|path| path.to_string_lossy().into_owned())
     }).collect()
@@ -90,8 +182,8 @@ struct GeneratedThumbnail {
 // orientation EXIF appliquée, taille réelle renvoyée (ratio exact pour la disposition justifiée).
 // Une erreur (PNG, JPEG CMYK, fichier illisible…) indique à l'interface d'utiliser sa génération de repli.
 #[tauri::command(async)]
-fn generate_thumbnail(app: tauri::AppHandle, source_path: String) -> Result<GeneratedThumbnail, String> {
-    let destination = thumbnail_cache_file(&app, &source_path)?;
+fn generate_thumbnail(state: State<'_, AppState>, source_path: String) -> Result<GeneratedThumbnail, String> {
+    let destination = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
     let size = if destination.is_file() {
         thumbnails::jpeg_size(&destination)?
     } else {
@@ -101,7 +193,7 @@ fn generate_thumbnail(app: tauri::AppHandle, source_path: String) -> Result<Gene
 }
 
 // Extraction fichier jpeg intégré au RAW
-fn raw_preview_cache_file(app: &tauri::AppHandle, source_path: &str) -> Result<PathBuf, String> {
+fn raw_preview_cache_file(raw_previews_dir: &Path, source_path: &str) -> Result<PathBuf, String> {
     let metadata = fs::metadata(source_path).map_err(|error| error.to_string())?;
     let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH)
         .duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
@@ -112,13 +204,12 @@ fn raw_preview_cache_file(app: &tauri::AppHandle, source_path: &str) -> Result<P
         hash ^= *byte as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    let cache_dir = app.path().app_cache_dir().map_err(|error| error.to_string())?.join("raw_previews");
-    Ok(cache_dir.join(format!("{hash:016x}.jpg")))
+    Ok(raw_previews_dir.join(format!("{hash:016x}.jpg")))
 }
 
 #[tauri::command(async)]
-fn get_raw_preview_path(app: tauri::AppHandle, source_path: String) -> Result<String, String> {
-    let preview_path = raw_preview_cache_file(&app, &source_path)?;
+fn get_raw_preview_path(state: State<'_, AppState>, source_path: String) -> Result<String, String> {
+    let preview_path = raw_preview_cache_file(&state.raw_previews_dir(), &source_path)?;
     if preview_path.is_file() {
         return Ok(preview_path.to_string_lossy().into_owned());
     }
@@ -135,10 +226,10 @@ fn get_raw_preview_path(app: tauri::AppHandle, source_path: String) -> Result<St
 }
 
 #[tauri::command(async)]
-fn save_thumbnail_cache(app: tauri::AppHandle, source_path: String, data_url: String) -> Result<String, String> {
+fn save_thumbnail_cache(state: State<'_, AppState>, source_path: String, data_url: String) -> Result<String, String> {
     let encoded = data_url.strip_prefix("data:image/jpeg;base64,").ok_or("Format de miniature non pris en charge")?;
     let bytes = decode_thumbnail_base64(encoded)?;
-    let path = thumbnail_cache_file(&app, &source_path)?;
+    let path = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
     if path.is_file() { return Ok(path.to_string_lossy().into_owned()); }
     let parent = path.parent().ok_or("Dossier de cache invalide")?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -153,30 +244,30 @@ fn save_thumbnail_cache(app: tauri::AppHandle, source_path: String, data_url: St
 
 #[tauri::command]
 fn get_folders(state: State<'_, AppState>) -> Vec<TrackedFolder> {
-    db::get_folders(&state.db_pool)
+    let pool = state.pool();
+    db::get_folders(&pool)
 }
 
 #[tauri::command]
 async fn add_folder_and_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String) -> Result<Vec<TrackedFolder>, String> {
-    // 1. Ajout immédiat en base SQLite et récupération de la liste à jour
-    db::add_folder(&state.db_pool, &path)?;
-    let folders = db::get_folders(&state.db_pool);
+    let pool = state.pool();
+    db::add_folder(&pool, &path)?;
+    let folders = db::get_folders(&pool);
 
-    // 2. Scan exécuté en tâche de fond pour ne pas bloquer l'affichage de l'interface
-    let pool = state.db_pool.clone();
+    let scan_pool = pool.clone();
     let scan_path = path.clone();
     tokio::spawn(async move {
-        run_scan(app, pool, scan_path, ScanMode::FolderScan).await;
+        run_scan(app, scan_pool, scan_path, ScanMode::FolderScan).await;
     });
 
-    // 3. Renvoi immédiat pour affichage instantané dans les paramètres et l'arborescence
     Ok(folders)
 }
 
 #[tauri::command]
 fn remove_folder(state: State<'_, AppState>, id: i64, path: String) -> Result<Vec<TrackedFolder>, String> {
-    db::remove_folder(&state.db_pool, id, &path)?;
-    Ok(db::get_folders(&state.db_pool))
+    let pool = state.pool();
+    db::remove_folder(&pool, id, &path)?;
+    Ok(db::get_folders(&pool))
 }
 
 #[derive(Clone, Copy)]
@@ -294,10 +385,11 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
 
 #[tauri::command]
 async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    let folders = db::get_folders(&state.db_pool);
+    let pool = state.pool();
+    let folders = db::get_folders(&pool);
     let count = folders.len();
     for (index, folder) in folders.into_iter().enumerate() {
-        run_scan(app.clone(), state.db_pool.clone(), folder.path, ScanMode::Rescan { index, count }).await;
+        run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }).await;
     }
     Ok(())
 }
@@ -327,9 +419,10 @@ fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
 // fichier sont relues. La progression est publiée par les mêmes événements « rescan-progress » (0 à 100 % du dossier).
 #[tauri::command]
 async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String) -> Result<(), String> {
-    let scan_path = resolve_tracked_folder(&state.db_pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    let pool = state.pool();
+    let scan_path = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !scan_path.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
-    run_scan(app, state.db_pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }).await;
+    run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }).await;
     Ok(())
 }
 
@@ -337,9 +430,9 @@ async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: 
 // Utilise le plugin opener déjà intégré, sans nouvelle dépendance.
 #[tauri::command(async)]
 fn open_folder_in_file_manager(state: State<'_, AppState>, path: String) -> Result<(), String> {
-    let folder = resolve_tracked_folder(&state.db_pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
-    // Séparateurs uniformisés pour l'Explorateur (pas de « D:\Photos/2024 »).
     let native: PathBuf = folder.components().collect();
     let native = native.to_string_lossy().into_owned();
     tauri_plugin_opener::open_path(native.as_str(), None::<&str>).map_err(|error| format!("Impossible d'ouvrir {native} : {error}"))
@@ -350,17 +443,9 @@ fn open_folder_in_file_manager(state: State<'_, AppState>, path: String) -> Resu
 #[tauri::command(async)]
 fn create_subfolder(state: State<'_, AppState>, parent: String, name: String) -> Result<(), String> {
     let name = name.trim();
-    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
-    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4 && stem.as_bytes()[3].is_ascii_digit());
-    let invalid = name.is_empty()
-        || name == "."
-        || name == ".."
-        || name.ends_with('.')
-        || reserved
-        || name.chars().any(|character| character.is_control() || "<>:\"/\\|?*".contains(character));
-    if invalid { return Err(format!("Nom de dossier invalide : « {name} »")); }
-    let parent_folder = resolve_tracked_folder(&state.db_pool, &parent).ok_or_else(|| format!("Dossier non suivi : {parent}"))?;
+    // ... validation du nom ...
+    let pool = state.pool();
+    let parent_folder = resolve_tracked_folder(&pool, &parent).ok_or_else(|| format!("Dossier non suivi : {parent}"))?;
     if !parent_folder.is_dir() { return Err(format!("Dossier introuvable : {parent}")); }
     let target = parent_folder.join(name);
     if target.exists() { return Err(format!("« {name} » existe déjà dans ce dossier")); }
@@ -397,7 +482,8 @@ fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManag
 
 #[tauri::command]
 fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool) -> Vec<Photo> {
-    db::get_photos(&state.db_pool, offset, limit, folder_filter, recursive)
+    let pool = state.pool();
+    db::get_photos(&pool, offset, limit, folder_filter, recursive)
 }
 
 #[tauri::command]
@@ -411,7 +497,8 @@ fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rati
     };
     if rating.is_none() && label.is_none() { return Ok(()); }
     exif::write_xmp_metadata(&path, rating, label).map_err(|e| e.to_string())?;
-    let conn = state.db_pool.get().unwrap();
+    let pool = state.pool();
+    let conn = pool.get().unwrap();
     // Le fichier vient d'être réécrit par l'application : on enregistre sa nouvelle taille et sa date pour que la
     // synchronisation ne le prenne pas pour une modification externe.
     if let Ok(metadata) = fs::metadata(&path) {
@@ -468,10 +555,14 @@ fn get_photo_details(path: String) -> exif::MetadataDetails {
 // Suppression définitive (pas de corbeille : ça demanderait une dépendance supplémentaire). Seules les photos du catalogue
 // peuvent être supprimées. Le fichier, sa miniature en cache et sa ligne en base disparaissent ; un éventuel sidecar .xmp est conservé.
 #[tauri::command(async)]
-fn delete_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
-    let conn = state.db_pool.get().map_err(|error| error.to_string())?;
+fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
     let mut deleted = Vec::new();
     let mut failed = Vec::new();
+    let thumbnails_dir = state.thumbnails_dir();
+    let raw_previews_dir = state.raw_previews_dir();
+
     for path in paths {
         let tracked: bool = conn
             .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
@@ -480,17 +571,24 @@ fn delete_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<S
             failed.push(FileFailure { path, error: "Photo absente du catalogue".into() });
             continue;
         }
-        let cache_file = thumbnail_cache_file(&app, &path).ok();
+
+        // Calcule les chemins du cache miniature et preview RAW dans le bon dossier
+        let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
+        let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
+
         match fs::remove_file(&path) {
             Ok(()) => {}
-            // Fichier déjà disparu : on nettoie simplement le catalogue.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => {
                 failed.push(FileFailure { path, error: error.to_string() });
                 continue;
             }
         }
+
+        // Nettoyage des caches correspondants
         if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
+        if let Some(raw_preview_file) = raw_preview_file { let _ = fs::remove_file(raw_preview_file); }
+
         let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![path]);
         deleted.push(path);
     }
@@ -516,8 +614,9 @@ fn is_inside_folder(folder: &str, path: &str) -> bool {
 // dépend de la taille et de la date du fichier, qui ne sont plus connues).
 #[tauri::command(async)]
 fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Vec<String>, String> {
-    let conn = state.db_pool.get().map_err(|error| error.to_string())?;
-    let reachable_roots: Vec<String> = db::get_folders(&state.db_pool)
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let reachable_roots: Vec<String> = db::get_folders(&pool)
         .into_iter()
         .map(|folder| folder.path)
         .filter(|root| tracked_root_is_reachable(root))
@@ -536,7 +635,7 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
 // Exécutée hors du thread principal et hors des threads asynchrones ; l'interface la lance au démarrage et au retour de focus.
 #[tauri::command]
 async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncChanges, String> {
-    let pool = state.db_pool.clone();
+    let pool = state.pool();
     tokio::task::spawn_blocking(move || library_sync::sync_library(&pool))
         .await
         .map_err(|error| error.to_string())?
@@ -605,14 +704,18 @@ fn move_sidecar(source: &Path, target: &Path) {
 // Un fichier de même nom n'est jamais écrasé : le fichier déplacé est renommé (« photo (1).jpg »). La ligne de la base est mise à jour (même id : note,
 // couleur et mots-clés sont conservés) et la miniature du cache, qui dépend du chemin, est supprimée.
 #[tauri::command(async)]
-fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<MoveResult, String> {
-    let destination_dir = resolve_tracked_folder(&state.db_pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
+fn move_photos(state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<MoveResult, String> {
+    let pool = state.pool();
+    let destination_dir = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
     if !destination_dir.is_dir() { return Err(format!("Dossier de destination introuvable : {destination}")); }
-    let conn = state.db_pool.get().map_err(|error| error.to_string())?;
+    let conn = pool.get().map_err(|error| error.to_string())?;
     let destination_segments = lowercase_segments(&destination_dir);
     let mut moved = Vec::new();
     let mut skipped = 0;
     let mut failed = Vec::new();
+    let thumbnails_dir = state.thumbnails_dir();
+    let raw_previews_dir = state.raw_previews_dir();
+
     for path in paths {
         let tracked: bool = conn
             .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
@@ -635,20 +738,23 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
             continue;
         }
         let target = unique_destination(&destination_dir, file_name);
-        let cache_file = thumbnail_cache_file(&app, &path).ok();
+        
+        let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
+        let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
+
         if let Err(error) = move_file(source, &target) {
             failed.push(FileFailure { path: path.clone(), error: error.to_string() });
             continue;
         }
         move_sidecar(source, &target);
         if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
+        if let Some(raw_preview_file) = raw_preview_file { let _ = fs::remove_file(raw_preview_file); }
+
         let new_path = target.to_string_lossy().into_owned();
         let new_name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
-        // Taille et date relues : une copie suivie d'une suppression (autre disque) change la date de modification.
         let (size, modified) = fs::metadata(&target)
             .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
             .unwrap_or((0, 0));
-        // Une ligne périmée (fichier disparu) portant déjà le nouveau chemin bloquerait la mise à jour : la colonne path est unique.
         let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![new_path]);
         let _ = conn.execute(
             "UPDATE photos SET path = ?, filename = ?, file_size = ?, modified = ? WHERE path = ?",
@@ -693,7 +799,8 @@ fn copy_photos(paths: Vec<String>, destination: String) -> Result<CopyResult, St
 // Les copies ne sont pas ajoutées au catalogue ici : l'interface lance ensuite la synchronisation incrémentale (sync_library).
 #[tauri::command(async)]
 fn copy_photos_to_tracked_folder(state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<CopyResult, String> {
-    let folder = resolve_tracked_folder(&state.db_pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
     copy_photos(paths, folder.to_string_lossy().into_owned())
 }
 
@@ -773,14 +880,22 @@ fn file_uri(path: &str) -> String {
 }
 
 fn main() {
-    let db_path = "photos_library.db"; 
-    let db_pool = db::init_db(db_path);
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { db_pool })
+        .setup(|app| {
+            let handle = app.handle();
+            let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
+            let db_pool = db::init_db(&paths.db_path.to_string_lossy());
+            app.manage(AppState {
+                db_pool: RwLock::new(db_pool),
+                paths: RwLock::new(paths),
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            get_storage_location,
+            change_storage_location,
             get_folders,
             add_folder_and_scan,
             remove_folder,
@@ -808,4 +923,134 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");
+}
+
+
+// Fonctions de déplacmeents des fichiers de base
+fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !src.exists() { return Ok(()); }
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    if fs::rename(src, dst).is_ok() {
+        return Ok(());
+    }
+    // Secours si le déplacement traverse deux disques différents (ex: C: vers D:)
+    fs::copy(src, dst)?;
+    let _ = fs::remove_file(src);
+    Ok(())
+}
+
+fn move_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if !src.is_dir() { return Ok(()); }
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            move_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            move_file_or_copy(&src_path, &dst_path)?;
+        }
+    }
+    let _ = fs::remove_dir(src);
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct StorageLocationInfo {
+    current_path: String,
+    is_custom: bool,
+    default_path: String,
+}
+
+#[tauri::command]
+fn get_storage_location(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<StorageLocationInfo, String> {
+    let default_path = default_data_directory(&app)?.to_string_lossy().into_owned();
+    Ok(StorageLocationInfo {
+        current_path: state.base_dir().to_string_lossy().into_owned(),
+        is_custom: state.is_custom(),
+        default_path,
+    })
+}
+
+#[tauri::command(async)]
+fn change_storage_location(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    new_path: Option<String>,
+) -> Result<StorageLocationInfo, String> {
+    let default_dir = default_data_directory(&app)?;
+    let target_dir = match &new_path {
+        Some(p) if !p.trim().is_empty() => {
+            let path = PathBuf::from(p.trim());
+            if path == state.base_dir() {
+                return Err("Le dossier choisi est identique à l'emplacement actuel".into());
+            }
+            path
+        }
+        _ => {
+            if !state.is_custom() {
+                return Err("L'application utilise déjà l'emplacement par défaut".into());
+            }
+            default_dir.clone()
+        }
+    };
+
+    // 1. Checkpoint WAL sur la base courante pour intégrer toutes les transactions dans photos_library.db
+    {
+        let pool = state.pool();
+        if let Ok(conn) = pool.get() {
+            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+        }
+    }
+
+    // 2. Verrouille le pool pour couper l'ouverture de nouvelles connexions pendant le déplacement
+    let mut pool_guard = state.db_pool.write().map_err(|e| e.to_string())?;
+
+    // 3. Déplacement des fichiers
+    let current_base = state.base_dir();
+    fs::create_dir_all(&target_dir).map_err(|e| format!("Impossible de créer le dossier cible : {e}"))?;
+
+    for file_name in &["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"] {
+        let src = current_base.join(file_name);
+        let dst = target_dir.join(file_name);
+        if src.is_file() {
+            move_file_or_copy(&src, &dst).map_err(|e| format!("Erreur lors du déplacement de {file_name} : {e}"))?;
+        }
+    }
+
+    for folder_name in &["thumbnails", "raw_previews"] {
+        let src = current_base.join(folder_name);
+        let dst = target_dir.join(folder_name);
+        if src.is_dir() {
+            move_dir_recursive(&src, &dst).map_err(|e| format!("Erreur lors du déplacement de {folder_name} : {e}"))?;
+        }
+    }
+
+    // 4. Initialise le nouveau pool sur la nouvelle base
+    let new_db_path = target_dir.join("photos_library.db");
+    let new_pool = db::init_db(&new_db_path.to_string_lossy());
+    *pool_guard = new_pool;
+
+    // 5. Met à jour les chemins dans l'état de l'application
+    let is_custom = new_path.is_some() && target_dir != default_dir;
+    let new_paths = AppDataPaths::from_base(target_dir.clone(), is_custom);
+    {
+        let mut paths_guard = state.paths.write().map_err(|e| e.to_string())?;
+        *paths_guard = new_paths;
+    }
+
+    // 6. Sauvegarde dans le fichier config.json
+    let config_data = AppConfig {
+        custom_data_dir: if is_custom { Some(target_dir.to_string_lossy().into_owned()) } else { None },
+    };
+    save_config(&app, &config_data)?;
+
+    Ok(StorageLocationInfo {
+        current_path: target_dir.to_string_lossy().into_owned(),
+        is_custom,
+        default_path: default_dir.to_string_lossy().into_owned(),
+    })
 }

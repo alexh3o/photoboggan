@@ -1469,6 +1469,7 @@ function renderSettingsFolderList() {
 }
 
 document.getElementById('btn-open-settings').addEventListener('click', () => {
+  refreshStorageLocationUI();
   settingsModal.classList.remove('hidden');
 });
 document.getElementById('btn-close-settings').addEventListener('click', () => {
@@ -3060,4 +3061,62 @@ window.addEventListener('focus', () => { syncLibraryWithDisk(); });
 
 // DÉMARRAGE
 loadFolders();
+refreshStorageLocationUI();
 loadPhotos().then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
+
+// ==========================================
+// EMPLACEMENT DES DONNÉES ET DU CACHE
+// ==========================================
+async function refreshStorageLocationUI() {
+  try {
+    const info = await invoke('get_storage_location');
+    const pathDisplay = document.getElementById('storage-path-display');
+    const resetBtn = document.getElementById('btn-reset-storage');
+    if (pathDisplay) {
+      pathDisplay.textContent = info.current_path;
+      pathDisplay.title = info.current_path;
+    }
+    if (resetBtn) {
+      resetBtn.classList.toggle('hidden', !info.is_custom);
+    }
+  } catch (error) {
+    console.error("Lecture de l'emplacement de stockage impossible", error);
+  }
+}
+
+document.getElementById('btn-change-storage')?.addEventListener('click', async () => {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title: t('Choose data folder'),
+  });
+  if (!selected) return;
+
+  showTaskToast(t('Moving data and cache…'), 50);
+  try {
+    await invoke('change_storage_location', { newPath: selected });
+    await refreshStorageLocationUI();
+    showWriteToast(t('Data location updated successfully'));
+    loadPhotos();
+  } catch (error) {
+    console.error('Changement de dossier impossible', error);
+    showWriteToast(t('Error moving data: {error}', { error: String(error) }));
+  } finally {
+    hideTaskToast();
+  }
+});
+
+document.getElementById('btn-reset-storage')?.addEventListener('click', async () => {
+  showTaskToast(t('Moving data and cache…'), 50);
+  try {
+    await invoke('change_storage_location', { newPath: null });
+    await refreshStorageLocationUI();
+    showWriteToast(t('Data location updated successfully'));
+    loadPhotos();
+  } catch (error) {
+    console.error('Réinitialisation impossible', error);
+    showWriteToast(t('Error moving data: {error}', { error: String(error) }));
+  } finally {
+    hideTaskToast();
+  }
+});
