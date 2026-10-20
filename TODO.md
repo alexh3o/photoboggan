@@ -1,13 +1,12 @@
 # 📋 Todo List & Ideas - Photofile
 
-
-
 ## 🚀 Next in line
 
 - [ ] UI: Split settings in tabs
 - [ ] Add choice of database storage, thumbnails and settings location
-- [ ] Immersive mode (hide taskbar and menu bar)
-- [ ] BUG: change minimize/maximize icon depending on status
+- [x] Immersive mode (hide taskbar and menu bar)
+- [x] BUG: change minimize/maximize icon depending on status
+- [ ] Resizing window to small sizes doesn't go well
 - [ ] FEAT: Github release update available notification
 - [ ] UI: Finish implementing variable (rem) texts and icons size instead of fixed px size
 - [ ] IMP: Add reset button for all filters
@@ -21,7 +20,8 @@
 - [ ] Allow reordering "open with" programs in settings
 - [ ] IMP: Split rescan action per collection / tree root folder
 - [ ] UI: Add total photos count and size, drives, in about view
-- [ ] 
+
+
 
 ## 💡 Ideas and longer term evolutions
 
@@ -35,13 +35,9 @@
 - [ ] Map screen
 - [ ] Add mouse settings screen
 
-
-
 ## ⚖️ Undecided
 
 - [ ] heic / heif image format support
-
-
 
 ## ❌ Not planned (use "Open with...")
 
