@@ -334,6 +334,14 @@ html[lang="en"] .exif-label::after { content: ":"; }
   background-color: #e81123;
   color: white;
 }
+.titlebar-btn svg {
+  display: block;
+  pointer-events: none;
+}
+/* Mode immersif (F11) : la fenêtre est en plein écran, la barre de titre personnalisée est masquée. */
+body.immersive .titlebar {
+  display: none;
+}
 
 /* MENU CONTEXTUEL DES MINIATURES */
 .context-menu { position: fixed; z-index: 11000; min-width: 12rem; padding: 4px; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-size: 0.8rem; }

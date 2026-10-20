@@ -27,6 +27,7 @@ window.addEventListener('DOMContentLoaded', () => {
       } else {
         await appWindow.maximize();
       }
+      await syncWindowState();
     } catch (err) {
       console.error("Erreur maximize/unmaximize:", err);
     }
@@ -35,6 +36,68 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('titlebar-close')?.addEventListener('click', () => {
     console.log("Clic sur Fermer");
     appWindow.close().catch(err => console.error("Erreur close:", err));
+  });
+
+  // Icône du bouton Maximiser / Restaurer d'après l'état réel de la fenêtre (aussi modifié hors du bouton : double-clic sur la barre, raccourcis Windows).
+  const maximizeButton = document.getElementById('titlebar-maximize');
+  const MAXIMIZE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>';
+  const RESTORE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 2.5V0.5H9.5V7.5H7.5" fill="none" stroke="currentColor"/><rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor"/></svg>';
+  let windowMaximized = false;
+
+  function renderMaximizeButton() {
+    if (!maximizeButton) return;
+    const label = t(windowMaximized ? 'Restore down' : 'Maximize');
+    maximizeButton.innerHTML = windowMaximized ? RESTORE_ICON : MAXIMIZE_ICON;
+    maximizeButton.title = label;
+    maximizeButton.setAttribute('aria-label', label);
+  }
+
+  // Lit l'état de la fenêtre : icône Maximiser / Restaurer, et barre de titre masquée en mode immersif (plein écran de la fenêtre).
+  async function syncWindowState() {
+    try {
+      const [maximized, fullscreen] = await Promise.all([appWindow.isMaximized(), appWindow.isFullscreen()]);
+      windowMaximized = maximized;
+      renderMaximizeButton();
+      document.body.classList.toggle('immersive', fullscreen);
+    } catch (err) {
+      console.error("Erreur lecture de l'état de la fenêtre:", err);
+    }
+  }
+
+  let windowStateSyncScheduled = false;
+  appWindow.onResized(() => {
+    if (windowStateSyncScheduled) return;
+    windowStateSyncScheduled = true;
+    requestAnimationFrame(() => {
+      windowStateSyncScheduled = false;
+      syncWindowState();
+    });
+  }).catch(err => console.error("Erreur suivi du redimensionnement:", err));
+  onLanguageChange(renderMaximizeButton);
+  renderMaximizeButton();
+  syncWindowState();
+
+  // MODE IMMERSIF (F11) : fenêtre en plein écran, par-dessus la barre des tâches, sans barre de titre. F11 y entre et en sort.
+  // Ne pas confondre avec le plein écran d'une photo (touche F, double-clic).
+  let immersiveToggleRunning = false;
+  async function toggleImmersiveMode() {
+    if (immersiveToggleRunning) return;
+    immersiveToggleRunning = true;
+    try {
+      await appWindow.setFullscreen(!(await appWindow.isFullscreen()));
+      await syncWindowState();
+    } catch (err) {
+      console.error("Erreur mode immersif:", err);
+    } finally {
+      immersiveToggleRunning = false;
+    }
+  }
+
+  // Ce raccourci reste actif même quand un champ de saisie a le focus (le gestionnaire de touches principal les ignore).
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'F11') return;
+    event.preventDefault();
+    if (!event.repeat) toggleImmersiveMode();
   });
 });
 
@@ -1302,7 +1365,7 @@ if (e.key === 'Delete') {
     navigatePhoto(-1);
   } else if (e.key === 'Escape') {
     if (isFullscreen) closeFullscreen();
-  } else if (e.key.toLowerCase() === 'f' || e.key === 'F11') {
+  } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (isFullscreen) closeFullscreen();
     else if (photos.length > 0) openFullscreen(lastSelectedIndex);

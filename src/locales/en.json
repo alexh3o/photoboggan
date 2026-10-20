@@ -204,5 +204,9 @@
   "By folder": "By folder",
   "Photos are sorted by name within each folder.": "Photos are sorted by name within each folder.",
   "Week {week}": "Week {week}",
-  "Unknown date": "Unknown date"
+  "Unknown date": "Unknown date",
+  "Maximize": "Maximize",
+  "Restore down": "Restore down",
+  "Window": "Window",
+  "Immersive mode": "Immersive mode (title bar and taskbar hidden)"
 }
