@@ -204,6 +204,64 @@ function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
   });
 }
 
+// Saisie d'un texte (nom de dossier…). `onSubmit(valeur)` renvoie un message d'erreur (la fenêtre reste ouverte et l'affiche) ou null (succès, la fenêtre
+// se ferme). Entrée valide, Échap annule. Renvoie true si la saisie a été validée avec succès.
+function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, onSubmit }) {
+  return new Promise(resolve => {
+    let done = false;
+    const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(done) });
+    const text = document.createElement('p');
+    text.className = 'confirm-message';
+    text.textContent = message;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'prompt-input';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.setAttribute('aria-label', inputLabel);
+    const error = document.createElement('p');
+    error.className = 'prompt-error';
+    error.setAttribute('role', 'alert');
+    const actions = document.createElement('div');
+    actions.className = 'confirm-actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = cancelLabel;
+    cancel.addEventListener('click', modal.close);
+    const confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'btn-primary';
+    confirm.textContent = confirmLabel;
+    let busy = false;
+    const submit = async () => {
+      if (busy) return;
+      busy = true;
+      confirm.disabled = true;
+      const problem = await onSubmit(input.value);
+      busy = false;
+      confirm.disabled = false;
+      if (problem) {
+        error.textContent = problem;
+        input.focus();
+        input.select();
+        return;
+      }
+      done = true;
+      modal.close();
+    };
+    confirm.addEventListener('click', submit);
+    input.addEventListener('input', () => { error.textContent = ''; });
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      submit();
+    });
+    actions.append(cancel, confirm);
+    modal.body.append(text, input, error, actions);
+    input.focus();
+  });
+}
+
 // ==========================================
 // INFOS (EXIF / XMP / IPTC)
 // ==========================================
@@ -346,13 +404,46 @@ export async function revealInFileManager(photo) {
   }
 }
 
+// Crée un sous-dossier dans un dossier de l'arborescence (nom demandé dans une fenêtre ; le backend vérifie le nom et refuse d'écraser).
+async function createSubfolder(parentPath) {
+  await promptDialog({
+    title: t('New subfolder'),
+    message: t('Name of the new subfolder in {folder}', { folder: baseName(parentPath) }),
+    inputLabel: t('Subfolder name'),
+    confirmLabel: t('Create'),
+    cancelLabel: t('Cancel'),
+    onSubmit: async name => {
+      try {
+        await invoke('create_subfolder', { parent: parentPath, name });
+      } catch (error) {
+        return String(error);
+      }
+      api.folderCreated(parentPath, name.trim());
+      return null;
+    },
+  });
+}
+
+// Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
+export async function openFolderInFileManager(path) {
+  try {
+    await invoke('open_folder_in_file_manager', { path });
+  } catch (error) {
+    api.showToast(t('Open failed: {error}', { error }));
+  }
+}
+
 // ==========================================
-// MENU CONTEXTUEL DES MINIATURES
+// MENUS CONTEXTUELS (miniatures, aperçu, plein écran et arborescence des dossiers)
 // ==========================================
+let contextTarget = null; // élément de l'arborescence visé par le menu ouvert (mis en évidence)
+
 function closeContextMenu() {
   if (!contextMenu) return;
   contextMenu.remove();
   contextMenu = null;
+  contextTarget?.classList.remove('context-target');
+  contextTarget = null;
   document.removeEventListener('pointerdown', onOutsidePointerDown, true);
   window.removeEventListener('blur', closeContextMenu);
   window.removeEventListener('resize', closeContextMenu);
@@ -482,6 +573,29 @@ function openThumbnailMenu(event, index, source = 'grid') {
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
   );
+  showContextMenu(menu, event);
+}
+
+// Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
+function openFolderMenu(event, folderItem) {
+  closeContextMenu();
+  const path = folderItem.dataset.folderPath;
+  if (!path) return;
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.setAttribute('role', 'menu');
+  menu.append(
+    menuButton(t('Rescan folder data'), () => api.rescanFolder(path)),
+    menuButton(t('New subfolder…'), () => createSubfolder(path)),
+    menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path)),
+  );
+  contextTarget = folderItem;
+  folderItem.classList.add('context-target');
+  showContextMenu(menu, event);
+}
+
+// Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
+function showContextMenu(menu, event) {
   menu.addEventListener('keydown', onMenuKeydown);
   document.body.append(menu);
   contextMenu = menu;
@@ -537,6 +651,14 @@ function onContextMenu(event) {
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
 
+  // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
+  const folderItem = target?.closest('#folder-tree .folder-tree-item');
+  if (folderItem) {
+    if (folderItem.dataset.folderPath) openFolderMenu(event, folderItem);
+    else closeContextMenu();
+    return;
+  }
+
   const result = findTargetPhoto(target);
   if (!result) {
     closeContextMenu();
@@ -545,7 +667,7 @@ function onContextMenu(event) {
   openThumbnailMenu(event, result.index, result.source);
 }
 
-// options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting).
+// options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), folderCreated(parentPath, name).
 export function initPhotoActions(options) {
   api = options;
   document.addEventListener('contextmenu', onContextMenu);
