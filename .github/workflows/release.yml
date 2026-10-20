@@ -23,18 +23,24 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # Nécessaire pour que git-cliff récupère tout l'historique
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
-          cache: 'npm'
 
-      - name: Setup Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      # Génération automatique du Changelog (uniquement sur Linux pour éviter les doublons)
+      - name: Generate Changelog
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: kenji-miyake/git-cliff-action@v2
+        id: git-cliff
+        with:
+          args: --latest --strip header
 
-      # Étape spécifique à Linux pour installer les dépendances système WebKitGTK
+      # Installation des dépendances système pour Linux (WebKitGTK, etc.)
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -53,7 +59,7 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      # Compilation et ajout des binaires à la release GitHub (mode Brouillon)
+      # Compilation et publication en mode Draft (Brouillon) avec les binaires joints
       - name: Build and Release Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
@@ -61,7 +67,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Release ${{ github.ref_name }}"
-          releaseBody: "Consultez les notes de version ci-dessous pour découvrir les nouveautés."
-          releaseDraft: true # La release est créée en mode brouillon pour que vous écriviez vos notes
+          releaseBody: ${{ matrix.platform == 'ubuntu-22.04' && steps.git-cliff.outputs.content || 'Release for Windows' }}
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
