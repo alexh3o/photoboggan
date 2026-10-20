@@ -29,10 +29,10 @@ pub struct ThumbnailSize {
     pub height: u32,
 }
 
-/// Génère la miniature JPEG de `source` dans `destination` (écriture atomique via un fichier temporaire).
-pub fn generate_thumbnail(source: &Path, destination: &Path) -> Result<ThumbnailSize, String> {
-    let (rgb, width, height) = decode_scaled_rgb(source)?;
-    let (rgb, width, height) = resize_to_fit(rgb, width, height, THUMBNAIL_MAX_SIDE);
+/// Génère la miniature JPEG de `source` dans `destination` à la taille maximale spécifiée.
+pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) -> Result<ThumbnailSize, String> {
+    let (rgb, width, height) = decode_scaled_rgb(source, max_side)?;
+    let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
     let (rgb, width, height) = apply_orientation(rgb, width, height, read_orientation(source));
     write_jpeg(destination, &rgb, width, height)?;
     Ok(ThumbnailSize { width: width as u32, height: height as u32 })
@@ -180,11 +180,11 @@ fn find_cr3_preview(file: &mut File) -> Result<Vec<u8>, String> {
 ///////
 
 
-/// Décode un flux JPEG en RGB avec réduction DCT d'échelle.
-fn decode_scaled_jpeg_reader<R: Read>(reader: R) -> Result<(Vec<u8>, usize, usize), String> {
+/// Décode un flux JPEG en RGB avec réduction DCT d'échelle proportionnelle à max_side.
+fn decode_scaled_jpeg_reader<R: Read>(reader: R, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     let mut decoder = Decoder::new(reader);
     decoder.read_info().map_err(|error| format!("JPEG illisible : {error}"))?;
-    let side = (THUMBNAIL_MAX_SIDE * 3 / 2) as u16;
+    let side = (max_side * 3 / 2) as u16;
     decoder.scale(side, side).map_err(|error| format!("Réduction JPEG impossible : {error}"))?;
     let pixels = decoder.decode().map_err(|error| format!("Décodage JPEG impossible : {error}"))?;
     let info = decoder.info().ok_or("En-tête JPEG absent")?;
@@ -200,19 +200,19 @@ fn decode_scaled_jpeg_reader<R: Read>(reader: R) -> Result<(Vec<u8>, usize, usiz
     Ok((rgb, width, height))
 }
 
-fn decode_scaled_rgb(source: &Path) -> Result<(Vec<u8>, usize, usize), String> {
+fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     
     // Si c'est un format RAW, on extrait la prévisualisation JPEG intégrée
     let is_raw = matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "raw");
     if is_raw {
         let jpeg_bytes = extract_raw_preview(source)?;
-        return decode_scaled_jpeg_reader(Cursor::new(jpeg_bytes));
+        return decode_scaled_jpeg_reader(Cursor::new(jpeg_bytes), max_side);
     }
 
     // Sinon décodage JPEG standard direct depuis le fichier
     let file = File::open(source).map_err(|error| error.to_string())?;
-    decode_scaled_jpeg_reader(BufReader::with_capacity(256 * 1024, file))
+    decode_scaled_jpeg_reader(BufReader::with_capacity(256 * 1024, file), max_side)
 }
 
 /// Orientation EXIF (1 à 8), 1 si absente ou illisible.

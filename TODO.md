@@ -19,7 +19,7 @@
   - [ ] de la qualité jpeg
 - [ ] FEAT: Ajouter un **widget carte** dans le panneau information
 - [ ] IMP: Permettre de **stopper un rescan** en cours
-- [ ] IMP: Paramétrage de la taille de vignette (enregistrée et max affiché - limiter à 1024px)
+- [x] IMP: Paramétrage de la taille de vignette (enregistrée et max affiché - limiter à 1024px)
 - [ ] IMP: Donner la possibilité de **changer les raccourcis claviers**
 - [ ] IMP: Mettre **plus d'images en cache pour accélerer la navigation** ressentie en plein écran
 - [ ] FEAT: Associer des **raccourcis clavier pour les programmes de "Ouvrir avec"**

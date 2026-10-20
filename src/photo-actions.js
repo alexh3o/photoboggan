@@ -171,7 +171,7 @@ function createModal({ title, cardClass = '', onClose = null }) {
 }
 
 // Confirmation Oui / Non ; le focus est sur « Oui » (rouge) et les flèches du clavier passent de l'un à l'autre. Renvoie true uniquement si « Oui » est activé.
-function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
+export function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
   return new Promise(resolve => {
     let answer = false;
     const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(answer) });
