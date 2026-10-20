@@ -1165,6 +1165,18 @@ function handleSelection(index, event) {
   updateUIOnSelection();
 }
 
+// Ctrl+A (hors mode Comparer) : sélectionne toutes les photos affichées dans la grille, ou les désélectionne toutes si elles le sont déjà.
+function toggleSelectAllPhotos() {
+  if (photos.length === 0) return;
+  if (selectedIndices.size === photos.length) {
+    selectedIndices.clear();
+  } else {
+    for (let index = 0; index < photos.length; index++) selectedIndices.add(index);
+    if (!selectedIndices.has(lastSelectedIndex)) lastSelectedIndex = 0;
+  }
+  updateUIOnSelection();
+}
+
 function updateUIOnSelection() {
   pruneCompareSubSelection();
   renderVisibleItems(); 
@@ -1375,6 +1387,12 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
+  // Ctrl+A : tout sélectionner / tout désélectionner dans la grille. Sans effet en mode Comparer (A seul y gère la sous-sélection), en plein écran ou derrière une fenêtre ouverte.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    if (!compareMode && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
+    return;
+  }
   // CTrl+D debug to console
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
     console.log("Display Scaling Ratio: ", window.devicePixelRatio);
@@ -1434,6 +1452,12 @@ if (e.key === 'Delete') {
         return;
       }
     }
+  }
+  // X : active / désactive le mode Comparer ; P : affiche / masque l'aperçu (sans effet en mode Comparer, où le bouton est inactif). Pas en plein écran ni derrière une fenêtre ouverte.
+  if ((e.key.toLowerCase() === 'x' || e.key.toLowerCase() === 'p') && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+    e.preventDefault();
+    if (!e.repeat) document.getElementById(e.key.toLowerCase() === 'x' ? 'btn-toggle-compare' : 'btn-toggle-preview').click();
+    return;
   }
   // Mode Comparer, plusieurs photos : A sous-sélectionne toutes les photos (ou aucune si elles le sont déjà)
   if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey && !e.altKey && isCompareMultiple()) {
@@ -2385,6 +2409,7 @@ function currentPreviewPhotos() {
   if (compareMode) {
     return [...selectedIndices].sort((a, b) => a - b).slice(0, MAX_COMPARE).map(index => photos[index]).filter(Boolean);
   }
+  if (selectedIndices.size === 0) return []; // rien de sélectionné (Ctrl+A pour tout désélectionner) : aperçu vide
   const photo = photos[lastSelectedIndex];
   return photo ? [photo] : [];
 }

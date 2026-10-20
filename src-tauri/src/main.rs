@@ -591,8 +591,9 @@ fn get_photo_details(path: String) -> exif::MetadataDetails {
     exif::read_metadata_details(Path::new(&path))
 }
 
-// Suppression définitive (pas de corbeille : ça demanderait une dépendance supplémentaire). Seules les photos du catalogue
-// peuvent être supprimées. Le fichier, sa miniature en cache et sa ligne en base disparaissent ; un éventuel sidecar .xmp est conservé.
+// Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
+// peuvent être supprimées. La photo disparaît du catalogue, avec sa miniature en cache ; un éventuel sidecar .xmp est conservé.
+// Si le fichier n'est pas mis à la corbeille (erreur), la photo reste dans le catalogue et l'échec est signalé : jamais de suppression définitive de repli.
 #[tauri::command(async)]
 fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
     let pool = state.pool();
@@ -615,10 +616,9 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
         let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
         let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
 
-        match fs::remove_file(&path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
+        // Fichier déjà absent (supprimé hors de l'application) : rien à mettre à la corbeille, on retire simplement la photo du catalogue.
+        if Path::new(&path).exists() {
+            if let Err(error) = trash::delete(&path) {
                 failed.push(FileFailure { path, error: error.to_string() });
                 continue;
             }
