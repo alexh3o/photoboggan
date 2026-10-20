@@ -97,10 +97,12 @@ button.active { background: var(--active-button); border-color: var(--active-but
 /* Dossier visé par le menu contextuel ouvert */
 .folder-tree-item.context-target { outline: 1px solid var(--accent); outline-offset: -1px; }
 .folder-tree-item.context-target:not(.active) { background: var(--control-bg); }
-/* Déplacement de photos par glisser-déposer (Ctrl + glisser) : dossier survolé et image qui suit le curseur */
+/* Déplacement et copie de photos par glisser-déposer (Maj / Ctrl + glisser) : dossier survolé et image qui suit le curseur */
 .folder-tree-item.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
 .drag-ghost { position: fixed; top: 0; left: 0; z-index: 13000; width: 4rem; height: 4rem; border: 2px solid var(--accent); border-radius: 4px; background: var(--thumb-bg); box-shadow: 0 4px 14px rgba(0,0,0,0.5); opacity: 0.9; pointer-events: none; }
 .drag-ghost img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* Copie (Ctrl + glisser) : petit « + » vert en haut à droite de la vignette, absent pour un déplacement (Maj + glisser) */
+.drag-ghost.copy::before { content: '+'; position: absolute; top: -0.6rem; right: -0.6rem; z-index: 1; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: #2ecc71; color: #fff; font-size: 1.1rem; font-weight: bold; line-height: 1.4rem; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
 .drag-ghost span { position: absolute; right: -0.6rem; bottom: -0.6rem; min-width: 1.4rem; padding: 2px 5px; border-radius: 1rem; background: var(--accent); color: #fff; font-size: 0.75rem; font-weight: bold; text-align: center; }
 body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .folder-tree-toggle { flex: 0 0 1rem; width: 1rem; padding: 0; border: 0; color: var(--text-soft); background: transparent; font-size: 0.75rem; }
