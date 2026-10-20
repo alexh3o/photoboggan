@@ -15,9 +15,6 @@ dist-ssr
 *.db
 *.db-*
 
-# Locked files
-package-lock.json
-src-tauri/Cargo.lock
 
 # Tools
 dev_tools/*
