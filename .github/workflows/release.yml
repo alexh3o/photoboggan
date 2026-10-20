@@ -3,7 +3,7 @@ name: "Publish Cross-Platform Release"
 on:
   push:
     tags:
-      - 'v*' # Se déclenche automatiquement quand vous poussez un tag (ex: v1.0.0)
+      - 'v*' # Se déclenche quand vous poussez un tag (ex: v1.0.0)
 
 jobs:
   publish-release:
@@ -32,13 +32,24 @@ jobs:
         with:
           node-version: 20
 
-      # Génération automatique du Changelog (uniquement sur Linux pour éviter les doublons)
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Installation directe de git-cliff via Cargo (uniquement sur Linux)
+      - name: Install git-cliff
+        if: matrix.platform == 'ubuntu-22.04'
+        run: cargo install git-cliff
+
+      # Génération du Changelog et stockage dans une variable d'environnement GitHub
       - name: Generate Changelog
         if: matrix.platform == 'ubuntu-22.04'
-        uses: kenji-miyake/git-cliff-action@v2
-        id: git-cliff
-        with:
-          args: --latest --strip header
+        run: |
+          changelog=$(git cliff --latest --strip header)
+          {
+            echo 'content<<EOF'
+            echo "$changelog"
+            echo 'EOF'
+          } >> $GITHUB_ENV
 
       # Installation des dépendances système pour Linux (WebKitGTK, etc.)
       - name: Install Linux system dependencies
@@ -67,7 +78,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Release ${{ github.ref_name }}"
-          releaseBody: ${{ matrix.platform == 'ubuntu-22.04' && steps.git-cliff.outputs.content || 'Release for Windows' }}
+          releaseBody: ${{ matrix.platform == 'ubuntu-22.04' && env.content || 'Release for Windows' }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
