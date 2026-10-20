@@ -18,10 +18,10 @@
 - [ ] IMP: Accelerate fullscreen navigation between images with a cache for slow disks
 - [ ] FEAT: Add resizing option in "Copy to" action
 - [ ] FEAT: Map widget in Info panel
-- [ ] IMP: Add delete command (key + eventually icon) in compare mode
+- [x] IMP: Add delete command (key + action menu) in compare mode
 - [ ] FEAT: Add keyboard shortcuts for "open with" programs
 - [ ] Allow reordering "open with" programs in settings
-- [ ] Manage single/multiple selections and right click menu
+- [x] Manage single/multiple selections and right click menu
 - [x] FETA: Display RAW images. Use embedded thumbnail
 - [x] FEAT: Add webp, avif, gif images file formats support
 - [ ] IMP: Split rescan action per collection / tree root folder
