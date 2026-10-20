@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, confirmAndDelete, revealInFileManager } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, confirmAndDelete, revealInFileManager, confirmDialog } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 
 // AJOUT BARRE TITRE
@@ -207,8 +207,10 @@ function applyAppearance() {
 applyAppearance();
 
 // DOM
-let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || 160;
-thumbnailSize = Math.max(96, Math.min(512, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
+let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 512;
+if (![256, 512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
+  let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || 160;
+thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
 let thumbnailLayout = ['square', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'square';
@@ -415,7 +417,7 @@ function loadThumbnail(image, sourcePath, photo) {
     enqueueThumbnailGeneration(image, sourcePath, async () => {
       let generated = null;
       try {
-        generated = await invoke('generate_thumbnail', { sourcePath });
+        generated = await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize });
       } catch {
         // Format non géré par le backend : repli ci-dessous.
       }
@@ -439,7 +441,7 @@ function cacheThumbnail(image, sourcePath) {
     try {
       await image.decode();
       bitmap = await createImageBitmap(image);
-      const scale = Math.min(1, 512 / Math.max(bitmap.width, bitmap.height));
+      const scale = Math.min(1, thumbnailCacheSize / Math.max(bitmap.width, bitmap.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(bitmap.width * scale));
       canvas.height = Math.max(1, Math.round(bitmap.height * scale));
@@ -1902,8 +1904,10 @@ onLanguageChange(() => {
 
 const thumbnailSizeInput = document.getElementById('thumbnail-size');
 const thumbnailSizeValue = document.getElementById('thumbnail-size-value');
+thumbnailSizeInput.max = String(thumbnailCacheSize); // Valeur max synchronisée
 thumbnailSizeInput.value = String(thumbnailSize);
 thumbnailSizeValue.textContent = `${thumbnailSize} px`;
+
 thumbnailSizeInput.addEventListener('input', event => {
   thumbnailSizeValue.textContent = `${event.target.value} px`;
 });
@@ -1912,6 +1916,59 @@ thumbnailSizeInput.addEventListener('change', event => {
   localStorage.setItem('thumbnailSize', String(thumbnailSize));
   requestAnimationFrame(updateVirtualScroller);
 });
+// Gestionnaire du sélecteur de taille des miniatures en cache
+const thumbnailCacheSelect = document.getElementById('thumbnail-cache-size-select');
+if (thumbnailCacheSelect) {
+  thumbnailCacheSelect.value = String(thumbnailCacheSize);
+  thumbnailCacheSelect.addEventListener('change', async (e) => {
+    const newSize = Number(e.target.value);
+    if (newSize === thumbnailCacheSize) return;
+
+    const confirmed = await confirmDialog({
+      title: t('Thumbnail cache size'),
+      message: t('Change thumbnail cache size? This will delete all thumbnails, they will be gradually rebuilt during navigation.'),
+      confirmLabel: t('Change'),
+      cancelLabel: t('Cancel'),
+    });
+
+    if (!confirmed) {
+      thumbnailCacheSelect.value = String(thumbnailCacheSize);
+      return;
+    }
+
+    showTaskToast(t('Thumbnails cache cleared'), 0);
+    try {
+      await invoke('clear_thumbnail_cache');
+      await invoke('set_thumbnail_cache_size', { size: newSize });
+      thumbnailCacheSize = newSize;
+      localStorage.setItem('thumbnailCacheSize', String(thumbnailCacheSize));
+
+      // Met à jour la borne max de la modale "Options d'affichage"
+      thumbnailSizeInput.max = String(thumbnailCacheSize);
+      if (thumbnailSize > thumbnailCacheSize) {
+        thumbnailSize = thumbnailCacheSize;
+        localStorage.setItem('thumbnailSize', String(thumbnailSize));
+        thumbnailSizeInput.value = String(thumbnailSize);
+        thumbnailSizeValue.textContent = `${thumbnailSize} px`;
+      }
+
+      // Vide les caches mémoire du frontend
+      thumbnailCacheLookups.clear();
+      thumbnailCacheWrites.clear();
+      pendingThumbnailLookups.clear();
+      for (const node of renderedThumbnailNodes.values()) node.remove();
+      renderedThumbnailNodes.clear();
+
+      updateVirtualScroller();
+      showWriteToast(t('Thumbnails cache cleared'));
+    } catch (err) {
+      console.error('Erreur lors du changement de taille du cache', err);
+      thumbnailCacheSelect.value = String(thumbnailCacheSize);
+    } finally {
+      hideTaskToast();
+    }
+  });
+}
 previewResizer.addEventListener('pointerdown', event => {
   if (mainContent.classList.contains('preview-hidden')) return;
   previewResizer.setPointerCapture(event.pointerId);

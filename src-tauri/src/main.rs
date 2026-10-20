@@ -39,6 +39,7 @@ impl AppDataPaths {
 pub struct AppState {
     pub db_pool: RwLock<DbPool>,
     pub paths: RwLock<AppDataPaths>,
+    pub thumbnail_cache_size: RwLock<u32>,
 }
 
 impl AppState {
@@ -57,11 +58,15 @@ impl AppState {
     pub fn is_custom(&self) -> bool {
         self.paths.read().unwrap().is_custom
     }
+    pub fn thumbnail_cache_size(&self) -> usize {
+        *self.thumbnail_cache_size.read().unwrap() as usize
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 struct AppConfig {
     custom_data_dir: Option<String>,
+    thumbnail_cache_size: Option<u32>,
 }
 
 fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -182,12 +187,13 @@ struct GeneratedThumbnail {
 // orientation EXIF appliquée, taille réelle renvoyée (ratio exact pour la disposition justifiée).
 // Une erreur (PNG, JPEG CMYK, fichier illisible…) indique à l'interface d'utiliser sa génération de repli.
 #[tauri::command(async)]
-fn generate_thumbnail(state: State<'_, AppState>, source_path: String) -> Result<GeneratedThumbnail, String> {
+fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max_side: Option<u32>) -> Result<GeneratedThumbnail, String> {
+    let max_side = max_side.map(|s| s as usize).unwrap_or_else(|| state.thumbnail_cache_size());
     let destination = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
     let size = if destination.is_file() {
         thumbnails::jpeg_size(&destination)?
     } else {
-        thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination)?
+        thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination, max_side)?
     };
     Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
 }
@@ -241,6 +247,39 @@ fn save_thumbnail_cache(state: State<'_, AppState>, source_path: String, data_ur
     }
     Ok(path.to_string_lossy().into_owned())
 }
+
+// Vidage miniatures
+#[tauri::command(async)]
+fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
+    let dir = state.thumbnails_dir();
+    if dir.is_dir() {
+        for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path();
+            if path.is_file() {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+    Ok(())
+}
+
+
+#[tauri::command(async)]
+fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, size: u32) -> Result<(), String> {
+    if ![256, 512, 768, 1024].contains(&size) {
+        return Err("Taille de miniature non valide".into());
+    }
+    {
+        let mut guard = state.thumbnail_cache_size.write().map_err(|e| e.to_string())?;
+        *guard = size;
+    }
+    let mut config = load_config(&app);
+    config.thumbnail_cache_size = Some(size);
+    save_config(&app, &config)?;
+    Ok(())
+}
+
 
 #[tauri::command]
 fn get_folders(state: State<'_, AppState>) -> Vec<TrackedFolder> {
@@ -887,15 +926,20 @@ fn main() {
             let handle = app.handle();
             let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
+            let config = load_config(handle);
+            let cache_size = config.thumbnail_cache_size.unwrap_or(512);
             app.manage(AppState {
                 db_pool: RwLock::new(db_pool),
                 paths: RwLock::new(paths),
+                thumbnail_cache_size: RwLock::new(cache_size),
             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_storage_location,
             change_storage_location,
+            clear_thumbnail_cache,      // <-- AJOUTÉ
+            set_thumbnail_cache_size,   // <-- AJOUTÉ
             get_folders,
             add_folder_and_scan,
             remove_folder,
@@ -1045,6 +1089,7 @@ fn change_storage_location(
     // 6. Sauvegarde dans le fichier config.json
     let config_data = AppConfig {
         custom_data_dir: if is_custom { Some(target_dir.to_string_lossy().into_owned()) } else { None },
+        thumbnail_cache_size: Some(state.thumbnail_cache_size() as u32),
     };
     save_config(&app, &config_data)?;
 
