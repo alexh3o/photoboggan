@@ -255,12 +255,24 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .close-x:hover { color: var(--btn-text); background: transparent; }
 .modal-header-actions { display: flex; align-items: center; gap: 4px; }
 .modal-header-actions .close-x { display: inline-flex; align-items: center; padding: 4px 8px; }
+/* Taille de la fenêtre */
+#settings-modal .modal-card {  height: min(520px, calc(100vh - 60px));  display: flex;  flex-direction: column;}
+#settings-modal .modal-body {  flex: 1 1 auto;  min-height: 0;  max-height: none;  overflow-y: auto; }
 /* Choix de dossier de l'application */
 .settings-path-label { display: block; padding: 8px 10px; margin-bottom: 8px; background: var(--row-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.75rem; color: var(--text-strong); word-break: break-all;  user-select: text; }
 .settings-storage-actions { display: flex; gap: 8px; }
 .settings-storage-actions button { margin-bottom: 0;}
 .btn-secondary { background: var(--control-bg); color: var(--btn-text); border: 1px solid var(--control-border); padding: 8px 12px; font-weight: bold; border-radius: 4px; cursor: pointer;  white-space: nowrap; }
 .btn-secondary:hover { background: var(--control-hover); }
+/* Barre d'onglets */
+/* Onglets de la modale des paramètres */
+.settings-tabs { display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 0 16px; gap: 8px; }
+.settings-tab-btn { padding: 8px 14px; background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.settings-tab-btn:hover { background: transparent; color: var(--text-strong); }
+.settings-tab-btn.active { background: transparent; color: var(--active-button); border-bottom-color: var(--active-button); }
+.settings-tab-pane { display: block; }
+.settings-tab-pane[hidden] { display: none; }
+
 
 /* MODALE DE TRI */
 .sort-card { width: min(380px, calc(100vw - 40px)); }

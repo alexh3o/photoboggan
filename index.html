@@ -154,59 +154,78 @@
             <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
           </div>
         </div>
+
+        <!-- Barre des onglets -->
+        <div class="settings-tabs" role="tablist" aria-label="Onglets des paramètres">
+          <button type="button" class="settings-tab-btn active" role="tab" aria-selected="true" data-tab="data" data-i18n="Data">Données</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Open with">Ouvrir avec</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
+        </div>
+
         <div class="modal-body">
-          <section class="settings-section">
-            <h4 data-i18n="Storage location">Emplacement des données</h4>
-            <div id="storage-path-display" class="settings-path-label" title=""></div>
-            <div class="settings-storage-actions">
-              <button id="btn-change-storage" class="btn-highlight" type="button" data-i18n="Change folder…">Modifier le dossier…</button>
-              <button id="btn-reset-storage" class="btn-secondary hidden" type="button" data-i18n="Reset to default">Emplacement par défaut</button>
-            </div>
-          </section>
-          <section class="settings-section">
-            <h4 data-i18n="Folders">Dossiers balayés</h4>
-          <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
-          <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
-          <ul id="settings-folder-list"></ul>
-          </section>
-          <section class="settings-section">
-            <h4 data-i18n="Open with">Ouvrir avec</h4>
-            <button id="btn-add-program" class="btn-highlight" data-i18n="Add program">Ajouter un programme</button>
-            <ul id="settings-program-list"></ul>
-          </section>
-          <section class="settings-section">
-            <h4 data-i18n="Display">Affichage</h4>
-            <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
-              <select id="language-select"></select>
-            </label>
-            <div class="settings-row" ><span data-i18n="Selection color">Couleur de sélection</span>
-              <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
-                <button type="button" class="accent-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
-                <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
-                <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
-                <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
-                <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
-                <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
-                <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
-                <input id="accent-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
-              </span>
-            </div>
-            <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
-              <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
-                <button type="button" class="button-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
-                <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
-                <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
-                <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
-                <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
-                <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
-                <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
-                <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
-              </span>
-            </div>
-            <label class="settings-row" for="theme-select"><span  data-i18n="Theme">Thème</span>
-              <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
-            </label>
-          </section>
+          <!-- Onglet 1 : Données -->
+          <div id="settings-tab-data" class="settings-tab-pane active" role="tabpanel">
+            <section class="settings-section">
+              <h4 data-i18n="Storage location">Emplacement des données</h4>
+              <div id="storage-path-display" class="settings-path-label" title=""></div>
+              <div class="settings-storage-actions">
+                <button id="btn-change-storage" class="btn-highlight" type="button" data-i18n="Change folder…">Modifier le dossier…</button>
+                <button id="btn-reset-storage" class="btn-secondary hidden" type="button" data-i18n="Reset to default">Emplacement par défaut</button>
+              </div>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Folders">Dossiers balayés</h4>
+              <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
+              <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
+              <ul id="settings-folder-list"></ul>
+            </section>
+          </div>
+
+          <!-- Onglet 2 : Ouvrir avec -->
+          <div id="settings-tab-open-with" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Open with">Ouvrir avec</h4>
+              <button id="btn-add-program" class="btn-highlight" data-i18n="Add program">Ajouter un programme</button>
+              <ul id="settings-program-list"></ul>
+            </section>
+          </div>
+
+          <!-- Onglet 3 : Affichage -->
+          <div id="settings-tab-display" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Display">Affichage</h4>
+              <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
+                <select id="language-select"></select>
+              </label>
+              <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
+                <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
+                  <button type="button" class="accent-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
+                  <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
+                  <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
+                  <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
+                  <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
+                  <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
+                  <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
+                  <input id="accent-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
+                </span>
+              </div>
+              <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
+                <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
+                  <button type="button" class="button-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
+                  <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
+                  <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
+                  <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
+                  <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
+                  <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
+                  <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
+                  <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
+                </span>
+              </div>
+              <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
+                <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
+              </label>
+            </section>
+          </div>
         </div>
       </div>
     </div>
@@ -290,10 +309,6 @@
           <div class="guide-section">
             <h4 class="guide-section-title" data-i18n="Thumbnails">Miniatures</h4>
             <div class="guide-row">
-              <span class="guide-action" data-i18n="Open the context menu">Menu contextuel (infos, supprimer, copier, etc.)</span>
-              <span class="guide-control"><kbd>Clic droit</kbd></span>
-            </div>
-            <div class="guide-row">
               <span class="guide-action" data-i18n="Move to a folder">Déplacer vers un dossier de l'arborescence</span>
               <span class="guide-control"><kbd>Maj</kbd> + <kbd data-i18n="Drag">Glisser</kbd></span>
             </div>
@@ -345,6 +360,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Enter/Exit fullscreen">Entrer/Quitter le plein écran</span>
               <span class="guide-control"><kbd>Double-clic</kbd> / <kbd>F</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Open the context menu">Menu contextuel (infos, supprimer, copier, etc.)</span>
+              <span class="guide-control"><kbd>Clic droit</kbd></span>
             </div>
           </div>
 

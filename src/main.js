@@ -1446,6 +1446,26 @@ if (e.key === 'Delete') {
 });
 
 // ==========================================
+// MODALE PARAMÈTRES
+// ==========================================
+// GESTION DES ONGLETS DE LA MODALE PARAMÈTRES
+document.querySelectorAll('.settings-tab-btn').forEach(button => {
+  button.addEventListener('click', () => {
+    const targetTab = button.dataset.tab;
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+      const active = btn === button;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', String(active));
+    });
+    document.querySelectorAll('.settings-tab-pane').forEach(pane => {
+      const active = pane.id === `settings-tab-${targetTab}`;
+      pane.classList.toggle('active', active);
+      pane.hidden = !active;
+    });
+  });
+});
+
+// ==========================================
 // MODALE PARAMÈTRES (Gestion des dossiers)
 // ==========================================
 function renderSettingsFolderList() {
