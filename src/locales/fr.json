@@ -242,5 +242,9 @@
   "Maximize": "Agrandir",
   "Restore down": "Restaurer",
   "Window": "Fenêtre",
-  "Immersive mode": "Mode immersif (barre de titre et barre des tâches masquées)"
+  "Immersive mode": "Mode immersif (barre de titre et barre des tâches masquées)",
+  "Compare mode: first click one or more photos in the preview": "Mode comparaison : cliquez d'abord sur une ou plusieurs photos de l'aperçu",
+  "Click": "Clic",
+  "Compare select all": "Mode comparaison : sous-sélectionner toutes les photos de l'aperçu (ou toutes les désélectionner)",
+  "Compare sub-selection": "Mode comparaison : (dé)sélectionner une photo de l'aperçu pour la noter, la colorer ou la supprimer"
 }

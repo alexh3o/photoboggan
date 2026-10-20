@@ -1166,6 +1166,7 @@ function handleSelection(index, event) {
 }
 
 function updateUIOnSelection() {
+  pruneCompareSubSelection();
   renderVisibleItems(); 
   updateRatingAction();
   updateColorAction();
@@ -1249,7 +1250,7 @@ function updateRatingAction() {
   const countElement = document.getElementById('selection-count');
   if (countElement) countElement.textContent = tp('{count} photo selected', count);
 
-  const selectedPhoto = photos[selectedIndices.has(lastSelectedIndex) ? lastSelectedIndex : selectedIndices.values().next().value];
+  const selectedPhoto = commandReferencePhoto(); // en mode Comparer avec plusieurs photos : celle de la sous-sélection
   const rating = selectedPhoto?.rating || 0;
   document.querySelectorAll('#selection-rating-stars button').forEach(button => {
     button.classList.toggle('active', Number(button.dataset.rating) <= rating);
@@ -1293,14 +1294,17 @@ function setColorSquareChecked(button, checked) {
 // Barre d'écriture : met en évidence la couleur de la photo de référence de la sélection (une seule couleur possible).
 function updateColorAction() {
   if (selectedIndices.size === 0) return;
-  const selectedPhoto = photos[selectedIndices.has(lastSelectedIndex) ? lastSelectedIndex : selectedIndices.values().next().value];
+  const selectedPhoto = commandReferencePhoto();
   const flag = selectedPhoto?.color_flag || 'none';
   document.querySelectorAll('#selection-color-flags button').forEach(button => setColorSquareChecked(button, button.dataset.flag === flag));
 }
 
 async function setSelectionColorFlag(flag) {
-  const targets = [...selectedIndices].map(index => photos[index]).filter(Boolean);
-  if (!targets.length) return;
+  const targets = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
+  if (!targets.length) {
+    if (isCompareMultiple()) notifyNoCompareTarget();
+    return;
+  }
   // Comme pour la note : si toutes les photos sélectionnées ont déjà cette couleur, on l'efface.
   const finalFlag = targets.every(photo => (photo.color_flag || 'none') === flag) ? 'none' : flag;
   showWriteToast(finalFlag === 'none'
@@ -1323,8 +1327,11 @@ async function setSelectionColorFlag(flag) {
 }
 
 async function setSelectionRating(rating) {
-  const targets = [...selectedIndices].map(index => photos[index]).filter(Boolean);
-  if (!targets.length) return;
+  const targets = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
+  if (!targets.length) {
+    if (isCompareMultiple()) notifyNoCompareTarget();
+    return;
+  }
   // Si toutes les photos sélectionnées ont déjà exactement cette note, 
   // on considère qu'on veut l'effacer (passer à 0).
   const allAlreadyHaveRating = targets.every(photo => photo.rating === rating);
@@ -1357,10 +1364,13 @@ window.addEventListener('keydown', (e) => {
   // qui ne doit pas s'ouvrir sur Ctrl+C. Ignoré quand une fenêtre (Paramètres, Guide, Tri…) est ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
     if (!document.querySelector('.modal:not(.hidden)')) {
-      const selectedPhotos = [...selectedIndices].sort((a, b) => a - b).map(index => photos[index]).filter(Boolean);
+      const selectedPhotos = commandTargetIndices().sort((a, b) => a - b).map(index => photos[index]).filter(Boolean); // mode Comparer avec plusieurs photos : sous-sélection
       if (selectedPhotos.length > 0) {
         e.preventDefault();
         copyPhotosToClipboard(selectedPhotos);
+      } else if (isCompareMultiple()) {
+        e.preventDefault();
+        notifyNoCompareTarget();
       }
     }
     return;
@@ -1399,9 +1409,13 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'c') {
     console.log("Touche C pressée, indice photos actives:", selectedIndices);
     if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
-      const selectedPhotos = Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
+      const selectedPhotos = commandTargetPhotos(); // mode Comparer avec plusieurs photos : sous-sélection
       if (selectedPhotos.length > 0) {
         copyPhotosTo(selectedPhotos);
+        return;
+      }
+      if (isCompareMultiple()) {
+        notifyNoCompareTarget();
         return;
       }
     }
@@ -1409,15 +1423,23 @@ window.addEventListener('keydown', (e) => {
   // Suppression
 if (e.key === 'Delete') {
     if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
-      // En mode comparaison, si la souris survole une photo précise, on n'efface que celle-ci
-      const targetPhotos = (compareMode && hoveredPreviewSlot?.photo)
-        ? [hoveredPreviewSlot.photo]
-        : Array.from(selectedIndices).map(index => photos[index]).filter(Boolean);
+      // Mode comparaison : seule la photo unique ou les photos de la sous-sélection sont visées, jamais toute la comparaison.
+      const targetPhotos = commandTargetPhotos();
       if (targetPhotos.length > 0) {
         confirmAndDelete(targetPhotos);
         return;
       }
+      if (isCompareMultiple()) {
+        notifyNoCompareTarget();
+        return;
+      }
     }
+  }
+  // Mode Comparer, plusieurs photos : A sous-sélectionne toutes les photos (ou aucune si elles le sont déjà)
+  if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey && !e.altKey && isCompareMultiple()) {
+    e.preventDefault();
+    toggleAllCompareSubSelection();
+    return;
   }
   // Rating shortcuts
   if (/^[0-5]$/.test(e.key) && selectedIndices.size > 0) {
@@ -2161,6 +2183,13 @@ let previewLastWheelStep = 0;
 let compareDesync = false; // case « Désynchroniser » (mode Comparer uniquement)
 let previewDesynced = false; // état réellement appliqué : mode Comparer actif ET case cochée
 let hoveredPreviewSlot = null;
+// Sous-sélection du mode Comparer (plusieurs photos comparées) : chemins des photos de l'aperçu qui reçoivent les commandes de note, de couleur et de suppression au clavier ou depuis la barre latérale. Vide par défaut.
+const compareSubSelection = new Set();
+let suppressPreviewClick = false; // le clic qui suit un déplacement de l'image dans l'aperçu ne change pas la sous-sélection
+let previewHiddenBeforeCompare = false; // l'aperçu était masqué avant l'activation du mode Comparer : il est masqué de nouveau à sa désactivation
+const PREVIEW_CLICK_DRAG_THRESHOLD = 5; // pixels avant de considérer un déplacement (sinon c'est un clic)
+// Icône lucide « circle-check-big » : repère d'une photo de la sous-sélection (coin supérieur droit de sa case dans l'aperçu).
+const CIRCLE_CHECK_BIG_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>';
 
 function canAddToSelection(index) {
   return selectedIndices.has(index) || !compareMode || selectedIndices.size < MAX_COMPARE;
@@ -2180,6 +2209,82 @@ function limitSelectionForCompare() {
   }
   selectedIndices = kept;
   showCompareLimitToast();
+}
+
+// Comparaison de plusieurs photos : les cases de l'aperçu servent alors à choisir les photos visées par les commandes.
+function isCompareMultiple() {
+  return compareMode && selectedIndices.size > 1;
+}
+
+// Photos (indices dans photos) visées par les notes, les couleurs et la suppression au clavier, et par la barre latérale.
+// Hors comparaison, ou avec une seule photo sélectionnée : toute la sélection. Comparaison de plusieurs photos : uniquement la sous-sélection (aucune par défaut).
+// Les commandes du menu contextuel n'en dépendent pas : elles visent toujours la photo du clic droit.
+function commandTargetIndices() {
+  if (!isCompareMultiple()) return [...selectedIndices];
+  return [...selectedIndices].filter(index => compareSubSelection.has(photos[index]?.path));
+}
+
+function commandTargetPhotos() {
+  return commandTargetIndices().map(index => photos[index]).filter(Boolean);
+}
+
+// Photo dont la note et la couleur sont affichées dans la barre latérale.
+function commandReferencePhoto() {
+  const indices = commandTargetIndices();
+  return photos[indices.includes(lastSelectedIndex) ? lastSelectedIndex : indices[0]];
+}
+
+// Retire de la sous-sélection les photos qui ne font plus partie de la comparaison (changement de sélection, suppression, fin du mode Comparer).
+function pruneCompareSubSelection() {
+  if (!isCompareMultiple()) {
+    compareSubSelection.clear();
+    return;
+  }
+  const comparedPaths = new Set([...selectedIndices].map(index => photos[index]?.path));
+  for (const path of compareSubSelection) if (!comparedPaths.has(path)) compareSubSelection.delete(path);
+}
+
+// Repères circle-check-big des cases de l'aperçu, d'après la sous-sélection.
+function syncPreviewSubSelection() {
+  previewStage.classList.toggle('sub-selectable', isCompareMultiple());
+  for (const slot of previewSlots) slot.cell.classList.toggle('sub-selected', compareSubSelection.has(slot.photo.path));
+}
+
+function toggleCompareSubSelection(photo) {
+  if (compareSubSelection.has(photo.path)) compareSubSelection.delete(photo.path);
+  else compareSubSelection.add(photo.path);
+  syncPreviewSubSelection();
+  updateRatingAction();
+  updateColorAction();
+}
+
+// Place les repères (sous-sélection, étoiles, couleur) dans les coins de la partie visible de l'image, et non de la case : l'image peut être plus petite que sa case (bandes vides)
+// ou la dépasser (zoom).
+function positionPreviewMarks(slot, cellWidth, cellHeight) {
+  if (!slot.meta) return; // le plein écran n'a pas de repères
+  const left = Math.max(0, slot.tx);
+  const top = Math.max(0, slot.ty);
+  const right = Math.min(cellWidth, slot.tx + slot.displayWidth);
+  const bottom = Math.min(cellHeight, slot.ty + slot.displayHeight);
+  slot.check.style.top = `${Math.round(top) + 8}px`;
+  slot.check.style.right = `${Math.round(cellWidth - right) + 8}px`;
+  slot.meta.style.left = `${Math.round(left)}px`;
+  slot.meta.style.right = `${Math.round(cellWidth - right)}px`;
+  slot.meta.style.bottom = `${Math.round(cellHeight - bottom)}px`;
+}
+
+// Touche A : sous-sélectionne toutes les photos comparées, ou les désélectionne toutes si elles le sont déjà.
+function toggleAllCompareSubSelection() {
+  const paths = [...selectedIndices].map(index => photos[index]?.path).filter(Boolean);
+  if (paths.every(path => compareSubSelection.has(path))) compareSubSelection.clear();
+  else for (const path of paths) compareSubSelection.add(path);
+  syncPreviewSubSelection();
+  updateRatingAction();
+  updateColorAction();
+}
+
+function notifyNoCompareTarget() {
+  showWriteToast(t('Compare mode: first click one or more photos in the preview'));
 }
 
 // Échelle exprimée en pixels écran réels par pixel image (1 = 100 %). Échelle CSS = échelle / devicePixelRatio.
@@ -2223,6 +2328,7 @@ function layoutPreviewSlot(slot) {
   slot.displayWidth = width;
   slot.displayHeight = height;
   slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})`;
+  positionPreviewMarks(slot, cellWidth, cellHeight);
 }
 
 function renderPreviewTransforms() {
@@ -2256,7 +2362,21 @@ function createPreviewSlot(photo) {
       img.src = url;
     }
   });
-  cell.appendChild(img);
+  const check = document.createElement('span');
+  check.className = 'preview-check';
+  check.setAttribute('aria-hidden', 'true');
+  check.innerHTML = CIRCLE_CHECK_BIG_ICON;
+  // Note (à gauche) et couleur (à droite) de la photo, en bas de la case.
+  const meta = document.createElement('div');
+  meta.className = 'preview-meta';
+  slot.ratingLabel = document.createElement('span');
+  slot.ratingLabel.className = 'thumbnail-rating';
+  slot.flagDot = document.createElement('span');
+  slot.flagDot.className = 'flag-indicator flag-none';
+  meta.append(slot.ratingLabel, slot.flagDot);
+  cell.append(img, check, meta);
+  slot.check = check;
+  slot.meta = meta;
   return slot;
 }
 
@@ -2269,10 +2389,26 @@ function currentPreviewPhotos() {
   return photo ? [photo] : [];
 }
 
+// Étoiles et pastille de couleur affichées en bas des cases de l'aperçu, d'après l'état actuel des photos.
+function syncPreviewMeta() {
+  for (const slot of previewSlots) {
+    const stars = '★'.repeat(slot.photo.rating || 0);
+    if (slot.ratingLabel.textContent !== stars) slot.ratingLabel.textContent = stars;
+    const flagClass = `flag-indicator flag-${slot.photo.color_flag || 'none'}`;
+    if (slot.flagDot.className !== flagClass) slot.flagDot.className = flagClass;
+  }
+}
+
 function renderPreview() {
+  pruneCompareSubSelection();
   const list = currentPreviewPhotos();
   const signature = list.map(photo => photo.path).join('|');
-  if (signature === previewSignature) return; // mêmes images : on garde zoom et position
+  if (signature === previewSignature) { // mêmes images : on garde zoom et position
+    previewSlots.forEach((slot, index) => { slot.photo = list[index]; }); // objets renouvelés après une synchronisation
+    syncPreviewMeta();
+    syncPreviewSubSelection();
+    return;
+  }
   previewSignature = signature;
   previewCenter = { x: 0.5, y: 0.5 };
   previewDrag = null;
@@ -2281,6 +2417,8 @@ function renderPreview() {
   previewStage.className = list.length ? `preview-stage count-${list.length}` : 'preview-stage';
   previewStage.replaceChildren(...previewSlots.map(slot => slot.cell));
   renderPreviewTransforms();
+  syncPreviewMeta();
+  syncPreviewSubSelection();
 }
 
 function previewSlotFromEvent(event) {
@@ -2406,7 +2544,7 @@ previewStage.addEventListener('pointerdown', event => {
   if (event.button !== 0) return;
   const slot = previewSlotFromEvent(event);
   if (!slot) return;
-  previewDrag = { slot, pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  previewDrag = { slot, pointerId: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
   slot.cell.setPointerCapture(event.pointerId);
   slot.cell.classList.add('dragging');
 });
@@ -2414,6 +2552,7 @@ previewStage.addEventListener('pointerdown', event => {
 previewStage.addEventListener('pointermove', event => {
   if (!previewDrag || event.pointerId !== previewDrag.pointerId) return;
   const { slot } = previewDrag;
+  if (!previewDrag.moved && Math.hypot(event.clientX - previewDrag.startX, event.clientY - previewDrag.startY) >= PREVIEW_CLICK_DRAG_THRESHOLD) previewDrag.moved = true;
   const dx = event.clientX - previewDrag.x;
   const dy = event.clientY - previewDrag.y;
   previewDrag.x = event.clientX;
@@ -2426,11 +2565,28 @@ previewStage.addEventListener('pointermove', event => {
 
 function endPreviewDrag(event) {
   if (!previewDrag || event.pointerId !== previewDrag.pointerId) return;
+  if (previewDrag.moved) {
+    // Le clic qui suit un déplacement de l'image ne doit pas changer la sous-sélection.
+    suppressPreviewClick = true;
+    setTimeout(() => { suppressPreviewClick = false; }, 0);
+  }
   previewDrag.slot.cell.classList.remove('dragging');
   previewDrag = null;
 }
 previewStage.addEventListener('pointerup', endPreviewDrag);
 previewStage.addEventListener('pointercancel', endPreviewDrag);
+
+// Comparaison de plusieurs photos : un clic sur une case de l'aperçu ajoute ou retire sa photo de la sous-sélection.
+// Un double-clic (zoom 1:1) compte deux clics et laisse donc la sous-sélection inchangée.
+previewStage.addEventListener('click', event => {
+  if (suppressPreviewClick) {
+    suppressPreviewClick = false;
+    return;
+  }
+  if (!isCompareMultiple()) return;
+  const slot = previewSlotFromEvent(event);
+  if (slot) toggleCompareSubSelection(slot.photo);
+});
 
 new ResizeObserver(() => renderPreviewTransforms()).observe(previewStage);
 
@@ -2450,17 +2606,24 @@ document.getElementById('compare-desync-toggle').addEventListener('change', even
 document.getElementById('btn-toggle-compare').addEventListener('click', event => {
   compareMode = !compareMode;
   event.currentTarget.classList.toggle('active', compareMode);
+  document.getElementById('btn-toggle-preview').disabled = compareMode; // l'aperçu reste affiché tant que le mode Comparer est actif
   const desyncOption = document.getElementById('compare-desync');
   desyncOption.classList.toggle('hidden', !compareMode);
   desyncOption.style.display = compareMode ? '' : 'none';
   updatePreviewSyncMode();
   if (compareMode) {
-    if (mainContent.classList.contains('preview-hidden')) {
+    previewHiddenBeforeCompare = mainContent.classList.contains('preview-hidden');
+    if (previewHiddenBeforeCompare) {
       mainContent.classList.remove('preview-hidden');
       document.getElementById('btn-toggle-preview').classList.add('active');
       requestAnimationFrame(updateVirtualScroller);
     }
     limitSelectionForCompare();
+  } else if (previewHiddenBeforeCompare) {
+    previewHiddenBeforeCompare = false;
+    mainContent.classList.add('preview-hidden');
+    document.getElementById('btn-toggle-preview').classList.remove('active');
+    requestAnimationFrame(updateVirtualScroller);
   }
   updateUIOnSelection();
 });

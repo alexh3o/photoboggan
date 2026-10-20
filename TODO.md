@@ -2,9 +2,7 @@
 
 ## 🚀 Next in line
 
-
-
-- [ ] feat: allow **rating per image in comparison** mode
+- [ ] feat: Allow **rating per image in comparison** mode
 - [ ] fix: Le **redimensionnement de la fenêtre en petite taille** ne se passe pas bien, les panneaux deviennent illisibles en bandes très fines. il faut que ce soient les miniatures qui servent de variable d'ajustement, à affiner**
 - [ ] FEAT: Ajouter une fonction de de **redimensionnement** dans les actions, avec choix
   - [ ] du dossier de destination
@@ -19,8 +17,9 @@
 
 ## 💡 Ideas and longer term evolutions
 
-- [ ] Add **Linux** release
+- [x] Add **Linux** release
   - [ ] Check window resizing controls
+  - [ ] Test linux release
 - [ ] Allow **keywords management & file write** (big one)
   - [ ] Implement tree structure matching existing pictures, handle active/inactive kw in each branch, implement vizualisation per picture, pictures & collection
   - [ ] Allow adding keyword in tree

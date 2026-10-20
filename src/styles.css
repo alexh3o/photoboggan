@@ -191,6 +191,20 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .preview-cell.dragging { cursor: grabbing; }
 .preview-cell img { position: absolute; top: 0; left: 0; max-width: none; max-height: none; transform-origin: 0 0; opacity: 0; transition: opacity 0.25s ease; user-select: none; -webkit-user-drag: none; pointer-events: none; will-change: transform; }
 .preview-cell.loaded img { opacity: 1; }
+/* Mode Comparer, plusieurs photos : un clic sur une case l'ajoute ou la retire de la sous-sélection, repérée par l'icône circle-check-big (lucide) en haut à droite */
+.preview-stage.sub-selectable .preview-cell { cursor: pointer; }
+.preview-stage.sub-selectable .preview-cell.dragging { cursor: grabbing; }
+.preview-check { position: absolute; top: 8px; right: 8px; z-index: 2; display: none; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; background: rgba(0, 0, 0, 0.6); color: var(--selected-border); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: none; }
+.preview-check svg { display: block; width: 1.5rem; height: 1.5rem; }
+.preview-cell.sub-selected .preview-check { display: flex; }
+/* Étoiles (à gauche) et pastille de couleur (à droite) en bas de chaque case de l'aperçu */
+.preview-meta { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; justify-content: space-between; align-items: flex-end; padding: 6px 10px; pointer-events: none; }
+.preview-meta .thumbnail-rating { font-size: 1.1rem; }
+.preview-meta .flag-indicator { width: 0.9rem; height: 0.9rem; }
+/* Les repères sont placés d'après l'image : masqués tant qu'elle n'est pas chargée */
+.preview-cell:not(.loaded) .preview-check, .preview-cell:not(.loaded) .preview-meta { visibility: hidden; }
+/* Le bouton Aperçu est inactif tant que le mode Comparer est actif (l'aperçu reste affiché) */
+#btn-toggle-preview:disabled { opacity: 0.6; cursor: default; }
 .compare-option { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; vertical-align: middle; color: var(--text-muted); font-size: 0.75rem; white-space: nowrap; cursor: pointer; }
 .compare-option input { accent-color: var(--accent); }
 .compare-option.hidden { display: none; }
