@@ -255,6 +255,12 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .close-x:hover { color: var(--btn-text); background: transparent; }
 .modal-header-actions { display: flex; align-items: center; gap: 4px; }
 .modal-header-actions .close-x { display: inline-flex; align-items: center; padding: 4px 8px; }
+/* Choix de dossier de l'application */
+.settings-path-label { display: block; padding: 8px 10px; margin-bottom: 8px; background: var(--row-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.75rem; color: var(--text-strong); word-break: break-all;  user-select: text; }
+.settings-storage-actions { display: flex; gap: 8px; }
+.settings-storage-actions button { margin-bottom: 0;}
+.btn-secondary { background: var(--control-bg); color: var(--btn-text); border: 1px solid var(--control-border); padding: 8px 12px; font-weight: bold; border-radius: 4px; cursor: pointer;  white-space: nowrap; }
+.btn-secondary:hover { background: var(--control-hover); }
 
 /* MODALE DE TRI */
 .sort-card { width: min(380px, calc(100vw - 40px)); }
