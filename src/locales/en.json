@@ -65,6 +65,7 @@
   "{count} file already in this folder|other": "{count} files already in this folder",
   "Move failed: {error}": "Move failed: {error}",
   "Move to a folder": "Move to a folder of the tree",
+  "Copy to a folder": "Copy to a folder of the tree",
   "Drag": "Drag",
   "Thumbnails grid":"Thumbnails grid",
   "Square":"Square",

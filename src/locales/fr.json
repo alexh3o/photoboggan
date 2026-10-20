@@ -64,6 +64,7 @@
   "{count} file already in this folder|other": "{count} fichiers déjà dans ce dossier",
   "Move failed: {error}": "Échec du déplacement : {error}",
   "Move to a folder": "Déplacer vers un dossier de l'arborescence",
+  "Copy to a folder": "Copier vers un dossier de l'arborescence",
   "Drag": "Glisser",
   "Thumbnails grid":"Disposition des miniatures",
   "Square":"Carré",

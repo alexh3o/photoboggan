@@ -20,9 +20,7 @@ package-lock.json
 src-tauri/Cargo.lock
 
 # Tools
-get_photos.py
-test_photos_github/*
-Release Workflow Memo.md
+dev_tools/*
 
 # Editor directories and files
 .vscode/*
