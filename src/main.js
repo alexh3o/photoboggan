@@ -527,10 +527,27 @@ async function loadPhotos() {
   applyPhotoFilters();
 }
 
+function hasActiveFilters() {
+  const ratingThreshold = Number(document.getElementById('rating-filter')?.value ?? -1);
+  const hasRating = ratingThreshold >= 0;
+  const hasColor = colorFilters.size > 0;
+  const hasKeywords = keywordFilters.length > 0;
+  const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
+  return hasRating || hasColor || hasKeywords || hasDate;
+}
+
 function updateFilteredPhotosCount() {
   const countElement = document.getElementById('filtered-photos-count');
+  const clearBtn = document.getElementById('btn-clear-all-filters');
+  const isFiltered = hasActiveFilters();
+
+  if (clearBtn) {
+    clearBtn.classList.toggle('hidden', !isFiltered);
+  }
+
   if (countElement) {
-    countElement.textContent = tp('{count} photo displayed', photos.length);
+    const translationKey = isFiltered ? '{count} photo filtered' : '{count} photo displayed';
+    countElement.textContent = tp(translationKey, photos.length);
   }
 }
 
@@ -569,6 +586,33 @@ function applyPhotoFilters({ keepState = false } = {}) {
   }
   updateFilteredPhotosCount();
 }
+
+function clearAllFilters() {
+  // Réinitialise la note
+  const ratingSelect = document.getElementById('rating-filter');
+  if (ratingSelect) ratingSelect.value = '-1';
+
+  // Réinitialise les couleurs
+  colorFilters.clear();
+  document.querySelectorAll('#color-filter-bar .color-square').forEach(btn => setColorSquareChecked(btn, false));
+
+  // Réinitialise les mots-clés
+  keywordFilters = [];
+  const keywordInput = document.getElementById('keyword-filter-input');
+  if (keywordInput) keywordInput.value = '';
+  renderKeywordFilters();
+
+  // Réinitialise la date
+  dateFilterInput.value = '';
+  dateFilter = null;
+  updateDateFilterUI('');
+  closeDatePicker();
+
+  // Réapplique la liste sans aucun filtre
+  applyPhotoFilters();
+}
+
+document.getElementById('btn-clear-all-filters')?.addEventListener('click', clearAllFilters);
 
 function renderKeywordFilters() {
   const keywords = new Set();
