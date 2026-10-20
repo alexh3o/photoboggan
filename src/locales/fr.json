@@ -40,6 +40,7 @@
   "Size":"Taille",
   "Selection color":"Couleur des sélections",
   "Add folder":"Ajouter un dossier",
+  "Scanning folder {folder}…": "Découverte du dossier « {folder} » en cours",
   "Active Buttons color":"Couleur des boutons actifs",
   "Display":"Affichage",
   "Rescan all collection":"Relire toute la collection (!)",

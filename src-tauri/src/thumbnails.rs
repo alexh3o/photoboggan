@@ -3,6 +3,7 @@
 //! Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille demandée) :
 //! une photo de 24 Mpx n'est jamais décodée en pleine résolution. Le redimensionnement final est une moyenne
 //! par aires, l'orientation EXIF est appliquée sur la petite image, puis le résultat est écrit en JPEG.
+//! Pour les RAW, on ne fait jamais de décodage, on utilise le jpeg intégré aussi bien pour les miniatures que pour le plein écran
 //! Tout ce qui n'est pas géré (PNG, JPEG CMYK ou 16 bits, fichier corrompu…) renvoie une erreur :
 //! l'interface utilise alors son ancienne génération dans le webview.
 
@@ -46,30 +47,6 @@ pub fn jpeg_size(path: &Path) -> Result<ThumbnailSize, String> {
     Ok(ThumbnailSize { width: info.width as u32, height: info.height as u32 })
 }
 
-/// Décode le JPEG en RGB, déjà réduit par le décodeur : le plus grand côté reste >= 1,5 x THUMBNAIL_MAX_SIDE
-/// quand l'original est assez grand, sans jamais agrandir une petite image.
-//fn decode_scaled_rgb(source: &Path) -> Result<(Vec<u8>, usize, usize), String> {
-//    let file = File::open(source).map_err(|error| error.to_string())?;
-//    let mut decoder = Decoder::new(BufReader::with_capacity(256 * 1024, file));
-//    decoder.read_info().map_err(|error| format!("JPEG illisible : {error}"))?;
-//    // Le décodeur réduit au plus à 1/8 avec un seul coefficient DC par bloc, trop approximatif pour la chrominance :
-//    // on lui demande 1,5 fois la taille cible (au moins 1/4 pour une photo de 24 Mpx), puis on termine par un
-//    // redimensionnement par moyenne des aires.
-//    let side = (THUMBNAIL_MAX_SIDE * 3 / 2) as u16;
-//    decoder.scale(side, side).map_err(|error| format!("Réduction JPEG impossible : {error}"))?;
-//    let pixels = decoder.decode().map_err(|error| format!("Décodage JPEG impossible : {error}"))?;
-//    let info = decoder.info().ok_or("En-tête JPEG absent")?;
-//    let (width, height) = (info.width as usize, info.height as usize);
-//    let rgb = match info.pixel_format {
-//        PixelFormat::RGB24 => pixels,
-//        PixelFormat::L8 => pixels.iter().flat_map(|&value| [value, value, value]).collect(),
-//        PixelFormat::L16 | PixelFormat::CMYK32 => return Err("Format de pixels JPEG non pris en charge".into()),
-//    };
-//    if width == 0 || height == 0 || rgb.len() != width * height * 3 {
-//        return Err("Dimensions JPEG incohérentes".into());
-//    }
-//    Ok((rgb, width, height))
-//}
 //// Tentative de decodage extraction preview raw
 use std::io::{Cursor, Read, Seek, SeekFrom};
 

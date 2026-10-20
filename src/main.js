@@ -927,9 +927,6 @@ function preloadFullscreenImages(index) {
       const image = new Image();
       fullscreenImageCache.set(i, image);
       const photoPath = photos[i].path;
-      //image.onerror = () => checkPhotoMissing(photoPath);
-      //image.src = photoUrl(photos[i]);
-      // Remplacmeent pur extracts RAW
       const photo = photos[i];
       image.onerror = () => checkPhotoMissing(photoPath);
       getPhotoDisplayUrl(photo).then(url => {
@@ -937,7 +934,6 @@ function preloadFullscreenImages(index) {
           image.src = url;
         }
       });
-      // Finde  remplacement
     }
   }
   for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
@@ -1425,10 +1421,20 @@ window.addEventListener('keydown', event => {
 document.getElementById('btn-add-folder').addEventListener('click', async () => {
   const dir = await open({ directory: true });
   if (dir) {
-    folders = await invoke('add_folder_and_scan', { path: dir });
-    renderFolderTree();
-    renderSettingsFolderList();
-    setTimeout(loadPhotos, 1000);
+    currentScanningFolderName = dir.split(/[\\/]/).filter(Boolean).pop() || dir;
+    folderScanRunning = true;
+    showTaskToast(t('Scanning folder {folder}…', { folder: currentScanningFolderName }), 0);
+
+    try {
+      folders = await invoke('add_folder_and_scan', { path: dir });
+      renderFolderTree();
+      renderSettingsFolderList();
+    } catch (error) {
+      folderScanRunning = false;
+      hideTaskToast();
+      console.error('Ajout de dossier impossible', error);
+      showWriteToast(t('Unable to read metadata: {error}', { error }));
+    }
   }
 });
 
@@ -1864,6 +1870,21 @@ function hideTaskToast() {
   taskToast.classList.add('hidden');
 }
 
+let folderScanRunning = false;
+let currentScanningFolderName = '';
+listenToBackend('folder-scan-progress', event => {
+  if (!folderScanRunning) return;
+  const percent = Number(event.payload) || 0;
+  showTaskToast(t('Scanning folder {folder}…', { folder: currentScanningFolderName }), percent);
+}).catch(error => console.debug('Suivi du scan de dossier indisponible', error));
+listenToBackend('scan-complete', () => {
+  if (folderScanRunning) {
+    folderScanRunning = false;
+    hideTaskToast();
+    loadPhotos(); // recharge automatiquement les photos dès que le scan s'achève
+  }
+}).catch(error => console.debug('Suivi de fin de scan indisponible', error));
+
 listenToBackend('rescan-progress', event => {
   if (!rescanRunning) return;
   rescanPercent = Math.max(rescanPercent, Number(event.payload) || 0); // jamais de recul si deux événements arrivent dans le désordre
@@ -1991,8 +2012,6 @@ function createPreviewSlot(photo) {
     layoutPreviewSlot(slot);
   });
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
-  //img.src = photoUrl(photo);
-  // Remplacement pour brancher l'extracteur jpeg des raw
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
   getPhotoDisplayUrl(photo).then(url => {
     if (previewSlots.includes(slot)) {
@@ -2001,7 +2020,6 @@ function createPreviewSlot(photo) {
   });
   cell.appendChild(img);
   return slot;
-  // Fin de remplacement
 }
 
 // Mode normal : la photo courante. Mode Comparer : la sélection (4 max), dans l'ordre de la grille.

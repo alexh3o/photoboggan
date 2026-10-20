@@ -158,9 +158,19 @@ fn get_folders(state: State<'_, AppState>) -> Vec<TrackedFolder> {
 
 #[tauri::command]
 async fn add_folder_and_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String) -> Result<Vec<TrackedFolder>, String> {
+    // 1. Ajout immédiat en base SQLite et récupération de la liste à jour
     db::add_folder(&state.db_pool, &path)?;
-    run_scan(app, state.db_pool.clone(), path, None).await;
-    Ok(db::get_folders(&state.db_pool))
+    let folders = db::get_folders(&state.db_pool);
+
+    // 2. Scan exécuté en tâche de fond pour ne pas bloquer l'affichage de l'interface
+    let pool = state.db_pool.clone();
+    let scan_path = path.clone();
+    tokio::spawn(async move {
+        run_scan(app, pool, scan_path, ScanMode::FolderScan).await;
+    });
+
+    // 3. Renvoi immédiat pour affichage instantané dans les paramètres et l'arborescence
+    Ok(folders)
 }
 
 #[tauri::command]
@@ -169,8 +179,14 @@ fn remove_folder(state: State<'_, AppState>, id: i64, path: String) -> Result<Ve
     Ok(db::get_folders(&state.db_pool))
 }
 
-// `progress` : (rang du dossier, nombre de dossiers) pour publier l'avancement (rescan complet) ; None = pas d'événement.
-async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, progress: Option<(usize, usize)>) {
+#[derive(Clone, Copy)]
+enum ScanMode {
+    Rescan { index: usize, count: usize },
+    FolderScan,
+}
+
+// `scan_mode` : mode de publication d'avancement (rescan global ou découverte d'un dossier)
+async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode) {
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
     let (tx, mut rx) = mpsc::channel::<(Photo, i64)>(100);
@@ -217,14 +233,26 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, progre
         let step = (total / 100).max(1);
         let done = AtomicUsize::new(0);
 
+        if entries.is_empty() {
+            if let ScanMode::FolderScan = scan_mode {
+                let _ = progress_app.emit("folder-scan-progress", 100u32);
+            }
+        }
+
         entries.par_iter().for_each(|entry| {
             // Progression (rescan complet seulement) : un événement environ tous les 1 % du dossier, ramené à l'ensemble
             // des dossiers suivis. Valeur approximative : l'ordre d'arrivée entre threads n'est pas garanti.
             let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-            if let Some((index, count)) = progress {
-                if finished % step == 0 || finished == total {
-                    let percent = (index as f64 + finished as f64 / total as f64) / count.max(1) as f64 * 100.0;
-                    let _ = progress_app.emit("rescan-progress", percent.round() as u32);
+            if finished % step == 0 || finished == total {
+                match scan_mode {
+                    ScanMode::Rescan { index, count } => {
+                        let percent = (index as f64 + finished as f64 / total as f64) / count.max(1) as f64 * 100.0;
+                        let _ = progress_app.emit("rescan-progress", percent.round() as u32);
+                    }
+                    ScanMode::FolderScan => {
+                        let percent = (finished as f64 / total as f64) * 100.0;
+                        let _ = progress_app.emit("folder-scan-progress", percent.round() as u32);
+                    }
                 }
             }
             let path_str = entry.path().to_string_lossy().to_string();
@@ -269,7 +297,7 @@ async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>) -
     let folders = db::get_folders(&state.db_pool);
     let count = folders.len();
     for (index, folder) in folders.into_iter().enumerate() {
-        run_scan(app.clone(), state.db_pool.clone(), folder.path, Some((index, count))).await;
+        run_scan(app.clone(), state.db_pool.clone(), folder.path, ScanMode::Rescan { index, count }).await;
     }
     Ok(())
 }
