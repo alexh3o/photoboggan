@@ -616,14 +616,12 @@ function renderFolderTree() {
   folderTree.appendChild(allItem);
   const roots = folders.map(folder => ({ path: folder.path.replace(/[\\/]+$/, ''), name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path, children: new Map() }));
   const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  for (const photo of (folderTreePhotos.length ? folderTreePhotos : loadedPhotos)) {
-    const photoPath = photo.path.replace(/\\/g, '/');
-    const parent = photoPath.slice(0, photoPath.lastIndexOf('/'));
+  const addFolderToTree = parent => {
     const root = roots.find(candidate => {
       const rootPath = candidate.path.replace(/\\/g, '/').replace(/\/+$/, '');
       return normalize(parent) === normalize(rootPath) || normalize(parent).startsWith(`${normalize(rootPath)}/`);
     });
-    if (!root) continue;
+    if (!root) return;
     const rootPath = root.path.replace(/\\/g, '/').replace(/\/+$/, '');
     const relative = parent.slice(rootPath.length).replace(/^\//, '');
     let node = root;
@@ -633,10 +631,17 @@ function renderFolderTree() {
       if (!node.children.has(segment)) node.children.set(segment, { path: currentPath, name: segment, children: new Map() });
       node = node.children.get(segment);
     }
+  };
+  for (const photo of (folderTreePhotos.length ? folderTreePhotos : loadedPhotos)) {
+    const photoPath = photo.path.replace(/\\/g, '/');
+    addFolderToTree(photoPath.slice(0, photoPath.lastIndexOf('/')));
   }
+  // Dossiers créés depuis l'application et encore vides : l'arborescence est déduite des photos, ils n'y figureraient pas sinon.
+  for (const folderPath of createdFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''));
   const renderNode = (node, parentElement, depth, isRoot = false) => {
     const li = document.createElement('li');
     li.className = `folder-tree-item ${currentFolderFilter && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''}`;
+    li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
     li.style.paddingLeft = `${10 + depth * 16}px`;
     const hasChildren = node.children.size > 0;
     const key = normalize(node.path);
@@ -666,7 +671,14 @@ function renderFolderTree() {
 }
 
 const folderTreeExpanded = new Set();
+const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
 let folderTreeInitialized = false;
+// Appelé après la création d'un sous-dossier : il apparaît tout de suite dans l'arborescence, dossier parent déplié.
+function addCreatedFolder(parentPath, name) {
+  createdFolders.add(`${parentPath.replace(/[\\/]+$/, '')}/${name}`);
+  folderTreeExpanded.add(parentPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase());
+  renderFolderTree();
+}
 function selectFolder(path) {
   currentFolderFilter = path;
   renderFolderTree();
@@ -1935,10 +1947,11 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
 document.querySelectorAll('#selection-rating-stars button').forEach(button => {
   button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating)));
 });
-// Rescan complet : relit les métadonnées de tous les fichiers. Un toast affiche le nom de la tâche et son avancement approximatif
-// (événements « rescan-progress » du backend, en pourcentage) ; il disparaît quand la tâche est terminée.
+// Rescan : relit les métadonnées des fichiers de toute la collection, ou d'un seul dossier (menu contextuel de l'arborescence). Un toast affiche
+// le nom de la tâche et son avancement approximatif (événements « rescan-progress » du backend, en pourcentage) ; il disparaît quand la tâche est terminée.
 let rescanRunning = false;
 let rescanPercent = 0;
+let rescanTaskName = '';
 const taskToast = document.getElementById('task-toast');
 
 function showTaskToast(name, percent) {
@@ -1968,23 +1981,45 @@ listenToBackend('scan-complete', () => {
 listenToBackend('rescan-progress', event => {
   if (!rescanRunning) return;
   rescanPercent = Math.max(rescanPercent, Number(event.payload) || 0); // jamais de recul si deux événements arrivent dans le désordre
-  showTaskToast(t('Collection data rescan'), rescanPercent);
+  showTaskToast(rescanTaskName, rescanPercent);
 }).catch(error => console.debug('Suivi de la progression indisponible', error));
 
-document.getElementById('btn-rescan-folders').addEventListener('click', async () => {
-  if (rescanRunning) return;
+// Recharge les photos après un rescan. L'arborescence est construite depuis la liste complète de la collection : quand un dossier est
+// filtré, cette liste est relue aussi, sinon un sous-dossier découvert par le rescan n'y apparaîtrait pas.
+async function reloadPhotosAfterRescan() {
+  if (currentFolderFilter !== null) {
+    folderTreePhotos = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: null, recursive: includeSubfolders });
+  }
+  await loadPhotos();
+}
+
+// Un seul rescan (ou scan de dossier ajouté) à la fois : ils partagent le toast de progression et l'événement de fin de scan.
+async function runRescan(taskName, command, args = {}) {
+  if (rescanRunning || folderScanRunning) return;
   rescanRunning = true;
   rescanPercent = 0;
-  showTaskToast(t('Collection data rescan'), 0);
+  rescanTaskName = taskName;
+  showTaskToast(taskName, 0);
   try {
-    await invoke('rescan_all_folders');
-    showTaskToast(t('Collection data rescan'), 100);
-    await loadPhotos();
+    await invoke(command, args);
+    showTaskToast(taskName, 100);
+    await reloadPhotosAfterRescan();
+  } catch (error) {
+    console.error('Rescan impossible', error);
+    showWriteToast(t('Rescan failed: {error}', { error }));
   } finally {
     rescanRunning = false;
     hideTaskToast();
   }
-});
+}
+
+document.getElementById('btn-rescan-folders').addEventListener('click', () => runRescan(t('Collection data rescan'), 'rescan_all_folders'));
+
+// Rescan d'un dossier de l'arborescence (sous-dossiers compris), lancé depuis son menu contextuel.
+function rescanFolder(path) {
+  const name = path.split(/[\\/]/).filter(Boolean).pop() || path;
+  return runRescan(t('Folder data rescan: {folder}', { folder: name }), 'rescan_folder', { path });
+}
 
 // ==========================================
 // APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER
@@ -2312,6 +2347,7 @@ document.getElementById('btn-toggle-compare').addEventListener('click', event =>
 // ==========================================
 const GRID_DRAG_THRESHOLD = 5; // pixels avant de considérer un glissement (sinon c'est un clic)
 let gridDrag = null;
+let photoDrag = null; // glisser-déposer de photos vers l'arborescence (voir plus bas)
 let suppressGridClick = false;
 
 // Inertie : au relâchement d'un glissement rapide, le défilement continue puis ralentit progressivement (décroissance exponentielle,
@@ -2375,6 +2411,13 @@ gridContainer.addEventListener('pointerdown', event => {
   const stoppedInertia = stopGridInertia(); // un clic sur la grille qui défile l'arrête
   const bounds = gridContainer.getBoundingClientRect();
   if (event.clientX - bounds.left >= gridContainer.clientWidth) return; // barre de défilement
+  // Maj + bouton tenu sur une miniature : on glisse les photos vers un dossier de l'arborescence pour les déplacer ; Ctrl + bouton tenu : pour les copier
+  // (le glissement simple fait défiler la grille).
+  const pressedThumbnail = (event.shiftKey || event.ctrlKey) && event.target instanceof Element ? event.target.closest('.thumbnail') : null;
+  if (pressedThumbnail) {
+    photoDrag = { pointerId: event.pointerId, mode: event.shiftKey ? 'move' : 'copy', startX: event.clientX, startY: event.clientY, index: Number(pressedThumbnail.dataset.index), active: false, cancelled: false, targets: [], ghost: null, dropItem: null };
+    return;
+  }
   gridDrag = { pointerId: event.pointerId, startY: event.clientY, startScrollTop: gridContainer.scrollTop, active: false, stoppedInertia, samples: [] };
 });
 
@@ -2418,6 +2461,167 @@ gridContainer.addEventListener('click', event => {
   event.stopPropagation();
   event.preventDefault();
 }, true);
+
+// ==========================================
+// DÉPLACEMENT ET COPIE DE PHOTOS PAR GLISSER-DÉPOSER VERS L'ARBORESCENCE
+// ==========================================
+// Maj + bouton tenu sur une miniature, puis glisser sur un dossier de l'arborescence et relâcher : les photos sélectionnées y sont déplacées
+// (fichiers déplacés sur le disque). Avec Ctrl au lieu de Maj, elles sont copiées (un « + » vert s'affiche sur la vignette). Si la miniature saisie
+// n'est pas sélectionnée, seule elle est concernée. Échap annule. Un simple Maj + clic ou Ctrl + clic, sans glissement, garde son rôle habituel
+// (sélection d'une plage, ajout ou retrait de la sélection).
+const PHOTO_DRAG_THRESHOLD = 6; // pixels avant de considérer un glissement (sinon c'est un clic)
+let photoMoveRunning = false;
+
+function folderItemAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  return element instanceof Element ? element.closest('#folder-tree .folder-tree-item[data-folder-path]') : null;
+}
+
+// Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
+function startPhotoDrag(drag) {
+  if (!selectedIndices.has(drag.index)) {
+    selectedIndices.clear();
+    selectedIndices.add(drag.index);
+    lastSelectedIndex = drag.index;
+    updateUIOnSelection();
+  }
+  drag.targets = [...selectedIndices].sort((a, b) => a - b).map(index => photos[index]).filter(Boolean);
+  if (!drag.targets.length) return false;
+  drag.active = true;
+  gridContainer.setPointerCapture(drag.pointerId); // les événements continuent d'arriver au-dessus de l'arborescence
+  const ghost = document.createElement('div');
+  ghost.className = drag.mode === 'copy' ? 'drag-ghost copy' : 'drag-ghost';
+  const source = renderedThumbnailNodes.get(drag.index)?._thumbnailImage;
+  if (source?.src) {
+    const image = document.createElement('img');
+    image.src = source.src;
+    image.alt = '';
+    ghost.append(image);
+  }
+  const badge = document.createElement('span');
+  badge.textContent = String(drag.targets.length);
+  ghost.append(badge);
+  document.body.append(ghost);
+  drag.ghost = ghost;
+  document.body.classList.add('dragging-photos');
+  return true;
+}
+
+function clearPhotoDragVisuals(drag) {
+  drag.ghost?.remove();
+  drag.ghost = null;
+  drag.dropItem?.classList.remove('drop-target');
+  drag.dropItem = null;
+  document.body.classList.remove('dragging-photos');
+}
+
+gridContainer.addEventListener('pointermove', event => {
+  const drag = photoDrag;
+  if (!drag || drag.cancelled || event.pointerId !== drag.pointerId) return;
+  if (!drag.active) {
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < PHOTO_DRAG_THRESHOLD) return;
+    if (!startPhotoDrag(drag)) { photoDrag = null; return; }
+  }
+  drag.ghost.style.transform = `translate(${event.clientX + 12}px, ${event.clientY + 12}px)`;
+  const item = folderItemAt(event.clientX, event.clientY);
+  if (item !== drag.dropItem) {
+    drag.dropItem?.classList.remove('drop-target');
+    item?.classList.add('drop-target');
+    drag.dropItem = item;
+  }
+});
+
+function endPhotoDrag(event, released) {
+  const drag = photoDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  photoDrag = null;
+  if (!drag.active) return; // Maj ou Ctrl + clic simple : le clic gère la sélection
+  clearPhotoDragVisuals(drag);
+  // Le clic qui suit un glissement ne doit pas changer la sélection.
+  suppressGridClick = true;
+  setTimeout(() => { suppressGridClick = false; }, 0);
+  if (!released || drag.cancelled) return;
+  const folderPath = folderItemAt(event.clientX, event.clientY)?.dataset.folderPath;
+  if (!folderPath) return;
+  if (drag.mode === 'copy') copyPhotosToFolder(drag.targets, folderPath);
+  else movePhotosToFolder(drag.targets, folderPath);
+}
+gridContainer.addEventListener('pointerup', event => endPhotoDrag(event, true));
+gridContainer.addEventListener('pointercancel', event => endPhotoDrag(event, false));
+// Échap pendant le glissement : annule le déplacement (le relâché du bouton ne fait alors plus rien).
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !photoDrag?.active || photoDrag.cancelled) return;
+  event.preventDefault();
+  photoDrag.cancelled = true;
+  clearPhotoDragVisuals(photoDrag);
+});
+
+async function movePhotosToFolder(targets, folderPath) {
+  if (photoMoveRunning || !targets.length) return;
+  photoMoveRunning = true;
+  showWriteToast(tp('Moving {count} file…', targets.length), true);
+  try {
+    const result = await invoke('move_photos', { paths: targets.map(photo => photo.path), destination: folderPath });
+    if (result.failed.length) console.error('Déplacement : échecs', result.failed);
+    if (result.moved.length) await applyMovedPhotos(result.moved);
+    const parts = [];
+    if (result.moved.length) parts.push(tp('{count} file moved', result.moved.length));
+    if (result.skipped) parts.push(tp('{count} file already in this folder', result.skipped));
+    if (result.failed.length) parts.push(tp('{count} failure', result.failed.length));
+    showWriteToast(!result.moved.length && !result.skipped && result.failed.length
+      ? t('Move failed: {error}', { error: result.failed[0].error })
+      : parts.join(' · '));
+  } catch (error) {
+    showWriteToast(t('Move failed: {error}', { error }));
+  } finally {
+    photoMoveRunning = false;
+  }
+}
+
+// Copie (Ctrl + glisser) : les fichiers originaux sont copiés dans le dossier, puis la synchronisation incrémentale les ajoute au catalogue (le backend
+// ne lit que les nouveaux fichiers). Le même indicateur que le déplacement suspend la synchronisation automatique pendant l'opération.
+async function copyPhotosToFolder(targets, folderPath) {
+  if (photoMoveRunning || !targets.length) return;
+  photoMoveRunning = true;
+  showWriteToast(tp('Copying {count} file…', targets.length), true);
+  try {
+    const result = await invoke('copy_photos_to_tracked_folder', { paths: targets.map(photo => photo.path), destination: folderPath });
+    if (result.failed.length) console.error('Copie : échecs', result.failed);
+    if (result.copied) {
+      const changes = await invoke('sync_library');
+      if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
+    }
+    showWriteToast(!result.copied && result.failed.length
+      ? t('Copy failed: {error}', { error: result.failed[0].error })
+      : `${tp('{count} file copied', result.copied)}${result.failed.length ? ` · ${tp('{count} failure', result.failed.length)}` : ''}`);
+  } catch (error) {
+    showWriteToast(t('Copy failed: {error}', { error }));
+  } finally {
+    photoMoveRunning = false;
+  }
+}
+
+// Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrouvée par
+// chemin, puis la liste est relue depuis la base sans remonter la grille : une photo déplacée hors du dossier affiché en disparaît.
+async function applyMovedPhotos(moved) {
+  const destinations = new Map(moved.map(item => [item.from, item.to]));
+  const rename = list => {
+    for (const photo of list) {
+      const destination = destinations.get(photo.path);
+      if (!destination) continue;
+      thumbnailCacheLookups.delete(photo.path);
+      photo.path = destination;
+      photo.filename = destination.split(/[\\/]/).pop() || photo.filename;
+      delete photo.folderPath; // recalculés par photoFolder() pour le tri et les séparateurs
+      delete photo.folderSegments;
+    }
+  };
+  rename(loadedPhotos);
+  if (folderTreePhotos !== loadedPhotos) rename(folderTreePhotos);
+  previewSignature = ''; // force le rechargement de l'aperçu
+  fullscreenImageCache.clear();
+  await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
+}
 
 // ==========================================
 // FILTRE DE DATE (date de prise de vue EXIF)
@@ -2749,6 +2953,8 @@ initPhotoActions({
   },
   removePhotos: removePhotosFromLibrary,
   showToast: showWriteToast,
+  rescanFolder,
+  folderCreated: addCreatedFolder,
 });
 
 // ==========================================
@@ -2762,7 +2968,7 @@ let librarySyncRunning = false;
 let librarySyncNotBefore = 0;
 
 async function syncLibraryWithDisk() {
-  if (librarySyncRunning || rescanRunning || Date.now() < librarySyncNotBefore) return;
+  if (librarySyncRunning || rescanRunning || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
   librarySyncRunning = true;
   const startedAt = Date.now();
   try {

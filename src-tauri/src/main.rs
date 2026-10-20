@@ -302,6 +302,71 @@ async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>) -
     Ok(())
 }
 
+fn path_segments(path: &str) -> Vec<&str> {
+    path.split(|character| character == '\\' || character == '/').filter(|segment| !segment.is_empty()).collect()
+}
+
+// Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
+// L'arborescence de l'interface assemble ses chemins avec des « / » : les relire tels quels enregistrerait les photos sous un autre texte de chemin
+// (« D:\Photos/2024\a.jpg » au lieu de « D:\Photos\2024\a.jpg ») et créerait des doublons en base. Renvoie None si le dossier n'est pas suivi.
+fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
+    let requested_segments = path_segments(requested);
+    db::get_folders(pool).into_iter().find_map(|folder| {
+        let root_segments = path_segments(&folder.path);
+        let inside_root = !root_segments.is_empty()
+            && requested_segments.len() >= root_segments.len()
+            && root_segments.iter().zip(&requested_segments).all(|(root, part)| root.to_lowercase() == part.to_lowercase());
+        if !inside_root { return None; }
+        let mut resolved = PathBuf::from(&folder.path);
+        for segment in &requested_segments[root_segments.len()..] { resolved.push(segment); }
+        Some(resolved)
+    })
+}
+
+// Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
+// fichier sont relues. La progression est publiée par les mêmes événements « rescan-progress » (0 à 100 % du dossier).
+#[tauri::command]
+async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String) -> Result<(), String> {
+    let scan_path = resolve_tracked_folder(&state.db_pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    if !scan_path.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    run_scan(app, state.db_pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }).await;
+    Ok(())
+}
+
+// Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
+// Utilise le plugin opener déjà intégré, sans nouvelle dépendance.
+#[tauri::command(async)]
+fn open_folder_in_file_manager(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    let folder = resolve_tracked_folder(&state.db_pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    // Séparateurs uniformisés pour l'Explorateur (pas de « D:\Photos/2024 »).
+    let native: PathBuf = folder.components().collect();
+    let native = native.to_string_lossy().into_owned();
+    tauri_plugin_opener::open_path(native.as_str(), None::<&str>).map_err(|error| format!("Impossible d'ouvrir {native} : {error}"))
+}
+
+// Crée un sous-dossier dans un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi). Le nom est vérifié ici : un seul niveau,
+// sans caractère interdit par Windows (le même nom reste donc valide sous Linux et macOS), et jamais d'écrasement d'un dossier ou fichier existant.
+#[tauri::command(async)]
+fn create_subfolder(state: State<'_, AppState>, parent: String, name: String) -> Result<(), String> {
+    let name = name.trim();
+    let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4 && stem.as_bytes()[3].is_ascii_digit());
+    let invalid = name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.ends_with('.')
+        || reserved
+        || name.chars().any(|character| character.is_control() || "<>:\"/\\|?*".contains(character));
+    if invalid { return Err(format!("Nom de dossier invalide : « {name} »")); }
+    let parent_folder = resolve_tracked_folder(&state.db_pool, &parent).ok_or_else(|| format!("Dossier non suivi : {parent}"))?;
+    if !parent_folder.is_dir() { return Err(format!("Dossier introuvable : {parent}")); }
+    let target = parent_folder.join(name);
+    if target.exists() { return Err(format!("« {name} » existe déjà dans ce dossier")); }
+    fs::create_dir(&target).map_err(|error| format!("Création impossible : {error}"))
+}
+
 fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>, photos: &[Photo]) {
     let _ = conn.execute("BEGIN TRANSACTION", []);
     {
@@ -377,6 +442,20 @@ struct DeleteResult {
 #[derive(serde::Serialize)]
 struct CopyResult {
     copied: usize,
+    failed: Vec<FileFailure>,
+}
+
+#[derive(serde::Serialize)]
+struct MovedFile {
+    from: String,
+    to: String,
+}
+
+#[derive(serde::Serialize)]
+struct MoveResult {
+    moved: Vec<MovedFile>,
+    // Photos déjà dans le dossier de destination : ni déplacées, ni en échec.
+    skipped: usize,
     failed: Vec<FileFailure>,
 }
 
@@ -491,6 +570,95 @@ fn copy_sidecar(source: &Path, target: &Path) {
     if !to.exists() { let _ = fs::copy(from, to); }
 }
 
+fn lowercase_segments(path: &Path) -> Vec<String> {
+    path_segments(&path.to_string_lossy()).into_iter().map(|segment| segment.to_lowercase()).collect()
+}
+
+// Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
+// Si la copie réussit mais que l'original ne peut pas être supprimé, la copie est retirée : le fichier n'est jamais dupliqué.
+fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
+    if fs::rename(source, target).is_ok() { return Ok(()); }
+    if let Err(error) = fs::copy(source, target) {
+        let _ = fs::remove_file(target);
+        return Err(error);
+    }
+    if let Err(error) = fs::remove_file(source) {
+        let _ = fs::remove_file(target);
+        return Err(error);
+    }
+    Ok(())
+}
+
+// Sidecar XMP d'une photo déplacée : « photo.jpg.xmp » est déplacé avec elle. Un sidecar « photo.xmp » peut être partagé avec un autre fichier du même nom
+// (paire RAW + JPEG) : il est copié et l'original reste en place, pour ne pas priver l'autre fichier de ses métadonnées.
+fn move_sidecar(source: &Path, target: &Path) {
+    let appended = PathBuf::from(format!("{}.xmp", source.display()));
+    if appended.is_file() {
+        let destination = PathBuf::from(format!("{}.xmp", target.display()));
+        if !destination.exists() { let _ = move_file(&appended, &destination); }
+    } else {
+        copy_sidecar(source, target);
+    }
+}
+
+// Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
+// Un fichier de même nom n'est jamais écrasé : le fichier déplacé est renommé (« photo (1).jpg »). La ligne de la base est mise à jour (même id : note,
+// couleur et mots-clés sont conservés) et la miniature du cache, qui dépend du chemin, est supprimée.
+#[tauri::command(async)]
+fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<MoveResult, String> {
+    let destination_dir = resolve_tracked_folder(&state.db_pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
+    if !destination_dir.is_dir() { return Err(format!("Dossier de destination introuvable : {destination}")); }
+    let conn = state.db_pool.get().map_err(|error| error.to_string())?;
+    let destination_segments = lowercase_segments(&destination_dir);
+    let mut moved = Vec::new();
+    let mut skipped = 0;
+    let mut failed = Vec::new();
+    for path in paths {
+        let tracked: bool = conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
+            .unwrap_or(false);
+        if !tracked {
+            failed.push(FileFailure { path: path.clone(), error: "Photo absente du catalogue".into() });
+            continue;
+        }
+        let source = Path::new(&path);
+        let Some(file_name) = source.file_name() else {
+            failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() });
+            continue;
+        };
+        if source.parent().map_or(false, |parent| lowercase_segments(parent) == destination_segments) {
+            skipped += 1;
+            continue;
+        }
+        if !source.is_file() {
+            failed.push(FileFailure { path: path.clone(), error: "Fichier introuvable".into() });
+            continue;
+        }
+        let target = unique_destination(&destination_dir, file_name);
+        let cache_file = thumbnail_cache_file(&app, &path).ok();
+        if let Err(error) = move_file(source, &target) {
+            failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+            continue;
+        }
+        move_sidecar(source, &target);
+        if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
+        let new_path = target.to_string_lossy().into_owned();
+        let new_name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+        // Taille et date relues : une copie suivie d'une suppression (autre disque) change la date de modification.
+        let (size, modified) = fs::metadata(&target)
+            .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
+            .unwrap_or((0, 0));
+        // Une ligne périmée (fichier disparu) portant déjà le nouveau chemin bloquerait la mise à jour : la colonne path est unique.
+        let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![new_path]);
+        let _ = conn.execute(
+            "UPDATE photos SET path = ?, filename = ?, file_size = ?, modified = ? WHERE path = ?",
+            params![new_path, new_name, size, modified, path],
+        );
+        moved.push(MovedFile { from: path.clone(), to: new_path });
+    }
+    Ok(MoveResult { moved, skipped, failed })
+}
+
 // Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est jamais écrasé :
 // la copie est renommée (« photo (1).jpg »). Les dossiers suivis ne sont pas rescannés automatiquement.
 #[tauri::command(async)]
@@ -518,6 +686,15 @@ fn copy_photos(paths: Vec<String>, destination: String) -> Result<CopyResult, St
         }
     }
     Ok(CopyResult { copied, failed })
+}
+
+// Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (jamais d'écrasement, sidecar copié), mais la
+// destination doit être un dossier suivi ou l'un de ses sous-dossiers, et son chemin est reconstruit comme pour les autres commandes de dossier.
+// Les copies ne sont pas ajoutées au catalogue ici : l'interface lance ensuite la synchronisation incrémentale (sync_library).
+#[tauri::command(async)]
+fn copy_photos_to_tracked_folder(state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<CopyResult, String> {
+    let folder = resolve_tracked_folder(&state.db_pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
+    copy_photos(paths, folder.to_string_lossy().into_owned())
 }
 
 // Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
@@ -614,12 +791,17 @@ fn main() {
             get_raw_preview_path,
             save_thumbnail_cache,
             rescan_all_folders,
+            rescan_folder,
+            open_folder_in_file_manager,
+            create_subfolder,
             update_photo_metadata,
             get_photo_details,
             delete_photos,
             remove_missing_photos,
             sync_library,
             copy_photos,
+            copy_photos_to_tracked_folder,
+            move_photos,
             open_with,
             reveal_in_file_manager,
             copy_files_to_clipboard
