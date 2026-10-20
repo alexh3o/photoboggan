@@ -13,6 +13,7 @@ dist-ssr
 *.local
 # Local database
 *.db
+*.db-*
 
 # Locked files
 package-lock.json
@@ -21,6 +22,8 @@ src-tauri/Cargo.lock
 # Tools
 get_photos.py
 test_photos_github/*
+Release Workflow Memo.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
