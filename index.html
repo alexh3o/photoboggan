@@ -40,7 +40,12 @@
         <h3  data-i18n="Folders">Dossiers</h3>
         <ul id="folder-tree"></ul>
         <section class="photo-filters" aria-label="Filtres photo" data-i18n-aria-label="Photo filters">
-          <h3 data-i18n="Filters">Filtres</h3>
+          <div class="filters-header">
+            <h3 data-i18n="Filters">Filtres</h3>
+            <button id="btn-clear-all-filters" type="button" class="btn-clear-filters hidden" title="Effacer tous les filtres" aria-label="Effacer tous les filtres" data-i18n-title="Clear all filters" data-i18n-aria-label="Clear all filters">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-filter-x"><path d="M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055"/><path d="m22 3-5 5"/><path d="m17 3 5 5"/></svg>
+            </button>
+          </div>
           <span id="filtered-photos-count" class="selection-count"></span>
           <label for="rating-filter" data-i18n="Rating">Note</label>
           <select id="rating-filter">
