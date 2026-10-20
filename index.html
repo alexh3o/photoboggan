@@ -25,10 +25,6 @@
       <div class="actions">
         <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
         <button id="btn-open-sort" type="button" aria-haspopup="dialog"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-down preview-icon"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button>
-        <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
-          <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
-          <span id="thumbnail-size-value">160 px</span>
-        </label>
       </div>
       <div class="panel-toggles">
         <label id="compare-desync" class="compare-option hidden" style="display:none" title="Zoom et déplacement indépendants pour chaque image" data-i18n-title="Unlink move & zoom"><input id="compare-desync-toggle" type="checkbox" /><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-unlink preview-icon"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></svg> <span data-i18n="Desynchronize">Désynchroniser</span></label>
@@ -158,7 +154,6 @@
             <h4 data-i18n="Folders">Dossiers balayés</h4>
           <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
           <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
-          <label class="settings-row settings-check"><input id="recursive-folder-toggle" type="checkbox" checked /><p data-i18n="Include subfolders">Inclure les sous-dossiers</p></label>
           <ul id="settings-folder-list"></ul>
           </section>
           <section class="settings-section">
@@ -170,9 +165,6 @@
             <h4 data-i18n="Display">Affichage</h4>
             <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
               <select id="language-select"></select>
-            </label>
-            <label class="settings-row" for="thumbnail-layout" data-i18n="Thumbnails grid">Disposition des miniatures
-              <select id="thumbnail-layout"><option value="square" data-i18n="Square">Carrées</option><option value="justified" data-i18n="Justified">Justifiées</option><option value="masonry" data-i18n="Waterfall">Cascade</option></select>
             </label>
             <div class="settings-row" ><span data-i18n="Selection color">Couleur de sélection</span>
               <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
@@ -209,10 +201,20 @@
     <div id="sort-modal" class="modal hidden">
       <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="sort-modal-title">
         <div class="modal-header">
-          <h3 id="sort-modal-title" data-i18n="Sort thumbnails">Trier les miniatures</h3>
+          <h3 id="sort-modal-title" data-i18n="Display options">Options d'affichage</h3>
           <button id="btn-close-sort" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
+          <section class="settings-section">
+            <label class="settings-row settings-check"><input id="recursive-folder-toggle" type="checkbox" checked /><p data-i18n="Include subfolders">Inclure les sous-dossiers</p></label>
+            <label class="settings-row" for="thumbnail-layout" data-i18n="Thumbnails grid">Disposition des miniatures
+              <select id="thumbnail-layout"><option value="square" data-i18n="Square">Carrées</option><option value="justified" data-i18n="Justified">Justifiées</option><option value="masonry" data-i18n="Waterfall">Cascade</option></select>
+            </label>
+            <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
+              <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
+              <span id="thumbnail-size-value">160 px</span>
+            </label>
+          </section>
           <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
             <h4 id="sort-key-title" data-i18n="Sort by">Trier par</h4>
             <label class="settings-row settings-check"><input type="radio" name="sort-key" value="taken" /><span data-i18n="Date taken">Date de prise de vue</span></label>
