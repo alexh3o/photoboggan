@@ -77,7 +77,8 @@ window.addEventListener('DOMContentLoaded', () => {
   renderMaximizeButton();
   syncWindowState();
 
-  // MODE IMMERSIF (F11) : fenêtre en plein écran, par-dessus la barre des tâches, sans barre de titre. F11 y entre et en sort.
+  // MODE IMMERSIF (F11) : fenêtre en plein écran, par-dessus la barre des tâches, sans barre de titre.
+  // F11 y entre et en sort.
   // Ne pas confondre avec le plein écran d'une photo (touche F, double-clic).
   let immersiveToggleRunning = false;
   let maximizedBeforeImmersive = false;
@@ -123,7 +124,7 @@ let keywordFilters = [];
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
-let isFullscreen = false;
+let isFullscreen = false; // Etat d'affichage plein écran de photos
 let fullscreenRatingPinned = false;
 let fullscreenRatingTimeout = null;
 const fullscreenImageCache = new Map();

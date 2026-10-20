@@ -21,6 +21,7 @@ src-tauri/Cargo.lock
 
 # Tools
 dev_tools/*
+Files_4_AI/*
 
 # Editor directories and files
 .vscode/*

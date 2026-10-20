@@ -10,9 +10,8 @@
 - [x] Permettre le **choix du dossier d'enregistrement de la base de donnée**, des miniatures et paramétrages.
 - [x] **Immersive mode** (hide taskbar and menu bar)
 - [x] BUG: change minimize/maximize icon depending on status
-- [ ] BUG: Le **redimensionnement de la fenêtre en petite taille** ne se passe pas bien, les panneaux deviennent illisibles en bandes très fines. il faut que ce soient les miniatures qui servent de variable d'ajustement, à affiner
-- [ ] FEAT: Vérifier la présence d'une nouvelle release sur github et informer d'une **mise à jour disponible**
-- [ ] UI: finir d'implémenter la **variabilité de la taille des éléments UI** en rem au lieu de px
+- [ ] BUG: Le **redimensionnement de la fenêtre en petite taille** ne se passe pas bien, les panneaux deviennent illisibles en bandes très fines. il faut que ce soient les miniatures qui servent de variable d'ajustement, à affiner**
+- [x] UI: finir d'implémenter la **variabilité de la taille des éléments UI** en rem au lieu de px
 - [x] IMP: Ajouter un bouton pour **remettre à 0 tous les filtres** (sauf le dossier)
 - [ ] FEAT: Ajouter une fonction de de **redimensionnement** dans les actions, avec choix
   - [ ] du dossier de destination
@@ -25,6 +24,9 @@
 - [ ] FEAT: Associer des **raccourcis clavier pour les programmes de "Ouvrir avec"**
 - [x] IMP: Split rescan action per collection / tree root folder
 - [ ] UI: Ajouter le **nombre de photo total** de la collection, par dossier racine ajouté et par lecteur dans l'écran "A Propos".
+- [ ] feat: Vérifier la présence d'une nouvelle release sur github et informer d'une **mise à jour disponible** (à faire quand il y aura des releases non pre-release)
+
+
 
 ## 💡 Ideas and longer term evolutions
 

@@ -170,7 +170,9 @@ function createModal({ title, cardClass = '', onClose = null }) {
   return { overlay, card, body, close };
 }
 
-// Confirmation Oui / Non ; le focus est sur « Oui » (rouge) et les flèches du clavier passent de l'un à l'autre. Renvoie true uniquement si « Oui » est activé.
+// Confirmation Oui / Non
+// le focus est sur « Oui » (rouge) et les flèches du clavier passent de l'un à l'autre.
+// Renvoie true uniquement si « Oui » est activé.
 export function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
   return new Promise(resolve => {
     let answer = false;
@@ -644,7 +646,8 @@ function findTargetPhoto(target) {
   return null;
 }
 
-// Remplace le menu du navigateur : menu d'actions sur miniatures, aperçu et plein écran.
+// Remplace le menu contextuel du navigateur
+// Menu d'actions sur miniatures, aperçu et plein écran.
 function onContextMenu(event) {
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('input[type="text"], input:not([type]), textarea')) return;
