@@ -6,7 +6,7 @@
   - [ ] **Dossiers: choix de dossiers de la co**lelction
   - [ ] Ouvrir avec (liste des programmes)
   - [ ] Affichage: langue, couleur, disposition de  miniatures
-- [ ] UI: **déplacer le paramètre "inclure les sous-dossiers"** dans la modale de tri de l'affichage
+- [x] UI: **déplacer le paramètre "inclure les sous-dossiers"** dans la modale de tri de l'affichage
 - [ ] Permettre le **choix du dossier d'enregistrement de la base de donnée**, des miniatures et paramétrages.
 - [x] **Immersive mode** (hide taskbar and menu bar)
 - [x] BUG: change minimize/maximize icon depending on status
