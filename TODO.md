@@ -2,18 +2,18 @@
 
 ## 🚀 Next in line
 
-- [ ] UI: **Séparer la modale de paramètres en onglets**
-  - [ ] **Dossiers: choix de dossiers de la co**lelction
-  - [ ] Ouvrir avec (liste des programmes)
-  - [ ] Affichage: langue, couleur, disposition de  miniatures
+- [x] UI: **Séparer la modale de paramètres en onglets**
+  - [x] **Dossiers: choix de dossiers de la co**llection
+  - [x] Ouvrir avec (liste des programmes)
+  - [x] Affichage: langue, couleur, disposition de  miniatures
 - [x] UI: **déplacer le paramètre "inclure les sous-dossiers"** dans la modale de tri de l'affichage
-- [ ] Permettre le **choix du dossier d'enregistrement de la base de donnée**, des miniatures et paramétrages.
+- [x] Permettre le **choix du dossier d'enregistrement de la base de donnée**, des miniatures et paramétrages.
 - [x] **Immersive mode** (hide taskbar and menu bar)
 - [x] BUG: change minimize/maximize icon depending on status
 - [ ] BUG: Le **redimensionnement de la fenêtre en petite taille** ne se passe pas bien, les panneaux deviennent illisibles en bandes très fines. il faut que ce soient les miniatures qui servent de variable d'ajustement, à affiner
 - [ ] FEAT: Vérifier la présence d'une nouvelle release sur github et informer d'une **mise à jour disponible**
 - [ ] UI: finir d'implémenter la **variabilité de la taille des éléments UI** en rem au lieu de px
-- [ ] IMP: Ajouter un bouton pour **remettre à 0 tous les filtres** (sauf le dossier)
+- [x] IMP: Ajouter un bouton pour **remettre à 0 tous les filtres** (sauf le dossier)
 - [ ] FEAT: Ajouter une fonction de de **redimensionnement** dans les actions, avec choix
   - [ ] du dossier de destination
   - [ ] de la qualité jpeg
