@@ -17,7 +17,7 @@ use jpeg_decoder::{Decoder, PixelFormat};
 use jpeg_encoder::{ColorType, Encoder};
 
 /// Plus grand côté des miniatures du cache (identique à l'ancienne génération côté interface).
-pub const THUMBNAIL_MAX_SIDE: usize = 512;
+//pub const THUMBNAIL_MAX_SIDE: usize = 512;
 const THUMBNAIL_JPEG_QUALITY: u8 = 84;
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);

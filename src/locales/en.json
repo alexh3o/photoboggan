@@ -244,5 +244,9 @@
   "Maximize": "Maximize",
   "Restore down": "Restore down",
   "Window": "Window",
-  "Immersive mode": "Immersive mode (title bar and taskbar hidden)"
+  "Immersive mode": "Immersive mode (title bar and taskbar hidden)",
+  "Compare mode: first click one or more photos in the preview": "Compare mode: first click one or more photos in the preview",
+  "Click": "Click",
+  "Compare select all": "Compare mode: select all photos in the preview (or deselect them all)",
+  "Compare sub-selection": "Compare mode: (de)select a photo in the preview to rate, color or delete it"
 }

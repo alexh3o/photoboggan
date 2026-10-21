@@ -198,7 +198,7 @@ fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max_side:
     Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
 }
 
-// Extraction fichier jpeg intégré au RAW
+// Extraction de fichier jpeg intégré au RAW
 fn raw_preview_cache_file(raw_previews_dir: &Path, source_path: &str) -> Result<PathBuf, String> {
     let metadata = fs::metadata(source_path).map_err(|error| error.to_string())?;
     let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH)
