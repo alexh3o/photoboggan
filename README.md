@@ -81,7 +81,7 @@ Photofile is built with a clear purpose: **accelerate photo sorting, rating, com
 | `Ctrl` + `Wheel`      | Preview / Fullscreen   | Smooth zoom around cursor                         |
 | `Ctrl` + `C`          | Grid / Selection       | Copy original files to OS clipboard               |
 | `C`                   | Grid / Selection       | Copy to a selected folder                         |
-| `Delete`              | Grid / Compare         | Delete selected file(s) permanently               |
+| `Delete`              | Grid / Compare         | Move selected file(s) to the OS trash             |
 | `I`                   | Selection              | Open detailed Metadata dialog (EXIF / XMP / IPTC) |
 | `E`                   | Selection              | Reveal photo in default File Manager              |
 | `F11`                 | Global                 | Toggle Immersive Mode (borderless fullscreen)     |
@@ -97,6 +97,7 @@ Photofile is built with a clear purpose: **accelerate photo sorting, rating, com
   - `kamadak-exif` for metadata decoding.
   - `jpeg-decoder` (scaled DCT) & `jpeg-encoder` for native thumbnail rendering.
   - `clipboard-rs` for cross-platform OS clipboard operations.
+  - `trash` to send deleted photos to the OS trash / recycle bin.
   - `rusqlite` + `r2d2` for transactional SQLite storage in WAL mode.
 - **Frontend**: Pure Vanilla JavaScript (ES modules), HTML5, and responsive CSS (Vite build system)—zero runtime framework overhead.
 
@@ -225,7 +226,7 @@ Photofile a été conçu dans un but précis : **accélérer le tri, la notation
 | `Ctrl` + `Molette`   | Aperçu / Plein écran    | Zoom fluide centré sur le curseur                            |
 | `Ctrl` + `C`         | Grille / Sélection      | Copier les fichiers originaux dans le presse-papiers OS      |
 | `C`                  | Grille / Sélection      | Copier vers un dossier sélectionné                           |
-| `Suppr`              | Grille / Comparer       | Supprimer définitivement la ou les photos                    |
+| `Suppr`              | Grille / Comparer       | Placer la ou les photos dans la corbeille de l'OS            |
 | `I`                  | Sélection               | Ouvrir la fiche d'informations détaillée (EXIF / XMP / IPTC) |
 | `E`                  | Sélection               | Révéler le fichier dans le gestionnaire de fichiers OS       |
 | `F11`                | Global                  | Mode immersif (plein écran sans barre de titre)              |
@@ -241,6 +242,7 @@ Photofile a été conçu dans un but précis : **accélérer le tri, la notation
   - `kamadak-exif` pour le décodage des métadonnées.
   - `jpeg-decoder` (DCT réduit) et `jpeg-encoder` pour la génération native des miniatures.
   - `clipboard-rs` pour la gestion multiplateforme du presse-papiers natif.
+  - `trash` pour envoyer les photos supprimées dans la corbeille de l'OS.
   - `rusqlite` + `r2d2` pour le stockage local SQLite transactionnel en mode WAL.
 - **Frontend** : JavaScript Vanilla (modules ES), HTML5 et CSS moderne avec Vite (zéro surcharge de framework).
 

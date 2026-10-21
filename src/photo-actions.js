@@ -323,12 +323,12 @@ export async function confirmAndDelete(targets) {
   const count = targets.length;
   const confirmed = await confirmDialog({
     title: t('Confirm deletion'),
-    message: tp('Permanently delete {name}? This cannot be undone.', count, { name: photoName(targets[0]) }),
+    message: tp('Move {name} to the trash?', count, { name: photoName(targets[0]) }),
     confirmLabel: t('Yes'),
     cancelLabel: t('No'),
   });
   if (!confirmed) return;
-  api.showToast(tp('Deleting {count} file…', count), true);
+  api.showToast(tp('Moving {count} file to the trash…', count), true);
   try {
     const result = await invoke('delete_photos', { paths: targets.map(photo => photo.path) });
     if (result.deleted.length) api.removePhotos(result.deleted);
@@ -336,7 +336,7 @@ export async function confirmAndDelete(targets) {
     if (failures) console.error('Suppression : échecs', result.failed);
     api.showToast(failures && !result.deleted.length
       ? t('Delete failed: {error}', { error: result.failed[0].error })
-      : `${tp('{count} file deleted', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
+      : `${tp('{count} file moved to the trash', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
   } catch (error) {
     api.showToast(t('Delete failed: {error}', { error }));
   }
