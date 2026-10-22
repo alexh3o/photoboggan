@@ -295,7 +295,7 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .group-separator-probe { position: absolute; width: 0; height: var(--group-separator-height); visibility: hidden; pointer-events: none; }
 
 /* Title Bar */
-.titlebar { flex: none; height: 2.2rem; background-color: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
+.titlebar { font-family: 'Fredoka', 'Quicksand', sans-serif; flex: none; height: 2.2rem; background-color: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
 .titlebar-drag-region { flex: 1; display: flex; align-items: center; height: 100%; padding-left: 0.6rem; gap: 8px; -webkit-app-region: drag; }
 .titlebar-icon { width: 1.3rem; height: 1.3rem; }
 .titlebar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
@@ -392,7 +392,9 @@ body.immersive .titlebar { display: none; }
 .about-card { width: min(24rem, calc(100vw - 2.5rem)); }
 .about-body { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 1.5rem 1rem; text-align: center; }
 .about-logo { width: 128px; height: 128px; margin-bottom: 0.5rem; object-fit: contain; }
-.about-name { font-size: 1.25rem; font-weight: bold; color: var(--text-strong); }
+.about-name { font-family: 'Fredoka', 'Quicksand', sans-serif; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; /* Rapproche légèrement les lettres comme sur l'image */ line-height: 1.2; }
+.about-name .logo-photo { color: #059f9f; }
+.about-name .logo-boggan { color: #077df6; }
 .about-version { color: var(--text-muted); font-size: 0.85rem; }
 .about-links { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; margin-top: 0.4rem; }
 .about-link { color: var(--accent); font-size: 0.8rem; text-decoration: underline; cursor: pointer; }
