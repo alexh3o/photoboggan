@@ -320,16 +320,31 @@ export async function showPhotoInfo(photo) {
 // ==========================================
 // SUPPRIMER, COPIER VERS, OUVRIR AVEC
 // ==========================================
+// Nombre d'éléments dont le support n'a pas de corbeille (clé USB, lecteur ou partage réseau) : leur suppression est définitive (voir count_permanent_deletions).
+// En cas d'erreur de la commande, on suppose la corbeille disponible.
+async function countPermanentDeletions(paths) {
+  try {
+    return Number(await invoke('count_permanent_deletions', { paths })) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function confirmAndDelete(targets) {
   const count = targets.length;
+  const permanent = await countPermanentDeletions(targets.map(photo => photo.path));
+  const name = photoName(targets[0]);
+  let message = tp('Move {name} to the trash?', count, { name });
+  if (permanent === count) message = tp('Permanently delete {name}? This storage has no trash (USB drive or network): it cannot be undone.', count, { name });
+  else if (permanent > 0) message = t('Some of these {count} photos ({permanent}) are on a storage without trash (USB drive or network) and will be permanently deleted. Continue?', { count, permanent });
   const confirmed = await confirmDialog({
-    title: t('Confirm deletion'),
-    message: tp('Move {name} to the trash?', count, { name: photoName(targets[0]) }),
+    title: permanent ? t('Confirm permanent deletion') : t('Confirm deletion'),
+    message,
     confirmLabel: t('Yes'),
     cancelLabel: t('No'),
   });
   if (!confirmed) return;
-  api.showToast(tp('Moving {count} file to the trash…', count), true);
+  api.showToast(permanent ? tp('Deleting {count} file…', count) : tp('Moving {count} file to the trash…', count), true);
   try {
     const result = await invoke('delete_photos', { paths: targets.map(photo => photo.path) });
     if (result.deleted.length) api.removePhotos(result.deleted);
@@ -337,7 +352,7 @@ export async function confirmAndDelete(targets) {
     if (failures) console.error('Suppression : échecs', result.failed);
     api.showToast(failures && !result.deleted.length
       ? t('Delete failed: {error}', { error: result.failed[0].error })
-      : `${tp('{count} file moved to the trash', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
+      : `${tp(permanent ? '{count} file deleted' : '{count} file moved to the trash', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
   } catch (error) {
     api.showToast(t('Delete failed: {error}', { error }));
   }
@@ -935,18 +950,20 @@ function openThumbnailMenu(event, index, source = 'grid') {
   showContextMenu(menu, event);
 }
 
-// Supprime un dossier de l'arborescence vers la corbeille, avec tout son contenu, après confirmation (voir delete_folder dans main.rs).
-// `isRoot` : dossier suivi (et non simple sous-dossier), qui est alors aussi retiré de la liste des dossiers suivis.
-async function confirmAndDeleteFolder(path, isRoot) {
-  const message = t('Move folder “{name}” and everything it contains (subfolders and files) to the trash?', { name: baseName(path) })
-    + (isRoot ? ` ${t('It will also be removed from the tracked folders.')}` : '');
+// Supprime un dossier de l'arborescence, avec tout son contenu, après confirmation (voir delete_folder dans main.rs) : vers la corbeille, ou définitivement
+// si le support n'en a pas (clé USB, réseau), ce que le message dit clairement.
+async function confirmAndDeleteFolder(path) {
+  const permanent = (await countPermanentDeletions([path])) > 0;
+  const name = baseName(path);
   const confirmed = await confirmDialog({
-    title: t('Confirm deletion'),
-    message,
+    title: permanent ? t('Confirm permanent deletion') : t('Confirm deletion'),
+    message: permanent
+      ? t('Permanently delete folder “{name}” and everything it contains (subfolders and files)? This storage has no trash (USB drive or network): it cannot be undone.', { name })
+      : t('Move folder “{name}” and everything it contains (subfolders and files) to the trash?', { name }),
     confirmLabel: t('Yes'),
     cancelLabel: t('No'),
   });
-  if (confirmed) await api.deleteFolder(path);
+  if (confirmed) await api.deleteFolder(path, { permanent });
 }
 
 // Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
@@ -964,9 +981,11 @@ function openFolderMenu(event, folderItem) {
     menuButton(t('Rescan folder data'), () => api.rescanFolder(path)),
     menuButton(t('New subfolder…'), () => createSubfolder(path)),
     menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path)),
-    separator,
-    menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path, folderItem.dataset.folderRoot === '1'), { danger: true }),
   );
+  // Un dossier suivi (racine de l'arborescence, ajouté dans les Paramètres) ne se supprime pas depuis ce menu : seuls ses sous-dossiers.
+  if (folderItem.dataset.folderRoot !== '1') {
+    menu.append(separator, menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), { danger: true }));
+  }
   contextTarget = folderItem;
   folderItem.classList.add('context-target');
   showContextMenu(menu, event);
@@ -1047,7 +1066,7 @@ function onContextMenu(event) {
 }
 
 // options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), folderCreated(parentPath, name),
-// syncLibrary() (relecture des dossiers suivis après la création de fichiers), deleteFolder(path) (mise à la corbeille d'un dossier de l'arborescence).
+// syncLibrary() (relecture des dossiers suivis après la création de fichiers), deleteFolder(path, { permanent }) (suppression d'un dossier de l'arborescence).
 export function initPhotoActions(options) {
   api = options;
   document.addEventListener('contextmenu', onContextMenu);

@@ -635,21 +635,73 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
     Ok(DeleteResult { deleted, failed })
 }
 
-#[derive(serde::Serialize)]
-struct DeleteFolderResult {
-    // Chemins des photos retirées du catalogue (celles du dossier et de ses sous-dossiers).
-    removed: Vec<String>,
-    // Vrai si des dossiers suivis ont été retirés de la liste (le dossier supprimé en était un, ou en contenait).
-    roots_removed: bool,
+// Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une clé USB (support
+// « amovible »), un lecteur ou partage réseau (lettre mappée ou chemin UNC), un CD/DVD ou un disque RAM n'en ont pas : la suppression y est définitive.
+// Linux et macOS : la crate `trash` utilise la corbeille du volume (sous Linux, « .Trash-UID » à la racine d'un volume autre que le dossier personnel).
+#[cfg_attr(not(windows), allow(dead_code))]
+#[derive(Debug, PartialEq)]
+enum WindowsRoot {
+    Unc,
+    Drive(String),
+    Other,
 }
 
-// Supprime un dossier de l'arborescence (dossier suivi ou sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
-// fichiers de tout type, pas seulement les photos. Il reste restaurable depuis la corbeille. Comme pour delete_photos, jamais de suppression définitive de repli :
-// si la mise à la corbeille échoue, le catalogue n'est pas touché et l'erreur est renvoyée. Ensuite, les photos du dossier quittent le catalogue (avec leurs
-// caches de miniatures) et les dossiers suivis qu'il était ou contenait sont retirés de la liste. Refusé si le dossier contient les données de l'application.
+// Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn windows_root(path: &str) -> WindowsRoot {
+    let normalized = path.replace('/', "\\");
+    let normalized = if let Some(rest) = normalized.strip_prefix("\\\\?\\UNC\\") {
+        format!("\\\\{rest}")
+    } else if let Some(rest) = normalized.strip_prefix("\\\\?\\") {
+        rest.to_string()
+    } else {
+        normalized.clone()
+    };
+    if normalized.starts_with("\\\\") { return WindowsRoot::Unc; }
+    let mut characters = normalized.chars();
+    match (characters.next(), characters.next()) {
+        (Some(letter), Some(':')) if letter.is_ascii_alphabetic() => WindowsRoot::Drive(format!("{letter}:\\")),
+        _ => WindowsRoot::Other,
+    }
+}
+
+#[cfg(windows)]
+fn has_trash(path: &str) -> bool {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetDriveTypeW(root_path_name: *const u16) -> u32;
+    }
+    match windows_root(path) {
+        WindowsRoot::Unc => false,
+        WindowsRoot::Drive(root) => {
+            let wide: Vec<u16> = root.encode_utf16().chain(std::iter::once(0)).collect();
+            // 2 = amovible (clé USB), 4 = réseau, 5 = CD/DVD, 6 = disque RAM. Les autres cas (fixe, inconnu) sont considérés avec corbeille.
+            !matches!(unsafe { GetDriveTypeW(wide.as_ptr()) }, 2 | 4 | 5 | 6)
+        }
+        WindowsRoot::Other => true,
+    }
+}
+
+#[cfg(not(windows))]
+fn has_trash(_path: &str) -> bool {
+    true
+}
+
+// Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur support (voir has_trash).
+// L'interface s'en sert pour afficher le bon message de confirmation. Ne touche pas au disque (sauf la question du type de lecteur à Windows).
+#[tauri::command(async)]
+fn count_permanent_deletions(paths: Vec<String>) -> usize {
+    paths.iter().filter(|path| !has_trash(path)).count()
+}
+
+// Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
+// fichiers de tout type, pas seulement les photos. Il reste restaurable depuis la corbeille quand le support en a une (voir count_permanent_deletions). Comme pour
+// delete_photos, aucun repli automatique vers une suppression définitive : si la mise à la corbeille échoue, le catalogue n'est pas touché et l'erreur est renvoyée.
+// Ensuite, les photos du dossier quittent le catalogue (avec leurs caches de miniatures) ; leurs chemins sont renvoyés.
+// Refusé pour un dossier suivi (celui des Paramètres), pour un dossier qui en contient un, et pour un dossier qui contient les données de l'application.
 // La sélection des photos se fait sur le chemin complet avec séparateur final : supprimer « D:\Photos » ne touche pas « D:\Photos2 ».
 #[tauri::command(async)]
-fn delete_folder(state: State<'_, AppState>, path: String) -> Result<DeleteFolderResult, String> {
+fn delete_folder(state: State<'_, AppState>, path: String) -> Result<Vec<String>, String> {
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
@@ -657,6 +709,11 @@ fn delete_folder(state: State<'_, AppState>, path: String) -> Result<DeleteFolde
     let folder_segments = lowercase_segments(&folder);
     if lowercase_segments(&state.base_dir()).starts_with(&folder_segments) {
         return Err("Ce dossier contient les données de l'application (base de données et miniatures)".into());
+    }
+
+    // Un dossier suivi se retire de la liste des Paramètres, il ne se supprime pas d'ici ; idem pour un dossier qui en contient un (il serait supprimé avec).
+    if db::get_folders(&pool).iter().any(|root| lowercase_segments(Path::new(&root.path)).starts_with(&folder_segments)) {
+        return Err("Ce dossier est un dossier suivi, ou en contient un : retirez-le d'abord de la liste des dossiers (Paramètres)".into());
     }
 
     let conn = pool.get().map_err(|error| error.to_string())?;
@@ -688,14 +745,7 @@ fn delete_folder(state: State<'_, AppState>, path: String) -> Result<DeleteFolde
     // Le dossier n'existe plus : le nettoyage du catalogue ne doit plus faire échouer l'opération (la synchronisation rattraperait un reste éventuel).
     for cache_file in cache_files { let _ = fs::remove_file(cache_file); }
     let _ = conn.execute(&format!("DELETE FROM photos WHERE {IN_FOLDER}"), params![prefix]);
-    let mut roots_removed = false;
-    for root in db::get_folders(&pool) {
-        if lowercase_segments(Path::new(&root.path)).starts_with(&folder_segments) {
-            let _ = conn.execute("DELETE FROM folders WHERE id = ?", params![root.id]);
-            roots_removed = true;
-        }
-    }
-    Ok(DeleteFolderResult { removed: photo_paths, roots_removed })
+    Ok(photo_paths)
 }
 
 // Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
@@ -1031,6 +1081,7 @@ fn main() {
             get_photo_details,
             delete_photos,
             delete_folder,
+            count_permanent_deletions,
             remove_missing_photos,
             sync_library,
             copy_photos,

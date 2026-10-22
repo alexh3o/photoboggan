@@ -2882,38 +2882,31 @@ window.addEventListener('keydown', event => {
   clearPhotoDragVisuals(photoDrag);
 });
 
-// Met à jour l'interface après la mise à la corbeille d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, dossiers
-// vides créés pendant la session oubliés, liste des dossiers suivis relue s'il y en avait. Si le dossier affiché est concerné, on revient à son dossier parent
-// (ou à « Toutes les photos » si celui-ci n'est plus suivi).
-async function applyDeletedFolder(deletedPath, result) {
+// Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, dossiers
+// vides créés pendant la session oubliés. Si le dossier affiché est concerné, on revient à son dossier parent.
+function applyDeletedFolder(deletedPath, removedPaths) {
   const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
   const deleted = normalize(deletedPath);
   const isInside = value => normalize(value) === deleted || normalize(value).startsWith(`${deleted}/`);
   for (const created of [...createdFolders]) if (isInside(created)) createdFolders.delete(created);
   for (const key of [...folderTreeExpanded]) if (isInside(key)) folderTreeExpanded.delete(key);
   const viewAffected = currentFolderFilter !== null && isInside(currentFolderFilter);
-  removePhotosFromLibrary(result.removed);
-  if (result.roots_removed) await loadFolders();
-  else renderFolderTree();
-  if (!viewAffected) return;
-  const parentPath = deletedPath.replace(/[\\/]+$/, '').replace(/[\\/][^\\/]*$/, '');
-  const parentTracked = folders.some(folder => {
-    const root = normalize(folder.path);
-    return normalize(parentPath) === root || normalize(parentPath).startsWith(`${root}/`);
-  });
-  selectFolder(parentTracked ? parentPath : null);
+  removePhotosFromLibrary(removedPaths);
+  renderFolderTree();
+  // Le dossier supprimé n'est jamais un dossier suivi : son parent l'est, ou en fait partie.
+  if (viewAffected) selectFolder(deletedPath.replace(/[\\/]+$/, '').replace(/[\\/][^\\/]*$/, ''));
 }
 
-// Dossier de l'arborescence vers la corbeille (la confirmation est demandée par photo-actions.js). Le même indicateur que le déplacement suspend la
-// synchronisation automatique pendant l'opération.
-async function deleteFolderToTrash(path) {
+// Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirmation par
+// photo-actions.js, qui a aussi demandé la confirmation). Le même indicateur que le déplacement suspend la synchronisation automatique pendant l'opération.
+async function deleteFolderToTrash(path, { permanent = false } = {}) {
   if (photoMoveRunning) return;
   photoMoveRunning = true;
-  showWriteToast(t('Moving folder to the trash…'), true);
+  showWriteToast(t(permanent ? 'Deleting folder…' : 'Moving folder to the trash…'), true);
   try {
-    const result = await invoke('delete_folder', { path });
-    await applyDeletedFolder(path, result);
-    showWriteToast(t('Folder moved to the trash'));
+    const removedPaths = await invoke('delete_folder', { path });
+    applyDeletedFolder(path, removedPaths);
+    showWriteToast(t(permanent ? 'Folder deleted' : 'Folder moved to the trash'));
   } catch (error) {
     showWriteToast(t('Folder deletion failed: {error}', { error }));
   } finally {

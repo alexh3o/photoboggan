@@ -12,10 +12,10 @@
 - [ ] *feat*: **search by filename**
 - [ ] *style*: add **UI/text size** setting
 - [ ] *style*: allow **resizing left panel**
-- [ ] *feat*: **folder deletion**
+- [x] *feat*: **folder deletion**
 - [ ] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
 - [ ] *style*: improve **grid selection visibility** (zoom out picture)**
-- [ ] *fix*: deleting from removable / nas media doesn't send to trash as mentioned
+- [x] *fix*: deleting from removable / nas media doesn't send to trash as mentioned
 - [ ] *fix*: **Resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
 
 ## 💡 Ideas / longer term / on hold
