@@ -689,6 +689,7 @@ function renderFolderTree() {
     const li = document.createElement('li');
     li.className = `folder-tree-item ${currentFolderFilter && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''}`;
     li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
+    if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
     li.style.paddingLeft = `${10 + depth * 16}px`;
     const hasChildren = node.children.size > 0;
     const key = normalize(node.path);
@@ -2881,6 +2882,45 @@ window.addEventListener('keydown', event => {
   clearPhotoDragVisuals(photoDrag);
 });
 
+// Met à jour l'interface après la mise à la corbeille d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, dossiers
+// vides créés pendant la session oubliés, liste des dossiers suivis relue s'il y en avait. Si le dossier affiché est concerné, on revient à son dossier parent
+// (ou à « Toutes les photos » si celui-ci n'est plus suivi).
+async function applyDeletedFolder(deletedPath, result) {
+  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const deleted = normalize(deletedPath);
+  const isInside = value => normalize(value) === deleted || normalize(value).startsWith(`${deleted}/`);
+  for (const created of [...createdFolders]) if (isInside(created)) createdFolders.delete(created);
+  for (const key of [...folderTreeExpanded]) if (isInside(key)) folderTreeExpanded.delete(key);
+  const viewAffected = currentFolderFilter !== null && isInside(currentFolderFilter);
+  removePhotosFromLibrary(result.removed);
+  if (result.roots_removed) await loadFolders();
+  else renderFolderTree();
+  if (!viewAffected) return;
+  const parentPath = deletedPath.replace(/[\\/]+$/, '').replace(/[\\/][^\\/]*$/, '');
+  const parentTracked = folders.some(folder => {
+    const root = normalize(folder.path);
+    return normalize(parentPath) === root || normalize(parentPath).startsWith(`${root}/`);
+  });
+  selectFolder(parentTracked ? parentPath : null);
+}
+
+// Dossier de l'arborescence vers la corbeille (la confirmation est demandée par photo-actions.js). Le même indicateur que le déplacement suspend la
+// synchronisation automatique pendant l'opération.
+async function deleteFolderToTrash(path) {
+  if (photoMoveRunning) return;
+  photoMoveRunning = true;
+  showWriteToast(t('Moving folder to the trash…'), true);
+  try {
+    const result = await invoke('delete_folder', { path });
+    await applyDeletedFolder(path, result);
+    showWriteToast(t('Folder moved to the trash'));
+  } catch (error) {
+    showWriteToast(t('Folder deletion failed: {error}', { error }));
+  } finally {
+    photoMoveRunning = false;
+  }
+}
+
 async function movePhotosToFolder(targets, folderPath) {
   if (photoMoveRunning || !targets.length) return;
   photoMoveRunning = true;
@@ -3281,6 +3321,7 @@ initPhotoActions({
   rescanFolder,
   folderCreated: addCreatedFolder,
   syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
+  deleteFolder: deleteFolderToTrash,
 });
 
 // ==========================================

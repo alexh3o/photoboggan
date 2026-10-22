@@ -935,6 +935,20 @@ function openThumbnailMenu(event, index, source = 'grid') {
   showContextMenu(menu, event);
 }
 
+// Supprime un dossier de l'arborescence vers la corbeille, avec tout son contenu, après confirmation (voir delete_folder dans main.rs).
+// `isRoot` : dossier suivi (et non simple sous-dossier), qui est alors aussi retiré de la liste des dossiers suivis.
+async function confirmAndDeleteFolder(path, isRoot) {
+  const message = t('Move folder “{name}” and everything it contains (subfolders and files) to the trash?', { name: baseName(path) })
+    + (isRoot ? ` ${t('It will also be removed from the tracked folders.')}` : '');
+  const confirmed = await confirmDialog({
+    title: t('Confirm deletion'),
+    message,
+    confirmLabel: t('Yes'),
+    cancelLabel: t('No'),
+  });
+  if (confirmed) await api.deleteFolder(path);
+}
+
 // Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
 function openFolderMenu(event, folderItem) {
   closeContextMenu();
@@ -943,10 +957,15 @@ function openFolderMenu(event, folderItem) {
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
+  const separator = document.createElement('div');
+  separator.className = 'context-menu-separator';
+  separator.setAttribute('role', 'separator');
   menu.append(
     menuButton(t('Rescan folder data'), () => api.rescanFolder(path)),
     menuButton(t('New subfolder…'), () => createSubfolder(path)),
     menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path)),
+    separator,
+    menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path, folderItem.dataset.folderRoot === '1'), { danger: true }),
   );
   contextTarget = folderItem;
   folderItem.classList.add('context-target');
@@ -1028,7 +1047,7 @@ function onContextMenu(event) {
 }
 
 // options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), folderCreated(parentPath, name),
-// syncLibrary() (relecture des dossiers suivis après la création de fichiers).
+// syncLibrary() (relecture des dossiers suivis après la création de fichiers), deleteFolder(path) (mise à la corbeille d'un dossier de l'arborescence).
 export function initPhotoActions(options) {
   api = options;
   document.addEventListener('contextmenu', onContextMenu);
