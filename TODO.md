@@ -3,7 +3,8 @@
 ## 🚀 Next in line
 
 - [x] feat: Allow **rating per image in comparison** mode
-- [ ] feat: add bin in app or use OS bin
+- [x] feat: add bin in app or use OS bin
+- [ ] Test deletion in case of NAS and USB key that jhave no trash:  what's the warning ?
 - [ ] fix: Le **redimensionnement de la fenêtre en petite taille** ne se passe pas bien, les panneaux deviennent illisibles en bandes très fines. il faut que ce soient les miniatures qui servent de variable d'ajustement, à affiner**
 - [ ] FEAT: Ajouter une fonction de de **redimensionnement** dans les actions, avec choix
   - [ ] du dossier de destination

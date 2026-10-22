@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, confirmAndDelete, revealInFileManager, confirmDialog } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 
 // AJOUT BARRE TITRE
@@ -1437,6 +1437,20 @@ window.addEventListener('keydown', (e) => {
         return;
       }
     }
+  }
+  // Redimensionner par lot (S) : sur la sélection uniquement (sous-sélection en mode Comparer avec plusieurs photos). Sans effet derrière une fenêtre
+  // ouverte, avec Ctrl / Alt / ⌘ (Ctrl+S reste libre) ou en touche maintenue.
+  if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey && !e.altKey && selectedIndices.size > 0) {
+    if (document.querySelector('.modal:not(.hidden)')) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    const selectedPhotos = commandTargetPhotos();
+    if (selectedPhotos.length > 0) {
+      resizePhotos(selectedPhotos);
+    } else if (isCompareMultiple()) {
+      notifyNoCompareTarget();
+    }
+    return;
   }
   // Suppression
 if (e.key === 'Delete') {
@@ -3266,6 +3280,7 @@ initPhotoActions({
   showToast: showWriteToast,
   rescanFolder,
   folderCreated: addCreatedFolder,
+  syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
 });
 
 // ==========================================

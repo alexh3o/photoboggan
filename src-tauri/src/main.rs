@@ -3,6 +3,7 @@
 mod db;
 mod exif;
 mod library_sync;
+mod resize;
 mod thumbnails;
 
 use tauri::{State, Emitter, Manager};
@@ -843,6 +844,16 @@ fn copy_photos_to_tracked_folder(state: State<'_, AppState>, paths: Vec<String>,
     copy_photos(paths, folder.to_string_lossy().into_owned())
 }
 
+// Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
+// (progression, questions en cas de fichier existant) et lance quelques appels en parallèle. Le travail se fait hors du thread principal et des
+// threads asynchrones. Le résultat dit si le fichier a été écrit, s'il existait déjà (politique « Ask ») ou s'il a été passé.
+#[tauri::command]
+async fn resize_photo(path: String, options: resize::ResizeOptions) -> Result<resize::ResizeOutcome, String> {
+    tokio::task::spawn_blocking(move || resize::resize_photo(Path::new(&path), &options))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 // Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
 #[tauri::command(async)]
 fn open_with(program: String, paths: Vec<String>) -> Result<(), String> {
@@ -963,7 +974,8 @@ fn main() {
             move_photos,
             open_with,
             reveal_in_file_manager,
-            copy_files_to_clipboard
+            copy_files_to_clipboard,
+            resize_photo
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

@@ -22,6 +22,9 @@ kamadak-exif = "0.6.1"
 # jpeg-decoder sans la fonctionnalité rayon : le parallélisme se fait entre images, pas à l'intérieur d'un décodage.
 jpeg-decoder = { version = "0.3", default-features = false }
 jpeg-encoder = "0.6"
+# Redimensionnement par lot (module resize.rs) : lecture et écriture des PNG. Crate en Rust pur déjà présente dans l'arbre de dépendances (via Tauri) :
+# aucune bibliothèque native à distribuer.
+png = "0.18"
 walkdir = "2.5.0"
 rayon = "1.10.0"
 chrono = "0.4.38"
