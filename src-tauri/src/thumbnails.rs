@@ -216,7 +216,7 @@ fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, 
 }
 
 /// Orientation EXIF (1 à 8), 1 si absente ou illisible.
-fn read_orientation(source: &Path) -> u32 {
+pub(crate) fn read_orientation(source: &Path) -> u32 {
     let Ok(file) = File::open(source) else { return 1; };
     let mut reader = BufReader::new(file);
     Reader::new()
@@ -254,7 +254,7 @@ fn axis_weights(source_len: usize, destination_len: usize) -> Vec<(usize, Vec<f3
 }
 
 /// Réduction par moyenne des aires (séparable : horizontal puis vertical).
-fn resize_area(source: &[u8], source_width: usize, source_height: usize, width: usize, height: usize) -> Vec<u8> {
+pub(crate) fn resize_area(source: &[u8], source_width: usize, source_height: usize, width: usize, height: usize) -> Vec<u8> {
     let horizontal = axis_weights(source_width, width);
     let vertical = axis_weights(source_height, height);
     let mut intermediate = vec![0f32; width * source_height * 3];
@@ -291,7 +291,7 @@ fn resize_area(source: &[u8], source_width: usize, source_height: usize, width: 
 
 /// Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
 /// 6 = 90° horaire, 7 = transversale, 8 = 90° antihoraire) ; 5 à 8 échangent largeur et hauteur.
-fn apply_orientation(rgb: Vec<u8>, width: usize, height: usize, orientation: u32) -> (Vec<u8>, usize, usize) {
+pub(crate) fn apply_orientation(rgb: Vec<u8>, width: usize, height: usize, orientation: u32) -> (Vec<u8>, usize, usize) {
     if orientation <= 1 || orientation > 8 { return (rgb, width, height); }
     let (out_width, out_height) = if orientation >= 5 { (height, width) } else { (width, height) };
     let mut output = vec![0u8; rgb.len()];

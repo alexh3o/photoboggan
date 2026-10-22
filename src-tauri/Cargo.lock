@@ -2684,6 +2684,7 @@ dependencies = [
  "jpeg-decoder",
  "jpeg-encoder",
  "kamadak-exif",
+ "png 0.18.1",
  "r2d2",
  "r2d2_sqlite",
  "rayon",

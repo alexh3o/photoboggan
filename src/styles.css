@@ -387,3 +387,22 @@ body.immersive .titlebar { display: none; }
 .settings-folder-item { display: flex; justify-content: space-between; align-items: center; background: var(--row-bg); padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75rem; }
 .btn-delete-folder { background: #c0392b; color: #fff; border: none; padding: 4px 8px; font-size: 0.7rem; border-radius: 3px; }
 .btn-delete-folder:hover { background: #e74c3c; }
+
+/* MODALE REDIMENSIONNER (et question « fichier existant ») */
+.resize-card { width: min(30rem, calc(100vw - 2.5rem)); }
+.resize-card [hidden] { display: none !important; }
+.resize-option { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.65rem; color: var(--text-muted); font-size: 0.8rem; }
+.resize-option > label { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.resize-option > .resize-label { flex: 1 1 auto; }
+.resize-option input[type="radio"], .resize-option input[type="checkbox"] { accent-color: var(--accent); }
+.resize-option input[type="range"] { flex: 0 0 9rem; accent-color: var(--active-button); }
+.resize-field { padding: 0.4rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; user-select: text; }
+.resize-field:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.resize-field:disabled, .resize-option input:disabled { opacity: 0.5; }
+.resize-number { width: 6rem; }
+.resize-text { width: 9rem; }
+.resize-unit { color: var(--text-faint); }
+.resize-value { min-width: 3rem; color: var(--text-strong); text-align: right; font-variant-numeric: tabular-nums; }
+.resize-preview { margin: -2px 0 8px; color: var(--text-faint); font-size: 0.7rem; overflow-wrap: anywhere; }
+.resize-folder-actions { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.resize-card .prompt-error { margin-bottom: 8px; }

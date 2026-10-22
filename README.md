@@ -66,6 +66,7 @@ Photofile is built with a clear purpose: **accelerate photo sorting, rating, com
 - **Native OS Clipboard**: Copy files with `Ctrl+C` directly pasteable into Windows Explorer, email clients, or messaging apps.
 - **Drag & Drop Organization**: Move (`Shift` + Drag) or copy (`Ctrl` + Drag) photos directly into the folder tree.
 - **"Open With" Launcher**: Configure favorite external editors (Photoshop, Lightroom, RawTherapee, Affinity...) directly accessible from the context menu.
+- **Batch Resize**: Resize the selection (context menu or `S`) by longest side or percentage, to JPEG or PNG, with optional EXIF / XMP / IPTC preservation, a custom destination folder and name suffix, and a prompt (replace / increment / skip) when a file already exists. Sources: JPEG, PNG and RAW (embedded preview).
 
 ---
 
@@ -81,6 +82,7 @@ Photofile is built with a clear purpose: **accelerate photo sorting, rating, com
 | `Ctrl` + `Wheel`      | Preview / Fullscreen   | Smooth zoom around cursor                         |
 | `Ctrl` + `C`          | Grid / Selection       | Copy original files to OS clipboard               |
 | `C`                   | Grid / Selection       | Copy to a selected folder                         |
+| `S`                   | Grid / Selection       | Batch resize (JPEG / PNG) the selected photo(s)   |
 | `Delete`              | Grid / Compare         | Move selected file(s) to the OS trash             |
 | `I`                   | Selection              | Open detailed Metadata dialog (EXIF / XMP / IPTC) |
 | `E`                   | Selection              | Reveal photo in default File Manager              |
@@ -95,7 +97,8 @@ Photofile is built with a clear purpose: **accelerate photo sorting, rating, com
   - `rayon` for parallel scanning and EXIF extraction.
   - `walkdir` for fast recursive directory traversal.
   - `kamadak-exif` for metadata decoding.
-  - `jpeg-decoder` (scaled DCT) & `jpeg-encoder` for native thumbnail rendering.
+  - `jpeg-decoder` (scaled DCT) & `jpeg-encoder` for native thumbnail rendering and batch resizing.
+  - `png` for PNG reading / writing in batch resizing.
   - `clipboard-rs` for cross-platform OS clipboard operations.
   - `trash` to send deleted photos to the OS trash / recycle bin.
   - `rusqlite` + `r2d2` for transactional SQLite storage in WAL mode.
@@ -211,6 +214,7 @@ Photofile a été conçu dans un but précis : **accélérer le tri, la notation
 - **Presse-papiers natif de l'OS** : Copie directe (`Ctrl+C`) collable dans l'Explorateur de fichiers, les courriels ou les messageries.
 - **Organisation par glisser-déposer** : Déplacez (`Maj` + Glisser) ou copiez (`Ctrl` + Glisser) directement vos photos vers l'arborescence des dossiers.
 - **Menu « Ouvrir avec »** : Configurez vos logiciels de retouche favoris (Photoshop, Lightroom, RawTherapee, Affinity...) accessibles au clic droit.
+- **Redimensionnement par lot** : Redimensionnez la sélection (menu contextuel ou `S`) par plus grand côté ou en pourcentage, en JPEG ou PNG, avec conservation facultative des métadonnées EXIF / XMP / IPTC, dossier de destination et suffixe au choix, et question (remplacer / incrémenter / passer) si le fichier existe déjà. Sources : JPEG, PNG et RAW (aperçu intégré).
 
 ---
 
@@ -226,6 +230,7 @@ Photofile a été conçu dans un but précis : **accélérer le tri, la notation
 | `Ctrl` + `Molette`   | Aperçu / Plein écran    | Zoom fluide centré sur le curseur                            |
 | `Ctrl` + `C`         | Grille / Sélection      | Copier les fichiers originaux dans le presse-papiers OS      |
 | `C`                  | Grille / Sélection      | Copier vers un dossier sélectionné                           |
+| `S`                  | Grille / Sélection      | Redimensionner par lot (JPEG / PNG) la ou les photos        |
 | `Suppr`              | Grille / Comparer       | Placer la ou les photos dans la corbeille de l'OS            |
 | `I`                  | Sélection               | Ouvrir la fiche d'informations détaillée (EXIF / XMP / IPTC) |
 | `E`                  | Sélection               | Révéler le fichier dans le gestionnaire de fichiers OS       |
@@ -240,7 +245,8 @@ Photofile a été conçu dans un but précis : **accélérer le tri, la notation
   - `rayon` pour l'indexation parallèle et l'extraction EXIF.
   - `walkdir` pour le parcours récursif rapide du disque.
   - `kamadak-exif` pour le décodage des métadonnées.
-  - `jpeg-decoder` (DCT réduit) et `jpeg-encoder` pour la génération native des miniatures.
+  - `jpeg-decoder` (DCT réduit) et `jpeg-encoder` pour la génération native des miniatures et le redimensionnement par lot.
+  - `png` pour la lecture / écriture des PNG lors du redimensionnement par lot.
   - `clipboard-rs` pour la gestion multiplateforme du presse-papiers natif.
   - `trash` pour envoyer les photos supprimées dans la corbeille de l'OS.
   - `rusqlite` + `r2d2` pour le stockage local SQLite transactionnel en mode WAL.

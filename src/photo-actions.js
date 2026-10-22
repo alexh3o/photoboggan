@@ -115,7 +115,8 @@ async function addProgramFromDialog() {
 // ==========================================
 // Fenêtre modale réutilisant les styles des Paramètres. Échap, clic sur le fond et × la ferment ;
 // les touches ne remontent pas à main.js (pas de navigation ou de notation involontaire derrière la fenêtre).
-function createModal({ title, cardClass = '', onClose = null }) {
+// `focusSelector` : éléments parcourus par Tab (les boutons seulement par défaut ; les formulaires y ajoutent champs et listes).
+function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])' }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal';
   overlay.tabIndex = -1;
@@ -159,7 +160,7 @@ function createModal({ title, cardClass = '', onClose = null }) {
       close();
     } else if (event.key === 'Tab') {
       event.preventDefault();
-      const focusables = [...card.querySelectorAll('button:not([disabled])')];
+      const focusables = [...card.querySelectorAll(focusSelector)].filter(element => !element.closest('[hidden]'));
       if (!focusables.length) return;
       const index = focusables.indexOf(document.activeElement);
       const next = event.shiftKey ? (index <= 0 ? focusables.length - 1 : index - 1) : (index === focusables.length - 1 ? 0 : index + 1);
@@ -383,6 +384,361 @@ export async function copyPhotosToClipboard(targets) {
   }
 }
 
+// ==========================================
+// REDIMENSIONNER PAR LOT
+// ==========================================
+// Une fenêtre d'options, puis le lot est traité photo par photo (commande `resize_photo`, quelques appels en parallèle). Quand le fichier de
+// destination existe déjà, une question est posée (une à la fois) avec la possibilité d'appliquer le choix aux fichiers suivants.
+const RESIZE_SETTINGS_KEY = 'resizeSettings';
+const LAST_RESIZE_FOLDER_KEY = 'lastResizeFolder';
+const RESIZE_SIDE_LIMITS = { min: 16, max: 30000 };
+const FORM_FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled])';
+const FORBIDDEN_SUFFIX_CHARACTERS = /[\\/:*?"<>|\u0000-\u001f]/;
+let resizeRunning = false;
+
+const makeElement = (tag, className = '', text = '') => {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+};
+const makeInput = (type, properties = {}) => Object.assign(makeElement('input'), { type, ...properties });
+const optionRow = (...children) => {
+  const row = makeElement('div', 'resize-option');
+  row.append(...children);
+  return row;
+};
+const labelled = (input, text) => {
+  const label = makeElement('label');
+  label.append(input, makeElement('span', '', text));
+  return label;
+};
+
+// Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le dossier de destination n'en fait pas partie : par défaut, c'est le dossier de chaque photo.
+function loadResizeSettings() {
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(RESIZE_SETTINGS_KEY) || '{}') || {};
+  } catch {
+    stored = {};
+  }
+  const integer = (value, min, max, fallback) => {
+    const number = Math.round(Number(value));
+    return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+  };
+  return {
+    mode: stored.mode === 'percent' ? 'percent' : 'max_side',
+    maxSide: integer(stored.maxSide, RESIZE_SIDE_LIMITS.min, RESIZE_SIDE_LIMITS.max, 1920),
+    percent: integer(stored.percent, 1, 100, 50),
+    format: stored.format === 'png' ? 'png' : 'jpeg',
+    jpegQuality: integer(stored.jpegQuality, 1, 100, 85),
+    pngCompression: ['fast', 'balanced', 'best'].includes(stored.pngCompression) ? stored.pngCompression : 'balanced',
+    keepMetadata: stored.keepMetadata !== false,
+    suffix: typeof stored.suffix === 'string' ? stored.suffix : '_s',
+  };
+}
+
+// Fenêtre d'options. Renvoie les options à envoyer au backend (sans la politique de conflit) ou null si l'utilisateur annule.
+function resizeOptionsDialog(count, firstPhotoPath) {
+  return new Promise(resolve => {
+    const saved = loadResizeSettings();
+    let destination = null; // null = dossier d'origine de chaque photo
+    let keepMetadata = saved.keepMetadata;
+    let result = null;
+    const modal = createModal({
+      title: `${t('Resize')} · ${tp('{count} photo selected', count)}`,
+      cardClass: 'resize-card',
+      focusSelector: FORM_FOCUSABLE,
+      onClose: () => resolve(result),
+    });
+
+    // Taille
+    const maxSideRadio = makeInput('radio', { name: 'resize-mode', value: 'max_side', checked: saved.mode === 'max_side' });
+    const maxSideInput = makeInput('number', { min: RESIZE_SIDE_LIMITS.min, max: RESIZE_SIDE_LIMITS.max, step: 1, value: saved.maxSide });
+    maxSideInput.className = 'resize-field resize-number';
+    const percentRadio = makeInput('radio', { name: 'resize-mode', value: 'percent', checked: saved.mode === 'percent' });
+    const percentRange = makeInput('range', { min: 1, max: 100, step: 1, value: saved.percent });
+    const percentValue = makeElement('span', 'resize-value');
+    const sizeSection = makeElement('section', 'settings-section');
+    sizeSection.append(
+      makeElement('h4', '', t('Size')),
+      optionRow(labelled(maxSideRadio, t('Longest side (max.)')), maxSideInput, makeElement('span', 'resize-unit', 'px')),
+      optionRow(labelled(percentRadio, t('Percentage')), percentRange, percentValue),
+    );
+
+    // Format et qualité
+    const formatSelect = makeElement('select', 'resize-field');
+    formatSelect.append(new Option('JPEG', 'jpeg'), new Option('PNG', 'png'));
+    formatSelect.value = saved.format;
+    const qualityRange = makeInput('range', { min: 1, max: 100, step: 1, value: saved.jpegQuality });
+    const qualityValue = makeElement('span', 'resize-value');
+    const compressionSelect = makeElement('select', 'resize-field');
+    compressionSelect.append(new Option(t('Fast'), 'fast'), new Option(t('Balanced'), 'balanced'), new Option(t('Maximum'), 'best'));
+    compressionSelect.value = saved.pngCompression;
+    const metadataCheck = makeInput('checkbox');
+    const qualityRow = optionRow(makeElement('span', 'resize-label', t('JPEG quality')), qualityRange, qualityValue);
+    const compressionRow = optionRow(makeElement('span', 'resize-label', t('PNG compression')), compressionSelect);
+    const metadataRow = optionRow(labelled(metadataCheck, t('Keep metadata (EXIF, XMP, IPTC)')));
+    const formatSection = makeElement('section', 'settings-section');
+    formatSection.append(
+      makeElement('h4', '', t('Output format')),
+      optionRow(makeElement('span', 'resize-label', t('Format')), formatSelect),
+      qualityRow,
+      compressionRow,
+      metadataRow,
+    );
+
+    // Destination
+    const pathLabel = makeElement('div', 'settings-path-label');
+    const chooseButton = makeElement('button', 'btn-secondary', t('Choose…'));
+    chooseButton.type = 'button';
+    const resetButton = makeElement('button', 'btn-secondary', t('Original folder'));
+    resetButton.type = 'button';
+    const folderActions = makeElement('div', 'resize-folder-actions');
+    folderActions.append(chooseButton, resetButton);
+    const suffixInput = makeInput('text', { value: saved.suffix, autocomplete: 'off', spellcheck: false });
+    suffixInput.className = 'resize-field resize-text';
+    const preview = makeElement('p', 'resize-preview');
+    const error = makeElement('p', 'prompt-error');
+    error.setAttribute('role', 'alert');
+    const destinationSection = makeElement('section', 'settings-section');
+    destinationSection.append(
+      makeElement('h4', '', t('Destination folder')),
+      pathLabel,
+      folderActions,
+      optionRow(makeElement('span', 'resize-label', t('File name suffix')), suffixInput),
+      preview,
+      error,
+    );
+
+    const actions = makeElement('div', 'confirm-actions');
+    const cancel = makeElement('button', '', t('Cancel'));
+    cancel.type = 'button';
+    cancel.addEventListener('click', modal.close);
+    const confirm = makeElement('button', 'btn-primary', t('Resize'));
+    confirm.type = 'button';
+    actions.append(cancel, confirm);
+    modal.body.append(sizeSection, formatSection, destinationSection, actions);
+
+    const sampleName = () => `${baseName(firstPhotoPath).replace(/\.[^.]*$/, '')}${suffixInput.value}.${formatSelect.value === 'png' ? 'png' : 'jpg'}`;
+    const refresh = () => {
+      const bySide = maxSideRadio.checked;
+      maxSideInput.disabled = !bySide;
+      percentRange.disabled = bySide;
+      percentValue.textContent = `${percentRange.value} %`;
+      qualityValue.textContent = qualityRange.value;
+      const jpeg = formatSelect.value === 'jpeg';
+      qualityRow.hidden = !jpeg;
+      compressionRow.hidden = jpeg;
+      metadataCheck.disabled = !jpeg;
+      metadataCheck.checked = jpeg && keepMetadata;
+      metadataRow.title = jpeg ? '' : t('Metadata can only be kept in JPEG files');
+      pathLabel.textContent = destination ?? t('Original folder of each photo');
+      pathLabel.title = destination ?? '';
+      resetButton.hidden = destination === null;
+      preview.textContent = t('Example: {name}', { name: sampleName() });
+      error.textContent = '';
+    };
+    const validate = () => {
+      if (maxSideRadio.checked) {
+        const side = Number(maxSideInput.value);
+        if (!Number.isInteger(side) || side < RESIZE_SIDE_LIMITS.min || side > RESIZE_SIDE_LIMITS.max) {
+          return t('Enter a size between {min} and {max} px', RESIZE_SIDE_LIMITS);
+        }
+      }
+      if (FORBIDDEN_SUFFIX_CHARACTERS.test(suffixInput.value)) return t('The suffix contains a forbidden character');
+      if (destination === null && suffixInput.value === '') return t('Without a suffix, choose another destination folder');
+      return '';
+    };
+    const submit = () => {
+      const problem = validate();
+      if (problem) {
+        error.textContent = problem;
+        return;
+      }
+      const jpeg = formatSelect.value === 'jpeg';
+      const bySide = maxSideRadio.checked;
+      localStorage.setItem(RESIZE_SETTINGS_KEY, JSON.stringify({
+        mode: bySide ? 'max_side' : 'percent',
+        maxSide: bySide ? Number(maxSideInput.value) : saved.maxSide,
+        percent: Number(percentRange.value),
+        format: formatSelect.value,
+        jpegQuality: Number(qualityRange.value),
+        pngCompression: compressionSelect.value,
+        keepMetadata,
+        suffix: suffixInput.value,
+      }));
+      result = {
+        mode: bySide ? 'max_side' : 'percent',
+        value: bySide ? Number(maxSideInput.value) : Number(percentRange.value),
+        format: formatSelect.value,
+        jpegQuality: Number(qualityRange.value),
+        pngCompression: compressionSelect.value,
+        keepMetadata: jpeg && keepMetadata,
+        destination,
+        suffix: suffixInput.value,
+      };
+      modal.close();
+    };
+
+    for (const control of [maxSideRadio, percentRadio, percentRange, qualityRange, formatSelect, compressionSelect, suffixInput]) {
+      control.addEventListener('input', refresh);
+      control.addEventListener('change', refresh);
+    }
+    maxSideInput.addEventListener('input', () => { error.textContent = ''; });
+    metadataCheck.addEventListener('change', () => { keepMetadata = metadataCheck.checked; });
+    for (const field of [maxSideInput, suffixInput]) {
+      field.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        submit();
+      });
+    }
+    chooseButton.addEventListener('click', async () => {
+      try {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: t('Choose the destination folder'),
+          defaultPath: destination || localStorage.getItem(LAST_RESIZE_FOLDER_KEY) || firstPhotoPath.replace(/[\\/][^\\/]*$/, '') || undefined,
+        });
+        if (typeof selected !== 'string' || !selected) return;
+        destination = selected;
+        localStorage.setItem(LAST_RESIZE_FOLDER_KEY, selected);
+        refresh();
+      } catch (failure) {
+        console.error('Sélection de dossier impossible', failure);
+      }
+    });
+    resetButton.addEventListener('click', () => {
+      destination = null;
+      refresh();
+    });
+    confirm.addEventListener('click', submit);
+    refresh();
+    (maxSideRadio.checked ? maxSideInput : percentRange).focus();
+  });
+}
+
+// Question posée quand le fichier de destination existe déjà. Renvoie { action: 'replace' | 'increment' | 'skip', applyAll }.
+// Fermer la fenêtre (Échap, ×) revient à « Passer » pour ce fichier seulement. Le focus est sur « Incrémenter le nom », le choix sans perte de données.
+function resizeConflictDialog(output) {
+  return new Promise(resolve => {
+    let choice = { action: 'skip', applyAll: false };
+    const modal = createModal({ title: t('File already exists'), cardClass: 'confirm-card', focusSelector: FORM_FOCUSABLE, onClose: () => resolve(choice) });
+    const text = makeElement('p', 'confirm-message', t('“{name}” already exists in “{folder}”.', {
+      name: baseName(output),
+      folder: baseName(output.replace(/[\\/][^\\/]*$/, '')),
+    }));
+    const applyAll = makeInput('checkbox');
+    const applyRow = makeElement('div', 'resize-option');
+    applyRow.append(labelled(applyAll, t('Apply to all following files')));
+    const actions = makeElement('div', 'confirm-actions');
+    const buttons = [['replace', t('Replace'), 'btn-danger'], ['increment', t('Increment name'), 'btn-primary'], ['skip', t('Skip'), '']].map(([action, label, className]) => {
+      const button = makeElement('button', className, label);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        choice = { action, applyAll: applyAll.checked };
+        modal.close();
+      });
+      return button;
+    });
+    actions.append(...buttons);
+    modal.body.append(text, applyRow, actions);
+    // Flèches : passent d'un bouton à l'autre. Entrée valide le bouton ayant le focus.
+    modal.overlay.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      if (document.activeElement === applyAll) return;
+      event.preventDefault();
+      const current = buttons.indexOf(document.activeElement);
+      const next = event.key === 'ArrowLeft' ? Math.max(0, current - 1) : Math.min(buttons.length - 1, current + 1);
+      buttons[current < 0 ? 1 : next].focus();
+    });
+    buttons[1].focus();
+  });
+}
+
+async function runResizeBatch(targets, options) {
+  resizeRunning = true;
+  const total = targets.length;
+  const workerCount = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1, total));
+  let next = 0;
+  let finished = 0;
+  let written = 0;
+  let skipped = 0;
+  const failures = [];
+  let appliedPolicy = null; // choix « Appliquer à tous les fichiers suivants »
+  let conflictQueue = Promise.resolve();
+  const showProgress = () => api.showToast(t('Resizing… {done}/{total}', { done: finished, total }), true);
+
+  // Les questions sont posées une à la fois ; pendant qu'une fenêtre est ouverte, les autres photos continuent d'être traitées.
+  const askConflict = output => {
+    const run = async () => {
+      if (appliedPolicy) return appliedPolicy;
+      const choice = await resizeConflictDialog(output);
+      if (choice.applyAll) appliedPolicy = choice.action;
+      return choice.action;
+    };
+    const answer = conflictQueue.then(run, run);
+    conflictQueue = answer.catch(() => {});
+    return answer;
+  };
+
+  const processPhoto = async photo => {
+    let conflict = appliedPolicy ?? 'ask';
+    for (;;) {
+      let outcome;
+      try {
+        outcome = await invoke('resize_photo', { path: photo.path, options: { ...options, conflict } });
+      } catch (failure) {
+        failures.push({ path: photo.path, error: String(failure) });
+        return;
+      }
+      if (outcome.status === 'conflict') {
+        conflict = await askConflict(outcome.output);
+        continue;
+      }
+      if (outcome.status === 'skipped') skipped += 1;
+      else written += 1;
+      return;
+    }
+  };
+
+  const worker = async () => {
+    while (next < total) {
+      await processPhoto(targets[next++]);
+      finished += 1;
+      showProgress();
+    }
+  };
+
+  showProgress();
+  try {
+    await Promise.all(Array.from({ length: workerCount }, worker));
+  } finally {
+    resizeRunning = false;
+  }
+  if (failures.length) console.error('Redimensionnement : échecs', failures);
+  const parts = [];
+  if (written) parts.push(tp('{count} file resized', written));
+  if (skipped) parts.push(tp('{count} file skipped', skipped));
+  if (failures.length) parts.push(tp('{count} failure', failures.length));
+  api.showToast(!written && !skipped && failures.length ? t('Resize failed: {error}', { error: failures[0].error }) : parts.join(' · '));
+  // Les nouvelles photos entrent dans le catalogue si elles sont dans un dossier suivi.
+  if (written) api.syncLibrary?.();
+}
+
+// Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
+export async function resizePhotos(targets) {
+  if (!targets.length) return;
+  if (resizeRunning) {
+    api.showToast(t('A resize is already in progress'));
+    return;
+  }
+  const options = await resizeOptionsDialog(targets.length, targets[0].path);
+  if (options) await runResizeBatch(targets, options);
+}
+
 async function openWith(program, targets) {
   try {
     await invoke('open_with', { program, paths: targets.map(photo => photo.path) });
@@ -572,6 +928,7 @@ function openThumbnailMenu(event, index, source = 'grid') {
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true }),
     menuButton(t('Copy'), () => copyPhotosToClipboard(targets)),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
+    menuButton(t('Resize…'), () => resizePhotos(targets)),
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
   );
@@ -670,7 +1027,8 @@ function onContextMenu(event) {
   openThumbnailMenu(event, result.index, result.source);
 }
 
-// options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), folderCreated(parentPath, name).
+// options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), folderCreated(parentPath, name),
+// syncLibrary() (relecture des dossiers suivis après la création de fichiers).
 export function initPhotoActions(options) {
   api = options;
   document.addEventListener('contextmenu', onContextMenu);
