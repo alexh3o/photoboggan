@@ -2676,8 +2676,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "photofile"
-version = "0.3.2"
+name = "photoboggan"
+version = "0.3.3"
 dependencies = [
  "chrono",
  "clipboard-rs",

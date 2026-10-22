@@ -1584,7 +1584,7 @@ document.getElementById('btn-close-about').addEventListener('click', closeAbout)
 document.getElementById('about-github-link').addEventListener('click', async (e) => {
     e.preventDefault();
     try {
-        await openUrl('https://github.com/alexh3o/photofile');
+        await openUrl('https://github.com/alexh3o/photoboggan');
     } catch (err) {
         console.error("Impossible d'ouvrir le lien :", err);
     }
