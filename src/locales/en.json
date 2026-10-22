@@ -285,5 +285,11 @@
   "{count} file skipped": "{count} file skipped",
   "{count} file skipped|other": "{count} files skipped",
   "Resize failed: {error}": "Resize failed: {error}",
-  "A resize is already in progress": "A resize is already in progress"
+  "A resize is already in progress": "A resize is already in progress",
+  "Delete folder…": "Delete folder…",
+  "Move folder “{name}” and everything it contains (subfolders and files) to the trash?": "Move folder “{name}” and everything it contains (subfolders and files) to the trash?",
+  "It will also be removed from the tracked folders.": "It will also be removed from the tracked folders.",
+  "Moving folder to the trash…": "Moving folder to the trash…",
+  "Folder moved to the trash": "Folder moved to the trash",
+  "Folder deletion failed: {error}": "Folder deletion failed: {error}"
 }

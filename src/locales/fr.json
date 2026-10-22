@@ -283,5 +283,11 @@
   "{count} file skipped": "{count} fichier passé",
   "{count} file skipped|other": "{count} fichiers passés",
   "Resize failed: {error}": "Échec du redimensionnement : {error}",
-  "A resize is already in progress": "Un redimensionnement est déjà en cours"
+  "A resize is already in progress": "Un redimensionnement est déjà en cours",
+  "Delete folder…": "Supprimer le dossier…",
+  "Move folder “{name}” and everything it contains (subfolders and files) to the trash?": "Déplacer le dossier « {name} » et tout son contenu (sous-dossiers et fichiers) vers la corbeille ?",
+  "It will also be removed from the tracked folders.": "Il sera aussi retiré des dossiers suivis.",
+  "Moving folder to the trash…": "Mise du dossier à la corbeille…",
+  "Folder moved to the trash": "Dossier déplacé vers la corbeille",
+  "Folder deletion failed: {error}": "Échec de la suppression du dossier : {error}"
 }
