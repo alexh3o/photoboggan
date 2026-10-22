@@ -7,11 +7,11 @@
 - [x] *style*: change **application name**
 - [x] *style*: change **icon** along with new app name
 - [ ] *style*: tag line
-- [ ] *feat*: add a **resize** action in context menu, with choice of
+- [x] *feat*: add a **resize** action in context menu
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [ ] *feat*: **search by filename**
 - [ ] *style*: add **UI/text size** setting
-- [ ] *style*: allow **resizing left panel**
+- [x] *style*: allow **resizing left panel**
 - [x] *feat*: **folder deletion**
 - [ ] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
 - [ ] *style*: improve **grid selection visibility** (zoom out picture)**
