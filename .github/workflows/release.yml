@@ -15,7 +15,7 @@ jobs:
       matrix:
         include:
           - platform: 'ubuntu-22.04'
-            args: ''
+            args: '--bundles deb'
           - platform: 'windows-latest'
             args: ''
 
@@ -80,5 +80,7 @@ jobs:
           releaseName: "Release ${{ github.ref_name }}"
           releaseBody: ${{ matrix.platform == 'ubuntu-22.04' && env.content || 'Release for Windows' }}
           releaseDraft: true
-          prerelease: false
+          prerelease: true
           args: ${{ matrix.args }}
+          # Ajout du suffixe beta uniquement pour la version Linux (deb)
+          appVersion: ${{ matrix.platform == 'ubuntu-22.04' && format('{0}-beta', github.ref_name) || '' }}
