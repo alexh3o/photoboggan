@@ -37,12 +37,6 @@ impl AppDataPaths {
     }
 }
 
-pub struct AppState {
-    pub db_pool: RwLock<DbPool>,
-    pub paths: RwLock<AppDataPaths>,
-    pub thumbnail_cache_size: RwLock<u32>,
-}
-
 impl AppState {
     pub fn pool(&self) -> DbPool {
         self.db_pool.read().unwrap().clone()
@@ -64,10 +58,37 @@ impl AppState {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Default)]
+use std::sync::Mutex;
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct WindowStateConfig {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub is_maximized: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct WindowTracker {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+pub struct AppState {
+    pub db_pool: RwLock<DbPool>,
+    pub paths: RwLock<AppDataPaths>,
+    pub thumbnail_cache_size: RwLock<u32>,
+    pub window_tracker: Mutex<WindowTracker>, // suivi des dimensions normales (hors maximisation)
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
 struct AppConfig {
     custom_data_dir: Option<String>,
     thumbnail_cache_size: Option<u32>,
+    window_state: Option<WindowStateConfig>, // persistance dans config.json
 }
 
 fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -89,6 +110,125 @@ fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String>
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())
 }
+
+/////////////////////////
+///Fonctions de restauration, Bounds Check et sauvegarde
+/// Vérifie si le rectangle de la fenêtre intersecte la zone visible d'au moins un écran actif.
+fn check_window_visibility(window: &tauri::WebviewWindow, saved: &WindowStateConfig) -> bool {
+    let monitors = match window.available_monitors() {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+
+    if monitors.is_empty() {
+        return false;
+    }
+
+    let win_x = saved.x;
+    let win_y = saved.y;
+    let win_w = saved.width.max(100) as i32;
+    let win_h = saved.height.max(100) as i32;
+    const MIN_OVERLAP: i32 = 100; // Au moins 100x100 px visibles sur l'écran
+
+    for monitor in &monitors {
+        let mon_pos = monitor.position();
+        let mon_size = monitor.size();
+
+        let mon_x = mon_pos.x;
+        let mon_y = mon_pos.y;
+        let mon_w = mon_size.width as i32;
+        let mon_h = mon_size.height as i32;
+
+        let intersect_x1 = win_x.max(mon_x);
+        let intersect_y1 = win_y.max(mon_y);
+        let intersect_x2 = (win_x + win_w).min(mon_x + mon_w);
+        let intersect_y2 = (win_y + win_h).min(mon_y + mon_h);
+
+        let overlap_w = (intersect_x2 - intersect_x1).max(0);
+        let overlap_h = (intersect_y2 - intersect_y1).max(0);
+
+        if overlap_w >= MIN_OVERLAP && overlap_h >= MIN_OVERLAP {
+            // Vérifie que la barre de titre reste atteignable (pas au-delà du bord inférieur)
+            if win_y >= mon_y - 20 && win_y < mon_y + mon_h - 40 {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
+/// Restaure la géométrie de la fenêtre avec vérification de sécurité.
+fn restore_window_state(window: &tauri::WebviewWindow, config: &AppConfig) -> WindowTracker {
+    const DEFAULT_WIDTH: u32 = 1024;
+    const DEFAULT_HEIGHT: u32 = 768;
+
+    if let Some(ref saved) = config.window_state {
+        if check_window_visibility(window, saved) {
+            let width = saved.width.max(640);
+            let height = saved.height.max(480);
+
+            let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                width,
+                height,
+            }));
+            let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                x: saved.x,
+                y: saved.y,
+            }));
+
+            if saved.is_maximized {
+                let _ = window.maximize();
+            }
+
+            return WindowTracker {
+                x: saved.x,
+                y: saved.y,
+                width,
+                height,
+            };
+        }
+    }
+
+    // Réinitialisation de sécurité : taille par défaut et centrage sur l'écran principal
+    let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT,
+    }));
+    let _ = window.center();
+
+    let pos = window.outer_position().unwrap_or(tauri::PhysicalPosition { x: 100, y: 100 });
+    let size = window.outer_size().unwrap_or(tauri::PhysicalSize { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT });
+
+    WindowTracker {
+        x: pos.x,
+        y: pos.y,
+        width: size.width,
+        height: size.height,
+    }
+}
+
+/// Sauvegarde l'état actuel de la fenêtre dans config.json.
+fn save_current_window_state(window: &tauri::Window, state: &AppState) {
+    let is_maximized = window.is_maximized().unwrap_or(false);
+    let (x, y, width, height) = match state.window_tracker.lock() {
+        Ok(tracker) => (tracker.x, tracker.y, tracker.width, tracker.height),
+        Err(_) => return,
+    };
+
+    let app = window.app_handle();
+    let mut config = load_config(app);
+    config.window_state = Some(WindowStateConfig {
+        x,
+        y,
+        width,
+        height,
+        is_maximized,
+    });
+    let _ = save_config(app, &config);
+}
+/////////////////////////
+/////////////////////////
 
 fn default_data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("data");
@@ -1052,18 +1192,63 @@ fn main() {
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
             let config = load_config(handle);
             let cache_size = config.thumbnail_cache_size.unwrap_or(512);
+
+            // Restauration de la fenêtre au démarrage avec vérification des écrans
+            let main_window = app.get_webview_window("main").ok_or("Fenêtre principale introuvable")?;
+            let window_tracker = restore_window_state(&main_window, &config);
+
             app.manage(AppState {
                 db_pool: RwLock::new(db_pool),
                 paths: RwLock::new(paths),
                 thumbnail_cache_size: RwLock::new(cache_size),
+                window_tracker: Mutex::new(window_tracker),
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            match event {
+                // Mémorise la taille non-maximisée en direct
+                tauri::WindowEvent::Resized(size) => {
+                    if let Ok(false) = window.is_maximized() {
+                        if size.width > 0 && size.height > 0 {
+                            if let Some(state) = window.app_handle().try_state::<AppState>() {
+                                if let Ok(mut tracker) = state.window_tracker.lock() {
+                                    tracker.width = size.width;
+                                    tracker.height = size.height;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Mémorise la position non-maximisée en direct
+                tauri::WindowEvent::Moved(pos) => {
+                    if let Ok(false) = window.is_maximized() {
+                        if let Some(state) = window.app_handle().try_state::<AppState>() {
+                            if let Ok(mut tracker) = state.window_tracker.lock() {
+                                tracker.x = pos.x;
+                                tracker.y = pos.y;
+                            }
+                        }
+                    }
+                }
+                // Sauvegarde sur le disque à la fermeture
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    if let Some(state) = window.app_handle().try_state::<AppState>() {
+                        save_current_window_state(window, &state);
+                    }
+                }
+                _ => {}
+            }
+        })
         .invoke_handler(tauri::generate_handler![
+            // ... vos commandes existantes restent strictement inchangées ...
             get_storage_location,
             change_storage_location,
-            clear_thumbnail_cache,      // <-- AJOUTÉ
-            set_thumbnail_cache_size,   // <-- AJOUTÉ
+            clear_thumbnail_cache,
+            set_thumbnail_cache_size,
             get_folders,
             add_folder_and_scan,
             remove_folder,
@@ -1214,10 +1399,9 @@ fn change_storage_location(
     }
 
     // 6. Sauvegarde dans le fichier config.json
-    let config_data = AppConfig {
-        custom_data_dir: if is_custom { Some(target_dir.to_string_lossy().into_owned()) } else { None },
-        thumbnail_cache_size: Some(state.thumbnail_cache_size() as u32),
-    };
+    let mut config_data = load_config(&app);
+    config_data.custom_data_dir = if is_custom { Some(target_dir.to_string_lossy().into_owned()) } else { None };
+    config_data.thumbnail_cache_size = Some(state.thumbnail_cache_size() as u32);
     save_config(&app, &config_data)?;
 
     Ok(StorageLocationInfo {
