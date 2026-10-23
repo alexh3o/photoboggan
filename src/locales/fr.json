@@ -312,5 +312,7 @@
   "From {date}": "Du {date}",
   "To {date}": "au {date}",
   "Toggle photo information": "Afficher / masquer les informations de la photo",
+  "Toggle shortcuts guide": "Afficher / masquer ce guide des raccourcis",
+  "Filter on this keyword (Ctrl+click: add to the filter)": "Filtrer sur ce mot-clé (Ctrl + clic : l'ajouter au filtre)",
   "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Seuls les mots d'au moins 3 caractères, composés de lettres, de chiffres et des caractères « - », « _ » et « . », sont acceptés"
 }

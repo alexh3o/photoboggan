@@ -277,6 +277,9 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 /* EXIF */
 .exif-section { width: 15rem; background: var(--bg-panel); border-left: 1px solid var(--border); padding: 1rem; overflow-y: auto; transition: width 0.3s; }
 .exif-section.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
+/* Mots-clés du panneau d'infos : étiquettes cliquables (même aspect que celles du filtre) ; « active » = déjà dans le filtre de mots-clés */
+.exif-section li span#exif-keywords { display: flex; flex-wrap: wrap; gap: 5px; }
+.filter-tag.tag-keyword.active { background: #3b78a0; border-color: #8fc9ee; }
 .exif-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
 .exif-section ul { list-style: none; }
 /* Deux-points des libellés traduits : espace insécable avant en français, collant en anglais */
