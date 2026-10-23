@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
-- [ ] *feat*: `UI`memorize open panels when closing app, reopen them + thumbnails
+- [x] *feat*: `UI`memorize open panels when closing app, reopen them + thumbnails
 - [x] *feat*: `UI`darken non selected photos when hovering over selection
 - [x] *feat*: **search by filename**
 - [ ] *style*: `UI`add **UI/text size** setting
@@ -20,9 +20,10 @@
 - [ ] *feat*: `UI`add selection panel close button, to close panel and deselect all pictures
 - [ ] *feat*: allow **stopping a running scan**
 - [x] *style*: `UI` make **filters more compact**
-- [ ] *feat*: `UI` **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
-- [ ] *feat*: `UI` **shortcuts** for left panel, toolbar (non restart persistent), keys modal
-- [ ] *style*: `UI` **remember window position and size** through restarts
+- [x] *feat*: `UI` **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
+- [x] *feat*: `UI` **shortcuts** for left panel, info panel
+- [ ] *feat*: `UI`action & **shortcuts** to **toggle toolbar**
+- [x] *style*: `UI` **remember window position and size** through restarts
 - [ ] *feat*: `Controls` **keyboard shortcuts** customizing
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [ ] *perf*: add more **photos to cache** to improve felt full screen navigation speed
