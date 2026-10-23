@@ -2,57 +2,47 @@
 
 ## 🚀 Next in line
 
-- [x] *feat*: Allow **rating per image in comparison** mode
-- [x] *feat*: add **bin** in app or use OS bin
-- [x] *style*: change **application name**
-- [x] *style*: change **icon** along with new app name
-- [x] *style*: tag line
-- [x] *feat*: add a **resize** action in context menu
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [x] *feat*: **search by filename**
 - [ ] *style*: add **UI/text size** setting
-- [x] *style*: allow **resizing left panel**
-- [x] *feat*: **folder deletion**
+- [ ] *feat*: hotkey to display shortcuts guide
 - [ ] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
-- [x] *style*: improve **grid selection visibility** (zoom out picture)**
-- [x] *fix*: deleting from removable / nas media doesn't send to trash as mentioned
 - [ ] *fix*: **Resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
 - [ ] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
 
 ## 💡 Ideas / longer term / on hold
 
-- [ ] *feat*: add a **map widget** in info panel
-- [x] *docs*: add link to **github issues**
+- [ ] *feat*: add selection panel close button, to close panel and deselect all pictures
 - [ ] *feat*: allow **stopping a running scan**
-- [x] *style*: make filters more compact
+- [x] *style*: make **filters more compact**
 - [ ] *feat*: **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
 - [ ] *feat*: **shortcuts** for left panel, toolbar (non restart persistent), keys modal
 - [ ] *style*: **remember window position and size** through restarts
 - [ ] *feat*: **keyboard shortcuts** customizing
 - [ ] *feat*: "**Open with**" keyboard shortcuts
 - [ ] *perf*: add more **photos to cache** to improve felt full screen navigation speed
-- [ ] *feat*: add **zoom value** display (optional)
+- [ ] *feat*: add **zoom value** display (optional)3
+- [ ] *feat*: darken non selected photos when hovering over selection
 - [x] *chore*: Add **Linux** release
-  - [x] Check window resizing controls
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [ ] *fix*: **Cannot move window** by title bar
-  - [x] Check & solve "Open with..." potential issue (deb)
-  - [ ] Test linux release
-  - [ ] Keep only deb format
-- [ ] *feat*: Allow **keywords management & file write** (big one)
-  - [ ] Implement tree structure matching existing pictures, handle active/inactive keywords in each branch, implement vizualisation per picture, per pictures & collection
-  - [ ] Allow adding keyword in tree
+  - [ ] *revert*: non working fix for "cannot move window by title bar"
+  - [ ] **Test** linux release
+- [ ] *feat*: Allow **keywords management & file write** (HARD)
+  - [ ] Implement **tree structure** matching **existing pictures**, handle **active/inactive keywords** in each branch, implement vizualisation **per picture, per pictures & collection**
+  - [ ] Allow **adding keyword** in tree
   - [ ] Allow adding and removing keywords, writing files in all existing formats
-  - [ ] Handle multiplicity of tags in structure
-- [ ] *feat*: **Map screen**
+  - [ ] Handle **multiplicity of tags** in structure
 - [ ] *feat*: check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: Add **mouse settings** screen
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: **heic / heif** image format support
-- [ ] *feat*: **Face recognition** (heavy & unlikely)
+- [ ] *feat*: [HARD] **Face recognition** (heavy & unlikely)
 - [ ] *feat*: jpeg **integrity scan** (specific view)
+- [ ] *feat*: [NEEDS_INTERNET] **Map screen** (needs internet)
+- [ ] *feat*: [NEEDS_INTERNET] add a **map widget** in info panel
 
 ## ❌ Not planned (use "Open with...")
 
@@ -60,8 +50,7 @@
 
 ## 🧪 To be tested
 
-- [ ] Test deletion in case of NAS and USB key that have no trash:  what's the warning ?
 - [ ] Test Linux Release
 - [ ] Ensure moving files is safe
 - [ ] Ensure writing files is safe
-- [ ] Backup of data from data folder
+- [ ] Restoring data from data folder
