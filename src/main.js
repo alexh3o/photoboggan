@@ -1887,9 +1887,9 @@ function renderSettingsFolderList() {
     li.className = 'settings-folder-item';
     li.innerHTML = `
       <span title="${f.path}">${f.path}</span>
-      <button class="btn-delete-folder">${t('Delete')}</button>
+      <button class="btn-remove-folder">${t('Remove')}</button>
     `;
-    li.querySelector('.btn-delete-folder').addEventListener('click', async () => {
+    li.querySelector('.btn-remove-folder').addEventListener('click', async () => {
       folders = await invoke('remove_folder', { id: f.id, path: f.path });
       if (currentFolderFilter === f.path) currentFolderFilter = null;
       renderFolderTree();
