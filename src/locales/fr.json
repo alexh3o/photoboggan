@@ -311,5 +311,6 @@
   "Filename: {text}": "Nom de fichier : {text}",
   "From {date}": "Du {date}",
   "To {date}": "au {date}",
+  "Toggle photo information": "Afficher / masquer les informations de la photo",
   "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Seuls les mots d'au moins 3 caractères, composés de lettres, de chiffres et des caractères « - », « _ » et « . », sont acceptés"
 }

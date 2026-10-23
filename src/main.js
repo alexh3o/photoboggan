@@ -1155,6 +1155,7 @@ function openFullscreen(index) {
   fullscreenSlot.center = { x: 0.5, y: 0.5 };
   layoutFullscreenSlot();
   preloadFullscreenImages(index);
+  updateFullscreenInfo();
 }
 
 function closeFullscreen() {
@@ -1182,7 +1183,7 @@ function layoutFullscreenSlot() {
 // prête, puis dimensions, zoom et position sont appliqués d'un coup (pas d'image étirée entre deux photos).
 function showFullscreenPhoto(photo, url) {
   fullscreenSlot.photo = photo;
-  if (fullscreenSlot.url === url) return;
+  if (fullscreenSlot.url === url) { updateFullscreenInfo(); return; } // même image (ex. changement de note) : la photo associée a pu changer
   fullscreenSlot.url = url;
   const token = ++fullscreenLoadToken;
   const apply = loaded => {
@@ -1193,6 +1194,7 @@ function showFullscreenPhoto(photo, url) {
     fullscreenSlot.center = { x: 0.5, y: 0.5 };
     fullscreenImg.style.width = `${loaded.naturalWidth}px`;
     fullscreenImg.style.height = `${loaded.naturalHeight}px`;
+    updateFullscreenInfo(); // les informations changent en même temps que l'image affichée
     fullscreenImg.src = url;
     layoutFullscreenSlot();
   };
@@ -1200,6 +1202,7 @@ function showFullscreenPhoto(photo, url) {
   probe.onload = () => apply(probe);
   probe.onerror = () => {
     if (token !== fullscreenLoadToken) return;
+    updateFullscreenInfo();
     // Image illisible : l'élément affiche l'erreur, ce qui lance la vérification de fichier manquant (écouteur « error » plus bas).
     fullscreenSlot.naturalWidth = 0;
     fullscreenSlot.naturalHeight = 0;
@@ -1221,6 +1224,7 @@ function clearFullscreenImage() {
   fullscreenSlot.naturalHeight = 0;
   fullscreenSlot.zoom = null;
   fullscreenImg.src = '';
+  updateFullscreenInfo();
   layoutFullscreenSlot();
 }
 
@@ -1250,6 +1254,67 @@ function showFullscreenRatingForAWhile() {
 function updateFullscreenRatingStars() {
   const rating = photos[lastSelectedIndex]?.rating || 0;
   fullscreenRating.querySelectorAll('button').forEach(button => button.classList.toggle('active', Number(button.dataset.rating) <= rating));
+}
+
+// INFORMATIONS SUR LA PHOTO EN PLEIN ÉCRAN (touche D) : nom de fichier (haut, centre), rang dans la liste parcourue (haut, droite),
+// EXIF sur deux lignes (bas, gauche) et date de prise de vue en toutes lettres (bas, centre). Le choix affiché / masqué est mémorisé.
+let fullscreenInfoVisible = false;
+try { fullscreenInfoVisible = localStorage.getItem('fullscreenInfoVisible') === 'true'; } catch { /* stockage indisponible : masqué par défaut */ }
+const fullscreenInfo = document.getElementById('fullscreen-info');
+const fullscreenInfoName = document.getElementById('fullscreen-info-name');
+const fullscreenInfoRank = document.getElementById('fullscreen-info-rank');
+const fullscreenInfoExifLines = [...document.querySelectorAll('#fullscreen-info-exif > div')];
+const fullscreenInfoDate = document.getElementById('fullscreen-info-date');
+
+// « samedi 12 septembre 2026, 12h36 » (l'heure n'est ajoutée que si la date EXIF en contient une).
+function formatFullscreenDate(photo) {
+  const key = photoTimeKey(photo);
+  if (key === null || key === undefined) return '';
+  const text = String(key).padStart(14, '0');
+  const language = getLanguage();
+  const date = new Date(Number(text.slice(0, 4)), Number(text.slice(4, 6)) - 1, Number(text.slice(6, 8)));
+  const day = date.toLocaleDateString(language, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const hasTime = /\d{4}\D?\d{2}\D?\d{2}\D+\d{2}/.test(String(photo.date_taken || ''));
+  if (!hasTime) return day;
+  const hour = text.slice(8, 10);
+  const minute = text.slice(10, 12);
+  return `${day}, ${language === 'fr' ? `${Number(hour)}h${minute}` : `${hour}:${minute}`}`;
+}
+
+// Fabricant + modèle, sans répéter le fabricant quand le modèle le contient déjà (« NIKON CORPORATION » + « NIKON D850 » -> « NIKON D850 »).
+function fullscreenCameraName(photo) {
+  const make = (photo.manufacturer || '').trim();
+  const model = (photo.camera_model || '').trim();
+  if (!model) return make;
+  const makeWord = make.split(/\s+/)[0].toLowerCase();
+  return make && !model.toLowerCase().startsWith(makeWord) ? `${make} ${model}` : model;
+}
+
+function updateFullscreenInfo() {
+  fullscreenView.classList.toggle('show-info', fullscreenInfoVisible);
+  fullscreenInfo.classList.toggle('hidden', !fullscreenInfoVisible);
+  if (!fullscreenInfoVisible) return;
+  const photo = fullscreenSlot.photo;
+  if (!photo) {
+    fullscreenInfoName.textContent = fullscreenInfoRank.textContent = fullscreenInfoDate.textContent = '';
+    fullscreenInfoExifLines.forEach(line => { line.textContent = ''; line.hidden = true; });
+    return;
+  }
+  fullscreenInfoName.textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '';
+  const index = photos[lastSelectedIndex] === photo ? lastSelectedIndex : photos.indexOf(photo);
+  fullscreenInfoRank.textContent = index >= 0 ? `${index + 1}/${photos.length}` : '';
+  fullscreenInfoDate.textContent = formatFullscreenDate(photo);
+  const lines = [
+    [fullscreenCameraName(photo), (photo.lens_model || '').trim()],
+    [photo.focal_length, photo.shutter_speed ? formatShutterSpeed(photo.shutter_speed) : '', photo.iso ? `ISO ${photo.iso}` : ''],
+  ].map(parts => parts.filter(Boolean).join(' · '));
+  fullscreenInfoExifLines.forEach((line, i) => { line.textContent = lines[i] || ''; line.hidden = !lines[i]; });
+}
+
+function toggleFullscreenInfo() {
+  fullscreenInfoVisible = !fullscreenInfoVisible;
+  try { localStorage.setItem('fullscreenInfoVisible', String(fullscreenInfoVisible)); } catch { /* non mémorisé */ }
+  updateFullscreenInfo();
 }
 
 function preloadFullscreenImages(index) {
@@ -1597,6 +1662,11 @@ window.addEventListener('keydown', (e) => {
     clearTimeout(fullscreenRatingTimeout);
     if (fullscreenRatingPinned) fullscreenRating.classList.remove('hidden');
     else fullscreenRating.classList.add('hidden');
+    return;
+  }
+  // Informations sur la photo (nom, date, EXIF, rang) en plein écran
+  if (e.key.toLowerCase() === 'd' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
+    toggleFullscreenInfo();
     return;
   }
   // Modale info
