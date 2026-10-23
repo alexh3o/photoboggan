@@ -302,5 +302,7 @@
   "Folder deleted": "Dossier supprimé",
   "Moving folder to the trash…": "Mise du dossier à la corbeille…",
   "Folder moved to the trash": "Dossier déplacé vers la corbeille",
-  "Folder deletion failed: {error}": "Échec de la suppression du dossier : {error}"
+  "Folder deletion failed: {error}": "Échec de la suppression du dossier : {error}",
+  "Type text then press Enter...": "Saisir un texte puis Entrée…",
+  "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Seuls les mots d'au moins 3 caractères, composés de lettres, de chiffres et des caractères « - », « _ » et « . », sont acceptés"
 }

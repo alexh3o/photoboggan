@@ -6,15 +6,15 @@
 - [x] *feat*: add **bin** in app or use OS bin
 - [x] *style*: change **application name**
 - [x] *style*: change **icon** along with new app name
-- [ ] *style*: tag line
+- [x] *style*: tag line
 - [x] *feat*: add a **resize** action in context menu
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
-- [ ] *feat*: **search by filename**
+- [x] *feat*: **search by filename**
 - [ ] *style*: add **UI/text size** setting
 - [x] *style*: allow **resizing left panel**
 - [x] *feat*: **folder deletion**
 - [ ] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
-- [ ] *style*: improve **grid selection visibility** (zoom out picture)**
+- [x] *style*: improve **grid selection visibility** (zoom out picture)**
 - [x] *fix*: deleting from removable / nas media doesn't send to trash as mentioned
 - [ ] *fix*: **Resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
 - [ ] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
@@ -22,7 +22,7 @@
 ## 💡 Ideas / longer term / on hold
 
 - [ ] *feat*: add a **map widget** in info panel
-- [ ] *docs*: add link to **github issues**
+- [x] *docs*: add link to **github issues**
 - [ ] *feat*: allow **stopping a running scan**
 - [ ] *feat*: **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
 - [ ] *feat*: **shortcuts** for left panel, toolbar (non restart persistent), keys modal

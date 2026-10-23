@@ -304,5 +304,7 @@
   "Folder deleted": "Folder deleted",
   "Moving folder to the trash…": "Moving folder to the trash…",
   "Folder moved to the trash": "Folder moved to the trash",
-  "Folder deletion failed: {error}": "Folder deletion failed: {error}"
+  "Folder deletion failed: {error}": "Folder deletion failed: {error}",
+  "Type text then press Enter...": "Type text then press Enter…",
+  "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted"
 }

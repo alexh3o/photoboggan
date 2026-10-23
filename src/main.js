@@ -143,6 +143,7 @@ let folderTreePhotos = [];
 let currentFolderFilter = null;
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
 let keywordFilters = [];
+let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
@@ -557,8 +558,9 @@ function hasActiveFilters() {
   const hasRating = ratingThreshold >= 0;
   const hasColor = colorFilters.size > 0;
   const hasKeywords = keywordFilters.length > 0;
+  const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasDate;
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate;
 }
 
 function updateFilteredPhotosCount() {
@@ -586,6 +588,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   renderedThumbnailNodes.clear();
   photos = loadedPhotos.filter(photo => (ratingThreshold < 0 || photo.rating > ratingThreshold)
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
+    && matchesFilenameFilters(photo)
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && matchesDateFilter(photo));
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
@@ -627,6 +630,12 @@ function clearAllFilters() {
   if (keywordInput) keywordInput.value = '';
   renderKeywordFilters();
 
+  // Réinitialise les chaînes de nom de fichier
+  filenameFilters = [];
+  const filenameInput = document.getElementById('filename-filter-input');
+  if (filenameInput) filenameInput.value = '';
+  renderFilenameFilters();
+
   // Réinitialise la date
   dateFilterInput.value = '';
   dateFilter = null;
@@ -664,6 +673,43 @@ function addKeywordFilter(value) {
   keywordFilters.push(keyword);
   document.getElementById('keyword-filter-input').value = '';
   renderKeywordFilters();
+  applyPhotoFilters();
+}
+
+// FILTRE PAR NOM DE FICHIER : chaque chaîne validée (Entrée) doit figurer dans le nom du fichier (extension comprise), sans tenir compte de la casse.
+const FILENAME_FILTER_PATTERN = /^[\p{L}\p{N}._-]{3,}$/u;
+
+function matchesFilenameFilters(photo) {
+  if (filenameFilters.length === 0) return true;
+  const name = (photo.filename || photo.path.split(/[\\/]/).pop() || '').toLowerCase();
+  return filenameFilters.every(text => name.includes(text.toLowerCase()));
+}
+
+function renderFilenameFilters() {
+  const active = document.getElementById('active-filename-filters');
+  if (!active) return;
+  active.replaceChildren(...filenameFilters.map(text => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.textContent = `${text} ×`; button.title = t('Remove filter {keyword}', { keyword: text });
+    button.addEventListener('click', () => {
+      filenameFilters = filenameFilters.filter(item => item !== text);
+      renderFilenameFilters(); applyPhotoFilters();
+    });
+    return button;
+  }));
+}
+
+function addFilenameFilter(value) {
+  const text = value.trim();
+  if (!text) return;
+  if (!FILENAME_FILTER_PATTERN.test(text)) {
+    showWriteToast(t('Only words of at least 3 characters made of letters, digits and the characters "-", "_" and "." are accepted'));
+    return;
+  }
+  document.getElementById('filename-filter-input').value = '';
+  if (filenameFilters.some(item => item.toLowerCase() === text.toLowerCase())) return;
+  filenameFilters.push(text);
+  renderFilenameFilters();
   applyPhotoFilters();
 }
 
@@ -2063,6 +2109,7 @@ onLanguageChange(() => {
   updateUIOnSelection();
   updateRatingAction();
   updateFilteredPhotosCount();
+  renderFilenameFilters();
   updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
   updateSortUI();
   updateVirtualScroller(); // libellés des séparateurs (jours, mois…) dans la nouvelle langue
@@ -2233,6 +2280,9 @@ selectionColorBar.addEventListener('click', event => {
 document.getElementById('keyword-filter-input').addEventListener('change', event => addKeywordFilter(event.target.value));
 document.getElementById('keyword-filter-input').addEventListener('keydown', event => {
   if (event.key === 'Enter') { event.preventDefault(); addKeywordFilter(event.target.value); }
+});
+document.getElementById('filename-filter-input').addEventListener('keydown', event => {
+  if (event.key === 'Enter') { event.preventDefault(); addFilenameFilter(event.target.value); }
 });
 document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
