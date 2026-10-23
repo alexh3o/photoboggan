@@ -1589,6 +1589,14 @@ document.getElementById('about-github-link').addEventListener('click', async (e)
         console.error("Impossible d'ouvrir le lien :", err);
     }
 });
+document.getElementById('about-issues-link')?.addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    await openUrl('https://github.com/alexh3o/photoboggan/issues');
+  } catch (err) {
+    console.error("Impossible d'ouvrir le lien :", err);
+  }
+});
 
 // ESC ferme la fenêtre la plus haute (À propos, puis Paramètres), même si un champ des paramètres a le focus.
 window.addEventListener('keydown', event => {
@@ -1665,7 +1673,86 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 document.getElementById('btn-toggle-sidebar').addEventListener('click', event => {
   const sidebarVisible = sidebarPanel.classList.toggle('hidden') === false;
   event.currentTarget.classList.toggle('active', sidebarVisible);
+
+  if (sidebarVisible) {
+    if (sidebarWidth > 0) sidebarPanel.style.width = `${sidebarWidth}px`;
+  } else {
+    sidebarPanel.style.removeProperty('width');
+  }
+
   setTimeout(updateVirtualScroller, 300);
+});
+
+// ==========================================
+// REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE
+// ==========================================
+const sidebarResizer = document.getElementById('sidebar-resizer');
+let sidebarWidth = Number(localStorage.getItem('sidebarWidth')) || 0;
+if (sidebarWidth > 0) {
+  sidebarPanel.style.width = `${sidebarWidth}px`;
+}
+
+sidebarResizer?.addEventListener('pointerdown', event => {
+  if (sidebarPanel.classList.contains('hidden')) return;
+  sidebarResizer.setPointerCapture(event.pointerId);
+  sidebarResizer.classList.add('dragging');
+  sidebarPanel.classList.add('resizing');
+  let resizeFrame = null;
+  let latestPointerEvent = event;
+
+  const resize = pointerEvent => {
+    latestPointerEvent = pointerEvent;
+    if (resizeFrame !== null) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null;
+      const mainLeft = mainContent.getBoundingClientRect().left;
+      const minSidebarWidth = 175; // ~11rem
+      const maxSidebarWidth = Math.max(minSidebarWidth, mainContent.clientWidth - 300);
+      const newWidth = Math.max(minSidebarWidth, Math.min(maxSidebarWidth, latestPointerEvent.clientX - mainLeft));
+      sidebarPanel.style.width = `${newWidth}px`;
+      sidebarWidth = newWidth;
+      updateVirtualScroller();
+    });
+  };
+
+  const stop = event => {
+    if (Number.isFinite(event?.clientX)) latestPointerEvent = event;
+    if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+    if (Number.isFinite(latestPointerEvent.clientX)) {
+      const mainLeft = mainContent.getBoundingClientRect().left;
+      const minSidebarWidth = 175;
+      const maxSidebarWidth = Math.max(minSidebarWidth, mainContent.clientWidth - 300);
+      const newWidth = Math.max(minSidebarWidth, Math.min(maxSidebarWidth, latestPointerEvent.clientX - mainLeft));
+      sidebarPanel.style.width = `${newWidth}px`;
+      sidebarWidth = newWidth;
+      localStorage.setItem('sidebarWidth', String(newWidth));
+    }
+    sidebarResizer.classList.remove('dragging');
+    sidebarPanel.classList.remove('resizing');
+    sidebarResizer.removeEventListener('pointermove', resize);
+    sidebarResizer.removeEventListener('pointerup', stop);
+    sidebarResizer.removeEventListener('pointercancel', stop);
+    updateVirtualScroller();
+  };
+
+  sidebarResizer.addEventListener('pointermove', resize);
+  sidebarResizer.addEventListener('pointerup', stop);
+  sidebarResizer.addEventListener('pointercancel', stop);
+});
+
+// Accessibilité clavier (flèches gauche / droite sur la poignée)
+sidebarResizer?.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  event.preventDefault();
+  const currentWidth = sidebarPanel.getBoundingClientRect().width;
+  const change = event.key === 'ArrowRight' ? 20 : -20;
+  const minSidebarWidth = 175;
+  const maxSidebarWidth = Math.max(minSidebarWidth, mainContent.clientWidth - 300);
+  const newWidth = Math.max(minSidebarWidth, Math.min(maxSidebarWidth, currentWidth + change));
+  sidebarPanel.style.width = `${newWidth}px`;
+  sidebarWidth = newWidth;
+  localStorage.setItem('sidebarWidth', String(newWidth));
+  updateVirtualScroller();
 });
 
 const previewResizer = document.getElementById('preview-resizer');
@@ -2046,7 +2133,8 @@ previewResizer.addEventListener('pointerdown', event => {
       const mainWidth = mainContent.clientWidth;
       const fixedWidth = sidebarPanel.getBoundingClientRect().width
         + document.getElementById('exif-panel').getBoundingClientRect().width
-        + previewResizer.getBoundingClientRect().width;
+        + previewResizer.getBoundingClientRect().width
+        + (sidebarResizer && !sidebarPanel.classList.contains('hidden') ? sidebarResizer.getBoundingClientRect().width : 0);
       const maxGridWidth = Math.max(160, mainWidth - fixedWidth - 160);
       const gridWidth = Math.max(160, Math.min(maxGridWidth, latestPointerEvent.clientX - gridBounds.left));
       mainContent.style.setProperty('--grid-width', `${gridWidth}px`);
@@ -2061,7 +2149,8 @@ previewResizer.addEventListener('pointerdown', event => {
       const mainWidth = mainContent.clientWidth;
       const fixedWidth = sidebarPanel.getBoundingClientRect().width
         + document.getElementById('exif-panel').getBoundingClientRect().width
-        + previewResizer.getBoundingClientRect().width;
+        + previewResizer.getBoundingClientRect().width
+        + (sidebarResizer && !sidebarPanel.classList.contains('hidden') ? sidebarResizer.getBoundingClientRect().width : 0);
       const maxGridWidth = Math.max(160, mainWidth - fixedWidth - 160);
       const gridWidth = Math.max(160, Math.min(maxGridWidth, latestPointerEvent.clientX - gridBounds.left));
       mainContent.style.setProperty('--grid-width', `${gridWidth}px`);
@@ -2081,8 +2170,9 @@ previewResizer.addEventListener('keydown', event => {
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
   event.preventDefault();
   const fixedWidth = sidebarPanel.getBoundingClientRect().width
-    + document.getElementById('exif-panel').getBoundingClientRect().width
-    + previewResizer.getBoundingClientRect().width;
+        + document.getElementById('exif-panel').getBoundingClientRect().width
+        + previewResizer.getBoundingClientRect().width
+        + (sidebarResizer && !sidebarPanel.classList.contains('hidden') ? sidebarResizer.getBoundingClientRect().width : 0);
   const maxGridWidth = Math.max(160, mainContent.clientWidth - fixedWidth - 160);
   const change = event.key === 'ArrowRight' ? 20 : -20;
   const width = Math.max(160, Math.min(maxGridWidth, gridContainer.clientWidth + change));
