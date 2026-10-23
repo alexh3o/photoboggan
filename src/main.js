@@ -1676,8 +1676,30 @@ async function setSelectionRating(rating) {
 }
 
 // ==========================================
-// TOUCHES CLAVIER
+// Keyboard shortcuts Memo
 // ==========================================
+// +      : Zoom in
+// -      : Zoom out
+// *      : Zoom to full size / Fit to window
+// 0-5    : Rate
+// A      : Select / deselect all in compare mode
+// Ctrl+A : Select/Deselect All
+// C      : Copy to
+// Ctrl+C : copy to clipboard
+// D      : Info display in fullscreen
+// Ctrl+D : Debug to console
+// E      : Show in explorer
+// F      : Fullscreen toggle
+// H      : Shortcut guide
+// I      : Info sheet
+// J      : Info panel
+// N      : Navigation/Filters panel
+// P      : Preview panel
+// R      : Rating bar in fullscreen
+// S      : Resize
+// X      : Compare mode
+// F11    : immersive mode
+// Del    : Delete
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   // Ctrl+C : copie les photos sélectionnées dans le presse-papiers de l'OS. Traité avant le raccourci « C » seul (Copier vers…),
@@ -1785,10 +1807,19 @@ if (e.key === 'Delete') {
       }
     }
   }
-  // X : active / désactive le mode Comparer ; P : affiche / masque l'aperçu (sans effet en mode Comparer, où le bouton est inactif). Pas en plein écran ni derrière une fenêtre ouverte.
-  if ((e.key.toLowerCase() === 'x' || e.key.toLowerCase() === 'p') && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+  // Bascule des panneaux et modes :
+  // X : mode Comparer | P : aperçu | N : panneau Filtres (gauche) | J : panneau Info (droite)
+  // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte.
+  const panelToggleButtons = {
+    x: 'btn-toggle-compare',
+    p: 'btn-toggle-preview',
+    n: 'btn-toggle-sidebar',
+    j: 'btn-toggle-exif',
+  };
+  const targetToggleBtnId = panelToggleButtons[e.key.toLowerCase()];
+  if (targetToggleBtnId && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
-    if (!e.repeat) document.getElementById(e.key.toLowerCase() === 'x' ? 'btn-toggle-compare' : 'btn-toggle-preview').click();
+    if (!e.repeat) document.getElementById(targetToggleBtnId)?.click();
     return;
   }
   // Mode Comparer, plusieurs photos : A sous-sélectionne toutes les photos (ou aucune si elles le sont déjà)
