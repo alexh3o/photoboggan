@@ -1,6 +1,6 @@
 <div id="english">
 <p align="center">
-  <b>English</b> | <a href="#francais">Français</a>
+  <b>English</b> | <a href="#francais">Français</a> | <a href="#screenshots">Screenshots</a>
 </p>
 
 <p align="center">
@@ -47,6 +47,7 @@ photoboggan is designed to be a simpler, faster, and more pleasant companion to 
 ### License
 
 Distributed under the **MIT License**.
+Photos : Lorem Picsum
 
 </div>
 
@@ -54,7 +55,7 @@ Distributed under the **MIT License**.
 
 <div id="francais">
 <p align="center">
-  <a href="#english">English</a> | <b>Français</b>
+  <a href="#english">English</a> | <b>Français</b>  | <a href="#screenshots">Screenshots</a>
 </p>
 
 <p align="center">
@@ -101,5 +102,69 @@ photoboggan cherche juste à être une alternative **simple**, **rapide** et **a
 ### Licence
 
 Distribué sous licence **MIT**.
+Photos : Lorem Picsum
+
+---
+
+<div id="francais">
+<p align="center">
+  <a href="#english">English</a> | <a href="#francais">Français</a>  | <b>Screenshots</b>
+</p>
 
 </div>
+
+![test](/screenshots/display_options_en.jpg "Display Options")
+*Display Options* (dark/light theme, thumbnails size & layout, sorting, group separators...)
+
+![test](/screenshots/main_view_complete.jpg "Main View")
+*Main View* (navigation, filters, preview & info panels can be enabled or disabled, thumbnails can be resized to a narrow olumn)
+
+![test](/screenshots/exif_panel.jpg "EXIF metadata")
+*EXIF metadata display*
+
+![test](/screenshots/thumbnails-only.jpg "Thumbnails only")
+*Thumbnails only* (scroll with mouse wheel or grab and slide !)
+
+![test](/screenshots/fullscreen-rating.jpg "Fullscreen rating")
+*Fullscreen rating* (rating bar can disapear for an unobstructed view)
+
+![test](/screenshots/rating_edition.jpg "Compare Mode")
+*Edit rating & color tag* for one photo or a selection
+  
+![test](/screenshots/compare.jpg "Compare Mode")
+*Compare Mode* (zoom them alltogether, unlink to zoom or move into a single one, rate or delete independently)
+
+![Actions & Selection](/screenshots/selection_actions.jpg "Actions & Selection")
+*Flexible selection & Actions* (selection can be done very flexibly with several pans of consecutive & non consecutive photos, using ctrl and shift + clicks)
+
+![Batch resizing](/screenshots/resize_action.jpg "Batch resizing")
+*Batch resizing*
+
+![Shortcuts](/screenshots/shortcuts_guide.jpg "Shortcuts")
+*Shortcuts*
+
+<table>
+  <tr>
+    <td><img title="Rating filters" src="/screenshots/filters_rating.jpg" alt="Rating filters" height="200" /></td>
+    <td><img title="Keywords & filename filters" src="/screenshots/filters_words.jpg" alt="Keywords & filename filters" height="200" /></td>
+    <td><img title="Rating, color tag, filename, keywords and felxible date filters" src="/screenshots/filters_active_folded.jpg" alt="Rating, color tag, filename, keywords and felxible date filters" height="200" /></td>
+  </tr>
+</table>
+
+*Flexible filters* (filter on keywords, filenames, ratings, color tags and dates with a flexible text or calendar input)
+
+<table>
+  <tr>
+    <td><img title="Folders settings" src="/screenshots/settings_data_en.jpg" alt="Folders settings" width="300" /></td>
+    <td><img title="Display settings" src="/screenshots/settings_display.jpg" alt="Display settings" width="300" /></td>
+    <td><img title="Open with... settings" src="/screenshots/settings_openwith_en.jpg" alt="Open with... settings" width="300" /></td>
+  </tr>
+</table>
+
+*Settings* (data folder, photo folders, external programes, language, display...)
+
+---
+
+<p align="center">
+  <a href="#english">English</a> | <a href="#francais">Français</a>  | <a href="#screenshots">Screenshots</a>
+</p>
