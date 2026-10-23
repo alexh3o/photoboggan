@@ -167,6 +167,13 @@
     <!-- Vue Plein Écran -->
     <div id="fullscreen-view" class="hidden">
       <img id="fullscreen-image" src="" alt="" />
+      <!-- Informations sur la photo (touche D) : voir updateFullscreenInfo dans main.js -->
+      <div id="fullscreen-info" class="fullscreen-info hidden" aria-hidden="true">
+        <div id="fullscreen-info-name" class="fullscreen-info-name"></div>
+        <div id="fullscreen-info-rank" class="fullscreen-info-rank"></div>
+        <div id="fullscreen-info-exif" class="fullscreen-info-exif"><div></div><div></div></div>
+        <div id="fullscreen-info-date" class="fullscreen-info-date"></div>
+      </div>
       <div id="fullscreen-rating" class="fullscreen-rating hidden" role="group" aria-label="Noter la photo" data-i18n-aria-label="Rate the photo">
         <button type="button" data-rating="1" aria-label="Attribuer 1 étoile" data-i18n-aria-label="Set 1 star">★</button>
         <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles" data-i18n-aria-label="Set 2 stars">★</button>
@@ -452,6 +459,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Open the rating bar">Afficher / masquer la barre de notes</span>
               <span class="guide-control"><kbd>R</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Toggle photo information">Afficher / masquer les informations de la photo</span>
+              <span class="guide-control"><kbd>D</kbd></span>
             </div>
           </div>
         

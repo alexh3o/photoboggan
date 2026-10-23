@@ -299,6 +299,18 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .fullscreen-rating.hidden { display: none; }
 .fullscreen-rating button { background: transparent; border: 0; padding: 0 3px; color: #666; font-size: 2.4rem; line-height: 1; }
 .fullscreen-rating button:hover, .fullscreen-rating button.active { color: #ffd43b; }
+/* INFORMATIONS SUR LA PHOTO (touche D) : nom en haut au centre, rang en haut à droite, EXIF en bas à gauche, date en bas au centre.
+   Texte blanc avec ombre portée (un halo serré puis un plus large) pour rester lisible sur n'importe quel fond. */
+.fullscreen-info { position: absolute; inset: 0; z-index: 1; pointer-events: none; color: #fff; font-size: 0.95rem; line-height: 1.4; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(0, 0, 0, 0.6); }
+.fullscreen-info.hidden { display: none; }
+.fullscreen-info > * { position: absolute; padding: 0.3rem 0.6rem; } /* la marge laisse la place au halo de l'ombre (sinon rogné par overflow: hidden) */
+.fullscreen-info-name { top: 1rem; left: 50%; transform: translateX(-50%); max-width: 60%; overflow: hidden; font-size: 1.05rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.fullscreen-info-rank { top: 1rem; right: 1.25rem; font-variant-numeric: tabular-nums; }
+.fullscreen-info-exif { bottom: 1rem; left: 1.25rem; max-width: 36%; padding: 0; }
+.fullscreen-info-exif > div { padding: 0.05rem 0.6rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fullscreen-info-date { bottom: 1rem; left: 50%; transform: translateX(-50%); max-width: 36%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* La barre de notes (R) est au même endroit que la date : elle remonte quand les informations sont affichées. */
+#fullscreen-view.show-info .fullscreen-rating { bottom: 3.5rem; }
 
 /* MODALE DE TRI */
 .sort-card { width: min(24rem, calc(100vw - 2.5rem)); }
