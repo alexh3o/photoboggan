@@ -170,8 +170,18 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
   transition: transform 0.3s ease, opacity 0.15s ease; /* Transition fluide pour l'image */ }
 .thumbnail-inner > img.loaded { opacity: 1; }
 .thumbnail.justified .thumbnail-inner { border: 0; border-radius: 0; }
-.thumbnail.justified.selected .thumbnail-inner { outline: 2px solid var(--selected-border); outline-offset: -2px; }
-.thumbnail.selected .thumbnail-inner { border-color: var(--selected-border); }
+.thumbnail.selected .thumbnail-inner {
+  outline: 4px solid var(--selected-border);
+  outline-offset: -4px;
+  border-color: var(--selected-border);
+  transform: scale(0.98); /* Effet enfoncé / en retrait propre et centré */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Au survol d'une photo déjà sélectionnée, légère remontée réactive */
+.thumbnail.selected:hover .thumbnail-inner {
+  transform: scale(0.98);
+}
 .thumbnail.selected .thumbnail-inner::after { content: ''; position: absolute; top: 0; left: 0; width: 1.75rem; height: 1.75rem; background: var(--selected-border); clip-path: polygon(0 0, 100% 0, 0 100%); pointer-events: none; }
 
 .meta-overlay { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(transparent, rgba(0,0,0,0.8)); display: flex; justify-content: space-between; padding: 4px 6px; font-size: 0.7rem; }
