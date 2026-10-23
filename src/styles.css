@@ -118,11 +118,12 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .btn-clear-filters { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #e74c3c; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
 .btn-clear-filters:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); }
 .btn-clear-filters.hidden { display: none; }
-.keyword-filter-label { display: block; margin: 0.875rem 0 6px; }
+.keyword-filter-label, .filename-filter-label { display: block; margin: 0.875rem 0 6px; }
 #rating-filter { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 6px; }
-#keyword-filter-input { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.45rem; }
-.active-keyword-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.active-keyword-filters button { padding: 4px 7px; background: #29485c; border-color: #376782; color: #fff; font-size: 0.7rem; }
+#keyword-filter-input, #filename-filter-input { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.45rem; }
+.active-keyword-filters, .active-filename-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.active-filename-filters:empty { margin-top: 0; }
+.active-keyword-filters button, .active-filename-filters button { padding: 4px 7px; background: #29485c; border-color: #376782; color: #fff; font-size: 0.7rem; }
 .color-filter-label { display: block; margin: 0.875rem 0 6px; }
 .color-bar { display: flex; flex-wrap: nowrap; gap: 2px; }
 .color-square { position: relative; width: 1.25rem; height: 1.25rem; padding: 0; border: 1px solid var(--control-border); border-radius: 3px; background: var(--flag-color); }
