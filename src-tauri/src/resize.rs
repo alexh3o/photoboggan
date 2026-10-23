@@ -118,7 +118,7 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
     let (bytes, width, height) = render(source, options)?;
 
     let directory = target.parent().ok_or("Dossier de destination invalide")?;
-    let temp = directory.join(format!(".photofile-resize-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
+    let temp = directory.join(format!(".photoboggan-resize-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
     fs::write(&temp, &bytes).map_err(|error| format!("Écriture impossible : {error}"))?;
 
     // Le nom est résolu une seconde fois sous verrou : un autre fichier du lot a pu créer la même cible entre-temps.

@@ -3,10 +3,10 @@
   <b>English</b> | <a href="#francais">Français</a>
 </p>
 
-# Photofile
+# photoboggan
 
 <p align="center">
-  <img src="/screenshots/logo256.png" alt="Photofile Logo" width="128" />
+  <img src="/screenshots/logo256.png" alt="photoboggan Logo" width="128" />
 </p>
 
 <p align="center">
@@ -15,11 +15,11 @@
 
 
 
-Photofile is built with a clear purpose: **accelerate photo sorting, rating, comparison, and exploration** across large local image collections without sluggish catalogs or vendor lock-in.
+Photoboggan is built with a clear purpose: **accelerate photo sorting, rating, comparison, and exploration** across large local image collections without sluggish catalogs or vendor lock-in.
 
-⚠️ **Beta Warning**: Photofile is currently in beta, provided "as is" without warranty of any kind. <u>Use at your own risk</u>. It is strongly recommended to <u>keep a complete backup of your photos</u>.
+⚠️ **Beta Warning**: photoboggan is currently in beta, provided "as is" without warranty of any kind. <u>Use at your own risk</u>. It is strongly recommended to <u>keep a complete backup of your photos</u>.
 
-![Photofile Preview](/screenshots/thumbnails-preview-info.jpg)
+![photoboggan Preview](/screenshots/thumbnails-preview-info.jpg)
 
 ---
 
@@ -146,10 +146,10 @@ Distributed under the **MIT License**. See `LICENSE` for details.
   <a href="#english">English</a> | <b>Français</b>
 </p>
 
-# Photofile
+# photoboggan
 
 <p align="center">
-  <img src="/screenshots/logo256.png" alt="Logo Photofile" width="128" />
+  <img src="/screenshots/logo256.png" alt="Logo photoboggan" width="128" />
 </p>
 
 <p align="center">
@@ -158,11 +158,11 @@ Distributed under the **MIT License**. See `LICENSE` for details.
 
 
 
-Photofile a été conçu dans un but précis : **accélérer le tri, la notation, la comparaison et l'exploration** de collections de photos volumineuses, sans catalogue propriétaire lourd ni enfermement d'écosystème.
+Photoboggan a été conçu dans un but précis : **accélérer le tri, la notation, la comparaison et l'exploration** de collections de photos volumineuses, sans catalogue propriétaire lourd ni enfermement d'écosystème.
 
 ⚠️ **Avertissement (Bêta)** : Ce logiciel est actuellement en version bêta, fourni sans aucune garantie (« as is »), <u>à utiliser à vos risques et périls</u>. Il est fortement recommandé d'<u>effectuer une sauvegarde complète de vos photos</u>.
 
-![Aperçu de Photofile](/screenshots/thumbnails-preview-info.jpg)
+![Aperçu de photoboggan](/screenshots/thumbnails-preview-info.jpg)
 
 ---
 

@@ -1,6 +1,6 @@
 [package]
-name = "photofile"
-version = "0.3.2"
+name = "photoboggan"
+version = "0.3.3"
 description = "Gestionnaire de photos desktop ultra-performant"
 authors = ["alexh3o"]
 edition = "2021"

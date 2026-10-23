@@ -663,7 +663,7 @@ pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<O
         output
     };
 
-    let temp_path = Path::new(&format!("{}.photofile-tmp", path.display())).to_path_buf();
+    let temp_path = Path::new(&format!("{}.photoboggan-tmp", path.display())).to_path_buf();
     fs::write(&temp_path, packet)?;
     if let Err(error) = fs::rename(&temp_path, path) {
         let _ = fs::remove_file(&temp_path);

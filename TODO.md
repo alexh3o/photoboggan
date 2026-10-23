@@ -4,8 +4,8 @@
 
 - [x] *feat*: Allow **rating per image in comparison** mode
 - [x] *feat*: add **bin** in app or use OS bin
-- [ ] *style*: change **application name**
-- [ ] *style*: change **icon** along with new app name
+- [x] *style*: change **application name**
+- [x] *style*: change **icon** along with new app name
 - [ ] *style*: tag line
 - [ ] *feat*: add a **resize** action in context menu, with choice of
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
@@ -17,6 +17,7 @@
 - [ ] *style*: improve **grid selection visibility** (zoom out picture)**
 - [x] *fix*: deleting from removable / nas media doesn't send to trash as mentioned
 - [ ] *fix*: **Resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
+- [ ] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
 
 ## 💡 Ideas / longer term / on hold
 
@@ -62,3 +63,4 @@
 - [ ] Test Linux Release
 - [ ] Ensure moving files is safe
 - [ ] Ensure writing files is safe
+- [ ] Backup of data from data folder
