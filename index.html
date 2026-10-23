@@ -50,24 +50,46 @@
             </button>
           </div>
           <span id="filtered-photos-count" class="selection-count"></span>
-          <label for="rating-filter" data-i18n="Rating">Note</label>
-          <select id="rating-filter">
-            <option value="-1" data-i18n="All ratings">Toutes les notes</option><option value="0" data-i18n="≥ 1 star">≥ 1 étoile</option><option value="1" data-i18n="≥ 2 stars">≥ 2 étoiles</option>
-            <option value="2" data-i18n="≥ 3 stars">≥ 3 étoiles</option><option value="3" data-i18n="≥ 4 stars">≥ 4 étoiles</option>
-            <option value="4" data-i18n="= 5 stars">= 5 étoiles</option>
-          </select>
-          <span id="color-filter-label" class="color-filter-label" data-i18n="Color">Couleur</span>
-          <div id="color-filter-bar" class="color-bar" role="group" aria-labelledby="color-filter-label"></div>
-          <label for="keyword-filter-input" class="keyword-filter-label" data-i18n="Keywords (&)">Mots-clés (&)</label>
-          <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" data-i18n-placeholder="Choose keyword..." autocomplete="off" />
-          <datalist id="keyword-options"></datalist>
-          <div id="active-keyword-filters" class="active-keyword-filters" aria-live="polite"></div>
-          <label for="filename-filter-input" class="filename-filter-label" data-i18n="Filename">Nom de fichier</label>
-          <input id="filename-filter-input" type="text" placeholder="Saisir un texte puis Entrée…" data-i18n-placeholder="Type text then press Enter..." autocomplete="off" spellcheck="false" />
-          <div id="active-filename-filters" class="active-filename-filters" aria-live="polite"></div>
-          <label for="date-filter-input" class="date-filter-label" data-i18n="Date taken">Date de prise de vue</label>
+          <!-- Accordéon : un seul groupe déplié à la fois (voir « ACCORDÉON DES FILTRES » dans main.js). Déplié : titre(s) et contrôles ; replié : titre + résumé sur une ligne compacte. -->
+          <div class="filter-group" data-filter-group="rating-color">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-rating-color">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Ratings & Colors">Notes & Couleurs</span></span>
+              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Ratings & Colors">Notes & Couleurs</span><span id="rating-color-summary" class="filter-summary"></span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-rating-color" class="filter-group-body" hidden>
+              <select id="rating-filter" aria-label="Note" data-i18n-aria-label="Rating">
+                <option value="-1" data-i18n="All ratings">Toutes les notes</option><option value="0" data-i18n="≥ 1 star">≥ 1 étoile</option><option value="1" data-i18n="≥ 2 stars">≥ 2 étoiles</option>
+                <option value="2" data-i18n="≥ 3 stars">≥ 3 étoiles</option><option value="3" data-i18n="≥ 4 stars">≥ 4 étoiles</option>
+                <option value="4" data-i18n="= 5 stars">= 5 étoiles</option>
+              </select>
+              <div id="color-filter-bar" class="color-bar" role="group" aria-label="Couleur" data-i18n-aria-label="Color"></div>
+            </div>
+          </div>
+          <div class="filter-group" data-filter-group="tags">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-tags">
+              <span class="filter-expanded-line two-columns"><span class="filter-group-title" data-i18n="Keywords (&)">Mots-clés (&)</span><span class="filter-group-title" data-i18n="Filename">Nom de fichier</span></span>
+              <span id="tags-collapsed-line" class="filter-collapsed-line"><span class="filter-group-title" data-i18n="Keywords / Name">Mots-clés / Nom</span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-tags" class="filter-group-body" hidden>
+              <div class="filter-two-columns">
+                <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" data-i18n-placeholder="Choose keyword..." aria-label="Mots-clés" data-i18n-aria-label="Keywords" autocomplete="off" />
+                <input id="filename-filter-input" type="text" placeholder="Texte puis Entrée…" data-i18n-placeholder="Type text then press Enter..." aria-label="Nom de fichier" data-i18n-aria-label="Filename" autocomplete="off" spellcheck="false" />
+              </div>
+              <datalist id="keyword-options"></datalist>
+              <div id="filter-tags" class="filter-tags" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="filter-group" data-filter-group="date">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-date">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Date taken">Date de prise de vue</span></span>
+              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Date">Date</span><span id="date-summary" class="filter-summary"></span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-date" class="filter-group-body" hidden>
           <div class="date-filter">
-            <input id="date-filter-input" type="text" placeholder="AAAAMMJJ" data-i18n-placeholder="YYYYMMDD" maxlength="29" autocomplete="off" spellcheck="false" title="AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH ou AAAAMMJJHHmm — plage : début-fin (formats mélangeables, ex. 20240501-2025)" data-i18n-title="Date format help" />
+            <input id="date-filter-input" type="text" placeholder="AAAAMMJJ" data-i18n-placeholder="YYYYMMDD" aria-label="Date de prise de vue" data-i18n-aria-label="Date taken" maxlength="29" autocomplete="off" spellcheck="false" title="AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH ou AAAAMMJJHHmm — plage : début-fin (formats mélangeables, ex. 20240501-2025)" data-i18n-title="Date format help" />
             <button id="date-filter-calendar" type="button" class="icon-button" title="Choisir dans un calendrier" data-i18n-title="Pick in calendar" aria-label="Ouvrir le calendrier" data-i18n-aria-label="Open calendar">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days preview-icon"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>
             </button>
@@ -77,6 +99,8 @@
             </button>
           </div>
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
+            </div>
+          </div>
         </section>
         <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">
           <h3 data-i18n="Selection & Modification">Sélection/Modification</h3>

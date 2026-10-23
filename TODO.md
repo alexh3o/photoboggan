@@ -24,6 +24,7 @@
 - [ ] *feat*: add a **map widget** in info panel
 - [x] *docs*: add link to **github issues**
 - [ ] *feat*: allow **stopping a running scan**
+- [x] *style*: make filters more compact
 - [ ] *feat*: **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
 - [ ] *feat*: **shortcuts** for left panel, toolbar (non restart persistent), keys modal
 - [ ] *style*: **remember window position and size** through restarts

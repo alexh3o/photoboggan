@@ -592,6 +592,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && matchesDateFilter(photo));
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
+  renderFilterSummaries();
   selectedIndices.clear();
   lastSelectedIndex = 0;
   gridContainer.scrollTop = 0;
@@ -655,16 +656,7 @@ function renderKeywordFilters() {
   options.replaceChildren(...[...keywords].sort((a, b) => a.localeCompare(b)).map(keyword => {
     const option = document.createElement('option'); option.value = keyword; return option;
   }));
-  const active = document.getElementById('active-keyword-filters');
-  active.replaceChildren(...keywordFilters.map(keyword => {
-    const button = document.createElement('button');
-    button.type = 'button'; button.textContent = `${keyword} ×`; button.title = t('Remove filter {keyword}', { keyword });
-    button.addEventListener('click', () => {
-      keywordFilters = keywordFilters.filter(item => item !== keyword);
-      renderKeywordFilters(); applyPhotoFilters();
-    });
-    return button;
-  }));
+  renderFilterTags();
 }
 
 function addKeywordFilter(value) {
@@ -686,17 +678,7 @@ function matchesFilenameFilters(photo) {
 }
 
 function renderFilenameFilters() {
-  const active = document.getElementById('active-filename-filters');
-  if (!active) return;
-  active.replaceChildren(...filenameFilters.map(text => {
-    const button = document.createElement('button');
-    button.type = 'button'; button.textContent = `${text} ×`; button.title = t('Remove filter {keyword}', { keyword: text });
-    button.addEventListener('click', () => {
-      filenameFilters = filenameFilters.filter(item => item !== text);
-      renderFilenameFilters(); applyPhotoFilters();
-    });
-    return button;
-  }));
+  renderFilterTags();
 }
 
 function addFilenameFilter(value) {
@@ -711,6 +693,149 @@ function addFilenameFilter(value) {
   filenameFilters.push(text);
   renderFilenameFilters();
   applyPhotoFilters();
+}
+
+// ACCORDÉON DES FILTRES : un seul groupe (Notes & Couleurs, Mots-clés & Nom de fichier, Date) est déplié à la fois.
+// Replié, un groupe tient sur une ligne compacte (titre + résumé / étiquettes) cliquable pour le déplier ; un clic hors de la zone des filtres replie tout.
+const filterGroups = [...document.querySelectorAll('.photo-filters .filter-group')];
+
+function setExpandedFilterGroup(name) {
+  for (const group of filterGroups) {
+    const expanded = group.dataset.filterGroup === name;
+    group.classList.toggle('expanded', expanded);
+    group.querySelector('.filter-group-toggle').setAttribute('aria-expanded', String(expanded));
+    group.querySelector('.filter-group-body').hidden = !expanded;
+  }
+  if (name !== 'date') closeDatePicker();
+  fitCollapsedTags(); // la ligne repliée vient d'apparaître ou de disparaître : on la mesure à nouveau
+}
+
+for (const group of filterGroups) {
+  group.querySelector('.filter-group-toggle').addEventListener('click', () => {
+    setExpandedFilterGroup(group.classList.contains('expanded') ? null : group.dataset.filterGroup);
+  });
+}
+
+// Le calendrier est placé dans <body> : il fait partie de la zone des filtres pour ce test.
+document.addEventListener('pointerdown', event => {
+  if (!filterGroups.some(group => group.classList.contains('expanded'))) return;
+  const target = event.target;
+  if (target instanceof Element && (target.closest('.photo-filters') || target.closest('.date-picker'))) return;
+  setExpandedFilterGroup(null);
+}, true);
+
+// Étiquettes des mots-clés (bleu) et des noms de fichier (vert), sur une ligne commune : boutons à croix quand le groupe est déplié,
+// simples étiquettes derrière le titre quand il est replié.
+function renderFilterTags() {
+  const expandedContainer = document.getElementById('filter-tags');
+  const collapsedLine = document.getElementById('tags-collapsed-line');
+  if (!expandedContainer || !collapsedLine) return;
+  const entries = [
+    ...keywordFilters.map(text => ({ kind: 'keyword', text })),
+    ...filenameFilters.map(text => ({ kind: 'filename', text })),
+  ];
+  expandedContainer.replaceChildren(...entries.map(({ kind, text }) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `filter-tag tag-${kind}`;
+    button.textContent = `${text} ×`;
+    button.title = t('Remove filter {keyword}', { keyword: text });
+    button.addEventListener('click', () => {
+      if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
+      else filenameFilters = filenameFilters.filter(item => item !== text);
+      renderFilterTags();
+      applyPhotoFilters();
+    });
+    return button;
+  }));
+  collapsedLine.querySelectorAll('.filter-tag').forEach(node => node.remove());
+  collapsedLine.append(...entries.map(({ kind, text }) => {
+    const tag = document.createElement('span');
+    tag.className = `filter-tag tag-${kind}`;
+    tag.textContent = text;
+    tag.title = t(kind === 'keyword' ? 'Keyword: {text}' : 'Filename: {text}', { text });
+    return tag;
+  }));
+  fitCollapsedTags();
+}
+
+// Ligne repliée des étiquettes : au plus deux lignes. Si elles ne tiennent pas, les dernières sont masquées et remplacées par une
+// étiquette « … » (d'une autre couleur) qui termine la deuxième ligne. Les lignes sont comptées d'après la position verticale des éléments
+// (tous de même hauteur), ce qui suppose la ligne visible : une ligne masquée (groupe déplié) est mesurée quand elle réapparaît.
+function fitCollapsedTags() {
+  const line = document.getElementById('tags-collapsed-line');
+  if (!line) return;
+  line.querySelectorAll('.tag-more').forEach(node => node.remove());
+  const tags = [...line.querySelectorAll('.filter-tag')];
+  tags.forEach(tag => { tag.hidden = false; });
+  if (!line.offsetParent || tags.length === 0) return;
+  const title = line.querySelector('.filter-group-title');
+  const countRows = nodes => new Set(nodes.map(node => node.offsetTop)).size;
+  if (countRows([title, ...tags]) <= 2) return;
+  const more = document.createElement('span');
+  more.className = 'filter-tag tag-more';
+  more.textContent = '…';
+  line.append(more);
+  let visibleCount = tags.length;
+  while (visibleCount > 0 && countRows([title, ...tags.slice(0, visibleCount), more]) > 2) {
+    visibleCount--;
+    tags[visibleCount].hidden = true;
+  }
+  more.title = tags.slice(visibleCount).map(tag => tag.textContent).join(', ');
+}
+
+// La largeur de la ligne change avec la barre latérale (redimensionnement, repli) ou quand le groupe est replié : les étiquettes sont réparties à nouveau.
+const tagsCollapsedLine = document.getElementById('tags-collapsed-line');
+let tagsCollapsedLineWidth = 0;
+if (tagsCollapsedLine && typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => {
+    if (tagsCollapsedLine.clientWidth === tagsCollapsedLineWidth) return;
+    tagsCollapsedLineWidth = tagsCollapsedLine.clientWidth;
+    fitCollapsedTags();
+  }).observe(tagsCollapsedLine);
+}
+
+// Bornes du filtre de date au format AAAAMMJJHHmmss -> « 01/05/2024 » ; l'heure n'est ajoutée que si elle diffère de celle par défaut de la borne (00:00:00 au début, 23:59:59 à la fin).
+function formatDateFilterBound(key, isEnd) {
+  const text = String(key).padStart(14, '0');
+  const date = new Date(Number(text.slice(0, 4)), Number(text.slice(4, 6)) - 1, Number(text.slice(6, 8)));
+  const time = text.slice(8);
+  const showTime = time !== (isEnd ? '235959' : '000000');
+  return date.toLocaleDateString(getLanguage()) + (showTime ? ` ${time.slice(0, 2)}:${time.slice(2, 4)}` : '');
+}
+
+// Résumés affichés sur les lignes repliées : note (badge) et couleurs (pastilles), dates de début et de fin, étiquettes.
+function renderFilterSummaries() {
+  const ratingSelect = document.getElementById('rating-filter');
+  const threshold = Number(ratingSelect.value);
+  const ratingColorNodes = [];
+  if (threshold >= 0) {
+    const badge = document.createElement('span');
+    badge.className = 'filter-tag tag-rating';
+    badge.textContent = threshold === 4 ? '5 ★' : `≥ ${threshold + 1} ★`;
+    badge.title = ratingSelect.selectedOptions[0]?.textContent ?? '';
+    ratingColorNodes.push(badge);
+  }
+  for (const key of colorFilters) {
+    const dot = document.createElement('span');
+    dot.className = `flag-indicator flag-${key}`;
+    dot.title = colorFlagLabels.get(key) ?? key;
+    ratingColorNodes.push(dot);
+  }
+  document.getElementById('rating-color-summary').replaceChildren(...ratingColorNodes);
+
+  const dateNodes = dateFilter ? [
+    ['From {date}', formatDateFilterBound(dateFilter.from, false)],
+    ['To {date}', formatDateFilterBound(dateFilter.to, true)],
+  ].map(([key, date]) => {
+    const tag = document.createElement('span');
+    tag.className = 'filter-tag tag-date';
+    tag.textContent = t(key, { date });
+    return tag;
+  }) : [];
+  document.getElementById('date-summary').replaceChildren(...dateNodes);
+
+  renderFilterTags();
 }
 
 function decodeHtmlEntities(text) {
@@ -2109,7 +2234,7 @@ onLanguageChange(() => {
   updateUIOnSelection();
   updateRatingAction();
   updateFilteredPhotosCount();
-  renderFilenameFilters();
+  renderFilterSummaries(); // résumés des filtres dans la langue courante (dates, infobulles, étiquettes)
   updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
   updateSortUI();
   updateVirtualScroller(); // libellés des séparateurs (jours, mois…) dans la nouvelle langue
