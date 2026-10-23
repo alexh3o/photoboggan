@@ -3,12 +3,17 @@
 ## 🚀 Next in line
 
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
+- [ ] *feat*: memorize open panels when closing app, reopen them + thumbnails
+- [ ] *feat*: darken non selected photos when hovering over selection
 - [x] *feat*: **search by filename**
 - [ ] *style*: add **UI/text size** setting
+  => set text types
 - [ ] *feat*: hotkey to display shortcuts guide
-- [ ] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
+- [x] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
 - [ ] *fix*: **Resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
+  => set a minimal size for window and for each panel
 - [ ] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
+  => do not overlay toasts, put last action on hold
 
 ## 💡 Ideas / longer term / on hold
 
@@ -21,8 +26,7 @@
 - [ ] *feat*: **keyboard shortcuts** customizing
 - [ ] *feat*: "**Open with**" keyboard shortcuts
 - [ ] *perf*: add more **photos to cache** to improve felt full screen navigation speed
-- [ ] *feat*: add **zoom value** display (optional)3
-- [ ] *feat*: darken non selected photos when hovering over selection
+- [ ] *feat*: add **zoom value** display (optional)
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [ ] *fix*: **Cannot move window** by title bar
@@ -54,3 +58,4 @@
 - [ ] Ensure moving files is safe
 - [ ] Ensure writing files is safe
 - [ ] Restoring data from data folder
+- [ ] Check settings persist when updating

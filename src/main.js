@@ -616,6 +616,37 @@ function applyPhotoFilters({ keepState = false } = {}) {
   updateFilteredPhotosCount();
 }
 
+// Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
+// par celui-ci, Ctrl + clic l'ajoute à ceux déjà filtrés. Les autres filtres (note, couleur, nom de fichier, date) ne sont pas touchés.
+// Le filtre compare les mots-clés tels que stockés : on filtre sur la valeur brute et on n'affiche décodé que le texte (entités HTML).
+function renderInfoKeywords(photo) {
+  const container = document.getElementById('exif-keywords');
+  const words = (photo.keywords || '').split(', ').map(word => word.trim()).filter(Boolean);
+  if (words.length === 0) {
+    container.textContent = '-';
+    return;
+  }
+  container.replaceChildren(...words.map(word => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    const active = keywordFilters.includes(word);
+    button.className = `filter-tag tag-keyword${active ? ' active' : ''}`;
+    button.setAttribute('aria-pressed', String(active));
+    button.textContent = decodeHtmlEntities(word);
+    button.title = t('Filter on this keyword (Ctrl+click: add to the filter)');
+    button.addEventListener('click', event => {
+      if (event.ctrlKey || event.metaKey) {
+        if (!keywordFilters.includes(word)) keywordFilters.push(word);
+      } else {
+        keywordFilters = [word];
+      }
+      renderKeywordFilters();
+      applyPhotoFilters();
+    });
+    return button;
+  }));
+}
+
 function clearAllFilters() {
   // Réinitialise la note
   const ratingSelect = document.getElementById('rating-filter');
@@ -1467,7 +1498,7 @@ function updateUIOnSelection() {
     document.getElementById('exif-size').textContent = `${(photo.file_size / 1024 / 1024).toFixed(2)} MB`;
     document.getElementById('exif-rating').textContent = photo.rating > 0 ? `${'★'.repeat(photo.rating)} (${photo.rating}/5)` : '-';
     document.getElementById('exif-color').textContent = colorFlagLabels.get(photo.color_flag) || '-';
-    document.getElementById('exif-keywords').textContent = decodeHtmlEntities(photo.keywords) || '-';
+    renderInfoKeywords(photo);
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
   }
 }
@@ -1664,6 +1695,11 @@ window.addEventListener('keydown', (e) => {
     else fullscreenRating.classList.add('hidden');
     return;
   }
+  // H : affiche / masque le guide des raccourcis (la modale ouverte aussi depuis les Paramètres) ; il se ferme avec H même s'il est ouvert par-dessus les Paramètres.
+  if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
+    if (!guideModal.classList.contains('hidden')) { e.preventDefault(); closeGuide(); return; }
+    if (!document.querySelector('.modal:not(.hidden)')) { e.preventDefault(); openGuide(); return; }
+  }
   // Informations sur la photo (nom, date, EXIF, rang) en plein écran
   if (e.key.toLowerCase() === 'd' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
     toggleFullscreenInfo();
@@ -1764,7 +1800,7 @@ if (e.key === 'Delete') {
     e.preventDefault();
     navigatePhoto(-1);
   } else if (e.key === 'Escape') {
-    if (isFullscreen) closeFullscreen();
+    if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (isFullscreen) closeFullscreen();

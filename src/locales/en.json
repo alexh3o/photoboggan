@@ -314,5 +314,7 @@
   "From {date}": "From {date}",
   "To {date}": "to {date}",
   "Toggle photo information": "Show / hide photo information",
+  "Toggle shortcuts guide": "Show / hide this shortcuts guide",
+  "Filter on this keyword (Ctrl+click: add to the filter)": "Filter on this keyword (Ctrl+click: add to the filter)",
   "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted"
 }
