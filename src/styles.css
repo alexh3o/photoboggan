@@ -295,7 +295,7 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .group-separator-probe { position: absolute; width: 0; height: var(--group-separator-height); visibility: hidden; pointer-events: none; }
 
 /* Title Bar */
-.titlebar { font-family: 'Fredoka', 'Quicksand', sans-serif; flex: none; height: 2.2rem; background-color: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
+.titlebar { font-weight: 400; font-family: 'Fredoka', 'Quicksand', sans-serif; font-weight: normal; flex: none; height: 2.2rem; background-color: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
 .titlebar-drag-region { flex: 1; display: flex; align-items: center; height: 100%; padding-left: 0.6rem; gap: 8px; -webkit-app-region: drag; }
 .titlebar-icon { width: 1.3rem; height: 1.3rem; }
 .titlebar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
