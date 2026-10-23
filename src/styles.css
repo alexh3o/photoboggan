@@ -212,9 +212,9 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
   transform: scale(0.98);
 }
 .thumbnail.selected .thumbnail-inner::after { content: ''; position: absolute; top: 0; left: 0; width: 1.75rem; height: 1.75rem; background: var(--selected-border); clip-path: polygon(0 0, 100% 0, 0 100%); pointer-events: none; }
-/* Quand une miniature sélectionnée est survolée, assombrir toutes les miniatures non sélectionnées */
-#virtual-scroll-content:has(.thumbnail.selected:hover) .thumbnail:not(.selected) .thumbnail-inner {
-  filter: brightness(0.65);
+/* Assombrissement configurable des miniatures hors sélection au survol d'une miniature sélectionnée */
+body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover) .thumbnail:not(.selected) .thumbnail-inner {
+  filter: brightness(var(--dim-unselected-brightness, 0.65));
 }
 .meta-overlay { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(transparent, rgba(0,0,0,0.8)); display: flex; justify-content: space-between; padding: 4px 6px; font-size: 0.7rem; }
 .flag-red { --flag-color: #e74c3c; } .flag-orange { --flag-color: #e67e22; } .flag-yellow { --flag-color: #f1c40f; } .flag-green { --flag-color: #2ecc71; } .flag-blue { --flag-color: #3498db; }

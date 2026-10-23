@@ -230,6 +230,24 @@ function applyAppearance() {
 }
 applyAppearance();
 
+// ASSOMBRISSEMENT DES HORS-SÉLECTIONS AU SURVOL
+let dimUnselected = localStorage.getItem('dimUnselectedOnHover') || '0.65';
+function applyDimUnselected() {
+  const active = dimUnselected !== 'none';
+  document.body.classList.toggle('dim-unselected-active', active);
+  if (active) {
+    document.documentElement.style.setProperty('--dim-unselected-brightness', dimUnselected);
+  }
+  const select = document.getElementById('dim-unselected-select');
+  if (select) select.value = dimUnselected;
+}
+applyDimUnselected();
+document.getElementById('dim-unselected-select')?.addEventListener('change', event => {
+  dimUnselected = event.target.value;
+  localStorage.setItem('dimUnselectedOnHover', dimUnselected);
+  applyDimUnselected();
+});
+
 // DOM
 let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 512;
 if (![256, 512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;

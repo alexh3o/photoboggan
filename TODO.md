@@ -3,30 +3,30 @@
 ## 🚀 Next in line
 
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
-- [ ] *feat*: memorize open panels when closing app, reopen them + thumbnails
-- [ ] *feat*: darken non selected photos when hovering over selection
+- [ ] *feat*: `UI`memorize open panels when closing app, reopen them + thumbnails
+- [x] *feat*: `UI`darken non selected photos when hovering over selection
 - [x] *feat*: **search by filename**
-- [ ] *style*: add **UI/text size** setting
+- [ ] *style*: `UI`add **UI/text size** setting
   => set text types
-- [ ] *feat*: hotkey to display shortcuts guide
-- [x] *feat*: add **optional displays on full screen** (filename, date, exif, rank)
-- [ ] *fix*: **Resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
+- [x] *feat*: `UI` hotkey to display shortcuts guide
+- [x] *feat*: `UI`add **optional displays on full screen** (filename, date, exif, rank)
+- [ ] *fix*: `UI` **resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
   => set a minimal size for window and for each panel
 - [ ] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
   => do not overlay toasts, put last action on hold
 
-## 💡 Ideas / longer term / on hold
+## 💡 Ideas / Longer term / On hold
 
-- [ ] *feat*: add selection panel close button, to close panel and deselect all pictures
+- [ ] *feat*: `UI`add selection panel close button, to close panel and deselect all pictures
 - [ ] *feat*: allow **stopping a running scan**
-- [x] *style*: make **filters more compact**
-- [ ] *feat*: **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
-- [ ] *feat*: **shortcuts** for left panel, toolbar (non restart persistent), keys modal
-- [ ] *style*: **remember window position and size** through restarts
-- [ ] *feat*: **keyboard shortcuts** customizing
-- [ ] *feat*: "**Open with**" keyboard shortcuts
+- [x] *style*: `UI` make **filters more compact**
+- [ ] *feat*: `UI` **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
+- [ ] *feat*: `UI` **shortcuts** for left panel, toolbar (non restart persistent), keys modal
+- [ ] *style*: `UI` **remember window position and size** through restarts
+- [ ] *feat*: `Controls` **keyboard shortcuts** customizing
+- [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [ ] *perf*: add more **photos to cache** to improve felt full screen navigation speed
-- [ ] *feat*: add **zoom value** display (optional)
+- [ ] *feat*: `UI` add **zoom value** display (optional)
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [ ] *fix*: **Cannot move window** by title bar
@@ -37,7 +37,6 @@
   - [ ] Allow **adding keyword** in tree
   - [ ] Allow adding and removing keywords, writing files in all existing formats
   - [ ] Handle **multiplicity of tags** in structure
-- [ ] *feat*: check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: Add **mouse settings** screen
 
 ## ⚖️ Undecided
@@ -45,17 +44,18 @@
 - [ ] *feat*: **heic / heif** image format support
 - [ ] *feat*: [HARD] **Face recognition** (heavy & unlikely)
 - [ ] *feat*: jpeg **integrity scan** (specific view)
-- [ ] *feat*: [NEEDS_INTERNET] **Map screen** (needs internet)
-- [ ] *feat*: [NEEDS_INTERNET] add a **map widget** in info panel
+- [ ] *feat*: `needs_internet` **Map screen**
+- [ ] *feat*: `needs_internet` add a **map widget** in info panel
+- [ ] *feat*: `needs_internet` check and inform of **available update** on github (on hold, needs official releases)
 
 ## ❌ Not planned (use "Open with...")
 
 - [ ] **Image editing**, cropping...
 
-## 🧪 To be tested
+## 🧪 To be tested & potential bugs to be confirmed
 
 - [ ] Test Linux Release
 - [ ] Ensure moving files is safe
 - [ ] Ensure writing files is safe
 - [ ] Restoring data from data folder
-- [ ] Check settings persist when updating
+- [ ] *fix*: thumbnails size setting doesn't persist through update
