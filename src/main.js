@@ -1990,6 +1990,7 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 document.getElementById('btn-toggle-sidebar').addEventListener('click', event => {
   const sidebarVisible = sidebarPanel.classList.toggle('hidden') === false;
   event.currentTarget.classList.toggle('active', sidebarVisible);
+  localStorage.setItem('sidebarVisible', String(sidebarVisible)); // Mémorisation de l'état
 
   if (sidebarVisible) {
     if (sidebarWidth > 0) sidebarPanel.style.width = `${sidebarWidth}px`;
@@ -1999,6 +2000,7 @@ document.getElementById('btn-toggle-sidebar').addEventListener('click', event =>
 
   setTimeout(updateVirtualScroller, 300);
 });
+
 
 // ==========================================
 // REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE
@@ -2077,6 +2079,7 @@ const mainContent = document.querySelector('.main-content');
 document.getElementById('btn-toggle-preview').addEventListener('click', event => {
   const visible = mainContent.classList.toggle('preview-hidden') === false;
   event.currentTarget.classList.toggle('active', visible);
+  localStorage.setItem('previewVisible', String(visible)); // Mémorisation
   requestAnimationFrame(updateVirtualScroller);
 });
 document.getElementById('thumbnail-layout').value = thumbnailLayout;
@@ -2502,6 +2505,7 @@ previewResizer.addEventListener('keydown', event => {
 document.getElementById('btn-toggle-exif').addEventListener('click', event => {
   const exifVisible = document.getElementById('exif-panel').classList.toggle('hidden') === false;
   event.currentTarget.classList.toggle('active', exifVisible);
+  localStorage.setItem('exifVisible', String(exifVisible)); // Memorisation
   setTimeout(updateVirtualScroller, 300);
 });
 
@@ -3785,7 +3789,35 @@ async function refreshLibraryAfterSync(changes) {
 
 window.addEventListener('focus', () => { syncLibraryWithDisk(); });
 
-// DÉMARRAGE
+// DEMARRAGE
+
+function restorePanelsVisibility() {
+  const sidebarVisible = localStorage.getItem('sidebarVisible') !== 'false';
+  const previewVisible = localStorage.getItem('previewVisible') !== 'false';
+  const exifVisible = localStorage.getItem('exifVisible') !== 'false';
+
+  // 1. Panneau latéral gauche
+  sidebarPanel.classList.toggle('hidden', !sidebarVisible);
+  document.getElementById('btn-toggle-sidebar')?.classList.toggle('active', sidebarVisible);
+  if (sidebarVisible) {
+    if (sidebarWidth > 0) sidebarPanel.style.width = `${sidebarWidth}px`;
+  } else {
+    sidebarPanel.style.removeProperty('width');
+  }
+
+  // 2. Panneau d'aperçu
+  mainContent.classList.toggle('preview-hidden', !previewVisible);
+  document.getElementById('btn-toggle-preview')?.classList.toggle('active', previewVisible);
+
+  // 3. Panneau EXIF
+  const exifPanel = document.getElementById('exif-panel');
+  exifPanel?.classList.toggle('hidden', !exifVisible);
+  document.getElementById('btn-toggle-exif')?.classList.toggle('active', exifVisible);
+}
+
+// Restauration de l'état des panneaux avant le chargement des photos
+restorePanelsVisibility();
+
 loadFolders();
 refreshStorageLocationUI();
 loadPhotos().then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
