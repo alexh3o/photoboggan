@@ -89,6 +89,8 @@ fn read_embedded_jpeg_xmp(path: &Path) -> Option<String> {
 
 /// Paquet XMP intégré au fichier : segment APP1 d'un JPEG, ou item XMP d'un HEIC / HEIF.
 fn read_embedded_xmp(path: &Path) -> Option<String> {
+    // Vidéo : pas de paquet XMP intégré lu (inutile et coûteux sur un gros fichier), seul le sidecar compte.
+    if crate::video::is_video_path(path) { return None; }
     if crate::heif::is_heif_path(path) { crate::heif::read_xmp(path) } else { read_embedded_jpeg_xmp(path) }
 }
 
@@ -284,7 +286,36 @@ fn read_image_dimensions(path: &Path) -> Option<(i32, i32)> {
     None
 }
 
+/// Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
+/// sinon la date de modification du fichier (comme les logiciels photo quand un fichier n'a pas de date de prise de vue).
+fn video_date_taken(path: &Path) -> String {
+    let appended = std::path::PathBuf::from(format!("{}.xmp", path.display()));
+    for source in [appended, path.with_extension("xmp")] {
+        let Ok(text) = fs::read_to_string(source) else { continue; };
+        let Some(raw) = xmp_value(&text, &["exif:DateTimeOriginal", "xmp:CreateDate", "photoshop:DateCreated"]) else { continue; };
+        let value = xml_unescape(raw.trim());
+        if value.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            return if value.len() >= 19 && value.is_char_boundary(19) { value[..19].replace('T', " ") } else { value };
+        }
+    }
+    fs::metadata(path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        .map(|time| chrono::DateTime::<chrono::Local>::from(time).format("%Y-%m-%d %H:%M:%S").to_string())
+        .unwrap_or_default()
+}
+
+/// Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
+/// n'est pas lu : ni EXIF, ni IPTC, ni dimensions (l'interface apprend le ratio depuis la miniature).
+fn read_video_metadata(path: &Path) -> ExifMetadata {
+    let mut meta = ExifMetadata::default();
+    (meta.rating, meta.color_flag, meta.keywords) = parse_xmp(path);
+    meta.date_taken = video_date_taken(path);
+    meta
+}
+
 pub fn read_exif(path: &Path) -> ExifMetadata {
+    if crate::video::is_video_path(path) { return read_video_metadata(path); }
     let mut meta = ExifMetadata::default();
     (meta.rating, meta.color_flag, meta.keywords) = parse_xmp(path);
     let mut keywords: Vec<String> = meta.keywords.split(", ").filter(|s| !s.is_empty()).map(str::to_string).collect();
@@ -939,6 +970,11 @@ pub fn read_metadata_details(path: &Path) -> MetadataDetails {
     if let Ok(metadata) = fs::metadata(path) {
         details.file.push(detail_entry("path", path.display().to_string()));
         details.file.push(detail_entry("size", format!("{:.2} MB", metadata.len() as f64 / 1024.0 / 1024.0)));
+    }
+    if crate::video::is_video_path(path) {
+        // Vidéo : seulement le sidecar XMP (pas d'EXIF, d'IPTC ni de dimensions à lire dans le fichier).
+        if let Some(packet) = read_xmp_packet(path) { details.xmp = list_xmp_properties(&packet); }
+        return details;
     }
     if let Some((width, height)) = read_image_dimensions(path) {
         details.file.push(detail_entry("dimensions", format!("{width} x {height} ({:.1} MP)", width as f64 * height as f64 / 1_000_000.0)));

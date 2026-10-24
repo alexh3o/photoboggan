@@ -74,7 +74,8 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     // Thumbnail only: svg
 ];
 pub fn is_photo_file(path: &Path) -> bool {
-    path.extension()
+    // Les vidéos (video.rs) sont cataloguées comme les photos : même scan, même synchronisation incrémentale.
+    crate::video::is_video_path(path) || path.extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| {
             let ext_lower = ext.to_ascii_lowercase();

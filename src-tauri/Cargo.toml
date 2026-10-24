@@ -38,3 +38,8 @@ trash = "5"
 # Décodage des photos HEIC / HEIF (miniatures, plein écran, redimensionnement) : décodeur HEVC en Rust pur (MIT OR Apache-2.0), sans DLL ni outil de build natif.
 # La crate demande Rust 1.85 minimum (edition 2024). La fonctionnalité par défaut « parallel » utilise rayon, déjà présent ci-dessus.
 heic-rs = "0.1.4"
+
+# Miniatures des vidéos (module video.rs) : sous Windows, image fournie par le Shell (IShellItemImageFactory), la même que celle de l'Explorateur, avec les codecs
+# déjà installés : aucun lecteur ni binaire à distribuer. Version déjà présente dans Cargo.lock via Tauri (wry, webview2-com) : pas de seconde copie compilée.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_UI_Shell"] }

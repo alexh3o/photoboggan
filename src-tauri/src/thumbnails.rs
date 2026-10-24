@@ -6,6 +6,8 @@
 //! Pour les RAW, on ne fait jamais de décodage, on utilise le jpeg intégré aussi bien pour les miniatures que pour le plein écran
 //! Tout ce qui n'est pas géré (PNG, JPEG CMYK ou 16 bits, fichier corrompu…) renvoie une erreur :
 //! l'interface utilise alors son ancienne génération dans le webview.
+//! Vidéos : une image fixe est extraite (voir video.rs), puis réduite et écrite comme n'importe quelle miniature.
+//! Aucune vidéo n'est lue ni décodée au-delà de cette image.
 
 use std::fs::{self, File};
 use std::io::BufReader;
@@ -31,6 +33,13 @@ pub struct ThumbnailSize {
 
 /// Génère la miniature JPEG de `source` dans `destination` à la taille maximale spécifiée.
 pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) -> Result<ThumbnailSize, String> {
+    if crate::video::is_video_path(source) {
+        // Vidéo : pas d'orientation EXIF (l'image fournie est déjà dans le bon sens).
+        let (rgb, width, height) = decode_video_frame(source, max_side)?;
+        let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
+        write_jpeg(destination, &rgb, width, height)?;
+        return Ok(ThumbnailSize { width: width as u32, height: height as u32 });
+    }
     let (rgb, width, height) = decode_scaled_rgb(source, max_side)?;
     let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
     // HEIC / HEIF : le décodeur a déjà appliqué la rotation du conteneur, l'orientation EXIF ne doit pas l'être une seconde fois.
@@ -38,6 +47,25 @@ pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) ->
     let (rgb, width, height) = apply_orientation(rgb, width, height, orientation);
     write_jpeg(destination, &rgb, width, height)?;
     Ok(ThumbnailSize { width: width as u32, height: height as u32 })
+}
+
+/// Image fixe d'une vidéo en RGB : vignette du système (Windows), à défaut `ffmpeg` s'il est installé.
+fn decode_video_frame(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
+    let system_error = match crate::video::system_thumbnail(source, max_side) {
+        Ok(frame) => return Ok(frame),
+        Err(error) => error,
+    };
+    match crate::video::ffmpeg_frame_jpeg(source) {
+        Ok(bytes) => decode_scaled_jpeg_reader(Cursor::new(bytes), max_side),
+        Err(error) => Err(format!("Image de la vidéo impossible à extraire ({system_error} ; {error})")),
+    }
+}
+
+/// Image de l'aperçu d'une vidéo, plus grande que la miniature de la grille (même cache que les aperçus RAW et HEIC).
+pub fn generate_video_preview(source: &Path, destination: &Path, max_side: usize) -> Result<(), String> {
+    let (rgb, width, height) = decode_video_frame(source, max_side)?;
+    let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
+    write_jpeg(destination, &rgb, width, height)
 }
 
 /// Dimensions d'une miniature déjà présente dans le cache (lecture de l'en-tête uniquement).

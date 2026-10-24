@@ -489,3 +489,21 @@ body.immersive .titlebar { display: none; }
 .resize-preview { margin: -2px 0 8px; color: var(--text-faint); font-size: 0.7rem; overflow-wrap: anywhere; }
 .resize-folder-actions { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
 .resize-card .prompt-error { margin-bottom: 8px; }
+
+/* VIDÉOS (voir video.rs et main.js) : tout se règle ici, les variables ci-dessous suffisent pour l'essentiel.
+   .is-video : miniature de la grille et case de l'aperçu d'une vidéo ; .video-play-badge : icône Play (au centre) ;
+   .no-thumbnail : vidéo dont aucune image n'a pu être extraite (codec absent, pas de ffmpeg) : la case reste vide avec son icône Play. */
+:root {
+  --video-badge-size: 2.4rem; /* diamètre de l'icône Play dans la grille (plafonné à 45 % de la largeur de la miniature) */
+  --video-badge-size-preview: 4.5rem; /* diamètre dans l'aperçu (plafonné à 30 % de la largeur de la case) */
+  --video-badge-bg: rgba(0, 0, 0, 0.55);
+  --video-badge-color: #fff;
+  --video-badge-opacity: 0.85;
+  --video-badge-hover-opacity: 1;
+  --video-thumb-filter: none; /* ex. : brightness(0.85) saturate(0.8) pour distinguer davantage les vidéos des photos */
+}
+.video-play-badge { position: absolute; top: 50%; left: 50%; z-index: 1; display: flex; align-items: center; justify-content: center; width: min(var(--video-badge-size), 45%); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: var(--video-badge-bg); color: var(--video-badge-color); opacity: var(--video-badge-opacity); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); pointer-events: none; transition: opacity 0.15s ease; }
+.video-play-badge svg { display: block; width: 55%; height: 55%; margin-left: 8%; fill: currentColor; } /* le triangle est décalé : son centre optique n'est pas celui du cercle */
+.thumbnail:hover .video-play-badge { opacity: var(--video-badge-hover-opacity); }
+.preview-cell .video-play-badge { width: min(var(--video-badge-size-preview), 30%); }
+.thumbnail.is-video .thumbnail-inner > img { filter: var(--video-thumb-filter); }

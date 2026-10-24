@@ -2,7 +2,6 @@
 
 ## 🚀 Next in line
 
-- [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [x] *feat*: `UI`memorize open panels when closing app, reopen them + thumbnails
 - [x] *feat*: `UI`darken non selected photos when hovering over selection
 - [x] *feat*: **search by filename**
@@ -12,13 +11,29 @@
 - [x] *feat*: `UI`add **optional displays on full screen** (filename, date, exif, rank)
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
   => set a minimal size for window and for each panel
-- [ ] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
+- [x] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
   => do not overlay toasts, put last action on hold
+- [x] *feat*: display video thumbnails and open them with OS chosen app
+- [ ] *feat*: do not delete folders if files other than those displayed by photoboggan are present, only delete the displayed files
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI`add selection panel close button, to close panel and deselect all pictures
+- [ ] *feat*: `Video`launch external video player from single click in preview
+- [ ] *feat*: `Video`remove resize command on videos
+- [ ] *style*: `UI`move selection & modification panel to info panel
 - [x] *feat*: allow **stopping a running scan**
+- [ ] *feat*: handle info panel display when multiple photos are selected
+  - [ ] keep some for last image: filename, basic exif, filesize
+  - [ ] keywords: first common and second non common keywords ina  different color
+  - [ ] range of exif speed,iso, aperture
+  - [ ] number of different cameras and lenses
+  - [ ] range of date taken
+  - [ ] average filesize
+  - [ ] number of files instead of filename
+  - [ ] range of pixel sizes instead of dimensions
+  - [ ] hide description
+  - [ ] average rating
 - [x] *style*: `UI` make **filters more compact**
 - [x] *feat*: `UI` **click on a keyword to search** that keyword, ctrl modifier to add it to the searched keywords
 - [x] *feat*: `UI` **shortcuts** for left panel, info panel
@@ -39,12 +54,16 @@
   - [ ] Allow adding and removing keywords, writing files in all existing formats
   - [ ] Handle **multiplicity of tags** in structure
 - [ ] *feat*: Add **mouse settings** screen
+- [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 
 ## ⚖️ Undecided
 
 - [x] *feat*: **heic / heif** image format support
 - [ ] *feat*: [HARD] **Face recognition** (heavy & unlikely)
-- [ ] *feat*: jpeg **integrity scan** (specific view)
+- [ ] *feat*: **integrity scan** to detect corrupted files
+  - [ ] specific view or action,
+  - [ ] group within missing thumbnails generation)
+  - [ ] include raw partially: embedded tyhumbnail extraction
 - [ ] *feat*: `needs_internet` **Map screen**
 - [ ] *feat*: `needs_internet` add a **map widget** in info panel
 - [ ] *feat*: `needs_internet` check and inform of **available update** on github (on hold, needs official releases)
@@ -56,7 +75,7 @@
 ## 🧪 To be tested & potential bugs to be confirmed
 
 - [ ] Test Linux Release
-- [ ] Ensure moving files is safe
-- [ ] Ensure writing files is safe
+- [x] Ensure moving files is safe
+- [x] Ensure writing files is safe
 - [ ] Restoring data from data folder
 - [ ] *fix*: thumbnails size setting doesn't persist through update

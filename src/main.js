@@ -167,9 +167,28 @@ function isRawPath(path) {
 
 // HEIC / HEIF : le webview ne sait pas les afficher. Le backend en fait un JPEG pleine résolution (même commande et même cache que l'aperçu RAW).
 const HEIF_EXTENSIONS = new Set(['heic', 'heif', 'hif']);
+
+// VIDÉOS : indexées comme les photos, mais jamais affichées ni lues dans l'application. Le backend en extrait une image fixe (miniature de la grille et aperçu,
+// même cache que les photos) ; le double-clic les ouvre dans le lecteur par défaut de l'OS (voir openVideoExternally). Liste alignée sur video.rs.
+// Repères visuels : classe .is-video (miniature et case de l'aperçu) et .video-play-badge (icône Play), réglables dans styles.css.
+const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv']);
+function isVideoPath(path) {
+  const ext = (path || '').split('.').pop()?.toLowerCase();
+  return VIDEO_EXTENSIONS.has(ext);
+}
+const VIDEO_PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+function createVideoPlayBadge() {
+  const badge = document.createElement('span');
+  badge.className = 'video-play-badge';
+  badge.setAttribute('aria-hidden', 'true');
+  badge.innerHTML = VIDEO_PLAY_ICON;
+  return badge;
+}
+
+// Le webview ne sait pas afficher les RAW, les HEIC / HEIF ni lire les vidéos : le backend fournit une image JPEG (aperçu RAW / HEIC, image fixe de la vidéo).
 function needsGeneratedPreview(path) {
   const ext = (path || '').split('.').pop()?.toLowerCase();
-  return RAW_EXTENSIONS.has(ext) || HEIF_EXTENSIONS.has(ext);
+  return RAW_EXTENSIONS.has(ext) || HEIF_EXTENSIONS.has(ext) || VIDEO_EXTENSIONS.has(ext);
 }
 
 const rawPreviewPromises = new Map();
@@ -184,7 +203,8 @@ async function getPhotoDisplayUrl(photo) {
       .then(cachedPath => convertFileSrc(cachedPath))
       .catch(err => {
         console.error('Extraction preview RAW impossible', photo.path, err);
-        return photoUrl(photo);
+        // Vidéo : jamais le fichier vidéo lui-même comme image (case laissée vide, avec son icône Play).
+        return isVideoPath(photo.path) ? '' : photoUrl(photo);
       });
     rawPreviewPromises.set(photo.path, promise);
   }
@@ -307,10 +327,12 @@ const GRID_SIDE_MARGIN = 8;
 scrollContent.style.left = `${GRID_SIDE_MARGIN}px`;
 scrollContent.style.width = `calc(100% - ${2 * GRID_SIDE_MARGIN}px)`;
 
-function scheduleJustifiedRelayout() {
+function scheduleJustifiedRelayout(photo = null) {
+  // Cascade : seules les vidéos (dimensions absentes du catalogue) changent de disposition quand leur ratio est appris.
+  if (thumbnailLayout === 'masonry' && !(photo && isVideoPath(photo.path))) return;
   clearTimeout(justifiedLayoutTimer);
   justifiedLayoutTimer = setTimeout(() => {
-    if (thumbnailLayout === 'justified') updateVirtualScroller();
+    if (thumbnailLayout !== 'square') updateVirtualScroller();
   }, 80);
 }
 
@@ -406,7 +428,7 @@ function learnPhotoAspectRatio(photo, ratio) {
   // Tolérance relative de 0,2 % : l'arrondi des dimensions d'une miniature (ex. 512x341) ne doit pas relancer la disposition.
   if (Math.abs(previousRatio - ratio) > ratio * 0.002) {
     photo.aspectRatio = ratio;
-    scheduleJustifiedRelayout();
+    scheduleJustifiedRelayout(photo);
   }
 }
 
@@ -473,6 +495,11 @@ function loadThumbnail(image, sourcePath, photo) {
       if (!generated) {
         // Fichier supprimé hors de l'application ? On le retire du catalogue au lieu de laisser une miniature noire.
         if (await checkPhotoMissing(sourcePath)) return;
+        // Vidéo sans image extractible (codec absent, pas de ffmpeg) : pas de repli webview (il ne sait pas lire la vidéo), la case reste avec son icône Play.
+        if (isVideoPath(sourcePath)) {
+          image.closest('.thumbnail')?.classList.add('no-thumbnail');
+          return;
+        }
         await generateThumbnailInWebview(image, sourcePath, photo);
         return;
       }
@@ -1045,7 +1072,9 @@ function layoutPhotoRange(start, end, offsetY, width, gap) {
       let column = 0;
       for (let c = 1; c < columns; c++) if (columnBottoms[c] < columnBottoms[column]) column = c;
       const photo = photos[i];
-      const ratio = Math.max(0.2, Math.min(5, photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1));
+      // Les dimensions des vidéos ne sont pas dans le catalogue : leur ratio vient de la miniature (voir learnPhotoAspectRatio).
+      const knownRatio = isVideoPath(photo.path) ? photoAspectRatio(photo) : (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1);
+      const ratio = Math.max(0.2, Math.min(5, knownRatio));
       // Photo en portrait : sa hauteur est plafonnée à thumbnailSize, elle se réduit alors et se centre dans sa colonne.
       const height = Math.min(columnWidth / ratio, thumbailSizeCorrected);
       const itemWidth = height * ratio;
@@ -1128,6 +1157,7 @@ function renderVisibleItems() {
       const stars = document.createElement('span'); stars.className = 'thumbnail-rating';
       const flag = document.createElement('span'); flag.className = `flag-indicator flag-${photo.color_flag}`;
       overlay.append(stars, flag); inner.append(thumbnailImage, overlay); div.appendChild(inner);
+      if (isVideoPath(photo.path)) { div.classList.add('is-video'); inner.append(createVideoPlayBadge()); }
       div._ratingLabel = stars; div._flag = flag; div._thumbnailImage = thumbnailImage;
       div._selected = false; div._transform = '';
       div.addEventListener('click', event => handleSelection(Number(div.dataset.index), event));
@@ -1197,7 +1227,22 @@ window.addEventListener('resize', updateVirtualScroller);
 // ==========================================
 // GESTION DU PLEIN ÉCRAN ET NAVIGATION
 // ==========================================
+// Vidéo : lancée directement dans le lecteur par défaut de l'OS, jamais dans la visionneuse interne.
+async function openVideoExternally(photo) {
+  try {
+    await invoke('open_video_externally', { path: photo.path });
+  } catch (error) {
+    showWriteToast(t('Open failed: {error}', { error: String(error) }));
+  }
+}
+
 function openFullscreen(index) {
+  // Point d'entrée unique du plein écran (double-clic, clavier) : une vidéo part vers le lecteur externe, la sélection reste telle quelle.
+  const target = photos[index];
+  if (target && isVideoPath(target.path)) {
+    openVideoExternally(target);
+    return;
+  }
   lastSelectedIndex = index;
   selectedIndices.clear();
   selectedIndices.add(index);
@@ -1384,7 +1429,7 @@ function preloadFullscreenImages(index) {
       const photo = photos[i];
       image.onerror = () => checkPhotoMissing(photoPath);
       getPhotoDisplayUrl(photo).then(url => {
-        if (fullscreenImageCache.get(i) === image) {
+        if (url && fullscreenImageCache.get(i) === image) {
           image.src = url;
         }
       });
@@ -1542,6 +1587,11 @@ function formatShutterSpeed(value) {
 // Affiche les dimensions ; si la base n'en a pas (0 x 0), on les apprend depuis l'image réelle.
 function showPhotoDimensions(photo) {
   const element = document.getElementById('exif-dim');
+  // Vidéo : les dimensions réelles ne sont pas lues (l'image extraite n'a pas la taille de la vidéo) : on n'affiche rien plutôt qu'une valeur fausse.
+  if (isVideoPath(photo.path)) {
+    element.textContent = '-';
+    return;
+  }
   const fromDatabase = photo.width > 0 && photo.height > 0;
   const width = fromDatabase ? photo.width : photo.measuredWidth;
   const height = fromDatabase ? photo.height : photo.measuredHeight;
@@ -3028,6 +3078,7 @@ function createPreviewSlot(photo) {
   const cell = document.createElement('div');
   cell.className = 'preview-cell';
   cell.dataset.path = photo.path;
+  if (isVideoPath(photo.path)) cell.classList.add('is-video');
   const img = document.createElement('img');
   img.alt = '';
   img.draggable = false;
@@ -3046,7 +3097,7 @@ function createPreviewSlot(photo) {
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
   getPhotoDisplayUrl(photo).then(url => {
-    if (previewSlots.includes(slot)) {
+    if (previewSlots.includes(slot) && url) {
       img.src = url;
     }
   });
@@ -3063,6 +3114,7 @@ function createPreviewSlot(photo) {
   slot.flagDot.className = 'flag-indicator flag-none';
   meta.append(slot.ratingLabel, slot.flagDot);
   cell.append(img, check, meta);
+  if (isVideoPath(photo.path)) cell.append(createVideoPlayBadge());
   slot.check = check;
   slot.meta = meta;
   return slot;

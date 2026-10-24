@@ -6,6 +6,7 @@ mod heif;
 mod library_sync;
 mod resize;
 mod thumbnails;
+mod video;
 
 use tauri::{State, Emitter, Manager};
 use std::fs;
@@ -327,7 +328,7 @@ struct GeneratedThumbnail {
     height: u32,
 }
 
-// Génère la miniature (JPEG, RAW via son aperçu intégré, et HEIC / HEIF) directement dans le cache, hors du webview : décodage réduit,
+// Génère la miniature (JPEG, RAW via son aperçu intégré, HEIC / HEIF, et image fixe d'une vidéo) directement dans le cache, hors du webview : décodage réduit,
 // orientation EXIF appliquée, taille réelle renvoyée (ratio exact pour la disposition justifiée).
 // Une erreur (PNG, JPEG CMYK, fichier illisible…) indique à l'interface d'utiliser sa génération de repli.
 #[tauri::command(async)]
@@ -357,10 +358,17 @@ fn raw_preview_cache_file(raw_previews_dir: &Path, source_path: &str) -> Result<
     Ok(raw_previews_dir.join(format!("{hash:016x}.jpg")))
 }
 
+// Aperçu d'une vidéo : image fixe plus grande que la miniature de la grille (voir video.rs), mise en cache comme les aperçus RAW.
+const VIDEO_PREVIEW_MAX_SIDE: usize = 1280;
+
 #[tauri::command(async)]
 fn get_raw_preview_path(state: State<'_, AppState>, source_path: String) -> Result<String, String> {
     let preview_path = raw_preview_cache_file(&state.raw_previews_dir(), &source_path)?;
     if preview_path.is_file() {
+        return Ok(preview_path.to_string_lossy().into_owned());
+    }
+    if video::is_video_path(Path::new(&source_path)) {
+        thumbnails::generate_video_preview(Path::new(&source_path), &preview_path, VIDEO_PREVIEW_MAX_SIDE)?;
         return Ok(preview_path.to_string_lossy().into_owned());
     }
     let jpeg_bytes = if heif::is_heif_path(Path::new(&source_path)) {
@@ -1175,6 +1183,23 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|error| format!("Impossible d'afficher {path} : {error}"))
 }
 
+// Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun lecteur.
+// Seules les vidéos du catalogue sont ouvertes, jamais un chemin arbitraire.
+#[tauri::command(async)]
+fn open_video_externally(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    if !video::is_video_path(Path::new(&path)) { return Err(format!("Ce fichier n'est pas une vidéo prise en charge : {path}")); }
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let tracked: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
+        .unwrap_or(false);
+    if !tracked { return Err("Vidéo absente du catalogue".into()); }
+    if !Path::new(&path).is_file() { return Err(format!("Fichier introuvable : {path}")); }
+    let native: PathBuf = Path::new(&path).components().collect();
+    let native = native.to_string_lossy().into_owned();
+    tauri_plugin_opener::open_path(native.as_str(), None::<&str>).map_err(|error| format!("Impossible d'ouvrir {native} : {error}"))
+}
+
 // Place les fichiers dans le presse-papiers de l'OS comme « Copier » dans l'explorateur de fichiers : c'est une liste de fichiers, qu'on peut
 // coller dans l'explorateur, un client mail, une messagerie… Les fichiers inexistants sont ignorés ; renvoie le nombre de fichiers copiés.
 // Portable (Windows, macOS, Linux) grâce à la crate clipboard-rs, sans PowerShell ni outil externe.
@@ -1326,6 +1351,7 @@ fn main() {
             move_photos,
             open_with,
             reveal_in_file_manager,
+            open_video_externally,
             copy_files_to_clipboard,
             resize_photo
         ])
