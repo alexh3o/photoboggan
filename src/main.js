@@ -150,7 +150,7 @@ const HEIF_EXTENSIONS = new Set(['heic', 'heif', 'hif']);
 // même cache que les photos) ; le double-clic les ouvre dans le lecteur par défaut de l'OS (voir openVideoExternally). Liste alignée sur video.rs.
 // Repères visuels : classe .is-video (miniature et case de l'aperçu) et .video-play-badge (icône Play), réglables dans styles.css.
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv']);
-function isVideoPath(path) {
+export function isVideoPath(path) {
   const ext = (path || '').split('.').pop()?.toLowerCase();
   return VIDEO_EXTENSIONS.has(ext);
 }

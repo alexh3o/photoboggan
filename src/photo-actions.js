@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { getIsFullscreen } from './main.js';
+import { getIsFullscreen, isVideoPath } from './main.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
 // suppression, copie des originaux et « Ouvrir avec ». main.js donne accès à l'état de la grille via initPhotoActions().
@@ -747,13 +747,16 @@ async function runResizeBatch(targets, options) {
 
 // Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
 export async function resizePhotos(targets) {
-  if (!targets.length) return;
+  // Écarte les éventuelles vidéos de la liste à redimensionner
+  const resizableTargets = targets.filter(target => !isVideoPath(target.path));
+  if (!resizableTargets.length) return;
+
   if (resizeRunning) {
     api.showToast(t('A resize is already in progress'));
     return;
   }
-  const options = await resizeOptionsDialog(targets.length, targets[0].path);
-  if (options) await runResizeBatch(targets, options);
+  const options = await resizeOptionsDialog(resizableTargets.length, resizableTargets[0].path);
+  if (options) await runResizeBatch(resizableTargets, options);
 }
 
 async function openWith(program, targets) {
@@ -932,23 +935,32 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (!isDirectView && !api.getSelectedIndices().has(index)) {
     api.selectOnly(index);
   }
-
   const targets = isDirectView
     ? [photo]
     : [...api.getSelectedIndices()].sort((a, b) => a - b).map(selectedIndex => photos[selectedIndex]).filter(Boolean);
 
+  // Vérifie si la sélection contient au moins une photo (les vidéos ne sont pas redimensionnables)
+  const hasResizablePhotos = targets.some(target => !isVideoPath(target.path));
+
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
-  menu.append(
+  const menuItems = [
     menuButton(t('Photo info'), () => showPhotoInfo(photo)),
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true }),
     menuButton(t('Copy'), () => copyPhotosToClipboard(targets)),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
-    menuButton(t('Resize…'), () => resizePhotos(targets)),
+  ];
+
+  // L'option « Redimensionner… » n'apparaît que pour les photos réelles
+  if (hasResizablePhotos) {
+    menuItems.push(menuButton(t('Resize…'), () => resizePhotos(targets)));
+  }
+  menuItems.push(
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
   );
+  menu.append(...menuItems);
   showContextMenu(menu, event);
 }
 
