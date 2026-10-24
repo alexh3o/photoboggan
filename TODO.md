@@ -17,9 +17,7 @@
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI`add selection panel close button, to close panel and deselect all pictures
-- [ ] *feat*: `Video`launch external video player from single click in preview
-- [ ] *feat*: `Video`remove resize command on videos
-- [ ] *style*: `UI`move selection & modification panel to info panel
+- [x] *feat*: `Video`remove resize command on videos
 - [x] *feat*: allow **stopping a running scan**
 - [ ] *feat*: handle info panel display when multiple photos are selected
   - [ ] keep some for last image: filename, basic exif, filesize
