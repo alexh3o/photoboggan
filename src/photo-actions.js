@@ -675,7 +675,7 @@ function resizeConflictDialog(output) {
   });
 }
 
-async function runResizeBatch(targets, options) {
+async function runResizeBatch(targets, options, ignoredVideosCount = 0) {
   resizeRunning = true;
   const total = targets.length;
   const workerCount = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1, total));
@@ -740,6 +740,7 @@ async function runResizeBatch(targets, options) {
   if (written) parts.push(tp('{count} file resized', written));
   if (skipped) parts.push(tp('{count} file skipped', skipped));
   if (failures.length) parts.push(tp('{count} failure', failures.length));
+  if (ignoredVideosCount > 0) parts.push(tp('{count} video file ignored', ignoredVideosCount));
   api.showToast(!written && !skipped && failures.length ? t('Resize failed: {error}', { error: failures[0].error }) : parts.join(' · '));
   // Les nouvelles photos entrent dans le catalogue si elles sont dans un dossier suivi.
   if (written) api.syncLibrary?.();
@@ -747,16 +748,21 @@ async function runResizeBatch(targets, options) {
 
 // Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
 export async function resizePhotos(targets) {
-  // Écarte les éventuelles vidéos de la liste à redimensionner
   const resizableTargets = targets.filter(target => !isVideoPath(target.path));
-  if (!resizableTargets.length) return;
+  const ignoredVideosCount = targets.length - resizableTargets.length;
 
+  if (!resizableTargets.length) {
+    if (ignoredVideosCount > 0) {
+      api.showToast(tp('{count} video file ignored', ignoredVideosCount));
+    }
+    return;
+  }
   if (resizeRunning) {
     api.showToast(t('A resize is already in progress'));
     return;
   }
   const options = await resizeOptionsDialog(resizableTargets.length, resizableTargets[0].path);
-  if (options) await runResizeBatch(resizableTargets, options);
+  if (options) await runResizeBatch(resizableTargets, options, ignoredVideosCount);
 }
 
 async function openWith(program, targets) {

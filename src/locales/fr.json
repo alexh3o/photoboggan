@@ -298,6 +298,8 @@
   "Resizing… {done}/{total}": "Redimensionnement… {done}/{total}",
   "{count} file resized": "{count} fichier redimensionné",
   "{count} file resized|other": "{count} fichiers redimensionnés",
+  "{count} video file ignored": "{count} fichier vidéo ignoré",
+  "{count} video file ignored|other": "{count} fichiers vidéo ignorés",
   "{count} file skipped": "{count} fichier passé",
   "{count} file skipped|other": "{count} fichiers passés",
   "Resize failed: {error}": "Échec du redimensionnement : {error}",

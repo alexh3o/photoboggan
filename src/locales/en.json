@@ -298,6 +298,8 @@
   "Increment name": "Increment name",
   "Skip": "Skip",
   "Resizing… {done}/{total}": "Resizing… {done}/{total}",
+  "{count} video file ignored": "{count} video file ignored",
+  "{count} video file ignored|other": "{count} video files ignored",
   "{count} file resized": "{count} file resized",
   "{count} file resized|other": "{count} files resized",
   "{count} file skipped": "{count} file skipped",
