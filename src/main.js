@@ -16,28 +16,6 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('titlebar-minimize')?.addEventListener('click', () => {
     console.log("Clic sur Minimiser");
     appWindow.minimize().catch(err => console.error("Erreur minimize:", err));
-
-
-  // Ajout pour deb/Linux: Déplacement de la fenêtre à la souris (indispensable sous Linux / WebKitGTK / Wayland)
-  const titlebarDrag = document.querySelector('.titlebar-drag-region');
-  titlebarDrag?.addEventListener('mousedown', event => {
-    // Bouton gauche uniquement (button === 0) et clic simple (detail === 1)
-    if (event.button === 0 && event.detail === 1) {
-      appWindow.startDragging().catch(err => console.error("Erreur startDragging:", err));
-    }
-  });
-  // Double-clic sur la barre pour maximiser / restaurer (comportement standard OS)
-  titlebarDrag?.addEventListener('dblclick', async () => {
-    try {
-      const isMax = await appWindow.isMaximized();
-      if (isMax) await appWindow.unmaximize();
-      else await appWindow.maximize();
-      await syncWindowState();
-    } catch (err) {
-      console.error("Erreur double-clic titre:", err);
-    }
-  });
-    
   });
 
   document.getElementById('titlebar-maximize')?.addEventListener('click', async () => {
