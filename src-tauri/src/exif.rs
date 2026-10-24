@@ -736,7 +736,14 @@ fn write_xmp_sidecar(image_path: &Path, rating: Option<i32>, label: Option<Optio
     };
     let updated = update_xmp_metadata(&xml, rating, label);
     if updated.is_empty() { return Ok(()); } // rien à retirer d'un sidecar inexistant
-    fs::write(sidecar, updated)
+    // --- Écriture atomique sécurisée ---
+    let temp_path = Path::new(&format!("{}.photoboggan-tmp", sidecar.display())).to_path_buf();
+    fs::write(&temp_path, updated)?;
+    if let Err(error) = fs::rename(&temp_path, &sidecar) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
