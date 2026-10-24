@@ -68,6 +68,8 @@ function renderProgramList() {
     details.className = 'settings-program-details';
     const name = document.createElement('input');
     name.type = 'text';
+    name.name = 'program-name';
+    name.autocomplete = 'off'; // pour éviter un warning sur chrome console
     name.className = 'settings-program-name';
     name.value = program.name;
     name.setAttribute('aria-label', t('Program name'));
