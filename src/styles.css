@@ -510,5 +510,5 @@ body.immersive .titlebar { display: none; }
 .video-play-badge { position: absolute; top: 50%; left: 50%; z-index: 1; display: flex; align-items: center; justify-content: center; width: min(var(--video-badge-size), 45%); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: var(--video-badge-bg); color: var(--video-badge-color); opacity: var(--video-badge-opacity); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); pointer-events: none; transition: opacity 0.15s ease; }
 .video-play-badge svg { display: block; width: 55%; height: 55%; margin-left: 8%; fill: currentColor; } /* le triangle est décalé : son centre optique n'est pas celui du cercle */
 .thumbnail:hover .video-play-badge { opacity: var(--video-badge-hover-opacity); }
-.preview-cell .video-play-badge { width: min(var(--video-badge-size-preview), 30%); }
+.preview-cell .video-play-badge { width: min(var(--video-badge-size-preview), 30%); opacity: 10%; } /* opacité mettre à 0% pour désactiver le logo en apercu */
 .thumbnail.is-video .thumbnail-inner > img { filter: var(--video-thumb-filter); }
