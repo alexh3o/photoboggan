@@ -952,8 +952,61 @@ function openThumbnailMenu(event, index, source = 'grid') {
   showContextMenu(menu, event);
 }
 
-// Supprime un dossier de l'arborescence, avec tout son contenu, après confirmation (voir delete_folder dans main.rs) : vers la corbeille, ou définitivement
-// si le support n'en a pas (clé USB, réseau), ce que le message dit clairement.
+// Seconde modale d'alerte à la suppressionde  dossier: affiche la liste des fichiers non catalogués détectés dans le dossier
+function confirmUnrecognizedFilesDialog(folderName, files) {
+  return new Promise(resolve => {
+    let answer = false;
+    const count = files.length;
+    const modal = createModal({
+      title: t('Non-cataloged files detected'),
+      cardClass: 'unrecognized-files-card',
+      onClose: () => resolve(answer),
+    });
+    const text = document.createElement('p');
+    text.className = 'confirm-message';
+    text.textContent = tp(
+      'The folder “{folder}” contains {count} file not managed by photoboggan. These files will also be deleted:',
+      count,
+      { folder: folderName }
+    );
+    const listContainer = document.createElement('div');
+    listContainer.className = 'unrecognized-files-list';
+    const ul = document.createElement('ul');
+    for (const file of files) {
+      const li = document.createElement('li');
+      li.textContent = file;
+      li.title = file;
+      ul.appendChild(li);
+    }
+    listContainer.appendChild(ul);
+    const actions = document.createElement('div');
+    actions.className = 'confirm-actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = t('Cancel');
+    cancel.addEventListener('click', modal.close);
+    const confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'btn-danger';
+    confirm.textContent = t('Delete anyway');
+    confirm.addEventListener('click', () => {
+      answer = true;
+      modal.close();
+    });
+    actions.append(cancel, confirm);
+    modal.body.append(text, listContainer, actions);
+    // Flèches pour naviguer entre Annuler et Supprimer quand même
+    modal.overlay.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? cancel : confirm).focus();
+    });
+    cancel.focus(); // Focus par sécurité sur "Annuler"
+  });
+}
+
+// Supprime un dossier de l'arborescence : première confirmation habituelle,
+// puis seconde confirmation détaillée si des fichiers inconnus (textes, PDF, formats non gérés...) s'y trouvent.
 async function confirmAndDeleteFolder(path) {
   const permanent = (await countPermanentDeletions([path])) > 0;
   const name = baseName(path);
@@ -965,7 +1018,18 @@ async function confirmAndDeleteFolder(path) {
     confirmLabel: t('Yes'),
     cancelLabel: t('No'),
   });
-  if (confirmed) await api.deleteFolder(path, { permanent });
+  if (!confirmed) return;
+  // Vérification de la présence de fichiers non gérés par photoboggan
+  try {
+    const unrecognized = await invoke('get_folder_unrecognized_files', { path });
+    if (Array.isArray(unrecognized) && unrecognized.length > 0) {
+      const secondConfirm = await confirmUnrecognizedFilesDialog(name, unrecognized);
+      if (!secondConfirm) return;
+    }
+  } catch (err) {
+    console.error('Erreur vérification fichiers non gérés :', err);
+  }
+  await api.deleteFolder(path, { permanent });
 }
 
 // Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).

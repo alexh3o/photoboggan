@@ -409,6 +409,11 @@ body.immersive .titlebar { display: none; }
 .prompt-input { width: 100%; margin-bottom: 6px; padding: 7px 9px; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.85rem; user-select: text; }
 .prompt-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .prompt-error { min-height: 1.2rem; margin-bottom: 12px; color: #e74c3c; font-size: 0.75rem; overflow-wrap: anywhere; }
+/* Modale des fichiers non gérés lors de la suppression de dossier */
+.unrecognized-files-card { width: min(32rem, calc(100vw - 2.5rem)); }
+.unrecognized-files-list { max-height: 12rem; overflow-y: auto; background: var(--row-bg); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 1.1rem; }
+.unrecognized-files-list ul { list-style: none; }
+.unrecognized-files-list li { padding: 2px 0; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; }
 
 /* MODALE PARAMETRES */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 10000; }

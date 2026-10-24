@@ -892,6 +892,43 @@ fn count_permanent_deletions(paths: Vec<String>) -> usize {
     paths.iter().filter(|path| !has_trash(path)).count()
 }
 
+// Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
+// ni des sidecars .xmp associés, ni des fichiers systèmes cachés (Thumbs.db, desktop.ini).
+#[tauri::command(async)]
+fn get_folder_unrecognized_files(state: State<'_, AppState>, path: String) -> Result<Vec<String>, String> {
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    let mut unrecognized = Vec::new();
+    for entry in WalkDir::new(&folder).into_iter().filter_map(|e| e.ok()) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let entry_path = entry.path();
+        let file_name = entry.file_name().to_string_lossy();
+        let lower_name = file_name.to_ascii_lowercase();
+        // 1. Ignorer les fichiers systèmes courants
+        if lower_name == "thumbs.db" || lower_name == "desktop.ini" || lower_name == ".ds_store" {
+            continue;
+        }
+        // 2. Ignorer les photos et vidéos prises en charge
+        if library_sync::is_photo_file(entry_path) {
+            continue;
+        }
+        // 3. Ignorer les métadonnées sidecars .xmp
+        if entry_path.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("xmp")) {
+            continue;
+        }
+        // Fichier non géré : on conserve le chemin relatif par rapport au dossier pour un affichage lisible
+        let rel_path = entry_path.strip_prefix(&folder)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| file_name.to_string());
+        unrecognized.push(rel_path);
+    }
+    unrecognized.sort();
+    Ok(unrecognized)
+}
+
 // Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
 // fichiers de tout type, pas seulement les photos. Il reste restaurable depuis la corbeille quand le support en a une (voir count_permanent_deletions). Comme pour
 // delete_photos, aucun repli automatique vers une suppression définitive : si la mise à la corbeille échoue, le catalogue n'est pas touché et l'erreur est renvoyée.
@@ -1319,7 +1356,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            // ... vos commandes existantes restent strictement inchangées ...
+            // Déclaration des commandes
             get_storage_location,
             change_storage_location,
             clear_thumbnail_cache,
@@ -1343,6 +1380,7 @@ fn main() {
             get_photo_details,
             delete_photos,
             delete_folder,
+            get_folder_unrecognized_files,
             count_permanent_deletions,
             remove_missing_photos,
             sync_library,

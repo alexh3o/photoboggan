@@ -9,12 +9,10 @@
   => set text types
 - [x] *feat*: `UI` hotkey to display shortcuts guide
 - [x] *feat*: `UI`add **optional displays on full screen** (filename, date, exif, rank)
-- [ ] *fix*: `UI` **resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
-  => set a minimal size for window and for each panel
 - [x] *fix*: **adding two folders** while first one is still scanning queues them but the name of the last one is displayed with first one's completion percentage
   => do not overlay toasts, put last action on hold
 - [x] *feat*: display video thumbnails and open them with OS chosen app
-- [ ] *feat*: do not delete folders if files other than those displayed by photoboggan are present, only delete the displayed files
+- [x] *feat*: do not delete folders if files other than those displayed by photoboggan are present, only delete the displayed files
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -55,6 +53,8 @@
   - [ ] Handle **multiplicity of tags** in structure
 - [ ] *feat*: Add **mouse settings** screen
 - [ ] *feat*: add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
+- [ ] *fix*: `UI` **resizing app window to a small size** does not go well. Panels become narrow & unreadable while thumbnails keep their width.
+  => set a minimal size for window and for each panel
 
 ## ⚖️ Undecided
 
