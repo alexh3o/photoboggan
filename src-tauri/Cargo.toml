@@ -1,6 +1,6 @@
 [package]
 name = "photoboggan"
-version = "0.3.7"
+version = "0.3.8"
 description = "Gestionnaire de photos desktop ultra-performant"
 authors = ["alexh3o"]
 edition = "2021"
