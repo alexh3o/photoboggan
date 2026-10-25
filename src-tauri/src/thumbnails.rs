@@ -230,7 +230,7 @@ fn decode_scaled_jpeg_reader<R: Read>(reader: R, max_side: usize) -> Result<(Vec
     Ok((rgb, width, height))
 }
 
-fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
+pub(crate) fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     
     // Si c'est un format RAW, on extrait la prévisualisation JPEG intégrée
@@ -263,7 +263,7 @@ pub(crate) fn read_orientation(source: &Path) -> u32 {
         .unwrap_or(1)
 }
 
-fn resize_to_fit(rgb: Vec<u8>, width: usize, height: usize, max_side: usize) -> (Vec<u8>, usize, usize) {
+pub(crate) fn resize_to_fit(rgb: Vec<u8>, width: usize, height: usize, max_side: usize) -> (Vec<u8>, usize, usize) {
     let longest = width.max(height);
     if longest <= max_side { return (rgb, width, height); }
     let scale = max_side as f64 / longest as f64;
@@ -350,7 +350,7 @@ pub(crate) fn apply_orientation(rgb: Vec<u8>, width: usize, height: usize, orien
     (output, out_width, out_height)
 }
 
-fn write_jpeg(destination: &Path, rgb: &[u8], width: usize, height: usize) -> Result<(), String> {
+pub(crate) fn write_jpeg(destination: &Path, rgb: &[u8], width: usize, height: usize) -> Result<(), String> {
     let parent = destination.parent().ok_or("Dossier de cache invalide")?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let temp = parent.join(format!("thumb-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));

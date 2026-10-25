@@ -808,6 +808,116 @@ async function createSubfolder(parentPath) {
   });
 }
 
+// ==========================================
+// VÉRIFICATION D'INTÉGRITÉ (rapport final)
+// ==========================================
+// Fenêtre affichée à la fin d'une vérification d'intégrité (commande `integrity_scan`, lancée depuis la file des tâches de main.js) : résumé, puis un fichier
+// suspect par ligne avec un bouton « Montrer » (gestionnaire de fichiers de l'OS). Le rapport s'exporte en CSV dans un dossier choisi dans la boîte de dialogue de l'OS.
+const LAST_INTEGRITY_EXPORT_FOLDER_KEY = 'lastIntegrityExportFolder';
+
+function formatDuration(milliseconds) {
+  const total = Math.round(milliseconds / 1000);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours) return `${hours} h ${minutes} min ${seconds} s`;
+  return minutes ? `${minutes} min ${seconds} s` : `${seconds} s`;
+}
+
+async function exportIntegrityCsv(suspects) {
+  let directory = null;
+  try {
+    directory = await open({
+      directory: true,
+      multiple: false,
+      title: t('Choose the destination folder'),
+      defaultPath: localStorage.getItem(LAST_INTEGRITY_EXPORT_FOLDER_KEY) || undefined,
+    });
+  } catch (error) {
+    console.error('Sélection de dossier impossible', error);
+    return;
+  }
+  if (typeof directory !== 'string' || !directory) return;
+  localStorage.setItem(LAST_INTEGRITY_EXPORT_FOLDER_KEY, directory);
+  try {
+    const file = await invoke('export_integrity_csv', {
+      directory,
+      headers: [t('File name'), t('Folder'), t('Full path'), t('Problem')],
+      rows: suspects,
+    });
+    api.showToast(t('Report exported: {name}', { name: baseName(file) }));
+  } catch (error) {
+    api.showToast(t('Export failed: {error}', { error }));
+  }
+}
+
+// `report` : résultat de `integrity_scan` ; `stopped` : la tâche a été arrêtée avant la fin (le rapport ne couvre alors que les fichiers déjà analysés).
+export function showIntegrityReport(report, stopped = false) {
+  if (!report) return;
+  const suspects = Array.isArray(report.suspects) ? report.suspects : [];
+  const modal = createModal({ title: `${t('Integrity report')} · ${baseName(report.folder || '')}`, cardClass: 'integrity-card' });
+
+  const verdict = makeElement('p', 'integrity-verdict', suspects.length
+    ? tp('{count} suspect file detected', suspects.length)
+    : t('No suspect file detected.'));
+  verdict.classList.toggle('has-suspects', suspects.length > 0);
+  const summary = makeElement('dl', 'integrity-summary');
+  const stats = [
+    [t('Files analysed'), `${report.checked} / ${report.total}`],
+    [t('Healthy files'), report.healthy],
+    [t('Thumbnails created'), report.thumbnailsCreated],
+  ];
+  if (report.unsupported) stats.push([t('Not verified (format without decoder)'), report.unsupported]);
+  if (report.thumbnailsFailed) stats.push([t('Thumbnails not written'), report.thumbnailsFailed]);
+  if (report.elapsedMillis) stats.push([t('Duration'), formatDuration(report.elapsedMillis)]);
+  // Durée moyenne par fichier et par format, du plus lent au plus rapide : montre ce qui ralentit la vérification.
+  for (const timing of report.timings ?? []) {
+    stats.push([
+      t('{format}: {count} analysed, average time per file', { format: timing.format, count: timing.files }),
+      `${(timing.averageMillis / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} s`,
+    ]);
+  }
+  for (const [label, value] of stats) summary.append(makeElement('dt', '', label), makeElement('dd', '', String(value)));
+  const notes = [];
+  if (stopped || report.cancelled) notes.push(makeElement('p', 'integrity-note', t('The check was stopped: this report only covers the files analysed so far.')));
+  modal.body.append(verdict, summary, ...notes);
+
+  if (suspects.length) {
+    const list = makeElement('ul', 'integrity-list');
+    const rows = document.createDocumentFragment();
+    for (const suspect of suspects) {
+      const row = makeElement('li', 'integrity-row');
+      const info = makeElement('div', 'integrity-info');
+      const name = makeElement('span', 'integrity-name', baseName(suspect.path));
+      const problem = makeElement('span', 'integrity-problem', suspect.error);
+      const folder = makeElement('span', 'integrity-path', suspect.path.replace(/[\\/][^\\/]*$/, ''));
+      folder.title = suspect.path;
+      info.append(name, problem, folder);
+      const show = makeElement('button', 'btn-secondary', t('Show'));
+      show.type = 'button';
+      show.addEventListener('click', () => revealInFileManager({ path: suspect.path }));
+      row.append(info, show);
+      rows.append(row);
+    }
+    list.append(rows);
+    modal.body.append(list);
+  }
+
+  const actions = makeElement('div', 'confirm-actions');
+  if (suspects.length) {
+    const exportButton = makeElement('button', '', t('Export CSV…'));
+    exportButton.type = 'button';
+    exportButton.addEventListener('click', () => exportIntegrityCsv(suspects));
+    actions.append(exportButton);
+  }
+  const closeButton = makeElement('button', 'btn-primary', t('Close'));
+  closeButton.type = 'button';
+  closeButton.addEventListener('click', modal.close);
+  actions.append(closeButton);
+  modal.body.append(actions);
+  closeButton.focus();
+}
+
 // Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
 export async function openFolderInFileManager(path) {
   try {
@@ -1063,6 +1173,7 @@ function openFolderMenu(event, folderItem) {
   separator.setAttribute('role', 'separator');
   menu.append(
     menuButton(t('Rescan folder data'), () => api.rescanFolder(path)),
+    menuButton(t('Integrity check'), () => api.checkFolderIntegrity(path)),
     menuButton(t('New subfolder…'), () => createSubfolder(path)),
     menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path)),
   );
@@ -1149,7 +1260,7 @@ function onContextMenu(event) {
   openThumbnailMenu(event, result.index, result.source);
 }
 
-// options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), folderCreated(parentPath, name),
+// options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), checkFolderIntegrity(path), folderCreated(parentPath, name),
 // syncLibrary() (relecture des dossiers suivis après la création de fichiers), deleteFolder(path, { permanent }) (suppression d'un dossier de l'arborescence).
 export function initPhotoActions(options) {
   api = options;

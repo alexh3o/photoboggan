@@ -415,6 +415,26 @@ body.immersive .titlebar { display: none; }
 .unrecognized-files-list ul { list-style: none; }
 .unrecognized-files-list li { padding: 2px 0; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.75rem; }
 
+/* MODALE DU RAPPORT D'INTÉGRITÉ (liste des fichiers suspects, voir showIntegrityReport dans photo-actions.js) */
+.integrity-card { width: min(40rem, calc(100vw - 2.5rem)); }
+.integrity-verdict { margin-bottom: 0.75rem; color: var(--text-strong); font-size: 0.95rem; font-weight: 600; }
+.integrity-verdict.has-suspects { color: #e74c3c; }
+.integrity-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 1rem; margin-bottom: 0.9rem; padding: 0.6rem 0.8rem; border-radius: 4px; background: var(--row-bg); font-size: 0.8rem; }
+.integrity-summary dt { color: var(--text-faint); }
+.integrity-summary dd { color: var(--text-strong); text-align: right; font-variant-numeric: tabular-nums; }
+.integrity-note { margin-bottom: 0.75rem; color: #d6a900; font-size: 0.75rem; }
+.integrity-list { max-height: 18rem; margin-bottom: 1rem; overflow-y: auto; list-style: none; border: 1px solid var(--control-border); border-radius: 4px; background: var(--row-bg); }
+.integrity-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; }
+.integrity-row + .integrity-row { border-top: 1px solid var(--separator); }
+.integrity-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.integrity-name { overflow: hidden; color: var(--text-strong); font-size: 0.8rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.integrity-problem { color: #e74c3c; font-size: 0.75rem; overflow-wrap: anywhere; }
+.integrity-path { overflow: hidden; color: var(--text-faint); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+.integrity-row button { flex: 0 0 auto; padding: 0.35rem 0.75rem; }
+/* Dossier en cours d'analyse : seconde ligne du toast de la tâche, et fin de la ligne d'état dans la fenêtre des actions */
+.task-toast-detail { display: block; margin-top: 2px; overflow: hidden; color: var(--text-faint); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+.task-item-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* MODALE PARAMETRES */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 10000; }
 .modal.hidden { display: none; }

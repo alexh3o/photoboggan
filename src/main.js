@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 
 // AJOUT BARRE TITRE
@@ -2617,7 +2617,7 @@ document.querySelectorAll('#selection-rating-stars button').forEach(button => {
 // Une seule tâche de scan s'exécute à la fois, les autres attendent leur tour dans l'ordre de leur demande. Chaque tâche a son toast (la tâche en cours en bas,
 // avec son avancement ; les suivantes au-dessus, « En attente ») et sa ligne dans la fenêtre « Actions en cours » (bouton sablier de la barre du haut), qui permet
 // d'arrêter la tâche en cours ou de retirer une tâche en attente. Le backend publie l'avancement dans « scan-progress » avec l'identifiant de la tâche.
-// { id, kind: 'add' | 'rescan-all' | 'rescan-folder', path (null = toute la collection), command, args, labelKey, labelParams,
+// { id, kind: 'add' | 'rescan-all' | 'rescan-folder' | 'integrity', path (null = toute la collection), command, args, labelKey, labelParams,
 //   status: 'waiting' | 'running', percent, stopRequested, toastHidden }
 const scanTasks = [];
 let scanTaskCounter = 0;
@@ -2703,7 +2703,16 @@ function syncTaskUI() {
       taskToastElements.set(task, toast);
     }
     toast.classList.toggle('waiting', task.status === 'waiting');
-    toast.querySelector('.task-toast-text').textContent = `${taskName(task)} · ${taskStatusText(task)}`;
+    const textElement = toast.querySelector('.task-toast-text');
+    textElement.textContent = `${taskName(task)} · ${taskStatusText(task)}`;
+    // Dossier en cours d'analyse (vérification d'intégrité), sur une seconde ligne.
+    if (task.detail && task.status === 'running') {
+      const detail = document.createElement('span');
+      detail.className = 'task-toast-detail';
+      detail.textContent = task.detail;
+      detail.title = task.detail;
+      textElement.append(detail);
+    }
     const close = toast.querySelector('.task-toast-close');
     close.title = t('Close');
     close.setAttribute('aria-label', t('Close'));
@@ -2727,7 +2736,7 @@ function syncTaskUI() {
     const name = row.querySelector('.task-item-name');
     name.textContent = taskName(task);
     name.title = taskName(task);
-    row.querySelector('.task-item-status').textContent = taskStatusText(task);
+    row.querySelector('.task-item-status').textContent = task.detail && task.status === 'running' ? `${taskStatusText(task)} · ${task.detail}` : taskStatusText(task);
     row.querySelector('.task-item-bar > span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
     const action = row.querySelector('.task-item-action');
     action.textContent = task.status === 'waiting' ? t('Remove from queue') : t('Stop');
@@ -2792,6 +2801,15 @@ listenToBackend('scan-progress', event => {
   syncTaskUI();
 }).catch(error => console.debug('Suivi de la progression indisponible', error));
 
+// Dossier en cours d'analyse par une tâche (vérification d'intégrité) : affiché sous le pourcentage, dans le toast et dans la fenêtre des actions.
+listenToBackend('scan-detail', event => {
+  const { taskId, detail } = event.payload || {};
+  const task = scanTasks.find(item => item.id === taskId);
+  if (!task || task.status !== 'running') return;
+  task.detail = typeof detail === 'string' ? detail : '';
+  syncTaskUI();
+}).catch(error => console.debug('Suivi du dossier en cours indisponible', error));
+
 // Recharge les photos après un rescan. L'arborescence est construite depuis la liste complète de la collection : quand un dossier est
 // filtré, cette liste est relue aussi, sinon un sous-dossier découvert par le rescan n'y apparaîtrait pas.
 async function reloadPhotosAfterRescan() {
@@ -2825,11 +2843,14 @@ function dropScanTasksForFolder(path) {
 // Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours ou en attente
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
 function enqueueScanTask({ kind, path, command, args, labelKey, labelParams }) {
+  // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
+  const isIntegrity = kind === 'integrity';
+  const sameFamily = task => (task.kind === 'integrity') === isIntegrity;
   const covering = path === null
-    ? scanTasks.find(task => task.path === null && !task.stopRequested)
-    : scanTasks.find(task => !task.stopRequested && taskCoversFolder(task, path));
+    ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
+    : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
-    showWriteToast(t('Already part of a scan in progress or waiting: {name}', { name: taskName(covering) }));
+    showWriteToast(t(isIntegrity ? 'Already part of an integrity check in progress or waiting: {name}' : 'Already part of a scan in progress or waiting: {name}', { name: taskName(covering) }));
     return false;
   }
   scanTaskCounter += 1;
@@ -2860,14 +2881,16 @@ async function runScanTask(task) {
   task.status = 'running';
   syncTaskUI();
   try {
-    await invoke(task.command, { ...task.args, taskId: task.id });
+    const result = await invoke(task.command, { ...task.args, taskId: task.id });
     task.percent = 100;
     syncTaskUI();
-    await reloadPhotosAfterRescan();
+    // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
+    if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
+    else await reloadPhotosAfterRescan();
     if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
     console.error('Rescan impossible', error);
-    showWriteToast(t('Rescan failed: {error}', { error }));
+    showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
   } finally {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
@@ -2876,6 +2899,12 @@ async function runScanTask(task) {
 }
 
 document.getElementById('btn-rescan-folders').addEventListener('click', () => enqueueScanTask({ kind: 'rescan-all', path: null, command: 'rescan_all_folders', args: {}, labelKey: 'Collection data rescan', labelParams: undefined }));
+
+// Vérification d'intégrité d'un dossier de l'arborescence (sous-dossiers compris), lancée depuis son menu contextuel : chaque fichier est décodé et les miniatures
+// absentes du cache sont créées. Même file que les scans ; refusée si un dossier parent est déjà en vérification (en cours ou en attente).
+function checkFolderIntegrity(path) {
+  return enqueueScanTask({ kind: 'integrity', path, command: 'integrity_scan', args: { path }, labelKey: 'Integrity check: {folder}', labelParams: { folder: folderBaseName(path) } });
+}
 
 // Rescan d'un dossier de l'arborescence (sous-dossiers compris), lancé depuis son menu contextuel.
 function rescanFolder(path) {
@@ -3991,6 +4020,7 @@ initPhotoActions({
   removePhotos: removePhotosFromLibrary,
   showToast: showWriteToast,
   rescanFolder,
+  checkFolderIntegrity,
   folderCreated: addCreatedFolder,
   syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
   deleteFolder: deleteFolderToTrash,

@@ -1,6 +1,6 @@
 [package]
 name = "photoboggan"
-version = "0.3.6"
+version = "0.3.7"
 description = "Gestionnaire de photos desktop ultra-performant"
 authors = ["alexh3o"]
 edition = "2021"
@@ -25,6 +25,8 @@ jpeg-encoder = "0.6"
 # Redimensionnement par lot (module resize.rs) : lecture et écriture des PNG. Crate en Rust pur déjà présente dans l'arbre de dépendances (via Tauri) :
 # aucune bibliothèque native à distribuer.
 png = "0.18"
+# Vérification d'intégrité (module integrity.rs) : lecture des WebP en Rust pur, sans bibliothèque native à distribuer.
+image-webp = "0.2"
 walkdir = "2.5.0"
 rayon = "1.10.0"
 chrono = "0.4.38"

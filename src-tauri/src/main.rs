@@ -3,6 +3,7 @@
 mod db;
 mod exif;
 mod heif;
+mod integrity;
 mod library_sync;
 mod resize;
 mod thumbnails;
@@ -664,6 +665,45 @@ async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: 
     Ok(())
 }
 
+// Dossier en cours d'analyse par une tâche (vérification d'intégrité), publié dans l'événement « scan-detail » à chaque changement de dossier.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScanDetail {
+    task_id: String,
+    detail: String,
+}
+
+// Vérification d'intégrité d'un dossier de l'arborescence (voir integrity.rs) : chaque fichier est décodé (RAW : vignette JPEG intégrée) et la miniature est créée
+// seulement si elle est absente du cache. Renvoie le rapport (fichiers suspects compris). La progression est publiée par « scan-progress » comme les autres tâches de la file ;
+// l'arrêt (cancel_scan) rend un rapport partiel. Le catalogue n'est pas modifié.
+#[tauri::command]
+async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<integrity::IntegrityReport, String> {
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    let thumbnails_dir = state.thumbnails_dir();
+    let max_side = state.thumbnail_cache_size();
+    let cancel = scan_cancel_flag(&task_id);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let publish = |fraction: f64| {
+            let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
+        };
+        let publish_folder = |folder_label: &str| {
+            let _ = app.emit("scan-detail", ScanDetail { task_id: worker_task_id.clone(), detail: folder_label.to_string() });
+        };
+        integrity::run(&folder, &thumbnails_dir, max_side, &cancel, &publish, &publish_folder)
+    }).await;
+    release_scan_cancel_flag(&task_id);
+    outcome.map_err(|error| error.to_string())?
+}
+
+// Exporte les fichiers suspects d'un rapport d'intégrité en CSV dans le dossier choisi par l'utilisateur ; renvoie le chemin du fichier créé (jamais d'écrasement).
+#[tauri::command(async)]
+fn export_integrity_csv(directory: String, headers: Vec<String>, rows: Vec<integrity::IntegrityIssue>) -> Result<String, String> {
+    integrity::write_csv(Path::new(&directory), &headers, &rows).map(|file| file.to_string_lossy().into_owned())
+}
+
 // Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
 // Utilise le plugin opener déjà intégré, sans nouvelle dépendance.
 #[tauri::command(async)]
@@ -681,7 +721,6 @@ fn open_folder_in_file_manager(state: State<'_, AppState>, path: String) -> Resu
 #[tauri::command(async)]
 fn create_subfolder(state: State<'_, AppState>, parent: String, name: String) -> Result<(), String> {
     let name = name.trim();
-    // ... validation du nom ...
     let pool = state.pool();
     let parent_folder = resolve_tracked_folder(&pool, &parent).ok_or_else(|| format!("Dossier non suivi : {parent}"))?;
     if !parent_folder.is_dir() { return Err(format!("Dossier introuvable : {parent}")); }
@@ -1374,6 +1413,8 @@ fn main() {
             save_thumbnail_cache,
             rescan_all_folders,
             rescan_folder,
+            integrity_scan,
+            export_integrity_csv,
             open_folder_in_file_manager,
             create_subfolder,
             update_photo_metadata,
