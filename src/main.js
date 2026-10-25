@@ -2093,9 +2093,22 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 function toggleTopBar() {
   const topBar = document.getElementById('top-bar');
   if (!topBar) return;
+  topBar.classList.remove('peek'); // T annule l'apparition au survol : la barre devient visible (ou masquée) pour de bon
   topBar.classList.toggle('hidden');
   requestAnimationFrame(updateVirtualScroller); // la grille gagne ou perd la hauteur de la barre : recalcul de la zone visible
 }
+
+// Barre masquée : un survol de la bande tout en haut de la zone de l'application la fait apparaître en surimpression (classe « peek », sans décaler la grille).
+// Elle se recache quand la souris la quitte. Pas d'apparition pendant un glisser (défilement, déplacement de photos), en plein écran ou avec une fenêtre ouverte.
+const TOP_BAR_HOVER_ZONE_PX = 8;
+window.addEventListener('mousemove', event => {
+  const topBar = document.getElementById('top-bar');
+  if (!topBar || !topBar.classList.contains('hidden') || topBar.classList.contains('peek')) return;
+  if (event.buttons !== 0 || isFullscreen || document.querySelector('.modal:not(.hidden)')) return;
+  const appTop = document.getElementById('app').getBoundingClientRect().top; // la barre de titre est au-dessus : le survol ne s'y déclenche pas
+  if (event.clientY >= appTop && event.clientY <= appTop + TOP_BAR_HOVER_ZONE_PX) topBar.classList.add('peek');
+});
+document.getElementById('top-bar')?.addEventListener('mouseleave', event => event.currentTarget.classList.remove('peek'));
 
 document.getElementById('btn-toggle-sidebar').addEventListener('click', event => {
   const sidebarVisible = sidebarPanel.classList.toggle('hidden') === false;
