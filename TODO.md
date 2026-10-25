@@ -2,7 +2,7 @@
 
 ## 🚀 Next in line
 
-- [ ] *style*: `UI`add **UI/text size** setting
+- [x] *style*: `UI`add **UI/text size** setting
   => set text types
 
 ## 💡 Ideas / Longer term / On hold

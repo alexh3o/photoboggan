@@ -253,6 +253,27 @@ document.getElementById('dim-unselected-select')?.addEventListener('change', eve
   applyDimUnselected();
 });
 
+// TAILLE DES TEXTES (Paramètres / Affichage, mémorisée localement) : pourcentage de la taille de police de base du document.
+// Toute la typographie et les espacements étant en rem (voir styles.css), un seul réglage sur <html> met l'interface à l'échelle ;
+// les dimensions en px (grille de miniatures, bordures, icônes SVG) ne changent pas. 100 % = taille historique (16 px).
+const TEXT_SIZES = ['90', '100', '110', '120'];
+const storedTextSize = localStorage.getItem('textSize');
+let textSize = TEXT_SIZES.includes(storedTextSize) ? storedTextSize : '100';
+function applyTextSize() {
+  document.documentElement.style.fontSize = `${textSize}%`;
+  const select = document.getElementById('text-size-select');
+  if (select) select.value = textSize;
+}
+applyTextSize();
+document.getElementById('text-size-select')?.addEventListener('change', event => {
+  if (!TEXT_SIZES.includes(event.target.value)) return;
+  textSize = event.target.value;
+  localStorage.setItem('textSize', textSize);
+  applyTextSize();
+  // Les largeurs en rem (barre latérale, panneaux) changent : la grille virtuelle est recalculée sur sa nouvelle largeur.
+  requestAnimationFrame(() => updateVirtualScroller());
+});
+
 // DOM
 let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 512;
 if (![256, 512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
