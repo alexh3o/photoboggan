@@ -386,6 +386,8 @@
   "To {date}": "to {date}",
   "Toggle photo information": "Show / hide photo information",
   "Toggle shortcuts guide": "Show / hide this shortcuts guide",
+  "Toggle toolbar": "Show / hide the toolbar",
+  "Deselect all": "Deselect all",
   "Filter on this keyword (Ctrl+click: add to the filter)": "Filter on this keyword (Ctrl+click: add to the filter)",
   "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted"
 }

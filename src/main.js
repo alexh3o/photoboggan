@@ -1536,6 +1536,13 @@ function toggleSelectAllPhotos() {
   updateUIOnSelection();
 }
 
+// Bouton « Tout désélectionner » du panneau Sélection & Modification : vide la sélection, ce qui masque le panneau (voir updateRatingAction).
+document.getElementById('btn-clear-selection')?.addEventListener('click', () => {
+  if (selectedIndices.size === 0) return;
+  selectedIndices.clear();
+  updateUIOnSelection();
+});
+
 function updateUIOnSelection() {
   pruneCompareSubSelection();
   renderVisibleItems(); 
@@ -1753,6 +1760,7 @@ async function setSelectionRating(rating) {
 // P      : Preview panel
 // R      : Rating bar in fullscreen
 // S      : Resize
+// T      : Show / hide the top toolbar (not persisted)
 // X      : Compare mode
 // F11    : immersive mode
 // Del    : Delete
@@ -1862,6 +1870,14 @@ if (e.key === 'Delete') {
         return;
       }
     }
+  }
+  // T : masque / affiche la barre d'outils du haut (Filtres, Paramètres, Options d'affichage, Comparer, Aperçu, Info).
+  // Réglage volontairement non mémorisé : la barre est visible à chaque démarrage. Les raccourcis N, P, J et X restent actifs barre masquée.
+  // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte (comme les autres bascules de panneaux).
+  if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+    e.preventDefault();
+    if (!e.repeat) toggleTopBar();
+    return;
   }
   // Bascule des panneaux et modes :
   // X : mode Comparer | P : aperçu | N : panneau Filtres (gauche) | J : panneau Info (droite)
@@ -2073,6 +2089,14 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 // ==========================================
 // BOUTONS VUES & SIDEBAR
 // ==========================================
+// Barre d'outils du haut (touche T) : masquée ou affichée sans aucune mémorisation (pas de localStorage), elle redevient visible à chaque démarrage.
+function toggleTopBar() {
+  const topBar = document.getElementById('top-bar');
+  if (!topBar) return;
+  topBar.classList.toggle('hidden');
+  requestAnimationFrame(updateVirtualScroller); // la grille gagne ou perd la hauteur de la barre : recalcul de la zone visible
+}
+
 document.getElementById('btn-toggle-sidebar').addEventListener('click', event => {
   const sidebarVisible = sidebarPanel.classList.toggle('hidden') === false;
   event.currentTarget.classList.toggle('active', sidebarVisible);

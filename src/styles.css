@@ -64,6 +64,8 @@ body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .actions { display: flex; align-items: center; gap: 0.75rem; }
+/* Barre d'outils masquée avec la touche T (non mémorisé : toujours visible au démarrage) */
+.top-bar.hidden { display: none; }
 .settings-section { margin-bottom: 1.25rem; }
 .settings-section:last-child { margin-bottom: 0; }
 .settings-section h4 { margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--separator); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
@@ -161,6 +163,11 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 .selection-actions { margin-top: 18px; padding: 0.875rem 8px 8px; border-top: 1px solid var(--separator); }
 .selection-actions.hidden { display: none; }
 .selection-actions h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }
+/* Ligne de titre du panneau : titre à gauche, bouton « Tout désélectionner » à droite (même gabarit que le bouton d'effacement des filtres, mais neutre) */
+.selection-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.selection-header h3 { margin-bottom: 0; }
+.btn-clear-selection { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
+.btn-clear-selection:hover { background: var(--control-hover); border-color: var(--control-border); color: var(--text-strong); }
 .selection-rating-stars { display: flex; gap: 1px; }
 .selection-color-title { margin-top: 0.875rem; }
 .selection-rating-stars button { background: transparent; border: 0; padding: 2px 3px; color: var(--star-off); font-size: 1.7rem; line-height: 1; }
@@ -364,6 +371,9 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .titlebar { font-weight: 400; font-family: 'Fredoka', 'Quicksand', sans-serif; font-weight: normal; flex: none; height: 2.2rem; background-color: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
 .titlebar-drag-region { flex: 1; display: flex; align-items: center; height: 100%; padding-left: 0.6rem; gap: 8px; -webkit-app-region: drag; }
 .titlebar-icon { width: 1.3rem; height: 1.3rem; }
+/* Linux (WebKitGTK) : -webkit-app-region est ignoré, le glisser repose sur data-tauri-drag-region, qui ne réagit que si le clic tombe sur la zone elle-même.
+   L'icône et le titre laissent donc passer les clics vers la zone de déplacement (sans effet visible sous Windows). */
+.titlebar-drag-region > * { pointer-events: none; }
 .titlebar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .titlebar-btn { background: transparent; border: none; color: inherit; width: 2.5rem; height: 100%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background-color 0.15s; -webkit-app-region: no-drag; pointer-events: auto; }
 .titlebar-btn:hover { background-color: rgba(255, 255, 255, 0.1); }

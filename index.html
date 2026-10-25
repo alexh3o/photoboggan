@@ -21,7 +21,7 @@
     </div>
   </div>
   <div id="app">
-    <header class="top-bar">
+    <header id="top-bar" class="top-bar">
       <div class="panel-toggles">
         <button id="btn-toggle-sidebar" class="active" title="Open filters panel" data-i18n-title="Open filters panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Filters">Filtres</span></button>
       </div>
@@ -104,7 +104,13 @@
           </div>
         </section>
         <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">
-          <h3 data-i18n="Selection & Modification">Sélection/Modification</h3>
+          <!-- Titre et bouton « Tout désélectionner » sur la même ligne : le bouton vide la sélection, ce qui masque ce panneau (voir updateRatingAction dans main.js) -->
+          <div class="selection-header">
+            <h3 data-i18n="Selection & Modification">Sélection/Modification</h3>
+            <button id="btn-clear-selection" type="button" class="btn-clear-selection" title="Tout désélectionner" aria-label="Tout désélectionner" data-i18n-title="Deselect all" data-i18n-aria-label="Deselect all">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
           <span id="selection-count" class="selection-count"></span>
           <h4 data-i18n="Rating">Note</h4>
           <div id="selection-rating-stars" class="selection-rating-stars" role="group" aria-label="Attribuer une note de 1 à 5" data-i18n-aria-label="Set a rating from 1 to 5">
@@ -497,6 +503,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Immersive mode">Mode immersif (barre de titre et barre des tâches masquées)</span>
               <span class="guide-control"><kbd>F11</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Toggle toolbar">Afficher / masquer la barre d'outils</span>
+              <span class="guide-control"><kbd>T</kbd></span>
             </div>
             <div class="guide-row">
               <span class="guide-action" data-i18n="Toggle shortcuts guide">Afficher / masquer ce guide des raccourcis</span>
