@@ -1760,13 +1760,14 @@ async function setSelectionRating(rating) {
 // H      : Shortcut guide
 // I      : Info sheet
 // J      : Info panel
+// K      : Keywords panel (reserved for future version)
 // N      : Navigation/Filters panel
 // P      : Preview panel
 // R      : Rating bar in fullscreen
 // S      : Resize
-// T      : Show / hide the top toolbar (not persisted)
+// T      : Show / Hide the top toolbar
 // X      : Compare mode
-// F11    : immersive mode
+// F11    : Immersive mode
 // Del    : Delete
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;

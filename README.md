@@ -17,7 +17,7 @@
 
 ### Why photoboggan?
 
-photoboggan was created for amateur, family, and hobby photo collections. I regularly use and appreciate the excellent [digiKam](https://www.digikam.org/), but for daily **sorting**, culling **after** a weekend, or simply **browsing** pictures, it often feels a bit heavy and its interface can be somewhat austere.
+photoboggan was created for amateur, family and hobby photo collections, for those who love their photos but don't want to spend too much time on the compuer except for watching them again. I regularly use and appreciate the excellent [digiKam](https://www.digikam.org/), but for daily **sorting**, culling **after** a weekend, or simply **browsing** pictures, it often feels a bit heavy and its interface can be somewhat austere.
 
 My photo collection grew to the opposite of my patience to organize an always growing quantity of photos. I wanted a **simple**, **fast** et **pleasant** solution to compare, select, sort, rate my photos so I can enjoy them after.
 
@@ -27,27 +27,32 @@ it intends to be and stay reactive and enjoyable
 
 ### App & Platform Status
 
-⚠️ First, a word of warning: application is young should be considered in <u>beta</u> stage. Therefore, use at your own risk and ensure you **have a healthy complete backup of your photos**. 
+⚠️ First, a word of warning: application is young should be considered in <u>beta</u> stage. Therefore, use at your own risk and ensure you **have a healthy complete backup of your photos**. That said, safety of photos is of course the non negotiable feature (see below).
 
 - **Windows**: tested, stable and used daily.
 - **Linux (.deb)**: Tested a bit, seems functional, have a try and tell me !
+  - *Know issues*: no trash, cannot move window by title bar
 - **macOS & other Linux packages**: Not provided by default yet, but builds can easily be made if testers are interested—feel free to open an issue!
 
-The [todo](TODO.md) list can give you an idea of the path aheadl.
+The [TODO](TODO.md) list can give you an idea of the path ahead.
+
+My focus is currently on keywords edition.
 
 ---
 
 ### Core Strengths
 
 - 📁 **Zero-copy**: No proprietary library or duplicate files. It works directly on your existing folders on disk.
-- 🛡️ **Files are safe**: during write operations, only metadata is modified; Photoboggan never touches the image data. Files are modified via a temporary file before being atomically replaced, ensuring foolproof writes. Furthermore, an integrity check can be launched to detect corrupted files (JPEG, HEIC, WebP, PNG, RAW).
+- 🛡️ **Files are SAFE**: during write operations, only metadata is modified; Photoboggan never touches the image data. Files are modified via a temporary file before being atomically replaced, ensuring foolproof writes. Furthermore, an integrity check can be launched to detect corrupted files (JPEG, HEIC, WebP, PNG, RAW).
+- ⚡ **Built for SPEED**: fast thumbnail generation and once it's done nothing stops you from scrolling as fast as you want. All tasks are handled so they don't induce lag or slowness. 
 - 💾 **Local, no clouds**: nothing is sent to the internet
-- ✅ **Seamless Large-Scale Selection**: Effortlessly select multiple and non-contiguous photo groups (`Ctrl` / `Shift` + click), in any navigation direction.
+- ✅ **Large-Scale FLEXIBLE SELECTION**: Effortlessly select multiple and non-contiguous photo groups (`Ctrl` / `Shift` + click), in any navigation direction.
 - **Fast keyboard rating**: Assign 0 to 5 stars or colors in a snap using number keys (`0`–`5`), in the grid or in fullscreen.
-- ⚖️ **Side-by-side comparison**: Compare up to 4 photos at once (with synchronized or unlinked zoom/pan) and delete rejected shots one by one.
+- ⚖️ **Side-by-side COMPARISON**: Compare up to 4 photos at once (with synchronized or unlinked zoom/pan) and delete rejected shots one by one.
 - 🔁 **Interoperability, leave anytime**: Ratings and color flags are written directly into standard JPEG XMP (APP1) segments or companion `.xmp` sidecars for RAWs and files not supporting extra embedded metadata. Your changes are immediately recognized by digiKam, Lightroom, and the Windows Explorer.
 - ➜] **"Open with"**: Quick right-click handoff to launch your favorite external photo softwares (gimp, flyphoto, etc.) with the selected photo.
-- 💨 **Fast RAW previews (with a trade-off)**: Instead of slow, CPU-heavy demosaicing, it extracts the JPEG preview embedded inside the RAW file in milliseconds. It can be low resolution, but it makes browsing instant.
+- 💨 **Fast RAW previews**: Instead of slow, CPU-heavy demosaicing, it extracts the JPEG preview embedded inside the RAW file in milliseconds. It can be low resolution, but it makes browsing instant.
+- 🖥️ **FLEXIBLE UI**: Choose text, thumbnails & panels size, choose panels, fullscreen infos or not. Use the app in immersive fullscreen mode.
 - 🛠️ **Comprehensive Toolkit**: Batch resizing, moving & copying, EXIF data viewer, customizable thumbnail grid (size, sorting, layout), clipboard support, and system trash integration...
 
 ---
@@ -55,9 +60,9 @@ The [todo](TODO.md) list can give you an idea of the path aheadl.
 ### License & Disclaimer
 
 Distributed under the **MIT License**.
-Photos from Lorem Picsum
+Photos from Lorem Picsum / Unsplash
 
-Designed and developped by alexh3o, with the precious help of Claude & Gemini.
+Designed and developed by alexh3o, sped up with the precious help of Claude & Gemini.
 
 </div>
 
@@ -115,6 +120,7 @@ La [todo](TODO.md) list peut donner une idée de la direction que peut prendre l
 - 🛡️ **Fichiers sécurisés** : lors des opérations d'écriture, seules les métadonnées sont modifiées ; Photoboggan ne touche jamais aux données de l'image. Les fichiers sont modifiés via un fichier temporaire avant d'être remplacés de manière atomique, garantissant des écritures infaillibles. De plus, un contrôle d'intégrité peut être lancé pour détecter les fichiers corrompus (JPEG, HEIC, WebP, PNG, RAW).
 - ➜] **« Ouvrir avec »** : Raccourcis au clic droit pour ouvrir rapidement une photo dans vos autres logiciels photo préférés (gimp, flyphoto, etc.).
 - 💨 **Extraction RAW ultra-rapide (avec sa contrepartie)** : L'affichage utilise le JPEG intégré au fichier RAW par le boîtier photo. La résolution peut être limitée mais c'est quasi instantané car cela évite un dématriçage lourd: aucun ralentissement.
+- 🖥️ **Interface flexible**: Choisissez la taille du texte, des vignettes et des panneaux, choisissez mles panneaux à afficher, informations en plein écran ou non. Utilisez l'application en mode plein écran immersif..
 - 🛠️ **Boîte à outils complète** : Redimensionnement, copie, déplacements par lot, données EXIF, grille de miniatures sur-mesure (taille, tri, disposition), presse-papier et corbeille...
 
 ---
@@ -161,6 +167,9 @@ Conçu et développé par alexh3o, avec un précieux coup de main de Claude & Ge
 
 ![Batch resizing](/screenshots/resize_action.jpg "Batch resizing")
 *Batch resizing*
+
+![Integrity Check Report](/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
+*Integrity Check* can scan a folder for corrupted files, and generates missing thumbnails at the same time
 
 ![Shortcuts](/screenshots/shortcuts_guide.jpg "Shortcuts")
 *Shortcuts*
