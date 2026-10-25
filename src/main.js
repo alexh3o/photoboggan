@@ -307,7 +307,8 @@ const fullscreenView = document.getElementById('fullscreen-view');
 const fullscreenImg = document.getElementById('fullscreen-image');
 // Zoom du plein écran : même structure qu'une case de l'aperçu (voir layoutPreviewSlot), la vue entière occupe toute la fenêtre (marge 1).
 const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
-let fullscreenLoadToken = 0;
+fullscreenSlot.zoomBadge = document.getElementById('fullscreen-zoom-badge');
+fullscreenSlot.zoomTimeout = null;let fullscreenLoadToken = 0;
 let fullscreenDrag = null;
 const sidebarPanel = document.getElementById('sidebar-panel');
 const folderTree = document.getElementById('folder-tree');
@@ -1265,6 +1266,8 @@ function closeFullscreen() {
   fullscreenView.classList.add('hidden');
   clearTimeout(fullscreenRatingTimeout);
   fullscreenRatingPinned = false;
+  clearTimeout(fullscreenSlot.zoomTimeout);
+  fullscreenSlot.zoomBadge?.classList.remove('visible');
 }
 
 export function getIsFullscreen() {
@@ -1475,6 +1478,7 @@ fullscreenView.addEventListener('pointermove', event => {
   if (slot.zoom === null || !(slot.displayWidth > 0 && slot.displayHeight > 0)) return;
   slot.center = clampPreviewCenter(slot, slot.center.x - dx / slot.displayWidth, slot.center.y - dy / slot.displayHeight);
   layoutFullscreenSlot();
+  showZoomIndicator(fullscreenSlot); // <-- Déclenche le badge pendant le déplacement en plein écran
 });
 function endFullscreenDrag(event) {
   if (!fullscreenDrag || event.pointerId !== fullscreenDrag.pointerId) return;
@@ -3093,12 +3097,16 @@ function toggleCompareSubSelection(photo) {
   updateColorAction();
 }
 
-// Place les repères (sous-sélection, étoiles, couleur) dans les coins de la partie visible de l'image, et non de la case : l'image peut être plus petite que sa case (bandes vides)
-// ou la dépasser (zoom).
+// Place les repères (sous-sélection, étoiles, couleur et badge de zoom) dans les coins de l'image
 function positionPreviewMarks(slot, cellWidth, cellHeight) {
-  if (!slot.meta) return; // le plein écran n'a pas de repères
+  if (!slot.meta) return; // le plein écran n'a pas les repères d'aperçu et son badge est calé en CSS symétrique à rank
   const left = Math.max(0, slot.tx);
   const top = Math.max(0, slot.ty);
+  // Positionnement dans les cases de l'aperçu et de la comparaison
+  if (slot.zoomBadge) {
+    slot.zoomBadge.style.top = `${Math.round(top) + 6}px`;
+    slot.zoomBadge.style.left = `${Math.round(left) + 6}px`;
+  }
   const right = Math.min(cellWidth, slot.tx + slot.displayWidth);
   const bottom = Math.min(cellHeight, slot.ty + slot.displayHeight);
   slot.check.style.top = `${Math.round(top) + 8}px`;
@@ -3106,6 +3114,18 @@ function positionPreviewMarks(slot, cellWidth, cellHeight) {
   slot.meta.style.left = `${Math.round(left)}px`;
   slot.meta.style.right = `${Math.round(cellWidth - right)}px`;
   slot.meta.style.bottom = `${Math.round(cellHeight - bottom)}px`;
+}
+
+// Affiche le pourcentage de zoom pendant 2 secondes puis l'estompe
+function showZoomIndicator(slot) {
+  if (!slot || !slot.zoomBadge || !(slot.naturalWidth > 0)) return;
+  const scale = slot.zoom ?? slot.fit;
+  slot.zoomBadge.textContent = `${Math.round(scale * 100)}%`;
+  slot.zoomBadge.classList.add('visible');
+  clearTimeout(slot.zoomTimeout);
+  slot.zoomTimeout = setTimeout(() => {
+    slot.zoomBadge.classList.remove('visible');
+  }, 2000);
 }
 
 // Touche A : sous-sélectionne toutes les photos comparées, ou les désélectionne toutes si elles le sont déjà.
@@ -3202,6 +3222,11 @@ function createPreviewSlot(photo) {
   check.className = 'preview-check';
   check.setAttribute('aria-hidden', 'true');
   check.innerHTML = CIRCLE_CHECK_BIG_ICON;
+  // Badge du pourcentage de zoom
+  const zoomBadge = document.createElement('span');
+  zoomBadge.className = 'preview-zoom-badge';
+  slot.zoomBadge = zoomBadge;
+  slot.zoomTimeout = null;
   // Note (à gauche) et couleur (à droite) de la photo, en bas de la case.
   const meta = document.createElement('div');
   meta.className = 'preview-meta';
@@ -3210,7 +3235,7 @@ function createPreviewSlot(photo) {
   slot.flagDot = document.createElement('span');
   slot.flagDot.className = 'flag-indicator flag-none';
   meta.append(slot.ratingLabel, slot.flagDot);
-  cell.append(img, check, meta);
+  cell.append(img, check, meta, zoomBadge);
   if (isVideoPath(photo.path)) cell.append(createVideoPlayBadge());
   slot.check = check;
   slot.meta = meta;
@@ -3334,6 +3359,7 @@ function zoomPreview(computeTarget, anchor, targetSlot = null) {
     }
   }
   renderPreviewTransforms();
+  slots.forEach(showZoomIndicator); // <-- Déclenche le badge sur chaque case zoomée
 }
 
 function zoomPreviewSteps(steps, anchor, targetSlot = null) {
@@ -3399,6 +3425,7 @@ previewStage.addEventListener('pointermove', event => {
   const currentCenter = previewCenterOf(slot);
   setPreviewCenter(slot, clampPreviewCenter(slot, currentCenter.x - dx / slot.displayWidth, currentCenter.y - dy / slot.displayHeight));
   renderPreviewTransforms();
+  previewSlotsToAffect(slot).forEach(showZoomIndicator); // <-- Déclenche le badge pendant le déplacement
 });
 
 function endPreviewDrag(event) {

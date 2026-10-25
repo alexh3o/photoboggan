@@ -11,7 +11,7 @@
 - [x] *feat*: `UI` **shortcut** to **toggle toolbar**
 - [ ] *feat*: `Controls` **keyboard shortcuts** customizing
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
-- [ ] *feat*: `UI` add **zoom value** display (optional)
+- [x] *feat*: `UI` add **zoom value** display (optional)
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [ ] *fix*: **Cannot move window** by title bar

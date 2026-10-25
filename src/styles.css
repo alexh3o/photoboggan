@@ -290,6 +290,12 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .compare-option.hidden { display: none; }
 .grid-section.dragging-scroll, .grid-section.dragging-scroll .thumbnail { cursor: grabbing; }
 
+/* Indicateur de pourcentage de zoom : aligné sur la typographie et l'ombre de .fullscreen-info */
+.preview-zoom-badge { position: absolute; z-index: 5;  pointer-events: none;  color: #fff;  font-size: 0.85rem;  font-variant-numeric: tabular-nums;  line-height: 1.4;  padding: 0.3rem 0.6rem;  /* Même triple ombre que .fullscreen-info pour rester lisible sur tout type de fond sans fond opaque */  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(0, 0, 0, 0.6);  opacity: 0;  visibility: hidden;  transition: opacity 0.4s ease, visibility 0.4s ease;}
+.preview-zoom-badge.visible { opacity: 1; visibility: visible; transition: none;}
+/* En plein écran : calé symétriquement en face de .fullscreen-info-rank */
+#fullscreen-zoom-badge { top: 1rem !important; left: 1.25rem !important; font-size: 0.95rem;}
+
 /* FILTRE DE DATE */
 .date-filter { display: flex; align-items: center; gap: 0.375rem; }
 #date-filter-input { flex: 1 1 auto; min-width: 0; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.45rem; }
