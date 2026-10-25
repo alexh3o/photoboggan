@@ -7,6 +7,8 @@
   --active-button: #3498db;
   --active-button-text: #fff;
   --item-size: 160px;
+  --top-bar-slide-duration: 0.2s; /* durée de l'apparition de la barre d'outils au survol du haut de la fenêtre (ex. 0.35s plus lent, 0s = instantané) */
+  --top-bar-slide-out-duration: 0.2s; /* durée de sa disparition quand la souris la quitte (0s = instantané) */
   color-scheme: dark;
   --border: #333;
   --separator: #383838;
@@ -60,14 +62,18 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif; background: var(--bg-dark); color: var(--text-light); overflow: hidden; user-select: none; display: flex; flex-direction: column; height: 100vh; }
 
-#app { position: relative; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; } /* position: relative : repère de la barre d'outils en surimpression (.top-bar.peek) */
+#app { position: relative; overflow: hidden; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; } /* position: relative : repère de la barre d'outils en surimpression (.top-bar.peek) ; overflow: hidden : la barre glisse depuis le haut sans passer sur la barre de titre (sans effet sur les fenêtres, en position: fixed) */
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .actions { display: flex; align-items: center; gap: 0.75rem; }
 /* Barre d'outils masquée avec la touche T (non mémorisé : toujours visible au démarrage) */
 .top-bar.hidden { display: none; }
 /* Barre masquée mais survol du haut de la fenêtre : elle apparaît par-dessus la grille (sans la décaler), sous les toasts et les fenêtres */
-.top-bar.hidden.peek { display: flex; position: absolute; top: 0; left: 0; right: 0; z-index: 900; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); }
+.top-bar.hidden.peek { display: flex; position: absolute; top: 0; left: 0; right: 0; z-index: 900; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); animation: top-bar-slide-in var(--top-bar-slide-duration) ease-out; }
+@keyframes top-bar-slide-in { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+/* Disparition : la barre remonte (classe peek-out ajoutée par main.js), puis est retirée à la fin de l'animation ; « forwards » évite un flash en fin de course */
+.top-bar.hidden.peek.peek-out { animation: top-bar-slide-out var(--top-bar-slide-out-duration) ease-in forwards; }
+@keyframes top-bar-slide-out { from { transform: translateY(0); } to { transform: translateY(-100%); } }
 .settings-section { margin-bottom: 1.25rem; }
 .settings-section:last-child { margin-bottom: 0; }
 .settings-section h4 { margin-bottom: 0.6rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--separator); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }

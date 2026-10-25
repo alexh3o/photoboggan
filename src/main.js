@@ -2093,22 +2093,54 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 function toggleTopBar() {
   const topBar = document.getElementById('top-bar');
   if (!topBar) return;
-  topBar.classList.remove('peek'); // T annule l'apparition au survol : la barre devient visible (ou masquée) pour de bon
+  topBar.classList.remove('peek', 'peek-out'); // T annule l'apparition au survol : la barre devient visible (ou masquée) pour de bon
   topBar.classList.toggle('hidden');
   requestAnimationFrame(updateVirtualScroller); // la grille gagne ou perd la hauteur de la barre : recalcul de la zone visible
 }
 
-// Barre masquée : un survol de la bande tout en haut de la zone de l'application la fait apparaître en surimpression (classe « peek », sans décaler la grille).
-// Elle se recache quand la souris la quitte. Pas d'apparition pendant un glisser (défilement, déplacement de photos), en plein écran ou avec une fenêtre ouverte.
+// Barre masquée : un survol du haut de la fenêtre (bande tout en haut de l'application ou barre de titre) la fait apparaître en surimpression (classe « peek », sans décaler la grille).
+// Elle reste affichée tant que la souris est sur elle ou sur la barre de titre, puis glisse vers le haut (classe « peek-out ») quand la souris descend ou quitte la fenêtre.
+// Durées réglables dans styles.css (--top-bar-slide-duration et --top-bar-slide-out-duration).
+// Pas d'apparition pendant un glisser (défilement, déplacement de photos ou de la fenêtre), en plein écran ou avec une fenêtre ouverte.
 const TOP_BAR_HOVER_ZONE_PX = 8;
+function hideTopBarPeek() {
+  const topBar = document.getElementById('top-bar');
+  if (!topBar || !topBar.classList.contains('peek') || topBar.classList.contains('peek-out')) return;
+  topBar.classList.add('peek-out');
+  // Durée nulle : pas d'animation à attendre, la barre se retire tout de suite.
+  if ((parseFloat(getComputedStyle(topBar).animationDuration) || 0) === 0) topBar.classList.remove('peek', 'peek-out');
+}
+document.getElementById('top-bar')?.addEventListener('animationend', event => {
+  // Fin de la glissade vers le haut : la barre est retirée (la fin de la glissade d'apparition ne fait rien).
+  if (event.currentTarget.classList.contains('peek-out')) event.currentTarget.classList.remove('peek', 'peek-out');
+});
 window.addEventListener('mousemove', event => {
   const topBar = document.getElementById('top-bar');
-  if (!topBar || !topBar.classList.contains('hidden') || topBar.classList.contains('peek')) return;
-  if (event.buttons !== 0 || isFullscreen || document.querySelector('.modal:not(.hidden)')) return;
-  const appTop = document.getElementById('app').getBoundingClientRect().top; // la barre de titre est au-dessus : le survol ne s'y déclenche pas
-  if (event.clientY >= appTop && event.clientY <= appTop + TOP_BAR_HOVER_ZONE_PX) topBar.classList.add('peek');
+  if (!topBar || !topBar.classList.contains('hidden') || event.buttons !== 0) return;
+  const appTop = document.getElementById('app').getBoundingClientRect().top;
+  if (topBar.classList.contains('peek')) {
+    // Hauteur sans transformation : pendant la glissade, la position réelle de la barre bouge.
+    if (event.clientY > appTop + topBar.offsetHeight) hideTopBarPeek();
+    else topBar.classList.remove('peek-out'); // la souris revient pendant la disparition : la barre reste
+    return;
+  }
+  if (isFullscreen || document.querySelector('.modal:not(.hidden)')) return;
+  if (event.clientY <= appTop + TOP_BAR_HOVER_ZONE_PX) topBar.classList.add('peek'); // inclut la barre de titre, au-dessus de l'application
 });
-document.getElementById('top-bar')?.addEventListener('mouseleave', event => event.currentTarget.classList.remove('peek'));
+// Zone de déplacement de la fenêtre (barre de titre) : le webview n'envoie plus aucun événement souris à la page quand le curseur y entre, il signale seulement que la souris quitte le document.
+// Une sortie par le haut (vers la barre de titre) fait donc apparaître la barre d'outils ou la maintient ; une sortie par un côté de la fenêtre la cache.
+document.documentElement.addEventListener('mouseleave', event => {
+  const topBar = document.getElementById('top-bar');
+  if (!topBar || !topBar.classList.contains('hidden')) return;
+  const peeking = topBar.classList.contains('peek');
+  const appTop = document.getElementById('app').getBoundingClientRect().top;
+  const exitsByTop = event.clientY <= appTop + (peeking ? topBar.offsetHeight : TOP_BAR_HOVER_ZONE_PX);
+  const exitsBySide = event.clientX <= 1 || event.clientX >= window.innerWidth - 1;
+  if (!exitsByTop || exitsBySide) { hideTopBarPeek(); return; }
+  if (peeking) topBar.classList.remove('peek-out'); // déjà affichée (ou en train de remonter) : elle reste
+  else if (event.buttons === 0 && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) topBar.classList.add('peek');
+});
+window.addEventListener('blur', hideTopBarPeek); // fenêtre désactivée (Alt+Tab, clic ailleurs) : la barre ne doit pas rester affichée
 
 document.getElementById('btn-toggle-sidebar').addEventListener('click', event => {
   const sidebarVisible = sidebarPanel.classList.toggle('hidden') === false;
