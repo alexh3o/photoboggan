@@ -159,7 +159,7 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 .filters-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}
 .btn-clear-filters { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #e74c3c; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
-.btn-clear-filters:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); }
+.btn-clear-filters:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); color: var(--text-strong); }
 .btn-clear-filters.hidden { display: none; }
 #rating-filter { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 6px; }
 #keyword-filter-input, #filename-filter-input { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.45rem; }
@@ -174,8 +174,8 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 /* Ligne de titre du panneau : titre à gauche, bouton « Tout désélectionner » à droite (même gabarit que le bouton d'effacement des filtres, mais neutre) */
 .selection-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .selection-header h3 { margin-bottom: 0; }
-.btn-clear-selection { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
-.btn-clear-selection:hover { background: var(--control-hover); border-color: var(--control-border); color: var(--text-strong); }
+.btn-clear-selection { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: red; cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
+.btn-clear-selection:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); color: var(--text-strong); }
 .selection-rating-stars { display: flex; gap: 1px; }
 .selection-color-title { margin-top: 0.875rem; }
 .selection-rating-stars button { background: transparent; border: 0; padding: 2px 3px; color: var(--star-off); font-size: 1.7rem; line-height: 1; }
