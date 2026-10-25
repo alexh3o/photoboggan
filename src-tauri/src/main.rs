@@ -698,10 +698,11 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
     outcome.map_err(|error| error.to_string())?
 }
 
-// Exporte les fichiers suspects d'un rapport d'intégrité en CSV dans le dossier choisi par l'utilisateur ; renvoie le chemin du fichier créé (jamais d'écrasement).
+// Exporte le rapport d'intégrité en .txt dans le dossier choisi par l'utilisateur : texte d'en-tête fourni par l'interface, puis fichiers suspects au format CSV.
+// Renvoie le chemin du fichier créé (jamais d'écrasement).
 #[tauri::command(async)]
-fn export_integrity_csv(directory: String, headers: Vec<String>, rows: Vec<integrity::IntegrityIssue>) -> Result<String, String> {
-    integrity::write_csv(Path::new(&directory), &headers, &rows).map(|file| file.to_string_lossy().into_owned())
+fn export_integrity_report(directory: String, preamble: String, headers: Vec<String>, rows: Vec<integrity::IntegrityIssue>) -> Result<String, String> {
+    integrity::write_report(Path::new(&directory), &preamble, &headers, &rows).map(|file| file.to_string_lossy().into_owned())
 }
 
 // Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
@@ -1414,7 +1415,7 @@ fn main() {
             rescan_all_folders,
             rescan_folder,
             integrity_scan,
-            export_integrity_csv,
+            export_integrity_report,
             open_folder_in_file_manager,
             create_subfolder,
             update_photo_metadata,

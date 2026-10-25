@@ -12,13 +12,14 @@
 //!
 //! Performances : nombre de threads proportionnel aux cœurs (moitié des cœurs, entre 2 et 6, pour laisser de la place à l'interface). Les formats lourds
 //! en mémoire et en temps (PNG, WebP, HEIC : décodage en pleine résolution) sont limités à 2 décodages simultanés, pour ne pas saturer la mémoire.
-//! Le rapport donne la durée totale et la durée moyenne par format, pour repérer ce qui ralentit.
+//! Le rapport donne la durée totale, les extensions vérifiées / non vérifiées et la durée moyenne par fichier pour chaque extension ; il s'exporte en .txt.
 
+use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, Read, Write};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::Instant;
 
@@ -38,19 +39,29 @@ pub struct IntegrityIssue {
     pub error: String,
 }
 
-/// Durée moyenne d'analyse d'un fichier pour un format.
+/// Fichiers analysés pour une extension, avec la durée moyenne d'analyse d'un fichier (en millisecondes).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FormatTiming {
-    pub format: String,
+pub struct ExtensionStat {
+    pub extension: String,
     pub files: usize,
-    pub average_millis: u64,
+    pub average_millis: f64,
+}
+
+/// Fichiers non vérifiés (pas de décodeur) pour une extension.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionCount {
+    pub extension: String,
+    pub files: usize,
 }
 
 #[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct IntegrityReport {
     pub folder: String,
+    /// Date et heure de fin de l'analyse (heure locale, « AAAA-MM-JJ HH:MM:SS »).
+    pub generated_at: String,
     /// Fichiers trouvés dans le dossier.
     pub total: usize,
     /// Fichiers réellement analysés (moins que `total` si la tâche a été arrêtée).
@@ -59,14 +70,16 @@ pub struct IntegrityReport {
     pub thumbnails_created: usize,
     /// Fichiers sains dont la miniature manquante n'a pas pu être écrite (disque plein, droits…).
     pub thumbnails_failed: usize,
-    /// Formats sans décodeur (vidéos, GIF, BMP, AVIF) : non vérifiés.
+    /// Fichiers sans décodeur (vidéos, GIF, BMP, AVIF) : non vérifiés.
     pub unsupported: usize,
     pub suspects: Vec<IntegrityIssue>,
     pub cancelled: bool,
     /// Durée totale du parcours et de l'analyse.
     pub elapsed_millis: u64,
-    /// Durée moyenne par fichier et par format, du plus lent au plus rapide.
-    pub timings: Vec<FormatTiming>,
+    /// Extensions vérifiées (rencontrées dans le dossier), avec le nombre de fichiers et la durée moyenne par fichier.
+    pub timings: Vec<ExtensionStat>,
+    /// Extensions non vérifiées (rencontrées dans le dossier).
+    pub unsupported_extensions: Vec<ExtensionCount>,
 }
 
 enum Thumbnail {
@@ -116,19 +129,14 @@ impl Drop for GateGuard<'_> {
     }
 }
 
-const FORMAT_LABELS: [&str; 6] = ["JPEG", "PNG", "WebP", "HEIC", "RAW", "Other"];
-
-/// Famille d'un fichier pour les statistiques de durée (d'après l'extension).
-fn format_index(source: &Path) -> usize {
-    let extension = source.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
-    match extension.as_str() {
-        "jpg" | "jpeg" | "jfif" => 0,
-        "png" => 1,
-        "webp" => 2,
-        "heic" | "heif" | "hif" => 3,
-        "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "raw" => 4,
-        _ => 5,
-    }
+/// Extension en minuscules, sans le point (« sans extension » si absente), pour les statistiques du rapport.
+fn extension_of(source: &Path) -> String {
+    source
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "sans extension".to_string())
 }
 
 /// Format reconnu d'après le contenu du fichier (une extension trompeuse ne fait pas échouer un fichier sain).
@@ -272,8 +280,9 @@ pub fn run(
     let failed = AtomicUsize::new(0);
     let unsupported = AtomicUsize::new(0);
     let suspects: Mutex<Vec<IntegrityIssue>> = Mutex::new(Vec::new());
-    let format_files: Vec<AtomicUsize> = FORMAT_LABELS.iter().map(|_| AtomicUsize::new(0)).collect();
-    let format_micros: Vec<AtomicU64> = FORMAT_LABELS.iter().map(|_| AtomicU64::new(0)).collect();
+    // Extension -> (fichiers analysés, durée cumulée en microsecondes) ; extension -> fichiers non vérifiés.
+    let timings_by_extension: Mutex<HashMap<String, (usize, u64)>> = Mutex::new(HashMap::new());
+    let unsupported_by_extension: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
     let heavy = Gate::new(HEAVY_DECODES);
 
     // Dossier en cours : annoncé seulement quand il change (les fichiers sont parcourus dossier par dossier).
@@ -304,13 +313,13 @@ pub fn run(
             let file_started = Instant::now();
             let result = panic::catch_unwind(AssertUnwindSafe(|| check_file(path, thumbnails_dir, max_side, &heavy)))
                 .unwrap_or_else(|_| Err("Décodeur interrompu : fichier probablement corrompu".to_string()));
-            if !matches!(result, Ok(Outcome::Unsupported)) {
-                let index = format_index(path);
-                format_files[index].fetch_add(1, Ordering::Relaxed);
-                format_micros[index].fetch_add(file_started.elapsed().as_micros() as u64, Ordering::Relaxed);
-            }
+            let micros = file_started.elapsed().as_micros() as u64;
+            let extension = extension_of(path);
             match result {
-                Ok(Outcome::Unsupported) => { unsupported.fetch_add(1, Ordering::Relaxed); }
+                Ok(Outcome::Unsupported) => {
+                    unsupported.fetch_add(1, Ordering::Relaxed);
+                    *unsupported_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).entry(extension).or_insert(0) += 1;
+                }
                 Ok(Outcome::Healthy(thumbnail)) => {
                     checked.fetch_add(1, Ordering::Relaxed);
                     healthy.fetch_add(1, Ordering::Relaxed);
@@ -319,10 +328,18 @@ pub fn run(
                         Thumbnail::Failed => { failed.fetch_add(1, Ordering::Relaxed); }
                         Thumbnail::Existing => {}
                     }
+                    let mut timings = timings_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                    let entry = timings.entry(extension).or_insert((0, 0));
+                    entry.0 += 1;
+                    entry.1 += micros;
                 }
                 Err(error) => {
                     checked.fetch_add(1, Ordering::Relaxed);
                     suspects.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(IntegrityIssue { path: path.to_string_lossy().into_owned(), error });
+                    let mut timings = timings_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                    let entry = timings.entry(extension).or_insert((0, 0));
+                    entry.0 += 1;
+                    entry.1 += micros;
                 }
             }
             // Valeur approximative : l'ordre d'arrivée entre threads n'est pas garanti.
@@ -333,21 +350,23 @@ pub fn run(
 
     let mut suspects = suspects.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
     suspects.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
-    let mut timings: Vec<FormatTiming> = FORMAT_LABELS
-        .iter()
-        .enumerate()
-        .filter_map(|(index, label)| {
-            let files = format_files[index].load(Ordering::Relaxed);
-            (files > 0).then(|| FormatTiming {
-                format: label.to_string(),
-                files,
-                average_millis: format_micros[index].load(Ordering::Relaxed) / files as u64 / 1000,
-            })
-        })
+    let mut timings: Vec<ExtensionStat> = timings_by_extension
+        .into_inner()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .into_iter()
+        .map(|(extension, (files, micros))| ExtensionStat { extension, files, average_millis: micros as f64 / files as f64 / 1000.0 })
         .collect();
-    timings.sort_by(|a, b| b.average_millis.cmp(&a.average_millis));
+    timings.sort_by(|a, b| a.extension.cmp(&b.extension));
+    let mut unsupported_extensions: Vec<ExtensionCount> = unsupported_by_extension
+        .into_inner()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .into_iter()
+        .map(|(extension, files)| ExtensionCount { extension, files })
+        .collect();
+    unsupported_extensions.sort_by(|a, b| a.extension.cmp(&b.extension));
     Ok(IntegrityReport {
         folder: folder.to_string_lossy().into_owned(),
+        generated_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         total,
         checked: checked.load(Ordering::Relaxed),
         healthy: healthy.load(Ordering::Relaxed),
@@ -358,6 +377,7 @@ pub fn run(
         cancelled: cancel.load(Ordering::Relaxed),
         elapsed_millis: started.elapsed().as_millis() as u64,
         timings,
+        unsupported_extensions,
     })
 }
 
@@ -367,25 +387,31 @@ fn csv_field(value: &str) -> String {
     if value.starts_with(['=', '+', '-', '@', '\t', '\r']) { format!("\"'{escaped}\"") } else { format!("\"{escaped}\"") }
 }
 
-/// Écrit le rapport en CSV dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.csv », jamais d'écrasement) et renvoie le chemin du fichier.
-/// Séparateur « ; » et BOM UTF-8 : Excel (réglages français) l'ouvre directement avec les accents corrects.
-/// `headers` : titres des 4 colonnes (nom du fichier, dossier, chemin complet, problème), traduits par l'interface.
-pub fn write_csv(directory: &Path, headers: &[String], rows: &[IntegrityIssue]) -> Result<PathBuf, String> {
+/// Écrit le rapport dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.txt », jamais d'écrasement) et renvoie le chemin du fichier.
+/// Première partie : `preamble`, texte déjà mis en forme et traduit par l'interface (titre, version, date, dossier, extensions, chiffres, durées).
+/// Seconde partie, seulement s'il y a des fichiers suspects : leur liste au format CSV (séparateur « ; », champs entre guillemets), précédée de la ligne d'en-têtes.
+/// `headers` : titres des 4 colonnes (nom du fichier, dossier, chemin complet, problème). Fins de ligne Windows et BOM UTF-8 : le fichier
+/// s'ouvre correctement dans le Bloc-notes, et la partie CSV se copie telle quelle dans Excel.
+pub fn write_report(directory: &Path, preamble: &str, headers: &[String], rows: &[IntegrityIssue]) -> Result<PathBuf, String> {
     if !directory.is_dir() { return Err(format!("Dossier de destination introuvable : {}", directory.display())); }
-    if headers.len() != 4 { return Err("En-têtes de colonnes invalides".into()); }
+    if !rows.is_empty() && headers.len() != 4 { return Err("En-têtes de colonnes invalides".into()); }
     let mut content = String::from("\u{feff}");
-    content.push_str(&headers.iter().map(|header| csv_field(header)).collect::<Vec<_>>().join(";"));
+    content.push_str(&preamble.trim_end().replace("\r\n", "\n").replace('\n', "\r\n"));
     content.push_str("\r\n");
-    for row in rows {
-        let path = Path::new(&row.path);
-        let name = path.file_name().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
-        let parent = path.parent().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
-        content.push_str(&[csv_field(&name), csv_field(&parent), csv_field(&row.path), csv_field(&row.error)].join(";"));
+    if !rows.is_empty() {
+        content.push_str(&headers.iter().map(|header| csv_field(header)).collect::<Vec<_>>().join(";"));
         content.push_str("\r\n");
+        for row in rows {
+            let path = Path::new(&row.path);
+            let name = path.file_name().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
+            let parent = path.parent().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
+            content.push_str(&[csv_field(&name), csv_field(&parent), csv_field(&row.path), csv_field(&row.error)].join(";"));
+            content.push_str("\r\n");
+        }
     }
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
     for attempt in 0u32.. {
-        let name = if attempt == 0 { format!("photoboggan-integrity-{stamp}.csv") } else { format!("photoboggan-integrity-{stamp} ({attempt}).csv") };
+        let name = if attempt == 0 { format!("photoboggan-integrity-{stamp}.txt") } else { format!("photoboggan-integrity-{stamp} ({attempt}).txt") };
         let target = directory.join(name);
         match OpenOptions::new().write(true).create_new(true).open(&target) {
             Ok(mut file) => {

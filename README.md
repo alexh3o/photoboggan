@@ -40,6 +40,7 @@ The [todo](TODO.md) list can give you an idea of the path aheadl.
 ### Core Strengths
 
 - 📁 **Zero-copy**: No proprietary library or duplicate files. It works directly on your existing folders on disk.
+- 🛡️ **Files are safe**: during write operations, only metadata is modified; Photoboggan never touches the image data. Files are modified via a temporary file before being atomically replaced, ensuring foolproof writes. Furthermore, an integrity check can be launched to detect corrupted files (JPEG, HEIC, WebP, PNG, RAW).
 - 💾 **Local, no clouds**: nothing is sent to the internet
 - ✅ **Seamless Large-Scale Selection**: Effortlessly select multiple and non-contiguous photo groups (`Ctrl` / `Shift` + click), in any navigation direction.
 - **Fast keyboard rating**: Assign 0 to 5 stars or colors in a snap using number keys (`0`–`5`), in the grid or in fullscreen.
@@ -111,6 +112,7 @@ La [todo](TODO.md) list peut donner une idée de la direction que peut prendre l
 - ✅ **Sélection fluide à grande échelle** : Gestion de sélections multiples et discontinues (`Ctrl` / `Shift` + clics), sans contrainte de sens de navigation.
 - ⚖️ **Mode comparaison** : Jusqu'à 4 photos côte-à-côte avec zoom synchronisé ou indépendant, pour éliminer les moins bonnes au fur et à mesure.
 - 🔁 **Interopérabilité, pas d'enfermement** : Les notes et drapeaux de couleur sont écrits dans les fichiers (XMP APP1 pour le JPEG, fichiers compagnons `.xmp` pour les RAW et autres fichiers ne supportant pas d'ajout de métadonnées intégrées). digiKam, Lightroom et l'Explorateur Windows retrouvent directement vos classements.
+- 🛡️ **Fichiers sécurisés** : lors des opérations d'écriture, seules les métadonnées sont modifiées ; Photoboggan ne touche jamais aux données de l'image. Les fichiers sont modifiés via un fichier temporaire avant d'être remplacés de manière atomique, garantissant des écritures infaillibles. De plus, un contrôle d'intégrité peut être lancé pour détecter les fichiers corrompus (JPEG, HEIC, WebP, PNG, RAW).
 - ➜] **« Ouvrir avec »** : Raccourcis au clic droit pour ouvrir rapidement une photo dans vos autres logiciels photo préférés (gimp, flyphoto, etc.).
 - 💨 **Extraction RAW ultra-rapide (avec sa contrepartie)** : L'affichage utilise le JPEG intégré au fichier RAW par le boîtier photo. La résolution peut être limitée mais c'est quasi instantané car cela évite un dématriçage lourd: aucun ralentissement.
 - 🛠️ **Boîte à outils complète** : Redimensionnement, copie, déplacements par lot, données EXIF, grille de miniatures sur-mesure (taille, tri, disposition), presse-papier et corbeille...

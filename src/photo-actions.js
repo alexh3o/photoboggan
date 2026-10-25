@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath } from './main.js';
@@ -824,7 +825,44 @@ function formatDuration(milliseconds) {
   return minutes ? `${minutes} min ${seconds} s` : `${seconds} s`;
 }
 
-async function exportIntegrityCsv(suspects) {
+// Première partie du rapport exporté (texte) : titre, version, date, dossier, extensions vérifiées / non vérifiées, chiffres, durée et durée moyenne par extension.
+// La seconde partie (liste CSV des fichiers suspects) est ajoutée par le backend. Ces détails techniques ne figurent que dans l'export, pas dans la fenêtre du rapport.
+function buildIntegrityReportPreamble(report, version, hasSuspects) {
+  const timings = report.timings ?? [];
+  const unverified = report.unsupportedExtensions ?? [];
+  const none = t('None');
+  const lines = [
+    t('File integrity report'),
+    '',
+    t('Photoboggan version: {version}', { version: version || '?' }),
+    t('Date: {date}', { date: report.generatedAt }),
+    t('Scanned folder: {path}', { path: report.folder }),
+    t('Verified extensions: {list}', { list: timings.length ? timings.map(item => item.extension).join(', ') : none }),
+    t('Unverified extensions: {list}', { list: unverified.length ? unverified.map(item => `${item.extension} (${item.files})`).join(', ') : none }),
+    '',
+    t('Total files: {count}', { count: report.total }),
+    t('Files analysed: {count}', { count: report.checked }),
+    t('Healthy files: {count}', { count: report.healthy }),
+    t('Thumbnails created: {count}', { count: report.thumbnailsCreated }),
+    t('Unverified files: {count}', { count: report.unsupported }),
+    t('Suspect files: {count}', { count: report.suspects?.length ?? 0 }),
+    t('Total duration: {duration}', { duration: formatDuration(report.elapsedMillis ?? 0) }),
+  ];
+  if (report.thumbnailsFailed) lines.push(t('Thumbnails not written: {count}', { count: report.thumbnailsFailed }));
+  if (report.cancelled) lines.push('', t('The check was stopped: this report only covers the files analysed so far.'));
+  if (timings.length) {
+    lines.push('', t('Files analysed by extension (average time per file):'));
+    for (const item of timings) {
+      const seconds = (item.averageMillis / 1000).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+      lines.push(`  ${t('{extension}: {count} files, {seconds} s per file', { extension: item.extension, count: item.files, seconds })}`);
+    }
+  }
+  lines.push('', hasSuspects ? t('Suspect files (CSV, ";" separator):') : t('No suspect file detected.'));
+  return lines.join('\n');
+}
+
+async function exportIntegrityReport(report) {
+  const suspects = report.suspects ?? [];
   let directory = null;
   try {
     directory = await open({
@@ -840,7 +878,9 @@ async function exportIntegrityCsv(suspects) {
   if (typeof directory !== 'string' || !directory) return;
   localStorage.setItem(LAST_INTEGRITY_EXPORT_FOLDER_KEY, directory);
   try {
-    const file = await invoke('export_integrity_csv', {
+    const version = await getVersion().catch(() => '');
+    const file = await invoke('export_integrity_report', {
+      preamble: buildIntegrityReportPreamble(report, version, suspects.length > 0),
       directory,
       headers: [t('File name'), t('Folder'), t('Full path'), t('Problem')],
       rows: suspects,
@@ -870,13 +910,6 @@ export function showIntegrityReport(report, stopped = false) {
   if (report.unsupported) stats.push([t('Not verified (format without decoder)'), report.unsupported]);
   if (report.thumbnailsFailed) stats.push([t('Thumbnails not written'), report.thumbnailsFailed]);
   if (report.elapsedMillis) stats.push([t('Duration'), formatDuration(report.elapsedMillis)]);
-  // Durée moyenne par fichier et par format, du plus lent au plus rapide : montre ce qui ralentit la vérification.
-  for (const timing of report.timings ?? []) {
-    stats.push([
-      t('{format}: {count} analysed, average time per file', { format: timing.format, count: timing.files }),
-      `${(timing.averageMillis / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} s`,
-    ]);
-  }
   for (const [label, value] of stats) summary.append(makeElement('dt', '', label), makeElement('dd', '', String(value)));
   const notes = [];
   if (stopped || report.cancelled) notes.push(makeElement('p', 'integrity-note', t('The check was stopped: this report only covers the files analysed so far.')));
@@ -904,12 +937,11 @@ export function showIntegrityReport(report, stopped = false) {
   }
 
   const actions = makeElement('div', 'confirm-actions');
-  if (suspects.length) {
-    const exportButton = makeElement('button', '', t('Export CSV…'));
-    exportButton.type = 'button';
-    exportButton.addEventListener('click', () => exportIntegrityCsv(suspects));
-    actions.append(exportButton);
-  }
+  // L'export contient aussi les chiffres et les détails techniques : proposé même sans fichier suspect.
+  const exportButton = makeElement('button', '', t('Export report…'));
+  exportButton.type = 'button';
+  exportButton.addEventListener('click', () => exportIntegrityReport(report));
+  actions.append(exportButton);
   const closeButton = makeElement('button', 'btn-primary', t('Close'));
   closeButton.type = 'button';
   closeButton.addEventListener('click', modal.close);

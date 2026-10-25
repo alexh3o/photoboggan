@@ -41,10 +41,10 @@
 ## ⚖️ Undecided
 
 - [ ] *feat*: [HARD] **Face recognition** (heavy & unlikely)
-- [ ] *feat*: **integrity scan** to detect corrupted files
-  - [ ] specific view or action,
-  - [ ] group within missing thumbnails generation)
-  - [ ] include raw partially: embedded tyhumbnail extraction
+- [x] *feat*: **integrity scan** to detect corrupted files
+  - [x] specific view or action,
+  - [x] group within missing thumbnails generation)
+  - [x] include raw partially: embedded thumbnail extraction
 - [ ] *feat*: `needs_internet` **Map screen**
 - [ ] *feat*: `needs_internet` add a **map widget** in info panel
 - [ ] *feat*: `needs_internet` check and inform of **available update** on github (on hold, needs official releases)
