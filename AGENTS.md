@@ -82,6 +82,7 @@ src-tauri/
 - **rem** pour typographie, paddings, marges, boutons, icônes, modales.
 - **px** impérativement pour : bordures et filets fins, ombres fines, et **tous les calculs de la grille virtuelle dans `main.js`** (clientWidth, offsetWidth, scrollTop, dimensions des photos) : au pixel près pour éviter tout interstice en vue justifiée.
 - Barre latérale rétractable : largeur via `--sidebar-width` ou `style.removeProperty('width')`. Dans `.sidebar-section.hidden`, toujours `width: 0 !important; min-width: 0 !important;`.
+- Les dialogues doivent utiliser la fonction `showConfirmDialog()` de `photo-actions.js` si possible
 
 ### B. Grille de miniatures (invariants)
 

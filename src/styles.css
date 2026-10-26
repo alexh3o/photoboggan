@@ -417,6 +417,13 @@ body.immersive .titlebar { display: none; }
 .context-menu.submenu-left .context-submenu { left: auto; right: 100%; }
 .context-menu-separator { height: 1px; margin: 4px 2px; background: var(--separator); }
 
+/* MENU CONTEXTUEL MOTS-CLÉS */
+.keyword-context-menu { position: fixed; z-index: 11000; min-width: 14rem; padding: 4px; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); font-size: 0.8rem; }
+.keyword-context-item { display: flex; align-items: center; width: 100%; padding: 7px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--text-strong); text-align: left; font-size: 0.8rem; cursor: pointer; }
+.keyword-context-item:hover, .keyword-context-item:focus-visible { background: var(--control-hover); outline: none; }
+.keyword-context-item.keyword-context-danger { color: #e74c3c; }
+.keyword-context-item.keyword-context-danger:hover { background: rgba(231, 76, 60, 0.15); }
+
 /* FENETRES INFOS ET CONFIRMATION */
 .info-card { width: min(47.5rem, calc(100vw - 2.5rem)); }
 .info-body { user-select: text; outline: none; }

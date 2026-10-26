@@ -121,8 +121,11 @@ let folders = [];
 let folderTreePhotos = [];
 let currentFolderFilter = null;
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
+// Appliquer automatiquement les changements de mots-clés en attente lors du changement de sélection
+let autoApplyKeywordChanges = localStorage.getItem('autoApplyKeywordChanges') === 'true';
 let keywordFilters = [];
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
+let pathFilters = new Set(); // chemins exacts à afficher (vide = pas de filtre de chemin)
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
@@ -132,6 +135,9 @@ let fullscreenRatingTimeout = null;
 const fullscreenImageCache = new Map();
 // Version des fichiers modifiés hors de l'application (chemin -> horodatage) : ajoutée à l'URL pour ne pas réafficher une image périmée du cache.
 const photoVersions = new Map();
+// Fichiers pour lesquels on vient d'écrire des métadonnées (mots-clés) : on évite d'invalider leur miniature/aperçu
+// car seul le mtime a changé, pas le contenu image. Nettoyé après la prochaine synchronisation.
+const recentlyWrittenMetadata = new Set();
 function photoUrl(photo) {
   const version = photoVersions.get(photo.path);
   return convertFileSrc(photo.path) + (version ? `?v=${version}` : '');
@@ -613,8 +619,9 @@ function hasActiveFilters() {
   const hasColor = colorFilters.size > 0;
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
+  const hasPath = pathFilters.size > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate;
+  return hasRating || hasColor || hasKeywords || hasFilename || hasPath || hasDate;
 }
 
 function updateFilteredPhotosCount() {
@@ -644,7 +651,8 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
     && matchesFilenameFilters(photo)
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
-    && matchesDateFilter(photo));
+    && matchesDateFilter(photo)
+    && (pathFilters.size === 0 || pathFilters.has(photo.path)));
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
   renderFilterSummaries();
   selectedIndices.clear();
@@ -727,6 +735,9 @@ function clearAllFilters() {
   dateFilter = null;
   updateDateFilterUI('');
   closeDatePicker();
+
+  // Réinitialise le filtre de chemin (échecs d'écriture)
+  pathFilters.clear();
 
   // Réapplique la liste sans aucun filtre
   applyPhotoFilters();
@@ -2796,6 +2807,15 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
   loadPhotos();
 });
+// Auto-apply keyword changes setting
+const autoApplyKeywordChangesCheckbox = document.getElementById('auto-apply-keywords');
+if (autoApplyKeywordChangesCheckbox) {
+  autoApplyKeywordChangesCheckbox.checked = autoApplyKeywordChanges;
+  autoApplyKeywordChangesCheckbox.addEventListener('change', event => {
+    autoApplyKeywordChanges = event.target.checked;
+    localStorage.setItem('autoApplyKeywordChanges', String(autoApplyKeywordChanges));
+  });
+}
 document.querySelectorAll('#selection-rating-stars button').forEach(button => {
   button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating)));
 });
@@ -2820,7 +2840,7 @@ const taskRowElements = new Map(); // tâche -> sa ligne dans la fenêtre des ac
 
 const folderBaseName = path => path.split(/[\\/]/).filter(Boolean).pop() || path;
 const normalizeTaskPath = path => path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-const taskName = task => task.displayName ?? t(task.labelKey, task.labelParams);
+const taskName = task => task.displayName ?? (task.labelKey ? t(task.labelKey, task.labelParams) : task.kind === 'write-keywords' ? t('Writing keywords') : '');
 const taskPercent = task => Math.max(0, Math.min(100, Math.round(task.percent)));
 
 function taskStatusText(task) {
@@ -3030,21 +3050,27 @@ function dropScanTasksForFolder(path) {
 
 // Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours ou en attente
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
-function enqueueScanTask({ kind, path, command, args, labelKey, labelParams }) {
+function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, displayName, onComplete, onFailure }) {
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
+  // L'écriture de mots-clés a aussi sa propre famille.
   const isIntegrity = kind === 'integrity';
-  const sameFamily = task => (task.kind === 'integrity') === isIntegrity;
+  const isWriteKeywords = kind === 'write-keywords';
+  const sameFamily = task => {
+    if (isIntegrity) return task.kind === 'integrity';
+    if (isWriteKeywords) return task.kind === 'write-keywords';
+    return task.kind !== 'integrity' && task.kind !== 'write-keywords';
+  };
   const covering = path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
-    showWriteToast(t(isIntegrity ? 'Already part of an integrity check in progress or waiting: {name}' : 'Already part of a scan in progress or waiting: {name}', { name: taskName(covering) }));
+    showWriteToast(t(isIntegrity ? 'Already part of an integrity check in progress or waiting: {name}' : isWriteKeywords ? 'Keyword write already in progress or waiting' : 'Already part of a scan in progress or waiting: {name}', { name: taskName(covering) }));
     return false;
   }
   scanTaskCounter += 1;
   scanTasks.push({
     id: `scan-${Date.now()}-${scanTaskCounter}`,
-    kind, path, command, args, labelKey, labelParams,
+    kind, path, command, args, labelKey, labelParams, displayName, onComplete, onFailure,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
   syncTaskUI();
@@ -3073,12 +3099,22 @@ async function runScanTask(task) {
     task.percent = 100;
     syncTaskUI();
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
-    if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
-    else await reloadPhotosAfterRescan();
+    if (task.kind === 'integrity') {
+      showIntegrityReport(result, task.stopRequested);
+    } else if (task.kind === 'write-keywords') {
+      // Écriture de mots-clés : ne pas recharger les photos, appeler le callback de fin
+      if (task.onComplete) task.onComplete(result);
+    } else {
+      await reloadPhotosAfterRescan();
+    }
     if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
-    console.error('Rescan impossible', error);
-    showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
+    console.error('Task failed', error);
+    const errorMsg = t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : task.kind === 'write-keywords' ? 'Keyword write failed: {error}' : 'Rescan failed: {error}', { error });
+    showWriteToast(errorMsg);
+    if (task.kind === 'write-keywords' && task.onFailure) {
+      task.onFailure(error);
+    }
   } finally {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
@@ -4242,6 +4278,26 @@ initPhotoActions({
 initKeywordsPanel({
   getSelectedPhotos: () => [...selectedIndices].map(index => photos[index]).filter(Boolean),
   showToast: showWriteToast,
+  // Appliquer automatiquement les changements de mots-clés en attente lors du changement de sélection
+  getAutoApplyKeywordChanges: () => autoApplyKeywordChanges,
+  // Enfile l'écriture de mots-clés dans la TaskQueue
+  enqueueKeywordWrite: (items, keywordPaths, onComplete, onFailure) => {
+    const paths = items.map(([path]) => path);
+    // Marquer ces fichiers comme ayant eu une écriture métadonnées récente
+    // pour éviter l'invalidation de miniature/aperçu lors de la prochaine sync
+    for (const path of paths) recentlyWrittenMetadata.add(path);
+    return enqueueScanTask({
+      kind: 'write-keywords',
+      path: null, // pas de dossier spécifique, c'est une opération sur fichiers sélectionnés
+      command: 'write_keywords_to_files',
+      args: { items },
+      labelKey: 'Writing keywords to {count} file',
+      labelParams: { count: items.length },
+      displayName: t('Writing keywords to {count} file', { count: items.length }),
+      onComplete: (result) => onComplete(result, paths, keywordPaths),
+      onFailure: (error) => onFailure(error, paths, keywordPaths),
+    });
+  },
   // Restaure une sélection précédente (identifiants de photos)
   restoreSelection: (photoIds) => {
     const newIndices = [];
@@ -4252,7 +4308,14 @@ initKeywordsPanel({
     selectedIndices.clear();
     for (const idx of newIndices) selectedIndices.add(idx);
     // Mettre à jour l'affichage de la sélection
-    updateSelectionUI();
+    updateUIOnSelection();
+  },
+  // Filtre la grille pour n'afficher que les chemins donnés (utilisé pour "Afficher les échecs")
+  filterByPaths: (paths) => {
+    pathFilters.clear();
+    for (const path of paths) pathFilters.add(path);
+    applyPhotoFilters();
+    host.showToast(tp('{count} photo filtered', paths.length));
   },
 });
 
@@ -4297,19 +4360,30 @@ async function refreshLibraryAfterSync(changes) {
     if (previous.measuredWidth) { photo.measuredWidth = previous.measuredWidth; photo.measuredHeight = previous.measuredHeight; }
   }
   for (const path of modified) {
+    // Si on vient d'écrire des métadonnées sur ce fichier, ne pas invalider la miniature ni l'aperçu
+    // (seul le mtime a changé, pas le contenu image)
+    if (recentlyWrittenMetadata.has(path)) continue;
     photoVersions.set(path, Date.now());
     thumbnailCacheLookups.delete(path); // la miniature du cache change de nom avec la taille et la date du fichier
   }
-  if (modified.size) {
+  // Invalider l'aperçu seulement pour les fichiers modifiés hors écriture métadonnées
+  const modifiedNonMetadata = [...modified].filter(p => !recentlyWrittenMetadata.has(p));
+  if (modifiedNonMetadata.length) {
     previewSignature = ''; // force le rechargement de l'aperçu
     fullscreenImageCache.clear();
   }
+  // Nettoyer la liste des fichiers écrits récemment (prochaine sync ne les protégera plus)
+  recentlyWrittenMetadata.clear();
   loadedPhotos = fresh;
   folderTreePhotos = everything ?? fresh;
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree();
-  applyPhotoFilters({ keepState: true });
+  // Si seuls nos propres fichiers ont été modifiés (écriture métadonnées), pas besoin de re-rendre la grille :
+  // les miniatures n'ont pas changé, seul le panneau mots-clés/filtres sera mis à jour à l'ouverture.
+  if (modifiedNonMetadata.length > 0 || changes.added.length > 0 || changes.removed.length > 0) {
+    applyPhotoFilters({ keepState: true });
+  }
 }
 
 window.addEventListener('focus', () => { syncLibraryWithDisk(); });

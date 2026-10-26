@@ -233,6 +233,7 @@
           <button type="button" class="settings-tab-btn active" role="tab" aria-selected="true" data-tab="data" data-i18n="Data">Données</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Open with">Ouvrir avec</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
         </div>
 
         <div class="modal-body">
@@ -325,6 +326,17 @@
                   <option value="110" data-i18n="Large">Grand</option>
                   <option value="120" data-i18n="Very large">Très grand</option>
                 </select>
+              </label>
+            </section>
+          </div>
+
+          <!-- Onglet 4 : Métadonnées -->
+          <div id="settings-tab-metadata" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Metadata">Métadonnées</h4>
+              <label class="settings-row settings-check">
+                <input id="auto-apply-keywords" type="checkbox" />
+                <span data-i18n="Auto-apply keyword changes">Appliquer automatiquement les changements de mots-clés</span>
               </label>
             </section>
           </div>
