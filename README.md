@@ -1,7 +1,4 @@
-<div id="english">
-<p align="center">
-  <b>English</b> | <a href="#screenshots">Screenshots</a>
-</p>
+
 
 <p align="center">
   <img src="/screenshots/logo256.png" alt="photoboggan" width="128" />
@@ -25,6 +22,8 @@ My photo collection grew to the opposite of my patience to organize an always gr
 is not designed to have every possible feature,
 it intends to be and stay reactive and enjoyable
 
+---
+
 ### App & Platform Status
 
 ⚠️ First, a word of warning: application is young should be considered in <u>beta</u> stage. Therefore, use at your own risk and ensure you **have a healthy complete backup of your photos**. That said, safety of photos is of course the non negotiable feature (see below).
@@ -44,25 +43,25 @@ My focus is currently on keywords edition.
 
 - 📁 **Zero-copy**: No proprietary library or duplicate files. It works directly on your existing folders on disk.
 
-- 🛡️ **Files are SAFE**: during write operations, only metadata is modified; Photoboggan never touches the image data. Files are modified via a temporary file before being atomically replaced, ensuring foolproof writes. Furthermore, an integrity check can be launched to detect corrupted files (JPEG, HEIC, WebP, PNG, RAW).
+- 🛡️ **Files are SAFE**: during write operations, only metadata is modified; Photoboggan never touches the image data. Files are modified via a temporary file before being atomically replaced, ensuring foolproof writes. Furthermore, an **integrity check** can be launched to detect corrupted files (JPEG, HEIC, WebP, PNG, RAW).
 
-  And all is💾 **Local, no clouds**: nothing is sent to the internet
+  And all is💾 **Local, no clouds**: nothing is sent to the internet.
 
-- ⚡ **Built for SPEED**: fast thumbnail generation and once it's done nothing stops you from scrolling as fast as you want. All tasks are handled so they don't induce lag or slowness. 
-  **Fast RAW previews**: Instead of slow, CPU-heavy demosaicing, it extracts the JPEG preview embedded inside the RAW file in milliseconds. It can be low resolution, but it makes browsing instant.
+- ⚡ **Built for SPEED**: fast thumbnail generation and once it's done nothing stops you from scrolling as fast as you want. All tasks are handled so they don't induce lag or slowness.
+  **Fast RAW previews**: Instead of CPU-heavy demosaicing, embedded JPEG is extracted in milliseconds. It can be low resolution, but it makes browsing instant.
 
 - ⭐ **ORGANISE (Sort, compare, rate, filter, move...)** in a breeze
 
-  - ✅ **Large-Scale FLEXIBLE SELECTION**: Effortlessly select multiple and non-contiguous photo groups (`Ctrl` / `Shift` + click), in any navigation direction.
-  - **Fast keyboard rating**: Assign 0 to 5 stars or colors in a snap using number keys (`0`–`5`), in the grid or in fullscreen.
-  - ⚖️ **Side-by-side COMPARISON**: Compare up to 4 photos at once (with synchronized or unlinked zoom/pan) and delete rejected shots one by one.
+  - ✅ **Large-Scale FLEXIBLE SELECTION**: select multiple and non-contiguous photos (`Ctrl` / `Shift` + click), in any order & navigation direction.
+  - **Fast keyboard rating**: Assign colors and  0 to 5 stars in a snap using number keys (`0`–`5`), in the grid or in fullscreen.
+  - ⚖️ **Side-by-side COMPARISON**: Compare up to 4 photos at once (with synchronized or unlinked zoom/pan). Rate or delete per shot.
   - **Filter** by ratings, keywords, dates, filenames
 
 - 🔁 **Interoperability, leave anytime**: Ratings and color flags are written directly into standard embedded JPEG XMP or companion `.xmp` sidecars for RAWs and files not supporting extra embedded metadata. Your changes are immediately recognized by digiKam, Lightroom, and OS file manager.
 
-- 🖥️ **FLEXIBLE UI**: Choose text, thumbnails & panels size, thumbnails layout, choose panels, fullscreen infos or not. Use the app in immersive fullscreen mode, dark/light mode.
+- 🖥️ **FLEXIBLE UI**: Choose text, thumbnails & panels size, thumbnails layout, panels to display, fullscreen infos or unobstructed view. Use the app in immersive fullscreen mode, in dark or light mode.
 
-- 🛠️ **Comprehensive Toolkit**: Batch resizing, moving & copying, "open with" chosen external programs, EXIF data viewer, clipboard support, and system trash integration...
+- 🛠️ **Comprehensive Toolkit**: Batch resizing, moving & copying, "open with" your chosen external programs, EXIF data viewer, clipboard support, system trash integration, exhaustive shortcuts...
 
 See <a href="#screenshots">Screenshots</a> for some more detail.
 
@@ -81,10 +80,7 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & Ge
 
 ---
 
-<div id="screenshots">
-<p align="center">
-  <a href="#english">English</a> | <a href="#francais">Français</a>  | <b>Screenshots</b>
-</p>
+### Screenshots
 
 </div>
 
@@ -101,7 +97,7 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & Ge
 *Thumbnails only* (scroll with mouse wheel or grab and slide !)
 
 ![test](/screenshots/fullscreen-rating.jpg "Fullscreen rating")
-*Fullscreen rating* (rating bar can disapear for an unobstructed view)
+*Fullscreen rating* (press R to toggle rating bar, D to toggle photo information)
 
 ![test](/screenshots/rating_edition.jpg "Compare Mode")
 *Edit rating & color tag* for one photo or a selection
@@ -116,7 +112,7 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & Ge
 *Batch resizing*
 
 ![Integrity Check Report](/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
-*Integrity Check* can scan a folder for corrupted files, and generates missing thumbnails at the same time
+*Integrity Check* can scan a folder for corrupted files and let you decide what to do.  And it generates missing thumbnails at the same time.
 
 ![Shortcuts](/screenshots/shortcuts_guide.jpg "Shortcuts")
 *Shortcuts*
@@ -139,10 +135,10 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & Ge
   </tr>
 </table>
 
-*Settings* (data folder, photo folders, external programes, language, display...)
+*Settings* (data folder, photo folders, external programs, language, display...)
 
 ---
 
 <p align="center">
-  <a href="#english">English</a> | <a href="#screenshots">Screenshots</a>
+  <a href="#english">Top</a> | <a href="#screenshots">Screenshots</a>
 </p>
