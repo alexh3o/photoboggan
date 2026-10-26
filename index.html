@@ -142,6 +142,9 @@
         <div id="preview-stage" class="preview-stage"></div>
       </section>
 
+      <!-- Poignée de redimensionnement du panneau EXIF/Mots-clés -->
+      <div id="exif-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionner le panneau d'informations et mots-clés" data-i18n-aria-label="Resize info and keywords panel" tabindex="0"></div>
+
       <!-- EXIF -->
       <aside id="exif-panel" class="exif-section">
         <!-- Onglets du panneau de droite : Info (J) et Mots-clés (K), voir keywords-panel.js -->
@@ -178,8 +181,17 @@
         <div id="exif-tab-keywords" class="side-tab-pane" role="tabpanel" hidden>
           <div class="keyword-toolbar">
             <button type="button" id="btn-keyword-filter-mode" class="keyword-filter-mode" aria-pressed="false"></button>
+            <div class="keyword-actions" role="group" aria-label="Actions sur les mots-clés de la sélection">
+              <button type="button" id="btn-keyword-apply" class="keyword-action-btn keyword-action-apply" disabled data-i18n="Apply" title="Appliquer les changements aux fichiers (Ctrl+S)"></button>
+              <button type="button" id="btn-keyword-reset" class="keyword-action-btn keyword-action-reset" disabled data-i18n="Reset" title="Réinitialiser les changements en attente (Échap)"></button>
+              <button type="button" id="btn-keyword-unify" class="keyword-action-btn keyword-action-unify" disabled data-i18n="Unify" title="Unifier : même sélection, même mots-clés"></button>
+            </div>
           </div>
           <ul id="keyword-tree" class="keyword-tree" role="tree"></ul>
+          <div class="keyword-autocomplete" role="search" aria-label="Ajouter un mot-clé à la sélection">
+            <input type="text" id="keyword-autocomplete-input" placeholder="" autocomplete="off" aria-autocomplete="list" aria-controls="keyword-autocomplete-list" aria-expanded="false" spellcheck="false">
+            <ul id="keyword-autocomplete-list" class="keyword-autocomplete-list" role="listbox" hidden></ul>
+          </div>
         </div>
       </aside>
     </main>

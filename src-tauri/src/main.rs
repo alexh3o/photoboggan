@@ -1442,7 +1442,11 @@ fn main() {
             copy_files_to_clipboard,
             resize_photo,
             keywords::get_keyword_tree,
-            keywords::get_keyword_counts
+            keywords::get_keyword_counts,
+            keywords::create_keyword,
+            keywords::delete_keyword,
+            keywords::rename_keyword,
+            keywords::write_keywords_to_files
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

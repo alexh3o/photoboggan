@@ -2199,7 +2199,8 @@ sidebarResizer?.addEventListener('pointerdown', event => {
       const newWidth = Math.max(minSidebarWidth, Math.min(maxSidebarWidth, latestPointerEvent.clientX - mainLeft));
       sidebarPanel.style.width = `${newWidth}px`;
       sidebarWidth = newWidth;
-      updateVirtualScroller();
+      // Ne pas appeler updateVirtualScroller() pendant le drag : trop coûteux (recalcul layout justifié).
+      // Le recalcul se fera une seule fois à la fin (dans stop).
     });
   };
 
@@ -2671,8 +2672,91 @@ previewResizer.addEventListener('keydown', event => {
   updateVirtualScroller();
 });
 
+// ==========================================
+// REDIMENSIONNEMENT DU PANNEAU EXIF / MOTS-CLÉS (panneau de droite)
+// ==========================================
+const exifResizer = document.getElementById('exif-resizer');
+let exifWidth = Number(localStorage.getItem('exifWidth')) || 0;
+if (exifWidth > 0) {
+  document.getElementById('exif-panel').style.width = `${exifWidth}px`;
+}
+
+exifResizer?.addEventListener('pointerdown', event => {
+  if (document.getElementById('exif-panel').classList.contains('hidden')) return;
+  exifResizer.setPointerCapture(event.pointerId);
+  exifResizer.classList.add('dragging');
+  const exifPanel = document.getElementById('exif-panel');
+  exifPanel.classList.add('resizing'); // Désactive la transition CSS pendant le drag
+  let resizeFrame = null;
+  let latestPointerEvent = event;
+
+  const resize = pointerEvent => {
+    latestPointerEvent = pointerEvent;
+    if (resizeFrame !== null) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null;
+      const mainRight = mainContent.getBoundingClientRect().right;
+      const minExifWidth = 180; // ~11.25rem
+      const maxExifWidth = Math.max(minExifWidth, mainContent.clientWidth - 400);
+      // The resizer is to the left of the exif panel, so we calculate from the right edge
+      const newWidth = Math.max(minExifWidth, Math.min(maxExifWidth, mainRight - latestPointerEvent.clientX));
+      exifPanel.style.width = `${newWidth}px`;
+      exifWidth = newWidth;
+      // Ne pas appeler updateVirtualScroller() pendant le drag : trop coûteux (recalcul layout justifié).
+      // Le recalcul se fera une seule fois à la fin (dans stop).
+    });
+  };
+
+  const stop = event => {
+    try {
+      if (Number.isFinite(event?.clientX)) latestPointerEvent = event;
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      if (Number.isFinite(latestPointerEvent?.clientX)) {
+        const mainRight = mainContent.getBoundingClientRect().right;
+        const minExifWidth = 180;
+        const maxExifWidth = Math.max(minExifWidth, mainContent.clientWidth - 400);
+        const newWidth = Math.max(minExifWidth, Math.min(maxExifWidth, mainRight - latestPointerEvent.clientX));
+        exifPanel.style.width = `${newWidth}px`;
+        exifWidth = newWidth;
+        localStorage.setItem('exifWidth', String(newWidth));
+      }
+    } finally {
+      // Toujours nettoyer, même en cas d'erreur
+      exifResizer?.releasePointerCapture?.(event?.pointerId);
+      exifResizer.classList.remove('dragging');
+      const exifPanelEl = document.getElementById('exif-panel');
+      exifPanelEl?.classList.remove('resizing');
+      exifResizer.removeEventListener('pointermove', resize);
+      exifResizer.removeEventListener('pointerup', stop);
+      exifResizer.removeEventListener('pointercancel', stop);
+      updateVirtualScroller();
+    }
+  };
+
+  exifResizer.addEventListener('pointermove', resize);
+  exifResizer.addEventListener('pointerup', stop);
+  exifResizer.addEventListener('pointercancel', stop);
+});
+
+// Accessibilité clavier (flèches gauche / droite sur la poignée)
+exifResizer?.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  event.preventDefault();
+  const exifPanel = document.getElementById('exif-panel');
+  const currentWidth = exifPanel.getBoundingClientRect().width;
+  const change = event.key === 'ArrowLeft' ? 20 : -20; // ArrowLeft = augmenter (gauche = plus large vers la gauche)
+  const minExifWidth = 180;
+  const maxExifWidth = Math.max(minExifWidth, mainContent.clientWidth - 400);
+  const newWidth = Math.max(minExifWidth, Math.min(maxExifWidth, currentWidth + change));
+  exifPanel.style.width = `${newWidth}px`;
+  exifWidth = newWidth;
+  localStorage.setItem('exifWidth', String(newWidth));
+  updateVirtualScroller();
+});
+
 document.getElementById('btn-toggle-exif').addEventListener('click', event => {
   const exifVisible = document.getElementById('exif-panel').classList.toggle('hidden') === false;
+  mainContent.classList.toggle('exif-hidden', !exifVisible);
   event.currentTarget.classList.toggle('active', exifVisible);
   localStorage.setItem('exifVisible', String(exifVisible)); // Memorisation
   setTimeout(updateVirtualScroller, 300);
@@ -4157,6 +4241,19 @@ initPhotoActions({
 // Panneau des mots-clés (onglet du panneau de droite, voir keywords-panel.js) : cible = photos sélectionnées.
 initKeywordsPanel({
   getSelectedPhotos: () => [...selectedIndices].map(index => photos[index]).filter(Boolean),
+  showToast: showWriteToast,
+  // Restaure une sélection précédente (identifiants de photos)
+  restoreSelection: (photoIds) => {
+    const newIndices = [];
+    for (const id of photoIds) {
+      const idx = photos.findIndex(p => p.id === id);
+      if (idx >= 0) newIndices.push(idx);
+    }
+    selectedIndices.clear();
+    for (const idx of newIndices) selectedIndices.add(idx);
+    // Mettre à jour l'affichage de la sélection
+    updateSelectionUI();
+  },
 });
 
 // ==========================================
@@ -4240,6 +4337,7 @@ function restorePanelsVisibility() {
   // 3. Panneau EXIF
   const exifPanel = document.getElementById('exif-panel');
   exifPanel?.classList.toggle('hidden', !exifVisible);
+  mainContent.classList.toggle('exif-hidden', !exifVisible);
   document.getElementById('btn-toggle-exif')?.classList.toggle('active', exifVisible);
 }
 

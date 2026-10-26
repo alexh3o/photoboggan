@@ -130,3 +130,132 @@ pub fn get_keyword_counts(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Re
     let counts: Vec<KeywordCount> = rows.filter_map(|row| row.ok()).collect();
     Ok(counts)
 }
+
+/// Crée un nouveau mot-clé sous `parent_id` (0 = premier niveau). Retourne l'identifiant du nœud créé.
+#[tauri::command(async)]
+pub fn create_keyword(state: State<'_, AppState>, parent_id: i64, name: String) -> Result<i64, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let trimmed = name.trim();
+    if trimmed.is_empty() { return Err("Nom vide".into()); }
+    // Refuser les caractères séparateurs et la virgule
+    if trimmed.contains('/') || trimmed.contains('|') || trimmed.contains(',') {
+        return Err("Caractères interdits : / | ,".into());
+    }
+    let key = name_key(trimmed);
+    conn.execute("INSERT OR IGNORE INTO keyword_nodes (parent_id, name, name_key) VALUES (?1, ?2, ?3)", params![parent_id, trimmed, key])
+        .map_err(|error| error.to_string())?;
+    let id = conn.query_row("SELECT id FROM keyword_nodes WHERE parent_id = ?1 AND name_key = ?2", params![parent_id, key], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    Ok(id)
+}
+
+/// Supprime un mot-clé et tout son sous-arbre (récursif). Retourne le nombre de nœuds supprimés.
+#[tauri::command(async)]
+pub fn delete_keyword(state: State<'_, AppState>, keyword_id: i64) -> Result<i64, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    // Récupérer tout le sous-arbre (CTE récursif)
+    let mut to_delete = Vec::new();
+    let mut stmt = conn.prepare("WITH RECURSIVE subtree(id) AS (
+        SELECT ?1
+        UNION ALL
+        SELECT kn.id FROM keyword_nodes kn JOIN subtree st ON kn.parent_id = st.id
+    ) SELECT id FROM subtree")
+        .map_err(|error| error.to_string())?;
+    let rows = stmt.query_map(params![keyword_id], |row| row.get::<_, i64>(0))
+        .map_err(|error| error.to_string())?;
+    for row in rows { if let Ok(id) = row { to_delete.push(id); } }
+    // Supprimer les associations photo ↔ mot-clé pour tous ces nœuds
+    if !to_delete.is_empty() {
+        let placeholders = to_delete.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!("DELETE FROM photo_keywords WHERE keyword_id IN ({})", placeholders);
+        let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        let params_vec: Vec<&dyn rusqlite::ToSql> = to_delete.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        stmt.execute(rusqlite::params_from_iter(params_vec.iter().cloned())).map_err(|error| error.to_string())?;
+    }
+    // Supprimer les nœuds
+    if !to_delete.is_empty() {
+        let placeholders = to_delete.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!("DELETE FROM keyword_nodes WHERE id IN ({})", placeholders);
+        let mut stmt = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        let params_vec: Vec<&dyn rusqlite::ToSql> = to_delete.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        stmt.execute(rusqlite::params_from_iter(params_vec.iter().cloned())).map_err(|error| error.to_string())?;
+    }
+    let _ = conn.execute("COMMIT", []);
+    Ok(to_delete.len() as i64)
+}
+
+/// Renomme un mot-clé (vérifie l'unicité sous le même parent).
+#[tauri::command(async)]
+pub fn rename_keyword(state: State<'_, AppState>, keyword_id: i64, name: String) -> Result<(), String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let trimmed = name.trim();
+    if trimmed.is_empty() { return Err("Nom vide".into()); }
+    if trimmed.contains('/') || trimmed.contains('|') || trimmed.contains(',') {
+        return Err("Caractères interdits : / | ,".into());
+    }
+    let key = name_key(trimmed);
+    // Vérifier l'unicité sous le même parent
+    let parent_id: i64 = conn.query_row("SELECT parent_id FROM keyword_nodes WHERE id = ?1", params![keyword_id], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let exists: i64 = conn.query_row("SELECT COUNT(*) FROM keyword_nodes WHERE parent_id = ?1 AND name_key = ?2 AND id != ?3",
+        params![parent_id, key, keyword_id], |row| row.get(0)).map_err(|error| error.to_string())?;
+    if exists > 0 { return Err("Un mot-clé de ce nom existe déjà sous ce parent".into()); }
+    conn.execute("UPDATE keyword_nodes SET name = ?1, name_key = ?2 WHERE id = ?3", params![trimmed, key, keyword_id])
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Écrit les mots-clés actifs dans les fichiers sélectionnés ET met à jour la base de données.
+/// `items` : liste de (chemin_fichier, chemins_mots_clés_actifs) où chaque chemin_mots_clés_actifs est un Vec<Vec<String>>
+/// ex. [("photo.jpg", [["Lieux", "France", "Paris"], ["Sujet", "Portrait"]])]
+/// Retourne la liste des chemins ayant échoué (vide = tout réussi).
+#[tauri::command(async)]
+pub fn write_keywords_to_files(state: State<'_, AppState>, items: Vec<(String, Vec<Vec<String>>)>) -> Result<Vec<String>, String> {
+    use crate::exif::write_keywords;
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut failed = Vec::new();
+
+    for (path, keyword_paths) in items {
+        // Écrire dans le fichier
+        if let Err(e) = write_keywords(&path, &keyword_paths) {
+            eprintln!("Échec écriture mots-clés pour {}: {}", path, e);
+            failed.push(path.clone());
+            continue;
+        }
+
+        // Mettre à jour la base de données pour cette photo
+        let photo_id: i64 = match conn.query_row("SELECT id FROM photos WHERE path = ?1", params![&path], |row| row.get(0)) {
+            Ok(id) => id,
+            Err(_) => {
+                failed.push(path.clone());
+                continue;
+            }
+        };
+
+        // Supprimer les anciennes associations pour cette photo
+        let _ = conn.execute("DELETE FROM photo_keywords WHERE photo_id = ?1", params![photo_id]);
+
+        // Insérer les nouvelles associations (seul le dernier niveau de chaque chemin est actif)
+        for segments in keyword_paths {
+            if segments.is_empty() { continue; }
+            let mut parent_id = 0i64;
+            let mut complete = true;
+            for segment in segments {
+                match ensure_node(&conn, parent_id, &segment) {
+                    Ok(id) => parent_id = id,
+                    Err(_) => { complete = false; break; }
+                }
+            }
+            if complete {
+                let _ = conn.execute("INSERT OR IGNORE INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_id, parent_id]);
+            }
+        }
+    }
+
+    Ok(failed)
+}

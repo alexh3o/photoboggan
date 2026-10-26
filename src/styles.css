@@ -261,6 +261,12 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .preview-section { flex: 1 1 0; min-width: 160px; display: flex; justify-content: center; align-items: center; background: var(--preview-bg); position: relative; }
 #preview-resizer { flex: 0 0 6px; cursor: col-resize; touch-action: none; background: var(--resizer-bg); border-left: 1px solid var(--separator); border-right: 1px solid var(--preview-bg); z-index: 2; }
 #preview-resizer:hover, #preview-resizer.dragging { background: var(--accent); }
+
+/* EXIF PANEL RESIZER */
+#exif-resizer { flex: 0 0 6px; cursor: col-resize; touch-action: none; background: var(--resizer-bg); border-left: 1px solid var(--separator); border-right: 1px solid var(--bg-panel); z-index: 2; }
+#exif-resizer:hover, #exif-resizer.dragging { background: var(--accent); }
+.main-content.exif-hidden #exif-resizer { display: none !important; }
+
 .preview-stage { position: absolute; inset: 0; display: grid; gap: 4px; background: var(--separator); }
 .preview-stage:empty { background: transparent; }
 .preview-stage.count-1 { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
@@ -318,8 +324,10 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .date-picker-hint { margin-top: 0.5rem; color: var(--text-faint); font-size: 0.7rem; }
 
 /* EXIF */
-.exif-section { width: 15rem; background: var(--bg-panel); border-left: 1px solid var(--border); padding: 1rem; overflow-y: auto; transition: width 0.3s; }
-.exif-section.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
+.exif-section { background: var(--bg-panel); border-left: 1px solid var(--border); padding: 1rem; overflow-y: auto; transition: width 0.3s; }
+.exif-section.resizing { transition: none !important; }
+.exif-section.hidden { width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden !important; }
+.main-content.exif-hidden .exif-section { width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden !important; }
 /* Mots-clés du panneau d'infos : étiquettes cliquables (même aspect que celles du filtre) ; « active » = déjà dans le filtre de mots-clés */
 .exif-section li span#exif-keywords { display: flex; flex-wrap: wrap; gap: 5px; }
 .filter-tag.tag-keyword.active { background: #3b78a0; border-color: #8fc9ee; }

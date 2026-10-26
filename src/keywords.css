@@ -27,8 +27,77 @@
 .keyword-empty { padding: 0.5rem 0.25rem; color: var(--text-faint); font-size: 0.75rem; }
 
 /* Petite case à cocher à trois états : vide (aucune photo de la sélection), remplie (quelques-unes), cochée (toutes) */
-.keyword-check { position: relative; flex: 0 0 auto; width: 0.9rem; height: 0.9rem; border: 1px solid var(--control-border); border-radius: 3px; background: var(--control-bg); }
+/* Utilise un <button> pour l'accessibilité (focus, clavier) */
+.keyword-check { position: relative; flex: 0 0 auto; width: 0.9rem; height: 0.9rem; border: 1px solid var(--control-border); border-radius: 3px; background: var(--control-bg); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.keyword-check:hover { border-color: var(--active-button); }
+.keyword-check:focus-visible { outline: 2px solid var(--active-button); outline-offset: 1px; }
 .keyword-check.checked { background: var(--active-button); border-color: var(--active-button); }
 .keyword-check.checked::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--active-button-text); font-size: 0.7rem; font-weight: bold; }
 .keyword-check.partial { border-color: var(--active-button); }
 .keyword-check.partial::after { content: ''; position: absolute; inset: 2px; border-radius: 1px; background: var(--active-button); }
+
+/* Barre d'actions : Appliquer / Réinitialiser / Unifier */
+.keyword-actions { display: flex; flex: 0 0 auto; gap: 0.25rem; }
+.keyword-action-btn {
+  flex: 1 1 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--control-bg);
+  color: var(--text-strong);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.keyword-action-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--active-button) 20%, var(--control-bg)); border-color: var(--active-button); }
+.keyword-action-btn:disabled { opacity: 0.4; cursor: default; }
+.keyword-action-btn:focus-visible { outline: 2px solid var(--active-button); outline-offset: 1px; }
+.keyword-action-apply { background: color-mix(in srgb, var(--active-button) 15%, var(--control-bg)); }
+.keyword-action-apply:hover:not(:disabled) { background: var(--active-button); color: var(--active-button-text); }
+.keyword-action-reset { color: var(--text-muted); }
+.keyword-action-unify { color: var(--text-muted); }
+
+/* Autocomplétion */
+.keyword-autocomplete { position: relative; flex: 0 0 auto; margin-top: 0.5rem; }
+#keyword-autocomplete-input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--control-bg);
+  color: var(--text-strong);
+  font-size: 0.78rem;
+  box-sizing: border-box;
+}
+#keyword-autocomplete-input:focus { outline: 2px solid var(--active-button); outline-offset: 1px; }
+#keyword-autocomplete-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.keyword-autocomplete-list {
+  position: absolute;
+  bottom: 100%; /* Apparaît AU-DESSUS de l'input */
+  left: 0;
+  width: 100%;
+  max-height: 12rem;
+  margin-bottom: 0.15rem; /* Espace entre l'input et la liste */
+  padding: 0.25rem 0;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--control-bg);
+  color: var(--text-strong);
+  font-size: 0.75rem;
+  list-style: none;
+  overflow-y: auto;
+  z-index: 10;
+  box-shadow: 0 -0.25rem 0.5rem rgba(0,0,0,0.15); /* Ombre vers le haut */
+}
+.keyword-autocomplete-list[hidden] { display: none; }
+.keyword-autocomplete-item { padding: 0.25rem 0.5rem; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.keyword-autocomplete-item:hover,
+.keyword-autocomplete-item.selected { background: color-mix(in srgb, var(--active-button) 25%, var(--control-bg)); }
+.keyword-autocomplete-create { border-top: 1px solid var(--control-border); margin-top: 0.25rem; padding-top: 0.5rem; }
+.keyword-autocomplete-create:hover { background: color-mix(in srgb, var(--active-button) 25%, var(--control-bg)); }
+.keyword-autocomplete-hint { color: var(--text-muted); font-size: 0.7rem; }
+.keyword-autocomplete-empty { padding: 0.5rem; color: var(--text-faint); text-align: center; }
+
+/* Positionnement relatif pour la liste d'autocomplétion */
+#exif-tab-keywords { position: relative; }

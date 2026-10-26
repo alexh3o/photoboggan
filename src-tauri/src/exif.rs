@@ -829,6 +829,413 @@ pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<O
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Écriture des mots-clés hiérarchiques : XMP (dc:subject, digiKam, Lightroom, Media Pro, Microsoft) et IPTC des JPEG.
+// Ce qui est actif dans l'arbre de l'application remplace le contenu de TOUS ces formats : les entrées absentes de l'arbre sont retirées.
+// XPKeywords (EXIF) n'est pas écrit : il oblige à réécrire la structure TIFF de l'EXIF (risque pour les MakerNote).
+// ---------------------------------------------------------------------------
+
+const DC_NS: &str = "http://purl.org/dc/elements/1.1/";
+const DIGIKAM_NS: &str = "http://www.digikam.org/ns/1.0/";
+const LIGHTROOM_NS: &str = "http://ns.adobe.com/lightroom/1.0/";
+const MEDIAPRO_NS: &str = "http://ns.iview-multimedia.com/mediapro/1.0/";
+const MICROSOFT_NS: &str = "http://ns.microsoft.com/photo/1.0/";
+
+fn xml_escape_text(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+/// Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
+/// qu'ils soient écrits `<p:Nom>…</p:Nom>` ou `<p:Nom/>`.
+fn remove_xmp_list_property(xml: &str, local_name: &str, only_prefix: Option<&str>) -> String {
+    let needle = format!(":{}", local_name.to_ascii_lowercase());
+    let mut updated = xml.to_string();
+    let mut from = 0;
+    loop {
+        let lower = updated.to_ascii_lowercase();
+        let Some(relative) = lower[from..].find(&needle) else { break; };
+        let colon = from + relative;
+        let name_end = colon + needle.len();
+        let bytes = lower.as_bytes();
+        let mut prefix_start = colon;
+        while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
+        let is_open_tag = prefix_start < colon && prefix_start > 0 && bytes[prefix_start - 1] == b'<';
+        let ends_here = bytes.get(name_end) == Some(&b'>') || bytes.get(name_end) == Some(&b'/') || bytes.get(name_end).is_some_and(|byte| byte.is_ascii_whitespace());
+        let prefix_ok = only_prefix.map_or(true, |wanted| &updated[prefix_start..colon] == wanted);
+        if !(is_open_tag && ends_here && prefix_ok) { from = name_end; continue; }
+        let Some(open_end_relative) = lower[name_end..].find('>') else { break; };
+        let open_end = name_end + open_end_relative;
+        let element_end = if bytes[open_end - 1] == b'/' {
+            open_end + 1
+        } else {
+            let closing = format!("</{}{}", &lower[prefix_start..colon], needle);
+            let Some(close_relative) = lower[open_end + 1..].find(&closing) else { from = name_end; continue; };
+            let close_start = open_end + 1 + close_relative;
+            let Some(close_end_relative) = lower[close_start..].find('>') else { break; };
+            close_start + close_end_relative + 1
+        };
+        updated.replace_range(prefix_start - 1..element_end, "");
+        from = prefix_start - 1;
+    }
+    updated
+}
+
+/// Élément XMP liste : `<nom><rdf:Bag><rdf:li>…</rdf:li></rdf:Bag></nom>` (ou `rdf:Seq`).
+fn xmp_list_element(qualified_name: &str, container: &str, items: &[String]) -> String {
+    let mut element = format!("<{qualified_name}><rdf:{container}>");
+    for item in items {
+        element.push_str("<rdf:li>");
+        element.push_str(&xml_escape_text(item));
+        element.push_str("</rdf:li>");
+    }
+    element.push_str(&format!("</rdf:{container}></{qualified_name}>"));
+    element
+}
+
+/// Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élément.
+fn insert_description_children(xml: &str, children: &str, namespaces: &[(&str, &str)]) -> Option<String> {
+    let description = xml.find("<rdf:Description")?;
+    let tag_end = xml_tag_end(xml, description)?;
+    let open_tag = &xml[description..=tag_end];
+    let self_closing = open_tag.ends_with("/>");
+    let rdf_tag = xml.find("<rdf:RDF").and_then(|start| xml_tag_end(xml, start).map(|end| &xml[start..=end])).unwrap_or("");
+    let mut declarations = String::new();
+    for (prefix, uri) in namespaces {
+        let declaration = format!("xmlns:{prefix}=");
+        if !open_tag.contains(&declaration) && !rdf_tag.contains(&declaration) {
+            declarations.push_str(&format!(" xmlns:{prefix}=\"{uri}\""));
+        }
+    }
+    let mut output = String::with_capacity(xml.len() + children.len() + declarations.len() + 32);
+    if self_closing {
+        output.push_str(&xml[..description]);
+        output.push_str(xml[description..tag_end - 1].trim_end());
+        output.push_str(&declarations);
+        output.push('>');
+        output.push_str(children);
+        output.push_str("</rdf:Description>");
+        output.push_str(&xml[tag_end + 1..]);
+    } else {
+        let close = tag_end + 1 + xml[tag_end + 1..].find("</rdf:Description>")?;
+        output.push_str(&xml[..tag_end]);
+        output.push_str(&declarations);
+        output.push('>');
+        output.push_str(&xml[tag_end + 1..close]);
+        output.push_str(children);
+        output.push_str(&xml[close..]);
+    }
+    Some(output)
+}
+
+/// Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
+/// `dc:subject` (noms seuls), `digiKam:TagsList` (A/B/C), `lr:hierarchicalSubject` (A|B|C), `mediapro:CatalogSets` (A|B|C)
+/// et `MicrosoftPhoto:LastKeywordXMP` (A/B/C). Le reste du paquet n'est pas touché. Sans mot-clé, ces propriétés sont retirées.
+/// Renvoie le paquet inchangé, ou vide s'il n'y a ni paquet ni mot-clé à écrire.
+fn update_xmp_keywords(xml: &str, paths: &[Vec<String>]) -> String {
+    let mut updated = xml.to_string();
+    if !updated.contains("rdf:Description") {
+        if paths.is_empty() { return updated; }
+        updated = EMPTY_XMP_PACKET.to_string();
+    }
+    updated = remove_xmp_list_property(&updated, "subject", Some("dc"));
+    for local_name in ["TagsList", "hierarchicalSubject", "CatalogSets", "LastKeywordXMP"] {
+        updated = remove_xmp_list_property(&updated, local_name, None);
+    }
+    if paths.is_empty() { return updated; }
+
+    let mut flat: Vec<String> = Vec::new();
+    for segments in paths {
+        if let Some(leaf) = segments.last() {
+            if !flat.iter().any(|word| word.to_lowercase() == leaf.to_lowercase()) { flat.push(leaf.clone()); }
+        }
+    }
+    let joined = |separator: &str| -> Vec<String> { paths.iter().map(|segments| segments.join(separator)).collect() };
+    let children = [
+        xmp_list_element("dc:subject", "Bag", &flat),
+        xmp_list_element("digiKam:TagsList", "Seq", &joined("/")),
+        xmp_list_element("lr:hierarchicalSubject", "Bag", &joined("|")),
+        xmp_list_element("mediapro:CatalogSets", "Bag", &joined("|")),
+        xmp_list_element("MicrosoftPhoto:LastKeywordXMP", "Bag", &joined("/")),
+    ].concat();
+    let namespaces = [("dc", DC_NS), ("digiKam", DIGIKAM_NS), ("lr", LIGHTROOM_NS), ("mediapro", MEDIAPRO_NS), ("MicrosoftPhoto", MICROSOFT_NS)];
+    insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
+}
+
+/// Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
+fn jpeg_insert_position(data: &[u8]) -> usize {
+    let mut pos = 2;
+    while pos + 4 <= data.len() && data[pos] == 0xff {
+        let marker = data[pos + 1];
+        let length = u16::from_be_bytes([data[pos + 2], data[pos + 3]]) as usize;
+        if length < 2 || pos + 2 + length > data.len() { break; }
+        let payload = &data[pos + 4..pos + 2 + length];
+        if !(marker == 0xe0 || (marker == 0xe1 && payload.starts_with(b"Exif\0\0"))) { break; }
+        pos += 2 + length;
+    }
+    pos
+}
+
+fn invalid_data(message: &str) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, message.to_string())
+}
+
+/// JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien à modifier.
+fn jpeg_replace_xmp(data: &[u8], update: &dyn Fn(&str) -> String) -> std::io::Result<Vec<u8>> {
+    let build_segment = |packet: &str| -> std::io::Result<Vec<u8>> {
+        let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + packet.len());
+        payload.extend_from_slice(JPEG_XMP_HEADER);
+        payload.extend_from_slice(packet.as_bytes());
+        let length = payload.len() + 2;
+        if length > u16::MAX as usize { return Err(invalid_data("Le paquet XMP dépasse la taille maximale d'un segment JPEG")); }
+        let mut segment = vec![0xff, 0xe1];
+        segment.extend_from_slice(&(length as u16).to_be_bytes());
+        segment.extend_from_slice(&payload);
+        Ok(segment)
+    };
+    if let Some((segment_start, segment_end, packet_start)) = find_jpeg_xmp_segment(data) {
+        let packet = std::str::from_utf8(&data[packet_start..segment_end]).map_err(|_| invalid_data("Le paquet XMP JPEG n'est pas en UTF-8"))?;
+        let updated = update(packet);
+        if updated == packet { return Ok(data.to_vec()); }
+        let segment = build_segment(&updated)?;
+        let mut output = Vec::with_capacity(data.len() + segment.len());
+        output.extend_from_slice(&data[..segment_start]);
+        output.extend_from_slice(&segment);
+        output.extend_from_slice(&data[segment_end..]);
+        Ok(output)
+    } else {
+        let packet = update("");
+        if packet.is_empty() { return Ok(data.to_vec()); }
+        let segment = build_segment(&packet)?;
+        let at = jpeg_insert_position(data);
+        let mut output = Vec::with_capacity(data.len() + segment.len());
+        output.extend_from_slice(&data[..at]);
+        output.extend_from_slice(&segment);
+        output.extend_from_slice(&data[at..]);
+        Ok(output)
+    }
+}
+
+const PHOTOSHOP_HEADER: &[u8] = b"Photoshop 3.0\0";
+const IPTC_RESOURCE_ID: u16 = 0x0404;
+
+/// Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
+fn find_jpeg_photoshop_segment(data: &[u8]) -> Option<(usize, usize, usize)> {
+    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return None; }
+    let mut pos = 2;
+    while pos + 4 <= data.len() {
+        let marker_start = pos;
+        if data[pos] != 0xff { return None; }
+        while pos < data.len() && data[pos] == 0xff { pos += 1; }
+        if pos >= data.len() { return None; }
+        let marker = data[pos];
+        pos += 1;
+        if marker == 0xda || marker == 0xd9 { break; }
+        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
+        if pos + 2 > data.len() { return None; }
+        let length = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
+        if length < 2 || pos + length > data.len() { return None; }
+        let segment_end = pos + length;
+        if marker == 0xed && data[pos + 2..segment_end].starts_with(PHOTOSHOP_HEADER) { return Some((marker_start, segment_end, pos + 2)); }
+        pos = segment_end;
+    }
+    None
+}
+
+struct PhotoshopResource { id: u16, name: Vec<u8>, data: Vec<u8> }
+
+/// Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
+fn parse_photoshop_resources(payload: &[u8]) -> (Vec<PhotoshopResource>, Vec<u8>) {
+    let mut resources = Vec::new();
+    let mut p = 0;
+    while p + 12 <= payload.len() && &payload[p..p + 4] == b"8BIM" {
+        let id = u16::from_be_bytes([payload[p + 4], payload[p + 5]]);
+        let name_length = payload[p + 6] as usize;
+        let name_start = p + 7;
+        let mut q = name_start + name_length;
+        if (1 + name_length) % 2 != 0 { q += 1; }
+        if q + 4 > payload.len() { break; }
+        let size = u32::from_be_bytes([payload[q], payload[q + 1], payload[q + 2], payload[q + 3]]) as usize;
+        let data_start = q + 4;
+        if data_start + size > payload.len() { break; }
+        resources.push(PhotoshopResource { id, name: payload[name_start..name_start + name_length].to_vec(), data: payload[data_start..data_start + size].to_vec() });
+        p = data_start + size;
+        if size % 2 != 0 { p += 1; }
+    }
+    let trailer = payload.get(p..).map(|rest| rest.to_vec()).unwrap_or_default();
+    (resources, trailer)
+}
+
+struct IptcDataset { record: u8, dataset: u8, raw: Vec<u8>, value: Vec<u8> }
+
+/// Jeux de données d'un bloc IPTC-IIM ; `None` si le bloc est mal formé (il n'est alors pas modifié).
+fn parse_iptc_datasets(iptc: &[u8]) -> Option<Vec<IptcDataset>> {
+    let mut datasets = Vec::new();
+    let mut q = 0;
+    while q < iptc.len() {
+        if iptc[q..].iter().all(|byte| *byte == 0) { break; } // remplissage final
+        if iptc[q] != 0x1c || q + 5 > iptc.len() { return None; }
+        let record = iptc[q + 1];
+        let dataset = iptc[q + 2];
+        let mut value_length = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
+        let mut header = 5;
+        if value_length & 0x8000 != 0 {
+            let count = value_length & 0x7fff;
+            if count == 0 || count > 4 || q + 5 + count > iptc.len() { return None; }
+            value_length = 0;
+            for byte in &iptc[q + 5..q + 5 + count] { value_length = (value_length << 8) | *byte as usize; }
+            header += count;
+        }
+        if q + header + value_length > iptc.len() { return None; }
+        datasets.push(IptcDataset { record, dataset, raw: iptc[q..q + header + value_length].to_vec(), value: iptc[q + header..q + header + value_length].to_vec() });
+        q += header + value_length;
+    }
+    Some(datasets)
+}
+
+fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
+    if text.len() <= max_bytes { return text; }
+    let mut end = max_bytes;
+    while !text.is_char_boundary(end) { end -= 1; }
+    &text[..end]
+}
+
+/// Nouveau bloc IPTC : les mots-clés (2:25) sont remplacés par `keywords` (64 octets au plus chacun), tout le reste est recopié tel quel.
+/// Des mots-clés non ASCII déclarent le jeu de caractères UTF-8 (1:90) s'il n'est pas déjà déclaré. `None` : le bloc est laissé intact
+/// (illisible, ou déclaré dans un autre jeu de caractères que l'UTF-8 alors que des mots-clés non ASCII doivent y entrer).
+fn iptc_with_keywords(existing: Option<&[u8]>, keywords: &[String]) -> Option<Vec<u8>> {
+    let mut datasets = match existing { Some(bytes) => parse_iptc_datasets(bytes)?, None => Vec::new() };
+    datasets.retain(|dataset| !(dataset.record == 2 && dataset.dataset == 25));
+    const UTF8_ESCAPE: [u8; 3] = [0x1b, 0x25, 0x47];
+    if keywords.iter().any(|keyword| !keyword.is_ascii()) {
+        match datasets.iter().find(|dataset| dataset.record == 1 && dataset.dataset == 90) {
+            Some(declared) => { if declared.value != UTF8_ESCAPE { return None; } }
+            None => datasets.insert(0, IptcDataset { record: 1, dataset: 90, raw: vec![0x1c, 1, 90, 0, 3, 0x1b, 0x25, 0x47], value: UTF8_ESCAPE.to_vec() }),
+        }
+    }
+    let mut new_datasets = Vec::new();
+    for keyword in keywords {
+        let bytes = truncate_utf8(keyword, 64).as_bytes();
+        if bytes.is_empty() { continue; }
+        let mut raw = vec![0x1c, 2, 25];
+        raw.extend_from_slice(&(bytes.len() as u16).to_be_bytes());
+        raw.extend_from_slice(bytes);
+        new_datasets.push(IptcDataset { record: 2, dataset: 25, raw, value: Vec::new() });
+    }
+    let at = datasets.iter().position(|dataset| (dataset.record, dataset.dataset) > (2, 25)).unwrap_or(datasets.len());
+    datasets.splice(at..at, new_datasets);
+    Some(datasets.into_iter().flat_map(|dataset| dataset.raw).collect())
+}
+
+/// JPEG dont les mots-clés IPTC (2:25) sont remplacés par `keywords`. Les autres ressources Photoshop et jeux de données IPTC sont conservés ;
+/// le segment est créé s'il n'existe pas et qu'il y a des mots-clés, et retiré s'il devient vide.
+fn jpeg_replace_iptc_keywords(data: &[u8], keywords: &[String]) -> std::io::Result<Vec<u8>> {
+    let segment = find_jpeg_photoshop_segment(data);
+    let (mut resources, trailer) = match segment {
+        Some((_, end, payload_start)) => parse_photoshop_resources(&data[payload_start + PHOTOSHOP_HEADER.len()..end]),
+        None => (Vec::new(), Vec::new()),
+    };
+    let existing: Option<Vec<u8>> = resources.iter().find(|resource| resource.id == IPTC_RESOURCE_ID).map(|resource| resource.data.clone());
+    if existing.is_none() && keywords.is_empty() { return Ok(data.to_vec()); }
+    let Some(new_iptc) = iptc_with_keywords(existing.as_deref(), keywords) else { return Ok(data.to_vec()); };
+    if existing.as_deref() == Some(new_iptc.as_slice()) { return Ok(data.to_vec()); }
+
+    resources.retain(|resource| resource.id != IPTC_RESOURCE_ID);
+    if !new_iptc.is_empty() {
+        let at = resources.iter().position(|resource| resource.id > IPTC_RESOURCE_ID).unwrap_or(resources.len());
+        resources.insert(at, PhotoshopResource { id: IPTC_RESOURCE_ID, name: Vec::new(), data: new_iptc });
+    }
+    if resources.is_empty() && trailer.is_empty() {
+        // Plus rien à garder dans le segment : il est retiré.
+        return Ok(match segment {
+            Some((start, end, _)) => [&data[..start], &data[end..]].concat(),
+            None => data.to_vec(),
+        });
+    }
+    let mut payload = PHOTOSHOP_HEADER.to_vec();
+    for resource in &resources {
+        payload.extend_from_slice(b"8BIM");
+        payload.extend_from_slice(&resource.id.to_be_bytes());
+        payload.push(resource.name.len() as u8);
+        payload.extend_from_slice(&resource.name);
+        if (1 + resource.name.len()) % 2 != 0 { payload.push(0); }
+        payload.extend_from_slice(&(resource.data.len() as u32).to_be_bytes());
+        payload.extend_from_slice(&resource.data);
+        if resource.data.len() % 2 != 0 { payload.push(0); }
+    }
+    payload.extend_from_slice(&trailer);
+    let length = payload.len() + 2;
+    if length > u16::MAX as usize { return Err(invalid_data("Le bloc IPTC dépasse la taille maximale d'un segment JPEG")); }
+    let mut new_segment = vec![0xff, 0xed];
+    new_segment.extend_from_slice(&(length as u16).to_be_bytes());
+    new_segment.extend_from_slice(&payload);
+    Ok(match segment {
+        Some((start, end, _)) => [&data[..start], new_segment.as_slice(), &data[end..]].concat(),
+        None => {
+            let at = jpeg_insert_position(data);
+            [&data[..at], new_segment.as_slice(), &data[at..]].concat()
+        }
+    })
+}
+
+fn write_file_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let temp_path = std::path::PathBuf::from(format!("{}.photoboggan-tmp", path.display()));
+    fs::write(&temp_path, bytes)?;
+    if let Err(error) = fs::rename(&temp_path, path) {
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+    Ok(())
+}
+
+/// JPEG : XMP et IPTC réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
+fn write_jpeg_keywords(path: &Path, paths: &[Vec<String>]) -> std::io::Result<()> {
+    let data = fs::read(path)?;
+    if data.len() < 2 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
+    let with_xmp = jpeg_replace_xmp(&data, &|xml| update_xmp_keywords(xml, paths))?;
+    let mut flat: Vec<String> = Vec::new();
+    for segments in paths {
+        if let Some(leaf) = segments.last() {
+            if !flat.iter().any(|word| word.to_lowercase() == leaf.to_lowercase()) { flat.push(leaf.clone()); }
+        }
+    }
+    let output = jpeg_replace_iptc_keywords(&with_xmp, &flat)?;
+    if output == data { return Ok(()); }
+    write_file_atomically(path, &output)
+}
+
+/// Sidecar XMP (`photo.ext.xmp` ou `photo.xmp` existant) dont le contenu est remplacé par `update(contenu actuel)` ; créé si nécessaire.
+fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Result<()> {
+    let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
+    let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
+    let sidecar = if appended.exists() { appended }
+        else if let Some(path) = compatible.filter(|path| path.exists()) { path }
+        else { appended };
+    let xml = match fs::read_to_string(&sidecar) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error),
+    };
+    let updated = update(&xml);
+    if updated.is_empty() || updated == xml { return Ok(()); }
+    write_file_atomically(&sidecar, updated.as_bytes())
+}
+
+/// Écrit les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif, ex. ["Lieux", "France", "Paris"]) dans le fichier :
+/// JPEG : XMP et IPTC du fichier ; HEIC / HEIF : XMP du conteneur (sidecar si la structure ne le permet pas) ; autres formats et vidéos : sidecar XMP.
+pub fn write_keywords(image_path: &str, paths: &[Vec<String>]) -> std::io::Result<()> {
+    let path = Path::new(image_path);
+    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
+    let update = |xml: &str| update_xmp_keywords(xml, paths);
+    if matches!(extension.as_str(), "heic" | "heif" | "hif") {
+        return match crate::heif::update_xmp(path, &update)? {
+            crate::heif::Outcome::Written | crate::heif::Outcome::Unchanged => Ok(()),
+            crate::heif::Outcome::Unsupported(_) => write_xmp_sidecar_with(path, &update),
+        };
+    }
+    if extension != "jpg" && extension != "jpeg" { return write_xmp_sidecar_with(path, &update); }
+    write_jpeg_keywords(path, paths)
+}
+
 fn write_xmp_sidecar(image_path: &Path, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
     let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
     let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
