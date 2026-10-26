@@ -387,5 +387,18 @@
   "Toggle toolbar": "Afficher / masquer la barre d'outils",
   "Deselect all": "Tout désélectionner",
   "Filter on this keyword (Ctrl+click: add to the filter)": "Filtrer sur ce mot-clé (Ctrl + clic : l'ajouter au filtre)",
-  "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Seuls les mots d'au moins 3 caractères, composés de lettres, de chiffres et des caractères « - », « _ » et « . », sont acceptés"
+  "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Seuls les mots d'au moins 3 caractères, composés de lettres, de chiffres et des caractères « - », « _ » et « . », sont acceptés",
+  "Side panel tabs": "Onglets du panneau latéral",
+  "Keywords panel unavailable in compare mode": "Panneau des mots-clés indisponible en mode Comparer",
+  "Toggle keywords panel": "Afficher / masquer le panneau des mots-clés",
+  "Toggle keywords list mode": "Mots-clés : basculer entre tous les mots-clés et ceux attribués à la sélection",
+  "All keywords": "Tous les mots-clés",
+  "Assigned keywords": "Mots-clés attribués",
+  "Switch between all keywords and keywords assigned to the selection (Ctrl+K)": "Basculer entre tous les mots-clés et ceux attribués à la sélection (Ctrl+K)",
+  "Root": "Racine",
+  "Expand keyword": "Déplier le mot-clé",
+  "Collapse keyword": "Replier le mot-clé",
+  "No photo selected.": "Aucune photo sélectionnée.",
+  "No keyword assigned to the selection.": "Aucun mot-clé attribué à la sélection.",
+  "No keyword in the library yet. Rescan the collection (Settings) to read the keywords from your files.": "Aucun mot-clé dans la photothèque. Relancez la relecture de la collection (Paramètres) pour lire les mots-clés de vos fichiers."
 }

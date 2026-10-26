@@ -84,10 +84,11 @@ pub fn is_photo_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn read_photo(path: &str, file_size: i64) -> Photo {
+/// Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques (enregistrés à part, voir keywords.rs).
+fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>) {
     let source = Path::new(path);
     let exif_data = crate::exif::read_exif(source);
-    Photo {
+    let photo = Photo {
         id: 0,
         path: path.to_string(),
         filename: source.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default(),
@@ -107,7 +108,8 @@ fn read_photo(path: &str, file_size: i64) -> Photo {
         keywords: exif_data.keywords,
         caption: exif_data.caption,
         modified: 0, // non utilisé : la date est enregistrée séparément par sync_library
-    }
+    };
+    (photo, exif_data.keyword_paths)
 }
 
 /// Compare les dossiers suivis au catalogue :
@@ -201,10 +203,13 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
             .num_threads(2)
             .build()
             .map_err(|error| error.to_string())?;
-        let photos: Vec<Photo> = threads.install(|| {
+        let read: Vec<(Photo, Vec<Vec<String>>)> = threads.install(|| {
             changed.par_iter().map(|(path, size, _, _)| read_photo(path, *size)).collect()
         });
+        let (photos, keyword_paths): (Vec<Photo>, Vec<Vec<Vec<String>>>) = read.into_iter().unzip();
         insert_batch(&conn, &photos);
+        let keyword_batches: Vec<(String, Vec<Vec<String>>)> = photos.iter().map(|photo| photo.path.clone()).zip(keyword_paths).collect();
+        crate::keywords::store_photo_keywords(&conn, &keyword_batches);
     }
 
     let _ = conn.execute("BEGIN TRANSACTION", []);

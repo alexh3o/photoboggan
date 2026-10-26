@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use std::io::Read;
-use exif::{In, Reader, Tag, Value};
+use exif::{Context, In, Reader, Tag, Value};
 
 #[derive(Default)]
 pub struct ExifMetadata {
@@ -18,6 +18,8 @@ pub struct ExifMetadata {
     pub rating: i32,
     pub color_flag: String,
     pub keywords: String,
+    // Mots-clés hiérarchiques actifs lus dans le fichier : un chemin par mot-clé (ex. ["Lieux", "France", "Paris"]), voir parse_hierarchical_keywords.
+    pub keyword_paths: Vec<Vec<String>>,
     pub caption: String,
 }
 
@@ -159,7 +161,7 @@ fn read_iptc_fields(path: &Path) -> (Vec<String>, String) {
     (result, caption)
 }
 
-fn parse_xmp(path: &Path) -> (i32, String, String) {
+fn parse_xmp(path: &Path) -> (i32, String, String, Vec<Vec<String>>) {
     let mut sources = Vec::new();
     // digiKam can use either `photo.jpg.xmp` or the compatible `photo.xmp` name.
     sources.push(std::path::PathBuf::from(format!("{}.xmp", path.display())));
@@ -169,23 +171,26 @@ fn parse_xmp(path: &Path) -> (i32, String, String) {
     let mut rating = None;
     let mut color_flag: Option<String> = None;
     let mut keywords = Vec::new();
+    let mut hierarchical: Vec<Vec<String>> = Vec::new();
     // The image itself is the source of truth when it contains an XMP packet.
     if let Some(embedded) = read_embedded_xmp(path) {
         let (found_rating, found_color, found_keywords) = parse_xmp_text(&embedded);
         rating = found_rating;
         color_flag = found_color;
         keywords = found_keywords;
+        hierarchical = parse_hierarchical_keywords(&embedded);
     }
     for source in sources {
-        if rating.is_some() && color_flag.is_some() && !keywords.is_empty() { break; }
+        if rating.is_some() && color_flag.is_some() && !keywords.is_empty() && !hierarchical.is_empty() { break; }
         if let Ok(text) = fs::read_to_string(source) {
             let (found_rating, found_color, found_keywords) = parse_xmp_text(&text);
             if rating.is_none() { rating = found_rating; }
             if color_flag.is_none() { color_flag = found_color; }
             if keywords.is_empty() { keywords = found_keywords; }
+            if hierarchical.is_empty() { hierarchical = parse_hierarchical_keywords(&text); }
         }
     }
-    (rating.unwrap_or(0).clamp(0, 5), color_flag.unwrap_or_else(|| "none".to_string()), keywords.join(", "))
+    (rating.unwrap_or(0).clamp(0, 5), color_flag.unwrap_or_else(|| "none".to_string()), keywords.join(", "), hierarchical)
 }
 
 /// Couleur (clé stockée en base) -> valeur écrite dans xmp:Label.
@@ -243,6 +248,91 @@ fn parse_xmp_text(xml: &str) -> (Option<i32>, Option<String>, Vec<String>) {
         }
     }
     (rating, color_flag, keywords)
+}
+
+/// Éléments `rdf:li` de la première propriété XMP de nom local `local_name` (ex. « TagsList »), quel que soit le préfixe de namespace utilisé
+/// par le logiciel qui a écrit le fichier (digiKam, digikam…). Casse du nom ignorée. Liste vide si la propriété est absente ou vide.
+fn xmp_list_items(xml: &str, local_name: &str) -> Vec<String> {
+    let lower = xml.to_ascii_lowercase(); // mêmes positions que `xml` : seuls les caractères ASCII changent
+    let needle = format!(":{}", local_name.to_ascii_lowercase());
+    let bytes = lower.as_bytes();
+    let mut from = 0;
+    while let Some(relative) = lower[from..].find(&needle) {
+        let colon = from + relative;
+        let name_end = colon + needle.len();
+        from = name_end;
+        // Doit être une balise ouvrante : « <préfixe:Nom ».
+        let mut prefix_start = colon;
+        while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
+        if prefix_start == colon || prefix_start == 0 || bytes[prefix_start - 1] != b'<' { continue; }
+        // Le nom doit se terminer là (pas « TagsListX »).
+        match bytes.get(name_end) {
+            Some(b'>') | Some(b'/') => {}
+            Some(next) if next.is_ascii_whitespace() => {}
+            _ => continue,
+        }
+        let Some(open_end_relative) = lower[name_end..].find('>') else { break; };
+        let open_end = name_end + open_end_relative;
+        if bytes[open_end - 1] == b'/' { continue; } // propriété vide : <digiKam:TagsList/>
+        let closing = format!("</{}{}", &lower[prefix_start..colon], needle);
+        let Some(close_relative) = lower[open_end + 1..].find(&closing) else { continue; };
+        let body = &xml[open_end + 1..open_end + 1 + close_relative];
+        let mut items = Vec::new();
+        let mut rest = body;
+        while let Some(li) = rest.find("<rdf:li") {
+            let Some(tag_end) = rest[li..].find('>') else { break; };
+            let item_start = li + tag_end + 1;
+            let Some(item_end) = rest[item_start..].find("</rdf:li>") else { break; };
+            let item = xml_unescape(rest[item_start..item_start + item_end].trim());
+            if !item.is_empty() { items.push(item); }
+            rest = &rest[item_start + item_end + "</rdf:li>".len()..];
+        }
+        if !items.is_empty() { return items; }
+    }
+    Vec::new()
+}
+
+/// Chemins hiérarchiques d'une propriété XMP : chaque entrée (« A/B/C » ou « A|B|C ») devient la liste de ses niveaux.
+/// Les entrées vides ou en double (casse ignorée) et les étiquettes internes de digiKam sont écartées.
+fn hierarchy_paths(items: Vec<String>, separator: char) -> Vec<Vec<String>> {
+    let mut paths: Vec<Vec<String>> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for item in items {
+        let segments: Vec<String> = item.split(separator).map(|segment| segment.trim().to_string()).filter(|segment| !segment.is_empty()).collect();
+        if segments.is_empty() { continue; }
+        if segments[0].to_lowercase().starts_with("_digikam_internal_tags_") { continue; }
+        let key = segments.join("\u{1}").to_lowercase();
+        if seen.contains(&key) { continue; }
+        seen.push(key);
+        paths.push(segments);
+    }
+    paths
+}
+
+/// Mots-clés hiérarchiques d'un paquet XMP, d'après le premier schéma présent : digiKam (`TagsList`, niveaux séparés par « / »),
+/// puis Lightroom (`hierarchicalSubject`, « | »), Media Pro (`CatalogSets`, « | »), Microsoft Photo (`LastKeywordXMP`, « / »).
+/// En cas de divergence entre schémas, digiKam l'emporte : les autres ne sont lus que s'il est absent.
+/// Chaque entrée est un mot-clé actif : seul son dernier niveau l'est (les ancêtres ne le sont que s'ils ont leur propre entrée).
+fn parse_hierarchical_keywords(xml: &str) -> Vec<Vec<String>> {
+    const SCHEMAS: [(&str, char); 4] = [("TagsList", '/'), ("hierarchicalSubject", '|'), ("CatalogSets", '|'), ("LastKeywordXMP", '/')];
+    for (local_name, separator) in SCHEMAS {
+        let paths = hierarchy_paths(xmp_list_items(xml, local_name), separator);
+        if !paths.is_empty() { return paths; }
+    }
+    Vec::new()
+}
+
+/// Ajoute aux mots-clés à plat (`meta.keywords`) le nom des mots-clés hiérarchiques actifs, pour que le filtre et le panneau Info
+/// les voient même quand le fichier n'a que le schéma hiérarchique.
+fn add_hierarchical_leaves(meta: &mut ExifMetadata) {
+    if meta.keyword_paths.is_empty() { return; }
+    let mut words: Vec<String> = meta.keywords.split(", ").filter(|word| !word.is_empty()).map(str::to_string).collect();
+    for segments in &meta.keyword_paths {
+        if let Some(leaf) = segments.last() {
+            if !words.contains(leaf) { words.push(leaf.clone()); }
+        }
+    }
+    meta.keywords = words.join(", ");
 }
 
 fn xml_unescape(text: &str) -> String {
@@ -309,7 +399,8 @@ fn video_date_taken(path: &Path) -> String {
 /// n'est pas lu : ni EXIF, ni IPTC, ni dimensions (l'interface apprend le ratio depuis la miniature).
 fn read_video_metadata(path: &Path) -> ExifMetadata {
     let mut meta = ExifMetadata::default();
-    (meta.rating, meta.color_flag, meta.keywords) = parse_xmp(path);
+    (meta.rating, meta.color_flag, meta.keywords, meta.keyword_paths) = parse_xmp(path);
+    add_hierarchical_leaves(&mut meta);
     meta.date_taken = video_date_taken(path);
     meta
 }
@@ -317,7 +408,7 @@ fn read_video_metadata(path: &Path) -> ExifMetadata {
 pub fn read_exif(path: &Path) -> ExifMetadata {
     if crate::video::is_video_path(path) { return read_video_metadata(path); }
     let mut meta = ExifMetadata::default();
-    (meta.rating, meta.color_flag, meta.keywords) = parse_xmp(path);
+    (meta.rating, meta.color_flag, meta.keywords, meta.keyword_paths) = parse_xmp(path);
     let mut keywords: Vec<String> = meta.keywords.split(", ").filter(|s| !s.is_empty()).map(str::to_string).collect();
     let (iptc_keywords, caption) = read_iptc_fields(path);
     for word in iptc_keywords { if !keywords.contains(&word) { keywords.push(word); } }
@@ -331,7 +422,15 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     let mut bufreader = std::io::BufReader::new(&file);
     let exifreader = Reader::new();
     
+    let mut xp_keywords: Vec<String> = Vec::new();
     if let Ok(exif) = exifreader.read_from_container(&mut bufreader) {
+        // XPKeywords (EXIF, mots-clés de l'Explorateur Windows) : texte UTF-16 terminé par un zéro, mots séparés par « ; ». Lecture seule.
+        if let Some(field) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY) {
+            if let Value::Byte(ref bytes) = field.value {
+                let units: Vec<u16> = bytes.chunks_exact(2).map(|pair| u16::from_le_bytes([pair[0], pair[1]])).take_while(|unit| *unit != 0).collect();
+                xp_keywords = String::from_utf16_lossy(&units).split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
+            }
+        }
         if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
             meta.date_taken = field.display_value().with_unit(&exif).to_string();
         }
@@ -370,6 +469,13 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             if let Some(value) = field.value.get_uint(0) { meta.height = value as i32; }
         }
     }
+    // XPKeywords : ajoutés aux mots-clés à plat, sans doublon ; puis noms des mots-clés hiérarchiques actifs.
+    if !xp_keywords.is_empty() {
+        let mut merged: Vec<String> = meta.keywords.split(", ").filter(|word| !word.is_empty()).map(str::to_string).collect();
+        for word in xp_keywords { if !merged.contains(&word) { merged.push(word); } }
+        meta.keywords = merged.join(", ");
+    }
+    add_hierarchical_leaves(&mut meta);
     if crate::heif::is_heif_path(path) {
         // Dimensions affichées (rotation du conteneur appliquée) : celles de l'EXIF sont celles du capteur.
         if let Some((width, height)) = crate::heif::read_dimensions(path) {

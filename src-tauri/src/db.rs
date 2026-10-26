@@ -93,6 +93,9 @@ pub fn init_db(db_path: &str) -> DbPool {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_flag ON photos(color_flag)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_path ON photos(path)", []).unwrap();
 
+    // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
+    crate::keywords::init_schema(&conn);
+
     pool
 }
 

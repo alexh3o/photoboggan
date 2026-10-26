@@ -144,6 +144,12 @@
 
       <!-- EXIF -->
       <aside id="exif-panel" class="exif-section">
+        <!-- Onglets du panneau de droite : Info (J) et Mots-clés (K), voir keywords-panel.js -->
+        <div class="side-tabs" role="tablist" aria-label="Onglets du panneau latéral" data-i18n-aria-label="Side panel tabs">
+          <button type="button" id="side-tab-info" class="side-tab-btn active" role="tab" aria-selected="true" aria-controls="exif-tab-info" data-i18n="Info">Info</button>
+          <button type="button" id="side-tab-keywords" class="side-tab-btn" role="tab" aria-selected="false" aria-controls="exif-tab-keywords" data-i18n="Keywords">Mots-clés</button>
+        </div>
+        <div id="exif-tab-info" class="side-tab-pane" role="tabpanel">
         <h3 data-i18n="Metadata">Métadonnées</h3>
         <ul id="exif-data">
           <li><strong class="exif-label" data-i18n="File">Fichier</strong> <span id="exif-filename">-</span></li>
@@ -168,6 +174,13 @@
           <li><strong class="exif-label" data-i18n="Keywords">Mots-clés</strong> <span id="exif-keywords">-</span></li>
           <li><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
         </ul>
+        </div>
+        <div id="exif-tab-keywords" class="side-tab-pane" role="tabpanel" hidden>
+          <div class="keyword-toolbar">
+            <button type="button" id="btn-keyword-filter-mode" class="keyword-filter-mode" aria-pressed="false"></button>
+          </div>
+          <ul id="keyword-tree" class="keyword-tree" role="tree"></ul>
+        </div>
       </aside>
     </main>
 
@@ -479,6 +492,14 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Toggle info panel">Afficher / masquer le panneau information</span>
               <span class="guide-control"><kbd>J</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Toggle keywords panel">Afficher / masquer le panneau des mots-clés</span>
+              <span class="guide-control"><kbd>K</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Toggle keywords list mode">Mots-clés : basculer entre tous les mots-clés et ceux attribués à la sélection</span>
+              <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>K</kbd></span>
             </div>
             <div class="guide-row">
               <span class="guide-action" data-i18n="Information Sheet">Fiche d'information</span>

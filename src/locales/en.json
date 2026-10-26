@@ -389,5 +389,18 @@
   "Toggle toolbar": "Show / hide the toolbar",
   "Deselect all": "Deselect all",
   "Filter on this keyword (Ctrl+click: add to the filter)": "Filter on this keyword (Ctrl+click: add to the filter)",
-  "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted"
+  "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted": "Only words of at least 3 characters made of letters, digits and the characters \"-\", \"_\" and \".\" are accepted",
+  "Side panel tabs": "Side panel tabs",
+  "Keywords panel unavailable in compare mode": "Keywords panel unavailable in compare mode",
+  "Toggle keywords panel": "Show / hide the keywords panel",
+  "Toggle keywords list mode": "Keywords: switch between all keywords and those assigned to the selection",
+  "All keywords": "All keywords",
+  "Assigned keywords": "Assigned keywords",
+  "Switch between all keywords and keywords assigned to the selection (Ctrl+K)": "Switch between all keywords and keywords assigned to the selection (Ctrl+K)",
+  "Root": "Root",
+  "Expand keyword": "Expand keyword",
+  "Collapse keyword": "Collapse keyword",
+  "No photo selected.": "No photo selected.",
+  "No keyword assigned to the selection.": "No keyword assigned to the selection.",
+  "No keyword in the library yet. Rescan the collection (Settings) to read the keywords from your files.": "No keyword in the library yet. Rescan the collection (Settings) to read the keywords from your files."
 }

@@ -4,6 +4,7 @@ mod db;
 mod exif;
 mod heif;
 mod integrity;
+mod keywords;
 mod library_sync;
 mod resize;
 mod thumbnails;
@@ -505,26 +506,32 @@ fn cancel_scan(task_id: String) {
 async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) {
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
-    let (tx, mut rx) = mpsc::channel::<(Photo, i64)>(100);
+    let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>)>(100);
 
     let pool_clone = pool.clone();
     let writer = tokio::spawn(async move {
         let mut buffer = Vec::new();
         let mut modified_dates: Vec<(String, i64)> = Vec::new();
+        // Mots-clés hiérarchiques lus dans les fichiers (chemin de la photo, chemins de mots-clés), enregistrés après l'insertion des photos.
+        let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::new();
         let conn = pool_clone.get().unwrap();
-        while let Some((photo, modified)) = rx.recv().await {
+        while let Some((photo, modified, keyword_paths)) = rx.recv().await {
             modified_dates.push((photo.path.clone(), modified));
+            keyword_batches.push((photo.path.clone(), keyword_paths));
             buffer.push(photo);
             if buffer.len() >= 500 {
                 insert_batch(&conn, &buffer);
                 library_sync::store_modified(&conn, &modified_dates);
+                keywords::store_photo_keywords(&conn, &keyword_batches);
                 buffer.clear();
                 modified_dates.clear();
+                keyword_batches.clear();
             }
         }
         if !buffer.is_empty() {
             insert_batch(&conn, &buffer);
             library_sync::store_modified(&conn, &modified_dates);
+            keywords::store_photo_keywords(&conn, &keyword_batches);
         }
     });
 
@@ -599,7 +606,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
                 modified,
             };
 
-            let _ = tx.blocking_send((photo, modified));
+            let _ = tx.blocking_send((photo, modified, exif_data.keyword_paths));
         });
     });
     let _ = scanner.await;
@@ -1433,7 +1440,9 @@ fn main() {
             reveal_in_file_manager,
             open_video_externally,
             copy_files_to_clipboard,
-            resize_photo
+            resize_photo,
+            keywords::get_keyword_tree,
+            keywords::get_keyword_counts
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

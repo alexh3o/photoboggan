@@ -7,6 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
+import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -602,6 +603,7 @@ async function loadPhotos() {
   if (currentFolderFilter === null) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
+  invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
   applyPhotoFilters();
 }
 
@@ -1548,6 +1550,7 @@ document.getElementById('btn-clear-selection')?.addEventListener('click', () => 
 });
 
 function updateUIOnSelection() {
+  refreshKeywordsPanel();
   pruneCompareSubSelection();
   renderVisibleItems(); 
   updateRatingAction();
@@ -1760,7 +1763,8 @@ async function setSelectionRating(rating) {
 // H      : Shortcut guide
 // I      : Info sheet
 // J      : Info panel
-// K      : Keywords panel (reserved for future version)
+// K      : Keywords panel
+// Ctrl+K : Keywords panel: all keywords / keywords of the selection
 // N      : Navigation/Filters panel
 // P      : Preview panel
 // R      : Rating bar in fullscreen
@@ -1887,11 +1891,16 @@ if (e.key === 'Delete') {
   // Bascule des panneaux et modes :
   // X : mode Comparer | P : aperçu | N : panneau Filtres (gauche) | J : panneau Info (droite)
   // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte.
+  // J / K : panneau de droite, onglet Info ou Mots-clés (voir keywords-panel.js). Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte.
+  if ((e.key.toLowerCase() === 'j' || e.key.toLowerCase() === 'k') && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+    e.preventDefault();
+    if (!e.repeat) handleSideTabShortcut(e.key.toLowerCase() === 'j' ? 'info' : 'keywords');
+    return;
+  }
   const panelToggleButtons = {
     x: 'btn-toggle-compare',
     p: 'btn-toggle-preview',
     n: 'btn-toggle-sidebar',
-    j: 'btn-toggle-exif',
   };
   const targetToggleBtnId = panelToggleButtons[e.key.toLowerCase()];
   if (targetToggleBtnId && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
@@ -3472,6 +3481,7 @@ document.getElementById('compare-desync-toggle').addEventListener('change', even
 document.getElementById('btn-toggle-compare').addEventListener('click', event => {
   compareMode = !compareMode;
   event.currentTarget.classList.toggle('active', compareMode);
+  setKeywordsCompareMode(compareMode); // l'onglet Mots-clés est inaccessible en mode Comparer
   document.getElementById('btn-toggle-preview').disabled = compareMode; // l'aperçu reste affiché tant que le mode Comparer est actif
   const desyncOption = document.getElementById('compare-desync');
   desyncOption.classList.toggle('hidden', !compareMode);
@@ -4144,6 +4154,11 @@ initPhotoActions({
   deleteFolder: deleteFolderToTrash,
 });
 
+// Panneau des mots-clés (onglet du panneau de droite, voir keywords-panel.js) : cible = photos sélectionnées.
+initKeywordsPanel({
+  getSelectedPhotos: () => [...selectedIndices].map(index => photos[index]).filter(Boolean),
+});
+
 // ==========================================
 // SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions)
 // ==========================================
@@ -4196,6 +4211,7 @@ async function refreshLibraryAfterSync(changes) {
   folderTreePhotos = everything ?? fresh;
   renderFolderTree();
   renderKeywordFilters();
+  invalidateKeywordTree();
   applyPhotoFilters({ keepState: true });
 }
 
