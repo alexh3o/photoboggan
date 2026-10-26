@@ -143,6 +143,7 @@
       </section>
 
       <!-- EXIF -->
+      <div id="exif-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionner le panneau d'informations" data-i18n-aria-label="Resize info panel" tabindex="0"></div>
       <aside id="exif-panel" class="exif-section">
         <!-- Onglets du panneau de droite : Info (J) et Mots-clés (K), voir keywords-panel.js -->
         <div class="side-tabs" role="tablist" aria-label="Onglets du panneau latéral" data-i18n-aria-label="Side panel tabs">
@@ -180,6 +181,17 @@
             <button type="button" id="btn-keyword-filter-mode" class="keyword-filter-mode" aria-pressed="false"></button>
           </div>
           <ul id="keyword-tree" class="keyword-tree" role="tree"></ul>
+          <div class="keyword-editor">
+            <div class="keyword-input-wrap">
+              <ul id="keyword-suggestions" class="keyword-suggestions" role="listbox" hidden></ul>
+              <input type="text" id="keyword-input" class="keyword-input" autocomplete="off" spellcheck="false" placeholder="Ajouter un mot-clé…" data-i18n-placeholder="Add a keyword…" aria-label="Ajouter un mot-clé" data-i18n-aria-label="Add a keyword">
+            </div>
+            <div class="keyword-actions">
+              <button type="button" id="btn-keyword-apply" data-i18n="Apply">Appliquer</button>
+              <button type="button" id="btn-keyword-reset" data-i18n="Reset">Réinitialiser</button>
+              <button type="button" id="btn-keyword-unify" data-i18n="Unify">Unifier</button>
+            </div>
+          </div>
         </div>
       </aside>
     </main>
@@ -500,6 +512,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Toggle keywords list mode">Mots-clés : basculer entre tous les mots-clés et ceux attribués à la sélection</span>
               <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>K</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Apply keyword changes">Mots-clés : écrire dans les fichiers les modifications en attente</span>
+              <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>Entrée</kbd></span>
             </div>
             <div class="guide-row">
               <span class="guide-action" data-i18n="Information Sheet">Fiche d'information</span>

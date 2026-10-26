@@ -122,6 +122,7 @@ let folderTreePhotos = [];
 let currentFolderFilter = null;
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
 let keywordFilters = [];
+let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let selectedIndices = new Set();
@@ -614,7 +615,7 @@ function hasActiveFilters() {
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate;
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null;
 }
 
 function updateFilteredPhotosCount() {
@@ -643,6 +644,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   photos = loadedPhotos.filter(photo => (ratingThreshold < 0 || photo.rating > ratingThreshold)
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
     && matchesFilenameFilters(photo)
+    && (pathFilter === null || pathFilter.has(photo.path))
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && matchesDateFilter(photo));
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
@@ -718,6 +720,7 @@ function clearAllFilters() {
 
   // Réinitialise les chaînes de nom de fichier
   filenameFilters = [];
+  pathFilter = null;
   const filenameInput = document.getElementById('filename-filter-input');
   if (filenameInput) filenameInput.value = '';
   renderFilenameFilters();
@@ -816,6 +819,7 @@ function renderFilterTags() {
   const collapsedLine = document.getElementById('tags-collapsed-line');
   if (!expandedContainer || !collapsedLine) return;
   const entries = [
+    ...(pathFilter !== null ? [{ kind: 'failed', text: t('Failed files') }] : []),
     ...keywordFilters.map(text => ({ kind: 'keyword', text })),
     ...filenameFilters.map(text => ({ kind: 'filename', text })),
   ];
@@ -827,6 +831,7 @@ function renderFilterTags() {
     button.title = t('Remove filter {keyword}', { keyword: text });
     button.addEventListener('click', () => {
       if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
+      else if (kind === 'failed') pathFilter = null;
       else filenameFilters = filenameFilters.filter(item => item !== text);
       renderFilterTags();
       applyPhotoFilters();
@@ -838,7 +843,7 @@ function renderFilterTags() {
     const tag = document.createElement('span');
     tag.className = `filter-tag tag-${kind}`;
     tag.textContent = text;
-    tag.title = t(kind === 'keyword' ? 'Keyword: {text}' : 'Filename: {text}', { text });
+    tag.title = t(kind === 'keyword' ? 'Keyword: {text}' : kind === 'failed' ? 'Files whose keywords could not be written' : 'Filename: {text}', { text });
     return tag;
   }));
   fitCollapsedTags();
@@ -2678,6 +2683,57 @@ document.getElementById('btn-toggle-exif').addEventListener('click', event => {
   setTimeout(updateVirtualScroller, 300);
 });
 
+// REDIMENSIONNEMENT DU PANNEAU DE DROITE (Info / Mots-clés) : poignée à sa gauche, largeur mémorisée localement.
+const EXIF_PANEL_MIN_WIDTH = 200;
+const exifPanelElement = document.getElementById('exif-panel');
+const exifResizer = document.getElementById('exif-resizer');
+const storedExifPanelWidth = Number(localStorage.getItem('exifPanelWidth'));
+if (storedExifPanelWidth >= EXIF_PANEL_MIN_WIDTH) exifPanelElement.style.width = `${storedExifPanelWidth}px`;
+
+// Applique la largeur demandée, bornée pour laisser de la place à la barre latérale et à la grille ; renvoie la largeur retenue.
+function setExifPanelWidth(requestedWidth) {
+  const mainRect = document.querySelector('.main-content').getBoundingClientRect();
+  const sidebar = document.getElementById('sidebar-panel');
+  const sidebarWidth = sidebar && !sidebar.classList.contains('hidden') ? sidebar.getBoundingClientRect().width : 0;
+  const maxWidth = Math.max(EXIF_PANEL_MIN_WIDTH, mainRect.width - sidebarWidth - 320);
+  const width = Math.round(Math.max(EXIF_PANEL_MIN_WIDTH, Math.min(maxWidth, requestedWidth)));
+  exifPanelElement.style.width = `${width}px`;
+  return width;
+}
+
+exifResizer?.addEventListener('pointerdown', event => {
+  if (exifPanelElement.classList.contains('hidden') || event.button !== 0) return;
+  event.preventDefault();
+  exifResizer.setPointerCapture(event.pointerId);
+  exifResizer.classList.add('dragging');
+  exifPanelElement.classList.add('resizing');
+  const panelRect = exifPanelElement.getBoundingClientRect();
+  let width = panelRect.width;
+  const onMove = moveEvent => { width = setExifPanelWidth(panelRect.right - moveEvent.clientX); };
+  const onEnd = () => {
+    exifResizer.removeEventListener('pointermove', onMove);
+    exifResizer.removeEventListener('pointerup', onEnd);
+    exifResizer.removeEventListener('pointercancel', onEnd);
+    exifResizer.classList.remove('dragging');
+    exifPanelElement.classList.remove('resizing');
+    localStorage.setItem('exifPanelWidth', String(width));
+    updateVirtualScroller();
+  };
+  exifResizer.addEventListener('pointermove', onMove);
+  exifResizer.addEventListener('pointerup', onEnd);
+  exifResizer.addEventListener('pointercancel', onEnd);
+});
+
+// Au clavier (poignée au focus) : flèche gauche = plus large, flèche droite = plus étroit.
+exifResizer?.addEventListener('keydown', event => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  event.preventDefault();
+  event.stopPropagation(); // sans cela, les flèches changeraient aussi de photo
+  const width = setExifPanelWidth(exifPanelElement.getBoundingClientRect().width + (event.key === 'ArrowLeft' ? 24 : -24));
+  localStorage.setItem('exifPanelWidth', String(width));
+  updateVirtualScroller();
+});
+
 document.getElementById('rating-filter').addEventListener('change', applyPhotoFilters);
 
 // Filtre par couleur : plusieurs carrés peuvent être cochés (une photo est affichée si elle a l'une des couleurs cochées).
@@ -2949,8 +3005,11 @@ function dropScanTasksForFolder(path) {
 function enqueueScanTask({ kind, path, command, args, labelKey, labelParams }) {
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
   const isIntegrity = kind === 'integrity';
-  const sameFamily = task => (task.kind === 'integrity') === isIntegrity;
-  const covering = path === null
+  // Trois familles de tâches qui ne se bloquent pas entre elles : scans et relectures, vérifications d'intégrité, écritures de mots-clés
+  // (ces dernières attendent simplement leur tour dans la file, sans jamais être refusées comme doublon).
+  const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords' : 'scan');
+  const sameFamily = task => familyOf(task.kind) === familyOf(kind);
+  const covering = kind === 'keywords' ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
@@ -2989,12 +3048,14 @@ async function runScanTask(task) {
     task.percent = 100;
     syncTaskUI();
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
-    if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
+    if (task.onResult) await task.onResult(result, task.stopRequested, null); // tâche qui traite elle-même son résultat (mots-clés)
+    else if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
     else await reloadPhotosAfterRescan();
     if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
     console.error('Rescan impossible', error);
-    showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
+    if (task.onResult) await task.onResult(null, task.stopRequested, error);
+    else showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
   } finally {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
@@ -4157,6 +4218,53 @@ initPhotoActions({
 // Panneau des mots-clés (onglet du panneau de droite, voir keywords-panel.js) : cible = photos sélectionnées.
 initKeywordsPanel({
   getSelectedPhotos: () => [...selectedIndices].map(index => photos[index]).filter(Boolean),
+  showToast: message => showWriteToast(message),
+  // Écriture de beaucoup de fichiers : tâche de la file (progression, arrêt possible). `onResult` reçoit le résultat de la commande
+  // (ou null si elle a échoué ou si la tâche a été retirée de la file). Renvoie la tâche, ou null si elle n'a pas pu être mise en file.
+  enqueueKeywordWrite: (items, onResult) => {
+    const queued = enqueueScanTask({
+      kind: 'keywords',
+      path: null,
+      command: 'apply_keyword_changes',
+      args: { items },
+      labelKey: 'Keyword writing ({count})',
+      labelParams: { count: items.length },
+    });
+    const task = queued ? [...scanTasks].reverse().find(candidate => candidate.kind === 'keywords' && !candidate.onResult) : null;
+    if (!task) return null;
+    task.onResult = onResult;
+    return task;
+  },
+  isTaskQueued: task => scanTasks.includes(task),
+  // Mots-clés à plat relus dans les fichiers écrits : mis à jour dans les listes de photos, le filtre de mots-clés et le panneau Info.
+  updatePhotoKeywords: updates => {
+    for (const list of new Set([loadedPhotos, folderTreePhotos, photos])) {
+      for (const photo of list) {
+        const keywords = updates.get(photo.id);
+        if (keywords !== undefined) photo.keywords = keywords;
+      }
+    }
+    renderKeywordFilters();
+    updateUIOnSelection();
+  },
+  // Indices (dans la liste affichée) de ces photos, ou null si l'une d'elles n'y figure plus.
+  findIndicesByPhotoIds: ids => {
+    const wanted = new Set(ids);
+    const indices = [];
+    photos.forEach((photo, index) => { if (wanted.has(photo.id)) indices.push(index); });
+    return indices.length === wanted.size ? indices : null;
+  },
+  setSelectionIndices: indices => {
+    selectedIndices = new Set(indices);
+    lastSelectedIndex = indices[0] ?? 0;
+    updateUIOnSelection();
+  },
+  // La vue des miniatures ne montre plus que ces fichiers (pastille « Fichiers en échec » pour revenir à la liste complète).
+  showFailedFiles: paths => {
+    pathFilter = new Set(paths);
+    renderFilterTags();
+    applyPhotoFilters();
+  },
 });
 
 // ==========================================
