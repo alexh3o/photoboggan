@@ -4221,14 +4221,14 @@ initKeywordsPanel({
   showToast: message => showWriteToast(message),
   // Écriture de beaucoup de fichiers : tâche de la file (progression, arrêt possible). `onResult` reçoit le résultat de la commande
   // (ou null si elle a échoué ou si la tâche a été retirée de la file). Renvoie la tâche, ou null si elle n'a pas pu être mise en file.
-  enqueueKeywordWrite: (items, onResult) => {
+  enqueueKeywordTask: (command, args, count, onResult) => {
     const queued = enqueueScanTask({
       kind: 'keywords',
       path: null,
-      command: 'apply_keyword_changes',
-      args: { items },
+      command,
+      args,
       labelKey: 'Keyword writing ({count})',
-      labelParams: { count: items.length },
+      labelParams: { count },
     });
     const task = queued ? [...scanTasks].reverse().find(candidate => candidate.kind === 'keywords' && !candidate.onResult) : null;
     if (!task) return null;

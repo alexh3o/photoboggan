@@ -233,6 +233,7 @@
           <button type="button" class="settings-tab-btn active" role="tab" aria-selected="true" data-tab="data" data-i18n="Data">Données</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Open with">Ouvrir avec</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="keywords" data-i18n="Keywords">Mots-clés</button>
         </div>
 
         <div class="modal-body">
@@ -326,6 +327,14 @@
                   <option value="120" data-i18n="Very large">Très grand</option>
                 </select>
               </label>
+            </section>
+          </div>
+          <!-- Onglet 4 : Mots-clés (réglage lu par keywords-panel.js) -->
+          <div id="settings-tab-keywords" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Keywords">Mots-clés</h4>
+              <label class="settings-row settings-check"><input id="keywords-auto-apply" type="checkbox" /><span data-i18n="Automatically apply keyword changes">Appliquer automatiquement les changements de mots-clés</span></label>
+              <p class="sort-note" data-i18n="Automatically apply keyword changes help">Sans cette option, une confirmation est demandée quand la sélection change alors que des mots-clés n'ont pas encore été écrits dans les fichiers.</p>
             </section>
           </div>
         </div>

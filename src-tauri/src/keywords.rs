@@ -203,6 +203,8 @@ pub struct KeywordWriteResult {
     pub failed: Vec<KeywordFailure>,
     /// Photos laissées intactes parce que la tâche a été arrêtée.
     pub cancelled: usize,
+    /// Suppression d'un mot-clé : vrai quand le mot-clé (et ses descendants) a été retiré de l'arbre, c'est-à-dire quand plus aucun fichier ne le porte.
+    pub deleted: bool,
 }
 
 /// Chemin complet (du premier niveau au mot-clé) d'un nœud de l'arbre.
@@ -315,7 +317,7 @@ fn run_write(
     }
     let _ = conn.execute("COMMIT", []);
     store_photo_keywords(&conn, &keyword_batches);
-    Ok(KeywordWriteResult { written, failed, cancelled })
+    Ok(KeywordWriteResult { written, failed, cancelled, deleted: false })
 }
 
 /// Écrit dans les fichiers l'ensemble final de mots-clés de chaque photo (XMP : dc:subject, digiKam, Lightroom, Media Pro, Microsoft ;
@@ -331,6 +333,167 @@ pub async fn apply_keyword_changes(
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || run_write(&app, &pool, items, worker_task_id, cancel)).await;
+    if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
+    outcome.map_err(|error| error.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// Gestion de l'arborescence : création et suppression de mots-clés
+// ---------------------------------------------------------------------------
+
+/// Caractères refusés dans un nom : « / » et « | » séparent les niveaux dans les formats hiérarchiques, la virgule sépare les mots-clés du filtre.
+const FORBIDDEN_NAME_CHARS: [char; 3] = ['/', '|', ','];
+
+/// Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
+fn validate_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.contains(&FORBIDDEN_NAME_CHARS[..]) { return Err("invalid_name".to_string()); }
+    Ok(trimmed.to_string())
+}
+
+/// Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe déjà).
+/// L'arbre est modifié tout de suite ; l'activation du mot-clé sur des photos reste une modification en attente.
+#[tauri::command(async)]
+pub fn create_keyword(state: State<'_, AppState>, parent_id: i64, name: String) -> Result<KeywordNode, String> {
+    let name = validate_name(&name)?;
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    if parent_id != 0 {
+        let parent_exists: bool = conn
+            .query_row("SELECT EXISTS(SELECT 1 FROM keyword_nodes WHERE id = ?1)", params![parent_id], |row| row.get(0))
+            .map_err(|error| error.to_string())?;
+        if !parent_exists { return Err("unknown_parent".to_string()); }
+    }
+    let key = name_key(&name);
+    let duplicate: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM keyword_nodes WHERE parent_id = ?1 AND name_key = ?2)", params![parent_id, key], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if duplicate { return Err("duplicate".to_string()); }
+    conn.execute("INSERT INTO keyword_nodes (parent_id, name, name_key) VALUES (?1, ?2, ?3)", params![parent_id, name, key])
+        .map_err(|error| error.to_string())?;
+    Ok(KeywordNode { id: conn.last_insert_rowid(), parent_id, name })
+}
+
+/// Le mot-clé et tous ses descendants.
+fn subtree_ids(conn: &Connection, keyword_id: i64) -> Result<Vec<i64>, String> {
+    let mut statement = conn
+        .prepare(
+            "WITH RECURSIVE subtree(id) AS (
+                SELECT id FROM keyword_nodes WHERE id = ?1
+                UNION ALL
+                SELECT n.id FROM keyword_nodes n JOIN subtree s ON n.parent_id = s.id
+             ) SELECT id FROM subtree",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![keyword_id], |row| row.get::<_, i64>(0))
+        .map_err(|error| error.to_string())?;
+    let ids: Vec<i64> = rows.filter_map(|row| row.ok()).collect();
+    Ok(ids)
+}
+
+#[derive(Serialize)]
+pub struct KeywordDeleteInfo {
+    /// Le mot-clé et ses descendants.
+    pub keyword_count: i64,
+    /// Photos qui portent au moins l'un d'eux.
+    pub photo_count: i64,
+}
+
+/// Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
+#[tauri::command(async)]
+pub fn get_keyword_delete_info(state: State<'_, AppState>, keyword_id: i64) -> Result<KeywordDeleteInfo, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let ids = subtree_ids(&conn, keyword_id)?;
+    if ids.is_empty() { return Err("unknown_keyword".to_string()); }
+    let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
+    let photo_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(DISTINCT pk.photo_id) FROM photo_keywords pk JOIN photos p ON p.id = pk.photo_id
+             WHERE pk.keyword_id IN (SELECT value FROM json_each(?1))",
+            params![ids_json],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(KeywordDeleteInfo { keyword_count: ids.len() as i64, photo_count })
+}
+
+/// Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
+/// (vide pour un renommage, le sous-arbre pour une suppression) : de quoi réécrire leurs fichiers.
+fn photos_carrying(conn: &Connection, ids: &[i64], dropped: &HashSet<i64>) -> Result<Vec<KeywordWriteItem>, String> {
+    let ids_json = serde_json::to_string(ids).map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT p.id, p.path, pk.keyword_id FROM photo_keywords pk JOIN photos p ON p.id = pk.photo_id
+             WHERE pk.photo_id IN (SELECT photo_id FROM photo_keywords WHERE keyword_id IN (SELECT value FROM json_each(?1)))
+             ORDER BY p.id",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![ids_json], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)))
+        .map_err(|error| error.to_string())?;
+    let mut items: Vec<KeywordWriteItem> = Vec::new();
+    let mut index_of: HashMap<i64, usize> = HashMap::new();
+    for (photo_id, path, keyword_id) in rows.flatten() {
+        let index = match index_of.get(&photo_id) {
+            Some(index) => *index,
+            None => {
+                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Vec::new() });
+                index_of.insert(photo_id, items.len() - 1);
+                items.len() - 1
+            }
+        };
+        if !dropped.contains(&keyword_id) { items[index].keyword_ids.push(keyword_id); }
+    }
+    Ok(items)
+}
+
+fn run_delete(
+    app: &tauri::AppHandle,
+    pool: &DbPool,
+    keyword_id: i64,
+    task_id: Option<String>,
+    cancel: Option<Arc<AtomicBool>>,
+) -> Result<KeywordWriteResult, String> {
+    // Pour chaque photo qui porte le mot-clé ou l'un de ses descendants : ses mots-clés actifs moins ceux-là.
+    let items = {
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        let ids = subtree_ids(&conn, keyword_id)?;
+        if ids.is_empty() { return Err("unknown_keyword".to_string()); }
+        let removed: HashSet<i64> = ids.iter().copied().collect();
+        photos_carrying(&conn, &ids, &removed)?
+    };
+
+    // Écriture des fichiers (même mécanisme que l'application des modifications : écriture atomique, relecture, base mise à jour).
+    let mut result = run_write(app, pool, items, task_id, cancel)?;
+
+    // Le mot-clé ne quitte l'arbre que si plus aucun fichier ne le porte : en cas d'échec ou d'arrêt, il reste pour les fichiers concernés.
+    if result.failed.is_empty() && result.cancelled == 0 {
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        let ids = subtree_ids(&conn, keyword_id)?;
+        let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
+        let _ = conn.execute("DELETE FROM photo_keywords WHERE keyword_id IN (SELECT value FROM json_each(?1))", params![ids_json]);
+        conn.execute("DELETE FROM keyword_nodes WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json])
+            .map_err(|error| error.to_string())?;
+        result.deleted = true;
+    }
+    Ok(result)
+}
+
+/// Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
+/// Avec `task_id`, la progression est publiée et l'arrêt de la tâche respecté.
+#[tauri::command]
+pub async fn delete_keyword(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    keyword_id: i64,
+    task_id: Option<String>,
+) -> Result<KeywordWriteResult, String> {
+    let pool = state.pool();
+    let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || run_delete(&app, &pool, keyword_id, worker_task_id, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }

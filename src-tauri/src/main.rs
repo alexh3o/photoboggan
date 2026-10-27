@@ -1445,7 +1445,10 @@ fn main() {
             keywords::get_keyword_counts,
             keywords::get_photo_keyword_ids,
             keywords::get_keyword_usage,
-            keywords::apply_keyword_changes
+            keywords::apply_keyword_changes,
+            keywords::create_keyword,
+            keywords::get_keyword_delete_info,
+            keywords::delete_keyword
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

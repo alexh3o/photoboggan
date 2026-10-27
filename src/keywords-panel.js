@@ -8,7 +8,7 @@
 // main.js fournit la sélection et les services de l'application (initKeywordsPanel) et appelle refreshKeywordsPanel quand la sélection change.
 import './keywords.css';
 import { invoke } from '@tauri-apps/api/core';
-import { t, tp, onLanguageChange } from './i18n.js';
+import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 
 const TAB_STORAGE_KEY = 'sidePanelTab';
 const FILTER_MODE_STORAGE_KEY = 'keywordFilterMode';
@@ -475,7 +475,7 @@ async function runKeywordWrite(items) {
   const entry = { task: null, settled: false };
   if (items.length >= QUEUE_THRESHOLD) {
     // Beaucoup de fichiers : tâche de la file, avec progression et arrêt possible ; « Appliquer » reste grisé jusqu'à sa fin.
-    const task = host.enqueueKeywordWrite(items, (result, stopped, error) => finishWrite(entry, items, result, error));
+    const task = host.enqueueKeywordTask('apply_keyword_changes', { items }, items.length, (result, stopped, error) => finishWrite(entry, items, result, error));
     if (!task) {
       host.showToast(t('Keyword writing could not be queued'));
       return;
@@ -527,13 +527,16 @@ async function finishWrite(entry, items, result, error) {
   updateButtons();
   if (updates.size) host.updatePhotoKeywords(updates);
   refreshUsage();
-  if (result.failed.length) await showFailureDialog(items, result);
+  if (result.failed.length) {
+    const failedIds = new Set(result.failed.map(failure => failure.photo_id));
+    await showFailureDialog(result, () => runKeywordWrite(items.filter(item => failedIds.has(item.photo_id))));
+  }
   else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(tp('Keywords written in {count} file', result.written.length));
 }
 
-async function showFailureDialog(items, result) {
-  const failedIds = new Set(result.failed.map(failure => failure.photo_id));
+// `retry` relance l'opération pour les fichiers en échec (nouvelle application des modifications, ou nouvelle suppression du mot-clé).
+async function showFailureDialog(result, retry) {
   const details = result.failed.slice(0, 3).map(failure => `${fileName(failure.path)} : ${failure.error}`).join('\n');
   const choice = await choiceDialog({
     title: t('Keywords could not be written to some files'),
@@ -545,7 +548,7 @@ async function showFailureDialog(items, result) {
     ],
   });
   if (choice === 'retry') {
-    await runKeywordWrite(items.filter(item => failedIds.has(item.photo_id)));
+    await retry();
   } else if (choice === 'show') {
     // La vue des miniatures ne montre plus que les fichiers en échec ; leurs modifications en attente sont abandonnées (les fichiers n'ont pas changé).
     discardWorking();
@@ -566,6 +569,28 @@ async function refreshUsage() {
 // Chargement et changement de sélection
 // ---------------------------------------------------------------------------
 
+// Relit l'arbre et les fréquences d'usage s'ils ont changé, sans toucher à l'état d'édition des photos sélectionnées.
+async function refreshTreeAndUsage() {
+  const versionAtStart = treeVersion;
+  const needTree = loadedTreeVersion !== versionAtStart;
+  try {
+    const [nodes, usage] = await Promise.all([
+      needTree ? invoke('get_keyword_tree') : null,
+      needTree || usageDirty ? invoke('get_keyword_usage') : null,
+    ]);
+    if (nodes) {
+      buildTree(nodes);
+      loadedTreeVersion = versionAtStart;
+    }
+    if (usage) {
+      usageById = new Map(usage);
+      usageDirty = false;
+    }
+  } catch (error) {
+    console.error('Lecture des mots-clés impossible', error);
+  }
+}
+
 const currentTarget = () => host.getSelectedPhotos().filter(photo => Number.isFinite(photo.id) && photo.id > 0);
 const sameAsWorking = photos => photos.length === working.size && photos.every(photo => working.has(photo.id));
 
@@ -583,8 +608,9 @@ async function reloadFromDatabase() {
   if (promptOpen) { refreshAfterPrompt = true; return; }
   try {
     let photos = currentTarget();
-    if (sameAsWorking(photos) && loadedTreeVersion === treeVersion && !usageDirty) {
-      // Même sélection : les modifications en attente sont conservées, on réaffiche seulement.
+    if (sameAsWorking(photos)) {
+      // Même sélection : les modifications en attente sont conservées ; seuls l'arbre et les fréquences d'usage sont relus s'ils ont changé.
+      if (loadedTreeVersion !== treeVersion || usageDirty) await refreshTreeAndUsage();
       renderTree();
       updateButtons();
       return;
@@ -749,10 +775,322 @@ function onInputKeyDown(event) {
 }
 
 // ---------------------------------------------------------------------------
+// Gestion de l'arborescence : création, suppression, repli
+// ---------------------------------------------------------------------------
+
+const FORBIDDEN_NAME_CHARS = ['/', '|', ',']; // séparateurs des formats hiérarchiques et du filtre de mots-clés
+
+let contextMenu = null;
+
+function closeContextMenu() {
+  if (!contextMenu) return;
+  contextMenu.remove();
+  contextMenu = null;
+  document.removeEventListener('mousedown', onMenuOutsideClick, true);
+  document.removeEventListener('keydown', onMenuKeyDown, true);
+  window.removeEventListener('blur', closeContextMenu);
+}
+
+function onMenuOutsideClick(event) {
+  if (contextMenu && !contextMenu.contains(event.target)) closeContextMenu();
+}
+
+function onMenuKeyDown(event) {
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  event.stopPropagation();
+  closeContextMenu();
+}
+
+// Menu contextuel : `entries` = [{ label, action, disabled? }]. Se ferme au clic ailleurs, sur Échap ou quand la fenêtre perd le focus.
+function showContextMenu(x, y, entries) {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'keyword-context-menu';
+  menu.setAttribute('role', 'menu');
+  for (const entry of entries) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.setAttribute('role', 'menuitem');
+    item.textContent = entry.label;
+    item.disabled = Boolean(entry.disabled);
+    item.addEventListener('click', () => {
+      closeContextMenu();
+      entry.action();
+    });
+    menu.append(item);
+  }
+  document.body.append(menu);
+  const rect = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(0, Math.min(x, window.innerWidth - rect.width - 4))}px`;
+  menu.style.top = `${Math.max(0, Math.min(y, window.innerHeight - rect.height - 4))}px`;
+  contextMenu = menu;
+  document.addEventListener('mousedown', onMenuOutsideClick, true);
+  document.addEventListener('keydown', onMenuKeyDown, true);
+  window.addEventListener('blur', closeContextMenu);
+  menu.querySelector('button:not(:disabled)')?.focus();
+}
+
+// Clic droit : sur « Racine » (créer au premier niveau, tout replier, déplier jusqu'aux mots-clés actifs) ou sur un mot-clé (créer un enfant, supprimer).
+function onTreeContextMenu(event) {
+  const row = event.target.closest('.keyword-row');
+  if (!row) return;
+  event.preventDefault();
+  if (row.classList.contains('keyword-root')) {
+    showContextMenu(event.clientX, event.clientY, [
+      { label: t('Create a child keyword…'), action: () => createKeywordFlow(ROOT_ID) },
+      { label: t('Collapse all'), action: collapseAll },
+      { label: t('Expand to active keywords'), action: expandToActive },
+    ]);
+    return;
+  }
+  const node = nodeById.get(Number(row.dataset.keywordId));
+  if (!node) return;
+  showContextMenu(event.clientX, event.clientY, [
+    { label: t('Create a child keyword…'), action: () => createKeywordFlow(node.id) },
+    { label: t('Delete keyword…'), action: () => deleteKeywordFlow(node), disabled: isWriteLocked() },
+  ]);
+}
+
+function collapseAll() {
+  expandedIds.clear();
+  renderTree();
+}
+
+// Déplie tous les niveaux nécessaires pour voir les mots-clés actifs dans la sélection.
+function expandToActive() {
+  for (const [keywordId, count] of workingCount) {
+    if (count > 0) for (const ancestorId of ancestorIds(keywordId)) expandedIds.add(ancestorId);
+  }
+  renderTree();
+}
+
+function registerNode(node) {
+  const entry = { ...node, search: normalizeSearch(node.name) };
+  nodeById.set(entry.id, entry);
+  if (!childrenOf.has(entry.parent_id)) childrenOf.set(entry.parent_id, []);
+  const siblings = childrenOf.get(entry.parent_id);
+  siblings.push(entry);
+  siblings.sort((a, b) => nameCollator.compare(a.name, b.name));
+}
+
+// Message d'erreur si `name` ne peut pas être créé sous `parentId`, sinon null.
+function validateKeywordName(name, parentId) {
+  if (!name) return t('A keyword name cannot be empty.');
+  if (FORBIDDEN_NAME_CHARS.some(char => name.includes(char))) return t('A keyword name cannot contain “/”, “|” or “,”.');
+  const key = name.toLowerCase();
+  if ((childrenOf.get(parentId) || []).some(sibling => sibling.name.trim().toLowerCase() === key)) return t('This keyword already exists at this level.');
+  return null;
+}
+
+// Erreurs de la commande create_keyword : codes courts du backend traduits, autre erreur affichée telle quelle.
+function describeKeywordError(error) {
+  const code = String(error);
+  if (code === 'duplicate') return t('This keyword already exists at this level.');
+  if (code === 'invalid_name') return t('A keyword name cannot contain “/”, “|” or “,”.');
+  return code;
+}
+
+// Fenêtre de saisie du nom d'un nouveau mot-clé : rappelle les parents ; `validate(nom)` renvoie un message d'erreur ou null.
+// Entrée valide, Échap annule. Renvoie le nom, ou null si annulé.
+function nameDialog({ title, parentLabel, validate }) {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    const card = document.createElement('div');
+    card.className = 'modal-card keyword-dialog';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    const parentLine = document.createElement('p');
+    parentLine.textContent = `${labelWithColon('Parent')} ${parentLabel}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'keyword-input keyword-dialog-input';
+    input.placeholder = t('Keyword name');
+    input.setAttribute('aria-label', t('Keyword name'));
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    const errorLine = document.createElement('p');
+    errorLine.className = 'keyword-dialog-error';
+    errorLine.setAttribute('role', 'alert');
+    const actions = document.createElement('div');
+    actions.className = 'keyword-dialog-actions';
+    const cancelButton = document.createElement('button');
+    cancelButton.type = 'button';
+    cancelButton.textContent = t('Cancel');
+    const createButton = document.createElement('button');
+    createButton.type = 'button';
+    createButton.className = 'active';
+    createButton.textContent = t('Create');
+    actions.append(cancelButton, createButton);
+    const close = value => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      modal.remove();
+      resolve(value);
+    };
+    const submit = () => {
+      const name = input.value.trim();
+      const problem = validate(name);
+      if (problem) {
+        errorLine.textContent = problem;
+        input.focus();
+        return;
+      }
+      close(name);
+    };
+    const onKeyDown = event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close(null);
+    };
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      submit();
+    });
+    input.addEventListener('input', () => { errorLine.textContent = ''; });
+    cancelButton.addEventListener('click', () => close(null));
+    createButton.addEventListener('click', submit);
+    card.append(heading, parentLine, input, errorLine, actions);
+    modal.append(card);
+    document.addEventListener('keydown', onKeyDown, true);
+    (document.getElementById('app') || document.body).append(modal);
+    input.focus();
+  });
+}
+
+// Création d'un mot-clé enfant (parentId 0 = premier niveau). Créé tout de suite dans l'arbre s'il n'existe pas ailleurs ; sinon confirmation
+// en précisant les hiérarchies où il existe déjà. Une fois créé, il est activé sur la sélection (modification en attente, comme un clic sur sa case).
+async function createKeywordFlow(parentId) {
+  const parent = parentId === ROOT_ID ? null : nodeById.get(parentId);
+  const name = await nameDialog({
+    title: t('Create a child keyword'),
+    parentLabel: parent ? pathLabel(parent) : t('Root'),
+    validate: candidate => validateKeywordName(candidate, parentId),
+  });
+  if (name === null) return;
+  const key = name.toLowerCase();
+  const homonyms = [...nodeById.values()].filter(node => node.name.trim().toLowerCase() === key);
+  if (homonyms.length > 0) {
+    const shown = homonyms.slice(0, 8).map(node => `• ${pathLabel(node)}`);
+    if (homonyms.length > shown.length) shown.push(t('… and {count} more', { count: homonyms.length - shown.length }));
+    const choice = await choiceDialog({
+      title: t('Keyword already exists'),
+      message: `${t('A keyword named “{name}” already exists here:', { name })}\n${shown.join('\n')}\n${t('Create it here anyway?')}`,
+      buttons: [
+        { label: t('Cancel'), value: 'cancel', cancel: true },
+        { label: t('Create'), value: 'create', primary: true },
+      ],
+    });
+    if (choice !== 'create') return;
+  }
+  try {
+    const node = await invoke('create_keyword', { parentId, name });
+    registerNode(node);
+    if (parentId !== ROOT_ID) expandedIds.add(parentId);
+    if (working.size > 0) activateKeyword(node.id, false);
+    else renderTree();
+  } catch (error) {
+    host.showToast(t('Could not create the keyword: {error}', { error: describeKeywordError(error) }));
+  }
+}
+
+// Suppression d'un mot-clé (et de son sous-arbre) : confirmation indiquant le nombre de photos concernées, puis retrait des fichiers.
+async function deleteKeywordFlow(node) {
+  if (isWriteLocked()) {
+    host.showToast(t('Keyword writing in progress…'));
+    return;
+  }
+  let info;
+  try {
+    info = await invoke('get_keyword_delete_info', { keywordId: node.id });
+  } catch (error) {
+    host.showToast(t('Could not delete the keyword: {error}', { error: String(error) }));
+    return;
+  }
+  const lines = [info.photo_count > 0
+    ? tp('Keyword “{name}” will be deleted and removed from {count} photo.', info.photo_count, { name: node.name })
+    : t('Keyword “{name}” will be deleted.', { name: node.name })];
+  if (info.keyword_count > 1) lines.push(tp('Its {count} sub-keyword will be deleted too.', info.keyword_count - 1));
+  const choice = await choiceDialog({
+    title: t('Delete keyword'),
+    message: lines.join('\n'),
+    buttons: [
+      { label: t('Cancel'), value: 'cancel', cancel: true },
+      { label: t('Delete'), value: 'delete', primary: true },
+    ],
+  });
+  if (choice === 'delete') await runKeywordDelete(node, info.photo_count);
+}
+
+async function runKeywordDelete(node, photoCount) {
+  const ids = [node.id, ...descendantIds(node.id)];
+  const entry = { task: null, settled: false };
+  if (photoCount >= QUEUE_THRESHOLD) {
+    const task = host.enqueueKeywordTask('delete_keyword', { keywordId: node.id }, photoCount, (result, stopped, error) => finishDelete(entry, node, photoCount, ids, result, error));
+    if (!task) {
+      host.showToast(t('Keyword writing could not be queued'));
+      return;
+    }
+    entry.task = task;
+    queuedWrites.push(entry);
+    watchLock();
+    updateButtons();
+    return;
+  }
+  directWrites += 1;
+  updateButtons();
+  host.showToast(t('Writing keywords…'));
+  try {
+    const result = await invoke('delete_keyword', { keywordId: node.id });
+    await finishDelete(entry, node, photoCount, ids, result, null);
+  } catch (error) {
+    await finishDelete(entry, node, photoCount, ids, null, error);
+  } finally {
+    directWrites -= 1;
+    updateButtons();
+  }
+}
+
+// Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.deleted`).
+async function finishDelete(entry, node, photoCount, ids, result, error) {
+  if (entry.settled) return;
+  entry.settled = true;
+  updateButtons();
+  if (!result) {
+    if (error) host.showToast(t('Could not delete the keyword: {error}', { error: String(error) }));
+    return;
+  }
+  const removedIds = new Set(ids);
+  const writtenIds = new Set(result.written.map(written => written.photo_id));
+  for (const sets of [baseline, working]) {
+    for (const [photoId, set] of sets) {
+      if (result.deleted || writtenIds.has(photoId)) for (const id of removedIds) set.delete(id);
+    }
+  }
+  if (result.deleted) {
+    buildTree([...nodeById.values()].filter(candidate => !removedIds.has(candidate.id)));
+    for (const id of removedIds) expandedIds.delete(id);
+  }
+  usageDirty = true;
+  recomputeCounts();
+  renderTree();
+  updateButtons();
+  if (result.written.length) host.updatePhotoKeywords(new Map(result.written.map(written => [written.photo_id, written.keywords])));
+  refreshUsage();
+  if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount));
+  else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
+  else host.showToast(t('Keyword “{name}” deleted', { name: node.name }));
+}
+
+// ---------------------------------------------------------------------------
 // Initialisation
 // ---------------------------------------------------------------------------
 
-// Services fournis par main.js : getSelectedPhotos, showToast, enqueueKeywordWrite, isTaskQueued, updatePhotoKeywords,
+// Services fournis par main.js : getSelectedPhotos, showToast, enqueueKeywordTask, isTaskQueued, updatePhotoKeywords,
 // findIndicesByPhotoIds, setSelectionIndices, showFailedFiles.
 export function initKeywordsPanel(hostApi) {
   host = hostApi;
@@ -785,6 +1123,14 @@ export function initKeywordsPanel(hostApi) {
   inputField.addEventListener('focus', updateSuggestions);
   inputField.addEventListener('blur', closeSuggestions);
   inputField.addEventListener('keydown', onInputKeyDown);
+  treeList.addEventListener('contextmenu', onTreeContextMenu);
+
+  // Réglage « Appliquer automatiquement les changements de mots-clés » (onglet Mots-clés des Paramètres).
+  const autoApplyBox = document.getElementById('keywords-auto-apply');
+  if (autoApplyBox) {
+    autoApplyBox.checked = isAutoApply();
+    autoApplyBox.addEventListener('change', () => localStorage.setItem(AUTO_APPLY_STORAGE_KEY, String(autoApplyBox.checked)));
+  }
 
   // Ctrl+K (filtre d'affichage) et Ctrl+Entrée (Appliquer) : actifs même quand un champ de saisie a le focus
   // (le gestionnaire de touches de main.js ignore les champs de saisie).

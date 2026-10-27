@@ -68,3 +68,13 @@
 
 /* Pastille du filtre « fichiers en échec » */
 .filter-tag.tag-failed { border-color: #c0504d; }
+
+/* Menu contextuel de l'arborescence (clic droit sur « Racine » ou sur un mot-clé) */
+.keyword-context-menu { position: fixed; z-index: 10001; display: flex; flex-direction: column; min-width: 12rem; padding: 4px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--card-bg); box-shadow: 0 6px 18px rgb(0 0 0 / 0.35); }
+.keyword-context-menu button { padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; font-size: 0.8rem; text-align: left; }
+.keyword-context-menu button:hover:not(:disabled), .keyword-context-menu button:focus-visible { background: var(--active-button); color: var(--active-button-text); outline: none; }
+.keyword-context-menu button:disabled { opacity: 0.45; cursor: default; }
+
+/* Fenêtre de saisie du nom d'un mot-clé */
+.keyword-dialog-input { margin-top: 0.75rem; font-size: 0.85rem; }
+.keyword-dialog-error { min-height: 1.2em; margin: 0.35rem 0 0; color: #e07a75; font-size: 0.78rem; }
