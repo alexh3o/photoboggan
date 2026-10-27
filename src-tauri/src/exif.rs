@@ -309,13 +309,36 @@ fn hierarchy_paths(items: Vec<String>, separator: char) -> Vec<Vec<String>> {
     paths
 }
 
-/// Mots-clés hiérarchiques d'un paquet XMP, d'après le premier schéma présent : digiKam (`TagsList`, niveaux séparés par « / »),
-/// puis Lightroom (`hierarchicalSubject`, « | »), Media Pro (`CatalogSets`, « | »), Microsoft Photo (`LastKeywordXMP`, « / »).
-/// En cas de divergence entre schémas, digiKam l'emporte : les autres ne sont lus que s'il est absent.
+/// Schémas de mots-clés hiérarchiques lus : (propriété XMP, séparateur des niveaux). Dans l'ordre de HIERARCHY_IDS.
+const HIERARCHY_SCHEMAS: [(&str, char); 4] = [("TagsList", '/'), ("hierarchicalSubject", '|'), ("CatalogSets", '|'), ("LastKeywordXMP", '/')];
+/// Identifiants des schémas côté interface : digiKam (`digiKam:TagsList`), Lightroom (`lr:hierarchicalSubject`), Media Pro (`mediapro:CatalogSets`),
+/// Microsoft Photo (`MicrosoftPhoto:LastKeywordXMP`).
+const HIERARCHY_IDS: [&str; 4] = ["digikam", "lightroom", "mediapro", "microsoft"];
+/// Ordre de priorité à la lecture : indices dans HIERARCHY_SCHEMAS, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
+/// Mots-clés) ; digiKam en premier tant que l'interface n'a rien envoyé.
+static HIERARCHY_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
+
+/// Règle l'ordre de priorité des schémas hiérarchiques : `order` doit contenir une fois chacun des 4 identifiants de HIERARCHY_IDS.
+/// Il s'applique aux prochaines lectures de fichiers (les photos déjà en base ne sont pas relues d'elles-mêmes).
+pub fn set_hierarchy_priority(order: &[String]) -> Result<(), String> {
+    if order.len() != HIERARCHY_IDS.len() { return Err("invalid_order".to_string()); }
+    let mut indices = [0usize; 4];
+    for (rank, id) in order.iter().enumerate() {
+        let Some(index) = HIERARCHY_IDS.iter().position(|known| *known == id.as_str()) else { return Err("invalid_order".to_string()); };
+        if indices[..rank].contains(&index) { return Err("invalid_order".to_string()); }
+        indices[rank] = index;
+    }
+    *HIERARCHY_PRIORITY.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = indices;
+    Ok(())
+}
+
+/// Mots-clés hiérarchiques d'un paquet XMP : le premier schéma qui contient des données, dans l'ordre de priorité réglé (par défaut digiKam,
+/// puis Lightroom, Media Pro, Microsoft Photo), l'emporte ; les autres sont ignorés.
 /// Chaque entrée est un mot-clé actif : seul son dernier niveau l'est (les ancêtres ne le sont que s'ils ont leur propre entrée).
 fn parse_hierarchical_keywords(xml: &str) -> Vec<Vec<String>> {
-    const SCHEMAS: [(&str, char); 4] = [("TagsList", '/'), ("hierarchicalSubject", '|'), ("CatalogSets", '|'), ("LastKeywordXMP", '/')];
-    for (local_name, separator) in SCHEMAS {
+    let priority = *HIERARCHY_PRIORITY.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    for index in priority {
+        let (local_name, separator) = HIERARCHY_SCHEMAS[index];
         let paths = hierarchy_paths(xmp_list_items(xml, local_name), separator);
         if !paths.is_empty() { return paths; }
     }

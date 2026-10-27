@@ -37,6 +37,8 @@ TODO.md                 # Backlog fonctionnel (voir §4.12)
 src/
   main.js               # Logique frontend principale (grille virtuelle, zoom, filtres, tri, file de tâches)
   photo-actions.js      # Menus contextuels, modales (infos, confirmation, redimensionnement)
+  keywords-panel.js     # Panneau de droite à onglets Info / Mots-clés (arbre éditable, saisie, application différée)
+  keywords.css          # Styles de ce panneau, de sa poignée de redimensionnement et de ses fenêtres
   styles.css            # Thèmes sombre/clair, mise en page en rem
   i18n.js               # Moteur de traduction (t, tp, labelWithColon)
   locales/en.json, fr.json
@@ -45,7 +47,8 @@ src-tauri/
   src/
     main.rs             # Commandes IPC, AppState, fenêtres
     db.rs               # SQLite (schéma, pools r2d2, index, pagination)
-    exif.rs             # Lecture EXIF/IPTC/XMP, écriture XMP (APP1 JPEG / sidecar)
+    exif.rs             # Lecture EXIF/IPTC/XMP, écriture XMP (APP1 JPEG / sidecar) et IPTC (JPEG)
+    keywords.rs         # Arbre des mots-clés, association photo ↔ mot-clé, écriture / suppression / renommage dans les fichiers
     library_sync.rs     # Synchronisation incrémentale (taille + date de modification)
     thumbnails.rs       # Miniatures (DCT réduit), extraction des aperçus RAW
     resize.rs           # Redimensionnement par lot
@@ -82,6 +85,7 @@ src-tauri/
 - **rem** pour typographie, paddings, marges, boutons, icônes, modales.
 - **px** impérativement pour : bordures et filets fins, ombres fines, et **tous les calculs de la grille virtuelle dans `main.js`** (clientWidth, offsetWidth, scrollTop, dimensions des photos) : au pixel près pour éviter tout interstice en vue justifiée.
 - Barre latérale rétractable : largeur via `--sidebar-width` ou `style.removeProperty('width')`. Dans `.sidebar-section.hidden`, toujours `width: 0 !important; min-width: 0 !important;`.
+- Panneau de droite (Info / Mots-clés) : largeur réglable par la poignée `#exif-resizer`, mémorisée (`exifPanelWidth`) ; masqué, `#exif-panel.hidden { width: 0 !important; }` (voir `keywords.css`).
 
 ### B. Grille de miniatures (invariants)
 
@@ -103,12 +107,15 @@ src-tauri/
 - **JPEG** : injection du paquet XMP dans le segment APP1 (`http://ns.adobe.com/xap/1.0/\0`), sans décompresser ni ré-échantillonner l'image.
 - **RAW, PNG, HEIC, vidéos…** : écriture dans un sidecar `.xmp` (ex. `photo.cr2.xmp` ou `photo.xmp`).
 - **Note** : `xmp:Rating` (0–5), `acdsee:rating`, `MicrosoftPhoto:Rating`. **Couleur** : `xmp:Label` (Red, Orange, Yellow, Green, Blue, Magenta, Grey, Black, White ou vide), `photoshop:Urgency`, `digikam:ColorLabel`.
+- **Mots-clés hiérarchiques** (`keywords.rs`, `keywords-panel.js`) : l'arbre vit en base (`keyword_nodes`, `photo_keywords`) et grandit à la lecture des fichiers ; seul le dernier niveau d'un chemin est actif. À l'écriture (Appliquer, suppression, renommage), ce qui est actif remplace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP` et l'IPTC 2:25 des JPEG ; XPKeywords est lu, jamais écrit. Après écriture, le fichier est relu et la base reflète cette relecture. Noms interdits : `/`, `|`, `,`.
+- **Priorité des formats hiérarchiques à la lecture** : XMP intégré avant sidecar ; puis, par défaut, digiKam `TagsList` > Lightroom `hierarchicalSubject` > Media Pro `CatalogSets` > Microsoft `LastKeywordXMP`. L'ordre des 4 formats est réglable par l'utilisateur (Paramètres > Mots-clés, liste ordonnable, mémorisée dans `keywordFormatOrder` et envoyée au backend au démarrage par `set_keyword_format_order`). Le premier format qui contient des données l'emporte : ses mots-clés sont ceux affichés dans l'interface et dans l'arbre, les autres sont ignorés. Un nouvel ordre ne s'applique qu'aux fichiers lus ensuite (relire la collection). Les formats à plat (`dc:subject`, IPTC, XPKeywords) ne modifient pas l'arbre.
 
 ### E. Tâches asynchrones (`TaskQueue`)
 
 - Tout scan, rescan, vérification d'intégrité, copie, déplacement ou redimensionnement par lot passe par la file d'attente globale.
 - Chaque tâche a un `task_id` unique (un toast par tâche, jamais de mélange de nom/progression).
 - Toute action longue est listée dans la modale « Sablier » avec annulation propre (`cancel`).
+- Les écritures de mots-clés (application, suppression, renommage) passent par la file à partir de 20 photos (famille `keywords`, qui ne bloque pas les scans) ; « Appliquer » est grisé tant qu'une écriture est en cours. En dessous, commande directe.
 - Ne jamais bloquer le thread principal : opérations disque lourdes dans `spawn_blocking` ou `rayon`.
 
 ### F. Internationalisation
@@ -119,6 +126,7 @@ src-tauri/
 ### G. Fenêtre & persistance
 
 - État de la fenêtre (x, y, taille, maximisée) et des panneaux mémorisé. À la restauration, toujours appeler `check_window_visibility` ; si l'écran a disparu, recentrer en 1024×768 sur l'écran principal.
+- Fermeture : `onCloseRequested` (`main.js`) demande confirmation si des mots-clés ne sont pas écrits ou si une écriture est en cours ; elle requiert la permission `core:window:allow-destroy` (`capabilities/default.json`).
 
 ### H. Protection des Photos
 

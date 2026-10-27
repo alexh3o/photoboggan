@@ -50,6 +50,7 @@ let refreshAfterPrompt = false;
 let directWrites = 0; // écritures directes (moins de QUEUE_THRESHOLD fichiers) en cours
 const queuedWrites = []; // écritures passées par la file de tâches : { task, settled }
 let lockTimer = null;
+let lastWriteOk = false; // la dernière écriture directe s'est terminée sans échec ni arrêt (utile à la fermeture de l'application)
 
 // Autocomplétion : nœuds correspondants, du plus fréquent au moins fréquent (le plus fréquent est affiché le plus près du champ).
 let suggestions = [];
@@ -72,6 +73,7 @@ let unifyButton;
 const isAutoApply = () => localStorage.getItem(AUTO_APPLY_STORAGE_KEY) === 'true';
 const fileName = path => String(path).split(/[\\/]/).pop();
 const normalizeSearch = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const compareByUsage = (a, b) => (usageById.get(b.id) || 0) - (usageById.get(a.id) || 0) || nameCollator.compare(a.name, b.name);
 
 function setsEqual(a, b) {
   if (!a || !b || a.size !== b.size) return false;
@@ -464,18 +466,20 @@ function choiceDialog({ title, message, buttons }) {
 // Écriture dans les fichiers
 // ---------------------------------------------------------------------------
 
-async function applyChanges() {
+async function applyChanges(options) {
   if (!initialized || isWriteLocked() || dirtyIds.size === 0) return;
   // Photos dont les mots-clés ont changé uniquement : on envoie l'ensemble final des mots-clés actifs de chacune.
   const items = [...dirtyIds].map(id => ({ photo_id: id, path: workingPhotos.get(id).path, keyword_ids: [...working.get(id)] }));
-  await runKeywordWrite(items);
+  await runKeywordWrite(items, options);
 }
 
-async function runKeywordWrite(items) {
+// Lance une opération qui réécrit des fichiers (application des modifications, suppression ou renommage d'un mot-clé), verrou d'écriture pris pendant
+// sa durée. `count` photos ≥ QUEUE_THRESHOLD : tâche de la file, avec progression et arrêt possible (sauf `forceDirect`) ; sinon commande directe.
+// `finish(entry, resultat, erreur)` traite la fin ; `resultat` vaut null si la commande a échoué ou si la tâche a été retirée de la file.
+async function runLocked(command, args, count, finish, { forceDirect = false } = {}) {
   const entry = { task: null, settled: false };
-  if (items.length >= QUEUE_THRESHOLD) {
-    // Beaucoup de fichiers : tâche de la file, avec progression et arrêt possible ; « Appliquer » reste grisé jusqu'à sa fin.
-    const task = host.enqueueKeywordTask('apply_keyword_changes', { items }, items.length, (result, stopped, error) => finishWrite(entry, items, result, error));
+  if (!forceDirect && count >= QUEUE_THRESHOLD) {
+    const task = host.enqueueKeywordTask(command, args, count, (result, stopped, error) => finish(entry, result, error));
     if (!task) {
       host.showToast(t('Keyword writing could not be queued'));
       return;
@@ -490,15 +494,17 @@ async function runKeywordWrite(items) {
   updateButtons();
   host.showToast(t('Writing keywords…'));
   try {
-    const result = await invoke('apply_keyword_changes', { items });
-    await finishWrite(entry, items, result, null);
+    const result = await invoke(command, args);
+    await finish(entry, result, null);
   } catch (error) {
-    await finishWrite(entry, items, null, error);
+    await finish(entry, null, error);
   } finally {
     directWrites -= 1;
     updateButtons();
   }
 }
+
+const runKeywordWrite = (items, options) => runLocked('apply_keyword_changes', { items }, items.length, (entry, result, error) => finishWrite(entry, items, result, error), options);
 
 // Fin d'une écriture : `result` vaut null si la commande a échoué ou si la tâche a été retirée de la file avant de démarrer.
 async function finishWrite(entry, items, result, error) {
@@ -532,7 +538,7 @@ async function finishWrite(entry, items, result, error) {
     await showFailureDialog(result, () => runKeywordWrite(items.filter(item => failedIds.has(item.photo_id))));
   }
   else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
-  else host.showToast(tp('Keywords written in {count} file', result.written.length));
+  else { lastWriteOk = true; host.showToast(tp('Keywords written in {count} file', result.written.length)); }
 }
 
 // `retry` relance l'opération pour les fichiers en échec (nouvelle application des modifications, ou nouvelle suppression du mot-clé).
@@ -848,6 +854,7 @@ function onTreeContextMenu(event) {
   if (!node) return;
   showContextMenu(event.clientX, event.clientY, [
     { label: t('Create a child keyword…'), action: () => createKeywordFlow(node.id) },
+    { label: t('Rename keyword…'), action: () => renameKeywordFlow(node), disabled: isWriteLocked() },
     { label: t('Delete keyword…'), action: () => deleteKeywordFlow(node), disabled: isWriteLocked() },
   ]);
 }
@@ -875,11 +882,11 @@ function registerNode(node) {
 }
 
 // Message d'erreur si `name` ne peut pas être créé sous `parentId`, sinon null.
-function validateKeywordName(name, parentId) {
+function validateKeywordName(name, parentId, excludeId = null) {
   if (!name) return t('A keyword name cannot be empty.');
   if (FORBIDDEN_NAME_CHARS.some(char => name.includes(char))) return t('A keyword name cannot contain “/”, “|” or “,”.');
   const key = name.toLowerCase();
-  if ((childrenOf.get(parentId) || []).some(sibling => sibling.name.trim().toLowerCase() === key)) return t('This keyword already exists at this level.');
+  if ((childrenOf.get(parentId) || []).some(sibling => sibling.id !== excludeId && sibling.name.trim().toLowerCase() === key)) return t('This keyword already exists at this level.');
   return null;
 }
 
@@ -891,9 +898,10 @@ function describeKeywordError(error) {
   return code;
 }
 
-// Fenêtre de saisie du nom d'un nouveau mot-clé : rappelle les parents ; `validate(nom)` renvoie un message d'erreur ou null.
-// Entrée valide, Échap annule. Renvoie le nom, ou null si annulé.
-function nameDialog({ title, parentLabel, validate }) {
+// Fenêtre de saisie du nom d'un mot-clé (création ou renommage) : rappelle le parent ; `validate(nom)` renvoie un message d'erreur ou null.
+// Pendant la saisie, une liste au-dessus du champ montre les mots-clés existants dont le nom correspond (hiérarchie complète, le plus fréquent
+// le plus près du champ) ; en choisir un reprend son nom. Entrée valide, Échap ferme la liste puis la fenêtre. Renvoie le nom, ou null si annulé.
+function nameDialog({ title, parentLabel, validate, initialValue = '', confirmLabel = t('Create'), excludeId = null }) {
   return new Promise(resolve => {
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -912,6 +920,63 @@ function nameDialog({ title, parentLabel, validate }) {
     input.setAttribute('aria-label', t('Keyword name'));
     input.autocomplete = 'off';
     input.spellcheck = false;
+    input.value = initialValue;
+    const wrap = document.createElement('div');
+    wrap.className = 'keyword-input-wrap';
+    const matchList = document.createElement('ul');
+    matchList.className = 'keyword-suggestions';
+    matchList.setAttribute('role', 'listbox');
+    matchList.hidden = true;
+    wrap.append(matchList, input);
+    let matches = [];
+    let matchIndex = -1; // ligne choisie au clavier (0 = la plus fréquente), -1 = aucune
+    const hideMatches = () => {
+      matches = [];
+      matchIndex = -1;
+      matchList.hidden = true;
+    };
+    const pickMatch = node => {
+      input.value = node.name;
+      errorLine.textContent = '';
+      hideMatches();
+      input.focus();
+    };
+    const renderMatches = () => {
+      if (matches.length === 0) {
+        matchList.hidden = true;
+        return;
+      }
+      matchList.hidden = false;
+      const rows = matches.map((node, index) => {
+        const row = document.createElement('li');
+        row.className = 'keyword-suggestion';
+        row.setAttribute('role', 'option');
+        if (index === matchIndex) row.classList.add('highlighted');
+        const label = document.createElement('span');
+        label.textContent = pathLabel(node);
+        const count = document.createElement('span');
+        count.className = 'keyword-suggestion-count';
+        count.textContent = String(usageById.get(node.id) || 0);
+        row.append(label, count);
+        // mousedown plutôt que click : le champ garde le focus (sinon la liste se fermerait avant le clic).
+        row.addEventListener('mousedown', event => {
+          event.preventDefault();
+          pickMatch(node);
+        });
+        return row;
+      }).reverse();
+      matchList.replaceChildren(...rows);
+      matchList.querySelector('.highlighted')?.scrollIntoView({ block: 'nearest' });
+    };
+    const updateMatches = () => {
+      const query = normalizeSearch(input.value.trim());
+      matches = query
+        ? [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)).sort(compareByUsage).slice(0, MAX_SUGGESTIONS)
+        : [];
+      matchIndex = -1;
+      renderMatches();
+      matchList.scrollTop = matchList.scrollHeight;
+    };
     const errorLine = document.createElement('p');
     errorLine.className = 'keyword-dialog-error';
     errorLine.setAttribute('role', 'alert');
@@ -923,7 +988,7 @@ function nameDialog({ title, parentLabel, validate }) {
     const createButton = document.createElement('button');
     createButton.type = 'button';
     createButton.className = 'active';
-    createButton.textContent = t('Create');
+    createButton.textContent = confirmLabel;
     actions.append(cancelButton, createButton);
     const close = value => {
       document.removeEventListener('keydown', onKeyDown, true);
@@ -944,21 +1009,40 @@ function nameDialog({ title, parentLabel, validate }) {
       if (event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
+      if (!matchList.hidden) {
+        hideMatches();
+        return;
+      }
       close(null);
     };
     input.addEventListener('keydown', event => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      submit();
+      const open = !matchList.hidden && matches.length > 0;
+      if (event.key === 'ArrowUp' && open) {
+        event.preventDefault();
+        matchIndex = Math.min(matchIndex + 1, matches.length - 1); // vers le moins fréquent, donc vers le haut de la liste
+        renderMatches();
+      } else if (event.key === 'ArrowDown' && open) {
+        event.preventDefault();
+        matchIndex = Math.max(matchIndex - 1, -1);
+        renderMatches();
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (open && matchIndex >= 0) pickMatch(matches[matchIndex]); else submit();
+      }
     });
-    input.addEventListener('input', () => { errorLine.textContent = ''; });
+    input.addEventListener('input', () => {
+      errorLine.textContent = '';
+      updateMatches();
+    });
+    input.addEventListener('blur', hideMatches);
     cancelButton.addEventListener('click', () => close(null));
     createButton.addEventListener('click', submit);
-    card.append(heading, parentLine, input, errorLine, actions);
+    card.append(heading, parentLine, wrap, errorLine, actions);
     modal.append(card);
     document.addEventListener('keydown', onKeyDown, true);
     (document.getElementById('app') || document.body).append(modal);
     input.focus();
+    input.select();
   });
 }
 
@@ -972,21 +1056,7 @@ async function createKeywordFlow(parentId) {
     validate: candidate => validateKeywordName(candidate, parentId),
   });
   if (name === null) return;
-  const key = name.toLowerCase();
-  const homonyms = [...nodeById.values()].filter(node => node.name.trim().toLowerCase() === key);
-  if (homonyms.length > 0) {
-    const shown = homonyms.slice(0, 8).map(node => `• ${pathLabel(node)}`);
-    if (homonyms.length > shown.length) shown.push(t('… and {count} more', { count: homonyms.length - shown.length }));
-    const choice = await choiceDialog({
-      title: t('Keyword already exists'),
-      message: `${t('A keyword named “{name}” already exists here:', { name })}\n${shown.join('\n')}\n${t('Create it here anyway?')}`,
-      buttons: [
-        { label: t('Cancel'), value: 'cancel', cancel: true },
-        { label: t('Create'), value: 'create', primary: true },
-      ],
-    });
-    if (choice !== 'create') return;
-  }
+  if (!(await confirmHomonyms(name, null, t('Create it here anyway?'), t('Create')))) return;
   try {
     const node = await invoke('create_keyword', { parentId, name });
     registerNode(node);
@@ -1026,33 +1096,250 @@ async function deleteKeywordFlow(node) {
   if (choice === 'delete') await runKeywordDelete(node, info.photo_count);
 }
 
-async function runKeywordDelete(node, photoCount) {
-  const ids = [node.id, ...descendantIds(node.id)];
-  const entry = { task: null, settled: false };
-  if (photoCount >= QUEUE_THRESHOLD) {
-    const task = host.enqueueKeywordTask('delete_keyword', { keywordId: node.id }, photoCount, (result, stopped, error) => finishDelete(entry, node, photoCount, ids, result, error));
-    if (!task) {
-      host.showToast(t('Keyword writing could not be queued'));
-      return;
-    }
-    entry.task = task;
-    queuedWrites.push(entry);
-    watchLock();
-    updateButtons();
+// Confirmation quand ce nom existe déjà ailleurs dans l'arbre (hors `excludeId`) : liste les hiérarchies où il existe. Renvoie true s'il faut continuer.
+async function confirmHomonyms(name, excludeId, question, actionLabel) {
+  const key = name.toLowerCase();
+  const homonyms = [...nodeById.values()].filter(node => node.id !== excludeId && node.name.trim().toLowerCase() === key);
+  if (homonyms.length === 0) return true;
+  const shown = homonyms.slice(0, 8).map(node => `• ${pathLabel(node)}`);
+  if (homonyms.length > shown.length) shown.push(t('… and {count} more', { count: homonyms.length - shown.length }));
+  const choice = await choiceDialog({
+    title: t('Keyword already exists'),
+    message: `${t('A keyword named “{name}” already exists here:', { name })}\n${shown.join('\n')}\n${question}`,
+    buttons: [
+      { label: t('Cancel'), value: 'cancel', cancel: true },
+      { label: actionLabel, value: 'go', primary: true },
+    ],
+  });
+  return choice === 'go';
+}
+
+// Renommage d'un mot-clé : même fenêtre que la création (liste des mots-clés existants, confirmation si le nom existe déjà ailleurs dans l'arbre).
+// Les fichiers de toutes les photos qui portent ce mot-clé ou l'un de ses descendants sont réécrits (leur chemin hiérarchique change).
+async function renameKeywordFlow(node) {
+  if (isWriteLocked()) {
+    host.showToast(t('Keyword writing in progress…'));
     return;
   }
-  directWrites += 1;
-  updateButtons();
-  host.showToast(t('Writing keywords…'));
+  const parent = node.parent_id === ROOT_ID ? null : nodeById.get(node.parent_id);
+  const name = await nameDialog({
+    title: t('Rename keyword'),
+    parentLabel: parent ? pathLabel(parent) : t('Root'),
+    initialValue: node.name,
+    confirmLabel: t('Rename'),
+    excludeId: node.id,
+    validate: candidate => validateKeywordName(candidate, node.parent_id, node.id),
+  });
+  if (name === null || name === node.name) return;
+  if (!(await confirmHomonyms(name, node.id, t('Rename it here anyway?'), t('Rename')))) return;
+  let photoCount = 0;
   try {
-    const result = await invoke('delete_keyword', { keywordId: node.id });
-    await finishDelete(entry, node, photoCount, ids, result, null);
+    photoCount = (await invoke('get_keyword_delete_info', { keywordId: node.id })).photo_count;
   } catch (error) {
-    await finishDelete(entry, node, photoCount, ids, null, error);
-  } finally {
-    directWrites -= 1;
-    updateButtons();
+    console.error('Comptage des photos impossible', error);
   }
+  await runKeywordRename(node, name, photoCount);
+}
+
+function runKeywordRename(node, name, photoCount) {
+  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (entry, result, error) => finishRename(entry, node, name, photoCount, result, error));
+}
+
+// Fin d'un renommage. L'arbre est renommé dès le début de l'opération, même si certains fichiers n'ont pas pu être réécrits (« Retenter » les reprend).
+async function finishRename(entry, node, name, photoCount, result, error) {
+  if (entry.settled) return;
+  entry.settled = true;
+  updateButtons();
+  if (!result) {
+    if (error) host.showToast(t('Could not rename the keyword: {error}', { error: describeKeywordError(error) }));
+    return;
+  }
+  buildTree([...nodeById.values()].map(candidate => (candidate.id === node.id ? { ...candidate, name } : candidate)));
+  renderTree();
+  updateButtons();
+  if (result.written.length) host.updatePhotoKeywords(new Map(result.written.map(written => [written.photo_id, written.keywords])));
+  if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount));
+  else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
+  else host.showToast(t('Keyword renamed to “{name}”', { name }));
+}
+
+// ---------------------------------------------------------------------------
+// Priorité de lecture des formats hiérarchiques (Paramètres, onglet Mots-clés)
+// ---------------------------------------------------------------------------
+
+const FORMAT_ORDER_STORAGE_KEY = 'keywordFormatOrder';
+// Les quatre formats de mots-clés hiérarchiques lus. Le premier de la liste qui contient des données l'emporte : ses mots-clés alimentent l'arbre
+// et s'affichent, les autres sont ignorés. L'ordre par défaut est celui ci-dessous ; l'utilisateur le règle.
+const HIERARCHY_FORMATS = [
+  { id: 'digikam', label: 'digiKam', property: 'digiKam:TagsList' },
+  { id: 'lightroom', label: 'Adobe Lightroom', property: 'lr:hierarchicalSubject' },
+  { id: 'mediapro', label: 'Media Pro', property: 'mediapro:CatalogSets' },
+  { id: 'microsoft', label: 'Microsoft Photo', property: 'MicrosoftPhoto:LastKeywordXMP' },
+];
+const DEFAULT_FORMAT_ORDER = HIERARCHY_FORMATS.map(format => format.id);
+
+function loadFormatOrder() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(FORMAT_ORDER_STORAGE_KEY));
+    if (Array.isArray(stored) && stored.length === DEFAULT_FORMAT_ORDER.length && DEFAULT_FORMAT_ORDER.every(id => stored.includes(id))) return stored;
+  } catch {
+    // valeur absente ou illisible : ordre par défaut
+  }
+  return [...DEFAULT_FORMAT_ORDER];
+}
+
+let formatOrder = loadFormatOrder();
+let formatListElement = null;
+
+// Envoie l'ordre au backend, qui l'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+function sendFormatOrder() {
+  invoke('set_keyword_format_order', { order: formatOrder }).catch(error => console.error('Ordre des formats de mots-clés refusé', error));
+}
+
+function saveFormatOrder(order) {
+  formatOrder = order;
+  localStorage.setItem(FORMAT_ORDER_STORAGE_KEY, JSON.stringify(order));
+  sendFormatOrder();
+  renderFormatOrder();
+}
+
+function moveFormat(index, delta) {
+  const target = index + delta;
+  if (target < 0 || target >= formatOrder.length) return;
+  const order = [...formatOrder];
+  [order[index], order[target]] = [order[target], order[index]];
+  saveFormatOrder(order);
+}
+
+function makeMoveButton(symbol, label, disabled, action) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'keyword-format-move';
+  button.textContent = symbol;
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.disabled = disabled;
+  button.addEventListener('click', action);
+  return button;
+}
+
+// Glisser la poignée : la ligne change de place dès que le pointeur passe le milieu d'une voisine ; l'ordre n'est enregistré qu'au relâchement.
+// (Evènements pointeur plutôt que glisser-déposer HTML5, que le dépôt de fichiers de la fenêtre Tauri intercepte.)
+function startFormatDrag(event, item, handle) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  handle.setPointerCapture(event.pointerId);
+  item.classList.add('dragging');
+  const onMove = moveEvent => {
+    const previous = item.previousElementSibling;
+    const next = item.nextElementSibling;
+    if (previous) {
+      const rect = previous.getBoundingClientRect();
+      if (moveEvent.clientY < rect.top + rect.height / 2) formatListElement.insertBefore(item, previous);
+    }
+    if (next) {
+      const rect = next.getBoundingClientRect();
+      if (moveEvent.clientY > rect.top + rect.height / 2) formatListElement.insertBefore(next, item);
+    }
+  };
+  const onEnd = () => {
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onEnd);
+    handle.removeEventListener('pointercancel', onEnd);
+    item.classList.remove('dragging');
+    const order = [...formatListElement.children].map(child => child.dataset.formatId);
+    if (order.join() !== formatOrder.join()) saveFormatOrder(order);
+    else renderFormatOrder();
+  };
+  handle.addEventListener('pointermove', onMove);
+  handle.addEventListener('pointerup', onEnd);
+  handle.addEventListener('pointercancel', onEnd);
+}
+
+function renderFormatOrder() {
+  if (!formatListElement) return;
+  const items = formatOrder.map((id, index) => {
+    const format = HIERARCHY_FORMATS.find(candidate => candidate.id === id);
+    const item = document.createElement('li');
+    item.className = 'keyword-format-item';
+    item.dataset.formatId = id;
+    const handle = document.createElement('span');
+    handle.className = 'keyword-format-handle';
+    handle.textContent = '⠿';
+    handle.title = t('Drag to reorder');
+    handle.addEventListener('pointerdown', event => startFormatDrag(event, item, handle));
+    const rank = document.createElement('span');
+    rank.className = 'keyword-format-rank';
+    rank.textContent = `${index + 1}.`;
+    const name = document.createElement('span');
+    name.className = 'keyword-format-name';
+    name.textContent = format.label;
+    const property = document.createElement('code');
+    property.className = 'keyword-format-property';
+    property.textContent = format.property;
+    item.append(
+      handle,
+      rank,
+      name,
+      property,
+      makeMoveButton('↑', t('Move up'), index === 0, () => moveFormat(index, -1)),
+      makeMoveButton('↓', t('Move down'), index === formatOrder.length - 1, () => moveFormat(index, 1)),
+    );
+    return item;
+  });
+  formatListElement.replaceChildren(...items);
+}
+
+// Fermeture de l'application (appelée par main.js) : renvoie true si elle peut se poursuivre. Des mots-clés non écrits donnent lieu à
+// Appliquer / Quitter sans appliquer / Annuler ; une écriture en cours à une confirmation, car quitter l'interrompt.
+export async function confirmCloseWithPendingKeywords() {
+  if (!initialized) return true;
+  if (promptOpen) return false; // une question est déjà posée : on y répond d'abord
+  const locked = isWriteLocked();
+  if (dirtyIds.size === 0 && !locked) return true;
+  promptOpen = true;
+  let decision;
+  try {
+    if (dirtyIds.size === 0) {
+      const choice = await choiceDialog({
+        title: t('Keyword writing in progress'),
+        message: t('Quitting now interrupts the writing of keywords into the files. Quit anyway?'),
+        buttons: [
+          { label: t('Cancel'), value: 'cancel', cancel: true },
+          { label: t('Quit'), value: 'quit' },
+        ],
+      });
+      return choice === 'quit';
+    }
+    if (!locked && isAutoApply()) {
+      decision = 'apply';
+    } else {
+      const buttons = [];
+      if (!locked) buttons.push({ label: t('Apply'), value: 'apply', primary: true });
+      buttons.push({ label: t('Quit without applying'), value: 'quit', primary: locked });
+      buttons.push({ label: t('Cancel'), value: 'cancel', cancel: true });
+      decision = await choiceDialog({
+        title: t('Pending keyword changes'),
+        message: t(locked
+          ? 'Keyword changes are not written to the files yet, and another write is in progress. Quit anyway?'
+          : 'Keyword changes are not written to the files yet. Apply them before quitting?'),
+        buttons,
+      });
+    }
+  } finally {
+    promptOpen = false;
+  }
+  if (decision === 'quit') return true;
+  if (decision !== 'apply') return false;
+  // Écriture directe (jamais par la file, qui serait interrompue par la fermeture) ; la fenêtre reste ouverte si elle ne réussit pas entièrement.
+  lastWriteOk = false;
+  await applyChanges({ forceDirect: true });
+  return lastWriteOk;
+}
+
+function runKeywordDelete(node, photoCount) {
+  const ids = [node.id, ...descendantIds(node.id)];
+  return runLocked('delete_keyword', { keywordId: node.id }, photoCount, (entry, result, error) => finishDelete(entry, node, photoCount, ids, result, error));
 }
 
 // Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.deleted`).
@@ -1132,6 +1419,11 @@ export function initKeywordsPanel(hostApi) {
     autoApplyBox.addEventListener('change', () => localStorage.setItem(AUTO_APPLY_STORAGE_KEY, String(autoApplyBox.checked)));
   }
 
+  // Priorité de lecture des formats hiérarchiques : liste ordonnable des Paramètres, ordre transmis au backend dès le démarrage (avant tout scan).
+  formatListElement = document.getElementById('keyword-format-order');
+  renderFormatOrder();
+  sendFormatOrder();
+
   // Ctrl+K (filtre d'affichage) et Ctrl+Entrée (Appliquer) : actifs même quand un champ de saisie a le focus
   // (le gestionnaire de touches de main.js ignore les champs de saisie).
   window.addEventListener('keydown', event => {
@@ -1148,6 +1440,7 @@ export function initKeywordsPanel(hostApi) {
   new MutationObserver(() => refreshKeywordsPanel()).observe(exifPanel, { attributes: true, attributeFilter: ['class'] });
 
   onLanguageChange(() => {
+    renderFormatOrder();
     applyTab();
     updateModeButton();
     updateButtons();

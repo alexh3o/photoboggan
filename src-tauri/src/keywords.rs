@@ -497,3 +497,65 @@ pub async fn delete_keyword(
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }
+
+fn run_rename(
+    app: &tauri::AppHandle,
+    pool: &DbPool,
+    keyword_id: i64,
+    name: String,
+    task_id: Option<String>,
+    cancel: Option<Arc<AtomicBool>>,
+) -> Result<KeywordWriteResult, String> {
+    let name = validate_name(&name)?;
+    let items = {
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        let (parent_id, current_name): (i64, String) = conn
+            .query_row("SELECT parent_id, name FROM keyword_nodes WHERE id = ?1", params![keyword_id], |row| Ok((row.get(0)?, row.get(1)?)))
+            .map_err(|_| "unknown_keyword".to_string())?;
+        // Un frère de même nom (casse ignorée) bloque le renommage ; changer seulement la casse du mot-clé lui-même est permis.
+        let key = name_key(&name);
+        let duplicate: bool = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM keyword_nodes WHERE parent_id = ?1 AND name_key = ?2 AND id != ?3)",
+                params![parent_id, key, keyword_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if duplicate { return Err("duplicate".to_string()); }
+        // L'arbre est renommé d'abord : les chemins écrits dans les fichiers sont calculés d'après l'arbre. Appel répété (« Retenter ») sans effet ici.
+        if current_name != name {
+            conn.execute("UPDATE keyword_nodes SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, keyword_id])
+                .map_err(|error| error.to_string())?;
+        }
+        // Tous les fichiers dont un chemin passe par ce mot-clé (lui-même ou un descendant) portent l'ancien nom : ils sont réécrits, ensembles de mots-clés inchangés.
+        let ids = subtree_ids(&conn, keyword_id)?;
+        photos_carrying(&conn, &ids, &HashSet::new())?
+    };
+    run_write(app, pool, items, task_id, cancel)
+}
+
+/// Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'application
+/// des modifications : écriture atomique, relecture, base mise à jour). Les fichiers déjà à jour sont laissés intacts, donc la relancer après un
+/// échec ne réécrit que ce qui reste. Erreurs : `invalid_name`, `unknown_keyword`, `duplicate`.
+#[tauri::command]
+pub async fn rename_keyword(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    keyword_id: i64,
+    name: String,
+    task_id: Option<String>,
+) -> Result<KeywordWriteResult, String> {
+    let pool = state.pool();
+    let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || run_rename(&app, &pool, keyword_id, name, worker_task_id, cancel)).await;
+    if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
+    outcome.map_err(|error| error.to_string())?
+}
+
+/// Règle l'ordre de priorité des formats de mots-clés hiérarchiques à la lecture : `order` liste une fois chacun des identifiants `digikam`,
+/// `lightroom`, `mediapro` et `microsoft`, du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+#[tauri::command]
+pub fn set_keyword_format_order(order: Vec<String>) -> Result<(), String> {
+    crate::exif::set_hierarchy_priority(&order)
+}

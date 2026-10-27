@@ -459,5 +459,22 @@
   "Its {count} sub-keyword will be deleted too.|other": "Its {count} sub-keywords will be deleted too.",
   "Keyword “{name}” deleted": "Keyword “{name}” deleted",
   "Automatically apply keyword changes": "Automatically apply keyword changes",
-  "Automatically apply keyword changes help": "Without this option, you are asked for confirmation when the selection changes while keywords have not been written to the files yet."
+  "Automatically apply keyword changes help": "Without this option, you are asked for confirmation when the selection changes while keywords have not been written to the files yet.",
+  "Rename keyword…": "Rename keyword…",
+  "Rename keyword": "Rename keyword",
+  "Rename": "Rename",
+  "Rename it here anyway?": "Rename it anyway?",
+  "Could not rename the keyword: {error}": "Could not rename the keyword: {error}",
+  "Keyword renamed to “{name}”": "Keyword renamed to “{name}”",
+  "Keyword writing in progress": "Keyword writing in progress",
+  "Quitting now interrupts the writing of keywords into the files. Quit anyway?": "Quitting now interrupts the writing of keywords into the files. Quit anyway?",
+  "Quit": "Quit",
+  "Quit without applying": "Quit without applying",
+  "Keyword changes are not written to the files yet, and another write is in progress. Quit anyway?": "Keyword changes are not written to the files yet, and another write is in progress. Quit anyway?",
+  "Keyword changes are not written to the files yet. Apply them before quitting?": "Keyword changes are not written to the files yet. Apply them before quitting?",
+  "Hierarchical formats reading priority": "Reading priority of hierarchical formats",
+  "Hierarchical formats reading priority help": "The first format that contains keywords wins: its keywords feed the keyword tree and are the ones displayed, the other formats are ignored. Drag the rows or use the arrows. The new order applies the next time files are read (rescan the collection).",
+  "Drag to reorder": "Drag to reorder",
+  "Move up": "Move up",
+  "Move down": "Move down"
 }

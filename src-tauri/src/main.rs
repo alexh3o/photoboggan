@@ -1448,7 +1448,9 @@ fn main() {
             keywords::apply_keyword_changes,
             keywords::create_keyword,
             keywords::get_keyword_delete_info,
-            keywords::delete_keyword
+            keywords::delete_keyword,
+            keywords::rename_keyword,
+            keywords::set_keyword_format_order
         ])
         .run(tauri::generate_context!())
         .expect("Erreur de lancement");

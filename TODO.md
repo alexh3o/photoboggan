@@ -2,8 +2,13 @@
 
 ## 🚀 Next in line
 
-- [ ] *feat*: `keywords` **keywords management & file write**
-- [ ] *fea*: `keywords` add user choice to select favorite keyword format
+- [x] *feat*: `metadata` **keywords management & file write**
+- [x] *feat*: `metadata` add user choice to select favorite keyword format reading order
+- [ ] *feat*: `UI` setting to choose reopening on last folder / all photos
+- [ ] *feat*: `metadata` handle XPKeywords
+- [ ] *feat*: `metadata` handle ACDSee category (hierarchical keywords)
+- [ ] *feat*: `metadata` implement Exif ratings Rating & RatingPercent
+- [ ] *feat*: `metadata` title and description metadata
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -22,12 +27,12 @@
 ## ⚖️ Undecided
 
 - [ ] *feat*: `Faces` [HARD] **Face recognition** (heavy)
-- [ ] *feat*: **internet permission** toggle
-- [ ] *feat*: `needs_internet` **Map screen**
-- [ ] *feat*: `needs_internet` add a **map widget** in info panel
-- [ ] *feat*: `needs_internet` check and inform of **available update** on github (on hold, needs official releases)
-- [ ] *feat*: app tour
-- [ ] *feat*: `Formats` live photos
+- [ ] *feat*: `internet` **internet permission** toggle
+- [ ] *feat*: `internet` **Map screen**
+- [ ] *feat*: `internet` add a **map widget** in info panel
+- [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
+- [ ] *feat*: `help` app tour
+- [ ] *feat*: `formats` live photos
 
 ## ❌ Not planned (use "Open with...")
 

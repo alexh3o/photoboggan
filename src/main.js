@@ -7,7 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
-import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
+import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, confirmCloseWithPendingKeywords } from './keywords-panel.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -38,6 +38,12 @@ window.addEventListener('DOMContentLoaded', () => {
     console.log("Clic sur Fermer");
     appWindow.close().catch(err => console.error("Erreur close:", err));
   });
+
+  // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés non écrits ou une écriture en cours demandent confirmation
+  // (voir keywords-panel.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
+  appWindow.onCloseRequested(async event => {
+    if (!(await confirmCloseWithPendingKeywords())) event.preventDefault();
+  }).catch(err => console.error("Erreur onCloseRequested:", err));
 
   // Icône du bouton Maximiser / Restaurer d'après l'état réel de la fenêtre (aussi modifié hors du bouton : double-clic sur la barre, raccourcis Windows).
   const maximizeButton = document.getElementById('titlebar-maximize');
