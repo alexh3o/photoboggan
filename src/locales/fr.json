@@ -602,5 +602,19 @@
   "Face sharpness hint": "De 0 à 2000. Ex. 50 : un visage net mesure souvent de 100 à 300, un visage flou ou bougé moins de 30.",
   "Face auto threshold hint": "De 0,2 à 1. Ex. 0,50 : deux photos d'une même personne se ressemblent en général entre 0,6 et 0,9, deux personnes différentes à moins de 0,4.",
   "Face suggestion threshold hint": "De 0,2 à 1, sous l'attribution automatique. Ex. 0,36 : entre 0,36 et 0,50, la personne est seulement proposée (« à valider »).",
-  "Face margin hint": "De 0 à 0,5. Ex. 0,05 : un visage à 0,62 pour Paul et 0,59 pour Pierre (écart de 0,03) est seulement proposé, jamais attribué automatiquement."
+  "Face margin hint": "De 0 à 0,5. Ex. 0,05 : un visage à 0,62 pour Paul et 0,59 pour Pierre (écart de 0,03) est seulement proposé, jamais attribué automatiquement.",
+  "Keywords of people still on the photos": "Mots-clés de personnes encore présentes",
+  "{count} photo still has a face of a person whose keyword is removed: {names}": "Une photo a encore un visage d'une personne dont le mot-clé est retiré : {names}",
+  "{count} photo still has a face of a person whose keyword is removed: {names}|other": "{count} photos ont encore un visage d'une personne dont le mot-clé est retiré : {names}",
+  "Keep": "Garder",
+  "Set the face as unknown": "Passer le visage en inconnu",
+  "Keyword, title, description or face changes are not written to the files yet, and another write is in progress. Quit anyway?": "Des modifications de mots-clés, de titre, de description ou de visages ne sont pas encore écrites dans les fichiers, et une autre écriture est en cours. Quitter quand même ?",
+  "Keyword, title, description or face changes are not written to the files yet. Apply them before quitting?": "Des modifications de mots-clés, de titre, de description ou de visages ne sont pas encore écrites dans les fichiers. Les appliquer avant de quitter ?",
+  "Erase face data": "Effacer les données de visages",
+  "Erase face data…": "Effacer les données de visages…",
+  "Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.": "Effacer les visages de la photo ? Ses zones de visage sont retirées du fichier, ainsi que les mots-clés posés par la reconnaissance. Les personnes et l'arbre des mots-clés sont conservés.",
+  "Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.|other": "Effacer les visages des {count} photos ? Leurs zones de visage sont retirées des fichiers, ainsi que les mots-clés posés par la reconnaissance. Les personnes et l'arbre des mots-clés sont conservés.",
+  "Erase": "Effacer",
+  "Write to files ({count} photo)": "Écrire dans les fichiers ({count} photo)",
+  "Write to files ({count} photo)|other": "Écrire dans les fichiers ({count} photos)"
 }

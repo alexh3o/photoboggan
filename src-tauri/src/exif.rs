@@ -1420,6 +1420,26 @@ pub struct MetadataUpdate {
     pub keywords: Option<Vec<Vec<String>>>,
     pub title: Option<String>,
     pub description: Option<String>,
+    /// Zones de visage (lot 4) : remplacent les zones MWG et Microsoft du fichier ; liste vide = zones retirées.
+    pub regions: Option<RegionsUpdate>,
+}
+
+/// Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
+#[derive(Clone, Debug)]
+pub struct RegionWrite {
+    pub name: Option<String>,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+/// Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
+#[derive(Clone, Debug)]
+pub struct RegionsUpdate {
+    pub regions: Vec<RegionWrite>,
+    pub width: i64,
+    pub height: i64,
 }
 
 impl MetadataUpdate {
@@ -1438,6 +1458,7 @@ impl MetadataUpdate {
         self.keywords.as_ref().is_some_and(|paths| !paths.is_empty())
             || self.clean_title().is_some_and(|title| !title.is_empty())
             || self.clean_description().is_some_and(|description| !description.is_empty())
+            || self.regions.as_ref().is_some_and(|update| !update.regions.is_empty())
     }
 }
 
@@ -1510,7 +1531,104 @@ fn update_xmp_all(xml: &str, update: &MetadataUpdate) -> String {
         Some(paths) => update_xmp_keywords(xml, paths),
         None => xml.to_string(),
     };
-    update_xmp_texts(&with_keywords, update)
+    let with_texts = update_xmp_texts(&with_keywords, update);
+    match &update.regions {
+        Some(regions) => update_xmp_regions(&with_texts, regions),
+        None => with_texts,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Zones de visage (lot 4) : MWG Regions et Microsoft Photo RegionInfo, mêmes champs que l'écriture par ExifTool (exiftool.rs).
+// ACDSee n'est pas écrit tant que le repère de ses coordonnées n'est pas confirmé (spec §6.1).
+// ---------------------------------------------------------------------------
+
+const MWG_REGIONS_NS: &str = "http://www.metadataworkinggroup.com/schemas/regions/";
+const ST_AREA_NS: &str = "http://ns.adobe.com/xmp/sType/Area#";
+const ST_DIM_NS: &str = "http://ns.adobe.com/xap/1.0/sType/Dimensions#";
+const MP_NS: &str = "http://ns.microsoft.com/photo/1.2/";
+const MP_REGION_INFO_NS: &str = "http://ns.microsoft.com/photo/1.2/t/RegionInfo#";
+const MP_REGION_NS: &str = "http://ns.microsoft.com/photo/1.2/t/Region#";
+
+/// Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
+/// retirées, quel que soit leur préfixe, puis les nouvelles sont ajoutées (aucune si la liste est vide). Coordonnées à 6 décimales :
+/// MWG = centre de la zone, Microsoft = coin haut-gauche.
+pub(crate) fn update_xmp_regions(xml: &str, update: &RegionsUpdate) -> String {
+    let mut updated = xml.to_string();
+    if !updated.contains("rdf:Description") {
+        if update.regions.is_empty() { return updated; }
+        updated = EMPTY_XMP_PACKET.to_string();
+    }
+    for prefix in crate::faces::namespace_prefixes(&updated, MWG_REGIONS_NS) {
+        updated = remove_xmp_list_property(&updated, "Regions", Some(&prefix));
+    }
+    for prefix in crate::faces::namespace_prefixes(&updated, MP_NS) {
+        updated = remove_xmp_list_property(&updated, "RegionInfo", Some(&prefix));
+    }
+    if update.regions.is_empty() { return updated; }
+    let number = |value: f64| format!("{:.6}", value.clamp(0.0, 1.0));
+    let mut mwg = String::from("<mwg-rs:Regions rdf:parseType=\"Resource\">");
+    if update.width > 0 && update.height > 0 {
+        mwg.push_str(&format!(
+            "<mwg-rs:AppliedToDimensions rdf:parseType=\"Resource\"><stDim:w>{}</stDim:w><stDim:h>{}</stDim:h><stDim:unit>pixel</stDim:unit></mwg-rs:AppliedToDimensions>",
+            update.width, update.height
+        ));
+    }
+    mwg.push_str("<mwg-rs:RegionList><rdf:Bag>");
+    let mut microsoft = String::from("<MP:RegionInfo rdf:parseType=\"Resource\"><MPRI:Regions><rdf:Bag>");
+    for region in &update.regions {
+        mwg.push_str(&format!(
+            "<rdf:li rdf:parseType=\"Resource\"><mwg-rs:Area rdf:parseType=\"Resource\"><stArea:x>{}</stArea:x><stArea:y>{}</stArea:y><stArea:w>{}</stArea:w><stArea:h>{}</stArea:h><stArea:unit>normalized</stArea:unit></mwg-rs:Area>",
+            number(region.x + region.w / 2.0), number(region.y + region.h / 2.0), number(region.w), number(region.h)
+        ));
+        if let Some(name) = &region.name { mwg.push_str(&format!("<mwg-rs:Name>{}</mwg-rs:Name>", xml_escape_text(name))); }
+        mwg.push_str("<mwg-rs:Type>Face</mwg-rs:Type></rdf:li>");
+        microsoft.push_str("<rdf:li rdf:parseType=\"Resource\">");
+        if let Some(name) = &region.name { microsoft.push_str(&format!("<MPReg:PersonDisplayName>{}</MPReg:PersonDisplayName>", xml_escape_text(name))); }
+        microsoft.push_str(&format!(
+            "<MPReg:Rectangle>{}, {}, {}, {}</MPReg:Rectangle></rdf:li>",
+            number(region.x), number(region.y), number(region.w), number(region.h)
+        ));
+    }
+    mwg.push_str("</rdf:Bag></mwg-rs:RegionList></mwg-rs:Regions>");
+    microsoft.push_str("</rdf:Bag></MPRI:Regions></MP:RegionInfo>");
+    let namespaces = [
+        ("mwg-rs", MWG_REGIONS_NS), ("stArea", ST_AREA_NS), ("stDim", ST_DIM_NS),
+        ("MP", MP_NS), ("MPRI", MP_REGION_INFO_NS), ("MPReg", MP_REGION_NS),
+    ];
+    insert_description_children(&updated, &format!("{mwg}{microsoft}"), &namespaces).unwrap_or(updated)
+}
+
+/// Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
+/// sert à vérifier une écriture.
+pub fn read_face_regions(path: &Path) -> Vec<crate::faces::FaceRegion> {
+    if let Some(embedded) = read_embedded_xmp(path) {
+        let regions = crate::faces::parse_regions(&embedded);
+        if !regions.is_empty() { return regions; }
+    }
+    let appended = std::path::PathBuf::from(format!("{}.xmp", path.display()));
+    let compatible = path.with_extension("xmp");
+    [appended, compatible]
+        .into_iter()
+        .filter_map(|sidecar| fs::read_to_string(sidecar).ok())
+        .map(|text| crate::faces::parse_regions(&text))
+        .find(|regions| !regions.is_empty())
+        .unwrap_or_default()
+}
+
+/// Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
+/// (orientation EXIF `orientation`), et `AppliedToDimensions` prend la taille de sortie. Sans zone, le paquet est rendu tel quel.
+pub(crate) fn rotate_xmp_regions(xml: &str, orientation: u32, width: i64, height: i64) -> String {
+    let regions = crate::faces::parse_regions(xml);
+    if regions.is_empty() || orientation <= 1 { return xml.to_string(); }
+    let rotated = regions
+        .into_iter()
+        .map(|region| {
+            let [x, y, w, h] = crate::face_detect::orient_rect([region.x, region.y, region.w, region.h], orientation);
+            RegionWrite { name: region.name, x, y, w, h }
+        })
+        .collect();
+    update_xmp_regions(xml, &RegionsUpdate { regions: rotated, width, height })
 }
 
 /// JPEG dont les commentaires (segments COM) sont remplacés par un seul contenant `text` (aucun si `text` est vide), placé après les segments

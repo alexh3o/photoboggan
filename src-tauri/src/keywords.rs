@@ -187,6 +187,10 @@ pub struct KeywordWriteItem {
     pub title: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Écrire aussi les visages de la photo (zones et mots-clés des personnes, voir faces::plan_face_write). Une photo dont des visages attendent
+    /// d'être écrits les écrit de toute façon, puisqu'elle est réécrite.
+    #[serde(default)]
+    pub faces: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -230,6 +234,15 @@ fn node_path(nodes: &HashMap<i64, (i64, String)>, keyword_id: i64) -> Option<Vec
     Some(names)
 }
 
+/// Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
+fn regions_mismatch(path: &Path, written: &crate::exif::RegionsUpdate) -> Option<String> {
+    let names = |list: Vec<Option<String>>| { let mut names: Vec<String> = list.into_iter().map(|name| name.unwrap_or_default().to_lowercase()).collect(); names.sort(); names };
+    let read = crate::exif::read_face_regions(path);
+    let expected = names(written.regions.iter().map(|region| region.name.clone()).collect());
+    let found = names(read.into_iter().map(|region| region.name).collect());
+    (expected != found).then(|| "Les zones de visage relues dans le fichier diffèrent de celles écrites".to_string())
+}
+
 fn normalized_paths(paths: &[Vec<String>]) -> HashSet<String> {
     paths.iter().map(|segments| segments.iter().map(|segment| segment.trim().to_lowercase()).collect::<Vec<_>>().join(&char::from(1u8).to_string())).collect()
 }
@@ -265,6 +278,22 @@ fn run_write(
         }
     }
 
+    // Visages à écrire avec la photo (demandés, ou en attente) : zones et mots-clés des personnes, calculés avant l'écriture.
+    let mut face_plans: HashMap<i64, crate::faces::FaceWritePlan> = HashMap::new();
+    let mut unplanned: HashSet<i64> = HashSet::new();
+    for item in &valid {
+        if item.faces == Some(true) || crate::faces::has_pending_face_write(&conn, item.photo_id) {
+            match crate::faces::plan_face_write(&conn, item.photo_id, item.keyword_ids.as_deref()) {
+                Ok(plan) => { face_plans.insert(item.photo_id, plan); }
+                Err(error) => {
+                    unplanned.insert(item.photo_id);
+                    failed.push(KeywordFailure { photo_id: item.photo_id, path: item.path.clone(), error });
+                }
+            }
+        }
+    }
+    valid.retain(|item| !unplanned.contains(&item.photo_id));
+
     // Écriture des fichiers (3 en parallèle), chacun de façon atomique. Une photo n'est jamais écrite deux fois en même temps.
     let total = valid.len().max(1);
     let done = AtomicUsize::new(0);
@@ -277,10 +306,17 @@ fn run_write(
                 if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) {
                     return (item, None);
                 }
+                let plan = face_plans.get(&item.photo_id);
+                // Avec des visages : mots-clés du plan (ceux de l'utilisateur, plus ou moins ceux des personnes), écrits s'ils changent.
+                let keyword_ids: Option<&[i64]> = match plan {
+                    Some(plan) => plan.keywords_changed.then_some(plan.keyword_ids.as_slice()),
+                    None => item.keyword_ids.as_deref(),
+                };
                 let update = crate::exif::MetadataUpdate {
-                    keywords: item.keyword_ids.as_ref().map(|ids| ids.iter().filter_map(|id| node_path(&nodes, *id)).collect()),
+                    keywords: keyword_ids.map(|ids| ids.iter().filter_map(|id| node_path(&nodes, *id)).collect()),
                     title: item.title.clone(),
                     description: item.description.clone(),
+                    regions: plan.map(|plan| plan.regions.clone()),
                 };
                 let result = crate::exif::write_metadata(&item.path, &update).map(|_| update).map_err(|error| error.to_string());
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
@@ -310,7 +346,8 @@ fn run_write(
                         Some("Les mots-clés relus dans le fichier diffèrent de ceux écrits".to_string())
                     }
                     _ => crate::exif::text_mismatch(Path::new(&item.path), &update, &meta),
-                };
+                }
+                .or_else(|| update.regions.as_ref().and_then(|regions| regions_mismatch(Path::new(&item.path), regions)));
                 if let Some(error) = mismatch {
                     failed.push(KeywordFailure { photo_id: item.photo_id, path: item.path, error });
                     continue;
@@ -329,6 +366,7 @@ fn run_write(
                         );
                     }
                 }
+                if let Some(plan) = face_plans.get(&item.photo_id) { crate::faces::finish_face_write(&conn, item.photo_id, plan); }
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
                 face_batches.push((item.path.clone(), meta.faces));
                 written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, title: meta.title, description: meta.caption });
@@ -461,7 +499,7 @@ fn photos_carrying(conn: &Connection, ids: &[i64], dropped: &HashSet<i64>) -> Re
         let index = match index_of.get(&photo_id) {
             Some(index) => *index,
             None => {
-                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None });
+                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, faces: None });
                 index_of.insert(photo_id, items.len() - 1);
                 items.len() - 1
             }
@@ -484,6 +522,10 @@ fn run_delete(
         let ids = subtree_ids(&conn, keyword_id)?;
         if ids.is_empty() { return Err("unknown_keyword".to_string()); }
         let removed: HashSet<i64> = ids.iter().copied().collect();
+        // Personnes reliées à ces mots-clés : déliées d'abord (elles gardent leur nom et leurs visages), sinon l'écriture de leurs visages
+        // remettrait le mot-clé dans les fichiers (voir faces::plan_face_write).
+        let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
+        let _ = conn.execute("UPDATE persons SET keyword_node_id = NULL WHERE keyword_node_id IN (SELECT value FROM json_each(?1))", params![ids_json]);
         photos_carrying(&conn, &ids, &removed)?
     };
 
@@ -549,6 +591,12 @@ fn run_rename(
             conn.execute("UPDATE keyword_nodes SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, keyword_id])
                 .map_err(|error| error.to_string())?;
         }
+        // Personne reliée à ce mot-clé : ses zones de visage portent le nom du mot-clé, elles sont à réécrire (avec cette écriture pour les photos
+        // qui portent le mot-clé, à la prochaine écriture des visages pour les autres).
+        let _ = conn.execute(
+            "UPDATE faces SET dirty = 1 WHERE state IN ('auto', 'confirmed') AND person_id IN (SELECT id FROM persons WHERE keyword_node_id = ?1)",
+            params![keyword_id],
+        );
         // Tous les fichiers dont un chemin passe par ce mot-clé (lui-même ou un descendant) portent l'ancien nom : ils sont réécrits, ensembles de mots-clés inchangés.
         let ids = subtree_ids(&conn, keyword_id)?;
         photos_carrying(&conn, &ids, &HashSet::new())?

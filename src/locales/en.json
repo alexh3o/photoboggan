@@ -604,5 +604,19 @@
   "Face sharpness hint": "0 to 2000. E.g. 50: a sharp face often measures 100 to 300, a blurred or shaken face under 30.",
   "Face auto threshold hint": "0.2 to 1. E.g. 0.50: two photos of the same person usually match at 0.6 to 0.9, two different people under 0.4.",
   "Face suggestion threshold hint": "0.2 to 1, below automatic attribution. E.g. 0.36: between 0.36 and 0.50, the person is only suggested (\"to confirm\").",
-  "Face margin hint": "0 to 0.5. E.g. 0.05: a face at 0.62 for Paul and 0.59 for Pierre (gap of 0.03) is only suggested, never attributed automatically."
+  "Face margin hint": "0 to 0.5. E.g. 0.05: a face at 0.62 for Paul and 0.59 for Pierre (gap of 0.03) is only suggested, never attributed automatically.",
+  "Keywords of people still on the photos": "Keywords of people still on the photos",
+  "{count} photo still has a face of a person whose keyword is removed: {names}": "One photo still has a face of a person whose keyword is removed: {names}",
+  "{count} photo still has a face of a person whose keyword is removed: {names}|other": "{count} photos still have a face of a person whose keyword is removed: {names}",
+  "Keep": "Keep",
+  "Set the face as unknown": "Set the face as unknown",
+  "Keyword, title, description or face changes are not written to the files yet, and another write is in progress. Quit anyway?": "Keyword, title, description or face changes are not written to the files yet, and another write is in progress. Quit anyway?",
+  "Keyword, title, description or face changes are not written to the files yet. Apply them before quitting?": "Keyword, title, description or face changes are not written to the files yet. Apply them before quitting?",
+  "Erase face data": "Erase face data",
+  "Erase face data…": "Erase face data…",
+  "Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.": "Erase the faces of this photo? Its face regions are removed from the file, with the keywords set by face recognition. People and the keyword tree are kept.",
+  "Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.|other": "Erase the faces of {count} photos? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.",
+  "Erase": "Erase",
+  "Write to files ({count} photo)": "Write to files ({count} photo)",
+  "Write to files ({count} photo)|other": "Write to files ({count} photos)"
 }

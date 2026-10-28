@@ -1104,10 +1104,13 @@ function buildSubmenuItem(label, items) {
 
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
 function buildFacesItem(scope) {
-  return buildSubmenuItem(t('Faces'), [
+  const items = [
     { label: t('Detect faces (unscanned photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: true }) },
     { label: t('Detect faces (all photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: false }) },
-  ]);
+  ];
+  // Sélection : effacer ses données de visages (base et fichiers), après confirmation.
+  if (scope.photoIds) items.push({ label: t('Erase face data…'), onSelect: () => api.eraseFaces(scope.photoIds) });
+  return buildSubmenuItem(t('Faces'), items);
 }
 
 // « Ouvrir avec » : programmes des Paramètres, puis toujours « Choisir… » en fin de liste.

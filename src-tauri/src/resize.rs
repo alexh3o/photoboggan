@@ -262,7 +262,7 @@ fn render(source: &Path, options: &ResizeOptions) -> Result<(Vec<u8>, usize, usi
     let (width, height) = (raster.width, raster.height);
 
     let bytes = match options.format {
-        OutputFormat::Jpeg => encode_jpeg(&raster, options, &metadata, exif_orientation)?,
+        OutputFormat::Jpeg => encode_jpeg(&raster, options, &metadata, exif_orientation, orientation)?,
         OutputFormat::Png => encode_png(&raster, options, metadata.icc.as_deref())?,
     };
     Ok((bytes, width, height))
@@ -355,7 +355,8 @@ fn orient_raster(raster: Raster, orientation: u32) -> Raster {
     Raster { rgb, alpha, width: new_width, height: new_height }
 }
 
-fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetadata, orientation: u32) -> Result<Vec<u8>, String> {
+// `pixel_orientation` : rotation appliquée aux pixels (les zones de visage du XMP la suivent, voir patch_xmp).
+fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetadata, orientation: u32, pixel_orientation: u32) -> Result<Vec<u8>, String> {
     if raster.width > u16::MAX as usize || raster.height > u16::MAX as usize { return Err("Image trop grande pour le JPEG".into()); }
     // Le JPEG n'a pas de transparence : aplatie sur fond blanc.
     let flattened;
@@ -379,7 +380,7 @@ fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetada
             let _ = encoder.add_app_segment(1, &exif);
         }
         if let Some(xmp) = &metadata.xmp {
-            let _ = encoder.add_app_segment(1, &patch_xmp_orientation(xmp));
+            let _ = encoder.add_app_segment(1, &patch_xmp(xmp, pixel_orientation, raster.width, raster.height));
         }
         if let Some(iptc) = &metadata.iptc { let _ = encoder.add_app_segment(13, iptc); }
     }
@@ -510,6 +511,17 @@ fn patch_exif(segment: &mut [u8], width: u32, height: u32, original_orientation:
 }
 
 /// Un paquet XMP peut contenir tiff:Orientation : remis à 1 (les pixels sont déjà pivotés), sinon l'image serait pivotée deux fois.
+/// XMP recopié : orientation remise à 1 et, si les pixels ont été tournés, zones de visage (MWG, Microsoft) tournées de la même façon, avec les
+/// dimensions de sortie. Sans rotation, les coordonnées normalisées restent justes : seul l'orientation change.
+fn patch_xmp(segment: &[u8], pixel_orientation: u32, width: usize, height: usize) -> Vec<u8> {
+    let patched = patch_xmp_orientation(segment);
+    if pixel_orientation <= 1 { return patched; }
+    let Some(packet) = patched.strip_prefix(XMP_HEADER) else { return patched; };
+    let Ok(text) = std::str::from_utf8(packet) else { return patched; };
+    let rotated = crate::exif::rotate_xmp_regions(text, pixel_orientation, width as i64, height as i64);
+    [XMP_HEADER, rotated.as_bytes()].concat()
+}
+
 fn patch_xmp_orientation(segment: &[u8]) -> Vec<u8> {
     let Ok(text) = std::str::from_utf8(segment) else { return segment.to_vec() };
     let mut updated = text.to_string();

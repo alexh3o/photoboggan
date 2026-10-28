@@ -9,7 +9,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { promptDialog } from './photo-actions.js';
-import { orientRect, refreshFaces, keywordPaths, getPersons } from './faces-panel.js';
+import { orientRect, refreshFaces, keywordPaths, getPersons, getPendingFaceWriteCount } from './faces-panel.js';
+import { applyPending, isWriteLocked, onLockChange } from './metadata-writes.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
 // Statuts dans l'ordre d'affichage des groupes, avec la clé de traduction de leur nom.
@@ -310,6 +311,20 @@ function updateToolbar() {
   const ignored = targets.filter(face => face.state === 'ignored');
   document.getElementById('btn-faces-ignore').disabled = targets.length === ignored.length;
   document.getElementById('btn-faces-unignore').hidden = ignored.length === 0;
+  updateWriteButton();
+}
+
+// « Écrire dans les fichiers (N photos) » : visages en attente de toute la photothèque ; grisé pendant une écriture ou sans rien à écrire.
+function updateWriteButton() {
+  const button = document.getElementById('btn-faces-write');
+  const pending = getPendingFaceWriteCount();
+  button.textContent = tp('Write to files ({count} photo)', pending);
+  button.disabled = pending === 0 || isWriteLocked();
+}
+
+function writeFaces() {
+  if (getPendingFaceWriteCount() === 0 || isWriteLocked()) return;
+  applyPending({ includeLibrary: true });
 }
 
 // Action de révision sur les visages sélectionnés, puis réattribution des autres visages des photos affichées et rechargement.
@@ -425,6 +440,16 @@ export function initFacesGrid(hostApi) {
   document.getElementById('btn-faces-unignore').addEventListener('click', () => runAction('unignore_faces'));
   // Clavier de la vue : Entrée valide, Ctrl + A sélectionne tout, Échap désélectionne. Les raccourcis des photos sont coupés pendant ce temps
   // (voir le gestionnaire de main.js).
+  document.getElementById('btn-faces-write').addEventListener('click', writeFaces);
+  onLockChange(() => { if (open) updateWriteButton(); });
+  // Ctrl + Entrée : écriture des visages en attente. Écouté en phase de capture, avant le Ctrl + Entrée du panneau Mots-clés.
+  window.addEventListener('keydown', event => {
+    if (!open || host.isFullscreen() || document.querySelector('.modal:not(.hidden)')) return;
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key !== 'Enter') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!event.repeat) writeFaces();
+  }, true);
   window.addEventListener('keydown', event => {
     if (!open || host.isFullscreen() || document.querySelector('.modal:not(.hidden)')) return;
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;

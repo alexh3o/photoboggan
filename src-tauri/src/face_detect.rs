@@ -156,7 +156,7 @@ fn inverse_orientation(orientation: u32) -> u32 {
 }
 
 /// Rectangle normalisé (x, y, w, h) transformé par une orientation : ses deux coins opposés sont transformés, puis remis dans l'ordre.
-fn orient_rect(rect: [f64; 4], orientation: u32) -> [f64; 4] {
+pub(crate) fn orient_rect(rect: [f64; 4], orientation: u32) -> [f64; 4] {
     let (x1, y1) = orient_point(rect[0], rect[1], orientation);
     let (x2, y2) = orient_point(rect[0] + rect[2], rect[1] + rect[3], orientation);
     [x1.min(x2), y1.min(y2), (x2 - x1).abs(), (y2 - y1).abs()]
@@ -663,6 +663,8 @@ fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, cur
         let replaceable = candidate.origin == "detected" && matches!(candidate.state.as_str(), "unknown" | "filtered" | "suggested" | "auto");
         if replaceable {
             let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id]);
+            // Visage nommé (attribution automatique) supprimé : sa zone a pu être écrite, la photo est à réécrire.
+            if candidate.person_id.is_some() { crate::faces::mark_photo_for_write(conn, target.photo_id); }
         } else if target.needs_review && candidate.person_id.is_some() && candidate.state != "ignored" {
             // Photo à revérifier : un visage nommé non retrouvé reste à son ancienne position, « suggéré », pour que l'utilisateur tranche (§4.2).
             let _ = conn.execute(

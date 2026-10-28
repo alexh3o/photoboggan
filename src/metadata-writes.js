@@ -25,7 +25,7 @@ export const isAutoApply = () => localStorage.getItem(AUTO_APPLY_STORAGE_KEY) ==
 const fileName = path => String(path).split(/[\\/]/).pop();
 
 // Services fournis par main.js : showToast, enqueueKeywordTask, isTaskQueued, updatePhotoMetadata, findIndicesByPhotoIds, setSelectionIndices,
-// showFailedFiles.
+// showFailedFiles, faceReadingEnabled.
 export function initMetadataWrites(hostApi) {
   host = hostApi;
   const autoApplyBox = document.getElementById('keywords-auto-apply');
@@ -35,11 +35,14 @@ export function initMetadataWrites(hostApi) {
   }
 }
 
-// Inscrit un onglet éditeur : { isDirty(), targetIds(), pendingItems() -> [{ photo_id, path, keyword_ids? , title?, description? }],
-// afterWrite(result, items), discard() }.
+// Inscrit un onglet éditeur : { isDirty(), targetIds(), pendingItems() -> [{ photo_id, path, keyword_ids? , title?, description?, faces? }],
+// afterWrite(result, items), discard(), scope? }. `scope: 'library'` (visages, faces-panel.js) : modifications en attente dans toute la photothèque,
+// pas sur la sélection : pas de question au changement de sélection, et écrites seulement par une demande explicite (vue Visages) ou à la fermeture.
 export function registerEditor(editor) {
   editors.push(editor);
 }
+
+const followsSelection = editor => editor.scope !== 'library';
 
 export const isPromptOpen = () => promptOpen;
 export const hasPendingEdits = () => editors.some(editor => editor.isDirty());
@@ -165,21 +168,71 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
   }
 }
 
-// Écrit tout ce qui attend dans les onglets éditeurs : les éléments d'une même photo sont réunis en une seule écriture.
-export async function applyPending(options) {
+// Écrit tout ce qui attend dans les onglets éditeurs : les éléments d'une même photo sont réunis en une seule écriture. `includeLibrary` : aussi
+// les visages en attente dans toute la photothèque (sinon, seuls ceux des photos déjà réécrites le sont, par le backend).
+export async function applyPending(options = {}) {
   if (isWriteLocked()) return;
   const merged = new Map();
   for (const editor of editors) {
-    if (!editor.isDirty()) continue;
+    if (!editor.isDirty() || (!followsSelection(editor) && !options.includeLibrary)) continue;
     for (const item of editor.pendingItems()) {
       merged.set(item.photo_id, { ...merged.get(item.photo_id), ...item });
     }
   }
-  const items = [...merged.values()];
-  if (items.length) await runWrite(items, options);
+  const items = await resolveFaceKeywordConflicts([...merged.values()]);
+  if (items?.length) await runWrite(items, options);
 }
 
+// Écrit directement des éléments déjà prêts (ex. « Effacer les données de visages ») : même circuit que « Appliquer ».
+export const writeMetadataItems = (items, options) => runWrite(items, options);
+
 const runWrite = (items, options) => runLocked('apply_metadata_changes', { items }, items.length, (result, error) => finishWrite(items, result, error), options);
+
+// Mot-clé d'une personne retiré à la main alors qu'un de ses visages reste sur la photo (spec §6.3) : Garder (le mot-clé reste) ou Passer le
+// visage en inconnu (le mot-clé part avec le nom du visage). Renvoie les éléments à écrire, ou null si l'utilisateur annule.
+async function resolveFaceKeywordConflicts(items) {
+  const changes = items.filter(item => Array.isArray(item.keyword_ids)).map(item => ({ photo_id: item.photo_id, keyword_ids: item.keyword_ids }));
+  if (!changes.length || !host.faceReadingEnabled?.()) return items;
+  let conflicts;
+  try {
+    conflicts = await invoke('face_keyword_conflicts', { changes });
+  } catch (error) {
+    console.error('Vérification des mots-clés de personnes impossible', error);
+    return items;
+  }
+  if (!conflicts.length) return items;
+  const photos = new Set(conflicts.map(conflict => conflict.photo_id));
+  const names = [...new Set(conflicts.map(conflict => conflict.name))];
+  const choice = await choiceDialog({
+    title: t('Keywords of people still on the photos'),
+    message: tp('{count} photo still has a face of a person whose keyword is removed: {names}', photos.size, { names: names.slice(0, 5).join(', ') }),
+    buttons: [
+      { label: t('Keep'), value: 'keep', primary: true },
+      { label: t('Set the face as unknown'), value: 'unknown' },
+      { label: t('Cancel'), value: 'cancel', cancel: true },
+    ],
+  });
+  if (choice === 'cancel') return null;
+  const byPhoto = new Map(items.map(item => [item.photo_id, item]));
+  if (choice === 'keep') {
+    for (const conflict of conflicts) {
+      const item = byPhoto.get(conflict.photo_id);
+      if (item && !item.keyword_ids.includes(conflict.keyword_id)) item.keyword_ids = [...item.keyword_ids, conflict.keyword_id];
+    }
+    return items;
+  }
+  try {
+    await invoke('set_faces_unknown', { faceIds: conflicts.flatMap(conflict => conflict.face_ids) });
+  } catch (error) {
+    host.showToast(String(error));
+    return null;
+  }
+  for (const conflict of conflicts) {
+    const item = byPhoto.get(conflict.photo_id);
+    if (item) item.faces = true;
+  }
+  return items;
+}
 
 // Valeurs relues dans les fichiers écrits (mots-clés à plat, titre, description) : reportées dans les listes de photos de main.js.
 export function publishWritten(written) {
@@ -233,7 +286,7 @@ const sameIds = (ids, others) => ids.length === others.length && ids.every(id =>
 // est rétablie (l'onglet ne doit pas se recharger), « proceed » sinon. Une seule question à la fois, partagée par les onglets.
 export function resolvePendingSelection(currentIds) {
   if (pendingPrompt) return pendingPrompt;
-  const stale = editors.filter(editor => editor.isDirty() && !sameIds(editor.targetIds(), currentIds));
+  const stale = editors.filter(editor => followsSelection(editor) && editor.isDirty() && !sameIds(editor.targetIds(), currentIds));
   if (!stale.length) return Promise.resolve('proceed');
   pendingPrompt = (async () => {
     const previousIndices = host.findIndicesByPhotoIds(stale[0].targetIds());
@@ -304,8 +357,8 @@ export async function confirmCloseWithPendingEdits() {
       decision = await choiceDialog({
         title: t('Pending changes'),
         message: t(locked
-          ? 'Keyword, title or description changes are not written to the files yet, and another write is in progress. Quit anyway?'
-          : 'Keyword, title or description changes are not written to the files yet. Apply them before quitting?'),
+          ? 'Keyword, title, description or face changes are not written to the files yet, and another write is in progress. Quit anyway?'
+          : 'Keyword, title, description or face changes are not written to the files yet. Apply them before quitting?'),
         buttons,
       });
     }
@@ -316,6 +369,6 @@ export async function confirmCloseWithPendingEdits() {
   if (decision !== 'apply') return false;
   // Écriture directe (jamais par la file, qui serait interrompue par la fermeture) ; la fenêtre reste ouverte si elle ne réussit pas entièrement.
   lastWriteOk = false;
-  await applyPending({ forceDirect: true });
+  await applyPending({ forceDirect: true, includeLibrary: true });
   return lastWriteOk;
 }

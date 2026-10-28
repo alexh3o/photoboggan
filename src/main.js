@@ -11,7 +11,7 @@ import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, closeFacesView, reloadFacesView } from './faces-grid.js';
 
 // AJOUT BARRE TITRE
@@ -4266,6 +4266,7 @@ initPhotoActions({
   // Sous-menu « Visages » (voir faces-panel.js) : affiché quand la détection est activée, il ouvre la fenêtre de lancement d'un scan.
   faceDetectionEnabled: isFaceDetectionEnabled,
   openFaceScan: scope => openFaceScanDialog(scope),
+  eraseFaces: photoIds => eraseFaceData(photoIds),
 });
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
@@ -4325,6 +4326,8 @@ initMetadataWrites({
     renderFilterTags();
     applyPhotoFilters();
   },
+  // Lecture des visages activée : avant d'écrire des mots-clés, vérifier ceux des personnes encore présentes sur les photos (voir metadata-writes.js).
+  faceReadingEnabled: () => document.getElementById('face-reading-toggle')?.checked === true,
 });
 
 const getSelectedPhotos = () => [...selectedIndices].map(index => photos[index]).filter(Boolean);

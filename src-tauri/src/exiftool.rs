@@ -505,8 +505,56 @@ fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::
 ///   Microsoft LastKeywordXMP, ACDSee categories ; dans les JPEG, aussi IPTC Keywords et EXIF XPKeywords ;
 /// - titre : XMP dc:title et acdsee:caption ; dans les JPEG, aussi IPTC ObjectName et EXIF XPTitle ;
 /// - description : XMP dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes ; dans les JPEG, aussi le commentaire JPEG,
-///   EXIF ImageDescription, UserComment et XPComment, et IPTC Caption.
+///   EXIF ImageDescription, UserComment et XPComment, et IPTC Caption ;
+/// - zones de visage : MWG RegionInfo et Microsoft RegionInfoMP (mêmes champs que exif::update_xmp_regions ; ACDSee non écrit).
 pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -> std::io::Result<()> {
+    let mut args = metadata_args(image_path, update);
+    if let Some(regions) = &update.regions { args.extend(region_args(regions)); }
+    if args.is_empty() { return Ok(()); }
+    write_to(image_path, args, update.adds_values())
+}
+
+/// Valeur d'un champ de structure ExifTool (`{Champ=valeur,…}`) : les caractères de la syntaxe sont précédés de « | ».
+fn struct_value(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '|' | ',' | '=' | '{' | '}' | '[' | ']') { escaped.push('|'); }
+        escaped.push(character);
+    }
+    escaped
+}
+
+/// Zones de visage : la structure entière est remplacée (liste vide : supprimée). MWG : centre de la zone ; Microsoft : coin haut-gauche,
+/// valeurs séparées par des virgules (échappées dans la structure).
+fn region_args(update: &crate::exif::RegionsUpdate) -> Vec<String> {
+    if update.regions.is_empty() {
+        return vec![assign("XMP-mwg-rs:RegionInfo", ""), assign("XMP-MP:RegionInfoMP", "")];
+    }
+    let number = |value: f64| format!("{:.6}", value.clamp(0.0, 1.0));
+    let mwg_regions: Vec<String> = update.regions.iter().map(|region| {
+        let name = region.name.as_deref().map(|name| format!(",Name={}", struct_value(name))).unwrap_or_default();
+        format!(
+            "{{Area={{X={},Y={},W={},H={},Unit=normalized}}{name},Type=Face}}",
+            number(region.x + region.w / 2.0), number(region.y + region.h / 2.0), number(region.w), number(region.h)
+        )
+    }).collect();
+    let dimensions = if update.width > 0 && update.height > 0 {
+        format!("AppliedToDimensions={{W={},H={},Unit=pixel}},", update.width, update.height)
+    } else {
+        String::new()
+    };
+    let microsoft_regions: Vec<String> = update.regions.iter().map(|region| {
+        let name = region.name.as_deref().map(|name| format!("PersonDisplayName={},", struct_value(name))).unwrap_or_default();
+        format!("{{{name}Rectangle={}|, {}|, {}|, {}}}", number(region.x), number(region.y), number(region.w), number(region.h))
+    }).collect();
+    vec![
+        assign("XMP-mwg-rs:RegionInfo", &format!("{{{dimensions}RegionList=[{}]}}", mwg_regions.join(","))),
+        assign("XMP-MP:RegionInfoMP", &format!("{{Regions=[{}]}}", microsoft_regions.join(","))),
+    ]
+}
+
+/// Arguments ExifTool des mots-clés, du titre et de la description de `update`.
+fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec<String> {
     let jpeg = matches!(target_of(image_path), Target::Jpeg);
     let mut args = Vec::new();
     // Valeurs IPTC écrites : UTF-8 déclaré si l'une n'est pas en ASCII.
@@ -555,9 +603,8 @@ pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -
             iptc_values.push(caption);
         }
     }
-    if args.is_empty() { return Ok(()); }
     if iptc_values.iter().any(|value| !value.is_ascii()) { args.push("-IPTC:CodedCharacterSet=UTF8".to_string()); }
-    write_to(image_path, args, update.adds_values())
+    args
 }
 
 /// Note (`xmp:Rating`, `acdsee:rating`, `MicrosoftPhoto:Rating` ; dans les JPEG, aussi EXIF `Rating` et `RatingPercent` de Windows) et/ou

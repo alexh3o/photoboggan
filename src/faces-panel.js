@@ -7,7 +7,8 @@ import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { openContextMenuAt, promptDialog, createModal } from './photo-actions.js';
+import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
+import { registerEditor, writeMetadataItems } from './metadata-writes.js';
 
 const READING_STORAGE_KEY = 'faceReading'; // « true » : lecture des zones de visage activée
 const DETECTION_STORAGE_KEY = 'faceDetection'; // « true » : détection et reconnaissance activées (menus « Visages », réglages du modèle)
@@ -122,6 +123,60 @@ export function getPersons() {
   return persons;
 }
 
+// ==========================================
+// ÉCRITURE DES VISAGES DANS LES FICHIERS (lot 4)
+// ==========================================
+// Photos dont les visages attendent d'être écrits : [photo_id, path] (get_pending_face_writes). Elles forment un « éditeur » de metadata-writes.js
+// propre à toute la photothèque (scope « library ») : écrites par la vue Visages (bouton, Ctrl + Entrée) ou à la fermeture ; « Appliquer » du
+// panneau de droite écrit aussi les visages des photos qu'il réécrit.
+let pendingFaceWrites = [];
+
+export function getPendingFaceWriteCount() {
+  return pendingFaceWrites.length;
+}
+
+async function refreshPendingFaceWrites() {
+  if (!readingEnabled) {
+    pendingFaceWrites = [];
+    return;
+  }
+  try {
+    pendingFaceWrites = await invoke('get_pending_face_writes');
+  } catch (error) {
+    console.error('Visages en attente illisibles', error);
+  }
+}
+
+const faceEditor = {
+  scope: 'library',
+  isDirty: () => pendingFaceWrites.length > 0,
+  targetIds: () => pendingFaceWrites.map(([photoId]) => photoId),
+  pendingItems: () => pendingFaceWrites.map(([photoId, path]) => ({ photo_id: photoId, path, faces: true })),
+  afterWrite: () => refreshFaces(),
+  discard: () => {}, // les visages restent en base, marqués : rien à abandonner
+};
+
+// « Effacer les données de visages » d'une sélection : confirmation, puis visages supprimés de la base et zones retirées des fichiers.
+export async function eraseFaceData(photoIds) {
+  if (!photoIds.length) return;
+  const confirmed = await confirmDialog({
+    title: t('Erase face data'),
+    message: tp('Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.', photoIds.length),
+    confirmLabel: t('Erase'),
+    cancelLabel: t('Cancel'),
+  });
+  if (!confirmed) return;
+  let items;
+  try {
+    items = await invoke('erase_face_data', { photoIds });
+  } catch (error) {
+    host.showToast(String(error));
+    return;
+  }
+  await refreshFaces();
+  await writeMetadataItems(items.map(([photoId, path]) => ({ photo_id: photoId, path, faces: true })));
+}
+
 // Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
 export function getPersonRoot() {
   return (readStorage(PERSON_ROOT_STORAGE_KEY) ?? '').trim();
@@ -223,6 +278,7 @@ export async function refreshFaces() {
   renderPersonFilterTags();
   if (hasPersonFilters() || filtersChanged) host.onFilterChange({ keepState: true });
   layoutFullscreenFaces(host.getFullscreenSlot());
+  await refreshPendingFaceWrites(); // visages en attente d'écriture (bouton de la vue Visages, confirmation à la fermeture)
   host.onFacesChanged?.(); // vue Visages ouverte : rechargée
 }
 
@@ -767,6 +823,7 @@ function applyReadingEnabled() {
 // enqueueTask({ kind, path, command, args, labelKey, labelParams, onResult }) (file des tâches de main.js).
 export function initFacesPanel(hostApi) {
   host = hostApi;
+  registerEditor(faceEditor);
   // Le backend doit savoir avant tout scan s'il lit les zones de visage, et avec quels réglages il détecte.
   invoke('set_face_reading', { enabled: readingEnabled }).catch(error => console.error('Réglage de lecture des visages refusé', error));
   sendFaceSettings();
