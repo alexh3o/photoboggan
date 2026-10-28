@@ -19,6 +19,7 @@ dist-ssr
 # Tools
 dev_tools/*
 Files_4_AI/*
+.claude/*
 
 # Editor directories and files
 .vscode/*

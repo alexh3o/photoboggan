@@ -31,6 +31,19 @@
 button.filter-tag.tag-person:hover { background: #5d4875; }
 #filter-body-persons input { width: 100%; }
 
+/* Paramètres > Visages : réglages de détection, fichiers du modèle */
+.face-detection-settings[hidden], #btn-face-model-download[hidden], #btn-face-model-import[hidden] { display: none !important; }
+.face-detection-settings h4 { margin-top: 0.75rem; }
+.face-threshold { width: 6rem; }
+.face-model-offline { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
+.face-model-offline summary { cursor: pointer; }
+.face-model-files { list-style: none; margin-top: 0.4rem; }
+.face-model-files li { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 0.5rem; }
+.face-model-files code { font-size: 0.65rem; overflow-wrap: anywhere; user-select: text; }
+/* Fenêtre de lancement d'un scan */
+.face-scan-card .settings-row { margin-top: 0.4rem; }
+.face-scan-question { font-weight: bold; }
+
 /* Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la souris */
 .face-overlay { position: absolute; z-index: 1; pointer-events: none; }
 .face-box { position: absolute; border: 2px solid #2ecc71; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }

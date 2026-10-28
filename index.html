@@ -300,7 +300,6 @@
               <label class="settings-row" for="thumbnail-cache-size-select">
                 <span data-i18n="Max resolution">Résolution maximale</span>
                 <select id="thumbnail-cache-size-select">
-                  <option value="256">256 px</option>
                   <option value="512">512 px</option>
                   <option value="768">768 px</option>
                   <option value="1024">1024 px</option>
@@ -416,6 +415,10 @@
               </label>
               <ol id="metadata-order-list" class="keyword-format-order"></ol>
             </section>
+            <section class="settings-section">
+              <h4 data-i18n="Faces">Visages</h4>
+              <label class="settings-row settings-check"><input id="face-scan-subfolders" type="checkbox" /><span data-i18n="Always include subfolders when detecting faces">Toujours inclure les sous-dossiers lors de la détection des visages</span></label>
+            </section>
           </div>
           <!-- Onglet Visages (faces-panel.js) -->
           <div id="settings-tab-faces" class="settings-tab-pane" role="tabpanel" hidden>
@@ -426,6 +429,30 @@
               <div id="face-reading-rescan" class="settings-storage-actions" hidden>
                 <p class="sort-note" data-i18n="Face reading rescan hint">Relisez la collection pour lire les visages des photos déjà cataloguées.</p>
                 <button id="btn-face-rescan" class="btn-highlight" type="button" data-i18n="Rescan all collection">Relire toute la collection</button>
+              </div>
+            </section>
+            <section class="settings-section">
+              <label class="settings-row settings-check"><input id="face-detection-toggle" type="checkbox" /><span data-i18n="Enable face detection and recognition">Activer la détection et la reconnaissance des visages</span></label>
+              <p class="sort-note" data-i18n="Enable face detection help">Détecte les visages des photos choisies (menu contextuel d'un dossier ou d'une sélection > Visages). Tout se passe sur cet ordinateur ; les fichiers photo ne sont pas modifiés.</p>
+              <div id="face-detection-settings" class="face-detection-settings" hidden>
+                <h4 data-i18n="Model">Modèle</h4>
+                <p id="face-model-status" class="sort-note"></p>
+                <div class="settings-storage-actions">
+                  <button id="btn-face-model-download" class="btn-highlight" type="button"></button>
+                  <button id="btn-face-model-import" class="btn-secondary" type="button" data-i18n="Install from a folder…">Installer depuis un dossier…</button>
+                </div>
+                <details class="face-model-offline">
+                  <summary data-i18n="Installing without Internet">Installation sans Internet</summary>
+                  <p class="sort-note" data-i18n="Face model offline help">Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.</p>
+                  <ul id="face-model-files" class="face-model-files"></ul>
+                </details>
+                <h4 data-i18n="Detection">Détection</h4>
+                <label class="settings-row settings-check"><input id="face-scan-raw" type="checkbox" /><span data-i18n="Scan RAW files (embedded preview)">Scanner les RAW (aperçu intégré)</span></label>
+                <label class="settings-row" for="face-min-size-px"><span data-i18n="Minimum face size (pixels)">Taille minimale d'un visage (pixels)</span><input id="face-min-size-px" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
+                <label class="settings-row" for="face-min-size-percent"><span data-i18n="Minimum face size (% of the photo)">Taille minimale d'un visage (% de la photo)</span><input id="face-min-size-percent" class="face-threshold" type="number" min="0" max="50" step="0.5" /></label>
+                <label class="settings-row" for="face-min-confidence"><span data-i18n="Minimum detection confidence (0 to 1)">Confiance minimale de détection (0 à 1)</span><input id="face-min-confidence" class="face-threshold" type="number" min="0.5" max="1" step="0.05" /></label>
+                <label class="settings-row" for="face-min-sharpness"><span data-i18n="Minimum sharpness">Netteté minimale</span><input id="face-min-sharpness" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
+                <p class="sort-note" data-i18n="Face thresholds help">Un visage sous l'un de ces seuils est écarté (filtré). Changer un seuil reclasse les visages déjà détectés, sans nouveau scan. Valeurs par défaut provisoires.</p>
               </div>
             </section>
           </div>

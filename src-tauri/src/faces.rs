@@ -349,9 +349,25 @@ pub fn init_schema(conn: &Connection) {
         );
         CREATE INDEX IF NOT EXISTS idx_faces_photo ON faces(photo_id);
         CREATE INDEX IF NOT EXISTS idx_faces_person ON faces(person_id);
+        -- Scan des visages de chaque photo (face_detect.rs) : détecteur utilisé, date, géométrie vue au scan (pour repérer une photo
+        -- modifiée depuis, spec §4.2) ; model_id : modèle de reconnaissance (lot 3).
+        CREATE TABLE IF NOT EXISTS photo_face_scans (
+            photo_id INTEGER PRIMARY KEY,
+            detector_id TEXT NOT NULL,
+            model_id TEXT,
+            scanned_at INTEGER NOT NULL,
+            file_mtime INTEGER NOT NULL DEFAULT 0,
+            width INTEGER NOT NULL DEFAULT 0,
+            height INTEGER NOT NULL DEFAULT 0,
+            orientation INTEGER NOT NULL DEFAULT 1,
+            needs_review INTEGER NOT NULL DEFAULT 0
+        );
         -- Photos retirées du catalogue : leurs visages ne servent plus (les identifiants ne sont jamais réutilisés).
-        DELETE FROM faces WHERE photo_id NOT IN (SELECT id FROM photos);",
+        DELETE FROM faces WHERE photo_id NOT IN (SELECT id FROM photos);
+        DELETE FROM photo_face_scans WHERE photo_id NOT IN (SELECT id FROM photos);",
     );
+    // 5 points de repère de YuNet (yeux, nez, coins de la bouche), 10 flottants normalisés, repère de l'image stockée : alignement avant SFace (lot 3).
+    let _ = conn.execute("ALTER TABLE faces ADD COLUMN landmarks BLOB", []);
 }
 
 /// Identifiant de la personne de ce nom (casse ignorée), créée si elle n'existe pas.

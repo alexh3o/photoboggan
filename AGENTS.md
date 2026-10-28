@@ -94,7 +94,7 @@ src-tauri/
 ### B. Grille de miniatures (invariants)
 
 - **Taille d'affichage** réglable de 96 à 1024 px (curseur de la modale « Options d'affichage »), mémorisée localement.
-- **Résolution du cache** de miniatures réglable dans les Paramètres (256, 512, 768 ou 1024 px max). Le cache conserve les proportions ; une miniature n'est pas affichée plus grande que sa taille réelle (sinon elle devient floue) : le plafond d'affichage se compte sur le plus grand côté.
+- **Résolution du cache** de miniatures réglable dans les Paramètres (512, 768 ou 1024 px max ; 512 minimum car la détection des visages lit ces miniatures). Le cache conserve les proportions ; une miniature n'est pas affichée plus grande que sa taille réelle (sinon elle devient floue) : le plafond d'affichage se compte sur le plus grand côté.
 - **Dispositions** : Carrées, Justifiées, Cascade (masonry).
 - **Vue justifiée** : photos jamais recadrées, ratio largeur/hauteur conservé, lignes remplissant la largeur, aucune marge entre photos ; la dernière ligne n'est pas étirée.
 - **Dimensions EXIF absentes en base** : le frontend apprend le ratio réel depuis l'image chargée et recalcule la disposition.

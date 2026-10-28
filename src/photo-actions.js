@@ -119,7 +119,7 @@ async function addProgramFromDialog() {
 // Fenêtre modale réutilisant les styles des Paramètres. Échap, clic sur le fond et × la ferment ;
 // les touches ne remontent pas à main.js (pas de navigation ou de notation involontaire derrière la fenêtre).
 // `focusSelector` : éléments parcourus par Tab (les boutons seulement par défaut ; les formulaires y ajoutent champs et listes).
-function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])' }) {
+export function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])' }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal';
   overlay.tabIndex = -1;
@@ -1023,6 +1023,33 @@ function setSubmenuExpanded(wrapper, expanded) {
   }
 }
 
+// Sous-menu simple : `items` = [{ label, onSelect }].
+function buildSubmenuItem(label, items) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'context-menu-sub';
+  const trigger = menuButton(label, null);
+  trigger.classList.add('has-submenu');
+  trigger.setAttribute('aria-haspopup', 'menu');
+  trigger.setAttribute('aria-expanded', 'false');
+  const submenu = document.createElement('div');
+  submenu.className = 'context-submenu';
+  submenu.setAttribute('role', 'menu');
+  submenu.append(...items.map(item => menuButton(item.label, item.onSelect)));
+  wrapper.append(trigger, submenu);
+  trigger.addEventListener('click', () => setSubmenuExpanded(wrapper, !wrapper.classList.contains('open')));
+  wrapper.addEventListener('mouseenter', () => setSubmenuExpanded(wrapper, true));
+  wrapper.addEventListener('mouseleave', () => setSubmenuExpanded(wrapper, false));
+  return wrapper;
+}
+
+// Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
+function buildFacesItem(scope) {
+  return buildSubmenuItem(t('Faces'), [
+    { label: t('Detect faces (unscanned photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: true }) },
+    { label: t('Detect faces (all photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: false }) },
+  ]);
+}
+
 // « Ouvrir avec » : programmes des Paramètres, puis toujours « Choisir… » en fin de liste.
 function buildOpenWithItem(targets) {
   const wrapper = document.createElement('div');
@@ -1121,6 +1148,9 @@ function openThumbnailMenu(event, index, source = 'grid') {
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo)),
     buildOpenWithItem(targets),
   );
+  if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
+    menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }));
+  }
   menu.append(...menuItems);
   showContextMenu(menu, event);
 }
@@ -1222,6 +1252,7 @@ function openFolderMenu(event, folderItem) {
     menuButton(t('New subfolder…'), () => createSubfolder(path)),
     menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path)),
   );
+  if (api.faceDetectionEnabled?.()) menu.append(buildFacesItem({ folder: path }));
   // Un dossier suivi (racine de l'arborescence, ajouté dans les Paramètres) ne se supprime pas depuis ce menu : seuls ses sous-dossiers.
   if (folderItem.dataset.folderRoot !== '1') {
     menu.append(separator, menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), { danger: true }));

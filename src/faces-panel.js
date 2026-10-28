@@ -5,10 +5,17 @@
 
 import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
-import { t, onLanguageChange } from './i18n.js';
-import { openContextMenuAt, promptDialog } from './photo-actions.js';
+import { open } from '@tauri-apps/plugin-dialog';
+import { t, tp, onLanguageChange } from './i18n.js';
+import { openContextMenuAt, promptDialog, createModal } from './photo-actions.js';
 
 const READING_STORAGE_KEY = 'faceReading'; // « true » : lecture des zones de visage activée
+const DETECTION_STORAGE_KEY = 'faceDetection'; // « true » : détection et reconnaissance activées (menus « Visages », réglages du modèle)
+const FACE_SETTINGS_STORAGE_KEY = 'faceSettings'; // réglages de détection (JSON), envoyés au backend (face_detect.rs, FaceSettings)
+const SUBFOLDERS_STORAGE_KEY = 'faceScanSubfolders'; // « true » : toujours inclure les sous-dossiers d'un dossier scanné
+// Valeurs par défaut provisoires (spec §8), à ajuster après les premiers essais.
+const DEFAULT_FACE_SETTINGS = { scanRaw: true, minSizePx: 40, minSizePercent: 1, minConfidence: 0.8, minSharpness: 50 };
+const THRESHOLD_INPUTS = { minSizePx: 'face-min-size-px', minSizePercent: 'face-min-size-percent', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness' };
 const OVERLAY_STORAGE_KEY = 'fullscreenFacesVisible'; // zones affichées en plein écran (touche V)
 const SORT_STORAGE_KEY = 'personsSort'; // « count » (fréquence, par défaut) ou « name »
 const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed' };
@@ -25,6 +32,19 @@ let refreshToken = 0;
 let overlayPhotoId = null;
 let overlayFaces = null; // { orientation, faces } ou null pendant le chargement
 let overlayToken = 0;
+// Détection : réglages, état des fichiers du modèle (get_face_model_status) et reclassement différé après un changement de seuil.
+let detectionEnabled = readStorage(DETECTION_STORAGE_KEY) === 'true';
+let faceSettings = loadFaceSettings();
+let modelStatus = null;
+let reclassifyTimer = null;
+
+function loadFaceSettings() {
+  try {
+    const stored = JSON.parse(readStorage(FACE_SETTINGS_STORAGE_KEY));
+    if (stored && typeof stored === 'object') return { ...DEFAULT_FACE_SETTINGS, ...stored };
+  } catch { /* valeur absente ou illisible : réglages par défaut */ }
+  return { ...DEFAULT_FACE_SETTINGS };
+}
 
 function readStorage(key) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -378,6 +398,288 @@ export function toggleFaceRegions() {
 }
 
 // ==========================================
+// DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT
+// ==========================================
+export function isFaceDetectionEnabled() {
+  return readingEnabled && detectionEnabled;
+}
+
+// Codes d'erreur du backend (face_models.rs) traduits ; les autres messages sont affichés tels quels.
+function faceErrorMessage(error) {
+  const text = String(error);
+  if (text === 'face_models_missing') return t('Download the face model first (Settings > Faces)');
+  if (text === 'faces_unsupported_platform') return t('Face detection is not available on this system');
+  return text;
+}
+
+function formatMegabytes(bytes) {
+  const megabytes = bytes / 1e6;
+  return t('{size} MB', { size: megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes) });
+}
+
+async function refreshModelStatus() {
+  try {
+    modelStatus = await invoke('get_face_model_status');
+  } catch (error) {
+    console.error('État du modèle de visages illisible', error);
+    modelStatus = null;
+  }
+  renderModelStatus();
+  return modelStatus;
+}
+
+// État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
+function renderModelStatus() {
+  const status = document.getElementById('face-model-status');
+  const download = document.getElementById('btn-face-model-download');
+  const importButton = document.getElementById('btn-face-model-import');
+  const list = document.getElementById('face-model-files');
+  if (!status) return;
+  if (!modelStatus) {
+    status.textContent = t('Checking the face model…');
+    download.hidden = true;
+    list.replaceChildren();
+    return;
+  }
+  importButton.hidden = !modelStatus.supported;
+  download.hidden = !modelStatus.supported || modelStatus.installed;
+  if (!modelStatus.supported) status.textContent = t('Face detection is not available on this system');
+  else if (modelStatus.installed) status.textContent = t('Face model installed in {folder}', { folder: modelStatus.directory });
+  else status.textContent = t('The face model must be downloaded ({size}). It is stored in {folder}.', { size: formatMegabytes(modelStatus.missing_size), folder: modelStatus.directory });
+  download.textContent = t('Download ({size})', { size: formatMegabytes(modelStatus.missing_size) });
+  list.replaceChildren(...modelStatus.files.map(file => {
+    const item = document.createElement('li');
+    const name = document.createElement('strong');
+    name.textContent = `${file.installed ? '✓ ' : ''}${file.name} (${formatMegabytes(file.size)})`;
+    const url = document.createElement('code');
+    url.textContent = file.url;
+    const sha = document.createElement('code');
+    sha.textContent = `SHA-256 ${file.sha256}`;
+    item.append(name, url, sha);
+    return item;
+  }));
+}
+
+function downloadModels() {
+  host.enqueueTask({
+    kind: 'face-models',
+    path: null,
+    command: 'download_face_models',
+    args: {},
+    labelKey: 'Face model download',
+    onResult: async (_result, stopped, error) => {
+      if (error) host.showToast(t('Face model download failed: {error}', { error: faceErrorMessage(error) }));
+      await refreshModelStatus();
+      if (!error && !stopped && modelStatus?.installed) host.showToast(t('Face model installed'));
+    },
+  });
+}
+
+async function importModels() {
+  const directory = await open({ directory: true, multiple: false, title: t('Folder containing the face model files') });
+  if (typeof directory !== 'string' || !directory) return;
+  try {
+    modelStatus = await invoke('import_face_models', { directory });
+    renderModelStatus();
+    host.showToast(t('Face model installed'));
+  } catch (error) {
+    host.showToast(faceErrorMessage(error));
+    refreshModelStatus();
+  }
+}
+
+function sendFaceSettings() {
+  return invoke('set_face_settings', { settings: faceSettings }).catch(error => console.error('Réglages de détection refusés', error));
+}
+
+// Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisie.
+function scheduleReclassify() {
+  clearTimeout(reclassifyTimer);
+  reclassifyTimer = setTimeout(async () => {
+    try {
+      await invoke('apply_face_thresholds');
+      refreshFaces();
+    } catch (error) {
+      console.error('Reclassement des visages impossible', error);
+    }
+  }, 400);
+}
+
+function initDetectionSettings() {
+  const raw = document.getElementById('face-scan-raw');
+  raw.checked = faceSettings.scanRaw;
+  raw.addEventListener('change', () => {
+    faceSettings.scanRaw = raw.checked;
+    writeStorage(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
+    sendFaceSettings();
+  });
+  for (const [key, id] of Object.entries(THRESHOLD_INPUTS)) {
+    const input = document.getElementById(id);
+    input.value = String(faceSettings[key]);
+    input.addEventListener('change', () => {
+      const value = Number(input.value);
+      const min = Number(input.min);
+      const max = Number(input.max);
+      if (!Number.isFinite(value)) {
+        input.value = String(faceSettings[key]);
+        return;
+      }
+      faceSettings[key] = Math.min(max, Math.max(min, value));
+      input.value = String(faceSettings[key]);
+      writeStorage(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
+      sendFaceSettings().then(scheduleReclassify);
+    });
+  }
+  const subfolders = document.getElementById('face-scan-subfolders');
+  subfolders.checked = readStorage(SUBFOLDERS_STORAGE_KEY) === 'true';
+  subfolders.addEventListener('change', () => writeStorage(SUBFOLDERS_STORAGE_KEY, String(subfolders.checked)));
+  document.getElementById('btn-face-model-download').addEventListener('click', downloadModels);
+  document.getElementById('btn-face-model-import').addEventListener('click', importModels);
+  document.querySelector('.settings-tab-btn[data-tab="faces"]').addEventListener('click', () => { if (detectionEnabled) refreshModelStatus(); });
+}
+
+function applyDetectionEnabled() {
+  document.getElementById('face-detection-settings').hidden = !detectionEnabled;
+  if (detectionEnabled) refreshModelStatus();
+}
+
+function setDetectionEnabled(enabled) {
+  detectionEnabled = enabled;
+  writeStorage(DETECTION_STORAGE_KEY, String(enabled));
+  document.getElementById('face-detection-toggle').checked = enabled;
+  applyDetectionEnabled();
+}
+
+function checkbox(label, checked) {
+  const row = document.createElement('label');
+  row.className = 'settings-row settings-check';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  const text = document.createElement('span');
+  text.textContent = label;
+  row.append(input, text);
+  return { row, input };
+}
+
+function dialogButton(label, className, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  if (className) button.className = className;
+  button.textContent = label;
+  button.disabled = true; // activé une fois les photos comptées
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+// Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
+function enqueueFaceScan(scope, recursive) {
+  const isFolder = Boolean(scope.folder);
+  const folderName = isFolder ? scope.folder.split(/[\/]/).filter(Boolean).pop() : '';
+  host.enqueueTask({
+    kind: isFolder ? 'faces' : 'faces-selection',
+    path: isFolder ? scope.folder : null,
+    command: 'detect_faces',
+    args: { photoIds: scope.photoIds ?? null, folder: scope.folder ?? null, recursive, onlyUnscanned: Boolean(scope.onlyUnscanned) },
+    labelKey: isFolder ? 'Face detection: {folder}' : 'Face detection ({count} photos)',
+    labelParams: isFolder ? { folder: folderName } : { count: scope.photoIds.length },
+    onResult: async (report, _stopped, error) => {
+      if (error) {
+        host.showToast(t('Face detection failed: {error}', { error: faceErrorMessage(error) }));
+        return;
+      }
+      if (report) {
+        let message = tp('{count} photo scanned, {faces} faces found', report.scanned, { faces: report.faces });
+        if (report.failed.length > 0) {
+          message += ` · ${tp('{count} unreadable photo', report.failed.length)}`;
+          console.warn('Photos non analysées', report.failed);
+        }
+        host.showToast(message);
+      }
+      await refreshFaces();
+    },
+  });
+}
+
+// Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
+// Dossier : question « Inclure les sous-dossiers ? », réponses « Non » / « Inclure », et au-dessus la case « Toujours inclure les sous-dossiers »
+// (réglage de Paramètres > Métadonnées ; cochée, seule « Inclure » reste possible). Le nombre de photos à scanner est donné pour les deux réponses.
+// Pas de question quand aucun sous-dossier ne contient de photo cataloguée : comme pour une sélection, nombre de photos puis « Annuler » / « Lancer ».
+export async function openFaceScanDialog(scope) {
+  if (!isFaceDetectionEnabled()) return;
+  await refreshModelStatus();
+  if (!modelStatus?.installed) {
+    host.showToast(faceErrorMessage(modelStatus?.supported === false ? 'faces_unsupported_platform' : 'face_models_missing'));
+    return;
+  }
+  const isFolder = Boolean(scope.folder);
+  const modal = createModal({ title: t('Detect faces'), cardClass: 'confirm-card face-scan-card' });
+  const question = document.createElement('p');
+  question.className = 'confirm-message face-scan-question';
+  const summary = document.createElement('p');
+  summary.className = 'confirm-message';
+  summary.textContent = t('Counting photos…');
+  const actions = document.createElement('div');
+  actions.className = 'confirm-actions';
+  const launch = recursive => {
+    modal.close();
+    enqueueFaceScan(scope, recursive);
+  };
+  const countOf = counted => (scope.onlyUnscanned ? counted.unscanned : counted.total);
+  const count = recursive => invoke('count_face_scan_targets', { photoIds: scope.photoIds ?? null, folder: scope.folder ?? null, recursive });
+
+  modal.body.append(summary);
+  let folderOnly;
+  let recursive = null;
+  try {
+    // Dossier : comptés avec et sans sous-dossiers. Aucune photo cataloguée dans ses sous-dossiers (ou pas de sous-dossier) : pas de question.
+    [folderOnly, recursive] = await Promise.all([count(false), isFolder ? count(true) : Promise.resolve(null)]);
+  } catch (error) {
+    summary.textContent = faceErrorMessage(error);
+    return;
+  }
+  if (!summary.isConnected) return; // fenêtre fermée pendant le comptage
+
+  if (!isFolder || recursive.total === folderOnly.total) {
+    const photosToScan = countOf(folderOnly);
+    summary.textContent = scope.onlyUnscanned
+      ? tp('{count} photo to scan (not scanned yet), out of {total}', photosToScan, { total: folderOnly.total })
+      : tp('{count} photo to scan', photosToScan);
+    const cancel = dialogButton(t('Cancel'), '', modal.close);
+    cancel.disabled = false;
+    const start = dialogButton(t('Start'), 'btn-primary', () => launch(false));
+    start.disabled = photosToScan === 0;
+    actions.append(cancel, start);
+    modal.body.append(actions);
+    (start.disabled ? cancel : start).focus();
+    return;
+  }
+
+  const here = countOf(folderOnly);
+  const withSubfolders = countOf(recursive);
+  question.textContent = t('Include subfolders?');
+  summary.textContent = t('Photos to scan: {here} in this folder, {all} with its subfolders.', { here, all: withSubfolders });
+  const always = checkbox(t('Always include subfolders'), readStorage(SUBFOLDERS_STORAGE_KEY) === 'true');
+  const no = dialogButton(t('No'), '', () => launch(false));
+  const include = dialogButton(t('Include'), 'btn-primary', () => launch(true));
+  actions.append(no, include);
+  modal.body.prepend(question);
+  modal.body.append(always.row, actions);
+  const updateButtons = () => {
+    no.disabled = always.input.checked || here === 0;
+    include.disabled = withSubfolders === 0;
+  };
+  always.input.addEventListener('change', () => {
+    writeStorage(SUBFOLDERS_STORAGE_KEY, String(always.input.checked));
+    const setting = document.getElementById('face-scan-subfolders');
+    if (setting) setting.checked = always.input.checked;
+    updateButtons();
+  });
+  updateButtons();
+  (include.disabled ? no : include).focus();
+}
+
+// ==========================================
 // RÉGLAGE ET INITIALISATION
 // ==========================================
 // Lecture activée : section Personnes, filtre et zones visibles ; désactivée : tout est masqué et le filtre retiré.
@@ -394,11 +696,27 @@ function applyReadingEnabled() {
   layoutFullscreenFaces(host.getFullscreenSlot());
 }
 
-// hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message).
+// hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
+// enqueueTask({ kind, path, command, args, labelKey, labelParams, onResult }) (file des tâches de main.js).
 export function initFacesPanel(hostApi) {
   host = hostApi;
-  // Le backend doit savoir avant tout scan s'il lit les zones de visage.
+  // Le backend doit savoir avant tout scan s'il lit les zones de visage, et avec quels réglages il détecte.
   invoke('set_face_reading', { enabled: readingEnabled }).catch(error => console.error('Réglage de lecture des visages refusé', error));
+  sendFaceSettings();
+  // La détection suppose la lecture des visages : l'activer coche aussi la lecture.
+  const detectionToggle = document.getElementById('face-detection-toggle');
+  if (detectionEnabled && !readingEnabled) detectionEnabled = false;
+  detectionToggle.checked = detectionEnabled;
+  detectionToggle.addEventListener('change', () => {
+    setDetectionEnabled(detectionToggle.checked);
+    const readingToggle = document.getElementById('face-reading-toggle');
+    if (detectionEnabled && !readingToggle.checked) {
+      readingToggle.checked = true;
+      readingToggle.dispatchEvent(new Event('change'));
+    }
+  });
+  initDetectionSettings();
+  applyDetectionEnabled();
 
   const toggle = document.getElementById('face-reading-toggle');
   toggle.checked = readingEnabled;
@@ -408,6 +726,7 @@ export function initFacesPanel(hostApi) {
     await invoke('set_face_reading', { enabled: readingEnabled }).catch(error => console.error('Réglage de lecture des visages refusé', error));
     // Les photos déjà cataloguées n'ont pas encore été lues avec ce réglage : la relecture de la collection est proposée.
     document.getElementById('face-reading-rescan').hidden = !readingEnabled;
+    if (!readingEnabled && detectionEnabled) setDetectionEnabled(false);
     applyReadingEnabled();
     host.onFilterChange();
     if (readingEnabled) refreshFaces();
@@ -433,6 +752,7 @@ export function initFacesPanel(hostApi) {
   onLanguageChange(() => {
     renderPersons();
     renderPersonFilterTags();
+    renderModelStatus();
     if (overlayFaces) renderOverlayFaces(document.getElementById('fullscreen-faces'));
   });
 }

@@ -3,6 +3,8 @@
 mod db;
 mod exif;
 mod exiftool;
+mod face_detect;
+mod face_models;
 mod faces;
 mod heif;
 mod integrity;
@@ -425,10 +427,13 @@ fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+// Tailles de cache proposées. 512 px minimum : la détection des visages lit les miniatures en cache et YuNet travaille en 640 px
+// (une miniature de 256 px ferait manquer les petits visages).
+const THUMBNAIL_CACHE_SIZES: [u32; 3] = [512, 768, 1024];
 
 #[tauri::command(async)]
 fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, size: u32) -> Result<(), String> {
-    if ![256, 512, 768, 1024].contains(&size) {
+    if !THUMBNAIL_CACHE_SIZES.contains(&size) {
         return Err("Taille de miniature non valide".into());
     }
     {
@@ -1360,7 +1365,7 @@ fn main() {
             let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
             let config = load_config(handle);
-            let cache_size = config.thumbnail_cache_size.unwrap_or(512);
+            let cache_size = config.thumbnail_cache_size.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or(512);
 
             // Restauration de la fenêtre au démarrage avec vérification des écrans
             let main_window = app.get_webview_window("main").ok_or("Fenêtre principale introuvable")?;
@@ -1466,6 +1471,13 @@ fn main() {
             faces::get_face_index,
             faces::get_photo_faces,
             faces::link_person_keyword,
+            face_models::get_face_model_status,
+            face_models::download_face_models,
+            face_models::import_face_models,
+            face_detect::set_face_settings,
+            face_detect::apply_face_thresholds,
+            face_detect::count_face_scan_targets,
+            face_detect::detect_faces,
             exiftool::set_metadata_writer,
             exiftool::get_exiftool_status,
             exiftool::exiftool_prewarm
@@ -1574,7 +1586,8 @@ fn change_storage_location(
         }
     }
 
-    for folder_name in &["thumbnails", "raw_previews"] {
+    // models : fichiers de la détection des visages (face_models.rs), déplacés avec les données pour ne pas les retélécharger.
+    for folder_name in &["thumbnails", "raw_previews", "models"] {
         let src = current_base.join(folder_name);
         let dst = target_dir.join(folder_name);
         if src.is_dir() {

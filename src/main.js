@@ -11,7 +11,7 @@ import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog } from './faces-panel.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -290,7 +290,8 @@ document.getElementById('text-size-select')?.addEventListener('change', event =>
 
 // DOM
 let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 512;
-if (![256, 512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
+// 512 px minimum : la détection des visages lit les miniatures en cache.
+if (![512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
   let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || 160;
 thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
 let columns = 1;
@@ -3043,14 +3044,16 @@ function dropScanTasksForFolder(path) {
 
 // Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours ou en attente
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
-function enqueueScanTask({ kind, path, command, args, labelKey, labelParams }) {
+function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult }) {
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
   const isIntegrity = kind === 'integrity';
-  // Trois familles de tâches qui ne se bloquent pas entre elles : scans et relectures, vérifications d'intégrité, écritures de mots-clés
-  // (ces dernières attendent simplement leur tour dans la file, sans jamais être refusées comme doublon).
-  const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords' : 'scan');
+  // Familles de tâches qui ne se bloquent pas entre elles : scans et relectures, vérifications d'intégrité, écritures de mots-clés
+  // (ces dernières attendent simplement leur tour dans la file, sans jamais être refusées comme doublon), détections de visages (d'un dossier :
+  // « faces » ; d'une sélection : « faces-selection », jamais refusée comme doublon), téléchargement des modèles de visages (« face-models »).
+  const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords'
+    : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models' : 'scan');
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
@@ -3060,7 +3063,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams }) {
   scanTaskCounter += 1;
   scanTasks.push({
     id: `scan-${Date.now()}-${scanTaskCounter}`,
-    kind, path, command, args, labelKey, labelParams,
+    kind, path, command, args, labelKey, labelParams, onResult,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
   syncTaskUI();
@@ -4254,6 +4257,9 @@ initPhotoActions({
   folderCreated: addCreatedFolder,
   syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
   deleteFolder: deleteFolderToTrash,
+  // Sous-menu « Visages » (voir faces-panel.js) : affiché quand la détection est activée, il ouvre la fenêtre de lancement d'un scan.
+  faceDetectionEnabled: isFaceDetectionEnabled,
+  openFaceScan: scope => openFaceScanDialog(scope),
 });
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
@@ -4344,6 +4350,7 @@ initFacesPanel({
   getFullscreenSlot: () => fullscreenSlot,
   isFullscreen: () => isFullscreen,
   showToast: message => showWriteToast(message),
+  enqueueTask: task => enqueueScanTask(task),
 });
 
 // ==========================================
