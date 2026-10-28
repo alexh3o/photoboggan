@@ -316,7 +316,7 @@ const HIERARCHY_SCHEMAS: [(&str, char); 4] = [("TagsList", '/'), ("hierarchicalS
 /// Microsoft Photo (`MicrosoftPhoto:LastKeywordXMP`), ACDSee (`acdsee:categories`).
 const HIERARCHY_IDS: [&str; 5] = ["digikam", "lightroom", "mediapro", "microsoft", "acdsee"];
 /// Ordre de priorité à la lecture : indices dans HIERARCHY_IDS, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
-/// Mots-clés) ; digiKam en premier tant que l'interface n'a rien envoyé.
+/// Métadonnées) ; digiKam en premier tant que l'interface n'a rien envoyé.
 static HIERARCHY_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
 
 /// Règle l'ordre de priorité des schémas hiérarchiques : `order` doit contenir une fois chacun des identifiants de HIERARCHY_IDS.

@@ -1166,7 +1166,7 @@ async function finishRename(entry, node, name, photoCount, result, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Priorité de lecture des formats hiérarchiques (Paramètres, onglet Mots-clés)
+// Priorité de lecture des formats hiérarchiques (Paramètres, onglet Métadonnées)
 // ---------------------------------------------------------------------------
 
 const FORMAT_ORDER_STORAGE_KEY = 'keywordFormatOrder';
@@ -1418,7 +1418,7 @@ export function initKeywordsPanel(hostApi) {
   inputField.addEventListener('keydown', onInputKeyDown);
   treeList.addEventListener('contextmenu', onTreeContextMenu);
 
-  // Réglage « Appliquer automatiquement les changements de mots-clés » (onglet Mots-clés des Paramètres).
+  // Réglage « Appliquer automatiquement les changements de mots-clés » (onglet Métadonnées des Paramètres).
   const autoApplyBox = document.getElementById('keywords-auto-apply');
   if (autoApplyBox) {
     autoApplyBox.checked = isAutoApply();
