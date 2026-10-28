@@ -71,7 +71,7 @@ Available languages are 🇬🇧 *english* and 🇫🇷 *french*, more to come i
 
 ### License & Disclaimer
 
-Distributed under the **MIT License**.
+Distributed under the **GNU General Public License v3.0** (GPL-3.0). See the [LICENSE](LICENSE) file.
 Photos from Lorem Picsum / Unsplash
 
 Designed and developed by alexh3o, sped up with the precious help of Claude & Gemini.
