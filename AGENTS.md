@@ -1,6 +1,6 @@
 # Instructions pour les Agents IA — photoboggan
 
-> Ce fichier doit rester court (≈150 lignes max) : il est relu à chaque session. N'y mettre que ce qui ne se déduit pas du code.
+> Ce fichier doit rester court (≈180 lignes max) : il est relu à chaque session. N'y mettre que ce qui ne se déduit pas du code.
 > Réponses et interface en **français** (clés d'interface en anglais, voir §5.E).
 
 ---
@@ -24,6 +24,7 @@
   * Base locale : SQLite en mode WAL via `rusqlite` + pool `r2d2_sqlite`.
   * Images : `jpeg-decoder` (DCT réduit), `jpeg-encoder`, `png`, `image-webp` (lecture WebP, intégrité), `heic-rs` (HEIC/HEIF).
   * Métadonnées : `kamadak-exif` + analyseur binaire/XMP sur mesure.
+  * Écriture des métadonnées : [ExifTool](https://exiftool.org) embarqué (processus externe, non versionné : `npm run fetch-exiftool`), ou écriture interne au choix (§5.D).
   * Système : `clipboard-rs` (presse-papiers), `trash` (corbeille), `windows` (cfg(windows) uniquement : vignettes vidéo du Shell).
 * **Frontend** : **JavaScript Vanilla pur (ES Modules)**, HTML5, CSS3. Aucun framework. Bundler : [Vite](https://vitejs.dev/).
 
@@ -39,15 +40,18 @@ src/
   photo-actions.js      # Menus contextuels, modales (infos, confirmation, redimensionnement)
   keywords-panel.js     # Panneau de droite à onglets Info / Mots-clés (arbre éditable, saisie, application différée)
   keywords.css          # Styles de ce panneau, de sa poignée de redimensionnement et de ses fenêtres
+  metadata-settings.js  # Paramètres > Métadonnées : chemin d'écriture (ExifTool / interne), exécutable ExifTool
   styles.css            # Thèmes sombre/clair, mise en page en rem
   i18n.js               # Moteur de traduction (t, tp, labelWithColon)
   locales/en.json, fr.json
+scripts/fetch-exiftool.mjs  # Télécharge ExifTool (version et SHA-256 figées) dans src-tauri/vendor/exiftool/
 src-tauri/
   Cargo.toml, tauri.conf.json
   src/
     main.rs             # Commandes IPC, AppState, fenêtres
     db.rs               # SQLite (schéma, pools r2d2, index, pagination)
     exif.rs             # Lecture EXIF/IPTC/XMP, écriture XMP (APP1 JPEG / sidecar) et IPTC (JPEG)
+    exiftool.rs         # Écriture via ExifTool : détection, processus persistants (-stay_open), mêmes cibles qu'exif.rs
     keywords.rs         # Arbre des mots-clés, association photo ↔ mot-clé, écriture / suppression / renommage dans les fichiers
     library_sync.rs     # Synchronisation incrémentale (taille + date de modification)
     thumbnails.rs       # Miniatures (DCT réduit), extraction des aperçus RAW
@@ -104,10 +108,11 @@ src-tauri/
 
 ### D. Métadonnées & Interopérabilité
 
+- **Deux chemins d'écriture** (Paramètres > Métadonnées, `metadataWriter`) : **ExifTool** (défaut) ou **interne** (XMP + IPTC). Les mêmes champs sont écrits par les deux chemins ; seul ExifTool écrit en plus XPKeywords (JPEG). ExifTool introuvable : l'écriture est refusée, jamais de repli sur l'autre chemin. Ordre de recherche : chemin choisi (`exiftoolPath`) > version embarquée (ressource Tauri `exiftool/`) > PATH. Tout nouveau champ écrit (titre, description…) doit être ajouté aux deux chemins.
 - **JPEG** : injection du paquet XMP dans le segment APP1 (`http://ns.adobe.com/xap/1.0/\0`), sans décompresser ni ré-échantillonner l'image.
 - **RAW, PNG, HEIC, vidéos…** : écriture dans un sidecar `.xmp` (ex. `photo.cr2.xmp` ou `photo.xmp`).
 - **Note** : `xmp:Rating` (0–5), `acdsee:rating`, `MicrosoftPhoto:Rating`. **Couleur** : `xmp:Label` (Red, Orange, Yellow, Green, Blue, Magenta, Grey, Black, White ou vide), `photoshop:Urgency`, `digikam:ColorLabel`.
-- **Mots-clés hiérarchiques** (`keywords.rs`, `keywords-panel.js`) : l'arbre vit en base (`keyword_nodes`, `photo_keywords`) et grandit à la lecture des fichiers ; seul le dernier niveau d'un chemin est actif. À l'écriture (Appliquer, suppression, renommage), ce qui est actif remplace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP` et l'IPTC 2:25 des JPEG ; XPKeywords est lu, jamais écrit. Après écriture, le fichier est relu et la base reflète cette relecture. Noms interdits : `/`, `|`, `,`.
+- **Mots-clés hiérarchiques** (`keywords.rs`, `keywords-panel.js`) : l'arbre vit en base (`keyword_nodes`, `photo_keywords`) et grandit à la lecture des fichiers ; seul le dernier niveau d'un chemin est actif. À l'écriture (Appliquer, suppression, renommage), ce qui est actif remplace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP` et l'IPTC 2:25 des JPEG ; XPKeywords est lu, et écrit seulement par ExifTool (JPEG, noms contenant `;` omis). Après écriture, le fichier est relu et la base reflète cette relecture. Noms interdits : `/`, `|`, `,`.
 - **Priorité des formats hiérarchiques à la lecture** : XMP intégré avant sidecar ; puis, par défaut, digiKam `TagsList` > Lightroom `hierarchicalSubject` > Media Pro `CatalogSets` > Microsoft `LastKeywordXMP`. L'ordre des 4 formats est réglable par l'utilisateur (Paramètres > Mots-clés, liste ordonnable, mémorisée dans `keywordFormatOrder` et envoyée au backend au démarrage par `set_keyword_format_order`). Le premier format qui contient des données l'emporte : ses mots-clés sont ceux affichés dans l'interface et dans l'arbre, les autres sont ignorés. Un nouvel ordre ne s'applique qu'aux fichiers lus ensuite (relire la collection). Les formats à plat (`dc:subject`, IPTC, XPKeywords) ne modifient pas l'arbre.
 
 ### E. Tâches asynchrones (`TaskQueue`)
@@ -132,6 +137,7 @@ src-tauri/
 
 - Ne jamais toucher aux données image d'un fichier : seules les métadonnées changent. Préserver les métadonnées non concernées.
 - Toute modification passe par un fichier temporaire, puis remplacement de l'original une fois l'écriture réussie : jamais de fichier partiellement écrit.
+  ExifTool : toujours `-overwrite_original` (jamais `_in_place`) ; après un échec, supprimer le `<fichier>_exiftool_tmp` qu'il laisse.
 - Pas d'écritures concurrentes sur un même fichier ; prévoir une sauvegarde/restauration pour les opérations potentiellement destructrices.
 - Un échec d'écriture de métadonnées n'est jamais présenté comme un succès.
 
@@ -143,6 +149,7 @@ src-tauri/
 npm run tauri dev                 # Application complète en développement
 cd src-tauri && cargo check       # Vérification rapide du Rust
 npm run build                     # Build du frontend (Vite)
+npm run fetch-exiftool            # Télécharge ExifTool embarqué (lancé aussi avant tauri dev / tauri build)
 npm run tauri build               # Build de production
 ```
 

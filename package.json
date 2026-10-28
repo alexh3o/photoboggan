@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

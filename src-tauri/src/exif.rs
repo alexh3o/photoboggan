@@ -674,7 +674,7 @@ fn update_xmp_label(xml: &str, label: Option<&str>) -> String {
 }
 
 // Conversion des flags couleur standard vers digikam et photoshop (numériques)
-fn color_to_urgency_and_digikam(flag: &str) -> Option<i32> {
+pub(crate) fn color_to_urgency_and_digikam(flag: &str) -> Option<i32> {
     match normalize_color_flag(flag) {
         "red" => Some(1),
         "orange" => Some(2),
@@ -788,8 +788,10 @@ fn update_xmp_metadata(xml: &str, rating: Option<i32>, label: Option<Option<&str
 /// Only the provided values are modified (see `update_xmp_metadata`).
 /// HEIC / HEIF : le paquet XMP du fichier est modifié (ou créé) dans le conteneur, voir heif.rs ; sidecar seulement si la structure du fichier ne le permet pas.
 /// Other image formats continue to use a sidecar because they have different container layouts.
+/// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles et mêmes valeurs).
 pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
     let path = Path::new(image_path);
+    if crate::exiftool::is_enabled() { return crate::exiftool::write_rating_label(path, rating, label); }
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
         return match crate::heif::update_xmp(path, &|xml| update_xmp_metadata(xml, rating, label))? {
@@ -1116,7 +1118,7 @@ fn parse_iptc_datasets(iptc: &[u8]) -> Option<Vec<IptcDataset>> {
     Some(datasets)
 }
 
-fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
+pub(crate) fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
     if text.len() <= max_bytes { return text; }
     let mut end = max_bytes;
     while !text.is_char_boundary(end) { end -= 1; }
@@ -1227,13 +1229,21 @@ fn write_jpeg_keywords(path: &Path, paths: &[Vec<String>]) -> std::io::Result<()
     write_file_atomically(path, &output)
 }
 
+/// Sidecar XMP d'une image : `photo.ext.xmp` s'il existe, sinon `photo.xmp` (nom compatible digiKam) s'il existe, sinon `photo.ext.xmp` à créer.
+/// Renvoie aussi s'il existe déjà.
+pub(crate) fn sidecar_target(image_path: &Path) -> (std::path::PathBuf, bool) {
+    let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
+    if appended.exists() { return (appended, true); }
+    let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
+    match compatible.filter(|path| path.exists()) {
+        Some(path) => (path, true),
+        None => (appended, false),
+    }
+}
+
 /// Sidecar XMP (`photo.ext.xmp` ou `photo.xmp` existant) dont le contenu est remplacé par `update(contenu actuel)` ; créé si nécessaire.
 fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Result<()> {
-    let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
-    let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
-    let sidecar = if appended.exists() { appended }
-        else if let Some(path) = compatible.filter(|path| path.exists()) { path }
-        else { appended };
+    let (sidecar, _) = sidecar_target(image_path);
     let xml = match fs::read_to_string(&sidecar) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
@@ -1246,8 +1256,10 @@ fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) ->
 
 /// Écrit les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif, ex. ["Lieux", "France", "Paris"]) dans le fichier :
 /// JPEG : XMP et IPTC du fichier ; HEIC / HEIF : XMP du conteneur (sidecar si la structure ne le permet pas) ; autres formats et vidéos : sidecar XMP.
+/// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles, plus XPKeywords dans les JPEG).
 pub fn write_keywords(image_path: &str, paths: &[Vec<String>]) -> std::io::Result<()> {
     let path = Path::new(image_path);
+    if crate::exiftool::is_enabled() { return crate::exiftool::write_keywords(path, paths); }
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     let update = |xml: &str| update_xmp_keywords(xml, paths);
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
@@ -1261,11 +1273,7 @@ pub fn write_keywords(image_path: &str, paths: &[Vec<String>]) -> std::io::Resul
 }
 
 fn write_xmp_sidecar(image_path: &Path, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
-    let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
-    let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
-    let sidecar = if appended.exists() { appended }
-        else if let Some(path) = compatible.filter(|path| path.exists()) { path }
-        else { appended };
+    let (sidecar, _) = sidecar_target(image_path);
     let xml = match fs::read_to_string(&sidecar) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),

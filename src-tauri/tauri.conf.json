@@ -4,8 +4,8 @@
   "version": "0.3.9",
   "identifier": "com.alexh3o.photoboggan",
   "build": {
-      "beforeDevCommand": "npm run dev",
-      "beforeBuildCommand": "npm run build",
+      "beforeDevCommand": "npm run fetch-exiftool -- --optional && npm run dev",
+      "beforeBuildCommand": "npm run fetch-exiftool && npm run build",
       "devUrl": "http://localhost:5173",
       "frontendDist": "../dist"
     },
@@ -36,6 +36,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "vendor/exiftool/": "exiftool/"
+    },
+    "linux": {
+      "deb": { "depends": ["perl"] },
+      "rpm": { "depends": ["perl"] }
+    }
   }
 }

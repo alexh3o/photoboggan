@@ -475,6 +475,8 @@ body.immersive .titlebar { display: none; }
 .settings-path-label { display: block; padding: 8px 10px; margin-bottom: 8px; background: var(--row-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.75rem; color: var(--text-strong); word-break: break-all;  user-select: text; }
 .settings-storage-actions { display: flex; gap: 0.5rem; }
 .settings-storage-actions button { margin-bottom: 0;}
+#btn-reset-storage.hidden, #exiftool-custom-path.hidden, #btn-reset-exiftool.hidden { display: none; }
+#exiftool-status.exiftool-missing { color: #e74c3c; }
 .btn-secondary { background: var(--control-bg); color: var(--btn-text); border: 1px solid var(--control-border); padding: 0.5rem 0.75rem; font-weight: bold; border-radius: 4px; cursor: pointer;  white-space: nowrap; }
 .btn-secondary:hover { background: var(--control-hover); }
 /* Barre d'onglets */

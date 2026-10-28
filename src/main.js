@@ -7,6 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
+import { initMetadataSettings } from './metadata-settings.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, confirmCloseWithPendingKeywords } from './keywords-panel.js';
 
 // AJOUT BARRE TITRE
@@ -1724,7 +1725,12 @@ async function setSelectionColorFlag(flag) {
   const successMessage = finalFlag === 'none'
     ? tp('Color removed for {count} file', successful.length)
     : tp('{count} file modified', successful.length);
-  showWriteToast(`${successMessage}${failures.length ? ` · ${tp('{count} failure', failures.length)}` : ''}`);
+  showWriteToast(`${successMessage}${failureSummary(failures)}`);
+}
+
+// Échecs d'écriture de la note ou de la couleur : leur nombre et la raison du premier (ex. ExifTool introuvable).
+function failureSummary(failures) {
+  return failures.length ? ` · ${tp('{count} failure', failures.length)} (${failures[0].reason})` : '';
 }
 
 async function setSelectionRating(rating) {
@@ -1753,7 +1759,7 @@ async function setSelectionRating(rating) {
   const successMessage = finalRating === 0 
     ? tp('Rating removed for {count} file', successful.length)
     : tp('{count} file modified', successful.length);
-    showWriteToast(`${successMessage}${failures.length ? ` · ${tp('{count} failure', failures.length)}` : ''}`);
+    showWriteToast(`${successMessage}${failureSummary(failures)}`);
 }
 
 // ==========================================
@@ -4220,6 +4226,9 @@ initPhotoActions({
   syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
   deleteFolder: deleteFolderToTrash,
 });
+
+// Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
+initMetadataSettings();
 
 // Panneau des mots-clés (onglet du panneau de droite, voir keywords-panel.js) : cible = photos sélectionnées.
 initKeywordsPanel({

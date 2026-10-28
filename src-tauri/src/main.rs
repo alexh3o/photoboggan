@@ -2,6 +2,7 @@
 
 mod db;
 mod exif;
+mod exiftool;
 mod heif;
 mod integrity;
 mod keywords;
@@ -771,7 +772,7 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
     db::get_photos(&pool, offset, limit, folder_filter, recursive)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rating: Option<i32>, color_flag: Option<String>) -> Result<(), String> {
     // Seules les valeurs fournies sont modifiées : écrire la note ne touche pas au xmp:Label (qui peut contenir
     // une valeur non reconnue par l'application), et inversement.
@@ -1347,6 +1348,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle();
+            exiftool::init(handle.path().resource_dir().ok());
             let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
             let config = load_config(handle);
@@ -1450,10 +1452,17 @@ fn main() {
             keywords::get_keyword_delete_info,
             keywords::delete_keyword,
             keywords::rename_keyword,
-            keywords::set_keyword_format_order
+            keywords::set_keyword_format_order,
+            exiftool::set_metadata_writer,
+            exiftool::get_exiftool_status,
+            exiftool::exiftool_prewarm
         ])
-        .run(tauri::generate_context!())
-        .expect("Erreur de lancement");
+        .build(tauri::generate_context!())
+        .expect("Erreur de lancement")
+        // Fermeture de l'application : les processus ExifTool encore ouverts sont arrêtés.
+        .run(|_, event| {
+            if let tauri::RunEvent::Exit = event { exiftool::shutdown(); }
+        });
 }
 
 

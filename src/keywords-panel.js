@@ -209,6 +209,8 @@ function checkState(keywordId) {
 const hasPendingChange = keywordId => (baselineCount.get(keywordId) || 0) !== (workingCount.get(keywordId) || 0);
 
 function afterEdit() {
+  // Mode ExifTool : un processus est démarré dès la première modification, pour que « Appliquer » ne paie pas son démarrage (sans effet sinon).
+  invoke('exiftool_prewarm').catch(() => {});
   recomputeCounts();
   renderTree();
   updateButtons();

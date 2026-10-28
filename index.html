@@ -234,6 +234,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Open with">Ouvrir avec</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="keywords" data-i18n="Keywords">Mots-clés</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
         </div>
 
         <div class="modal-body">
@@ -340,6 +341,24 @@
               <h4 data-i18n="Hierarchical formats reading priority">Priorité de lecture des formats hiérarchiques</h4>
               <p class="sort-note" data-i18n="Hierarchical formats reading priority help">Le premier format qui contient des mots-clés l'emporte : ce sont ses mots-clés qui alimentent l'arborescence et s'affichent, les autres formats sont ignorés. Glissez les lignes ou utilisez les flèches. Le nouvel ordre s'applique à la prochaine lecture des fichiers (relire la collection).</p>
               <ol id="keyword-format-order" class="keyword-format-order"></ol>
+            </section>
+          </div>
+          <!-- Onglet 5 : Métadonnées (réglages lus par metadata-settings.js) -->
+          <div id="settings-tab-metadata" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section" role="radiogroup" aria-labelledby="metadata-writer-title">
+              <h4 id="metadata-writer-title" data-i18n="Writing metadata to files">Écriture des métadonnées dans les fichiers</h4>
+              <label class="settings-row settings-check"><input type="radio" name="metadata-writer" value="exiftool" /><span data-i18n="With ExifTool (recommended)">Avec ExifTool (recommandé)</span></label>
+              <label class="settings-row settings-check"><input type="radio" name="metadata-writer" value="internal" /><span data-i18n="Internal (XMP and IPTC only)">Interne (XMP et IPTC seulement)</span></label>
+              <p class="sort-note" data-i18n="Writing metadata to files help">Concerne les mots-clés, les notes et les couleurs. ExifTool est l'outil de référence : il écrit aussi l'EXIF (mots-clés de l'Explorateur Windows) et gère tous les formats sans risque pour l'image. S'il est introuvable, aucune écriture n'est faite.</p>
+            </section>
+            <section class="settings-section">
+              <h4>ExifTool</h4>
+              <p id="exiftool-status" class="sort-note"></p>
+              <div id="exiftool-custom-path" class="settings-path-label hidden"></div>
+              <div class="settings-storage-actions">
+                <button id="btn-choose-exiftool" class="btn-highlight" type="button" data-i18n="Choose ExifTool…">Choisir ExifTool…</button>
+                <button id="btn-reset-exiftool" class="btn-secondary hidden" type="button" data-i18n="Automatic detection">Détection automatique</button>
+              </div>
             </section>
           </div>
         </div>
