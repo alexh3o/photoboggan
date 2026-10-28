@@ -71,7 +71,6 @@ fn is_installed(dir: &Path, file: &ModelFile) -> bool {
 pub struct ModelPaths {
     pub runtime: PathBuf,
     pub detector: PathBuf,
-    #[allow(dead_code)] // lot 3 : reconnaissance
     pub recognizer: PathBuf,
 }
 

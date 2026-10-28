@@ -16,6 +16,7 @@ use ort::value::Tensor;
 use rayon::prelude::*;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::BufReader;
 use std::path::Path;
 use std::sync::atomic::Ordering;
@@ -41,32 +42,53 @@ const SHARPNESS_SIDE: usize = 112;
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize, Serialize, Clone, Copy, Debug)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct FaceSettings {
     /// Scanner les RAW (sur la miniature tirée de leur aperçu JPEG intégré).
     pub scan_raw: bool,
-    /// Taille minimale du visage, en pixels de la photo d'origine (plus grand côté du visage).
-    pub min_size_px: f64,
-    /// Taille minimale du visage, en % du plus grand côté de la photo.
+    /// Taille minimale du visage, en % du plus grand côté de la photo (seul critère de taille : une taille en pixels n'apporterait rien de plus).
     pub min_size_percent: f64,
     /// Confiance minimale de YuNet (0 à 1).
     pub min_confidence: f64,
     /// Netteté minimale (variance du laplacien sur le visage ramené à 112 px, en niveaux de gris).
     pub min_sharpness: f64,
+    /// Reconnaissance (spec §5.1) : ressemblance minimale pour une attribution automatique, pour une suggestion, et écart minimal avec la
+    /// personne suivante pour une attribution automatique.
+    pub auto_threshold: f64,
+    pub suggestion_threshold: f64,
+    pub margin: f64,
+}
+
+impl Default for FaceSettings {
+    fn default() -> Self {
+        FaceSettings::DEFAULT
+    }
 }
 
 impl FaceSettings {
-    const DEFAULT: FaceSettings = FaceSettings { scan_raw: true, min_size_px: 40.0, min_size_percent: 1.0, min_confidence: 0.8, min_sharpness: 50.0 };
+    const DEFAULT: FaceSettings = FaceSettings {
+        scan_raw: true,
+        min_size_percent: 1.0,
+        min_confidence: 0.8,
+        min_sharpness: 50.0,
+        auto_threshold: 0.50,
+        suggestion_threshold: 0.36,
+        margin: 0.05,
+    };
+
+    pub fn thresholds(&self) -> crate::face_recognize::Thresholds {
+        crate::face_recognize::Thresholds { auto: self.auto_threshold, suggestion: self.suggestion_threshold, margin: self.margin }
+    }
 
     /// Visage retenu (« inconnu », à reconnaître) ou écarté (« filtré ») d'après ses mesures.
-    fn passes(&self, score: f64, sharpness: f64, size_px: f64, size_percent: f64) -> bool {
-        score >= self.min_confidence && sharpness >= self.min_sharpness && size_px >= self.min_size_px && size_percent >= self.min_size_percent
+    fn passes(&self, score: f64, sharpness: f64, size_percent: f64) -> bool {
+        score >= self.min_confidence && sharpness >= self.min_sharpness && size_percent >= self.min_size_percent
     }
 }
 
 static SETTINGS: RwLock<FaceSettings> = RwLock::new(FaceSettings::DEFAULT);
 
-fn settings() -> FaceSettings {
+pub fn settings() -> FaceSettings {
     *SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
@@ -81,22 +103,22 @@ pub fn apply_face_thresholds(state: State<'_, AppState>) -> Result<usize, String
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let current = settings();
-    let rows: Vec<(i64, String, f64, f64, f64, f64)> = {
+    let rows: Vec<(i64, String, f64, f64, f64)> = {
         let mut statement = conn
             .prepare(
-                "SELECT id, state, COALESCE(det_score, 0), COALESCE(sharpness, 0), COALESCE(size_px, 0), COALESCE(size_pct, 0) FROM faces
+                "SELECT id, state, COALESCE(det_score, 0), COALESCE(sharpness, 0), COALESCE(size_pct, 0) FROM faces
                  WHERE origin = 'detected' AND person_id IS NULL AND state IN ('unknown', 'filtered')",
             )
             .map_err(|error| error.to_string())?;
         let rows = statement
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
             .map_err(|error| error.to_string())?;
         rows.flatten().collect()
     };
     let _ = conn.execute("BEGIN TRANSACTION", []);
     let mut changed = 0usize;
-    for (id, face_state, score, sharpness, size_px, size_percent) in rows {
-        let wanted = if current.passes(score, sharpness, size_px, size_percent) { "unknown" } else { "filtered" };
+    for (id, face_state, score, sharpness, size_percent) in rows {
+        let wanted = if current.passes(score, sharpness, size_percent) { "unknown" } else { "filtered" };
         if wanted != face_state {
             let _ = conn.execute("UPDATE faces SET state = ?1 WHERE id = ?2", params![wanted, id]);
             changed += 1;
@@ -246,7 +268,7 @@ fn detect(session: &Mutex<Session>, rgb: &[u8], width: usize, height: usize) -> 
 }
 
 /// Recouvrement (intersection / union) de deux rectangles (x, y, w, h).
-fn iou(a: &[f64; 4], b: &[f64; 4]) -> f64 {
+pub(crate) fn iou(a: &[f64; 4], b: &[f64; 4]) -> f64 {
     let x1 = a[0].max(b[0]);
     let y1 = a[1].max(b[1]);
     let x2 = (a[0] + a[2]).min(b[0] + b[2]);
@@ -304,7 +326,8 @@ fn decode_thumbnail(path: &Path) -> Result<(Vec<u8>, usize, usize), String> {
 // Photos à scanner
 // ---------------------------------------------------------------------------
 
-/// Photo visée par un scan : chemin, dimensions de l'image stockée (EXIF), orientation, date de modification du fichier.
+/// Photo visée par un scan : chemin, dimensions de l'image stockée (EXIF), orientation, date de modification du fichier, et « à revérifier »
+/// (géométrie changée depuis le dernier scan, spec §4.2 : les visages se retrouvent par ressemblance plutôt que par position).
 struct Target {
     photo_id: i64,
     path: String,
@@ -312,6 +335,7 @@ struct Target {
     height: i64,
     orientation: u32,
     modified: i64,
+    needs_review: bool,
 }
 
 fn is_raw_path(path: &str) -> bool {
@@ -320,11 +344,15 @@ fn is_raw_path(path: &str) -> bool {
 }
 
 /// Photos visées : une sélection (`photo_ids`) ou un dossier (`folder`, sous-dossiers compris si `recursive`). Les vidéos sont exclues, les RAW
-/// aussi si le réglage l'indique. Renvoie (photo, déjà scannée avec le détecteur actuel ?).
+/// aussi si le réglage l'indique. Renvoie (photo, déjà scannée ?) : scannée = détecteur et modèle de reconnaissance actuels, et pas « à revérifier ».
 fn select_targets(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&str>, recursive: bool) -> Result<Vec<(Target, bool)>, String> {
-    let columns = "SELECT p.id, p.path, p.width, p.height, p.orientation, p.modified,
-                   EXISTS(SELECT 1 FROM photo_face_scans s WHERE s.photo_id = p.id AND s.detector_id = ?1)
-                   FROM photos p WHERE p.path IS NOT NULL AND ";
+    let columns = format!(
+        "SELECT p.id, p.path, p.width, p.height, p.orientation, p.modified,
+         EXISTS(SELECT 1 FROM photo_face_scans s WHERE s.photo_id = p.id AND s.detector_id = ?1 AND s.model_id = '{model}' AND s.needs_review = 0),
+         EXISTS(SELECT 1 FROM photo_face_scans s WHERE s.photo_id = p.id AND s.needs_review = 1)
+         FROM photos p WHERE p.path IS NOT NULL AND ",
+        model = crate::face_recognize::MODEL_ID
+    );
     let map_row = |row: &rusqlite::Row| -> rusqlite::Result<(Target, bool)> {
         Ok((
             Target {
@@ -334,6 +362,7 @@ fn select_targets(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&
                 height: row.get::<_, Option<i64>>(3)?.unwrap_or(0),
                 orientation: row.get::<_, Option<u32>>(4)?.unwrap_or(1),
                 modified: row.get::<_, Option<i64>>(5)?.unwrap_or(0),
+                needs_review: row.get(7)?,
             },
             row.get(6)?,
         ))
@@ -384,7 +413,7 @@ pub fn count_face_scan_targets(state: State<'_, AppState>, photo_ids: Option<Vec
 // Scan et enregistrement
 // ---------------------------------------------------------------------------
 
-/// Visage mesuré, en coordonnées de l'image STOCKÉE.
+/// Visage mesuré, en coordonnées de l'image STOCKÉE, avec son empreinte (None si elle n'a pas pu être calculée).
 struct MeasuredFace {
     rect: [f64; 4],
     landmarks: [f32; 10],
@@ -392,17 +421,78 @@ struct MeasuredFace {
     sharpness: f64,
     size_px: f64,
     size_percent: f64,
+    embedding: Option<Vec<f32>>,
 }
 
-/// Analyse d'une photo : miniature (générée si absente), détection, mesures, conversion vers le repère de l'image stockée.
-fn analyse(target: &Target, thumbnails_dir: &Path, cache_size: usize, session: &Mutex<Session>) -> Result<Vec<MeasuredFace>, String> {
+/// Visage déjà en base sans empreinte (zone importée, visage du lot 2) : repère de l'image stockée, points de repère s'ils sont connus.
+struct PendingFace {
+    id: i64,
+    rect: [f64; 4],
+    landmarks: Option<[f32; 10]>,
+}
+
+/// Résultat de l'analyse d'une photo : visages détectés, et empreintes calculées pour des visages déjà en base.
+struct Analysis {
+    faces: Vec<MeasuredFace>,
+    pending_embeddings: Vec<(i64, Vec<f32>)>,
+}
+
+/// Côté minimal d'un visage dans la miniature pour en tirer l'empreinte ; en dessous, sa zone est relue dans l'original (spec §3, étape 5).
+const MIN_FACE_SIDE_IN_THUMBNAIL: f64 = 96.0;
+
+/// Images d'où tirer les empreintes : la miniature (orientée), et l'original décodé à la demande (repère stocké), une fois par photo.
+struct EmbeddingSources<'a> {
+    source: &'a Path,
+    orientation: u32,
+    thumbnail: (&'a [u8], usize, usize),
+    original: Option<(Vec<u8>, usize, usize)>,
+}
+
+impl EmbeddingSources<'_> {
+    /// Empreinte d'un visage connu par ses points de repère normalisés dans le repère STOCKÉ et son plus grand côté dans la miniature.
+    fn embedding(&mut self, recognizer: &Mutex<Session>, landmarks: &[f32; 10], side_in_thumbnail: f64) -> Option<Vec<f32>> {
+        let use_thumbnail = side_in_thumbnail >= MIN_FACE_SIDE_IN_THUMBNAIL || crate::heif::is_heif_path(self.source);
+        let (rgb, width, height, points) = if use_thumbnail {
+            // Miniature : orientée, donc points ramenés dans le repère affiché.
+            let (rgb, width, height) = self.thumbnail;
+            let mut points = [0f32; 10];
+            for point in 0..5 {
+                let (x, y) = orient_point(landmarks[point * 2] as f64, landmarks[point * 2 + 1] as f64, self.orientation);
+                points[point * 2] = (x * width as f64) as f32;
+                points[point * 2 + 1] = (y * height as f64) as f32;
+            }
+            (rgb, width, height, points)
+        } else {
+            // Petit visage : original décodé (réduction DCT) assez grand pour que le visage atteigne ~112 px. Repère stocké, comme les points.
+            if self.original.is_none() {
+                let (_, thumbnail_width, thumbnail_height) = self.thumbnail;
+                let wanted = (thumbnail_width.max(thumbnail_height) as f64 * 112.0 / side_in_thumbnail.max(1.0)).ceil() as usize;
+                self.original = crate::thumbnails::decode_scaled_rgb(self.source, wanted.clamp(512, 6000)).ok();
+            }
+            let (rgb, width, height) = self.original.as_ref()?;
+            let mut points = [0f32; 10];
+            for point in 0..5 {
+                points[point * 2] = landmarks[point * 2] * *width as f32;
+                points[point * 2 + 1] = landmarks[point * 2 + 1] * *height as f32;
+            }
+            (rgb.as_slice(), *width, *height, points)
+        };
+        let aligned = crate::face_recognize::align(rgb, width, height, &points);
+        crate::face_recognize::embed(recognizer, &aligned).ok()
+    }
+}
+
+/// Analyse d'une photo : miniature (générée si absente), détection, mesures, empreintes, conversion vers le repère de l'image stockée.
+/// `pending` : visages déjà en base sans empreinte ; ceux qu'aucune détection ne recouvre reçoivent une empreinte (points de repère approchés
+/// depuis leur cadre s'ils n'en ont pas).
+fn analyse(target: &Target, pending: &[PendingFace], thumbnails_dir: &Path, cache_size: usize, detector: &Mutex<Session>, recognizer: &Mutex<Session>) -> Result<Analysis, String> {
     let source = Path::new(&target.path);
     let thumbnail = crate::thumbnail_cache_file(thumbnails_dir, &target.path)?;
     if !thumbnail.is_file() {
         crate::thumbnails::generate_thumbnail(source, &thumbnail, cache_size)?;
     }
     let (rgb, width, height) = decode_thumbnail(&thumbnail)?;
-    let detections = detect(session, &rgb, width, height)?;
+    let detections = detect(detector, &rgb, width, height)?;
     // Dimensions de la photo d'origine, orientée comme la miniature (à défaut : celles de la miniature).
     let (original_width, original_height) = if target.width > 0 && target.height > 0 {
         if target.orientation >= 5 { (target.height as f64, target.width as f64) } else { (target.width as f64, target.height as f64) }
@@ -410,7 +500,8 @@ fn analyse(target: &Target, thumbnails_dir: &Path, cache_size: usize, session: &
         (width as f64, height as f64)
     };
     let back = inverse_orientation(target.orientation);
-    Ok(detections
+    let mut sources = EmbeddingSources { source, orientation: target.orientation, thumbnail: (&rgb, width, height), original: None };
+    let faces: Vec<MeasuredFace> = detections
         .into_iter()
         .map(|detection| {
             let shown = detection.rect.map(f64::from);
@@ -421,6 +512,7 @@ fn analyse(target: &Target, thumbnails_dir: &Path, cache_size: usize, session: &
                 landmarks[point * 2] = x as f32;
                 landmarks[point * 2 + 1] = y as f32;
             }
+            let side_in_thumbnail = (shown[2] * width as f64).max(shown[3] * height as f64);
             MeasuredFace {
                 rect: orient_rect(shown, back),
                 landmarks,
@@ -428,42 +520,114 @@ fn analyse(target: &Target, thumbnails_dir: &Path, cache_size: usize, session: &
                 sharpness: sharpness(&rgb, width, height, detection.rect),
                 size_px,
                 size_percent: size_px / original_width.max(original_height) * 100.0,
+                embedding: sources.embedding(recognizer, &landmarks, side_in_thumbnail),
             }
         })
-        .collect())
+        .collect();
+    let mut pending_embeddings = Vec::new();
+    for face in pending {
+        if faces.iter().any(|detected| iou(&detected.rect, &face.rect) >= MATCH_IOU) { continue; } // recevra l'empreinte de la détection
+        let landmarks = face.landmarks.unwrap_or_else(|| crate::face_recognize::landmarks_from_box(face.rect));
+        let shown = orient_rect(face.rect, target.orientation);
+        let side_in_thumbnail = (shown[2] * width as f64).max(shown[3] * height as f64);
+        if let Some(embedding) = sources.embedding(recognizer, &landmarks, side_in_thumbnail) { pending_embeddings.push((face.id, embedding)); }
+    }
+    Ok(Analysis { faces, pending_embeddings })
 }
 
 fn landmarks_blob(landmarks: &[f32; 10]) -> Vec<u8> {
     landmarks.iter().flat_map(|value| value.to_le_bytes()).collect()
 }
 
+fn landmarks_from_blob(blob: &[u8]) -> Option<[f32; 10]> {
+    if blob.len() != 40 { return None; }
+    let mut landmarks = [0f32; 10];
+    for (index, bytes) in blob.chunks_exact(4).enumerate() { landmarks[index] = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]); }
+    Some(landmarks)
+}
+
+/// Visages sans empreinte du modèle actuel (zones importées, visages du lot 2) des photos visées, par photo.
+fn pending_faces(conn: &Connection, photo_ids: &[i64]) -> HashMap<i64, Vec<PendingFace>> {
+    let mut by_photo: HashMap<i64, Vec<PendingFace>> = HashMap::new();
+    let Ok(ids_json) = serde_json::to_string(photo_ids) else { return by_photo; };
+    let Ok(mut statement) = conn.prepare(
+        "SELECT id, photo_id, x, y, w, h, landmarks FROM faces
+         WHERE photo_id IN (SELECT value FROM json_each(?1)) AND (embedding IS NULL OR model_id IS NOT ?2) AND state <> 'filtered'",
+    ) else { return by_photo; };
+    let rows = statement.query_map(params![ids_json, crate::face_recognize::MODEL_ID], |row| {
+        Ok((
+            row.get::<_, i64>(1)?,
+            PendingFace {
+                id: row.get(0)?,
+                rect: [row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?],
+                landmarks: row.get::<_, Option<Vec<u8>>>(6)?.as_deref().and_then(landmarks_from_blob),
+            },
+        ))
+    });
+    if let Ok(rows) = rows {
+        for (photo_id, face) in rows.flatten() { by_photo.entry(photo_id).or_default().push(face); }
+    }
+    by_photo
+}
+
+/// Ressemblance minimale pour retrouver un visage d'une photo « à revérifier » (géométrie changée, spec §4.2).
+const REVIEW_MATCH_SIMILARITY: f32 = 0.80;
+
 /// Enregistre les visages détectés d'une photo, fusionnés avec ceux déjà en base (spec §7.1) :
-/// - une détection qui recouvre un visage existant (IoU ≥ 0,5) en garde l'identité et l'état ; ce visage reçoit les mesures. Les coordonnées
-///   des zones importées ou manuelles ne changent pas ;
+/// - une détection qui correspond à un visage existant (recouvrement IoU ≥ 0,5 ; ressemblance ≥ 0,80 pour une photo « à revérifier ») en garde
+///   l'identité et l'état ; ce visage reçoit les mesures et l'empreinte. Les coordonnées des zones importées ou manuelles ne changent pas
+///   (sauf sur une photo à revérifier, où l'ancienne position n'est plus valable) ;
 /// - les zones importées ou manuelles, et les visages confirmés ou ignorés, sont toujours conservés ;
 /// - les détections automatiques non confirmées sans correspondance sont remplacées ; les nouvelles détections arrivent « inconnues »
-///   (ou « filtrées » sous les seuils).
-fn store_detections(conn: &Connection, target: &Target, faces: &[MeasuredFace], current: &FaceSettings) {
-    struct Existing { id: i64, rect: [f64; 4], origin: String, state: String, person_id: Option<i64> }
+///   (ou « filtrées » sous les seuils) et sont attribuées ensuite (face_recognize::attribute_faces).
+fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, current: &FaceSettings) {
+    struct Existing { id: i64, rect: [f64; 4], origin: String, state: String, person_id: Option<i64>, embedding: Option<Vec<f32>> }
+    for (id, embedding) in &analysis.pending_embeddings {
+        let _ = conn.execute(
+            "UPDATE faces SET embedding = ?1, model_id = ?2 WHERE id = ?3",
+            params![crate::face_recognize::embedding_blob(embedding), crate::face_recognize::MODEL_ID, id],
+        );
+    }
     let existing: Vec<Existing> = conn
-        .prepare_cached("SELECT id, x, y, w, h, origin, state, person_id FROM faces WHERE photo_id = ?1")
+        .prepare_cached("SELECT id, x, y, w, h, origin, state, person_id, embedding, model_id FROM faces WHERE photo_id = ?1")
         .and_then(|mut statement| {
             statement
                 .query_map(params![target.photo_id], |row| {
-                    Ok(Existing { id: row.get(0)?, rect: [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?], origin: row.get(5)?, state: row.get(6)?, person_id: row.get(7)? })
+                    let embedding: Option<Vec<u8>> = row.get(8)?;
+                    let model: Option<String> = row.get(9)?;
+                    Ok(Existing {
+                        id: row.get(0)?,
+                        rect: [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?],
+                        origin: row.get(5)?,
+                        state: row.get(6)?,
+                        person_id: row.get(7)?,
+                        embedding: embedding
+                            .filter(|_| model.as_deref() == Some(crate::face_recognize::MODEL_ID))
+                            .as_deref()
+                            .and_then(crate::face_recognize::embedding_from_blob),
+                    })
                 })
                 .map(|rows| rows.flatten().collect())
         })
         .unwrap_or_default();
     let mut matched: Vec<i64> = Vec::new();
-    for face in faces {
-        let measured_state = if current.passes(face.score, face.sharpness, face.size_px, face.size_percent) { "unknown" } else { "filtered" };
+    for face in &analysis.faces {
+        let measured_state = if current.passes(face.score, face.sharpness, face.size_percent) { "unknown" } else { "filtered" };
         let best = existing
             .iter()
             .filter(|candidate| !matched.contains(&candidate.id))
-            .map(|candidate| (candidate, iou(&candidate.rect, &face.rect)))
-            .filter(|(_, overlap)| *overlap >= MATCH_IOU)
+            .filter_map(|candidate| {
+                if target.needs_review {
+                    let similarity = crate::face_recognize::similarity(face.embedding.as_ref()?, candidate.embedding.as_ref()?);
+                    (similarity >= REVIEW_MATCH_SIMILARITY).then_some((candidate, similarity as f64))
+                } else {
+                    let overlap = iou(&candidate.rect, &face.rect);
+                    (overlap >= MATCH_IOU).then_some((candidate, overlap))
+                }
+            })
             .max_by(|a, b| a.1.total_cmp(&b.1));
+        let embedding_blob = face.embedding.as_deref().map(crate::face_recognize::embedding_blob);
+        let model_id = face.embedding.as_ref().map(|_| crate::face_recognize::MODEL_ID);
         match best {
             Some((candidate, _)) => {
                 matched.push(candidate.id);
@@ -474,31 +638,44 @@ fn store_detections(conn: &Connection, target: &Target, faces: &[MeasuredFace], 
                 } else {
                     candidate.state.clone()
                 };
-                let rect = if detected { face.rect } else { candidate.rect };
+                let rect = if detected || target.needs_review { face.rect } else { candidate.rect };
+                // Sur une photo à revérifier, un visage nommé change de position : sa zone est à réécrire dans le fichier.
+                let moved_named = target.needs_review && candidate.person_id.is_some();
                 let _ = conn.execute(
-                    "UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4, state = ?5, det_score = ?6, sharpness = ?7, size_px = ?8, size_pct = ?9, landmarks = ?10
-                     WHERE id = ?11",
-                    params![rect[0], rect[1], rect[2], rect[3], state, face.score, face.sharpness, face.size_px, face.size_percent, landmarks_blob(&face.landmarks), candidate.id],
+                    "UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4, state = ?5, det_score = ?6, sharpness = ?7, size_px = ?8, size_pct = ?9, landmarks = ?10,
+                     embedding = COALESCE(?11, embedding), model_id = COALESCE(?12, model_id), dirty = CASE WHEN ?13 THEN 1 ELSE dirty END
+                     WHERE id = ?14",
+                    params![rect[0], rect[1], rect[2], rect[3], state, face.score, face.sharpness, face.size_px, face.size_percent, landmarks_blob(&face.landmarks),
+                        embedding_blob, model_id, moved_named, candidate.id],
                 );
             }
             None => {
                 let _ = conn.execute(
-                    "INSERT INTO faces (photo_id, x, y, w, h, origin, state, det_score, sharpness, size_px, size_pct, landmarks)
-                     VALUES (?1, ?2, ?3, ?4, ?5, 'detected', ?6, ?7, ?8, ?9, ?10, ?11)",
-                    params![target.photo_id, face.rect[0], face.rect[1], face.rect[2], face.rect[3], measured_state, face.score, face.sharpness, face.size_px, face.size_percent, landmarks_blob(&face.landmarks)],
+                    "INSERT INTO faces (photo_id, x, y, w, h, origin, state, det_score, sharpness, size_px, size_pct, landmarks, embedding, model_id)
+                     VALUES (?1, ?2, ?3, ?4, ?5, 'detected', ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                    params![target.photo_id, face.rect[0], face.rect[1], face.rect[2], face.rect[3], measured_state, face.score, face.sharpness, face.size_px,
+                        face.size_percent, landmarks_blob(&face.landmarks), embedding_blob, model_id],
                 );
             }
         }
     }
     for candidate in existing.iter().filter(|candidate| !matched.contains(&candidate.id)) {
         let replaceable = candidate.origin == "detected" && matches!(candidate.state.as_str(), "unknown" | "filtered" | "suggested" | "auto");
-        if replaceable { let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id]); }
+        if replaceable {
+            let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id]);
+        } else if target.needs_review && candidate.person_id.is_some() && candidate.state != "ignored" {
+            // Photo à revérifier : un visage nommé non retrouvé reste à son ancienne position, « suggéré », pour que l'utilisateur tranche (§4.2).
+            let _ = conn.execute(
+                "UPDATE faces SET state = 'suggested', suggested_person_id = person_id, person_id = NULL, dirty = 1 WHERE id = ?1",
+                params![candidate.id],
+            );
+        }
     }
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_secs() as i64).unwrap_or(0);
     let _ = conn.execute(
-        "INSERT OR REPLACE INTO photo_face_scans (photo_id, detector_id, scanned_at, file_mtime, width, height, orientation, needs_review)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0)",
-        params![target.photo_id, DETECTOR_ID, now, target.modified, target.width, target.height, target.orientation],
+        "INSERT OR REPLACE INTO photo_face_scans (photo_id, detector_id, model_id, scanned_at, file_mtime, width, height, orientation, needs_review)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
+        params![target.photo_id, DETECTOR_ID, crate::face_recognize::MODEL_ID, now, target.modified, target.width, target.height, target.orientation],
     );
 }
 
@@ -514,11 +691,24 @@ pub struct DetectionReport {
     pub faces: usize,
     pub failed: Vec<ScanFailure>,
     pub cancelled: bool,
+    /// Visages attribués automatiquement et suggérés à la fin du scan.
+    pub auto: usize,
+    pub suggested: usize,
 }
 
-/// Scan des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ; `only_unscanned` : seulement les
-/// photos pas encore scannées avec le détecteur actuel. Tâche de la file : progression par « scan-progress », arrêt par cancel_scan
-/// (les photos déjà traitées restent enregistrées).
+/// Charge un modèle ONNX (session libérée à la fin de la tâche).
+fn load_session(environment: &Environment, model: &Path, label: &str) -> Result<Mutex<Session>, String> {
+    Session::builder(environment)
+        .and_then(|builder| builder.with_intra_threads(2).map_err(Into::into))
+        .and_then(|mut builder| builder.commit_from_file(model))
+        .map(Mutex::new)
+        .map_err(|error| format!("{label} impossible à charger : {error}"))
+}
+
+/// Détection et reconnaissance des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ;
+/// `only_unscanned` : seulement les photos pas encore scannées avec le détecteur et le modèle actuels (ou « à revérifier »). Les visages sont
+/// ensuite attribués (spec §5.1). Tâche de la file : progression par « scan-progress », arrêt par cancel_scan (les photos déjà traitées restent
+/// enregistrées).
 #[tauri::command]
 pub async fn detect_faces(
     app: tauri::AppHandle,
@@ -546,27 +736,35 @@ pub async fn detect_faces(
         let mut report = DetectionReport::default();
         if targets.is_empty() { return Ok(report); }
         let environment = environment(&paths.runtime)?;
-        let session = Session::builder(&environment)
-            .and_then(|builder| builder.with_intra_threads(2).map_err(Into::into))
-            .and_then(|mut builder| builder.commit_from_file(&paths.detector))
-            .map_err(|error| format!("Modèle de détection impossible à charger : {error}"))?;
-        let session = Mutex::new(session);
+        let detector = load_session(&environment, &paths.detector, "Modèle de détection")?;
+        let recognizer = load_session(&environment, &paths.recognizer, "Modèle de reconnaissance")?;
         // Moitié des cœurs pour lire les miniatures (le reste pour l'interface) ; l'inférence, rapide, passe une photo à la fois.
         let threads = std::thread::available_parallelism().map(|count| (count.get() / 2).max(1)).unwrap_or(2);
         let pool_threads = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|error| error.to_string())?;
         let current = settings();
         let total = targets.len();
+        let mut scanned_ids: Vec<i64> = Vec::new();
         for (chunk_index, chunk) in targets.chunks(24).enumerate() {
             if cancel.load(Ordering::Relaxed) { report.cancelled = true; break; }
-            let results: Vec<Result<Vec<MeasuredFace>, String>> =
-                pool_threads.install(|| chunk.par_iter().map(|target| analyse(target, &thumbnails_dir, cache_size, &session)).collect());
+            let chunk_ids: Vec<i64> = chunk.iter().map(|target| target.photo_id).collect();
+            let pending = pending_faces(&conn, &chunk_ids);
+            let results: Vec<Result<Analysis, String>> = pool_threads.install(|| {
+                chunk
+                    .par_iter()
+                    .map(|target| {
+                        let waiting = pending.get(&target.photo_id).map(Vec::as_slice).unwrap_or(&[]);
+                        analyse(target, waiting, &thumbnails_dir, cache_size, &detector, &recognizer)
+                    })
+                    .collect()
+            });
             let _ = conn.execute("BEGIN TRANSACTION", []);
             for (target, result) in chunk.iter().zip(results) {
                 match result {
-                    Ok(faces) => {
-                        store_detections(&conn, target, &faces, &current);
+                    Ok(analysis) => {
+                        store_detections(&conn, target, &analysis, &current);
                         report.scanned += 1;
-                        report.faces += faces.len();
+                        report.faces += analysis.faces.len();
+                        scanned_ids.push(target.photo_id);
                     }
                     Err(error) => report.failed.push(ScanFailure { path: target.path.clone(), error }),
                 }
@@ -574,6 +772,14 @@ pub async fn detect_faces(
             let _ = conn.execute("COMMIT", []);
             let done = (chunk_index * 24 + chunk.len()).min(total);
             let _ = app.emit("scan-progress", crate::ScanProgress { task_id: worker_task_id.clone(), percent: (done * 100 / total) as u32 });
+        }
+        // Les modèles ne servent plus : leur mémoire est rendue avant l'attribution (qui n'utilise que les empreintes en base).
+        drop(detector);
+        drop(recognizer);
+        if !scanned_ids.is_empty() {
+            let summary = crate::face_recognize::attribute_faces(&conn, Some(&scanned_ids), current.thresholds())?;
+            report.auto = summary.auto;
+            report.suggested = summary.suggested;
         }
         Ok(report)
     })

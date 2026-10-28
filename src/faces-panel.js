@@ -14,8 +14,16 @@ const DETECTION_STORAGE_KEY = 'faceDetection'; // « true » : détection et rec
 const FACE_SETTINGS_STORAGE_KEY = 'faceSettings'; // réglages de détection (JSON), envoyés au backend (face_detect.rs, FaceSettings)
 const SUBFOLDERS_STORAGE_KEY = 'faceScanSubfolders'; // « true » : toujours inclure les sous-dossiers d'un dossier scanné
 // Valeurs par défaut provisoires (spec §8), à ajuster après les premiers essais.
-const DEFAULT_FACE_SETTINGS = { scanRaw: true, minSizePx: 40, minSizePercent: 1, minConfidence: 0.8, minSharpness: 50 };
-const THRESHOLD_INPUTS = { minSizePx: 'face-min-size-px', minSizePercent: 'face-min-size-percent', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness' };
+const DEFAULT_FACE_SETTINGS = {
+  scanRaw: true, minSizePercent: 1, minConfidence: 0.8, minSharpness: 50,
+  autoThreshold: 0.5, suggestionThreshold: 0.36, margin: 0.05,
+};
+const THRESHOLD_INPUTS = {
+  minSizePercent: 'face-min-size-percent', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness',
+  autoThreshold: 'face-auto-threshold', suggestionThreshold: 'face-suggestion-threshold', margin: 'face-margin',
+};
+const PERSON_ROOT_STORAGE_KEY = 'facePersonRoot'; // racine des mots-clés créés pour les nouvelles personnes (« A/B », vide = premier niveau)
+const SCAN_FILTER_STORAGE_KEY = 'faceScanFilter'; // filtre de la vue Photos par statut du scan : all, unscanned, scanned, review
 const OVERLAY_STORAGE_KEY = 'fullscreenFacesVisible'; // zones affichées en plein écran (touche V)
 const SORT_STORAGE_KEY = 'personsSort'; // « count » (fréquence, par défaut) ou « name »
 const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed' };
@@ -27,6 +35,8 @@ let sortMode = readStorage(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
 let persons = []; // [{ id, name, keyword_id, photo_count, cover }]
 let faceIndex = new Map(); // identifiant de photo -> Set des identifiants de personnes
 let personFilters = []; // identifiants des personnes filtrées (ET)
+let scanIndex = new Map(); // identifiant de photo scannée -> à revérifier ? (get_face_scan_index)
+let scanFilter = 'all';
 let refreshToken = 0;
 // Plein écran : visages de la photo affichée (chargés une fois par photo).
 let overlayPhotoId = null;
@@ -41,7 +51,10 @@ let reclassifyTimer = null;
 function loadFaceSettings() {
   try {
     const stored = JSON.parse(readStorage(FACE_SETTINGS_STORAGE_KEY));
-    if (stored && typeof stored === 'object') return { ...DEFAULT_FACE_SETTINGS, ...stored };
+    if (stored && typeof stored === 'object') {
+      delete stored.minSizePx; // réglage retiré (la taille en % suffit)
+      return { ...DEFAULT_FACE_SETTINGS, ...stored };
+    }
   } catch { /* valeur absente ou illisible : réglages par défaut */ }
   return { ...DEFAULT_FACE_SETTINGS };
 }
@@ -73,25 +86,45 @@ export function orientRect({ x, y, w, h }, orientation) {
 }
 
 // ==========================================
-// FILTRE PERSONNES (ET) : utilisé par applyPhotoFilters dans main.js
+// FILTRES PERSONNES (ET) ET STATUT DU SCAN : utilisés par applyPhotoFilters dans main.js
 // ==========================================
 export function hasPersonFilters() {
-  return readingEnabled && personFilters.length > 0;
+  return readingEnabled && (personFilters.length > 0 || (detectionEnabled && scanFilter !== 'all'));
 }
 
 export function personFilterMatches(photo) {
   if (!hasPersonFilters()) return true;
+  if (detectionEnabled && scanFilter !== 'all') {
+    const review = scanIndex.get(photo.id);
+    const status = review === undefined ? 'unscanned' : review ? 'review' : 'scanned';
+    if (status !== scanFilter) return false;
+  }
+  if (personFilters.length === 0) return true;
   const photoPersons = faceIndex.get(photo.id);
   return Boolean(photoPersons) && personFilters.every(id => photoPersons.has(id));
 }
 
-// Vide le filtre sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
+// Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
 export function clearPersonFilters() {
   personFilters = [];
+  scanFilter = 'all';
+  writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
   const input = document.getElementById('person-filter-input');
   if (input) input.value = '';
+  const scanSelect = document.getElementById('face-scan-filter');
+  if (scanSelect) scanSelect.value = scanFilter;
   renderPersonFilterTags();
   renderPersons();
+}
+
+// Personnes connues (vue Visages : suggestions de « Nommer »).
+export function getPersons() {
+  return persons;
+}
+
+// Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
+export function getPersonRoot() {
+  return (readStorage(PERSON_ROOT_STORAGE_KEY) ?? '').trim();
 }
 
 function setPersonFilters(ids) {
@@ -162,14 +195,20 @@ export async function refreshFaces() {
   const token = ++refreshToken;
   let loadedPersons;
   let pairs;
+  let scans;
   try {
-    [loadedPersons, pairs] = await Promise.all([invoke('get_persons'), invoke('get_face_index')]);
+    [loadedPersons, pairs, scans] = await Promise.all([
+      invoke('get_persons'),
+      invoke('get_face_index'),
+      detectionEnabled ? invoke('get_face_scan_index') : Promise.resolve([]),
+    ]);
   } catch (error) {
     console.error('Lecture des personnes impossible', error);
     return;
   }
   if (token !== refreshToken) return;
   persons = loadedPersons;
+  scanIndex = new Map(scans);
   faceIndex = new Map();
   for (const [photoId, personId] of pairs) {
     if (!faceIndex.has(photoId)) faceIndex.set(photoId, new Set());
@@ -182,8 +221,9 @@ export async function refreshFaces() {
   personFilters = keptFilters;
   renderPersons();
   renderPersonFilterTags();
-  if (personFilters.length > 0 || filtersChanged) host.onFilterChange({ keepState: true });
+  if (hasPersonFilters() || filtersChanged) host.onFilterChange({ keepState: true });
   layoutFullscreenFaces(host.getFullscreenSlot());
+  host.onFacesChanged?.(); // vue Visages ouverte : rechargée
 }
 
 function sortedPersons() {
@@ -259,7 +299,7 @@ function openPersonMenu(event, person) {
 }
 
 // Chemins complets (« A/B/C ») des nœuds de l'arbre des mots-clés, par identifiant.
-async function keywordPaths() {
+export async function keywordPaths() {
   const nodes = await invoke('get_keyword_tree');
   const byId = new Map(nodes.map(node => [node.id, node]));
   const paths = new Map();
@@ -377,14 +417,14 @@ function renderOverlayFaces(overlay) {
   overlay.replaceChildren(...overlayFaces.faces.map(face => {
     const rect = orientRect(face, overlayFaces.orientation);
     const box = document.createElement('div');
-    box.className = `face-box${face.person_id == null ? ' unknown' : ''}`;
+    box.className = `face-box state-${face.state}${face.person_id == null && face.state !== 'suggested' ? ' unknown' : ''}`;
     box.style.left = `${rect.x * 100}%`;
     box.style.top = `${rect.y * 100}%`;
     box.style.width = `${rect.w * 100}%`;
     box.style.height = `${rect.h * 100}%`;
     const label = document.createElement('span');
     label.className = 'face-label';
-    label.textContent = face.name || t('Unknown');
+    label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?` : (face.name || t('Unknown'));
     box.append(label);
     return box;
   }));
@@ -497,7 +537,9 @@ function scheduleReclassify() {
   clearTimeout(reclassifyTimer);
   reclassifyTimer = setTimeout(async () => {
     try {
+      // Seuils de détection : inconnu ↔ filtré ; seuils de reconnaissance : nouvelle attribution de tous les visages non confirmés.
       await invoke('apply_face_thresholds');
+      await invoke('recognize_faces', { photoIds: null });
       refreshFaces();
     } catch (error) {
       console.error('Reclassement des visages impossible', error);
@@ -536,11 +578,34 @@ function initDetectionSettings() {
   document.getElementById('btn-face-model-download').addEventListener('click', downloadModels);
   document.getElementById('btn-face-model-import').addEventListener('click', importModels);
   document.querySelector('.settings-tab-btn[data-tab="faces"]').addEventListener('click', () => { if (detectionEnabled) refreshModelStatus(); });
+  const root = document.getElementById('face-person-root');
+  root.value = getPersonRoot();
+  root.addEventListener('change', () => {
+    // Mêmes règles que les mots-clés : pas de « | » ni de « , » ; « / » sépare les niveaux.
+    root.value = root.value.replace(/[|,]/g, '').split('/').map(segment => segment.trim()).filter(Boolean).join('/');
+    writeStorage(PERSON_ROOT_STORAGE_KEY, root.value);
+  });
+  const scanSelect = document.getElementById('face-scan-filter');
+  scanFilter = ['unscanned', 'scanned', 'review'].includes(readStorage(SCAN_FILTER_STORAGE_KEY)) ? readStorage(SCAN_FILTER_STORAGE_KEY) : 'all';
+  scanSelect.value = scanFilter;
+  scanSelect.addEventListener('change', () => {
+    scanFilter = scanSelect.value;
+    writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+    host.onFilterChange();
+  });
 }
 
+// Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personnes.
 function applyDetectionEnabled() {
   document.getElementById('face-detection-settings').hidden = !detectionEnabled;
-  if (detectionEnabled) refreshModelStatus();
+  document.getElementById('btn-toggle-faces').hidden = !isFaceDetectionEnabled();
+  document.getElementById('face-scan-filter-row').hidden = !isFaceDetectionEnabled();
+  if (!isFaceDetectionEnabled()) host.closeFacesView?.();
+  renderPersons();
+  if (detectionEnabled) {
+    refreshModelStatus();
+    refreshFaces();
+  }
 }
 
 function setDetectionEnabled(enabled) {
@@ -590,6 +655,7 @@ function enqueueFaceScan(scope, recursive) {
       }
       if (report) {
         let message = tp('{count} photo scanned, {faces} faces found', report.scanned, { faces: report.faces });
+        if (report.auto > 0 || report.suggested > 0) message += ` · ${t('{auto} recognized, {suggested} to confirm', { auto: report.auto, suggested: report.suggested })}`;
         if (report.failed.length > 0) {
           message += ` · ${tp('{count} unreadable photo', report.failed.length)}`;
           console.warn('Photos non analysées', report.failed);
@@ -660,8 +726,9 @@ export async function openFaceScanDialog(scope) {
   question.textContent = t('Include subfolders?');
   summary.textContent = t('Photos to scan: {here} in this folder, {all} with its subfolders.', { here, all: withSubfolders });
   const always = checkbox(t('Always include subfolders'), readStorage(SUBFOLDERS_STORAGE_KEY) === 'true');
-  const no = dialogButton(t('No'), '', () => launch(false));
-  const include = dialogButton(t('Include'), 'btn-primary', () => launch(true));
+  // « Non » est la réponse proposée (bouton bleu, focus) ; « Inclure » reste à un clic.
+  const no = dialogButton(t('No'), 'btn-primary', () => launch(false));
+  const include = dialogButton(t('Include'), '', () => launch(true));
   actions.append(no, include);
   modal.body.prepend(question);
   modal.body.append(always.row, actions);
@@ -676,7 +743,7 @@ export async function openFaceScanDialog(scope) {
     updateButtons();
   });
   updateButtons();
-  (include.disabled ? no : include).focus();
+  (no.disabled ? include : no).focus();
 }
 
 // ==========================================

@@ -212,8 +212,11 @@ export function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
 
 // Saisie d'un texte (nom de dossier…). `onSubmit(valeur)` renvoie un message d'erreur (la fenêtre reste ouverte et l'affiche) ou null (succès, la fenêtre
 // se ferme). Entrée valide, Échap annule. Renvoie true si la saisie a été validée avec succès.
-// `value` : texte proposé au départ ; `suggestions` : valeurs proposées par l'autocomplétion du champ (ex. chemins de mots-clés).
-export function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, onSubmit, value = '', suggestions = [] }) {
+// `value` : texte proposé au départ (sélectionné, sauf avec `selectValue: false` : curseur à la fin, pour continuer la saisie) ;
+// `suggestions` : valeurs proposées par l'autocomplétion du champ (ex. chemins de mots-clés), voir renderSuggestions.
+const MAX_PROMPT_SUGGESTIONS = 12;
+
+export function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, onSubmit, value = '', suggestions = [], selectValue = true }) {
   return new Promise(resolve => {
     let done = false;
     const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(done) });
@@ -227,16 +230,53 @@ export function promptDialog({ title, message, inputLabel, confirmLabel, cancelL
     input.spellcheck = false;
     input.setAttribute('aria-label', inputLabel);
     input.value = value;
-    const datalist = document.createElement('datalist');
-    if (suggestions.length > 0) {
-      datalist.id = `prompt-suggestions-${Date.now()}`;
-      datalist.append(...suggestions.map(suggestion => {
-        const option = document.createElement('option');
-        option.value = suggestion;
-        return option;
+    // Autocomplétion propre à l'application (la liste du navigateur rapproche chaque mot séparément : « bernard c » proposait tous les
+    // « bernard ») : seules les entrées qui contiennent tout le texte tapé, espaces compris, casse ignorée. En premier celles qui commencent par
+    // ce texte, puis celles dont un niveau (« / ») commence par lui. Flèches pour choisir, Entrée ou clic pour retenir, Échap pour fermer la liste.
+    const list = document.createElement('ul');
+    list.className = 'prompt-suggestions';
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+    let matches = [];
+    let highlighted = -1;
+    const pick = suggestion => {
+      input.value = suggestion;
+      matches = [];
+      list.hidden = true;
+      input.focus();
+      input.setSelectionRange(suggestion.length, suggestion.length);
+    };
+    const highlight = index => {
+      highlighted = index;
+      [...list.children].forEach((item, position) => item.classList.toggle('active', position === index));
+      list.children[index]?.scrollIntoView({ block: 'nearest' });
+    };
+    const renderSuggestions = () => {
+      const query = input.value.trim().toLowerCase();
+      matches = [];
+      if (query && suggestions.length > 0) {
+        const ranked = [];
+        for (const suggestion of suggestions) {
+          const lower = suggestion.toLowerCase();
+          if (!lower.includes(query)) continue;
+          const rank = lower.startsWith(query) ? 0 : lower.split('/').some(level => level.trim().startsWith(query)) ? 1 : 2;
+          ranked.push([rank, suggestion]);
+        }
+        ranked.sort((a, b) => a[0] - b[0] || a[1].localeCompare(b[1]));
+        matches = ranked.slice(0, MAX_PROMPT_SUGGESTIONS).map(([, suggestion]) => suggestion);
+        if (matches.length === 1 && matches[0].toLowerCase() === query) matches = []; // déjà saisie telle quelle
+      }
+      highlighted = -1;
+      list.replaceChildren(...matches.map(suggestion => {
+        const item = document.createElement('li');
+        item.setAttribute('role', 'option');
+        item.textContent = suggestion;
+        item.title = suggestion;
+        item.addEventListener('mousedown', event => { event.preventDefault(); pick(suggestion); });
+        return item;
       }));
-      input.setAttribute('list', datalist.id);
-    }
+      list.hidden = matches.length === 0;
+    };
     const error = document.createElement('p');
     error.className = 'prompt-error';
     error.setAttribute('role', 'alert');
@@ -268,16 +308,36 @@ export function promptDialog({ title, message, inputLabel, confirmLabel, cancelL
       modal.close();
     };
     confirm.addEventListener('click', submit);
-    input.addEventListener('input', () => { error.textContent = ''; });
-    input.addEventListener('keydown', event => {
-      if (event.key !== 'Enter') return;
-      event.preventDefault();
-      submit();
+    input.addEventListener('input', () => {
+      error.textContent = '';
+      renderSuggestions();
     });
+    input.addEventListener('keydown', event => {
+      const listOpen = !list.hidden && matches.length > 0;
+      if (listOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        highlight((highlighted + step + matches.length) % matches.length);
+      } else if (listOpen && event.key === 'Escape') {
+        // Échap ferme d'abord la liste, pas la fenêtre.
+        event.preventDefault();
+        event.stopPropagation();
+        list.hidden = true;
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (listOpen && highlighted >= 0) pick(matches[highlighted]);
+        else submit();
+      }
+    });
+    input.addEventListener('blur', () => { list.hidden = true; });
     actions.append(cancel, confirm);
-    modal.body.append(text, input, datalist, error, actions);
+    modal.body.append(text, input, list, error, actions);
     input.focus();
-    input.select();
+    if (selectValue) input.select();
+    else {
+      input.setSelectionRange(input.value.length, input.value.length);
+      renderSuggestions(); // saisie commencée (lettre tapée sur une vignette) : propositions tout de suite
+    }
   });
 }
 

@@ -24,6 +24,8 @@
     <header id="top-bar" class="top-bar">
       <div class="panel-toggles">
         <button id="btn-toggle-sidebar" class="active" title="Open filters panel" data-i18n-title="Open filters panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Filters">Filtres</span></button>
+        <!-- Vue Visages (faces-grid.js) : visible quand la détection des visages est activée -->
+        <button id="btn-toggle-faces" type="button" hidden title="Vue Visages : révision des visages des photos affichées" data-i18n-title="Faces view: review the faces of the displayed photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-face preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg> <span data-i18n="Faces">Visages</span></button>
       </div>
       <div class="actions">
         <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -103,6 +105,15 @@
               <input id="person-filter-input" type="text" list="person-options" placeholder="Choisir une personne…" data-i18n-placeholder="Choose person..." aria-label="Personnes" data-i18n-aria-label="People" autocomplete="off" />
               <datalist id="person-options"></datalist>
               <div id="person-filter-tags" class="filter-tags" aria-live="polite"></div>
+              <label id="face-scan-filter-row" class="face-scan-filter-row" for="face-scan-filter" hidden>
+                <span data-i18n="Face scan">Scan des visages</span>
+                <select id="face-scan-filter">
+                  <option value="all" data-i18n="All photos">Toutes les photos</option>
+                  <option value="unscanned" data-i18n="Not scanned">Non scannées</option>
+                  <option value="scanned" data-i18n="Scanned">Scannées</option>
+                  <option value="review" data-i18n="To check again">À revérifier</option>
+                </select>
+              </label>
             </div>
           </div>
           <div class="filter-group" data-filter-group="date">
@@ -155,6 +166,24 @@
       <section id="grid-view" class="grid-section">
         <div id="virtual-scroll-container">
           <div id="virtual-scroll-content"></div>
+        </div>
+      </section>
+
+      <!-- Vue Visages (faces-grid.js) : remplace la grille des photos quand elle est ouverte -->
+      <section id="faces-view" class="faces-view" aria-label="Visages" data-i18n-aria-label="Faces" hidden>
+        <div class="faces-toolbar">
+          <div id="faces-status-filters" class="faces-status-filters" role="group" aria-label="Statuts affichés" data-i18n-aria-label="Displayed statuses"></div>
+          <div class="faces-actions">
+            <span id="faces-count" class="faces-count"></span>
+            <button id="btn-faces-confirm" type="button" title="Entrée" data-i18n="Confirm">Valider</button>
+            <button id="btn-faces-name" type="button" data-i18n="Name…">Nommer…</button>
+            <button id="btn-faces-unknown" type="button" data-i18n="Unknown">Inconnu</button>
+            <button id="btn-faces-ignore" type="button" data-i18n="Ignore">Ignorer</button>
+            <button id="btn-faces-unignore" type="button" data-i18n="Stop ignoring" hidden>Ne plus ignorer</button>
+          </div>
+        </div>
+        <div id="faces-scroll" class="faces-scroll" tabindex="0">
+          <div id="faces-content" class="faces-content"></div>
         </div>
       </section>
 
@@ -448,10 +477,22 @@
                 </details>
                 <h4 data-i18n="Detection">Détection</h4>
                 <label class="settings-row settings-check"><input id="face-scan-raw" type="checkbox" /><span data-i18n="Scan RAW files (embedded preview)">Scanner les RAW (aperçu intégré)</span></label>
-                <label class="settings-row" for="face-min-size-px"><span data-i18n="Minimum face size (pixels)">Taille minimale d'un visage (pixels)</span><input id="face-min-size-px" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
+                <!-- Chaque seuil : plage acceptée et exemple, sous la ligne -->
                 <label class="settings-row" for="face-min-size-percent"><span data-i18n="Minimum face size (% of the photo)">Taille minimale d'un visage (% de la photo)</span><input id="face-min-size-percent" class="face-threshold" type="number" min="0" max="50" step="0.5" /></label>
-                <label class="settings-row" for="face-min-confidence"><span data-i18n="Minimum detection confidence (0 to 1)">Confiance minimale de détection (0 à 1)</span><input id="face-min-confidence" class="face-threshold" type="number" min="0.5" max="1" step="0.05" /></label>
+                <p class="face-threshold-hint" data-i18n="Face size hint">0 à 50. Plus grand côté du visage rapporté au plus grand côté de la photo. Ex. 1 : sur une photo de 6000 px, les visages de moins de 60 px sont écartés.</p>
+                <label class="settings-row" for="face-min-confidence"><span data-i18n="Minimum detection confidence">Confiance minimale de détection</span><input id="face-min-confidence" class="face-threshold" type="number" min="0.5" max="1" step="0.05" /></label>
+                <p class="face-threshold-hint" data-i18n="Face confidence hint">0,5 à 1. Ex. 0,8 ; à 0,9, moins de faux visages (motifs, statues) mais plus de visages manqués (profils, visages cachés).</p>
                 <label class="settings-row" for="face-min-sharpness"><span data-i18n="Minimum sharpness">Netteté minimale</span><input id="face-min-sharpness" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
+                <p class="face-threshold-hint" data-i18n="Face sharpness hint">0 à 2000. Ex. 50 : un visage net mesure souvent 100 à 300, un visage flou ou bougé moins de 30.</p>
+                <h4 data-i18n="Recognition">Reconnaissance</h4>
+                <label class="settings-row" for="face-auto-threshold"><span data-i18n="Automatic attribution from (similarity)">Attribution automatique à partir de (ressemblance)</span><input id="face-auto-threshold" class="face-threshold" type="number" min="0.2" max="1" step="0.01" /></label>
+                <p class="face-threshold-hint" data-i18n="Face auto threshold hint">0,2 à 1. Ex. 0,50 : deux photos d'une même personne se ressemblent en général à 0,6 – 0,9, deux personnes différentes à moins de 0,4.</p>
+                <label class="settings-row" for="face-suggestion-threshold"><span data-i18n="Suggestion from (similarity)">Suggestion à partir de (ressemblance)</span><input id="face-suggestion-threshold" class="face-threshold" type="number" min="0.2" max="1" step="0.01" /></label>
+                <p class="face-threshold-hint" data-i18n="Face suggestion threshold hint">0,2 à 1, sous l'attribution automatique. Ex. 0,36 : entre 0,36 et 0,50, la personne est seulement proposée (« à valider »).</p>
+                <label class="settings-row" for="face-margin"><span data-i18n="Minimum gap with the next person">Écart minimal avec la personne suivante</span><input id="face-margin" class="face-threshold" type="number" min="0" max="0.5" step="0.01" /></label>
+                <p class="face-threshold-hint" data-i18n="Face margin hint">0 à 0,5. Ex. 0,05 : un visage à 0,62 pour Paul et 0,59 pour Pierre (écart 0,03) est seulement proposé, jamais attribué automatiquement.</p>
+                <label class="settings-row" for="face-person-root"><span data-i18n="Keyword root for new people">Racine des mots-clés des nouvelles personnes</span><input id="face-person-root" class="face-person-root" type="text" placeholder="#CONTACTS" autocomplete="off" spellcheck="false" /></label>
+                <p class="sort-note" data-i18n="Face recognition help">Un visage ressemblant assez à une personne lui est attribué automatiquement (si l'écart avec la personne suivante est suffisant), sinon il lui est proposé. Seuls les visages confirmés servent de référence. Un nouveau nom donné dans la vue Visages crée un mot-clé sous la racine (vide : premier niveau de l'arbre).</p>
                 <p class="sort-note" data-i18n="Face thresholds help">Un visage sous l'un de ces seuils est écarté (filtré). Changer un seuil reclasse les visages déjà détectés, sans nouveau scan. Valeurs par défaut provisoires.</p>
               </div>
             </section>

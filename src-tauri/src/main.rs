@@ -5,6 +5,7 @@ mod exif;
 mod exiftool;
 mod face_detect;
 mod face_models;
+mod face_recognize;
 mod faces;
 mod heif;
 mod integrity;
@@ -1471,6 +1472,14 @@ fn main() {
             faces::get_face_index,
             faces::get_photo_faces,
             faces::link_person_keyword,
+            faces::get_faces_for_photos,
+            faces::get_face_scan_index,
+            faces::confirm_faces,
+            faces::assign_faces,
+            faces::set_faces_unknown,
+            faces::ignore_faces,
+            faces::unignore_faces,
+            faces::recognize_faces,
             face_models::get_face_model_status,
             face_models::download_face_models,
             face_models::import_face_models,

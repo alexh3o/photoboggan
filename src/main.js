@@ -11,7 +11,8 @@ import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot } from './faces-panel.js';
+import { initFacesGrid, isFacesViewOpen, hasFaceSelection, closeFacesView, reloadFacesView } from './faces-grid.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -686,6 +687,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     document.getElementById('exif-caption').textContent = '-';
   }
   updateFilteredPhotosCount();
+  reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
 }
 
 // Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
@@ -1814,6 +1816,10 @@ async function setSelectionRating(rating) {
 // Del    : Delete
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+  // Vue Visages ouverte (hors plein écran) : les raccourcis des photos (suppression, note, copie…) ne s'appliquent pas à la grille masquée ;
+  // seul le guide (H) reste disponible, et seulement sans visage sélectionné (une lettre tapée commence alors un nom). Les touches de la vue
+  // sont gérées par faces-grid.js.
+  if (isFacesViewOpen() && !isFullscreen && (e.key.toLowerCase() !== 'h' || hasFaceSelection())) return;
   // Ctrl+C : copie les photos sélectionnées dans le presse-papiers de l'OS. Traité avant le raccourci « C » seul (Copier vers…),
   // qui ne doit pas s'ouvrir sur Ctrl+C. Ignoré quand une fenêtre (Paramètres, Guide, Tri…) est ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
@@ -4351,6 +4357,38 @@ initFacesPanel({
   isFullscreen: () => isFullscreen,
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
+  closeFacesView: () => closeFacesView(),
+  onFacesChanged: () => reloadFacesView(),
+});
+
+// Vue Visages (voir faces-grid.js) : visages des photos affichées, à la place de la grille des photos.
+initFacesGrid({
+  getDisplayedPhotoIds: () => photos.map(photo => photo.id),
+  getThumbnailUrl: async sourcePath => {
+    let cachedPath = await lookupCachedThumbnail(sourcePath);
+    if (!cachedPath) {
+      try {
+        cachedPath = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
+      } catch {
+        cachedPath = null;
+      }
+      if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
+    }
+    return cachedPath ? convertFileSrc(cachedPath) : '';
+  },
+  // Double-clic sur un visage : sa photo en plein écran (elle doit faire partie des photos affichées).
+  openPhotoFullscreen: photoId => {
+    const index = photos.findIndex(photo => photo.id === photoId);
+    if (index < 0) showWriteToast(t('This photo is not among the displayed photos'));
+    else openFullscreen(index);
+  },
+  setPhotoGridVisible: visible => {
+    gridContainer.hidden = !visible;
+    if (visible) requestAnimationFrame(updateVirtualScroller);
+  },
+  showToast: message => showWriteToast(message),
+  getPersonRoot,
+  isFullscreen: () => isFullscreen,
 });
 
 // ==========================================

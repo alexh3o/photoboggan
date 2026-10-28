@@ -35,6 +35,7 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .face-detection-settings[hidden], #btn-face-model-download[hidden], #btn-face-model-import[hidden] { display: none !important; }
 .face-detection-settings h4 { margin-top: 0.75rem; }
 .face-threshold { width: 6rem; }
+.face-threshold-hint { margin: -0.15rem 0 0.5rem; color: var(--text-dim); font-size: 0.7rem; }
 .face-model-offline { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
 .face-model-offline summary { cursor: pointer; }
 .face-model-files { list-style: none; margin-top: 0.4rem; }
@@ -44,8 +45,43 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .face-scan-card .settings-row { margin-top: 0.4rem; }
 .face-scan-question { font-weight: bold; }
 
+/* Filtre « Scan des visages » de la vue Photos */
+.face-scan-filter-row[hidden], #btn-toggle-faces[hidden] { display: none !important; }
+.face-scan-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.5rem; }
+.face-person-root { width: 10rem; }
+
+/* VUE VISAGES (faces-grid.js) : barre d'outils (filtre par statut, actions) et grille virtuelle des visages */
+.faces-view[hidden] { display: none !important; }
+.faces-view { flex: 1 1 0; min-width: 15rem; display: flex; flex-direction: column; background: var(--grid-bg); }
+.faces-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid var(--separator); }
+.faces-status-filters, .faces-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.faces-status-chip { padding: 2px 0.6rem; border-radius: 1rem; font-size: 0.72rem; opacity: 0.55; }
+.faces-status-chip.active { opacity: 1; border-color: var(--accent); }
+.faces-count { color: var(--text-dim); font-size: 0.75rem; margin-right: 0.25rem; }
+.faces-actions button[hidden] { display: none; }
+.faces-scroll { flex: 1 1 0; position: relative; overflow-y: auto; overflow-x: hidden; outline: none; }
+.faces-content { position: relative; width: 100%; }
+.faces-separator { height: 30px; }
+.face-tile { position: absolute; top: 0; left: 0; width: 120px; height: 120px; border-radius: 6px; overflow: hidden; cursor: pointer; background: var(--thumb-bg); border: 3px solid transparent; }
+.face-tile-image { position: absolute; inset: 0; background-color: var(--control-bg); background-repeat: no-repeat; }
+.face-tile-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 4px; overflow: hidden; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 0.7rem; white-space: nowrap; text-overflow: ellipsis; }
+.face-tile-label:empty { display: none; }
+.face-tile-score { position: absolute; top: 3px; right: 3px; padding: 0 4px; border-radius: 3px; background: rgba(0, 0, 0, 0.65); color: #fff; font-size: 0.65rem; }
+/* Couleur du cadre selon l'état : à valider (orange), automatique (bleu), confirmé (vert), inconnu (gris), filtré / ignoré (estompés) */
+.face-tile.state-suggested { border-color: #e67e22; }
+.face-tile.state-auto { border-color: #3498db; }
+.face-tile.state-confirmed { border-color: #2ecc71; }
+.face-tile.state-unknown { border-color: #7f8c8d; }
+.face-tile.state-filtered, .face-tile.state-ignored { border-color: #555; opacity: 0.6; }
+.face-tile.selected { outline: 4px solid var(--selected-border); outline-offset: -4px; }
+.faces-status-chip.state-suggested.active { border-color: #e67e22; }
+.faces-status-chip.state-auto.active { border-color: #3498db; }
+.faces-status-chip.state-confirmed.active { border-color: #2ecc71; }
+
 /* Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la souris */
 .face-overlay { position: absolute; z-index: 1; pointer-events: none; }
 .face-box { position: absolute; border: 2px solid #2ecc71; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
 .face-box.unknown { border-color: #f1c40f; border-style: dashed; }
+.face-box.state-suggested { border-color: #e67e22; border-style: dashed; }
+.face-box.state-auto { border-color: #3498db; }
 .face-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; padding: 1px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 0.8rem; white-space: nowrap; }

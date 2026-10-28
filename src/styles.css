@@ -433,6 +433,11 @@ body.immersive .titlebar { display: none; }
 .btn-primary:disabled { opacity: 0.6; cursor: default; }
 .prompt-input { width: 100%; margin-bottom: 6px; padding: 7px 9px; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.85rem; user-select: text; }
 .prompt-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* Autocomplétion des fenêtres de saisie (promptDialog dans photo-actions.js) : liste sous le champ */
+.prompt-suggestions[hidden] { display: none; }
+.prompt-suggestions { list-style: none; max-height: 14rem; margin: -2px 0 6px; overflow-y: auto; border: 1px solid var(--control-border); border-radius: 4px; background: var(--control-bg); }
+.prompt-suggestions li { padding: 4px 9px; overflow: hidden; font-size: 0.8rem; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.prompt-suggestions li:hover, .prompt-suggestions li.active { background: var(--control-hover); color: var(--text-strong); }
 .prompt-error { min-height: 1.2rem; margin-bottom: 12px; color: #e74c3c; font-size: 0.75rem; overflow-wrap: anywhere; }
 /* Modale des fichiers non gérés lors de la suppression de dossier */
 .unrecognized-files-card { width: min(32rem, calc(100vw - 2.5rem)); }

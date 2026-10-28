@@ -368,6 +368,8 @@ pub fn init_schema(conn: &Connection) {
     );
     // 5 points de repère de YuNet (yeux, nez, coins de la bouche), 10 flottants normalisés, repère de l'image stockée : alignement avant SFace (lot 3).
     let _ = conn.execute("ALTER TABLE faces ADD COLUMN landmarks BLOB", []);
+    // Personne que l'utilisateur a refusée pour ce visage (« Inconnu ») : l'attribution ne la lui propose plus (lot 3).
+    let _ = conn.execute("ALTER TABLE faces ADD COLUMN rejected_person_id INTEGER", []);
 }
 
 /// Identifiant de la personne de ce nom (casse ignorée), créée si elle n'existe pas.
@@ -398,27 +400,88 @@ fn auto_link_person(conn: &Connection, person_id: i64) {
     }
 }
 
-/// Enregistre, pour chaque photo (identifiée par son chemin), ce que la lecture de ses fichiers a appris : orientation EXIF, et zones de visage
-/// si la lecture des visages est activée. Les visages importés de la photo sont remplacés par ceux du fichier (le fichier fait foi).
+/// Photo relue dont les proportions ont changé depuis son scan de visages (rotation des pixels, recadrage : spec §4.2) : marquée « à revérifier ».
+/// Une rotation par le seul tag Orientation ne change pas les dimensions stockées, un redimensionnement proportionnel non plus : rien à faire.
+fn mark_geometry_change(conn: &Connection, photo_id: i64, width: i64, height: i64) {
+    if width <= 0 || height <= 0 { return; }
+    let Ok((scan_width, scan_height)) = conn.query_row(
+        "SELECT width, height FROM photo_face_scans WHERE photo_id = ?1",
+        params![photo_id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    ) else { return; };
+    if scan_width <= 0 || scan_height <= 0 { return; }
+    let before = scan_width as f64 / scan_height as f64;
+    let now = width as f64 / height as f64;
+    if ((before - now) / before).abs() > 0.01 {
+        let _ = conn.execute("UPDATE photo_face_scans SET needs_review = 1 WHERE photo_id = ?1", params![photo_id]);
+    }
+}
+
+/// Enregistre, pour chaque photo (identifiée par son chemin), ce que la lecture de ses fichiers a appris : orientation EXIF, changement de
+/// géométrie depuis le scan, et zones de visage si la lecture des visages est activée. Le fichier fait foi pour les zones importées, mais elles
+/// sont rapprochées de celles déjà en base (recouvrement) pour garder leur empreinte et leurs mesures :
+/// - zone nommée : personne du fichier, « confirmée » (sauf visage ignoré par l'utilisateur) ;
+/// - zone sans nom : un visage confirmé redevient « inconnu » (son nom a été retiré dans l'autre logiciel), les autres gardent leur état ;
+/// - zone importée absente du fichier : supprimée.
 /// À appeler après l'insertion des photos et de leurs mots-clés (la liaison automatique cherche les nœuds de l'arbre).
 pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) {
     if items.is_empty() { return; }
     let _ = conn.execute("BEGIN TRANSACTION", []);
     let mut touched: HashSet<i64> = HashSet::new();
     for (path, faces) in items {
-        let Ok(photo_id) = conn.query_row("SELECT id FROM photos WHERE path = ?1", params![path], |row| row.get::<_, i64>(0)) else { continue; };
+        let Ok((photo_id, width, height)) = conn.query_row(
+            "SELECT id, width, height FROM photos WHERE path = ?1",
+            params![path],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?.unwrap_or(0), row.get::<_, Option<i64>>(2)?.unwrap_or(0))),
+        ) else { continue; };
         let _ = conn.execute("UPDATE photos SET orientation = ?1 WHERE id = ?2", params![faces.orientation, photo_id]);
+        mark_geometry_change(conn, photo_id, width, height);
         let Some(regions) = &faces.regions else { continue; };
-        let _ = conn.execute("DELETE FROM faces WHERE photo_id = ?1 AND origin = 'imported'", params![photo_id]);
+        let existing: Vec<(i64, [f64; 4], String)> = conn
+            .prepare_cached("SELECT id, x, y, w, h, state FROM faces WHERE photo_id = ?1 AND origin = 'imported'")
+            .and_then(|mut statement| {
+                statement
+                    .query_map(params![photo_id], |row| Ok((row.get(0)?, [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?], row.get(5)?)))
+                    .map(|rows| rows.flatten().collect())
+            })
+            .unwrap_or_default();
+        let mut matched: Vec<i64> = Vec::new();
         for region in regions {
+            let rect = [region.x, region.y, region.w, region.h];
             let person_id = region.name.as_deref().and_then(|name| ensure_person(conn, name).ok());
             if let Some(id) = person_id { touched.insert(id); }
-            // Zone nommée lue dans un fichier : validée par l'utilisateur dans l'autre logiciel. Sans nom : visage inconnu.
-            let state = if person_id.is_some() { "confirmed" } else { "unknown" };
-            let _ = conn.execute(
-                "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id) VALUES (?1, ?2, ?3, ?4, ?5, 'imported', ?6, ?7)",
-                params![photo_id, region.x, region.y, region.w, region.h, state, person_id],
-            );
+            let best = existing
+                .iter()
+                .filter(|(id, _, _)| !matched.contains(id))
+                .map(|candidate| (candidate, crate::face_detect::iou(&candidate.1, &rect)))
+                .filter(|(_, overlap)| *overlap >= 0.5)
+                .max_by(|a, b| a.1.total_cmp(&b.1));
+            match best {
+                Some(((id, _, old_state), _)) => {
+                    matched.push(*id);
+                    let _ = conn.execute("UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4 WHERE id = ?5", params![rect[0], rect[1], rect[2], rect[3], id]);
+                    if old_state == "ignored" { continue; }
+                    if person_id.is_some() {
+                        let _ = conn.execute(
+                            "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL WHERE id = ?2",
+                            params![person_id, id],
+                        );
+                    } else if old_state == "confirmed" {
+                        let _ = conn.execute("UPDATE faces SET person_id = NULL, state = 'unknown' WHERE id = ?1", params![id]);
+                    }
+                }
+                None => {
+                    // Zone nommée lue dans un fichier : validée par l'utilisateur dans l'autre logiciel. Sans nom : visage inconnu.
+                    let state = if person_id.is_some() { "confirmed" } else { "unknown" };
+                    let _ = conn.execute(
+                        "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id) VALUES (?1, ?2, ?3, ?4, ?5, 'imported', ?6, ?7)",
+                        params![photo_id, rect[0], rect[1], rect[2], rect[3], state, person_id],
+                    );
+                }
+            }
+        }
+        for (id, _, _) in existing.iter().filter(|(id, _, _)| !matched.contains(id)) {
+            let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![id]);
         }
     }
     for person_id in touched { auto_link_person(conn, person_id); }
@@ -558,8 +621,9 @@ pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64) -> Result<Phot
         .unwrap_or(1);
     let mut statement = conn
         .prepare(
-            "SELECT f.id, f.x, f.y, f.w, f.h, f.person_id, COALESCE(k.name, pr.name), f.state
+            "SELECT f.id, f.x, f.y, f.w, f.h, f.person_id, COALESCE(k.name, pr.name, ks.name, ps.name), f.state
              FROM faces f LEFT JOIN persons pr ON pr.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id
+             LEFT JOIN persons ps ON ps.id = f.suggested_person_id LEFT JOIN keyword_nodes ks ON ks.id = ps.keyword_node_id
              WHERE f.photo_id = ?1 AND f.state NOT IN ('filtered', 'ignored') ORDER BY f.x",
         )
         .map_err(|error| error.to_string())?;
@@ -600,6 +664,239 @@ pub fn link_person_keyword(state: State<'_, AppState>, person_id: i64, keyword_i
     conn.execute("UPDATE persons SET keyword_node_id = ?1 WHERE id = ?2", params![keyword_id, person_id])
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Vue Visages (lot 3) : liste des visages, statut de scan, révision
+// ---------------------------------------------------------------------------
+
+/// Visage de la vue Visages : de quoi découper sa vignette (chemin de la photo, orientation), son état et son nom (personne attribuée,
+/// à défaut personne suggérée).
+#[derive(Serialize)]
+pub struct FaceItem {
+    pub id: i64,
+    pub photo_id: i64,
+    pub path: String,
+    pub orientation: u32,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub state: String,
+    pub origin: String,
+    pub person_id: Option<i64>,
+    pub suggested_person_id: Option<i64>,
+    pub name: Option<String>,
+    pub score: Option<f64>,
+}
+
+/// Visages des photos `photo_ids` (celles affichées dans la vue Photos). Les photos « à revérifier » sont écartées jusqu'à leur rescan (§4.2).
+#[tauri::command(async)]
+pub fn get_faces_for_photos(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Result<Vec<FaceItem>, String> {
+    if photo_ids.is_empty() { return Ok(Vec::new()); }
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let ids_json = serde_json::to_string(&photo_ids).map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT f.id, f.photo_id, p.path, p.orientation, f.x, f.y, f.w, f.h, f.state, f.origin, f.person_id, f.suggested_person_id,
+                    COALESCE(k.name, pr.name, ks.name, ps.name), f.score
+             FROM faces f JOIN photos p ON p.id = f.photo_id
+             LEFT JOIN persons pr ON pr.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id
+             LEFT JOIN persons ps ON ps.id = f.suggested_person_id LEFT JOIN keyword_nodes ks ON ks.id = ps.keyword_node_id
+             WHERE f.photo_id IN (SELECT value FROM json_each(?1))
+               AND NOT EXISTS (SELECT 1 FROM photo_face_scans s WHERE s.photo_id = f.photo_id AND s.needs_review = 1)
+             ORDER BY f.photo_id, f.x",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![ids_json], |row| {
+            Ok(FaceItem {
+                id: row.get(0)?,
+                photo_id: row.get(1)?,
+                path: row.get(2)?,
+                orientation: row.get::<_, Option<u32>>(3)?.unwrap_or(1),
+                x: row.get(4)?,
+                y: row.get(5)?,
+                w: row.get(6)?,
+                h: row.get(7)?,
+                state: row.get(8)?,
+                origin: row.get(9)?,
+                person_id: row.get(10)?,
+                suggested_person_id: row.get(11)?,
+                name: row.get(12)?,
+                score: row.get(13)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    let faces: Vec<FaceItem> = rows.flatten().collect();
+    Ok(faces)
+}
+
+/// Statut de scan des photos (filtre de la vue Photos) : (photo, à revérifier ?) pour les photos scannées avec le modèle actuel ou à revérifier.
+/// Une photo absente de la liste n'est pas scannée.
+#[tauri::command(async)]
+pub fn get_face_scan_index(state: State<'_, AppState>) -> Result<Vec<(i64, bool)>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare("SELECT photo_id, needs_review FROM photo_face_scans WHERE needs_review = 1 OR (detector_id = ?1 AND model_id = ?2)")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![crate::face_detect::DETECTOR_ID, crate::face_recognize::MODEL_ID], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))
+        .map_err(|error| error.to_string())?;
+    let pairs: Vec<(i64, bool)> = rows.flatten().collect();
+    Ok(pairs)
+}
+
+fn ids_json(ids: &[i64]) -> Result<String, String> {
+    serde_json::to_string(ids).map_err(|error| error.to_string())
+}
+
+/// Valider : les visages attribués automatiquement ou suggérés deviennent « confirmés » pour leur personne. Renvoie le nombre de visages validés.
+#[tauri::command(async)]
+pub fn confirm_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE faces SET state = 'confirmed', person_id = COALESCE(person_id, suggested_person_id), suggested_person_id = NULL,
+                rejected_person_id = NULL, dirty = 1
+         WHERE id IN (SELECT value FROM json_each(?1)) AND state IN ('auto', 'suggested', 'confirmed')
+           AND COALESCE(person_id, suggested_person_id) IS NOT NULL",
+        params![ids_json(&face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Caractères refusés dans un nom de personne (mêmes règles que les mots-clés : séparateurs de niveaux et de liste).
+fn valid_person_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    (!name.is_empty() && !name.contains(['/', '|', ','])).then(|| name.to_string())
+}
+
+/// Personne désignée pour « Nommer » : une personne existante (`person_id`), la personne d'un mot-clé de l'arbre (`keyword_id` : créée et reliée
+/// au mot-clé si besoin), ou un nom (`name` : personne existante de ce nom, sinon nouvelle personne reliée à un nouveau mot-clé sous la racine
+/// `root`, chemin « A/B » ; racine vide : mot-clé de premier niveau). Erreurs : `invalid_name`, `unknown_person`, `unknown_keyword`,
+/// `person_name_taken` (une autre personne porte déjà ce nom), `keyword_taken` (mot-clé déjà relié à une autre personne).
+fn resolve_person(conn: &Connection, person_id: Option<i64>, keyword_id: Option<i64>, name: Option<&str>, root: &str) -> Result<i64, String> {
+    if let Some(id) = person_id {
+        let exists: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE id = ?1)", params![id], |row| row.get(0)).map_err(|error| error.to_string())?;
+        return if exists { Ok(id) } else { Err("unknown_person".to_string()) };
+    }
+    let link_or_create = |node_id: i64, name: &str| -> Result<i64, String> {
+        if let Ok(id) = conn.query_row("SELECT id FROM persons WHERE keyword_node_id = ?1", params![node_id], |row| row.get::<_, i64>(0)) {
+            return Ok(id);
+        }
+        let key = crate::keywords::name_key(name);
+        match conn.query_row("SELECT id, keyword_node_id FROM persons WHERE name_key = ?1", params![key], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?))) {
+            Ok((id, None)) => {
+                conn.execute("UPDATE persons SET keyword_node_id = ?1 WHERE id = ?2", params![node_id, id]).map_err(|error| error.to_string())?;
+                Ok(id)
+            }
+            Ok(_) => Err("person_name_taken".to_string()),
+            Err(_) => {
+                conn.execute("INSERT INTO persons (name, name_key, keyword_node_id) VALUES (?1, ?2, ?3)", params![name.trim(), key, node_id])
+                    .map_err(|error| error.to_string())?;
+                Ok(conn.last_insert_rowid())
+            }
+        }
+    };
+    if let Some(node_id) = keyword_id {
+        let node_name: String = conn
+            .query_row("SELECT name FROM keyword_nodes WHERE id = ?1", params![node_id], |row| row.get(0))
+            .map_err(|_| "unknown_keyword".to_string())?;
+        return link_or_create(node_id, &node_name);
+    }
+    let name = name.and_then(valid_person_name).ok_or_else(|| "invalid_name".to_string())?;
+    if let Ok(id) = conn.query_row("SELECT id FROM persons WHERE name_key = ?1", params![crate::keywords::name_key(&name)], |row| row.get::<_, i64>(0)) {
+        return Ok(id);
+    }
+    let mut parent_id = 0i64;
+    for segment in root.split('/').map(str::trim).filter(|segment| !segment.is_empty()) {
+        parent_id = crate::keywords::ensure_node(conn, parent_id, segment).map_err(|error| error.to_string())?;
+    }
+    let node_id = crate::keywords::ensure_node(conn, parent_id, &name).map_err(|error| error.to_string())?;
+    let taken: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE keyword_node_id = ?1)", params![node_id], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if taken { return Err("keyword_taken".to_string()); }
+    link_or_create(node_id, &name)
+}
+
+/// Nommer : les visages deviennent « confirmés » pour la personne désignée (voir resolve_person). Renvoie l'identifiant de la personne.
+/// Lot 3 : la base seule change (visages marqués à réécrire) ; l'écriture dans les fichiers et l'activation du mot-clé viendront au lot 4.
+#[tauri::command(async)]
+pub fn assign_faces(
+    state: State<'_, AppState>,
+    face_ids: Vec<i64>,
+    person_id: Option<i64>,
+    keyword_id: Option<i64>,
+    name: Option<String>,
+    root: Option<String>,
+) -> Result<i64, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = resolve_person(&conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or("")).and_then(|person| {
+        conn.execute(
+            "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL, rejected_person_id = NULL, dirty = 1
+             WHERE id IN (SELECT value FROM json_each(?2))",
+            params![person, ids_json(&face_ids)?],
+        )
+        .map_err(|error| error.to_string())?;
+        Ok(person)
+    });
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    result
+}
+
+/// Inconnu : la personne attribuée ou suggérée est retirée (et ne sera plus proposée pour ce visage).
+#[tauri::command(async)]
+pub fn set_faces_unknown(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE faces SET rejected_person_id = COALESCE(person_id, suggested_person_id, rejected_person_id), person_id = NULL,
+                suggested_person_id = NULL, state = 'unknown', dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+         WHERE id IN (SELECT value FROM json_each(?1)) AND state <> 'filtered'",
+        params![ids_json(&face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Ignorer : visage écarté volontairement (inconnu dans la foule, faux visage) ; il n'est plus attribué ni proposé.
+#[tauri::command(async)]
+pub fn ignore_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE faces SET state = 'ignored', person_id = NULL, suggested_person_id = NULL,
+                dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+         WHERE id IN (SELECT value FROM json_each(?1))",
+        params![ids_json(&face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Ne plus ignorer : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
+#[tauri::command(async)]
+pub fn unignore_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE faces SET state = 'unknown' WHERE id IN (SELECT value FROM json_each(?1)) AND state = 'ignored'",
+        params![ids_json(&face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.
+/// `photo_ids` : photos concernées (toutes si absent).
+#[tauri::command(async)]
+pub fn recognize_faces(state: State<'_, AppState>, photo_ids: Option<Vec<i64>>) -> Result<crate::face_recognize::AttributionSummary, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    crate::face_recognize::attribute_faces(&conn, photo_ids.as_deref(), crate::face_detect::settings().thresholds())
 }
 
 #[cfg(test)]

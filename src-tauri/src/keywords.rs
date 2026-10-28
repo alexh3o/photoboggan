@@ -63,7 +63,7 @@ pub fn name_key(name: &str) -> String {
 }
 
 /// Identifiant du nœud `name` sous `parent_id`, créé s'il n'existe pas encore.
-fn ensure_node(conn: &Connection, parent_id: i64, name: &str) -> rusqlite::Result<i64> {
+pub(crate) fn ensure_node(conn: &Connection, parent_id: i64, name: &str) -> rusqlite::Result<i64> {
     let key = name_key(name);
     conn.prepare_cached("INSERT OR IGNORE INTO keyword_nodes (parent_id, name, name_key) VALUES (?1, ?2, ?3)")?
         .execute(params![parent_id, name.trim(), key])?;
