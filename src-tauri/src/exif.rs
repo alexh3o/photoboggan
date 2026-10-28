@@ -309,20 +309,21 @@ fn hierarchy_paths(items: Vec<String>, separator: char) -> Vec<Vec<String>> {
     paths
 }
 
-/// Schémas de mots-clés hiérarchiques lus : (propriété XMP, séparateur des niveaux). Dans l'ordre de HIERARCHY_IDS.
+/// Schémas de mots-clés hiérarchiques en liste XMP : (propriété XMP, séparateur des niveaux). Dans l'ordre de HIERARCHY_IDS ;
+/// le dernier identifiant (ACDSee) n'est pas une liste, voir acdsee_category_paths.
 const HIERARCHY_SCHEMAS: [(&str, char); 4] = [("TagsList", '/'), ("hierarchicalSubject", '|'), ("CatalogSets", '|'), ("LastKeywordXMP", '/')];
 /// Identifiants des schémas côté interface : digiKam (`digiKam:TagsList`), Lightroom (`lr:hierarchicalSubject`), Media Pro (`mediapro:CatalogSets`),
-/// Microsoft Photo (`MicrosoftPhoto:LastKeywordXMP`).
-const HIERARCHY_IDS: [&str; 4] = ["digikam", "lightroom", "mediapro", "microsoft"];
-/// Ordre de priorité à la lecture : indices dans HIERARCHY_SCHEMAS, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
+/// Microsoft Photo (`MicrosoftPhoto:LastKeywordXMP`), ACDSee (`acdsee:categories`).
+const HIERARCHY_IDS: [&str; 5] = ["digikam", "lightroom", "mediapro", "microsoft", "acdsee"];
+/// Ordre de priorité à la lecture : indices dans HIERARCHY_IDS, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
 /// Mots-clés) ; digiKam en premier tant que l'interface n'a rien envoyé.
-static HIERARCHY_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
+static HIERARCHY_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
 
-/// Règle l'ordre de priorité des schémas hiérarchiques : `order` doit contenir une fois chacun des 4 identifiants de HIERARCHY_IDS.
+/// Règle l'ordre de priorité des schémas hiérarchiques : `order` doit contenir une fois chacun des identifiants de HIERARCHY_IDS.
 /// Il s'applique aux prochaines lectures de fichiers (les photos déjà en base ne sont pas relues d'elles-mêmes).
 pub fn set_hierarchy_priority(order: &[String]) -> Result<(), String> {
     if order.len() != HIERARCHY_IDS.len() { return Err("invalid_order".to_string()); }
-    let mut indices = [0usize; 4];
+    let mut indices = [0usize; HIERARCHY_IDS.len()];
     for (rank, id) in order.iter().enumerate() {
         let Some(index) = HIERARCHY_IDS.iter().position(|known| *known == id.as_str()) else { return Err("invalid_order".to_string()); };
         if indices[..rank].contains(&index) { return Err("invalid_order".to_string()); }
@@ -333,16 +334,127 @@ pub fn set_hierarchy_priority(order: &[String]) -> Result<(), String> {
 }
 
 /// Mots-clés hiérarchiques d'un paquet XMP : le premier schéma qui contient des données, dans l'ordre de priorité réglé (par défaut digiKam,
-/// puis Lightroom, Media Pro, Microsoft Photo), l'emporte ; les autres sont ignorés.
+/// puis Lightroom, Media Pro, Microsoft Photo, ACDSee), l'emporte ; les autres sont ignorés.
 /// Chaque entrée est un mot-clé actif : seul son dernier niveau l'est (les ancêtres ne le sont que s'ils ont leur propre entrée).
 fn parse_hierarchical_keywords(xml: &str) -> Vec<Vec<String>> {
     let priority = *HIERARCHY_PRIORITY.read().unwrap_or_else(|poisoned| poisoned.into_inner());
     for index in priority {
-        let (local_name, separator) = HIERARCHY_SCHEMAS[index];
-        let paths = hierarchy_paths(xmp_list_items(xml, local_name), separator);
+        let paths = match HIERARCHY_SCHEMAS.get(index) {
+            Some((local_name, separator)) => hierarchy_paths(xmp_list_items(xml, local_name), *separator),
+            None => acdsee_category_paths(xml),
+        };
         if !paths.is_empty() { return paths; }
     }
     Vec::new()
+}
+
+/// Décode les entités XML (`&lt;`, `&amp;`, `&#39;`…) en une seule passe : `&amp;lt;` donne `&lt;`, jamais `<`.
+fn decode_xml_entities(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find('&') {
+        output.push_str(&rest[..start]);
+        let entity_end = rest[start..].find(';').filter(|end| *end <= 10).map(|end| start + end);
+        let decoded = entity_end.and_then(|end| match &rest[start + 1..end] {
+            "amp" => Some('&'),
+            "lt" => Some('<'),
+            "gt" => Some('>'),
+            "quot" => Some('"'),
+            "apos" => Some('\''),
+            code if code.starts_with("#x") => u32::from_str_radix(&code[2..], 16).ok().and_then(char::from_u32),
+            code if code.starts_with('#') => code[1..].parse::<u32>().ok().and_then(char::from_u32),
+            _ => None,
+        });
+        match (decoded, entity_end) {
+            (Some(character), Some(end)) => { output.push(character); rest = &rest[end + 1..]; }
+            _ => { output.push('&'); rest = &rest[start + 1..]; }
+        }
+    }
+    output.push_str(rest);
+    output
+}
+
+/// Catégories ACDSee : la propriété `acdsee:categories` contient, en texte, un arbre XML (échappé dans le paquet) :
+/// `<Categories><Category Assigned="0">Lieux<Category Assigned="1">Paris</Category></Category></Categories>`.
+/// Le nom d'une catégorie est le texte qui précède ses sous-catégories ; `Assigned="1"` marque un mot-clé actif (même modèle que l'arbre
+/// de l'application : les niveaux intermédiaires ne sont actifs que s'ils sont eux-mêmes attribués). Renvoie un chemin par catégorie attribuée.
+fn acdsee_category_paths(xml: &str) -> Vec<Vec<String>> {
+    let Some(value) = xmp_value(xml, &["acdsee:categories"]) else { return Vec::new(); };
+    let tree = decode_xml_entities(&value);
+    // Pile des catégories ouvertes : (nom, attribuée, nom terminé).
+    let mut stack: Vec<(String, bool, bool)> = Vec::new();
+    let mut paths: Vec<Vec<String>> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    let mut rest = tree.as_str();
+    loop {
+        let (text, tag_start) = match rest.find('<') {
+            Some(position) => (&rest[..position], Some(position)),
+            None => (rest, None),
+        };
+        if let Some(top) = stack.last_mut() {
+            if !top.2 { top.0.push_str(text); }
+        }
+        let Some(tag_start) = tag_start else { break; };
+        // Une balise termine le nom de la catégorie ouverte : son chemin est enregistré si elle est attribuée.
+        if stack.last().is_some_and(|top| !top.2) {
+            let top = stack.last_mut().expect("pile non vide");
+            top.0 = decode_xml_entities(top.0.trim());
+            top.2 = true;
+            if top.1 && stack.iter().all(|(name, _, _)| !name.is_empty()) {
+                let segments: Vec<String> = stack.iter().map(|(name, _, _)| name.clone()).collect();
+                let key = segments.join("\u{1}").to_lowercase();
+                if !seen.contains(&key) {
+                    seen.push(key);
+                    paths.push(segments);
+                }
+            }
+        }
+        let Some(tag_end) = rest[tag_start..].find('>').map(|end| tag_start + end) else { break; };
+        let tag = &rest[tag_start + 1..tag_end];
+        rest = &rest[tag_end + 1..];
+        if let Some(closing) = tag.strip_prefix('/') {
+            if closing.trim().eq_ignore_ascii_case("Category") { stack.pop(); }
+            continue;
+        }
+        let name_end = tag.find(|c: char| c.is_whitespace() || c == '/').unwrap_or(tag.len());
+        if !tag[..name_end].eq_ignore_ascii_case("Category") || tag.ends_with('/') { continue; }
+        let assigned = xml_attributes(&tag[name_end..]).iter().any(|(key, value)| key.eq_ignore_ascii_case("Assigned") && value.trim() == "1");
+        stack.push((String::new(), assigned, false));
+    }
+    paths
+}
+
+/// Valeur de `acdsee:categories` (arbre XML en texte, voir acdsee_category_paths) pour les mots-clés actifs `paths` : chemins fusionnés en un seul
+/// arbre (noms comparés sans la casse, dans l'ordre d'apparition), `Assigned="1"` sur chaque mot-clé actif, `0` sur les niveaux qui ne le sont pas.
+pub(crate) fn acdsee_categories_value(paths: &[Vec<String>]) -> String {
+    struct Node { name: String, assigned: bool, children: Vec<usize> }
+    let mut nodes: Vec<Node> = Vec::new();
+    let mut roots: Vec<usize> = Vec::new();
+    for segments in paths {
+        let mut parent: Option<usize> = None;
+        for segment in segments {
+            let siblings = match parent { Some(index) => &nodes[index].children, None => &roots };
+            let existing = siblings.iter().copied().find(|&index| nodes[index].name.to_lowercase() == segment.to_lowercase());
+            let index = existing.unwrap_or_else(|| {
+                nodes.push(Node { name: segment.clone(), assigned: false, children: Vec::new() });
+                let index = nodes.len() - 1;
+                match parent { Some(parent) => nodes[parent].children.push(index), None => roots.push(index) }
+                index
+            });
+            parent = Some(index);
+        }
+        if let Some(index) = parent { nodes[index].assigned = true; }
+    }
+    fn write_node(nodes: &[Node], index: usize, output: &mut String) {
+        let node = &nodes[index];
+        output.push_str(&format!("<Category Assigned=\"{}\">{}", u8::from(node.assigned), xml_escape_text(&node.name).replace('"', "&quot;")));
+        for child in &node.children { write_node(nodes, *child, output); }
+        output.push_str("</Category>");
+    }
+    let mut output = String::from("<Categories>");
+    for root in roots { write_node(&nodes, root, &mut output); }
+    output.push_str("</Categories>");
+    output
 }
 
 /// Ajoute aux mots-clés à plat (`meta.keywords`) le nom des mots-clés hiérarchiques actifs, pour que le filtre et le panneau Info
@@ -865,6 +977,7 @@ const DIGIKAM_NS: &str = "http://www.digikam.org/ns/1.0/";
 const LIGHTROOM_NS: &str = "http://ns.adobe.com/lightroom/1.0/";
 const MEDIAPRO_NS: &str = "http://ns.iview-multimedia.com/mediapro/1.0/";
 const MICROSOFT_NS: &str = "http://ns.microsoft.com/photo/1.0/";
+const ACDSEE_NS: &str = "http://ns.acdsee.com/iptc/1.0/";
 
 fn xml_escape_text(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
@@ -953,8 +1066,8 @@ fn insert_description_children(xml: &str, children: &str, namespaces: &[(&str, &
 }
 
 /// Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
-/// `dc:subject` (noms seuls), `digiKam:TagsList` (A/B/C), `lr:hierarchicalSubject` (A|B|C), `mediapro:CatalogSets` (A|B|C)
-/// et `MicrosoftPhoto:LastKeywordXMP` (A/B/C). Le reste du paquet n'est pas touché. Sans mot-clé, ces propriétés sont retirées.
+/// `dc:subject` (noms seuls), `digiKam:TagsList` (A/B/C), `lr:hierarchicalSubject` (A|B|C), `mediapro:CatalogSets` (A|B|C),
+/// `MicrosoftPhoto:LastKeywordXMP` (A/B/C) et `acdsee:categories` (arbre, voir acdsee_categories_value). Le reste du paquet n'est pas touché. Sans mot-clé, ces propriétés sont retirées.
 /// Renvoie le paquet inchangé, ou vide s'il n'y a ni paquet ni mot-clé à écrire.
 fn update_xmp_keywords(xml: &str, paths: &[Vec<String>]) -> String {
     let mut updated = xml.to_string();
@@ -966,6 +1079,9 @@ fn update_xmp_keywords(xml: &str, paths: &[Vec<String>]) -> String {
     for local_name in ["TagsList", "hierarchicalSubject", "CatalogSets", "LastKeywordXMP"] {
         updated = remove_xmp_list_property(&updated, local_name, None);
     }
+    // Catégories ACDSee : élément simple (ou attribut) dont la valeur est l'arbre en texte.
+    updated = remove_xmp_list_property(&updated, "categories", Some("acdsee"));
+    updated = remove_xmp_attribute(&updated, "acdsee:categories");
     if paths.is_empty() { return updated; }
 
     let mut flat: Vec<String> = Vec::new();
@@ -981,8 +1097,9 @@ fn update_xmp_keywords(xml: &str, paths: &[Vec<String>]) -> String {
         xmp_list_element("lr:hierarchicalSubject", "Bag", &joined("|")),
         xmp_list_element("mediapro:CatalogSets", "Bag", &joined("|")),
         xmp_list_element("MicrosoftPhoto:LastKeywordXMP", "Bag", &joined("/")),
+        format!("<acdsee:categories>{}</acdsee:categories>", xml_escape_text(&acdsee_categories_value(paths))),
     ].concat();
-    let namespaces = [("dc", DC_NS), ("digiKam", DIGIKAM_NS), ("lr", LIGHTROOM_NS), ("mediapro", MEDIAPRO_NS), ("MicrosoftPhoto", MICROSOFT_NS)];
+    let namespaces = [("dc", DC_NS), ("digiKam", DIGIKAM_NS), ("lr", LIGHTROOM_NS), ("mediapro", MEDIAPRO_NS), ("MicrosoftPhoto", MICROSOFT_NS), ("acdsee", ACDSEE_NS)];
     insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
 }
 

@@ -494,7 +494,8 @@ fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::
 }
 
 /// Mots-clés actifs `paths` (un chemin par mot-clé, ex. ["Lieux", "France", "Paris"]) : remplacent dc:subject, digiKam TagsList,
-/// Lightroom hierarchicalSubject, Media Pro CatalogSets, Microsoft LastKeywordXMP ; dans les JPEG, aussi IPTC Keywords et EXIF XPKeywords.
+/// Lightroom hierarchicalSubject, Media Pro CatalogSets, Microsoft LastKeywordXMP, ACDSee categories ; dans les JPEG, aussi IPTC Keywords
+/// et EXIF XPKeywords.
 pub fn write_keywords(image_path: &Path, paths: &[Vec<String>]) -> std::io::Result<()> {
     let mut leaves: Vec<String> = Vec::new();
     for segments in paths {
@@ -509,6 +510,9 @@ pub fn write_keywords(image_path: &Path, paths: &[Vec<String>]) -> std::io::Resu
     push_list(&mut args, "XMP-lr:HierarchicalSubject", joined("|"));
     push_list(&mut args, "XMP-mediapro:CatalogSets", joined("|"));
     push_list(&mut args, "XMP-microsoft:LastKeywordXMP", joined("/"));
+    // Catégories ACDSee : une seule valeur texte (l'arbre XML), qu'ExifTool échappe lui-même dans le paquet.
+    let categories = if paths.is_empty() { String::new() } else { crate::exif::acdsee_categories_value(paths) };
+    args.push(format!("-XMP-acdsee:Categories={categories}"));
     if matches!(target_of(image_path), Target::Jpeg) {
         // IPTC : 64 octets au plus par mot-clé (coupés comme l'écriture interne) ; UTF-8 déclaré quand un mot-clé n'est pas en ASCII.
         push_list(&mut args, "IPTC:Keywords", leaves.iter().map(|word| crate::exif::truncate_utf8(word, 64).to_string()));

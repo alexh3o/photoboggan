@@ -1170,20 +1170,24 @@ async function finishRename(entry, node, name, photoCount, result, error) {
 // ---------------------------------------------------------------------------
 
 const FORMAT_ORDER_STORAGE_KEY = 'keywordFormatOrder';
-// Les quatre formats de mots-clés hiérarchiques lus. Le premier de la liste qui contient des données l'emporte : ses mots-clés alimentent l'arbre
+// Les formats de mots-clés hiérarchiques lus. Le premier de la liste qui contient des données l'emporte : ses mots-clés alimentent l'arbre
 // et s'affichent, les autres sont ignorés. L'ordre par défaut est celui ci-dessous ; l'utilisateur le règle.
 const HIERARCHY_FORMATS = [
   { id: 'digikam', label: 'digiKam', property: 'digiKam:TagsList' },
   { id: 'lightroom', label: 'Adobe Lightroom', property: 'lr:hierarchicalSubject' },
   { id: 'mediapro', label: 'Media Pro', property: 'mediapro:CatalogSets' },
   { id: 'microsoft', label: 'Microsoft Photo', property: 'MicrosoftPhoto:LastKeywordXMP' },
+  { id: 'acdsee', label: 'ACDSee', property: 'acdsee:categories' },
 ];
 const DEFAULT_FORMAT_ORDER = HIERARCHY_FORMATS.map(format => format.id);
 
 function loadFormatOrder() {
   try {
     const stored = JSON.parse(localStorage.getItem(FORMAT_ORDER_STORAGE_KEY));
-    if (Array.isArray(stored) && stored.length === DEFAULT_FORMAT_ORDER.length && DEFAULT_FORMAT_ORDER.every(id => stored.includes(id))) return stored;
+    if (Array.isArray(stored) && stored.every(id => DEFAULT_FORMAT_ORDER.includes(id)) && new Set(stored).size === stored.length) {
+      // Ordre enregistré avant l'ajout d'un format (ex. ACDSee) : conservé, les nouveaux formats sont ajoutés à la fin.
+      return [...stored, ...DEFAULT_FORMAT_ORDER.filter(id => !stored.includes(id))];
+    }
   } catch {
     // valeur absente ou illisible : ordre par défaut
   }
