@@ -1281,6 +1281,8 @@ function openFullscreen(index) {
   selectedIndices.clear();
   selectedIndices.add(index);
   updateUIOnSelection();
+  // L'image de la précédente ouverture est retirée : sinon elle s'afficherait un instant, le temps que celle de la photo demandée soit prête.
+  if (fullscreenSlot.photo !== target) clearFullscreenImage();
   isFullscreen = true;
   fullscreenRatingPinned = false;
   fullscreenRating.classList.add('hidden');
@@ -4378,6 +4380,17 @@ initFacesGrid({
       if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
     }
     return cachedPath ? convertFileSrc(cachedPath) : '';
+  },
+  // Clic sur des visages : leurs photos deviennent la sélection (panneau Info, Mots-clés…), la photo du dernier visage cliqué étant la principale.
+  selectPhotos: (photoIds, mainPhotoId) => {
+    const wanted = new Set(photoIds);
+    const mainIndex = photos.findIndex(photo => photo.id === mainPhotoId);
+    if (mainIndex < 0) return;
+    selectedIndices.clear();
+    photos.forEach((photo, index) => { if (wanted.has(photo.id)) selectedIndices.add(index); });
+    selectedIndices.add(mainIndex);
+    lastSelectedIndex = mainIndex;
+    updateUIOnSelection();
   },
   // Double-clic sur un visage : sa photo en plein écran (elle doit faire partie des photos affichées).
   openPhotoFullscreen: photoId => {

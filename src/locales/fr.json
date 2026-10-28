@@ -456,7 +456,7 @@
   "Writing metadata to files": "Écriture des métadonnées dans les fichiers",
   "With ExifTool (recommended)": "Avec ExifTool (recommandé)",
   "Internal (XMP and IPTC only)": "Interne (XMP et IPTC seulement)",
-  "Writing metadata to files help": "Concerne les mots-clés, notes et couleurs. ExifTool écrit aussi les mots-clés de l'Explorateur Windows ; s'il est introuvable, rien n'est écrit.",
+  "Writing metadata to files help": "Concerne les mots-clés, notes, couleurs, titres & descriptions. ExifTool écrit aussi les formats EXIF.",
   "Choose ExifTool…": "Choisir ExifTool…",
   "Automatic detection": "Détection automatique",
   "Looking for ExifTool…": "Recherche d'ExifTool…",
@@ -473,7 +473,7 @@
   "Toggle description panel": "Afficher / masquer le panneau titre et description",
   "Apply pending metadata changes": "Mots-clés, titre et description : écrire dans les fichiers les modifications en attente",
   "Pending changes": "Modifications en attente",
-  "Automatically apply pending changes": "Appliquer automatiquement les modifications de mots-clés, titres et descriptions",
+  "Automatically apply pending changes": "Appliquer automatiquement les modifications au changement de sélection",
   "Metadata writing in progress…": "Écriture des métadonnées en cours…",
   "Write the pending changes into the files (Ctrl+Enter)": "Écrire les modifications en attente dans les fichiers (Ctrl+Entrée)",
   "Metadata writing could not be queued": "L'écriture des métadonnées n'a pas pu être mise en file d'attente",
@@ -491,7 +491,7 @@
   "Quitting now interrupts the writing of metadata into the files. Quit anyway?": "Quitter maintenant interrompt l'écriture des métadonnées dans les fichiers. Quitter quand même ?",
   "Metadata writing ({count})": "Écriture des métadonnées ({count})",
   "Reading priority": "Priorité de lecture",
-  "Reading priority help": "Un fichier peut porter la même information dans plusieurs formats : le premier format qui en contient l'emporte (pour les mots-clés, c'est lui qui alimente l'arborescence). Tous sont écrits. Glissez les lignes pour réordonner ; le nouvel ordre s'applique à la prochaine relecture de la collection.",
+  "Reading priority help": "Le premier format de cette liste contenant des données sera utilisé. Prend effet à la (re)lecture des fichiers.",
   "Metadata type": "Type de métadonnée",
   "Faces": "Visages",
   "People": "Personnes",
@@ -594,7 +594,6 @@
   "Suggestion from (similarity)": "Suggestion à partir de (ressemblance)",
   "Minimum gap with the next person": "Écart minimal avec la personne suivante",
   "Keyword root for new people": "Racine des mots-clés des nouvelles personnes",
-  "Face recognition help": "Un visage ressemblant assez à une personne lui est attribué automatiquement (si l'écart avec la personne suivante est suffisant), sinon il lui est proposé. Seuls les visages confirmés servent de référence. Un nouveau nom donné dans la vue Visages crée un mot-clé sous la racine (vide : premier niveau de l'arbre).",
   "Minimum detection confidence": "Confiance minimale de détection",
   "Names cannot be empty or contain \"|\" or \",\"": "Un nom ne peut pas être vide ni contenir « | » ou « , »",
   "Face size hint": "De 0 à 50. Plus grand côté du visage rapporté au plus grand côté de la photo. Ex. 1 : sur une photo de 6000 px, les visages de moins de 60 px sont écartés.",
@@ -616,5 +615,6 @@
   "Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.|other": "Effacer les visages des {count} photos ? Leurs zones de visage sont retirées des fichiers, ainsi que les mots-clés posés par la reconnaissance. Les personnes et l'arbre des mots-clés sont conservés.",
   "Erase": "Effacer",
   "Write to files ({count} photo)": "Écrire dans les fichiers ({count} photo)",
-  "Write to files ({count} photo)|other": "Écrire dans les fichiers ({count} photos)"
+  "Write to files ({count} photo)|other": "Écrire dans les fichiers ({count} photos)",
+  "Face person root hint": "Mots-clés créés pour les nouvelles personnes nommées dans la vue Visages : « gaetan m » devient « <racine>/gaetan m », et « gaetan/gaetan m » devient « <racine>/gaetan/gaetan m ». Ex. #CONTACTS. Vide : premier niveau de l'arbre. Les personnes et mots-clés existants sont réutilisés."
 }

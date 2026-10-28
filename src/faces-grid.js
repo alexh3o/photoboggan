@@ -269,6 +269,8 @@ function onTileClick(face, event) {
   }
   renderVisible();
   updateToolbar();
+  // Les panneaux de droite (Info, Mots-clés) suivent les photos des visages sélectionnés.
+  host.selectPhotos(selectedFaces().map(item => item.photo_id), face.photo_id);
 }
 
 function selectedFaces() {
@@ -412,7 +414,7 @@ async function nameSelection(typed = null) {
 // ==========================================
 // INITIALISATION
 // ==========================================
-// hostApi : getDisplayedPhotoIds(), getThumbnailUrl(path), openPhotoFullscreen(photoId), setPhotoGridVisible(visible), showToast(message),
+// hostApi : getDisplayedPhotoIds(), getThumbnailUrl(path), selectPhotos(photoIds, mainPhotoId), openPhotoFullscreen(photoId), setPhotoGridVisible(visible), showToast(message),
 // getPersonRoot(), isFullscreen().
 export function initFacesGrid(hostApi) {
   host = hostApi;

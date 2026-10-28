@@ -201,7 +201,7 @@ function togglePersonFilter(id, additive) {
 function addPersonFilterByName(value) {
   const name = value.trim().toLowerCase();
   if (!name) return;
-  const person = persons.find(item => item.name.toLowerCase() === name);
+  const person = listedPersons().find(item => item.name.toLowerCase() === name);
   document.getElementById('person-filter-input').value = '';
   if (!person || personFilters.includes(person.id)) return;
   setPersonFilters([...personFilters, person.id]);
@@ -233,7 +233,7 @@ function renderPersonFilterTags() {
     return tag;
   }));
   const options = document.getElementById('person-options');
-  options.replaceChildren(...[...persons].sort((a, b) => a.name.localeCompare(b.name)).map(person => {
+  options.replaceChildren(...listedPersons().sort((a, b) => a.name.localeCompare(b.name)).map(person => {
     const option = document.createElement('option');
     option.value = person.name;
     return option;
@@ -282,9 +282,14 @@ export async function refreshFaces() {
   host.onFacesChanged?.(); // vue Visages ouverte : rechargée
 }
 
+// Personnes sans aucune photo : absentes de la section Personnes et de la liste du filtre.
+function listedPersons() {
+  return persons.filter(person => person.photo_count > 0);
+}
+
 function sortedPersons() {
   const byName = (a, b) => a.name.localeCompare(b.name);
-  return [...persons].sort(sortMode === 'name' ? byName : (a, b) => b.photo_count - a.photo_count || byName(a, b));
+  return [...listedPersons()].sort(sortMode === 'name' ? byName : (a, b) => b.photo_count - a.photo_count || byName(a, b));
 }
 
 function renderPersons() {
@@ -294,7 +299,7 @@ function renderPersons() {
   if (!list) return;
   sortButton.textContent = sortMode === 'name' ? t('By name') : t('By frequency');
   sortButton.title = t('Sort people by name or by number of photos');
-  empty.hidden = persons.length > 0 || isCollapsed('persons');
+  empty.hidden = listedPersons().length > 0 || isCollapsed('persons');
   list.replaceChildren(...sortedPersons().map(person => {
     const item = document.createElement('li');
     item.className = `person-item${personFilters.includes(person.id) ? ' active' : ''}`;
@@ -425,7 +430,7 @@ function applyCollapsed(name) {
   toggle.setAttribute('aria-expanded', String(!collapsed));
   toggle.querySelector('.sidebar-block-chevron').textContent = collapsed ? '▸' : '▾';
   document.getElementById(toggle.getAttribute('aria-controls')).hidden = collapsed;
-  if (name === 'persons') document.getElementById('persons-empty').hidden = collapsed || persons.length > 0;
+  if (name === 'persons') document.getElementById('persons-empty').hidden = collapsed || listedPersons().length > 0;
 }
 
 function initCollapsibleSection(name) {

@@ -412,9 +412,8 @@
           <div id="settings-tab-metadata" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section" role="radiogroup" aria-labelledby="metadata-writer-title">
               <h4 id="metadata-writer-title" data-i18n="Writing metadata to files">Écriture des métadonnées dans les fichiers</h4>
-              <label class="settings-row settings-check"><input type="radio" name="metadata-writer" value="exiftool" /><span data-i18n="With ExifTool (recommended)">Avec ExifTool (recommandé)</span></label>
-              <label class="settings-row settings-check"><input type="radio" name="metadata-writer" value="internal" /><span data-i18n="Internal (XMP and IPTC only)">Interne (XMP et IPTC seulement)</span></label>
-              <p class="sort-note" data-i18n="Writing metadata to files help">Concerne les mots-clés, notes et couleurs. ExifTool écrit aussi les mots-clés de l'Explorateur Windows ; s'il est introuvable, rien n'est écrit.</p>
+              <label class="settings-row settings-check" title="ExifTool" data-i18n-title="Writing metadata to files help"><input type="radio" name="metadata-writer" value="exiftool" /><span data-i18n="With ExifTool (recommended)">Avec ExifTool (recommandé)</span></label>
+              <label class="settings-row settings-check" title="Internal" data-i18n-title="Writing metadata to files help"><input type="radio" name="metadata-writer" value="internal" /><span data-i18n="Internal (XMP and IPTC only)">Interne (XMP et IPTC seulement)</span></label>
             </section>
             <section class="settings-section">
               <h4>ExifTool</h4>
@@ -426,8 +425,7 @@
             </section>
             <section class="settings-section">
               <h4 data-i18n="Pending changes">Modifications en attente</h4>
-              <label class="settings-row settings-check"><input id="keywords-auto-apply" type="checkbox" /><span data-i18n="Automatically apply pending changes">Appliquer automatiquement les modifications de mots-clés, titres et descriptions</span></label>
-              <p class="sort-note" data-i18n="Automatically apply keyword changes help">Sinon, une confirmation est demandée au changement de sélection.</p>
+              <label class="settings-row settings-check"><input id="keywords-auto-apply" type="checkbox" title="Automatically apply" data-i18n-title="Automatically apply keyword changes help" /><span data-i18n="Automatically apply pending changes" title="Automatically apply" data-i18n-title="Automatically apply keyword changes help">Appliquer automatiquement les modifications de mots-clés, titres et descriptions</span></label>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Reading priority">Priorité de lecture</h4>
@@ -454,16 +452,14 @@
           <div id="settings-tab-faces" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Faces">Visages</h4>
-              <label class="settings-row settings-check"><input id="face-reading-toggle" type="checkbox" /><span data-i18n="Read face data">Lire les données de visages</span></label>
-              <p class="sort-note" data-i18n="Read face data help">Lit les zones de visage écrites par digiKam, Lightroom, Windows Photos ou ACDSee : section Personnes, filtre Personnes et zones en plein écran (touche V). Rien n'est écrit dans les fichiers.</p>
+              <label class="settings-row settings-check" title="Lit les zones de visage écrites par digiKam, Lightroom, Windows Photos ou ACDSee : section Personnes, filtre Personnes et zones en plein écran (touche V). Rien n'est écrit dans les fichiers." data-i18n-title="Read face data help"><input id="face-reading-toggle" type="checkbox" /><span data-i18n="Read face data">Lire les données de visages</span></label>
               <div id="face-reading-rescan" class="settings-storage-actions" hidden>
                 <p class="sort-note" data-i18n="Face reading rescan hint">Relisez la collection pour lire les visages des photos déjà cataloguées.</p>
                 <button id="btn-face-rescan" class="btn-highlight" type="button" data-i18n="Rescan all collection">Relire toute la collection</button>
               </div>
             </section>
             <section class="settings-section">
-              <label class="settings-row settings-check"><input id="face-detection-toggle" type="checkbox" /><span data-i18n="Enable face detection and recognition">Activer la détection et la reconnaissance des visages</span></label>
-              <p class="sort-note" data-i18n="Enable face detection help">Détecte les visages des photos choisies (menu contextuel d'un dossier ou d'une sélection > Visages). Tout se passe sur cet ordinateur ; les fichiers photo ne sont pas modifiés.</p>
+              <label class="settings-row settings-check" title="Détecte les visages des photos choisies (menu contextuel d'un dossier ou d'une sélection > Visages). Tout se passe sur cet ordinateur ; les fichiers photo ne sont pas modifiés." data-i18n-title="Enable face detection help"><input id="face-detection-toggle" type="checkbox" /><span data-i18n="Enable face detection and recognition">Activer la détection et la reconnaissance des visages</span></label>
               <div id="face-detection-settings" class="face-detection-settings" hidden>
                 <h4 data-i18n="Model">Modèle</h4>
                 <p id="face-model-status" class="sort-note"></p>
@@ -479,21 +475,14 @@
                 <h4 data-i18n="Detection">Détection</h4>
                 <label class="settings-row settings-check"><input id="face-scan-raw" type="checkbox" /><span data-i18n="Scan RAW files (embedded preview)">Scanner les RAW (aperçu intégré)</span></label>
                 <!-- Chaque seuil : plage acceptée et exemple, sous la ligne -->
-                <label class="settings-row" for="face-min-size-percent"><span data-i18n="Minimum face size (% of the photo)">Taille minimale d'un visage (% de la photo)</span><input id="face-min-size-percent" class="face-threshold" type="number" min="0" max="50" step="0.5" /></label>
-                <p class="face-threshold-hint" data-i18n="Face size hint">0 à 50. Plus grand côté du visage rapporté au plus grand côté de la photo. Ex. 1 : sur une photo de 6000 px, les visages de moins de 60 px sont écartés.</p>
-                <label class="settings-row" for="face-min-confidence"><span data-i18n="Minimum detection confidence">Confiance minimale de détection</span><input id="face-min-confidence" class="face-threshold" type="number" min="0.5" max="1" step="0.05" /></label>
-                <p class="face-threshold-hint" data-i18n="Face confidence hint">0,5 à 1. Ex. 0,8 ; à 0,9, moins de faux visages (motifs, statues) mais plus de visages manqués (profils, visages cachés).</p>
-                <label class="settings-row" for="face-min-sharpness"><span data-i18n="Minimum sharpness">Netteté minimale</span><input id="face-min-sharpness" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
-                <p class="face-threshold-hint" data-i18n="Face sharpness hint">0 à 2000. Ex. 50 : un visage net mesure souvent 100 à 300, un visage flou ou bougé moins de 30.</p>
+                <label class="settings-row" for="face-min-size-percent" title="0 à 50. Plus grand côté du visage rapporté au plus grand côté de la photo. Ex. 1 : sur une photo de 6000 px, les visages de moins de 60 px sont écartés." data-i18n-title="Face size hint"><span data-i18n="Minimum face size (% of the photo)">Taille minimale d'un visage (% de la photo)</span><input id="face-min-size-percent" class="face-threshold" type="number" min="0" max="50" step="0.5" /></label>
+                <label class="settings-row" for="face-min-confidence" title="0,5 à 1. Ex. 0,8 ; à 0,9, moins de faux visages (motifs, statues) mais plus de visages manqués (profils, visages cachés)." data-i18n-title="Face confidence hint"><span data-i18n="Minimum detection confidence">Confiance minimale de détection</span><input id="face-min-confidence" class="face-threshold" type="number" min="0.5" max="1" step="0.05" /></label>
+                <label class="settings-row" for="face-min-sharpness" title="0 à 2000. Ex. 50 : un visage net mesure souvent 100 à 300, un visage flou ou bougé moins de 30." data-i18n-title="Face sharpness hint"><span data-i18n="Minimum sharpness">Netteté minimale</span><input id="face-min-sharpness" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
                 <h4 data-i18n="Recognition">Reconnaissance</h4>
-                <label class="settings-row" for="face-auto-threshold"><span data-i18n="Automatic attribution from (similarity)">Attribution automatique à partir de (ressemblance)</span><input id="face-auto-threshold" class="face-threshold" type="number" min="0.2" max="1" step="0.01" /></label>
-                <p class="face-threshold-hint" data-i18n="Face auto threshold hint">0,2 à 1. Ex. 0,50 : deux photos d'une même personne se ressemblent en général à 0,6 – 0,9, deux personnes différentes à moins de 0,4.</p>
-                <label class="settings-row" for="face-suggestion-threshold"><span data-i18n="Suggestion from (similarity)">Suggestion à partir de (ressemblance)</span><input id="face-suggestion-threshold" class="face-threshold" type="number" min="0.2" max="1" step="0.01" /></label>
-                <p class="face-threshold-hint" data-i18n="Face suggestion threshold hint">0,2 à 1, sous l'attribution automatique. Ex. 0,36 : entre 0,36 et 0,50, la personne est seulement proposée (« à valider »).</p>
-                <label class="settings-row" for="face-margin"><span data-i18n="Minimum gap with the next person">Écart minimal avec la personne suivante</span><input id="face-margin" class="face-threshold" type="number" min="0" max="0.5" step="0.01" /></label>
-                <p class="face-threshold-hint" data-i18n="Face margin hint">0 à 0,5. Ex. 0,05 : un visage à 0,62 pour Paul et 0,59 pour Pierre (écart 0,03) est seulement proposé, jamais attribué automatiquement.</p>
-                <label class="settings-row" for="face-person-root"><span data-i18n="Keyword root for new people">Racine des mots-clés des nouvelles personnes</span><input id="face-person-root" class="face-person-root" type="text" placeholder="#CONTACTS" autocomplete="off" spellcheck="false" /></label>
-                <p class="sort-note" data-i18n="Face recognition help">Un visage ressemblant assez à une personne lui est attribué automatiquement (si l'écart avec la personne suivante est suffisant), sinon il lui est proposé. Seuls les visages confirmés servent de référence. Un nouveau nom donné dans la vue Visages crée un mot-clé sous la racine (vide : premier niveau de l'arbre).</p>
+                <label class="settings-row" for="face-auto-threshold" title="0,2 à 1. Ex. 0,50 : deux photos d'une même personne se ressemblent en général à 0,6 – 0,9, deux personnes différentes à moins de 0,4." data-i18n-title="Face auto threshold hint"><span data-i18n="Automatic attribution from (similarity)">Attribution automatique à partir de (ressemblance)</span><input id="face-auto-threshold" class="face-threshold" type="number" min="0.2" max="1" step="0.01" /></label>
+                <label class="settings-row" for="face-suggestion-threshold" title="0,2 à 1, sous l'attribution automatique. Ex. 0,36 : entre 0,36 et 0,50, la personne est seulement proposée (« à valider »)." data-i18n-title="Face suggestion threshold hint"><span data-i18n="Suggestion from (similarity)">Suggestion à partir de (ressemblance)</span><input id="face-suggestion-threshold" class="face-threshold" type="number" min="0.2" max="1" step="0.01" /></label>
+                <label class="settings-row" for="face-margin" title="0 à 0,5. Ex. 0,05 : un visage à 0,62 pour Paul et 0,59 pour Pierre (écart 0,03) est seulement proposé, jamais attribué automatiquement." data-i18n-title="Face margin hint"><span data-i18n="Minimum gap with the next person">Écart minimal avec la personne suivante</span><input id="face-margin" class="face-threshold" type="number" min="0" max="0.5" step="0.01" /></label>
+                <label class="settings-row" for="face-person-root" title="Mots-clés créés pour les nouvelles personnes nommées dans la vue Visages : « gaetan m » devient « &lt;racine>/gaetan m », et « gaetan/gaetan m » devient « &lt;racine>/gaetan/gaetan m ». Ex. #CONTACTS. Vide : premier niveau de l'arbre. Les personnes et mots-clés existants sont réutilisés." data-i18n-title="Face person root hint"><span data-i18n="Keyword root for new people">Racine des mots-clés des nouvelles personnes</span><input id="face-person-root" class="face-person-root" type="text" placeholder="#CONTACTS" autocomplete="off" spellcheck="false" /></label>
                 <p class="sort-note" data-i18n="Face thresholds help">Un visage sous l'un de ces seuils est écarté (filtré). Changer un seuil reclasse les visages déjà détectés, sans nouveau scan. Valeurs par défaut provisoires.</p>
               </div>
             </section>

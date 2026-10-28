@@ -35,7 +35,9 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .face-detection-settings[hidden], #btn-face-model-download[hidden], #btn-face-model-import[hidden] { display: none !important; }
 .face-detection-settings h4 { margin-top: 0.75rem; }
 .face-threshold { width: 6rem; }
-.face-threshold-hint { margin: -0.15rem 0 0.5rem; color: var(--text-dim); font-size: 0.7rem; }
+/* Réglages avec infobulle d'aide (title) : petit repère ⓘ après le libellé */
+#settings-tab-faces label[title] > span::after { content: ' ⓘ'; color: var(--text-dim); font-size: 0.8em; }
+#settings-tab-faces label[title] { cursor: help; }
 .face-model-offline { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
 .face-model-offline summary { cursor: pointer; }
 .face-model-files { list-style: none; margin-top: 0.4rem; }

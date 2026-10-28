@@ -457,7 +457,7 @@
   "Writing metadata to files": "Writing metadata to files",
   "With ExifTool (recommended)": "With ExifTool (recommended)",
   "Internal (XMP and IPTC only)": "Internal (XMP and IPTC only)",
-  "Writing metadata to files help": "Applies to keywords, ratings and colors. ExifTool also writes Windows Explorer keywords; if it cannot be found, nothing is written.",
+  "Writing metadata to files help": "Applies to keywords, ratings, colors, titles & descriptions. ExifTool also writes EXIF formats.",
   "Choose ExifTool…": "Choose ExifTool…",
   "Automatic detection": "Automatic detection",
   "Looking for ExifTool…": "Looking for ExifTool…",
@@ -474,7 +474,7 @@
   "Toggle description panel": "Show / hide the title and description panel",
   "Apply pending metadata changes": "Keywords, title and description: write the pending changes into the files",
   "Pending changes": "Pending changes",
-  "Automatically apply pending changes": "Automatically apply keyword, title and description changes",
+  "Automatically apply pending changes": "Automatically apply pending changes on selection change",
   "Metadata writing in progress…": "Metadata writing in progress…",
   "Write the pending changes into the files (Ctrl+Enter)": "Write the pending changes into the files (Ctrl+Enter)",
   "Metadata writing could not be queued": "Metadata writing could not be queued",
@@ -492,7 +492,7 @@
   "Quitting now interrupts the writing of metadata into the files. Quit anyway?": "Quitting now interrupts the writing of metadata into the files. Quit anyway?",
   "Metadata writing ({count})": "Metadata writing ({count})",
   "Reading priority": "Reading priority",
-  "Reading priority help": "A file can hold the same information in several formats: the first format that contains it wins (for keywords, it is the one that feeds the keyword tree). All of them are written. Drag the rows to reorder; the new order applies the next time the collection is rescanned.",
+  "Reading priority help": "First format from this list will be used to feed data. It takes effect at file scanning only.",
   "Metadata type": "Metadata type",
   "Faces": "Faces",
   "People": "People",
@@ -596,7 +596,6 @@
   "Suggestion from (similarity)": "Suggestion from (similarity)",
   "Minimum gap with the next person": "Minimum gap with the next person",
   "Keyword root for new people": "Keyword root for new people",
-  "Face recognition help": "A face similar enough to a person is attributed to them automatically (if the gap with the next person is large enough), otherwise it is suggested. Only confirmed faces are used as references. A new name given in the Faces view creates a keyword under the root (empty: first level of the tree).",
   "Minimum detection confidence": "Minimum detection confidence",
   "Names cannot be empty or contain \"|\" or \",\"": "Names cannot be empty or contain \"|\" or \",\"",
   "Face size hint": "0 to 50. Largest side of the face relative to the largest side of the photo. E.g. 1: on a 6000 px photo, faces under 60 px are set aside.",
@@ -618,5 +617,6 @@
   "Erase the faces of {count} photo? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.|other": "Erase the faces of {count} photos? Their face regions are removed from the files, with the keywords set by face recognition. People and the keyword tree are kept.",
   "Erase": "Erase",
   "Write to files ({count} photo)": "Write to files ({count} photo)",
-  "Write to files ({count} photo)|other": "Write to files ({count} photos)"
+  "Write to files ({count} photo)|other": "Write to files ({count} photos)",
+  "Face person root hint": "Keywords created for new people named in the Faces view: \"gaetan m\" becomes \"<root>/gaetan m\", and \"gaetan/gaetan m\" becomes \"<root>/gaetan/gaetan m\". E.g. #CONTACTS. Empty: first level of the tree. Existing people and keywords are reused."
 }
