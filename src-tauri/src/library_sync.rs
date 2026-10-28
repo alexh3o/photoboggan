@@ -84,8 +84,8 @@ pub fn is_photo_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques (enregistrés à part, voir keywords.rs).
-fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>) {
+/// Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et faces.rs).
+fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>, crate::faces::PhotoFaces) {
     let source = Path::new(path);
     let exif_data = crate::exif::read_exif(source);
     let photo = Photo {
@@ -110,7 +110,7 @@ fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>) {
         caption: exif_data.caption,
         modified: 0, // non utilisé : la date est enregistrée séparément par sync_library
     };
-    (photo, exif_data.keyword_paths)
+    (photo, exif_data.keyword_paths, exif_data.faces)
 }
 
 /// Compare les dossiers suivis au catalogue :
@@ -204,13 +204,20 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
             .num_threads(2)
             .build()
             .map_err(|error| error.to_string())?;
-        let read: Vec<(Photo, Vec<Vec<String>>)> = threads.install(|| {
+        let read: Vec<(Photo, Vec<Vec<String>>, crate::faces::PhotoFaces)> = threads.install(|| {
             changed.par_iter().map(|(path, size, _, _)| read_photo(path, *size)).collect()
         });
-        let (photos, keyword_paths): (Vec<Photo>, Vec<Vec<Vec<String>>>) = read.into_iter().unzip();
+        let mut photos: Vec<Photo> = Vec::with_capacity(read.len());
+        let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::with_capacity(read.len());
+        let mut face_batches: Vec<(String, crate::faces::PhotoFaces)> = Vec::with_capacity(read.len());
+        for (photo, keyword_paths, faces) in read {
+            keyword_batches.push((photo.path.clone(), keyword_paths));
+            face_batches.push((photo.path.clone(), faces));
+            photos.push(photo);
+        }
         insert_batch(&conn, &photos);
-        let keyword_batches: Vec<(String, Vec<Vec<String>>)> = photos.iter().map(|photo| photo.path.clone()).zip(keyword_paths).collect();
         crate::keywords::store_photo_keywords(&conn, &keyword_batches);
+        crate::faces::store_photo_faces(&conn, &face_batches);
     }
 
     let _ = conn.execute("BEGIN TRANSACTION", []);

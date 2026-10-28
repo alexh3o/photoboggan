@@ -295,6 +295,7 @@ fn run_write(
     // Vérification et mise à jour de la base : ce qui est enregistré est ce que le fichier contient réellement après relecture.
     let mut written: Vec<KeywordWritten> = Vec::new();
     let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::new();
+    let mut face_batches: Vec<(String, crate::faces::PhotoFaces)> = Vec::new();
     let mut cancelled = 0usize;
     let _ = conn.execute("BEGIN TRANSACTION", []);
     for (item, outcome) in outcomes {
@@ -329,12 +330,14 @@ fn run_write(
                     }
                 }
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
+                face_batches.push((item.path.clone(), meta.faces));
                 written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, title: meta.title, description: meta.caption });
             }
         }
     }
     let _ = conn.execute("COMMIT", []);
     store_photo_keywords(&conn, &keyword_batches);
+    crate::faces::store_photo_faces(&conn, &face_batches);
     Ok(KeywordWriteResult { written, failed, cancelled, deleted: false })
 }
 

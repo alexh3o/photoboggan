@@ -41,8 +41,18 @@
     <main class="main-content">
       <!-- Arborescence dynamique -->
       <aside id="sidebar-panel" class="sidebar-section">
-        <h3  data-i18n="Folders">Dossiers</h3>
+        <!-- Sections repliables Dossiers et Personnes (état mémorisé : faces-panel.js) -->
+        <h3 class="sidebar-block-title"><button type="button" id="folders-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="folder-tree"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Folders">Dossiers</span></button></h3>
         <ul id="folder-tree"></ul>
+        <!-- Personnes lues dans les zones de visage des fichiers (faces-panel.js) ; masquée tant que la lecture des visages est désactivée -->
+        <section id="persons-section" class="persons-section" aria-labelledby="persons-title" hidden>
+          <div class="sidebar-block-header">
+            <h3 id="persons-title" class="sidebar-block-title"><button type="button" id="persons-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="persons-list"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="People">Personnes</span></button></h3>
+            <button type="button" id="persons-sort" class="persons-sort"></button>
+          </div>
+          <ul id="persons-list" class="persons-list"></ul>
+          <p id="persons-empty" class="persons-empty" data-i18n="No people found in the files yet" hidden>Aucune personne trouvée dans les fichiers pour l'instant.</p>
+        </section>
         <section class="photo-filters" aria-label="Filtres photo" data-i18n-aria-label="Photo filters">
           <div class="filters-header">
             <h3 data-i18n="Filters">Filtres</h3>
@@ -80,6 +90,19 @@
               </div>
               <datalist id="keyword-options"></datalist>
               <div id="filter-tags" class="filter-tags" aria-live="polite"></div>
+            </div>
+          </div>
+          <!-- Filtre Personnes (ET) : faces-panel.js ; masqué tant que la lecture des visages est désactivée -->
+          <div id="filter-group-persons" class="filter-group" data-filter-group="persons" hidden>
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-persons">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="People (&)">Personnes (&)</span></span>
+              <span id="persons-collapsed-line" class="filter-collapsed-line"><span class="filter-group-title" data-i18n="People">Personnes</span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-persons" class="filter-group-body" hidden>
+              <input id="person-filter-input" type="text" list="person-options" placeholder="Choisir une personne…" data-i18n-placeholder="Choose person..." aria-label="Personnes" data-i18n-aria-label="People" autocomplete="off" />
+              <datalist id="person-options"></datalist>
+              <div id="person-filter-tags" class="filter-tags" aria-live="polite"></div>
             </div>
           </div>
           <div class="filter-group" data-filter-group="date">
@@ -211,6 +234,8 @@
     <!-- Vue Plein Écran -->
     <div id="fullscreen-view" class="hidden">
       <img id="fullscreen-image" src="" alt="" />
+      <!-- Zones de visage sur la photo (touche V), calées sur l'image affichée : faces-panel.js -->
+      <div id="fullscreen-faces" class="face-overlay" aria-hidden="true" hidden></div>
       <div id="fullscreen-zoom-badge" class="preview-zoom-badge"></div>
       <!-- Informations sur la photo (touche D) : voir updateFullscreenInfo dans main.js -->
       <div id="fullscreen-info" class="fullscreen-info hidden" aria-hidden="true">
@@ -247,6 +272,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Open with">Ouvrir avec</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
         </div>
 
         <div class="modal-body">
@@ -385,9 +411,22 @@
                   <option value="description" data-i18n="Description">Description</option>
                   <option value="rating" data-i18n="Rating">Note</option>
                   <option value="color" data-i18n="Color">Couleur</option>
+                  <option value="faces" data-i18n="Face regions">Zones de visage</option>
                 </select>
               </label>
               <ol id="metadata-order-list" class="keyword-format-order"></ol>
+            </section>
+          </div>
+          <!-- Onglet Visages (faces-panel.js) -->
+          <div id="settings-tab-faces" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Faces">Visages</h4>
+              <label class="settings-row settings-check"><input id="face-reading-toggle" type="checkbox" /><span data-i18n="Read face data">Lire les données de visages</span></label>
+              <p class="sort-note" data-i18n="Read face data help">Lit les zones de visage écrites par digiKam, Lightroom, Windows Photos ou ACDSee : section Personnes, filtre Personnes et zones en plein écran (touche V). Rien n'est écrit dans les fichiers.</p>
+              <div id="face-reading-rescan" class="settings-storage-actions" hidden>
+                <p class="sort-note" data-i18n="Face reading rescan hint">Relisez la collection pour lire les visages des photos déjà cataloguées.</p>
+                <button id="btn-face-rescan" class="btn-highlight" type="button" data-i18n="Rescan all collection">Relire toute la collection</button>
+              </div>
             </section>
           </div>
         </div>
@@ -534,6 +573,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Zoom with the wheel">Zoom autour du curseur (plein écran)</span>
               <span class="guide-control"><kbd>Ctrl</kbd> + <kbd data-i18n="Mouse wheel">Molette</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Show / hide face regions (fullscreen)">Afficher / masquer les zones de visage (plein écran)</span>
+              <span class="guide-control"><kbd>V</kbd></span>
             </div>
             <div class="guide-row">
               <span class="guide-action" data-i18n="Delete">Supprimer</span>

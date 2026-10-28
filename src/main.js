@@ -11,6 +11,7 @@ import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions } from './faces-panel.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -617,6 +618,7 @@ async function loadPhotos() {
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
   applyPhotoFilters();
+  refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
 }
 
 function hasActiveFilters() {
@@ -626,7 +628,7 @@ function hasActiveFilters() {
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null;
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters();
 }
 
 function updateFilteredPhotosCount() {
@@ -654,6 +656,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   renderedThumbnailNodes.clear();
   photos = loadedPhotos.filter(photo => (ratingThreshold < 0 || photo.rating > ratingThreshold)
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
+    && personFilterMatches(photo)
     && matchesFilenameFilters(photo)
     && (pathFilter === null || pathFilter.has(photo.path))
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
@@ -729,6 +732,9 @@ function clearAllFilters() {
   const keywordInput = document.getElementById('keyword-filter-input');
   if (keywordInput) keywordInput.value = '';
   renderKeywordFilters();
+
+  // Réinitialise les personnes
+  clearPersonFilters();
 
   // Réinitialise les chaînes de nom de fichier
   filenameFilters = [];
@@ -1293,6 +1299,7 @@ function closeFullscreen() {
   fullscreenRatingPinned = false;
   clearTimeout(fullscreenSlot.zoomTimeout);
   fullscreenSlot.zoomBadge?.classList.remove('visible');
+  layoutFullscreenFaces(fullscreenSlot); // masque les zones de visage
 }
 
 export function getIsFullscreen() {
@@ -1304,6 +1311,7 @@ function layoutFullscreenSlot() {
   if (!isFullscreen) return;
   layoutPreviewSlot(fullscreenSlot);
   fullscreenView.classList.toggle('zoomed', fullscreenSlot.zoom !== null);
+  layoutFullscreenFaces(fullscreenSlot); // zones de visage calées sur l'image affichée
 }
 
 // Affiche la photo en plein écran. Zoom et position repartent de la vue entière seulement quand l'image change : un simple
@@ -1846,6 +1854,11 @@ window.addEventListener('keydown', (e) => {
   // Informations sur la photo (nom, date, EXIF, rang) en plein écran
   if (e.key.toLowerCase() === 'd' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
     toggleFullscreenInfo();
+    return;
+  }
+  // Zones de visage en plein écran (lecture des visages activée dans les Paramètres)
+  if (e.key.toLowerCase() === 'v' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
+    toggleFaceRegions();
     return;
   }
   // Modale info
@@ -4312,6 +4325,26 @@ initKeywordsPanel({
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
 initDescriptionPanel({ getSelectedPhotos });
+
+// Visages (voir faces-panel.js) : section Personnes, filtre Personnes, zones en plein écran. Vignettes des personnes découpées dans les miniatures en cache.
+initFacesPanel({
+  getThumbnailUrl: async sourcePath => {
+    let cachedPath = await lookupCachedThumbnail(sourcePath);
+    if (!cachedPath) {
+      try {
+        cachedPath = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
+      } catch {
+        cachedPath = null; // format non géré par le backend : pas de vignette
+      }
+      if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
+    }
+    return cachedPath ? convertFileSrc(cachedPath) : '';
+  },
+  onFilterChange: options => applyPhotoFilters(options),
+  getFullscreenSlot: () => fullscreenSlot,
+  isFullscreen: () => isFullscreen,
+  showToast: message => showWriteToast(message),
+});
 
 // ==========================================
 // SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions)

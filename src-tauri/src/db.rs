@@ -91,6 +91,8 @@ pub fn init_db(db_path: &str) -> DbPool {
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN title TEXT NOT NULL DEFAULT ''", []);
     // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN modified INTEGER NOT NULL DEFAULT 0", []);
+    // Orientation EXIF (1 à 8) : les zones de visage sont dans le repère de l'image stockée et l'interface l'applique pour les afficher (faces.rs).
+    let _ = conn.execute("ALTER TABLE photos ADD COLUMN orientation INTEGER NOT NULL DEFAULT 1", []);
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
@@ -99,6 +101,8 @@ pub fn init_db(db_path: &str) -> DbPool {
 
     // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
     crate::keywords::init_schema(&conn);
+    // Visages et personnes : voir faces.rs.
+    crate::faces::init_schema(&conn);
 
     pool
 }

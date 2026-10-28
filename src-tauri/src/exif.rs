@@ -30,6 +30,8 @@ pub struct ExifMetadata {
     pub rating_sources: [Option<i32>; 5],
     /// Couleur de chaque source (clé de couleur), dans l'ordre de COLOR_SOURCE_IDS.
     pub color_sources: [Option<&'static str>; 3],
+    /// Orientation EXIF et zones de visage (voir faces.rs).
+    pub faces: crate::faces::PhotoFaces,
 }
 
 fn xmp_value(xml: &str, names: &[&str]) -> Option<String> {
@@ -205,6 +207,8 @@ struct ParsedXmp {
     titles: [Option<String>; 2],
     /// Sources XMP de la description, dans l'ordre de DESCRIPTION_SOURCE_IDS (les quatre premières).
     descriptions: [Option<String>; 4],
+    /// Zones de visage (None : lecture des visages désactivée).
+    face_regions: Option<Vec<crate::faces::FaceRegion>>,
 }
 
 fn parse_xmp(path: &Path) -> ParsedXmp {
@@ -220,6 +224,9 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     let mut colors: [Option<&'static str>; 3] = Default::default();
     let mut titles: [Option<String>; 2] = Default::default();
     let mut descriptions: [Option<String>; 4] = Default::default();
+    // Zones de visage : celles du paquet intégré, sinon celles du sidecar (pas de mélange des deux).
+    let read_faces = crate::faces::reading_enabled();
+    let mut face_regions: Vec<crate::faces::FaceRegion> = Vec::new();
     // Note, couleur, titre et description : chaque source manquante du paquet intégré est cherchée dans le sidecar.
     let mut read_sources = |xml: &str| {
         for (slot, value) in ratings.iter_mut().zip(xmp_ratings(xml)) {
@@ -239,12 +246,14 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     if let Some(embedded) = read_embedded_xmp(path) {
         keywords = parse_xmp_subjects(&embedded);
         hierarchical = parse_hierarchical_keywords(&embedded);
+        if read_faces { face_regions = crate::faces::parse_regions(&embedded); }
         read_sources(&embedded);
     }
     for source in sources {
         if let Ok(text) = fs::read_to_string(source) {
             if keywords.is_empty() { keywords = parse_xmp_subjects(&text); }
             if hierarchical.is_empty() { hierarchical = parse_hierarchical_keywords(&text); }
+            if read_faces && face_regions.is_empty() { face_regions = crate::faces::parse_regions(&text); }
             read_sources(&text);
         }
     }
@@ -255,6 +264,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         keyword_paths: hierarchical,
         titles,
         descriptions,
+        face_regions: read_faces.then_some(face_regions),
     }
 }
 
@@ -287,7 +297,7 @@ pub struct TextSources {
 }
 
 /// Indices de `order` dans `ids` : chaque identifiant doit y figurer une fois.
-fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -> Result<[usize; N], String> {
+pub(crate) fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -> Result<[usize; N], String> {
     if order.len() != N { return Err("invalid_order".to_string()); }
     let mut indices = [0usize; N];
     for (rank, id) in order.iter().enumerate() {
@@ -298,9 +308,9 @@ fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -> Result<[u
     Ok(indices)
 }
 
-/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating » ou « color ») :
-/// `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS,
-/// COLOR_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »
+/// ou « faces ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
+/// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
 pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
     fn store<T>(lock: &std::sync::RwLock<T>, value: T) {
         *lock.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
@@ -311,6 +321,7 @@ pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
         "description" => store(&DESCRIPTION_PRIORITY, order_indices(&DESCRIPTION_SOURCE_IDS, order)?),
         "rating" => store(&RATING_PRIORITY, order_indices(&RATING_SOURCE_IDS, order)?),
         "color" => store(&COLOR_PRIORITY, order_indices(&COLOR_SOURCE_IDS, order)?),
+        "faces" => store(&crate::faces::REGION_PRIORITY, order_indices(&crate::faces::REGION_SOURCE_IDS, order)?),
         _ => return Err("invalid_kind".to_string()),
     }
     Ok(())
@@ -598,7 +609,7 @@ fn parse_hierarchical_keywords(xml: &str) -> Vec<Vec<String>> {
 }
 
 /// Décode les entités XML (`&lt;`, `&amp;`, `&#39;`…) en une seule passe : `&amp;lt;` donne `&lt;`, jamais `<`.
-fn decode_xml_entities(text: &str) -> String {
+pub(crate) fn decode_xml_entities(text: &str) -> String {
     let mut output = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find('&') {
@@ -787,6 +798,7 @@ fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
     meta.keyword_paths = parsed.keyword_paths;
     meta.text_sources.title[..2].clone_from_slice(&parsed.titles);
     meta.text_sources.description[..4].clone_from_slice(&parsed.descriptions);
+    meta.faces.regions = parsed.face_regions;
 }
 
 /// Note, couleur, titre et description retenus : la première source présente dans l'ordre de priorité réglé.
@@ -813,6 +825,7 @@ fn read_video_metadata(path: &Path) -> ExifMetadata {
     add_hierarchical_leaves(&mut meta);
     resolve_values(&mut meta);
     meta.date_taken = video_date_taken(path);
+    meta.faces.regions = None; // vidéos exclues de la gestion des visages
     meta
 }
 
@@ -891,6 +904,11 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
         if let Some(field) = exif.get_field(Tag::PixelYDimension, In::PRIMARY) {
             if let Some(value) = field.value.get_uint(0) { meta.height = value as i32; }
         }
+        // Orientation EXIF : les zones de visage sont dans le repère de l'image stockée, l'interface l'applique pour les afficher.
+        meta.faces.orientation = exif.get_field(Tag::Orientation, In::PRIMARY)
+            .and_then(|field| field.value.get_uint(0))
+            .filter(|value| (1..=8).contains(value))
+            .unwrap_or(1);
     }
     // XPKeywords : ajoutés aux mots-clés à plat, sans doublon ; puis noms des mots-clés hiérarchiques actifs.
     if !xp_keywords.is_empty() {
@@ -906,6 +924,8 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             meta.width = width;
             meta.height = height;
         }
+        // Le décodeur HEIC applique déjà la rotation du conteneur : l'orientation EXIF ne doit pas l'être une seconde fois (voir heif.rs).
+        meta.faces.orientation = 1;
     }
     if meta.width <= 0 || meta.height <= 0 {
         if let Some((width, height)) = read_image_dimensions(path) {
@@ -1940,7 +1960,7 @@ fn read_xmp_packet(path: &Path) -> Option<String> {
 }
 
 /// Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
-fn xml_tag_end(xml: &str, start: usize) -> Option<usize> {
+pub(crate) fn xml_tag_end(xml: &str, start: usize) -> Option<usize> {
     let mut quote: Option<u8> = None;
     for (offset, byte) in xml.as_bytes()[start..].iter().enumerate() {
         match (quote, *byte) {

@@ -66,6 +66,15 @@ const READ_ORDERS = {
       { id: 'urgency', label: 'Photoshop', property: 'photoshop:Urgency' },
     ],
   },
+  // Zones de visage (lues seulement si Paramètres > Visages > « Lire les données de visages » est coché ; voir faces.rs).
+  faces: {
+    storageKey: 'faceRegionFormatOrder',
+    formats: [
+      { id: 'mwg', label: 'MWG (digiKam, Lightroom)', property: 'mwg-rs:Regions' },
+      { id: 'microsoft', label: 'Microsoft Photo', property: 'MP:RegionInfo' },
+      { id: 'acdsee', label: 'ACDSee', property: 'acdsee-rs:Regions' },
+    ],
+  },
 };
 
 let writerMode = localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';

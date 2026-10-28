@@ -3,6 +3,7 @@
 mod db;
 mod exif;
 mod exiftool;
+mod faces;
 mod heif;
 mod integrity;
 mod keywords;
@@ -507,7 +508,7 @@ fn cancel_scan(task_id: String) {
 async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) {
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
-    let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>)>(100);
+    let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>, faces::PhotoFaces)>(100);
 
     let pool_clone = pool.clone();
     let writer = tokio::spawn(async move {
@@ -515,24 +516,30 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
         let mut modified_dates: Vec<(String, i64)> = Vec::new();
         // Mots-clés hiérarchiques lus dans les fichiers (chemin de la photo, chemins de mots-clés), enregistrés après l'insertion des photos.
         let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::new();
+        // Orientation et zones de visage, enregistrées après les mots-clés (la liaison personne ↔ mot-clé cherche les nœuds de l'arbre).
+        let mut face_batches: Vec<(String, faces::PhotoFaces)> = Vec::new();
         let conn = pool_clone.get().unwrap();
-        while let Some((photo, modified, keyword_paths)) = rx.recv().await {
+        while let Some((photo, modified, keyword_paths, photo_faces)) = rx.recv().await {
             modified_dates.push((photo.path.clone(), modified));
             keyword_batches.push((photo.path.clone(), keyword_paths));
+            face_batches.push((photo.path.clone(), photo_faces));
             buffer.push(photo);
             if buffer.len() >= 500 {
                 insert_batch(&conn, &buffer);
                 library_sync::store_modified(&conn, &modified_dates);
                 keywords::store_photo_keywords(&conn, &keyword_batches);
+                faces::store_photo_faces(&conn, &face_batches);
                 buffer.clear();
                 modified_dates.clear();
                 keyword_batches.clear();
+                face_batches.clear();
             }
         }
         if !buffer.is_empty() {
             insert_batch(&conn, &buffer);
             library_sync::store_modified(&conn, &modified_dates);
             keywords::store_photo_keywords(&conn, &keyword_batches);
+            faces::store_photo_faces(&conn, &face_batches);
         }
     });
 
@@ -608,7 +615,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
                 modified,
             };
 
-            let _ = tx.blocking_send((photo, modified, exif_data.keyword_paths));
+            let _ = tx.blocking_send((photo, modified, exif_data.keyword_paths, exif_data.faces));
         });
     });
     let _ = scanner.await;
@@ -1454,6 +1461,11 @@ fn main() {
             keywords::delete_keyword,
             keywords::rename_keyword,
             keywords::set_metadata_read_order,
+            faces::set_face_reading,
+            faces::get_persons,
+            faces::get_face_index,
+            faces::get_photo_faces,
+            faces::link_person_keyword,
             exiftool::set_metadata_writer,
             exiftool::get_exiftool_status,
             exiftool::exiftool_prewarm

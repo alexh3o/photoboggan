@@ -212,7 +212,8 @@ export function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
 
 // Saisie d'un texte (nom de dossier…). `onSubmit(valeur)` renvoie un message d'erreur (la fenêtre reste ouverte et l'affiche) ou null (succès, la fenêtre
 // se ferme). Entrée valide, Échap annule. Renvoie true si la saisie a été validée avec succès.
-function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, onSubmit }) {
+// `value` : texte proposé au départ ; `suggestions` : valeurs proposées par l'autocomplétion du champ (ex. chemins de mots-clés).
+export function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, onSubmit, value = '', suggestions = [] }) {
   return new Promise(resolve => {
     let done = false;
     const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(done) });
@@ -225,6 +226,17 @@ function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, o
     input.autocomplete = 'off';
     input.spellcheck = false;
     input.setAttribute('aria-label', inputLabel);
+    input.value = value;
+    const datalist = document.createElement('datalist');
+    if (suggestions.length > 0) {
+      datalist.id = `prompt-suggestions-${Date.now()}`;
+      datalist.append(...suggestions.map(suggestion => {
+        const option = document.createElement('option');
+        option.value = suggestion;
+        return option;
+      }));
+      input.setAttribute('list', datalist.id);
+    }
     const error = document.createElement('p');
     error.className = 'prompt-error';
     error.setAttribute('role', 'alert');
@@ -263,8 +275,9 @@ function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, o
       submit();
     });
     actions.append(cancel, confirm);
-    modal.body.append(text, input, error, actions);
+    modal.body.append(text, input, datalist, error, actions);
     input.focus();
+    input.select();
   });
 }
 
@@ -1218,6 +1231,16 @@ function openFolderMenu(event, folderItem) {
   showContextMenu(menu, event);
 }
 
+// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger }].
+export function openContextMenuAt(event, items) {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.setAttribute('role', 'menu');
+  menu.append(...items.map(item => menuButton(item.label, item.onSelect, { danger: Boolean(item.danger) })));
+  showContextMenu(menu, event);
+}
+
 // Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
 function showContextMenu(menu, event) {
   menu.addEventListener('keydown', onMenuKeydown);
@@ -1275,6 +1298,8 @@ function onContextMenu(event) {
   if (target?.closest('input[type="text"], input:not([type]), textarea')) return;
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
+  // Section Personnes : son menu est ouvert par faces-panel.js (openContextMenuAt).
+  if (target?.closest('.person-item')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');

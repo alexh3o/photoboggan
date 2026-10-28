@@ -1,0 +1,38 @@
+/* Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. */
+
+/* Éléments masqués par l'attribut hidden, même quand leur classe fixe un display */
+.persons-section[hidden], #filter-group-persons[hidden], .face-overlay[hidden], .persons-list[hidden], .persons-empty[hidden] { display: none !important; }
+
+/* Titres repliables (Dossiers, Personnes) : le bouton occupe le titre, chevron à gauche */
+.sidebar-block-title { display: flex; align-items: center; }
+.sidebar-block-toggle { display: flex; align-items: center; gap: 0.3rem; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.sidebar-block-toggle:hover { background: transparent; color: var(--text-muted); }
+.sidebar-block-chevron { width: 0.7rem; font-size: 0.7rem; }
+.sidebar-block-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.sidebar-block-header .sidebar-block-title { margin-bottom: 0; }
+
+/* Section Personnes */
+.persons-section { display: flex; flex-direction: column; min-height: 0; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--separator); }
+.persons-section .sidebar-block-header { margin-bottom: 0.5rem; }
+.persons-sort { padding: 0.1rem 0.4rem; border: 1px solid var(--separator); border-radius: 4px; background: transparent; color: var(--text-dim); font-size: 0.65rem; }
+.persons-sort:hover { background: var(--control-bg); }
+.persons-list { list-style: none; max-height: 35vh; overflow-y: auto; }
+.persons-empty { color: var(--text-dim); font-size: 0.7rem; }
+.person-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.4rem; margin-bottom: 0.15rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+.person-item:hover { background: var(--control-bg); }
+.person-item.active { background: color-mix(in srgb, var(--active-button) 50%, transparent); font-weight: bold; }
+.person-avatar { flex: 0 0 2rem; width: 2rem; height: 2rem; border-radius: 50%; background-color: var(--control-bg); background-repeat: no-repeat; }
+.person-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.person-count { color: var(--text-dim); font-size: 0.7rem; }
+.person-unlinked { flex: 0 0 auto; width: 1rem; height: 1rem; border-radius: 50%; background: #8a6d1f; color: #fff; font-size: 0.65rem; line-height: 1rem; text-align: center; }
+
+/* Étiquettes du filtre Personnes (violet, à côté du bleu des mots-clés et du vert des noms de fichier) */
+.filter-tag.tag-person { background: #4b3a5e; border-color: #6c5287; }
+button.filter-tag.tag-person:hover { background: #5d4875; }
+#filter-body-persons input { width: 100%; }
+
+/* Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la souris */
+.face-overlay { position: absolute; z-index: 1; pointer-events: none; }
+.face-box { position: absolute; border: 2px solid #2ecc71; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
+.face-box.unknown { border-color: #f1c40f; border-style: dashed; }
+.face-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; padding: 1px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 0.8rem; white-space: nowrap; }

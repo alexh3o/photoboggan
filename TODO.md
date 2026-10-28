@@ -4,11 +4,11 @@
 
 - [x] *feat*: `metadata` **keywords management & file write**
 - [x] *feat*: `metadata` add user choice to select favorite keyword format reading order
-- [ ] *feat*: `UI` setting to choose reopening on last folder / all photos
-- [ ] *feat*: `metadata` handle XPKeywords
-- [ ] *feat*: `metadata` handle ACDSee category (hierarchical keywords)
-- [ ] *feat*: `metadata` implement Exif ratings Rating & RatingPercent
-- [ ] *feat*: `metadata` title and description metadata
+- [x] *feat*: `UI` setting to choose reopening on last folder / all photos
+- [x] *feat*: `metadata` handle XPKeywords
+- [x] *feat*: `metadata` handle ACDSee category (hierarchical keywords)
+- [x] *feat*: `metadata` implement Exif ratings Rating & RatingPercent
+- [x] *feat*: `metadata` title and description metadata
 
 ## 💡 Ideas / Longer term / On hold
 
