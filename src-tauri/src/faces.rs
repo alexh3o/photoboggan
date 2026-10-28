@@ -507,7 +507,7 @@ pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) {
                 Some((candidate, _)) if candidate.origin == "imported" => {
                     matched.push(candidate.id);
                     let _ = conn.execute("UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4 WHERE id = ?5", params![rect[0], rect[1], rect[2], rect[3], candidate.id]);
-                    if candidate.state == "ignored" { continue; }
+                    if matches!(candidate.state.as_str(), "ignored" | "not_face") { continue; }
                     if person_id.is_some() {
                         let _ = conn.execute(
                             "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL WHERE id = ?2",
@@ -520,7 +520,7 @@ pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) {
                 Some((candidate, _)) => {
                     // Visage détecté ou dessiné : sa zone écrite revient telle quelle (rien à faire), sauf si un autre logiciel l'a renommée.
                     matched.push(candidate.id);
-                    if candidate.state != "ignored" && person_id.is_some() && candidate.person_id != person_id {
+                    if !matches!(candidate.state.as_str(), "ignored" | "not_face") && person_id.is_some() && candidate.person_id != person_id {
                         let _ = conn.execute(
                             "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL WHERE id = ?2",
                             params![person_id, candidate.id],
@@ -682,7 +682,7 @@ pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64) -> Result<Phot
             "SELECT f.id, f.x, f.y, f.w, f.h, f.person_id, COALESCE(k.name, pr.name, ks.name, ps.name), f.state
              FROM faces f LEFT JOIN persons pr ON pr.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id
              LEFT JOIN persons ps ON ps.id = f.suggested_person_id LEFT JOIN keyword_nodes ks ON ks.id = ps.keyword_node_id
-             WHERE f.photo_id = ?1 AND f.state NOT IN ('filtered', 'ignored') ORDER BY f.x",
+             WHERE f.photo_id = ?1 AND f.state NOT IN ('filtered', 'ignored', 'not_face') ORDER BY f.x",
         )
         .map_err(|error| error.to_string())?;
     let rows = statement
@@ -943,6 +943,33 @@ pub fn unignore_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<
     let conn = pool.get().map_err(|error| error.to_string())?;
     conn.execute(
         "UPDATE faces SET state = 'unknown' WHERE id IN (SELECT value FROM json_each(?1)) AND state = 'ignored'",
+        params![ids_json(&face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// N'est pas un visage : fausse détection. Comme « ignoré », le visage n'est ni attribué, ni proposé, ni écrit dans les fichiers (une zone déjà
+/// écrite pour une personne est retirée à la prochaine écriture) ; un rescan le retrouve à sa place et lui garde cet état.
+#[tauri::command(async)]
+pub fn mark_faces_not_a_face(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE faces SET state = 'not_face', person_id = NULL, suggested_person_id = NULL,
+                dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+         WHERE id IN (SELECT value FROM json_each(?1))",
+        params![ids_json(&face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Annule « N'est pas un visage » : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
+#[tauri::command(async)]
+pub fn unmark_faces_not_a_face(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE faces SET state = 'unknown' WHERE id IN (SELECT value FROM json_each(?1)) AND state = 'not_face'",
         params![ids_json(&face_ids)?],
     )
     .map_err(|error| error.to_string())

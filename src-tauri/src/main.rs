@@ -1479,6 +1479,8 @@ fn main() {
             faces::set_faces_unknown,
             faces::ignore_faces,
             faces::unignore_faces,
+            faces::mark_faces_not_a_face,
+            faces::unmark_faces_not_a_face,
             faces::recognize_faces,
             faces::get_pending_face_writes,
             faces::face_keyword_conflicts,

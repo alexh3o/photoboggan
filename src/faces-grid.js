@@ -2,7 +2,8 @@
 // - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par personne proposée), par personne, inconnus,
 //   filtrés, ignorés. Le filtre par statut n'existe que dans cette vue.
 // - Sélection : clic, Ctrl + clic, Maj + clic ; Ctrl + A tout sélectionner, Échap tout désélectionner. Double-clic : photo en plein écran.
-// - Actions : Valider (Entrée), Nommer… (ou taper directement le nom sur les visages sélectionnés), Inconnu, Ignorer, Ne plus ignorer.
+// - Actions : Valider (Entrée), Nommer… (ou taper directement le nom sur les visages sélectionnés), Inconnu, Ignorer, Ne plus ignorer,
+//   N'est pas un visage (fausse détection : comme Ignorer, jamais écrit ni reproposé au rescan) et C'est un visage.
 //   Après chaque action, les autres visages sont réattribués (sans ONNX).
 // La base seule change : l'écriture dans les fichiers viendra au lot 4.
 
@@ -21,10 +22,13 @@ const STATUSES = [
   { id: 'unknown', label: 'Unknown faces' },
   { id: 'filtered', label: 'Filtered' },
   { id: 'ignored', label: 'Ignored' },
+  { id: 'not_face', label: 'Not faces' },
 ];
 const DEFAULT_STATUSES = ['suggested', 'auto', 'confirmed', 'unknown'];
-const TILE = 120; // côté d'une vignette (px)
-const GAP = 6;
+// Dimensions des vignettes : lues dans le CSS (variables de .faces-view, voir faces.css) à chaque reconstruction.
+let TILE = 120; // côté d'une vignette carrée (px)
+let BAR = 0; // largeur de la bande d'état, à gauche de chaque ligne (px)
+let GAP = 0; // espacement entre vignettes (px)
 const SEPARATOR_HEIGHT = 30;
 const SIDE_MARGIN = 8;
 
@@ -122,11 +126,28 @@ function groupOf(face) {
     case 'confirmed': return { order: 1, key: `p${face.person_id}`, label: face.name ?? '?', sortName: face.name ?? '' };
     case 'unknown': return { order: 2, key: 'unknown', label: t('Unknown faces'), sortName: '' };
     case 'filtered': return { order: 3, key: 'filtered', label: t('Filtered (below the thresholds)'), sortName: '' };
+    case 'not_face': return { order: 5, key: 'not_face', label: t('Not faces'), sortName: '' };
     default: return { order: 4, key: 'ignored', label: t('Ignored'), sortName: '' };
   }
 }
 
+// Valeurs CSS en px (toute unité, rem compris) : mesurées sur un élément temporaire de la vue.
+function readTileMetrics() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;box-sizing:content-box;'
+    + 'width:var(--face-tile-size);height:var(--face-tile-gap);padding-left:var(--face-status-bar-width)';
+  view().append(probe);
+  const size = probe.getBoundingClientRect().width - parseFloat(getComputedStyle(probe).paddingLeft);
+  const bar = parseFloat(getComputedStyle(probe).paddingLeft) || 0;
+  const gap = probe.getBoundingClientRect().height;
+  probe.remove();
+  TILE = Math.round(size) > 0 ? Math.round(size) : 120;
+  BAR = Math.round(bar);
+  GAP = Math.round(gap);
+}
+
 function rebuild() {
+  readTileMetrics();
   const entries = faces.filter(face => visibleStatuses.has(face.state)).map(face => ({ face, group: groupOf(face) }));
   // Groupes : à valider, personnes (par nom), inconnus, filtrés, ignorés ; dans un groupe, les attributions automatiques avant les
   // confirmées, puis par ressemblance décroissante.
@@ -137,21 +158,28 @@ function rebuild() {
     || (b.face.score ?? 0) - (a.face.score ?? 0)
     || a.face.id - b.face.id);
   shown = entries.map(entry => entry.face);
-  const width = Math.max(TILE, scroller().clientWidth - 2 * SIDE_MARGIN);
-  const columns = Math.max(1, Math.floor((width + GAP) / (TILE + GAP)));
+  const width = Math.max(BAR + TILE, scroller().clientWidth - 2 * SIDE_MARGIN);
+  const columns = Math.max(1, Math.floor((width - BAR + GAP) / (TILE + GAP)));
   layout = [];
   let y = 0;
   let column = 0;
   let currentGroup = null;
+  let currentState = null;
   entries.forEach((entry, index) => {
-    if (entry.group.key !== currentGroup) {
+    const newGroup = entry.group.key !== currentGroup;
+    // Une ligne ne mêle pas les états : une nouvelle ligne commence au changement de groupe ou d'état (une seule bande colorée par ligne).
+    if (newGroup || entry.face.state !== currentState) {
       if (column !== 0) { y += TILE + GAP; column = 0; }
+      currentState = entry.face.state;
+    }
+    if (newGroup) {
       currentGroup = entry.group.key;
       const count = entries.filter(other => other.group.key === currentGroup).length;
       layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, label: `${entry.group.label} (${count})` });
       y += SEPARATOR_HEIGHT;
     }
-    layout.push({ kind: 'face', key: `f:${entry.face.id}`, x: SIDE_MARGIN + column * (TILE + GAP), y, index });
+    if (column === 0) layout.push({ kind: 'bar', key: `b:${entry.face.id}`, x: SIDE_MARGIN, y, state: entry.face.state });
+    layout.push({ kind: 'face', key: `f:${entry.face.id}`, x: SIDE_MARGIN + BAR + column * (TILE + GAP), y, index });
     column += 1;
     if (column === columns) { column = 0; y += TILE + GAP; }
   });
@@ -174,8 +202,12 @@ function renderVisible() {
     visible.add(item.key);
     let node = renderedNodes.get(item.key);
     if (!node) {
-      node = item.kind === 'separator' ? createSeparator(item) : createTile(shown[item.index]);
-      node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+      node = item.kind === 'separator' ? createSeparator(item)
+        : item.kind === 'bar' ? createStatusBar(item)
+        : createTile(shown[item.index]);
+      // `translate` (et non `transform`) : la propriété `scale` de la sélection (faces.css) s'applique alors après le déplacement, autour du
+      // centre de la vignette. Avec `transform`, elle mettrait aussi la position à l'échelle (vignette décalée d'autant plus qu'elle est loin du coin).
+      node.style.translate = `${item.x}px ${item.y}px`;
       renderedNodes.set(item.key, node);
       content().append(node);
     }
@@ -184,6 +216,13 @@ function renderVisible() {
   for (const [key, node] of renderedNodes) {
     if (!visible.has(key)) { node.remove(); renderedNodes.delete(key); }
   }
+}
+
+// Bande verticale colorée à gauche d'une ligne de vignettes (couleur de l'état commun aux visages de la ligne).
+function createStatusBar(item) {
+  const node = document.createElement('div');
+  node.className = `faces-row-bar state-${item.state}`;
+  return node;
 }
 
 function createSeparator(item) {
@@ -196,7 +235,7 @@ function createSeparator(item) {
   return node;
 }
 
-const STATE_TITLES = { suggested: 'To confirm', auto: 'Automatic', confirmed: 'Confirmed', unknown: 'Unknown', filtered: 'Filtered', ignored: 'Ignored' };
+const STATE_TITLES = { suggested: 'To confirm', auto: 'Automatic', confirmed: 'Confirmed', unknown: 'Unknown', filtered: 'Filtered', ignored: 'Ignored', not_face: 'Not a face' };
 
 function createTile(face) {
   const node = document.createElement('div');
@@ -313,6 +352,9 @@ function updateToolbar() {
   const ignored = targets.filter(face => face.state === 'ignored');
   document.getElementById('btn-faces-ignore').disabled = targets.length === ignored.length;
   document.getElementById('btn-faces-unignore').hidden = ignored.length === 0;
+  const notFaces = targets.filter(face => face.state === 'not_face');
+  document.getElementById('btn-faces-not-face').disabled = targets.length === notFaces.length;
+  document.getElementById('btn-faces-is-face').hidden = notFaces.length === 0;
   updateWriteButton();
 }
 
@@ -440,6 +482,8 @@ export function initFacesGrid(hostApi) {
   document.getElementById('btn-faces-unknown').addEventListener('click', () => runAction('set_faces_unknown'));
   document.getElementById('btn-faces-ignore').addEventListener('click', () => runAction('ignore_faces'));
   document.getElementById('btn-faces-unignore').addEventListener('click', () => runAction('unignore_faces'));
+  document.getElementById('btn-faces-not-face').addEventListener('click', () => runAction('mark_faces_not_a_face'));
+  document.getElementById('btn-faces-is-face').addEventListener('click', () => runAction('unmark_faces_not_a_face'));
   // Clavier de la vue : Entrée valide, Ctrl + A sélectionne tout, Échap désélectionne. Les raccourcis des photos sont coupés pendant ce temps
   // (voir le gestionnaire de main.js).
   document.getElementById('btn-faces-write').addEventListener('click', writeFaces);

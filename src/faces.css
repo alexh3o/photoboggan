@@ -57,28 +57,58 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .faces-view { flex: 1 1 0; min-width: 15rem; display: flex; flex-direction: column; background: var(--grid-bg); }
 .faces-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid var(--separator); }
 .faces-status-filters, .faces-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
-.faces-status-chip { padding: 2px 0.6rem; border-radius: 1rem; font-size: 0.72rem; opacity: 0.55; }
-.faces-status-chip.active { opacity: 1; border-color: var(--accent); }
+/* Pastille de statut : contour à la couleur du statut ; remplie de cette couleur quand le statut est affiché. */
+.faces-status-chip { padding: 2px 0.6rem; border-radius: 1rem; font-size: var(--face-chip-font-size); border-color: var(--face-status-color); opacity: 0.55; }
+.faces-status-chip.active { opacity: 1; background: var(--face-status-color); border-color: var(--face-status-color); color: #fff; }
 .faces-count { color: var(--text-dim); font-size: 0.75rem; margin-right: 0.25rem; }
 .faces-actions button[hidden] { display: none; }
 .faces-scroll { flex: 1 1 0; position: relative; overflow-y: auto; overflow-x: hidden; outline: none; }
 .faces-content { position: relative; width: 100%; }
 .faces-separator { height: 30px; }
-.face-tile { position: absolute; top: 0; left: 0; width: 120px; height: 120px; border-radius: 6px; overflow: hidden; cursor: pointer; background: var(--thumb-bg); border: 3px solid transparent; }
+/* Réglages de la vue, lus aussi par faces-grid.js : côté des vignettes, espacement, arrondi, largeur de la bande d'état (unique pour toute
+   une ligne de vignettes, à gauche de celle-ci), taille du texte des pastilles, et couleurs des statuts (bande des lignes et pastilles). */
+.faces-view {
+  --face-tile-size: 120px;
+  --face-tile-gap: 0px;
+  --face-tile-radius: 0px;
+  --face-status-bar-width: 2rem;
+  --face-chip-font-size: 0.85rem;
+  --face-color-suggested: #e67e22;
+  --face-color-auto: #3498db;
+  --face-color-confirmed: mediumseagreen; /* #2ecc71; */
+  --face-color-unknown: #7f8c8d;
+  --face-color-filtered: #555;
+  --face-color-ignored: #555;
+  --face-color-not-face: #c0392b;
+}
+.face-tile { position: absolute; top: 0; left: 0; width: var(--face-tile-size); height: var(--face-tile-size); border-radius: var(--face-tile-radius); overflow: hidden; cursor: pointer; background: var(--thumb-bg); }
+/* Bande verticale à gauche de chaque ligne de vignettes, colorée selon l'état (commun à la ligne). */
+.faces-row-bar { position: absolute; top: 0; left: 0; width: var(--face-status-bar-width); height: var(--face-tile-size); background: var(--face-status-color, transparent); }
 .face-tile-image { position: absolute; inset: 0; background-color: var(--control-bg); background-repeat: no-repeat; }
 .face-tile-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 4px; overflow: hidden; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 0.7rem; white-space: nowrap; text-overflow: ellipsis; }
 .face-tile-label:empty { display: none; }
 .face-tile-score { position: absolute; top: 3px; right: 3px; padding: 0 4px; border-radius: 3px; background: rgba(0, 0, 0, 0.65); color: #fff; font-size: 0.65rem; }
-/* Couleur du cadre selon l'état : à valider (orange), automatique (bleu), confirmé (vert), inconnu (gris), filtré / ignoré (estompés) */
-.face-tile.state-suggested { border-color: #e67e22; }
-.face-tile.state-auto { border-color: #3498db; }
-.face-tile.state-confirmed { border-color: #2ecc71; }
-.face-tile.state-unknown { border-color: #7f8c8d; }
-.face-tile.state-filtered, .face-tile.state-ignored { border-color: #555; opacity: 0.6; }
-.face-tile.selected { outline: 4px solid var(--selected-border); outline-offset: -4px; }
-.faces-status-chip.state-suggested.active { border-color: #e67e22; }
-.faces-status-chip.state-auto.active { border-color: #3498db; }
-.faces-status-chip.state-confirmed.active { border-color: #2ecc71; }
+/* Couleur de l'état, partagée par la bande des lignes et les pastilles du filtre : à valider (orange), automatique (bleu), confirmé (vert),
+   inconnu (gris), filtré / ignoré (gris foncé) */
+.state-suggested { --face-status-color: var(--face-color-suggested); }
+.state-auto { --face-status-color: var(--face-color-auto); }
+.state-confirmed { --face-status-color: var(--face-color-confirmed); }
+.state-unknown { --face-status-color: var(--face-color-unknown); }
+.state-filtered { --face-status-color: var(--face-color-filtered); }
+.state-ignored { --face-status-color: var(--face-color-ignored); }
+.state-not_face { --face-status-color: var(--face-color-not-face); }
+.face-tile.state-filtered, .face-tile.state-ignored, .face-tile.state-not_face { opacity: 0.6; }
+/* Sélection : même rendu que la grille des photos (voir .thumbnail.selected dans styles.css) : bordure, contour intérieur, coin marqué et
+   vignette légèrement enfoncée. La position est posée par faces-grid.js avec la propriété `translate` : `scale` s'applique ensuite autour du centre de la vignette. */
+.face-tile { transition: scale 0.1s ease-in-out, box-shadow 0.1s ease-in-out; }
+.face-tile.selected {
+  outline: 1px solid var(--selected-border);
+  outline-offset: 0px;
+  box-shadow: inset 0 0 0 2px var(--selected-border), 0 2px 0.5rem rgba(0, 0, 0, 0.4);
+  scale: 0.90;
+  z-index: 1;
+}
+.face-tile.selected::after { content: ''; position: absolute; top: 0; left: 0; width: 3rem; height: 3rem; background: var(--selected-border); clip-path: polygon(0 0, 100% 0, 0 100%); pointer-events: none; }
 
 /* Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la souris */
 .face-overlay { position: absolute; z-index: 1; pointer-events: none; }

@@ -665,7 +665,7 @@ fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, cur
             let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id]);
             // Visage nommé (attribution automatique) supprimé : sa zone a pu être écrite, la photo est à réécrire.
             if candidate.person_id.is_some() { crate::faces::mark_photo_for_write(conn, target.photo_id); }
-        } else if target.needs_review && candidate.person_id.is_some() && candidate.state != "ignored" {
+        } else if target.needs_review && candidate.person_id.is_some() && !matches!(candidate.state.as_str(), "ignored" | "not_face") {
             // Photo à revérifier : un visage nommé non retrouvé reste à son ancienne position, « suggéré », pour que l'utilisateur tranche (§4.2).
             let _ = conn.execute(
                 "UPDATE faces SET state = 'suggested', suggested_person_id = person_id, person_id = NULL, dirty = 1 WHERE id = ?1",
