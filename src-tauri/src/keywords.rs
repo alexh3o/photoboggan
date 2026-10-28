@@ -572,17 +572,10 @@ pub async fn rename_keyword(
     outcome.map_err(|error| error.to_string())?
 }
 
-/// Règle l'ordre de priorité des formats de mots-clés hiérarchiques à la lecture : `order` liste une fois chacun des identifiants `digikam`,
-/// `lightroom`, `mediapro`, `microsoft` et `acdsee`, du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture,
-/// synchronisation).
+/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating » ou « color ») :
+/// `order` liste une fois chacun des identifiants de ses sources, du plus au moins prioritaire (voir exif::set_read_priority). Il s'applique
+/// aux prochaines lectures de fichiers (scan, relecture, synchronisation).
 #[tauri::command]
-pub fn set_keyword_format_order(order: Vec<String>) -> Result<(), String> {
-    crate::exif::set_hierarchy_priority(&order)
-}
-
-/// Règle l'ordre de priorité à la lecture du titre (`kind` = « title », identifiants de exif::TITLE_SOURCE_IDS) ou de la description
-/// (« description », exif::DESCRIPTION_SOURCE_IDS). Il s'applique aux prochaines lectures de fichiers.
-#[tauri::command]
-pub fn set_text_format_order(kind: String, order: Vec<String>) -> Result<(), String> {
-    crate::exif::set_text_priority(&kind, &order)
+pub fn set_metadata_read_order(kind: String, order: Vec<String>) -> Result<(), String> {
+    crate::exif::set_read_priority(&kind, &order)
 }

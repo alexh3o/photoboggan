@@ -35,8 +35,8 @@ export function initMetadataWrites(hostApi) {
   }
 }
 
-/// Inscrit un onglet éditeur : { isDirty(), targetIds(), pendingItems() -> [{ photo_id, path, keyword_ids? , title?, description? }],
-/// afterWrite(result, items), discard() }.
+// Inscrit un onglet éditeur : { isDirty(), targetIds(), pendingItems() -> [{ photo_id, path, keyword_ids? , title?, description? }],
+// afterWrite(result, items), discard() }.
 export function registerEditor(editor) {
   editors.push(editor);
 }
@@ -53,7 +53,7 @@ export function isWriteLocked() {
   return directWrites > 0 || queuedWrites.some(entry => !entry.settled && host.isTaskQueued(entry.task));
 }
 
-/// `listener()` est appelé à chaque changement possible du verrou (les onglets mettent leurs boutons à jour).
+// `listener()` est appelé à chaque changement possible du verrou (les onglets mettent leurs boutons à jour).
 export function onLockChange(listener) {
   lockListeners.add(listener);
 }
@@ -165,7 +165,7 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
   }
 }
 
-/// Écrit tout ce qui attend dans les onglets éditeurs : les éléments d'une même photo sont réunis en une seule écriture.
+// Écrit tout ce qui attend dans les onglets éditeurs : les éléments d'une même photo sont réunis en une seule écriture.
 export async function applyPending(options) {
   if (isWriteLocked()) return;
   const merged = new Map();
@@ -181,7 +181,7 @@ export async function applyPending(options) {
 
 const runWrite = (items, options) => runLocked('apply_metadata_changes', { items }, items.length, (result, error) => finishWrite(items, result, error), options);
 
-/// Valeurs relues dans les fichiers écrits (mots-clés à plat, titre, description) : reportées dans les listes de photos de main.js.
+// Valeurs relues dans les fichiers écrits (mots-clés à plat, titre, description) : reportées dans les listes de photos de main.js.
 export function publishWritten(written) {
   if (written.length) host.updatePhotoMetadata(written);
 }
@@ -228,9 +228,9 @@ export async function showFailureDialog(result, retry) {
 
 const sameIds = (ids, others) => ids.length === others.length && ids.every(id => others.includes(id));
 
-/// Appelée par un onglet avant de se recharger pour la sélection `currentIds` : si des modifications en attente (d'un onglet ou de l'autre) visent
-/// une autre sélection, demande Appliquer / Ignorer / Annuler (revenir à la sélection précédente). Renvoie « cancel » si la sélection précédente
-/// est rétablie (l'onglet ne doit pas se recharger), « proceed » sinon. Une seule question à la fois, partagée par les onglets.
+// Appelée par un onglet avant de se recharger pour la sélection `currentIds` : si des modifications en attente (d'un onglet ou de l'autre) visent
+// une autre sélection, demande Appliquer / Ignorer / Annuler (revenir à la sélection précédente). Renvoie « cancel » si la sélection précédente
+// est rétablie (l'onglet ne doit pas se recharger), « proceed » sinon. Une seule question à la fois, partagée par les onglets.
 export function resolvePendingSelection(currentIds) {
   if (pendingPrompt) return pendingPrompt;
   const stale = editors.filter(editor => editor.isDirty() && !sameIds(editor.targetIds(), currentIds));

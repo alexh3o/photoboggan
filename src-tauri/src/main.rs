@@ -1453,8 +1453,7 @@ fn main() {
             keywords::get_keyword_delete_info,
             keywords::delete_keyword,
             keywords::rename_keyword,
-            keywords::set_keyword_format_order,
-            keywords::set_text_format_order,
+            keywords::set_metadata_read_order,
             exiftool::set_metadata_writer,
             exiftool::get_exiftool_status,
             exiftool::exiftool_prewarm

@@ -10,7 +10,6 @@
 import './keywords.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { createOrderList } from './order-list.js';
 import {
   registerEditor, runLocked, isWriteLocked, onLockChange, applyPending, choiceDialog, showFailureDialog, resolvePendingSelection,
   isPromptOpen, publishWritten, hasPendingEdits,
@@ -994,21 +993,6 @@ async function finishRename(node, name, photoCount, result, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Priorité de lecture des formats hiérarchiques (Paramètres, onglet Métadonnées)
-// ---------------------------------------------------------------------------
-
-// Les formats de mots-clés hiérarchiques lus. Le premier de la liste qui contient des données l'emporte : ses mots-clés alimentent l'arbre
-// et s'affichent, les autres sont ignorés. L'ordre par défaut est celui ci-dessous ; l'utilisateur le règle.
-const HIERARCHY_FORMATS = [
-  { id: 'digikam', label: 'digiKam', property: 'digiKam:TagsList' },
-  { id: 'lightroom', label: 'Adobe Lightroom', property: 'lr:hierarchicalSubject' },
-  { id: 'mediapro', label: 'Media Pro', property: 'mediapro:CatalogSets' },
-  { id: 'microsoft', label: 'Microsoft Photo', property: 'MicrosoftPhoto:LastKeywordXMP' },
-  { id: 'acdsee', label: 'ACDSee', property: 'acdsee:categories' },
-];
-let formatOrderList = null;
-
-// ---------------------------------------------------------------------------
 // Suppression d'un mot-clé
 // ---------------------------------------------------------------------------
 
@@ -1090,14 +1074,6 @@ export function initKeywordsPanel(hostApi) {
   registerEditor(keywordEditor);
   onLockChange(updateButtons);
 
-  // Priorité de lecture des formats hiérarchiques : liste ordonnable des Paramètres, ordre transmis au backend dès le démarrage (avant tout scan).
-  formatOrderList = createOrderList({
-    element: document.getElementById('keyword-format-order'),
-    formats: HIERARCHY_FORMATS,
-    storageKey: 'keywordFormatOrder',
-    send: order => invoke('set_keyword_format_order', { order }).catch(error => console.error('Ordre des formats de mots-clés refusé', error)),
-  });
-
   // Ctrl+K (filtre d'affichage) et Ctrl+Entrée (Appliquer, mots-clés et description ensemble) : actifs même quand un champ de saisie a le focus
   // (le gestionnaire de touches de main.js ignore les champs de saisie).
   window.addEventListener('keydown', event => {
@@ -1114,7 +1090,6 @@ export function initKeywordsPanel(hostApi) {
   new MutationObserver(() => refreshKeywordsPanel()).observe(exifPanel, { attributes: true, attributeFilter: ['class'] });
 
   onLanguageChange(() => {
-    formatOrderList.render();
     applyTab();
     updateModeButton();
     updateButtons();

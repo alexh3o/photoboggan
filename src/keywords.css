@@ -95,13 +95,17 @@
 .keyword-dialog-error { min-height: 1.2em; margin: 0.35rem 0 0; color: #e07a75; font-size: 0.78rem; }
 
 /* Paramètres : liste ordonnable de la priorité de lecture des formats hiérarchiques */
-.keyword-format-order { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; margin: 0.6rem 0 0; padding: 0; }
-.keyword-format-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border: 1px solid var(--control-border); border-radius: 6px; background: var(--control-bg); }
-.keyword-format-item.dragging { opacity: 0.8; border-color: var(--active-button); box-shadow: 0 4px 12px rgb(0 0 0 / 0.3); }
+/* Tableau à hauteur fixe de 6 lignes : changer de type de métadonnée ne décale pas le reste de la fenêtre. */
+.keyword-format-order { --format-row-height: 2.1rem; list-style: none; display: flex; flex-direction: column; box-sizing: content-box; height: calc(6 * var(--format-row-height)); margin: 0.6rem 0 0; padding: 0; overflow-y: auto; border-top: 1px solid var(--separator); }
+.keyword-format-item { display: flex; align-items: center; gap: 0.5rem; box-sizing: border-box; height: var(--format-row-height); flex: 0 0 var(--format-row-height); padding: 0 0.4rem; border-bottom: 1px solid var(--separator); background: transparent; }
+.keyword-format-item:hover { background: var(--row-bg); }
+.keyword-format-item.dragging { background: var(--row-bg); box-shadow: inset 2px 0 0 var(--active-button); }
 .keyword-format-handle { flex: 0 0 auto; cursor: grab; touch-action: none; color: var(--text-faint); user-select: none; }
 .keyword-format-item.dragging .keyword-format-handle { cursor: grabbing; }
 .keyword-format-rank { flex: 0 0 auto; min-width: 1.2rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .keyword-format-name { flex: 0 0 auto; font-weight: 600; }
 .keyword-format-property { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-size: 0.72rem; }
-.keyword-format-move { flex: 0 0 auto; width: 1.8rem; padding: 2px 0; font-size: 0.8rem; }
-.keyword-format-move:disabled { opacity: 0.4; cursor: default; }
+/* Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol. */
+.keyword-format-move { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; padding: 0; font-size: 0.75rem; line-height: 1; color: var(--text-faint); background: transparent; border: none; border-radius: 4px; }
+.keyword-format-move:hover:not(:disabled) { color: var(--text-strong); background: var(--control-bg); }
+.keyword-format-move:disabled { opacity: 0.3; cursor: default; }

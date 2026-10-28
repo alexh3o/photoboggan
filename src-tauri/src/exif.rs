@@ -26,6 +26,10 @@ pub struct ExifMetadata {
     pub caption: String,
     /// Valeur de chaque source de titre et de description, utile à la vérification après écriture.
     pub text_sources: TextSources,
+    /// Note de chaque source (en étoiles, 0 à 5), dans l'ordre de RATING_SOURCE_IDS.
+    pub rating_sources: [Option<i32>; 5],
+    /// Couleur de chaque source (clé de couleur), dans l'ordre de COLOR_SOURCE_IDS.
+    pub color_sources: [Option<&'static str>; 3],
 }
 
 fn xmp_value(xml: &str, names: &[&str]) -> Option<String> {
@@ -191,8 +195,10 @@ fn read_jpeg_fields(path: &Path) -> JpegFields {
 /// Contenu XMP utile d'un fichier (paquet intégré, puis sidecar pour ce qui manque).
 #[derive(Default)]
 struct ParsedXmp {
-    rating: i32,
-    color_flag: String,
+    /// Sources XMP de la note, dans l'ordre de RATING_SOURCE_IDS (les trois premières).
+    ratings: [Option<i32>; 3],
+    /// Sources XMP de la couleur, dans l'ordre de COLOR_SOURCE_IDS.
+    colors: [Option<&'static str>; 3],
     keywords: String,
     keyword_paths: Vec<Vec<String>>,
     /// Sources XMP du titre, dans l'ordre de TITLE_SOURCE_IDS (les deux premières).
@@ -208,14 +214,20 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     if let Some(stem) = path.file_stem() {
         if let Some(parent) = path.parent() { sources.push(parent.join(stem).with_extension("xmp")); }
     }
-    let mut rating = None;
-    let mut color_flag: Option<String> = None;
     let mut keywords = Vec::new();
     let mut hierarchical: Vec<Vec<String>> = Vec::new();
+    let mut ratings: [Option<i32>; 3] = Default::default();
+    let mut colors: [Option<&'static str>; 3] = Default::default();
     let mut titles: [Option<String>; 2] = Default::default();
     let mut descriptions: [Option<String>; 4] = Default::default();
-    // Titre et description : chaque source manquante du paquet intégré est cherchée dans le sidecar.
-    let mut read_texts = |xml: &str| {
+    // Note, couleur, titre et description : chaque source manquante du paquet intégré est cherchée dans le sidecar.
+    let mut read_sources = |xml: &str| {
+        for (slot, value) in ratings.iter_mut().zip(xmp_ratings(xml)) {
+            if slot.is_none() { *slot = value; }
+        }
+        for (slot, value) in colors.iter_mut().zip(xmp_colors(xml)) {
+            if slot.is_none() { *slot = value; }
+        }
         for (slot, name) in titles.iter_mut().zip(XMP_TITLE_PROPERTIES) {
             if slot.is_none() { *slot = xmp_text(xml, name); }
         }
@@ -225,27 +237,20 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     };
     // The image itself is the source of truth when it contains an XMP packet.
     if let Some(embedded) = read_embedded_xmp(path) {
-        let (found_rating, found_color, found_keywords) = parse_xmp_text(&embedded);
-        rating = found_rating;
-        color_flag = found_color;
-        keywords = found_keywords;
+        keywords = parse_xmp_subjects(&embedded);
         hierarchical = parse_hierarchical_keywords(&embedded);
-        read_texts(&embedded);
+        read_sources(&embedded);
     }
     for source in sources {
-        if rating.is_some() && color_flag.is_some() && !keywords.is_empty() && !hierarchical.is_empty() { break; }
         if let Ok(text) = fs::read_to_string(source) {
-            let (found_rating, found_color, found_keywords) = parse_xmp_text(&text);
-            if rating.is_none() { rating = found_rating; }
-            if color_flag.is_none() { color_flag = found_color; }
-            if keywords.is_empty() { keywords = found_keywords; }
+            if keywords.is_empty() { keywords = parse_xmp_subjects(&text); }
             if hierarchical.is_empty() { hierarchical = parse_hierarchical_keywords(&text); }
-            read_texts(&text);
+            read_sources(&text);
         }
     }
     ParsedXmp {
-        rating: rating.unwrap_or(0).clamp(0, 5),
-        color_flag: color_flag.unwrap_or_else(|| "none".to_string()),
+        ratings,
+        colors,
         keywords: keywords.join(", "),
         keyword_paths: hierarchical,
         titles,
@@ -265,6 +270,12 @@ pub const TITLE_SOURCE_IDS: [&str; 4] = ["xmp-dc", "xmp-acdsee", "iptc", "exif-x
 pub const DESCRIPTION_SOURCE_IDS: [&str; 9] = ["xmp-dc", "xmp-exif", "xmp-tiff", "xmp-acdsee", "jpeg-comment", "exif-image", "exif-user-comment", "exif-xp", "iptc"];
 const XMP_TITLE_PROPERTIES: [&str; 2] = ["dc:title", "acdsee:caption"];
 const XMP_DESCRIPTION_PROPERTIES: [&str; 4] = ["dc:description", "exif:UserComment", "tiff:ImageDescription", "acdsee:notes"];
+/// Sources de la note, ordre par défaut : XMP xmp:Rating, MicrosoftPhoto:Rating, acdsee:rating, EXIF Rating, EXIF RatingPercent.
+pub const RATING_SOURCE_IDS: [&str; 5] = ["xmp", "microsoft", "acdsee", "exif", "exif-percent"];
+/// Sources de la couleur, ordre par défaut : XMP xmp:Label, digiKam:ColorLabel, photoshop:Urgency.
+pub const COLOR_SOURCE_IDS: [&str; 3] = ["xmp-label", "digikam", "urgency"];
+static RATING_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
+static COLOR_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);
 static TITLE_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
 static DESCRIPTION_PRIORITY: std::sync::RwLock<[usize; 9]> = std::sync::RwLock::new([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
@@ -287,12 +298,19 @@ fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -> Result<[u
     Ok(indices)
 }
 
-/// Règle l'ordre de priorité à la lecture du titre (`kind` = « title ») ou de la description (« description »). Il s'applique aux prochaines
-/// lectures de fichiers.
-pub fn set_text_priority(kind: &str, order: &[String]) -> Result<(), String> {
+/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating » ou « color ») :
+/// `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS,
+/// COLOR_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
+    fn store<T>(lock: &std::sync::RwLock<T>, value: T) {
+        *lock.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
+    }
     match kind {
-        "title" => *TITLE_PRIORITY.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = order_indices(&TITLE_SOURCE_IDS, order)?,
-        "description" => *DESCRIPTION_PRIORITY.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = order_indices(&DESCRIPTION_SOURCE_IDS, order)?,
+        "keywords" => store(&HIERARCHY_PRIORITY, order_indices(&HIERARCHY_IDS, order)?),
+        "title" => store(&TITLE_PRIORITY, order_indices(&TITLE_SOURCE_IDS, order)?),
+        "description" => store(&DESCRIPTION_PRIORITY, order_indices(&DESCRIPTION_SOURCE_IDS, order)?),
+        "rating" => store(&RATING_PRIORITY, order_indices(&RATING_SOURCE_IDS, order)?),
+        "color" => store(&COLOR_PRIORITY, order_indices(&COLOR_SOURCE_IDS, order)?),
         _ => return Err("invalid_kind".to_string()),
     }
     Ok(())
@@ -422,10 +440,58 @@ pub fn label_for_color_flag(flag: &str) -> Result<Option<&'static str>, String> 
     Ok(COLOR_LABELS.iter().find(|(key, _)| *key == normalized).map(|(_, label)| *label))
 }
 
-fn parse_xmp_text(xml: &str) -> (Option<i32>, Option<String>, Vec<String>) {
-    let rating = xmp_value(xml, &["xmp:Rating", "Rating"])
-        .and_then(|v| v.parse::<i32>().ok());
-    let color_flag = xmp_value(xml, &["xmp:Label"]).map(|value| normalize_color_flag(&value).to_string());
+/// Note en étoiles d'un pourcentage Microsoft (1, 25, 50, 75, 99 pour 1 à 5 étoiles ; valeurs intermédiaires arrondies à l'étoile la plus proche).
+fn stars_from_percent(percent: i32) -> i32 {
+    match percent {
+        i32::MIN..=0 => 0,
+        1..=12 => 1,
+        13..=37 => 2,
+        38..=62 => 3,
+        63..=87 => 4,
+        _ => 5,
+    }
+}
+
+/// Couleur d'un numéro digiKam ColorLabel ou Photoshop Urgency (même table qu'à l'écriture, voir color_to_urgency_and_digikam) ; 0 = aucune.
+fn color_from_number(number: i32) -> Option<&'static str> {
+    match number {
+        1 => Some("red"),
+        2 => Some("orange"),
+        3 => Some("yellow"),
+        4 => Some("green"),
+        5 => Some("blue"),
+        6 => Some("magenta"),
+        7 => Some("grey"),
+        8 => Some("black"),
+        9 => Some("white"),
+        _ => None,
+    }
+}
+
+/// Notes XMP d'un paquet, dans l'ordre de RATING_SOURCE_IDS : xmp:Rating (préfixe ancien « xap » accepté), MicrosoftPhoto:Rating (pourcentage),
+/// acdsee:rating. Une note « rejetée » (-1) compte comme 0.
+fn xmp_ratings(xml: &str) -> [Option<i32>; 3] {
+    let number = |names: &[&str]| xmp_value(xml, names).and_then(|value| value.trim().parse::<i32>().ok());
+    [
+        number(&["xmp:Rating", "xap:Rating"]).map(|rating| rating.clamp(0, 5)),
+        number(&["MicrosoftPhoto:Rating"]).map(stars_from_percent),
+        number(&["acdsee:rating"]).map(|rating| rating.clamp(0, 5)),
+    ]
+}
+
+/// Couleurs XMP d'un paquet, dans l'ordre de COLOR_SOURCE_IDS : xmp:Label (nom de couleur ; un libellé qui n'est pas une couleur est ignoré),
+/// digiKam:ColorLabel, photoshop:Urgency (numéros).
+fn xmp_colors(xml: &str) -> [Option<&'static str>; 3] {
+    let number = |names: &[&str]| xmp_value(xml, names).and_then(|value| value.trim().parse::<i32>().ok());
+    [
+        xmp_value(xml, &["xmp:Label", "xap:Label"]).map(|label| normalize_color_flag(&label)).filter(|color| *color != "none"),
+        number(&["digiKam:ColorLabel", "digikam:ColorLabel"]).and_then(color_from_number),
+        number(&["photoshop:Urgency"]).and_then(color_from_number),
+    ]
+}
+
+/// Mots-clés à plat d'un paquet XMP (dc:subject).
+fn parse_xmp_subjects(xml: &str) -> Vec<String> {
     let mut keywords = Vec::new();
     if let Some(start) = xml.find("<dc:subject") {
         if let Some(open_end) = xml[start..].find('>') {
@@ -444,7 +510,7 @@ fn parse_xmp_text(xml: &str) -> (Option<i32>, Option<String>, Vec<String>) {
             }
         }
     }
-    (rating, color_flag, keywords)
+    keywords
 }
 
 /// Éléments `rdf:li` de la première propriété XMP de nom local `local_name` (ex. « TagsList »), quel que soit le préfixe de namespace utilisé
@@ -515,13 +581,6 @@ const HIERARCHY_IDS: [&str; 5] = ["digikam", "lightroom", "mediapro", "microsoft
 /// Ordre de priorité à la lecture : indices dans HIERARCHY_IDS, du plus au moins prioritaire. Réglable par l'utilisateur (Paramètres, onglet
 /// Métadonnées) ; digiKam en premier tant que l'interface n'a rien envoyé.
 static HIERARCHY_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
-
-/// Règle l'ordre de priorité des schémas hiérarchiques : `order` doit contenir une fois chacun des identifiants de HIERARCHY_IDS.
-/// Il s'applique aux prochaines lectures de fichiers (les photos déjà en base ne sont pas relues d'elles-mêmes).
-pub fn set_hierarchy_priority(order: &[String]) -> Result<(), String> {
-    *HIERARCHY_PRIORITY.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = order_indices(&HIERARCHY_IDS, order)?;
-    Ok(())
-}
 
 /// Mots-clés hiérarchiques d'un paquet XMP : le premier schéma qui contient des données, dans l'ordre de priorité réglé (par défaut digiKam,
 /// puis Lightroom, Media Pro, Microsoft Photo, ACDSee), l'emporte ; les autres sont ignorés.
@@ -720,31 +779,39 @@ fn video_date_taken(path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
-/// n'est pas lu : ni EXIF, ni IPTC, ni dimensions (l'interface apprend le ratio depuis la miniature).
-/// Remplit les champs XMP de `meta` (note, couleur, mots-clés, sources XMP du titre et de la description).
+/// Remplit les champs XMP de `meta` (sources XMP de la note, de la couleur, du titre et de la description ; mots-clés).
 fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
-    meta.rating = parsed.rating;
-    meta.color_flag = parsed.color_flag;
+    meta.rating_sources[..3].copy_from_slice(&parsed.ratings);
+    meta.color_sources = parsed.colors;
     meta.keywords = parsed.keywords;
     meta.keyword_paths = parsed.keyword_paths;
     meta.text_sources.title[..2].clone_from_slice(&parsed.titles);
     meta.text_sources.description[..4].clone_from_slice(&parsed.descriptions);
 }
 
-/// Titre et description retenus selon l'ordre de priorité réglé.
-fn resolve_texts(meta: &mut ExifMetadata) {
-    let title_priority = *TITLE_PRIORITY.read().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let description_priority = *DESCRIPTION_PRIORITY.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+/// Note, couleur, titre et description retenus : la première source présente dans l'ordre de priorité réglé.
+fn resolve_values(meta: &mut ExifMetadata) {
+    let rating_priority = *lock_read(&RATING_PRIORITY);
+    let color_priority = *lock_read(&COLOR_PRIORITY);
+    let title_priority = *lock_read(&TITLE_PRIORITY);
+    let description_priority = *lock_read(&DESCRIPTION_PRIORITY);
+    meta.rating = rating_priority.iter().find_map(|index| meta.rating_sources[*index]).unwrap_or(0);
+    meta.color_flag = color_priority.iter().find_map(|index| meta.color_sources[*index]).unwrap_or("none").to_string();
     meta.title = resolve_text(&meta.text_sources.title, &title_priority);
     meta.caption = resolve_text(&meta.text_sources.description, &description_priority);
 }
 
+fn lock_read<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
+    lock.read().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
+/// n'est pas lu : ni EXIF, ni IPTC, ni dimensions (l'interface apprend le ratio depuis la miniature).
 fn read_video_metadata(path: &Path) -> ExifMetadata {
     let mut meta = ExifMetadata::default();
     apply_parsed_xmp(&mut meta, parse_xmp(path));
     add_hierarchical_leaves(&mut meta);
-    resolve_texts(&mut meta);
+    resolve_values(&mut meta);
     meta.date_taken = video_date_taken(path);
     meta
 }
@@ -762,7 +829,7 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     meta.text_sources.description[8] = jpeg.caption;
     let file = match fs::File::open(path) {
         Ok(f) => f,
-        Err(_) => { resolve_texts(&mut meta); return meta; }
+        Err(_) => { resolve_values(&mut meta); return meta; }
     };
 
     let mut bufreader = std::io::BufReader::new(&file);
@@ -774,6 +841,9 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
         if let Some(text) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY).and_then(exif_xp_text) {
             xp_keywords = text.split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
         }
+        // Note EXIF de Windows : Rating (étoiles) et RatingPercent.
+        meta.rating_sources[3] = exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5));
+        meta.rating_sources[4] = exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32));
         // Titre et description EXIF : XPTitle, ImageDescription, UserComment, XPComment.
         meta.text_sources.title[3] = exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text));
         if let Some(field) = exif.get_field(Tag::ImageDescription, In::PRIMARY) {
@@ -829,7 +899,7 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
         meta.keywords = merged.join(", ");
     }
     add_hierarchical_leaves(&mut meta);
-    resolve_texts(&mut meta);
+    resolve_values(&mut meta);
     if crate::heif::is_heif_path(path) {
         // Dimensions affichées (rotation du conteneur appliquée) : celles de l'EXIF sont celles du capteur.
         if let Some((width, height)) = crate::heif::read_dimensions(path) {

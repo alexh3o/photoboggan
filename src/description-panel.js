@@ -6,31 +6,11 @@
 // de toutes les photos. Un champ non touché n'est jamais écrit.
 //
 // Les valeurs affichées viennent de la base (colonnes `title` et `caption`), qui reflète le fichier selon l'ordre de priorité des sources réglé
-// dans les Paramètres (onglet Métadonnées, listes ordonnables ci-dessous).
+// dans les Paramètres (onglet Métadonnées, voir metadata-settings.js).
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
-import { createOrderList } from './order-list.js';
 import { registerEditor, onLockChange, isWriteLocked, applyPending, hasPendingEdits, resolvePendingSelection, isPromptOpen } from './metadata-writes.js';
-
-// Sources du titre et de la description, dans l'ordre de lecture par défaut (identifiants : exif.rs, TITLE_SOURCE_IDS et DESCRIPTION_SOURCE_IDS).
-const TITLE_FORMATS = [
-  { id: 'xmp-dc', label: 'XMP', property: 'dc:title' },
-  { id: 'xmp-acdsee', label: 'ACDSee (XMP)', property: 'acdsee:caption' },
-  { id: 'iptc', label: 'IPTC', property: 'ObjectName' },
-  { id: 'exif-xp', label: 'EXIF (Windows)', property: 'XPTitle' },
-];
-const DESCRIPTION_FORMATS = [
-  { id: 'xmp-dc', label: 'XMP', property: 'dc:description' },
-  { id: 'xmp-exif', label: 'XMP EXIF', property: 'exif:UserComment' },
-  { id: 'xmp-tiff', label: 'XMP TIFF', property: 'tiff:ImageDescription' },
-  { id: 'xmp-acdsee', label: 'ACDSee (XMP)', property: 'acdsee:notes' },
-  { id: 'jpeg-comment', label: 'JPEG', property: 'Comment' },
-  { id: 'exif-image', label: 'EXIF', property: 'ImageDescription' },
-  { id: 'exif-user-comment', label: 'EXIF', property: 'UserComment' },
-  { id: 'exif-xp', label: 'EXIF (Windows)', property: 'XPComment' },
-  { id: 'iptc', label: 'IPTC', property: 'Caption-Abstract' },
-];
 
 let host = null; // services de main.js, voir initDescriptionPanel
 let initialized = false;
@@ -40,7 +20,6 @@ let titleField;
 let descriptionField;
 let applyButton;
 let resetButton;
-let orderLists = [];
 
 // Photos ciblées (la sélection au moment du chargement) : valeurs enregistrées, par identifiant de photo.
 let targets = new Map(); // identifiant -> { id, path, title, description }
@@ -229,16 +208,6 @@ export function initDescriptionPanel(hostApi) {
   new MutationObserver(() => refreshDescriptionPanel()).observe(exifPanel, { attributes: true, attributeFilter: ['class'] });
   new MutationObserver(() => refreshDescriptionPanel()).observe(pane, { attributes: true, attributeFilter: ['hidden'] });
 
-  // Priorité de lecture du titre et de la description : listes ordonnables des Paramètres, ordres transmis au backend dès le démarrage.
-  const sendOrder = kind => order => invoke('set_text_format_order', { kind, order }).catch(error => console.error('Ordre des sources refusé', error));
-  orderLists = [
-    createOrderList({ element: document.getElementById('title-format-order'), formats: TITLE_FORMATS, storageKey: 'titleFormatOrder', send: sendOrder('title') }),
-    createOrderList({ element: document.getElementById('description-format-order'), formats: DESCRIPTION_FORMATS, storageKey: 'descriptionFormatOrder', send: sendOrder('description') }),
-  ];
-
-  onLanguageChange(() => {
-    for (const list of orderLists) list.render();
-    render();
-  });
+  onLanguageChange(render);
   render();
 }

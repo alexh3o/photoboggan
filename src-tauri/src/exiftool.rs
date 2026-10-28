@@ -560,8 +560,9 @@ pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -
     write_to(image_path, args, update.adds_values())
 }
 
-/// Note (`xmp:Rating`, `acdsee:rating`, `MicrosoftPhoto:Rating`) et/ou couleur (`xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`) :
-/// seules les valeurs fournies sont modifiées ; `Some(None)` retire la couleur. Mêmes valeurs que l'écriture interne.
+/// Note (`xmp:Rating`, `acdsee:rating`, `MicrosoftPhoto:Rating` ; dans les JPEG, aussi EXIF `Rating` et `RatingPercent` de Windows) et/ou
+/// couleur (`xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`) : seules les valeurs fournies sont modifiées ; `Some(None)` retire la
+/// couleur. Mêmes valeurs que l'écriture interne, qui ne touche pas à l'EXIF.
 pub fn write_rating_label(image_path: &Path, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
     let mut args = Vec::new();
     let mut has_values = false;
@@ -571,6 +572,10 @@ pub fn write_rating_label(image_path: &Path, rating: Option<i32>, label: Option<
         args.push(format!("-XMP-xmp:Rating={rating}"));
         args.push(format!("-XMP-acdsee:Rating={rating}"));
         args.push(format!("-XMP-microsoft:RatingPercent={microsoft_rating}"));
+        if matches!(target_of(image_path), Target::Jpeg) {
+            args.push(format!("-EXIF:Rating={rating}"));
+            args.push(format!("-EXIF:RatingPercent={microsoft_rating}"));
+        }
         has_values |= rating > 0;
     }
     if let Some(label) = label {

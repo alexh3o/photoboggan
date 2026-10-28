@@ -129,6 +129,8 @@ let loadedPhotos = [];
 let folders = [];
 let folderTreePhotos = [];
 let currentFolderFilter = null;
+// Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
+let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
 let keywordFilters = [];
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
@@ -1020,8 +1022,14 @@ function addCreatedFolder(parentPath, name) {
   folderTreeExpanded.add(parentPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase());
   renderFolderTree();
 }
+// Mémorise le dossier ouvert dans l'arbre (null = Toutes les photos), relu au démarrage si l'utilisateur l'a choisi.
+function rememberCurrentFolder() {
+  if (currentFolderFilter === null) localStorage.removeItem('lastFolderFilter');
+  else localStorage.setItem('lastFolderFilter', currentFolderFilter);
+}
 function selectFolder(path) {
   currentFolderFilter = path;
+  rememberCurrentFolder();
   renderFolderTree();
   loadPhotos();
 }
@@ -2003,7 +2011,7 @@ function renderSettingsFolderList() {
     li.querySelector('.btn-remove-folder').addEventListener('click', async () => {
       dropScanTasksForFolder(f.path); // un dossier retiré ne doit plus être scanné
       folders = await invoke('remove_folder', { id: f.id, path: f.path });
-      if (currentFolderFilter === f.path) currentFolderFilter = null;
+      if (currentFolderFilter === f.path) { currentFolderFilter = null; rememberCurrentFolder(); }
       renderFolderTree();
       renderSettingsFolderList();
       loadPhotos();
@@ -4392,9 +4400,42 @@ function restorePanelsVisibility() {
 // Restauration de l'état des panneaux avant le chargement des photos
 restorePanelsVisibility();
 
-loadFolders();
+// Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
+// (dossier suivi, ou sous-dossier contenant des photos) ; sinon, ouverture sur Toutes les photos. L'arborescence se construit depuis
+// toute la collection : elle est lue en plus de la liste du dossier, sinon l'arbre ne montrerait que ce dossier.
+async function restoreStartupFolder() {
+  await loadFolders();
+  const lastFolder = localStorage.getItem('lastFolderFilter');
+  if (startupView !== 'last' || !lastFolder) return;
+  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const target = normalize(lastFolder);
+  const isRoot = folders.some(folder => target === normalize(folder.path));
+  const watched = isRoot || folders.some(folder => target.startsWith(`${normalize(folder.path)}/`));
+  if (!watched) return;
+  const library = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: null, recursive: includeSubfolders });
+  if (!isRoot && !library.some(photo => normalize(photo.path).startsWith(`${target}/`))) return; // dossier disparu
+  folderTreePhotos = library;
+  currentFolderFilter = lastFolder;
+  // Dossiers parents dépliés pour que le dossier ouvert soit visible dans l'arbre.
+  const segments = target.split('/');
+  for (let n = 1; n < segments.length; n++) folderTreeExpanded.add(segments.slice(0, n).join('/'));
+}
+
 refreshStorageLocationUI();
-loadPhotos().then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
+restoreStartupFolder()
+  .catch(error => console.error('Restauration du dossier de démarrage impossible', error))
+  .then(() => loadPhotos())
+  .then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
+
+// Choix de la vue au démarrage (Paramètres > Général)
+document.querySelectorAll('input[name="startup-view"]').forEach(input => {
+  input.checked = input.value === startupView;
+  input.addEventListener('change', () => {
+    if (!input.checked) return;
+    startupView = input.value === 'last' ? 'last' : 'all';
+    localStorage.setItem('startupView', startupView);
+  });
+});
 
 // ==========================================
 // EMPLACEMENT DES DONNÉES ET DU CACHE

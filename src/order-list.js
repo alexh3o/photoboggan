@@ -1,10 +1,11 @@
-// Liste ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats de mots-clés hiérarchiques, du titre, de la description.
+// Tableau ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats d'un type de métadonnée (mots-clés, titre, description,
+// note, couleur). Plusieurs tableaux peuvent partager le même élément : seul celui dont on appelle render() est affiché.
 // Chaque ligne se déplace par sa poignée (glisser) ou par les flèches ; l'ordre est mémorisé localement et transmis au backend par `send`.
 
 import { t } from './i18n.js';
 
-/// `formats` : [{ id, label, property }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
-/// au backend (au démarrage et à chaque changement). Renvoie { render } pour redessiner la liste (changement de langue).
+// `formats` : [{ id, label, property }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
+// au backend (au démarrage et à chaque changement). Renvoie { render } pour afficher ou redessiner la liste.
 export function createOrderList({ element, formats, storageKey, send }) {
   const defaultOrder = formats.map(format => format.id);
   let order = loadOrder();
