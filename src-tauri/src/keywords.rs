@@ -175,12 +175,18 @@ pub fn get_keyword_usage(state: State<'_, AppState>) -> Result<Vec<(i64, i64)>, 
 // Écriture des mots-clés dans les fichiers
 // ---------------------------------------------------------------------------
 
-/// Mots-clés à donner à une photo : l'ensemble final des mots-clés actifs (identifiants de l'arbre).
+/// Métadonnées à écrire dans une photo, chacune facultative (absente = laissée telle quelle) : l'ensemble final des mots-clés actifs
+/// (identifiants de l'arbre), le titre, la description (chaîne vide = retirée).
 #[derive(Deserialize)]
 pub struct KeywordWriteItem {
     pub photo_id: i64,
     pub path: String,
-    pub keyword_ids: Vec<i64>,
+    #[serde(default)]
+    pub keyword_ids: Option<Vec<i64>>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -188,6 +194,9 @@ pub struct KeywordWritten {
     pub photo_id: i64,
     /// Mots-clés à plat de la photo tels que relus dans le fichier (colonne `keywords` de la base).
     pub keywords: String,
+    /// Titre et description retenus à la relecture du fichier (colonnes `title` et `caption`).
+    pub title: String,
+    pub description: String,
 }
 
 #[derive(Serialize)]
@@ -260,16 +269,20 @@ fn run_write(
     let total = valid.len().max(1);
     let done = AtomicUsize::new(0);
     let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
-    // None : photo non traitée (tâche arrêtée) ; Some(Ok(chemins écrits)) ; Some(Err(message)).
-    let outcomes: Vec<(KeywordWriteItem, Option<Result<Vec<Vec<String>>, String>>)> = threads.install(|| {
+    // None : photo non traitée (tâche arrêtée) ; Some(Ok(modifications écrites)) ; Some(Err(message)).
+    let outcomes: Vec<(KeywordWriteItem, Option<Result<crate::exif::MetadataUpdate, String>>)> = threads.install(|| {
         valid
             .into_par_iter()
             .map(|item| {
                 if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) {
                     return (item, None);
                 }
-                let paths: Vec<Vec<String>> = item.keyword_ids.iter().filter_map(|id| node_path(&nodes, *id)).collect();
-                let result = crate::exif::write_keywords(&item.path, &paths).map(|_| paths).map_err(|error| error.to_string());
+                let update = crate::exif::MetadataUpdate {
+                    keywords: item.keyword_ids.as_ref().map(|ids| ids.iter().filter_map(|id| node_path(&nodes, *id)).collect()),
+                    title: item.title.clone(),
+                    description: item.description.clone(),
+                };
+                let result = crate::exif::write_metadata(&item.path, &update).map(|_| update).map_err(|error| error.to_string());
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
                 if let Some(id) = &task_id {
                     let _ = app.emit("scan-progress", crate::ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
@@ -288,30 +301,35 @@ fn run_write(
         match outcome {
             None => cancelled += 1,
             Some(Err(error)) => failed.push(KeywordFailure { photo_id: item.photo_id, path: item.path, error }),
-            Some(Ok(desired)) => {
+            Some(Ok(update)) => {
                 let meta = crate::exif::read_exif(Path::new(&item.path));
-                if normalized_paths(&desired) != normalized_paths(&meta.keyword_paths) {
-                    // Le fichier est modifié mais ne contient pas ce qui était demandé : la base n'est pas touchée, la prochaine synchronisation relira le fichier.
-                    failed.push(KeywordFailure {
-                        photo_id: item.photo_id,
-                        path: item.path,
-                        error: "Les mots-clés relus dans le fichier diffèrent de ceux écrits".to_string(),
-                    });
+                // Le fichier est modifié mais ne contient pas ce qui était demandé : la base n'est pas touchée, la prochaine synchronisation relira le fichier.
+                let mismatch = match &update.keywords {
+                    Some(desired) if normalized_paths(desired) != normalized_paths(&meta.keyword_paths) => {
+                        Some("Les mots-clés relus dans le fichier diffèrent de ceux écrits".to_string())
+                    }
+                    _ => crate::exif::text_mismatch(Path::new(&item.path), &update, &meta),
+                };
+                if let Some(error) = mismatch {
+                    failed.push(KeywordFailure { photo_id: item.photo_id, path: item.path, error });
                     continue;
                 }
                 match std::fs::metadata(&item.path) {
                     Ok(file) => {
                         let _ = conn.execute(
-                            "UPDATE photos SET keywords = ?1, file_size = ?2, modified = ?3 WHERE id = ?4",
-                            params![meta.keywords, file.len() as i64, crate::library_sync::modified_millis(&file), item.photo_id],
+                            "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3, file_size = ?4, modified = ?5 WHERE id = ?6",
+                            params![meta.keywords, meta.title, meta.caption, file.len() as i64, crate::library_sync::modified_millis(&file), item.photo_id],
                         );
                     }
                     Err(_) => {
-                        let _ = conn.execute("UPDATE photos SET keywords = ?1 WHERE id = ?2", params![meta.keywords, item.photo_id]);
+                        let _ = conn.execute(
+                            "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3 WHERE id = ?4",
+                            params![meta.keywords, meta.title, meta.caption, item.photo_id],
+                        );
                     }
                 }
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
-                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords });
+                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, title: meta.title, description: meta.caption });
             }
         }
     }
@@ -320,10 +338,11 @@ fn run_write(
     Ok(KeywordWriteResult { written, failed, cancelled, deleted: false })
 }
 
-/// Écrit dans les fichiers l'ensemble final de mots-clés de chaque photo (XMP : dc:subject, digiKam, Lightroom, Media Pro, Microsoft ;
-/// IPTC des JPEG), puis relit les fichiers pour mettre la base à jour. Avec `task_id`, la progression est publiée et l'arrêt de la tâche respecté.
+/// Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
+/// sa description (voir exif::write_metadata), puis relit les fichiers pour mettre la base à jour. Avec `task_id`, la progression est publiée et
+/// l'arrêt de la tâche respecté.
 #[tauri::command]
-pub async fn apply_keyword_changes(
+pub async fn apply_metadata_changes(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     items: Vec<KeywordWriteItem>,
@@ -439,12 +458,12 @@ fn photos_carrying(conn: &Connection, ids: &[i64], dropped: &HashSet<i64>) -> Re
         let index = match index_of.get(&photo_id) {
             Some(index) => *index,
             None => {
-                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Vec::new() });
+                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None });
                 index_of.insert(photo_id, items.len() - 1);
                 items.len() - 1
             }
         };
-        if !dropped.contains(&keyword_id) { items[index].keyword_ids.push(keyword_id); }
+        if !dropped.contains(&keyword_id) { items[index].keyword_ids.get_or_insert_with(Vec::new).push(keyword_id); }
     }
     Ok(items)
 }
@@ -554,8 +573,16 @@ pub async fn rename_keyword(
 }
 
 /// Règle l'ordre de priorité des formats de mots-clés hiérarchiques à la lecture : `order` liste une fois chacun des identifiants `digikam`,
-/// `lightroom`, `mediapro` et `microsoft`, du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// `lightroom`, `mediapro`, `microsoft` et `acdsee`, du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture,
+/// synchronisation).
 #[tauri::command]
 pub fn set_keyword_format_order(order: Vec<String>) -> Result<(), String> {
     crate::exif::set_hierarchy_priority(&order)
+}
+
+/// Règle l'ordre de priorité à la lecture du titre (`kind` = « title », identifiants de exif::TITLE_SOURCE_IDS) ou de la description
+/// (« description », exif::DESCRIPTION_SOURCE_IDS). Il s'applique aux prochaines lectures de fichiers.
+#[tauri::command]
+pub fn set_text_format_order(kind: String, order: Vec<String>) -> Result<(), String> {
+    crate::exif::set_text_priority(&kind, &order)
 }

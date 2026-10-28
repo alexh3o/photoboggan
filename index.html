@@ -145,10 +145,11 @@
       <!-- EXIF -->
       <div id="exif-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionner le panneau d'informations" data-i18n-aria-label="Resize info panel" tabindex="0"></div>
       <aside id="exif-panel" class="exif-section">
-        <!-- Onglets du panneau de droite : Info (J) et Mots-clés (K), voir keywords-panel.js -->
+        <!-- Onglets du panneau de droite : Info (J), Mots-clés (K) et Description (D), voir keywords-panel.js et description-panel.js -->
         <div class="side-tabs" role="tablist" aria-label="Onglets du panneau latéral" data-i18n-aria-label="Side panel tabs">
           <button type="button" id="side-tab-info" class="side-tab-btn active" role="tab" aria-selected="true" aria-controls="exif-tab-info" data-i18n="Info">Info</button>
           <button type="button" id="side-tab-keywords" class="side-tab-btn" role="tab" aria-selected="false" aria-controls="exif-tab-keywords" data-i18n="Keywords">Mots-clés</button>
+          <button type="button" id="side-tab-description" class="side-tab-btn" role="tab" aria-selected="false" aria-controls="exif-tab-description" data-i18n="Description">Description</button>
         </div>
         <div id="exif-tab-info" class="side-tab-pane" role="tabpanel">
         <h3 data-i18n="Metadata">Métadonnées</h3>
@@ -173,6 +174,7 @@
           <li><strong class="exif-label" data-i18n="Rating">Note</strong> <span id="exif-rating">-</span></li>
           <li><strong class="exif-label" data-i18n="Color">Couleur</strong> <span id="exif-color">-</span></li>
           <li><strong class="exif-label" data-i18n="Keywords">Mots-clés</strong> <span id="exif-keywords">-</span></li>
+          <li><strong class="exif-label" data-i18n="Title">Titre</strong> <span id="exif-title">-</span></li>
           <li><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
         </ul>
         </div>
@@ -191,6 +193,16 @@
               <button type="button" id="btn-keyword-reset" data-i18n="Reset">Réinitialiser</button>
               <button type="button" id="btn-keyword-unify" data-i18n="Unify">Unifier</button>
             </div>
+          </div>
+        </div>
+        <div id="exif-tab-description" class="side-tab-pane" role="tabpanel" hidden>
+          <label class="description-field" for="description-title"><span data-i18n="Title">Titre</span></label>
+          <input type="text" id="description-title" class="keyword-input description-input" autocomplete="off">
+          <label class="description-field" for="description-text"><span data-i18n="Description">Description</span></label>
+          <textarea id="description-text" class="keyword-input description-input description-textarea"></textarea>
+          <div class="keyword-actions">
+            <button type="button" id="btn-description-apply" data-i18n="Apply">Appliquer</button>
+            <button type="button" id="btn-description-reset" data-i18n="Reset">Réinitialiser</button>
           </div>
         </div>
       </aside>
@@ -347,14 +359,23 @@
               </div>
             </section>
             <section class="settings-section">
-              <h4 data-i18n="Keywords">Mots-clés</h4>
-              <label class="settings-row settings-check"><input id="keywords-auto-apply" type="checkbox" /><span data-i18n="Automatically apply keyword changes">Appliquer automatiquement les changements de mots-clés</span></label>
+              <h4 data-i18n="Pending changes">Modifications en attente</h4>
+              <label class="settings-row settings-check"><input id="keywords-auto-apply" type="checkbox" /><span data-i18n="Automatically apply pending changes">Appliquer automatiquement les modifications de mots-clés, titres et descriptions</span></label>
               <p class="sort-note" data-i18n="Automatically apply keyword changes help">Sinon, une confirmation est demandée au changement de sélection.</p>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Hierarchical formats reading priority">Priorité de lecture des formats hiérarchiques</h4>
               <p class="sort-note" data-i18n="Hierarchical formats reading priority help">Le premier format qui contient des mots-clés l'emporte. Glissez pour réordonner ; le nouvel ordre s'applique à la prochaine relecture de la collection.</p>
               <ol id="keyword-format-order" class="keyword-format-order"></ol>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Title reading priority">Priorité de lecture du titre</h4>
+              <p class="sort-note" data-i18n="Text reading priority help">La première source non vide l'emporte ; toutes sont écrites. Le nouvel ordre s'applique à la prochaine relecture de la collection.</p>
+              <ol id="title-format-order" class="keyword-format-order"></ol>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Description reading priority">Priorité de lecture de la description</h4>
+              <ol id="description-format-order" class="keyword-format-order"></ol>
             </section>
           </div>
         </div>
@@ -539,11 +560,15 @@
               <span class="guide-control"><kbd>K</kbd></span>
             </div>
             <div class="guide-row">
+              <span class="guide-action" data-i18n="Toggle description panel">Afficher / masquer le panneau titre et description</span>
+              <span class="guide-control"><kbd>D</kbd></span>
+            </div>
+            <div class="guide-row">
               <span class="guide-action" data-i18n="Toggle keywords list mode">Mots-clés : basculer entre tous les mots-clés et ceux attribués à la sélection</span>
               <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>K</kbd></span>
             </div>
             <div class="guide-row">
-              <span class="guide-action" data-i18n="Apply keyword changes">Mots-clés : écrire dans les fichiers les modifications en attente</span>
+              <span class="guide-action" data-i18n="Apply pending metadata changes">Mots-clés, titre et description : écrire dans les fichiers les modifications en attente</span>
               <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>Entrée</kbd></span>
             </div>
             <div class="guide-row">

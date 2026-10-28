@@ -8,7 +8,9 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings } from './metadata-settings.js';
-import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, confirmCloseWithPendingKeywords } from './keywords-panel.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
+import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
+import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -40,10 +42,10 @@ window.addEventListener('DOMContentLoaded', () => {
     appWindow.close().catch(err => console.error("Erreur close:", err));
   });
 
-  // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés non écrits ou une écriture en cours demandent confirmation
-  // (voir keywords-panel.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
+  // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés, titres ou descriptions non écrits ou une écriture en cours
+  // demandent confirmation (voir metadata-writes.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
   appWindow.onCloseRequested(async event => {
-    if (!(await confirmCloseWithPendingKeywords())) event.preventDefault();
+    if (!(await confirmCloseWithPendingEdits())) event.preventDefault();
   }).catch(err => console.error("Erreur onCloseRequested:", err));
 
   // Icône du bouton Maximiser / Restaurer d'après l'état réel de la fenêtre (aussi modifié hors du bouton : double-clic sur la barre, raccourcis Windows).
@@ -674,6 +676,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     renderPreview();
     clearFullscreenImage();
     updateRatingAction();
+    document.getElementById('exif-title').textContent = '-';
     document.getElementById('exif-caption').textContent = '-';
   }
   updateFilteredPhotosCount();
@@ -1563,6 +1566,7 @@ document.getElementById('btn-clear-selection')?.addEventListener('click', () => 
 
 function updateUIOnSelection() {
   refreshKeywordsPanel();
+  refreshDescriptionPanel();
   pruneCompareSubSelection();
   renderVisibleItems(); 
   updateRatingAction();
@@ -1594,6 +1598,7 @@ function updateUIOnSelection() {
     document.getElementById('exif-rating').textContent = photo.rating > 0 ? `${'★'.repeat(photo.rating)} (${photo.rating}/5)` : '-';
     document.getElementById('exif-color').textContent = colorFlagLabels.get(photo.color_flag) || '-';
     renderInfoKeywords(photo);
+    document.getElementById('exif-title').textContent = photo.title || '-';
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
   }
 }
@@ -1908,10 +1913,13 @@ if (e.key === 'Delete') {
   // Bascule des panneaux et modes :
   // X : mode Comparer | P : aperçu | N : panneau Filtres (gauche) | J : panneau Info (droite)
   // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte.
-  // J / K : panneau de droite, onglet Info ou Mots-clés (voir keywords-panel.js). Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte.
-  if ((e.key.toLowerCase() === 'j' || e.key.toLowerCase() === 'k') && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+  // J / K / D : panneau de droite, onglet Info, Mots-clés ou Description (voir keywords-panel.js). Inactif en plein écran (où D affiche les
+  // informations de la photo, ci-dessus) ou lorsqu'une fenêtre modale est ouverte.
+  const sideTabByKey = { j: 'info', k: 'keywords', d: 'description' };
+  const sideTab = sideTabByKey[e.key.toLowerCase()];
+  if (sideTab && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
-    if (!e.repeat) handleSideTabShortcut(e.key.toLowerCase() === 'j' ? 'info' : 'keywords');
+    if (!e.repeat) handleSideTabShortcut(sideTab);
     return;
   }
   const panelToggleButtons = {
@@ -3554,7 +3562,7 @@ document.getElementById('compare-desync-toggle').addEventListener('change', even
 document.getElementById('btn-toggle-compare').addEventListener('click', event => {
   compareMode = !compareMode;
   event.currentTarget.classList.toggle('active', compareMode);
-  setKeywordsCompareMode(compareMode); // l'onglet Mots-clés est inaccessible en mode Comparer
+  setKeywordsCompareMode(compareMode); // les onglets Mots-clés et Description sont inaccessibles en mode Comparer
   document.getElementById('btn-toggle-preview').disabled = compareMode; // l'aperçu reste affiché tant que le mode Comparer est actif
   const desyncOption = document.getElementById('compare-desync');
   desyncOption.classList.toggle('hidden', !compareMode);
@@ -4230,9 +4238,8 @@ initPhotoActions({
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
 
-// Panneau des mots-clés (onglet du panneau de droite, voir keywords-panel.js) : cible = photos sélectionnées.
-initKeywordsPanel({
-  getSelectedPhotos: () => [...selectedIndices].map(index => photos[index]).filter(Boolean),
+// Écriture des métadonnées éditées dans le panneau de droite (onglets Mots-clés et Description, voir metadata-writes.js).
+initMetadataWrites({
   showToast: message => showWriteToast(message),
   // Écriture de beaucoup de fichiers : tâche de la file (progression, arrêt possible). `onResult` reçoit le résultat de la commande
   // (ou null si elle a échoué ou si la tâche a été retirée de la file). Renvoie la tâche, ou null si elle n'a pas pu être mise en file.
@@ -4242,7 +4249,7 @@ initKeywordsPanel({
       path: null,
       command,
       args,
-      labelKey: 'Keyword writing ({count})',
+      labelKey: 'Metadata writing ({count})',
       labelParams: { count },
     });
     const task = queued ? [...scanTasks].reverse().find(candidate => candidate.kind === 'keywords' && !candidate.onResult) : null;
@@ -4251,12 +4258,17 @@ initKeywordsPanel({
     return task;
   },
   isTaskQueued: task => scanTasks.includes(task),
-  // Mots-clés à plat relus dans les fichiers écrits : mis à jour dans les listes de photos, le filtre de mots-clés et le panneau Info.
-  updatePhotoKeywords: updates => {
+  // Valeurs relues dans les fichiers écrits (mots-clés à plat, titre, description) : mises à jour dans les listes de photos, le filtre de
+  // mots-clés et le panneau Info.
+  updatePhotoMetadata: written => {
+    const updates = new Map(written.map(entry => [entry.photo_id, entry]));
     for (const list of new Set([loadedPhotos, folderTreePhotos, photos])) {
       for (const photo of list) {
-        const keywords = updates.get(photo.id);
-        if (keywords !== undefined) photo.keywords = keywords;
+        const entry = updates.get(photo.id);
+        if (!entry) continue;
+        photo.keywords = entry.keywords;
+        photo.title = entry.title;
+        photo.caption = entry.description;
       }
     }
     renderKeywordFilters();
@@ -4281,6 +4293,17 @@ initKeywordsPanel({
     applyPhotoFilters();
   },
 });
+
+const getSelectedPhotos = () => [...selectedIndices].map(index => photos[index]).filter(Boolean);
+
+// Onglet Mots-clés du panneau de droite (voir keywords-panel.js) : cible = photos sélectionnées.
+initKeywordsPanel({
+  getSelectedPhotos,
+  showToast: message => showWriteToast(message),
+});
+
+// Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
+initDescriptionPanel({ getSelectedPhotos });
 
 // ==========================================
 // SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions)

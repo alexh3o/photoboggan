@@ -263,9 +263,10 @@ fn spawn_line_reader(stream: impl std::io::Read + Send + 'static) -> Receiver<St
 impl Process {
     fn start(found: &Launcher, generation: u64) -> Result<Process, String> {
         let mut command = found.command();
-        // Les noms de fichiers sont transmis en UTF-8 (indispensable sous Windows pour les noms accentués).
+        // Les noms de fichiers sont transmis en UTF-8 (indispensable sous Windows pour les noms accentués). -ec : les valeurs écrites sont
+        // échappées à la façon du C (voir assign), ce qui permet les retours à la ligne dans un fichier d'arguments lu ligne par ligne.
         command
-            .args(["-stay_open", "True", "-@", "-", "-common_args", "-charset", "filename=UTF8"])
+            .args(["-stay_open", "True", "-@", "-", "-common_args", "-charset", "filename=UTF8", "-ec"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -425,7 +426,7 @@ fn run(args: Vec<String>) -> std::io::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus XPKeywords dans les JPEG)
+// Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus l'EXIF des JPEG)
 // ---------------------------------------------------------------------------
 
 enum Target {
@@ -446,11 +447,17 @@ fn target_of(path: &Path) -> Target {
     }
 }
 
+/// Affectation `-TAG=valeur`, valeur échappée pour l'option -ec d'ExifTool (barre oblique inverse doublée, retour à la ligne en `\n`).
+/// Valeur vide : la balise est supprimée.
+fn assign(tag: &str, value: &str) -> String {
+    format!("-{tag}={}", value.replace('\\', "\\\\").replace('\n', "\\n"))
+}
+
 /// Balise de liste : ses valeurs remplacent les anciennes ; liste vide = balise supprimée.
 fn push_list(args: &mut Vec<String>, tag: &str, values: impl IntoIterator<Item = String>) {
     let before = args.len();
-    for value in values { args.push(format!("-{tag}={value}")); }
-    if args.len() == before { args.push(format!("-{tag}=")); }
+    for value in values { args.push(assign(tag, &value)); }
+    if args.len() == before { args.push(assign(tag, "")); }
 }
 
 /// Modifie un fichier existant : ExifTool écrit `<fichier>_exiftool_tmp` puis remplace l'original. Si le remplacement échoue (fichier en lecture
@@ -493,35 +500,64 @@ fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::
     std::fs::rename(&temp, &sidecar).inspect_err(|_| { let _ = std::fs::remove_file(&temp); })
 }
 
-/// Mots-clés actifs `paths` (un chemin par mot-clé, ex. ["Lieux", "France", "Paris"]) : remplacent dc:subject, digiKam TagsList,
-/// Lightroom hierarchicalSubject, Media Pro CatalogSets, Microsoft LastKeywordXMP, ACDSee categories ; dans les JPEG, aussi IPTC Keywords
-/// et EXIF XPKeywords.
-pub fn write_keywords(image_path: &Path, paths: &[Vec<String>]) -> std::io::Result<()> {
-    let mut leaves: Vec<String> = Vec::new();
-    for segments in paths {
-        if let Some(leaf) = segments.last() {
-            if !leaves.iter().any(|word| word.to_lowercase() == leaf.to_lowercase()) { leaves.push(leaf.clone()); }
+/// Écrit les modifications `update` en une seule commande ExifTool :
+/// - mots-clés actifs (un chemin par mot-clé) : dc:subject, digiKam TagsList, Lightroom hierarchicalSubject, Media Pro CatalogSets,
+///   Microsoft LastKeywordXMP, ACDSee categories ; dans les JPEG, aussi IPTC Keywords et EXIF XPKeywords ;
+/// - titre : XMP dc:title et acdsee:caption ; dans les JPEG, aussi IPTC ObjectName et EXIF XPTitle ;
+/// - description : XMP dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes ; dans les JPEG, aussi le commentaire JPEG,
+///   EXIF ImageDescription, UserComment et XPComment, et IPTC Caption.
+pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -> std::io::Result<()> {
+    let jpeg = matches!(target_of(image_path), Target::Jpeg);
+    let mut args = Vec::new();
+    // Valeurs IPTC écrites : UTF-8 déclaré si l'une n'est pas en ASCII.
+    let mut iptc_values: Vec<String> = Vec::new();
+    if let Some(paths) = &update.keywords {
+        let leaves = crate::exif::keyword_leaves(paths);
+        let joined = |separator: &str| paths.iter().map(|segments| segments.join(separator)).collect::<Vec<_>>();
+        push_list(&mut args, "XMP-dc:Subject", leaves.clone());
+        push_list(&mut args, "XMP-digiKam:TagsList", joined("/"));
+        push_list(&mut args, "XMP-lr:HierarchicalSubject", joined("|"));
+        push_list(&mut args, "XMP-mediapro:CatalogSets", joined("|"));
+        push_list(&mut args, "XMP-microsoft:LastKeywordXMP", joined("/"));
+        // Catégories ACDSee : une seule valeur texte (l'arbre XML), qu'ExifTool échappe lui-même dans le paquet.
+        let categories = if paths.is_empty() { String::new() } else { crate::exif::acdsee_categories_value(paths) };
+        args.push(assign("XMP-acdsee:Categories", &categories));
+        if jpeg {
+            // IPTC : 64 octets au plus par mot-clé (coupés comme l'écriture interne).
+            let iptc: Vec<String> = leaves.iter().map(|word| crate::exif::truncate_utf8(word, 64).to_string()).collect();
+            push_list(&mut args, "IPTC:Keywords", iptc.clone());
+            iptc_values.extend(iptc);
+            // XPKeywords : mots séparés par « ; », donc les noms qui en contiennent sont omis de ce seul champ.
+            let xp: Vec<&str> = leaves.iter().map(String::as_str).filter(|word| !word.contains(';')).collect();
+            args.push(assign("EXIF:XPKeywords", &xp.join(";")));
         }
     }
-    let joined = |separator: &str| paths.iter().map(|segments| segments.join(separator)).collect::<Vec<_>>();
-    let mut args = Vec::new();
-    push_list(&mut args, "XMP-dc:Subject", leaves.clone());
-    push_list(&mut args, "XMP-digiKam:TagsList", joined("/"));
-    push_list(&mut args, "XMP-lr:HierarchicalSubject", joined("|"));
-    push_list(&mut args, "XMP-mediapro:CatalogSets", joined("|"));
-    push_list(&mut args, "XMP-microsoft:LastKeywordXMP", joined("/"));
-    // Catégories ACDSee : une seule valeur texte (l'arbre XML), qu'ExifTool échappe lui-même dans le paquet.
-    let categories = if paths.is_empty() { String::new() } else { crate::exif::acdsee_categories_value(paths) };
-    args.push(format!("-XMP-acdsee:Categories={categories}"));
-    if matches!(target_of(image_path), Target::Jpeg) {
-        // IPTC : 64 octets au plus par mot-clé (coupés comme l'écriture interne) ; UTF-8 déclaré quand un mot-clé n'est pas en ASCII.
-        push_list(&mut args, "IPTC:Keywords", leaves.iter().map(|word| crate::exif::truncate_utf8(word, 64).to_string()));
-        if leaves.iter().any(|word| !word.is_ascii()) { args.push("-IPTC:CodedCharacterSet=UTF8".to_string()); }
-        // XPKeywords : mots séparés par « ; », donc les noms qui en contiennent sont omis de ce seul champ.
-        let xp: Vec<&str> = leaves.iter().map(String::as_str).filter(|word| !word.contains(';')).collect();
-        args.push(format!("-EXIF:XPKeywords={}", xp.join(";")));
+    if let Some(title) = update.clean_title() {
+        args.push(assign("XMP-dc:Title", &title));
+        args.push(assign("XMP-acdsee:Caption", &title));
+        if jpeg {
+            let object_name = crate::exif::truncate_utf8(&title, 64).to_string();
+            args.push(assign("IPTC:ObjectName", &object_name));
+            iptc_values.push(object_name);
+            args.push(assign("EXIF:XPTitle", &title));
+        }
     }
-    write_to(image_path, args, !paths.is_empty())
+    if let Some(description) = update.clean_description() {
+        for tag in ["XMP-dc:Description", "XMP-exif:UserComment", "XMP-tiff:ImageDescription", "XMP-acdsee:Notes"] {
+            args.push(assign(tag, &description));
+        }
+        if jpeg {
+            for tag in ["File:Comment", "EXIF:ImageDescription", "EXIF:UserComment", "EXIF:XPComment"] {
+                args.push(assign(tag, &description));
+            }
+            let caption = crate::exif::truncate_utf8(&description, 2000).to_string();
+            args.push(assign("IPTC:Caption-Abstract", &caption));
+            iptc_values.push(caption);
+        }
+    }
+    if args.is_empty() { return Ok(()); }
+    if iptc_values.iter().any(|value| !value.is_ascii()) { args.push("-IPTC:CodedCharacterSet=UTF8".to_string()); }
+    write_to(image_path, args, update.adds_values())
 }
 
 /// Note (`xmp:Rating`, `acdsee:rating`, `MicrosoftPhoto:Rating`) et/ou couleur (`xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`) :

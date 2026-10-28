@@ -24,6 +24,9 @@ pub struct Photo {
     pub rating: i32,
     pub color_flag: String,
     pub keywords: String,
+    /// Titre retenu à la lecture (voir exif::TITLE_SOURCE_IDS).
+    pub title: String,
+    /// Description retenue à la lecture (voir exif::DESCRIPTION_SOURCE_IDS).
     pub caption: String,
     // Date de modification du fichier (ms depuis 1970) lue en base : sert au tri par date de modification.
     // Elle n'est pas écrite par les insertions (voir library_sync::store_modified), d'où la valeur 0 des constructions hors lecture.
@@ -85,6 +88,7 @@ pub fn init_db(db_path: &str) -> DbPool {
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN keywords TEXT NOT NULL DEFAULT ''", []);
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN caption TEXT NOT NULL DEFAULT ''", []);
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN lens_model TEXT NOT NULL DEFAULT ''", []);
+    let _ = conn.execute("ALTER TABLE photos ADD COLUMN title TEXT NOT NULL DEFAULT ''", []);
     // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN modified INTEGER NOT NULL DEFAULT 0", []);
 
@@ -131,13 +135,13 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
 
     let sql = if folder_filter.is_some() {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title 
          FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
          AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
          ORDER BY date_taken DESC LIMIT ?3 OFFSET ?4"
     } else {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title 
          FROM photos ORDER BY date_taken DESC LIMIT ? OFFSET ?"
     };
 
@@ -167,6 +171,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 color_flag: row.get(14)?,
                 keywords: row.get(15)?,
                 caption: row.get(16)?,
+                title: row.get(19)?,
             })
         }).unwrap();
         photo_iter.filter_map(|p| p.ok()).collect()
@@ -192,6 +197,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 color_flag: row.get(14)?,
                 keywords: row.get(15)?,
                 caption: row.get(16)?,
+                title: row.get(19)?,
             })
         }).unwrap();
         photo_iter.filter_map(|p| p.ok()).collect()

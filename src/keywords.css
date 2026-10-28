@@ -1,4 +1,4 @@
-/* PANNEAU DE DROITE À ONGLETS (Info / Mots-clés), REDIMENSIONNABLE, ET ONGLET MOTS-CLÉS : voir keywords-panel.js.
+/* PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js.
    Les couleurs viennent des variables de styles.css, pour suivre le thème clair ou sombre. */
 
 /* Le panneau passe en colonne : barre d'onglets en haut, puis le contenu de l'onglet affiché (qui défile seul). */
@@ -59,6 +59,20 @@
 .keyword-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .keyword-actions button { flex: 1 1 auto; padding: 4px 8px; font-size: 0.72rem; }
 .keyword-actions button:disabled { opacity: 0.5; cursor: default; }
+
+/* Panneau Info : une description sur plusieurs lignes garde ses retours à la ligne */
+#exif-caption { white-space: pre-line; }
+
+/* Onglet Description : titre (une ligne), description (prend la place restante), puis boutons, voir description-panel.js */
+#exif-tab-description { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem; overflow: hidden; }
+#exif-tab-description[hidden] { display: none; }
+.description-field { color: var(--text-muted); font-size: 0.72rem; font-weight: 600; }
+.description-field:not(:first-child) { margin-top: 0.4rem; }
+.description-textarea { flex: 1 1 auto; min-height: 6rem; resize: none; font-family: inherit; line-height: 1.4; }
+.description-input::placeholder { font-style: italic; }
+/* Champ modifié dont la valeur n'est pas encore écrite dans les fichiers */
+.description-input.pending { box-shadow: inset 2px 0 0 var(--active-button); }
+#exif-tab-description .keyword-actions { margin-top: 0.4rem; }
 
 /* Fenêtre à choix multiples (modifications en attente, échec d'écriture) */
 .keyword-dialog { width: min(28rem, calc(100vw - 2.5rem)); padding: 1rem 1.125rem; }

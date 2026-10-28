@@ -106,6 +106,7 @@ fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>) {
         rating: exif_data.rating,
         color_flag: exif_data.color_flag,
         keywords: exif_data.keywords,
+        title: exif_data.title,
         caption: exif_data.caption,
         modified: 0, // non utilisé : la date est enregistrée séparément par sync_library
     };

@@ -1,21 +1,26 @@
-// Panneau latéral droit à onglets (Info / Mots-clés) et onglet Mots-clés : arborescence hiérarchique éditable.
+// Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable.
 //
 // Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état « en attente » (une copie des mots-clés actifs
 // de chaque photo sélectionnée), qui n'est enregistré que sur « Appliquer », Ctrl+Entrée, ou au changement de sélection (après confirmation,
-// ou automatiquement si « Appliquer automatiquement les changements de mots-clés » est activé).
+// ou automatiquement selon le réglage des Paramètres). L'écriture est commune avec l'onglet Description (titre et description) : voir
+// metadata-writes.js, qui réunit en une seule écriture par fichier tout ce qui attend dans les deux onglets.
 //
 // L'arbre, l'état enregistré et les fréquences d'usage viennent de la base (voir keywords.rs), qui reflète le contenu réel des fichiers.
 // main.js fournit la sélection et les services de l'application (initKeywordsPanel) et appelle refreshKeywordsPanel quand la sélection change.
 import './keywords.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
+import { createOrderList } from './order-list.js';
+import {
+  registerEditor, runLocked, isWriteLocked, onLockChange, applyPending, choiceDialog, showFailureDialog, resolvePendingSelection,
+  isPromptOpen, publishWritten, hasPendingEdits,
+} from './metadata-writes.js';
 
 const TAB_STORAGE_KEY = 'sidePanelTab';
 const FILTER_MODE_STORAGE_KEY = 'keywordFilterMode';
-const AUTO_APPLY_STORAGE_KEY = 'keywordsAutoApply'; // réglage « Appliquer automatiquement les changements de mots-clés »
-const SIDE_TABS = ['info', 'keywords'];
+const SIDE_TABS = ['info', 'keywords', 'description'];
+const EDITING_TABS = ['keywords', 'description']; // onglets inaccessibles en mode Comparer
 const ROOT_ID = 0; // identifiant du « parent » des mots-clés de premier niveau
-const QUEUE_THRESHOLD = 20; // à partir de ce nombre de fichiers, l'écriture passe par la file de tâches
 const MAX_SUGGESTIONS = 200;
 const nameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
@@ -45,12 +50,7 @@ const dirtyIds = new Set(); // photos dont les mots-clés en cours d'édition di
 
 let reloadToken = 0;
 let refreshScheduled = false;
-let promptOpen = false;
 let refreshAfterPrompt = false;
-let directWrites = 0; // écritures directes (moins de QUEUE_THRESHOLD fichiers) en cours
-const queuedWrites = []; // écritures passées par la file de tâches : { task, settled }
-let lockTimer = null;
-let lastWriteOk = false; // la dernière écriture directe s'est terminée sans échec ni arrêt (utile à la fermeture de l'application)
 
 // Autocomplétion : nœuds correspondants, du plus fréquent au moins fréquent (le plus fréquent est affiché le plus près du champ).
 let suggestions = [];
@@ -60,8 +60,10 @@ let exifPanel;
 let toggleButton;
 let infoTabButton;
 let keywordsTabButton;
+let descriptionTabButton;
 let infoPane;
 let keywordsPane;
+let descriptionPane;
 let treeList;
 let modeButton;
 let inputField;
@@ -70,8 +72,6 @@ let applyButton;
 let resetButton;
 let unifyButton;
 
-const isAutoApply = () => localStorage.getItem(AUTO_APPLY_STORAGE_KEY) === 'true';
-const fileName = path => String(path).split(/[\\/]/).pop();
 const normalizeSearch = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const compareByUsage = (a, b) => (usageById.get(b.id) || 0) - (usageById.get(a.id) || 0) || nameCollator.compare(a.name, b.name);
 
@@ -85,9 +85,10 @@ function setsEqual(a, b) {
 // Onglets du panneau
 // ---------------------------------------------------------------------------
 
-// Onglet réellement affiché : le mode Comparer rend les mots-clés inaccessibles, le panneau Info s'affiche à la place (l'onglet demandé est retrouvé ensuite).
+// Onglet réellement affiché : le mode Comparer rend les onglets d'édition (Mots-clés, Description) inaccessibles, le panneau Info s'affiche à la
+// place (l'onglet demandé est retrouvé ensuite).
 function displayedTab() {
-  return compareActive && requestedTab === 'keywords' ? 'info' : requestedTab;
+  return compareActive && EDITING_TABS.includes(requestedTab) ? 'info' : requestedTab;
 }
 
 function isKeywordsTabVisible() {
@@ -96,14 +97,17 @@ function isKeywordsTabVisible() {
 
 function applyTab() {
   const shown = displayedTab();
-  for (const [button, name] of [[infoTabButton, 'info'], [keywordsTabButton, 'keywords']]) {
+  for (const [button, name] of [[infoTabButton, 'info'], [keywordsTabButton, 'keywords'], [descriptionTabButton, 'description']]) {
     button.classList.toggle('active', shown === name);
     button.setAttribute('aria-selected', String(shown === name));
   }
   infoPane.hidden = shown !== 'info';
   keywordsPane.hidden = shown !== 'keywords';
+  descriptionPane.hidden = shown !== 'description';
   keywordsTabButton.disabled = compareActive;
   keywordsTabButton.title = compareActive ? t('Keywords panel unavailable in compare mode') : `${t('Keywords')} (K)`;
+  descriptionTabButton.disabled = compareActive;
+  descriptionTabButton.title = compareActive ? t('Description panel unavailable in compare mode') : `${t('Title and description')} (D)`;
   infoTabButton.title = `${t('Info')} (J)`;
   if (shown === 'keywords') refreshKeywordsPanel();
 }
@@ -115,12 +119,13 @@ function setTab(name) {
   applyTab();
 }
 
-// Raccourcis J (Info) et K (Mots-clés) : si le panneau est masqué, il s'ouvre sur cet onglet ; s'il est affiché sur un autre onglet, il bascule ;
+// Raccourcis J (Info), K (Mots-clés) et D (Description) : si le panneau est masqué, il s'ouvre sur cet onglet ; s'il est affiché sur un autre
+// onglet, il bascule ;
 // s'il est déjà sur cet onglet, il se masque (comme l'ancienne touche J). Le bouton Info de la barre d'outils garde son rôle : afficher ou masquer
 // le panneau, sur le dernier onglet utilisé.
 export function handleSideTabShortcut(name) {
   if (!initialized) return;
-  if (name === 'keywords' && compareActive) return;
+  if (EDITING_TABS.includes(name) && compareActive) return;
   const panelVisible = !exifPanel.classList.contains('hidden');
   if (!panelVisible) {
     setTab(name);
@@ -132,7 +137,7 @@ export function handleSideTabShortcut(name) {
   }
 }
 
-// Mode Comparer : l'onglet Mots-clés est inaccessible (s'il était affiché, le panneau Info prend sa place).
+// Mode Comparer : les onglets Mots-clés et Description sont inaccessibles (s'ils étaient affichés, le panneau Info prend leur place).
 export function setKeywordsCompareMode(active) {
   compareActive = active;
   if (initialized) applyTab();
@@ -253,8 +258,6 @@ function resetChanges() {
   working = new Map([...baseline].map(([id, set]) => [id, new Set(set)]));
   afterEdit();
 }
-
-const discardWorking = resetChanges;
 
 // ---------------------------------------------------------------------------
 // Rendu
@@ -379,11 +382,6 @@ function toggleFilterMode() {
 // Boutons et verrou d'écriture
 // ---------------------------------------------------------------------------
 
-// Tant qu'une écriture est en cours (directe, ou tâche en attente / en cours dans la file), « Appliquer » et Ctrl+Entrée sont inactifs.
-function isWriteLocked() {
-  return directWrites > 0 || queuedWrites.some(entry => !entry.settled && host.isTaskQueued(entry.task));
-}
-
 function canUnify() {
   if (working.size < 2) return false;
   for (const count of workingCount.values()) if (count > 0 && count < working.size) return true;
@@ -393,8 +391,9 @@ function canUnify() {
 function updateButtons() {
   if (!initialized) return;
   const locked = isWriteLocked();
-  applyButton.disabled = dirtyIds.size === 0 || locked;
-  applyButton.title = locked ? t('Keyword writing in progress…') : t('Write the keyword changes into the files (Ctrl+Enter)');
+  // « Appliquer » écrit aussi le titre et la description en attente (onglet Description).
+  applyButton.disabled = !hasPendingEdits() || locked;
+  applyButton.title = locked ? t('Metadata writing in progress…') : t('Write the pending changes into the files (Ctrl+Enter)');
   resetButton.disabled = dirtyIds.size === 0;
   resetButton.title = t('Put the keywords back to their state before the changes');
   unifyButton.disabled = !canUnify();
@@ -402,176 +401,38 @@ function updateButtons() {
   inputField.disabled = working.size === 0;
 }
 
-// Surveille la file de tâches tant qu'une écriture est en attente : une tâche retirée de la file libère le verrou sans autre signal.
-function watchLock() {
-  if (lockTimer !== null) return;
-  lockTimer = setInterval(() => {
-    updateButtons();
-    if (!isWriteLocked()) {
-      clearInterval(lockTimer);
-      lockTimer = null;
-      queuedWrites.length = 0;
-    }
-  }, 400);
-}
-
 // ---------------------------------------------------------------------------
-// Fenêtre à choix multiples
+// Écriture dans les fichiers (voir metadata-writes.js)
 // ---------------------------------------------------------------------------
 
-// Fenêtre modale : `buttons` = [{ label, value, primary?, cancel? }]. Échap choisit le bouton marqué `cancel` (sans lui, Échap ne fait rien).
-function choiceDialog({ title, message, buttons }) {
-  return new Promise(resolve => {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    const card = document.createElement('div');
-    card.className = 'modal-card keyword-dialog';
-    card.setAttribute('role', 'dialog');
-    card.setAttribute('aria-modal', 'true');
-    const heading = document.createElement('h3');
-    heading.textContent = title;
-    const body = document.createElement('p');
-    body.textContent = message;
-    body.style.whiteSpace = 'pre-line';
-    const actions = document.createElement('div');
-    actions.className = 'keyword-dialog-actions';
-    const close = value => {
-      document.removeEventListener('keydown', onKeyDown, true);
-      modal.remove();
-      resolve(value);
-    };
-    const onKeyDown = event => {
-      if (event.key !== 'Escape') return;
-      const cancelButton = buttons.find(button => button.cancel);
-      event.preventDefault();
-      event.stopPropagation();
-      if (cancelButton) close(cancelButton.value);
-    };
-    let primaryElement = null;
-    for (const button of buttons) {
-      const element = document.createElement('button');
-      element.type = 'button';
-      element.textContent = button.label;
-      if (button.primary) { element.classList.add('active'); primaryElement = element; }
-      element.addEventListener('click', () => close(button.value));
-      actions.append(element);
-    }
-    card.append(heading, body, actions);
-    modal.append(card);
-    document.addEventListener('keydown', onKeyDown, true);
-    (document.getElementById('app') || document.body).append(modal);
-    (primaryElement || actions.firstElementChild)?.focus();
-  });
-}
+const applyChanges = () => applyPending();
 
-// ---------------------------------------------------------------------------
-// Écriture dans les fichiers
-// ---------------------------------------------------------------------------
-
-async function applyChanges(options) {
-  if (!initialized || isWriteLocked() || dirtyIds.size === 0) return;
+// Onglet Mots-clés inscrit auprès de metadata-writes.js : modifications en attente et suivi de leur écriture.
+const keywordEditor = {
+  isDirty: () => dirtyIds.size > 0,
+  targetIds: () => [...working.keys()],
   // Photos dont les mots-clés ont changé uniquement : on envoie l'ensemble final des mots-clés actifs de chacune.
-  const items = [...dirtyIds].map(id => ({ photo_id: id, path: workingPhotos.get(id).path, keyword_ids: [...working.get(id)] }));
-  await runKeywordWrite(items, options);
-}
-
-// Lance une opération qui réécrit des fichiers (application des modifications, suppression ou renommage d'un mot-clé), verrou d'écriture pris pendant
-// sa durée. `count` photos ≥ QUEUE_THRESHOLD : tâche de la file, avec progression et arrêt possible (sauf `forceDirect`) ; sinon commande directe.
-// `finish(entry, resultat, erreur)` traite la fin ; `resultat` vaut null si la commande a échoué ou si la tâche a été retirée de la file.
-async function runLocked(command, args, count, finish, { forceDirect = false } = {}) {
-  const entry = { task: null, settled: false };
-  if (!forceDirect && count >= QUEUE_THRESHOLD) {
-    const task = host.enqueueKeywordTask(command, args, count, (result, stopped, error) => finish(entry, result, error));
-    if (!task) {
-      host.showToast(t('Keyword writing could not be queued'));
-      return;
+  pendingItems: () => [...dirtyIds].map(id => ({ photo_id: id, path: workingPhotos.get(id).path, keyword_ids: [...working.get(id)] })),
+  afterWrite(result, items) {
+    const sent = new Map(items.filter(item => item.keyword_ids).map(item => [item.photo_id, new Set(item.keyword_ids)]));
+    if (!sent.size) return;
+    for (const written of result.written) {
+      const sentSet = sent.get(written.photo_id);
+      if (sentSet && working.has(written.photo_id)) {
+        // Ce qui vient d'être écrit devient l'état enregistré ; les modifications faites depuis restent en attente.
+        const untouched = !dirtyIds.has(written.photo_id) || setsEqual(working.get(written.photo_id), sentSet);
+        baseline.set(written.photo_id, new Set(sentSet));
+        if (untouched) working.set(written.photo_id, new Set(sentSet));
+      }
     }
-    entry.task = task;
-    queuedWrites.push(entry);
-    watchLock();
+    usageDirty = true;
+    recomputeCounts();
+    renderTree();
     updateButtons();
-    return;
-  }
-  directWrites += 1;
-  updateButtons();
-  host.showToast(t('Writing keywords…'));
-  try {
-    const result = await invoke(command, args);
-    await finish(entry, result, null);
-  } catch (error) {
-    await finish(entry, null, error);
-  } finally {
-    directWrites -= 1;
-    updateButtons();
-  }
-}
-
-const runKeywordWrite = (items, options) => runLocked('apply_keyword_changes', { items }, items.length, (entry, result, error) => finishWrite(entry, items, result, error), options);
-
-// Fin d'une écriture : `result` vaut null si la commande a échoué ou si la tâche a été retirée de la file avant de démarrer.
-async function finishWrite(entry, items, result, error) {
-  if (entry.settled) return;
-  entry.settled = true;
-  updateButtons();
-  if (!result) {
-    if (error) host.showToast(t('Keyword writing failed: {error}', { error: String(error) }));
-    return;
-  }
-  const sent = new Map(items.map(item => [item.photo_id, new Set(item.keyword_ids)]));
-  const updates = new Map();
-  for (const written of result.written) {
-    updates.set(written.photo_id, written.keywords);
-    const sentSet = sent.get(written.photo_id);
-    if (sentSet && working.has(written.photo_id)) {
-      // Ce qui vient d'être écrit devient l'état enregistré ; les modifications faites depuis restent en attente.
-      const untouched = !dirtyIds.has(written.photo_id) || setsEqual(working.get(written.photo_id), sentSet);
-      baseline.set(written.photo_id, new Set(sentSet));
-      if (untouched) working.set(written.photo_id, new Set(sentSet));
-    }
-  }
-  usageDirty = true;
-  recomputeCounts();
-  renderTree();
-  updateButtons();
-  if (updates.size) host.updatePhotoKeywords(updates);
-  refreshUsage();
-  if (result.failed.length) {
-    const failedIds = new Set(result.failed.map(failure => failure.photo_id));
-    await showFailureDialog(result, () => runKeywordWrite(items.filter(item => failedIds.has(item.photo_id))));
-  }
-  else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
-  else { lastWriteOk = true; host.showToast(tp('Keywords written in {count} file', result.written.length)); }
-}
-
-// `retry` relance l'opération pour les fichiers en échec (nouvelle application des modifications, ou nouvelle suppression du mot-clé).
-async function showFailureDialog(result, retry) {
-  const details = result.failed.slice(0, 3).map(failure => `${fileName(failure.path)} : ${failure.error}`).join('\n');
-  const choice = await choiceDialog({
-    title: t('Keywords could not be written to some files'),
-    message: `${t('{written} written · {failed} failed', { written: result.written.length, failed: result.failed.length })}\n${details}`,
-    buttons: [
-      { label: t('No'), value: 'no', cancel: true },
-      { label: t('Retry'), value: 'retry', primary: true },
-      { label: t('Show'), value: 'show' },
-    ],
-  });
-  if (choice === 'retry') {
-    await retry();
-  } else if (choice === 'show') {
-    // La vue des miniatures ne montre plus que les fichiers en échec ; leurs modifications en attente sont abandonnées (les fichiers n'ont pas changé).
-    discardWorking();
-    host.showFailedFiles(result.failed.map(failure => failure.path));
-  }
-}
-
-async function refreshUsage() {
-  try {
-    usageById = new Map(await invoke('get_keyword_usage'));
-    usageDirty = false;
-  } catch (error) {
-    console.error('Lecture des fréquences de mots-clés impossible', error);
-  }
-}
+    refreshUsage();
+  },
+  discard: () => resetChanges(),
+};
 
 // ---------------------------------------------------------------------------
 // Chargement et changement de sélection
@@ -613,7 +474,7 @@ export function refreshKeywordsPanel() {
 }
 
 async function reloadFromDatabase() {
-  if (promptOpen) { refreshAfterPrompt = true; return; }
+  if (isPromptOpen()) { refreshAfterPrompt = true; return; }
   try {
     let photos = currentTarget();
     if (sameAsWorking(photos)) {
@@ -623,47 +484,17 @@ async function reloadFromDatabase() {
       updateButtons();
       return;
     }
-    if (!sameAsWorking(photos) && dirtyIds.size > 0) {
-      // La sélection a changé alors que des mots-clés attendent d'être écrits : Appliquer / Ignorer / Annuler (revenir à la sélection précédente).
-      const previousIndices = host.findIndicesByPhotoIds([...working.keys()]);
-      const locked = isWriteLocked();
-      promptOpen = true;
-      let decision;
-      try {
-        decision = await askPendingDecision(previousIndices !== null, locked);
-      } finally {
-        promptOpen = false;
-      }
-      if (decision === 'cancel' && previousIndices) {
-        host.setSelectionIndices(previousIndices);
-        return;
-      }
-      if (decision === 'apply') await applyChanges();
-      photos = currentTarget();
-    }
+    // La sélection a changé alors que des modifications (de cet onglet ou de l'onglet Description) attendent d'être écrites :
+    // Appliquer / Ignorer / Annuler (revenir à la sélection précédente), voir metadata-writes.js.
+    if ((await resolvePendingSelection(photos.map(photo => photo.id))) === 'cancel') return;
+    photos = currentTarget();
     await loadState(photos);
   } finally {
-    if (refreshAfterPrompt && !promptOpen) {
+    if (refreshAfterPrompt && !isPromptOpen()) {
       refreshAfterPrompt = false;
       refreshKeywordsPanel();
     }
   }
-}
-
-// `canCancel` : la sélection précédente peut être retrouvée. `locked` : une écriture est déjà en cours, on ne peut pas en lancer une autre.
-async function askPendingDecision(canCancel, locked) {
-  if (!locked && isAutoApply()) return 'apply';
-  const buttons = [];
-  if (!locked) buttons.push({ label: t('Apply'), value: 'apply', primary: true });
-  buttons.push({ label: t('Ignore'), value: 'ignore', primary: locked });
-  if (canCancel) buttons.push({ label: t('Cancel'), value: 'cancel', cancel: true });
-  return choiceDialog({
-    title: t('Pending keyword changes'),
-    message: t(locked
-      ? 'Keyword changes are not written to the files yet, and another write is in progress. Ignore them?'
-      : 'Keyword changes are not written to the files yet. Apply them before changing the selection?'),
-    buttons,
-  });
 }
 
 async function loadState(photos) {
@@ -1073,7 +904,7 @@ async function createKeywordFlow(parentId) {
 // Suppression d'un mot-clé (et de son sous-arbre) : confirmation indiquant le nombre de photos concernées, puis retrait des fichiers.
 async function deleteKeywordFlow(node) {
   if (isWriteLocked()) {
-    host.showToast(t('Keyword writing in progress…'));
+    host.showToast(t('Metadata writing in progress…'));
     return;
   }
   let info;
@@ -1120,7 +951,7 @@ async function confirmHomonyms(name, excludeId, question, actionLabel) {
 // Les fichiers de toutes les photos qui portent ce mot-clé ou l'un de ses descendants sont réécrits (leur chemin hiérarchique change).
 async function renameKeywordFlow(node) {
   if (isWriteLocked()) {
-    host.showToast(t('Keyword writing in progress…'));
+    host.showToast(t('Metadata writing in progress…'));
     return;
   }
   const parent = node.parent_id === ROOT_ID ? null : nodeById.get(node.parent_id);
@@ -1144,14 +975,11 @@ async function renameKeywordFlow(node) {
 }
 
 function runKeywordRename(node, name, photoCount) {
-  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (entry, result, error) => finishRename(entry, node, name, photoCount, result, error));
+  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (result, error) => finishRename(node, name, photoCount, result, error));
 }
 
 // Fin d'un renommage. L'arbre est renommé dès le début de l'opération, même si certains fichiers n'ont pas pu être réécrits (« Retenter » les reprend).
-async function finishRename(entry, node, name, photoCount, result, error) {
-  if (entry.settled) return;
-  entry.settled = true;
-  updateButtons();
+async function finishRename(node, name, photoCount, result, error) {
   if (!result) {
     if (error) host.showToast(t('Could not rename the keyword: {error}', { error: describeKeywordError(error) }));
     return;
@@ -1159,9 +987,9 @@ async function finishRename(entry, node, name, photoCount, result, error) {
   buildTree([...nodeById.values()].map(candidate => (candidate.id === node.id ? { ...candidate, name } : candidate)));
   renderTree();
   updateButtons();
-  if (result.written.length) host.updatePhotoKeywords(new Map(result.written.map(written => [written.photo_id, written.keywords])));
+  publishWritten(result.written);
   if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount));
-  else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
+  else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword renamed to “{name}”', { name }));
 }
 
@@ -1169,7 +997,6 @@ async function finishRename(entry, node, name, photoCount, result, error) {
 // Priorité de lecture des formats hiérarchiques (Paramètres, onglet Métadonnées)
 // ---------------------------------------------------------------------------
 
-const FORMAT_ORDER_STORAGE_KEY = 'keywordFormatOrder';
 // Les formats de mots-clés hiérarchiques lus. Le premier de la liste qui contient des données l'emporte : ses mots-clés alimentent l'arbre
 // et s'affichent, les autres sont ignorés. L'ordre par défaut est celui ci-dessous ; l'utilisateur le règle.
 const HIERARCHY_FORMATS = [
@@ -1179,180 +1006,19 @@ const HIERARCHY_FORMATS = [
   { id: 'microsoft', label: 'Microsoft Photo', property: 'MicrosoftPhoto:LastKeywordXMP' },
   { id: 'acdsee', label: 'ACDSee', property: 'acdsee:categories' },
 ];
-const DEFAULT_FORMAT_ORDER = HIERARCHY_FORMATS.map(format => format.id);
+let formatOrderList = null;
 
-function loadFormatOrder() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(FORMAT_ORDER_STORAGE_KEY));
-    if (Array.isArray(stored) && stored.every(id => DEFAULT_FORMAT_ORDER.includes(id)) && new Set(stored).size === stored.length) {
-      // Ordre enregistré avant l'ajout d'un format (ex. ACDSee) : conservé, les nouveaux formats sont ajoutés à la fin.
-      return [...stored, ...DEFAULT_FORMAT_ORDER.filter(id => !stored.includes(id))];
-    }
-  } catch {
-    // valeur absente ou illisible : ordre par défaut
-  }
-  return [...DEFAULT_FORMAT_ORDER];
-}
-
-let formatOrder = loadFormatOrder();
-let formatListElement = null;
-
-// Envoie l'ordre au backend, qui l'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
-function sendFormatOrder() {
-  invoke('set_keyword_format_order', { order: formatOrder }).catch(error => console.error('Ordre des formats de mots-clés refusé', error));
-}
-
-function saveFormatOrder(order) {
-  formatOrder = order;
-  localStorage.setItem(FORMAT_ORDER_STORAGE_KEY, JSON.stringify(order));
-  sendFormatOrder();
-  renderFormatOrder();
-}
-
-function moveFormat(index, delta) {
-  const target = index + delta;
-  if (target < 0 || target >= formatOrder.length) return;
-  const order = [...formatOrder];
-  [order[index], order[target]] = [order[target], order[index]];
-  saveFormatOrder(order);
-}
-
-function makeMoveButton(symbol, label, disabled, action) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'keyword-format-move';
-  button.textContent = symbol;
-  button.title = label;
-  button.setAttribute('aria-label', label);
-  button.disabled = disabled;
-  button.addEventListener('click', action);
-  return button;
-}
-
-// Glisser la poignée : la ligne change de place dès que le pointeur passe le milieu d'une voisine ; l'ordre n'est enregistré qu'au relâchement.
-// (Evènements pointeur plutôt que glisser-déposer HTML5, que le dépôt de fichiers de la fenêtre Tauri intercepte.)
-function startFormatDrag(event, item, handle) {
-  if (event.button !== 0) return;
-  event.preventDefault();
-  handle.setPointerCapture(event.pointerId);
-  item.classList.add('dragging');
-  const onMove = moveEvent => {
-    const previous = item.previousElementSibling;
-    const next = item.nextElementSibling;
-    if (previous) {
-      const rect = previous.getBoundingClientRect();
-      if (moveEvent.clientY < rect.top + rect.height / 2) formatListElement.insertBefore(item, previous);
-    }
-    if (next) {
-      const rect = next.getBoundingClientRect();
-      if (moveEvent.clientY > rect.top + rect.height / 2) formatListElement.insertBefore(next, item);
-    }
-  };
-  const onEnd = () => {
-    handle.removeEventListener('pointermove', onMove);
-    handle.removeEventListener('pointerup', onEnd);
-    handle.removeEventListener('pointercancel', onEnd);
-    item.classList.remove('dragging');
-    const order = [...formatListElement.children].map(child => child.dataset.formatId);
-    if (order.join() !== formatOrder.join()) saveFormatOrder(order);
-    else renderFormatOrder();
-  };
-  handle.addEventListener('pointermove', onMove);
-  handle.addEventListener('pointerup', onEnd);
-  handle.addEventListener('pointercancel', onEnd);
-}
-
-function renderFormatOrder() {
-  if (!formatListElement) return;
-  const items = formatOrder.map((id, index) => {
-    const format = HIERARCHY_FORMATS.find(candidate => candidate.id === id);
-    const item = document.createElement('li');
-    item.className = 'keyword-format-item';
-    item.dataset.formatId = id;
-    const handle = document.createElement('span');
-    handle.className = 'keyword-format-handle';
-    handle.textContent = '⠿';
-    handle.title = t('Drag to reorder');
-    handle.addEventListener('pointerdown', event => startFormatDrag(event, item, handle));
-    const rank = document.createElement('span');
-    rank.className = 'keyword-format-rank';
-    rank.textContent = `${index + 1}.`;
-    const name = document.createElement('span');
-    name.className = 'keyword-format-name';
-    name.textContent = format.label;
-    const property = document.createElement('code');
-    property.className = 'keyword-format-property';
-    property.textContent = format.property;
-    item.append(
-      handle,
-      rank,
-      name,
-      property,
-      makeMoveButton('↑', t('Move up'), index === 0, () => moveFormat(index, -1)),
-      makeMoveButton('↓', t('Move down'), index === formatOrder.length - 1, () => moveFormat(index, 1)),
-    );
-    return item;
-  });
-  formatListElement.replaceChildren(...items);
-}
-
-// Fermeture de l'application (appelée par main.js) : renvoie true si elle peut se poursuivre. Des mots-clés non écrits donnent lieu à
-// Appliquer / Quitter sans appliquer / Annuler ; une écriture en cours à une confirmation, car quitter l'interrompt.
-export async function confirmCloseWithPendingKeywords() {
-  if (!initialized) return true;
-  if (promptOpen) return false; // une question est déjà posée : on y répond d'abord
-  const locked = isWriteLocked();
-  if (dirtyIds.size === 0 && !locked) return true;
-  promptOpen = true;
-  let decision;
-  try {
-    if (dirtyIds.size === 0) {
-      const choice = await choiceDialog({
-        title: t('Keyword writing in progress'),
-        message: t('Quitting now interrupts the writing of keywords into the files. Quit anyway?'),
-        buttons: [
-          { label: t('Cancel'), value: 'cancel', cancel: true },
-          { label: t('Quit'), value: 'quit' },
-        ],
-      });
-      return choice === 'quit';
-    }
-    if (!locked && isAutoApply()) {
-      decision = 'apply';
-    } else {
-      const buttons = [];
-      if (!locked) buttons.push({ label: t('Apply'), value: 'apply', primary: true });
-      buttons.push({ label: t('Quit without applying'), value: 'quit', primary: locked });
-      buttons.push({ label: t('Cancel'), value: 'cancel', cancel: true });
-      decision = await choiceDialog({
-        title: t('Pending keyword changes'),
-        message: t(locked
-          ? 'Keyword changes are not written to the files yet, and another write is in progress. Quit anyway?'
-          : 'Keyword changes are not written to the files yet. Apply them before quitting?'),
-        buttons,
-      });
-    }
-  } finally {
-    promptOpen = false;
-  }
-  if (decision === 'quit') return true;
-  if (decision !== 'apply') return false;
-  // Écriture directe (jamais par la file, qui serait interrompue par la fermeture) ; la fenêtre reste ouverte si elle ne réussit pas entièrement.
-  lastWriteOk = false;
-  await applyChanges({ forceDirect: true });
-  return lastWriteOk;
-}
+// ---------------------------------------------------------------------------
+// Suppression d'un mot-clé
+// ---------------------------------------------------------------------------
 
 function runKeywordDelete(node, photoCount) {
   const ids = [node.id, ...descendantIds(node.id)];
-  return runLocked('delete_keyword', { keywordId: node.id }, photoCount, (entry, result, error) => finishDelete(entry, node, photoCount, ids, result, error));
+  return runLocked('delete_keyword', { keywordId: node.id }, photoCount, (result, error) => finishDelete(node, photoCount, ids, result, error));
 }
 
 // Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.deleted`).
-async function finishDelete(entry, node, photoCount, ids, result, error) {
-  if (entry.settled) return;
-  entry.settled = true;
-  updateButtons();
+async function finishDelete(node, photoCount, ids, result, error) {
   if (!result) {
     if (error) host.showToast(t('Could not delete the keyword: {error}', { error: String(error) }));
     return;
@@ -1372,10 +1038,10 @@ async function finishDelete(entry, node, photoCount, ids, result, error) {
   recomputeCounts();
   renderTree();
   updateButtons();
-  if (result.written.length) host.updatePhotoKeywords(new Map(result.written.map(written => [written.photo_id, written.keywords])));
+  publishWritten(result.written);
   refreshUsage();
   if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount));
-  else if (result.cancelled) host.showToast(t('Keyword writing stopped: {count} not processed', { count: result.cancelled }));
+  else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword “{name}” deleted', { name: node.name }));
 }
 
@@ -1383,16 +1049,18 @@ async function finishDelete(entry, node, photoCount, ids, result, error) {
 // Initialisation
 // ---------------------------------------------------------------------------
 
-// Services fournis par main.js : getSelectedPhotos, showToast, enqueueKeywordTask, isTaskQueued, updatePhotoKeywords,
-// findIndicesByPhotoIds, setSelectionIndices, showFailedFiles.
+// Services fournis par main.js : getSelectedPhotos, showToast, findIndicesByPhotoIds, setSelectionIndices (les écritures passent par
+// metadata-writes.js, initialisé avant).
 export function initKeywordsPanel(hostApi) {
   host = hostApi;
   exifPanel = document.getElementById('exif-panel');
   toggleButton = document.getElementById('btn-toggle-exif');
   infoTabButton = document.getElementById('side-tab-info');
   keywordsTabButton = document.getElementById('side-tab-keywords');
+  descriptionTabButton = document.getElementById('side-tab-description');
   infoPane = document.getElementById('exif-tab-info');
   keywordsPane = document.getElementById('exif-tab-keywords');
+  descriptionPane = document.getElementById('exif-tab-description');
   treeList = document.getElementById('keyword-tree');
   modeButton = document.getElementById('btn-keyword-filter-mode');
   inputField = document.getElementById('keyword-input');
@@ -1400,7 +1068,7 @@ export function initKeywordsPanel(hostApi) {
   applyButton = document.getElementById('btn-keyword-apply');
   resetButton = document.getElementById('btn-keyword-reset');
   unifyButton = document.getElementById('btn-keyword-unify');
-  if (![exifPanel, toggleButton, infoTabButton, keywordsTabButton, infoPane, keywordsPane, treeList, modeButton, inputField, suggestionList, applyButton, resetButton, unifyButton].every(Boolean)) {
+  if (![exifPanel, toggleButton, infoTabButton, keywordsTabButton, descriptionTabButton, infoPane, keywordsPane, descriptionPane, treeList, modeButton, inputField, suggestionList, applyButton, resetButton, unifyButton].every(Boolean)) {
     console.error('Panneau des mots-clés : éléments introuvables dans index.html');
     return;
   }
@@ -1408,6 +1076,7 @@ export function initKeywordsPanel(hostApi) {
 
   infoTabButton.addEventListener('click', () => setTab('info'));
   keywordsTabButton.addEventListener('click', () => { if (!keywordsTabButton.disabled) setTab('keywords'); });
+  descriptionTabButton.addEventListener('click', () => { if (!descriptionTabButton.disabled) setTab('description'); });
   modeButton.addEventListener('click', toggleFilterMode);
   applyButton.addEventListener('click', applyChanges);
   resetButton.addEventListener('click', resetChanges);
@@ -1418,19 +1087,18 @@ export function initKeywordsPanel(hostApi) {
   inputField.addEventListener('keydown', onInputKeyDown);
   treeList.addEventListener('contextmenu', onTreeContextMenu);
 
-  // Réglage « Appliquer automatiquement les changements de mots-clés » (onglet Métadonnées des Paramètres).
-  const autoApplyBox = document.getElementById('keywords-auto-apply');
-  if (autoApplyBox) {
-    autoApplyBox.checked = isAutoApply();
-    autoApplyBox.addEventListener('change', () => localStorage.setItem(AUTO_APPLY_STORAGE_KEY, String(autoApplyBox.checked)));
-  }
+  registerEditor(keywordEditor);
+  onLockChange(updateButtons);
 
   // Priorité de lecture des formats hiérarchiques : liste ordonnable des Paramètres, ordre transmis au backend dès le démarrage (avant tout scan).
-  formatListElement = document.getElementById('keyword-format-order');
-  renderFormatOrder();
-  sendFormatOrder();
+  formatOrderList = createOrderList({
+    element: document.getElementById('keyword-format-order'),
+    formats: HIERARCHY_FORMATS,
+    storageKey: 'keywordFormatOrder',
+    send: order => invoke('set_keyword_format_order', { order }).catch(error => console.error('Ordre des formats de mots-clés refusé', error)),
+  });
 
-  // Ctrl+K (filtre d'affichage) et Ctrl+Entrée (Appliquer) : actifs même quand un champ de saisie a le focus
+  // Ctrl+K (filtre d'affichage) et Ctrl+Entrée (Appliquer, mots-clés et description ensemble) : actifs même quand un champ de saisie a le focus
   // (le gestionnaire de touches de main.js ignore les champs de saisie).
   window.addEventListener('keydown', event => {
     if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
@@ -1446,7 +1114,7 @@ export function initKeywordsPanel(hostApi) {
   new MutationObserver(() => refreshKeywordsPanel()).observe(exifPanel, { attributes: true, attributeFilter: ['class'] });
 
   onLanguageChange(() => {
-    renderFormatOrder();
+    formatOrderList.render();
     applyTab();
     updateModeButton();
     updateButtons();
