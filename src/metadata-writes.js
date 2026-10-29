@@ -325,6 +325,27 @@ async function askPendingDecision(canCancel, locked) {
   });
 }
 
+// Ce qui reste à écrire, pour la fenêtre de fermeture : seuls les types de métadonnées en attente, chacun avec son nombre de photos, ex.
+// « mots-clés (10) et visages (5) ».
+function pendingSummary() {
+  const kinds = [
+    { field: 'keyword_ids', label: 'keywords' },
+    { field: 'title', label: 'titles' },
+    { field: 'description', label: 'descriptions' },
+    { field: 'faces', label: 'faces' },
+  ];
+  const photos = new Map(kinds.map(kind => [kind.field, new Set()]));
+  for (const editor of editors) {
+    if (!editor.isDirty()) continue;
+    for (const item of editor.pendingItems()) {
+      for (const kind of kinds) if (item[kind.field] !== undefined) photos.get(kind.field).add(item.photo_id);
+    }
+  }
+  const parts = kinds.filter(kind => photos.get(kind.field).size > 0).map(kind => `${t(kind.label)} (${photos.get(kind.field).size})`);
+  if (parts.length <= 1) return parts.join('');
+  return `${parts.slice(0, -1).join(', ')} ${t('and')} ${parts.at(-1)}`;
+}
+
 // Fermeture de l'application (appelée par main.js) : renvoie true si elle peut se poursuivre. Des modifications non écrites donnent lieu à
 // Appliquer / Quitter sans appliquer / Annuler ; une écriture en cours à une confirmation, car quitter l'interrompt.
 export async function confirmCloseWithPendingEdits() {
@@ -357,8 +378,8 @@ export async function confirmCloseWithPendingEdits() {
       decision = await choiceDialog({
         title: t('Pending changes'),
         message: t(locked
-          ? 'Keyword, title, description or face changes are not written to the files yet, and another write is in progress. Quit anyway?'
-          : 'Keyword, title, description or face changes are not written to the files yet. Apply them before quitting?'),
+          ? 'Some photos have pending writes of {list}, and another write is in progress. Quit anyway?'
+          : 'Some photos have pending writes of {list}. Apply them before quitting?', { list: pendingSummary() }),
         buttons,
       });
     }

@@ -62,6 +62,17 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .faces-status-chip.active { opacity: 1; background: var(--face-status-color); border-color: var(--face-status-color); color: #fff; }
 .faces-count { color: var(--text-dim); font-size: 0.75rem; margin-right: 0.25rem; }
 .faces-actions button[hidden] { display: none; }
+/* Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls les
+   coins extérieurs arrondis, un filet entre deux boutons. */
+.faces-button-group { display: inline-flex; border-radius: 4px; overflow: hidden; }
+.faces-button-group > button { border-radius: 0; margin: 0; }
+.faces-button-group > button:not([hidden]) ~ button:not([hidden]) { border-left-width: 0; }
+/* Bloc d'écriture : « Écrire dans les fichiers » + « N photos » (couleur Confirmé), sans séparation ; les coins extérieurs arrondis du groupe
+   suivent les boutons visibles (un seul bouton ou deux). Actif : visages en attente seuls affichés. */
+.faces-write-group > button { border-color: transparent; }
+.faces-pending-count { background: var(--face-color-confirmed); color: #fff; font-weight: bold; }
+.faces-pending-count:hover { background: var(--face-color-confirmed); filter: brightness(1.1); }
+.faces-pending-count.active { box-shadow: inset 0 0 0 2px #fff; }
 .faces-scroll { flex: 1 1 0; position: relative; overflow-y: auto; overflow-x: hidden; outline: none; }
 .faces-content { position: relative; width: 100%; }
 .faces-separator { height: 30px; }
@@ -128,7 +139,7 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .persons-empty-view[hidden] { display: none; }
 .persons-empty-view { padding: 1rem; color: var(--text-dim); font-size: 0.85rem; }
 .person-tile { position: absolute; top: 0; left: 0; cursor: pointer; }
-.person-tile-image { width: 100%; border-radius: 8px; background-color: var(--control-bg); background-size: cover; background-position: center; border: 1px solid var(--control-border); }
+.person-tile-image { width: 100%; border-radius: 50%; background-color: var(--control-bg); background-size: cover; background-position: center; border: 1px solid var(--control-border); }
 .person-tile:hover .person-tile-image { outline: 3px solid var(--accent); outline-offset: -3px; }
 .person-tile-name { margin-top: 4px; overflow: hidden; font-size: 0.85rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; text-align: center; }
 .person-tile-count { overflow: hidden; color: var(--text-dim); font-size: 0.72rem; white-space: nowrap; text-align: center; }

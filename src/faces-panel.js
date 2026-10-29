@@ -121,6 +121,18 @@ export function clearPersonFilters() {
   renderPersons();
 }
 
+// Ouverture des vues Personnes ou de gestion depuis leur bouton de barre d'outils : les personnes choisies (section et filtre Personnes) sont
+// retirées, pour repartir de toutes les personnes. Le filtre de statut du scan n'est pas touché.
+export function clearPersonSelection() {
+  if (personFilters.length === 0) return;
+  personFilters = [];
+  const input = document.getElementById('person-filter-input');
+  if (input) input.value = '';
+  renderPersonFilterTags();
+  renderPersons();
+  host.onFilterChange();
+}
+
 // Personnes connues (vue Visages : suggestions de « Nommer »).
 export function getPersons() {
   return persons;
@@ -136,6 +148,19 @@ let pendingFaceWrites = [];
 
 export function getPendingFaceWriteCount() {
   return pendingFaceWrites.length;
+}
+
+// Nom affiché d'une personne (section Personnes, vue Personnes) : son alias s'il est défini, sinon son nom (mot-clé). Le filtre Personnes, les
+// fichiers et la fenêtre « Nommer » gardent le nom.
+export const personLabel = person => person.alias || person.name;
+
+export function getPendingFaceWritePhotoIds() {
+  return pendingFaceWrites.map(([id]) => id);
+}
+
+// Personnes choisies (section ou filtre Personnes) : la vue de gestion ne montre que leurs visages.
+export function getPersonFilterIds() {
+  return readingEnabled ? [...personFilters] : [];
 }
 
 async function refreshPendingFaceWrites() {
@@ -306,7 +331,7 @@ export function setShowHiddenPersons(show) {
 }
 
 function sortedPersons() {
-  const byName = (a, b) => a.name.localeCompare(b.name);
+  const byName = (a, b) => personLabel(a).localeCompare(personLabel(b));
   return [...listedPersons()].sort(sortMode === 'name' ? byName : (a, b) => b.photo_count - a.photo_count || byName(a, b));
 }
 
@@ -328,7 +353,7 @@ function renderPersons() {
     if (person.cover) loadAvatar(avatar, person.cover);
     const name = document.createElement('span');
     name.className = 'person-name';
-    name.textContent = person.name;
+    name.textContent = personLabel(person);
     const count = document.createElement('span');
     count.className = 'person-count';
     count.textContent = String(person.photo_count);
@@ -380,6 +405,7 @@ export async function openPersonMenu(event, person) {
     // Vue de gestion sur les visages de ses photos (grille filtrée sur elle).
     { label: t('Manage their faces'), onSelect: () => showPersonFaces(person.id) },
     { label: t('Rename…'), onSelect: () => renamePerson(person) },
+    { label: t('Alias…'), onSelect: () => editPersonAlias(person) },
     { label: t('Link to a keyword…'), onSelect: () => linkPersonToKeyword(person) },
   ];
   if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => saveLink(person, null) });
@@ -503,6 +529,28 @@ async function renamePerson(person) {
         return null;
       }
       host.renameKeyword(person.keyword_id, name, person.photo_count, refreshFaces);
+      return null;
+    },
+  });
+}
+
+// Alias : nom d'affichage de la personne dans les vues Visages et Personnes et la section Personnes (ex. « Mamie » pour « #CONTACTS/Jeanne D »).
+// Vide : l'alias est retiré. Jamais écrit dans les fichiers ; le filtre Personnes garde le nom du mot-clé.
+async function editPersonAlias(person) {
+  await promptDialog({
+    title: t('Alias of {name}', { name: person.name }),
+    message: t('Name shown instead of {name} in the Faces and People views and in the People section (empty: no alias). It is never written to the files.', { name: person.name }),
+    inputLabel: t('Alias'),
+    confirmLabel: t('OK'),
+    cancelLabel: t('Cancel'),
+    value: person.alias ?? '',
+    onSubmit: async value => {
+      try {
+        await invoke('set_person_alias', { personId: person.id, alias: value.trim() || null });
+      } catch (error) {
+        return personErrorMessage(error);
+      }
+      await refreshFaces();
       return null;
     },
   });

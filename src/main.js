@@ -11,7 +11,7 @@ import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWritten } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
@@ -4398,7 +4398,9 @@ initPersonsView({
 });
 // Bouton « Visages » : ouvre la vue Personnes, ou ferme la vue (Personnes ou gestion) ouverte.
 document.getElementById('btn-toggle-faces').addEventListener('click', () => {
-  if (isPersonsViewOpen() || isFacesViewOpen()) { closePersonsView(); closeFacesView(); } else openPersonsView();
+  if (isPersonsViewOpen() || isFacesViewOpen()) { closePersonsView(); closeFacesView(); return; }
+  clearPersonSelection(); // vue ouverte par la barre d'outils : aucune personne choisie
+  openPersonsView();
 });
 
 // Vue Visages (voir faces-grid.js) : visages des photos affichées, à la place de la grille des photos.

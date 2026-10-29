@@ -407,6 +407,9 @@ pub fn init_schema(conn: &Connection) {
             PRIMARY KEY (merge_id, face_id, role)
         );",
     );
+    // Alias d'une personne (affichage seulement : vue de gestion, vue Personnes, section Personnes) ; jamais écrit dans les fichiers, le filtre
+    // Personnes garde le nom du mot-clé.
+    let _ = conn.execute("ALTER TABLE persons ADD COLUMN alias TEXT", []);
     unlink_missing_keywords(conn);
 }
 
@@ -597,6 +600,8 @@ pub struct PersonInfo {
     pub cover: Option<FaceCover>,
     /// Personne masquée : ni attribuée, ni proposée ; absente des listes sauf si l'utilisateur affiche les personnes masquées.
     pub hidden: bool,
+    /// Alias affiché à la place du nom (vues Visages et Personnes, section Personnes), jamais écrit dans les fichiers.
+    pub alias: Option<String>,
 }
 
 /// Toutes les personnes, avec leur nombre de photos au catalogue (0 pour une personne en attente d'attribution) et leur visage représentatif
@@ -644,16 +649,16 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
         }
     }
     let mut statement = conn
-        .prepare("SELECT pr.id, COALESCE(k.name, pr.name), pr.keyword_node_id, pr.hidden FROM persons pr LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id")
+        .prepare("SELECT pr.id, COALESCE(k.name, pr.name), pr.keyword_node_id, pr.hidden, pr.alias FROM persons pr LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id")
         .map_err(|error| error.to_string())?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, bool>(3)?)))
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, bool>(3)?, row.get::<_, Option<String>>(4)?)))
         .map_err(|error| error.to_string())?;
     let persons = rows
         .flatten()
-        .map(|(id, name, keyword_id, hidden)| {
+        .map(|(id, name, keyword_id, hidden, alias)| {
             let photo_count = photos_by_person.get(&id).map_or(0, |photos| photos.len() as i64);
-            PersonInfo { id, name, keyword_id, photo_count, cover: covers.remove(&id).map(|(_, _, cover)| cover), hidden }
+            PersonInfo { id, name, keyword_id, photo_count, cover: covers.remove(&id).map(|(_, _, cover)| cover), hidden, alias }
         })
         .collect();
     Ok(persons)
@@ -772,6 +777,10 @@ pub struct FaceItem {
     pub suggested_person_id: Option<i64>,
     pub name: Option<String>,
     pub score: Option<f64>,
+    /// Alias de la personne attribuée (à défaut suggérée), affiché à la place du nom.
+    pub alias: Option<String>,
+    /// Modification à écrire dans le fichier (bouton « Visages en attente »).
+    pub dirty: bool,
 }
 
 /// Visages des photos `photo_ids` (celles affichées dans la vue Photos). Les photos « à revérifier » sont écartées jusqu'à leur rescan (§4.2).
@@ -784,7 +793,8 @@ pub fn get_faces_for_photos(state: State<'_, AppState>, photo_ids: Vec<i64>) -> 
     let mut statement = conn
         .prepare(
             "SELECT f.id, f.photo_id, p.path, p.orientation, f.x, f.y, f.w, f.h, f.state, f.origin, f.person_id, f.suggested_person_id,
-                    COALESCE(k.name, pr.name, ks.name, ps.name), f.score
+                    COALESCE(k.name, pr.name, ks.name, ps.name), f.score,
+                    CASE WHEN f.person_id IS NOT NULL THEN pr.alias ELSE ps.alias END, f.dirty
              FROM faces f JOIN photos p ON p.id = f.photo_id
              LEFT JOIN persons pr ON pr.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id
              LEFT JOIN persons ps ON ps.id = f.suggested_person_id LEFT JOIN keyword_nodes ks ON ks.id = ps.keyword_node_id
@@ -810,6 +820,8 @@ pub fn get_faces_for_photos(state: State<'_, AppState>, photo_ids: Vec<i64>) -> 
                 suggested_person_id: row.get(11)?,
                 name: row.get(12)?,
                 score: row.get(13)?,
+                alias: row.get(14)?,
+                dirty: row.get(15)?,
             })
         })
         .map_err(|error| error.to_string())?;
@@ -1237,6 +1249,16 @@ pub fn rename_person(state: State<'_, AppState>, person_id: i64, name: String) -
     conn.execute("UPDATE persons SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, person_id]).map_err(|error| error.to_string())?;
     // Les zones écrites portent l'ancien nom : visages de la personne à réécrire.
     let _ = conn.execute("UPDATE faces SET dirty = 1 WHERE person_id = ?1 AND state IN ('auto', 'confirmed')", params![person_id]);
+    Ok(())
+}
+
+/// Alias d'une personne (None ou texte vide : retiré). Affichage seulement : les fichiers et le filtre Personnes gardent le nom du mot-clé.
+#[tauri::command(async)]
+pub fn set_person_alias(state: State<'_, AppState>, person_id: i64, alias: Option<String>) -> Result<(), String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let alias = alias.map(|text| text.trim().to_string()).filter(|text| !text.is_empty());
+    conn.execute("UPDATE persons SET alias = ?1 WHERE id = ?2", params![alias, person_id]).map_err(|error| error.to_string())?;
     Ok(())
 }
 

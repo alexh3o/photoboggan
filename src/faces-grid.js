@@ -9,7 +9,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { orientRect, refreshFaces, getPendingFaceWriteCount, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
+import { orientRect, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
 import { applyPending, isWriteLocked, onLockChange } from './metadata-writes.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
@@ -45,6 +45,8 @@ let loadToken = 0;
 // Gardé tant que la vue reste ouverte (les visages nommés en sortent d'eux-mêmes) ; un second clic sur le bouton l'annule.
 let clusters = null;
 let groupKeyOf = new Map(); // identifiant de visage -> clé de son groupe affiché
+// « Visages en attente » : la vue montre les visages à écrire de toute la photothèque (au lieu de ceux des photos affichées).
+let pendingMode = false;
 // Filtre par origine : visages détectés, importés des fichiers, dessinés à la main.
 const ORIGINS = [
   { id: 'detected', label: 'Detected' },
@@ -75,7 +77,7 @@ function renderOriginFilters() {
     button.type = 'button';
     button.className = `faces-status-chip faces-origin-chip${visibleOrigins.has(origin.id) ? ' active' : ''}`;
     button.setAttribute('aria-pressed', String(visibleOrigins.has(origin.id)));
-    button.textContent = `${t(origin.label)} (${faces.filter(face => face.origin === origin.id).length})`;
+    button.textContent = `${t(origin.label)} (${scopedFaces().filter(face => face.origin === origin.id).length})`;
     button.addEventListener('click', () => {
       if (visibleOrigins.has(origin.id)) visibleOrigins.delete(origin.id); else visibleOrigins.add(origin.id);
       try { localStorage.setItem(ORIGINS_STORAGE_KEY, JSON.stringify([...visibleOrigins])); } catch { /* stockage indisponible */ }
@@ -158,6 +160,8 @@ export function closeFacesView() {
   // Le regroupement vaut pour les photos affichées à ce moment : il n'est pas conservé d'une ouverture à l'autre.
   clusters = null;
   document.getElementById('btn-faces-cluster')?.classList.remove('active');
+  pendingMode = false;
+  document.getElementById('btn-faces-pending')?.classList.remove('active');
   view().hidden = true;
   host.setPhotoGridVisible(true);
   document.getElementById('btn-toggle-faces')?.classList.remove('active');
@@ -171,7 +175,7 @@ export function toggleFacesView() {
 export async function reloadFacesView() {
   if (!open) return;
   const token = ++loadToken;
-  const photoIds = host.getDisplayedPhotoIds();
+  const photoIds = pendingMode ? getPendingFaceWritePhotoIds() : host.getDisplayedPhotoIds();
   let loaded;
   try {
     loaded = await invoke('get_faces_for_photos', { photoIds });
@@ -189,11 +193,24 @@ export async function reloadFacesView() {
 // ==========================================
 // FILTRE, GROUPES ET DISPOSITION
 // ==========================================
+// Nom affiché d'un visage : l'alias de sa personne s'il est défini, sinon le nom (mot-clé). La fenêtre « Nommer » garde le nom.
+const shownName = face => face.alias || face.name;
+
+// Visages concernés avant les filtres de statut et d'origine : ceux en attente d'écriture (mode « Visages en attente ») ; sinon, si des personnes
+// sont choisies (section ou filtre Personnes, « Gérer ses visages »), seulement les leurs (attribués, ou suggérés pour elles) ; sinon tous ceux des
+// photos affichées.
+function scopedFaces() {
+  if (pendingMode) return faces.filter(face => face.dirty);
+  const personIds = new Set(getPersonFilterIds());
+  if (personIds.size === 0) return faces;
+  return faces.filter(face => personIds.has(face.person_id) || (face.state === 'suggested' && personIds.has(face.suggested_person_id)));
+}
+
 function groupOf(face) {
   switch (face.state) {
-    case 'suggested': return { order: 0, key: `s${face.suggested_person_id}`, label: t('To confirm: {name}', { name: face.name ?? '?' }), sortName: face.name ?? '' };
+    case 'suggested': return { order: 0, key: `s${face.suggested_person_id}`, label: t('To confirm: {name}', { name: shownName(face) ?? '?' }), sortName: shownName(face) ?? '' };
     case 'auto':
-    case 'confirmed': return { order: 1, key: `p${face.person_id}`, label: face.name ?? '?', sortName: face.name ?? '' };
+    case 'confirmed': return { order: 1, key: `p${face.person_id}`, label: shownName(face) ?? '?', sortName: shownName(face) ?? '' };
     case 'unknown': {
       // Inconnus regroupés (« Regrouper les inconnus ») : un groupe par ressemblance, du plus grand au plus petit, puis les visages isolés.
       const cluster = clusters?.get(face.id);
@@ -223,8 +240,9 @@ function readTileMetrics() {
 
 function rebuild() {
   readTileMetrics();
-  const entries = faces
-    .filter(face => visibleStatuses.has(face.state) && visibleOrigins.has(face.origin))
+  // En mode « Visages en attente », tous les visages à écrire sont montrés, quels que soient les filtres de statut et d'origine.
+  const entries = scopedFaces()
+    .filter(face => pendingMode || (visibleStatuses.has(face.state) && visibleOrigins.has(face.origin)))
     .map(face => ({ face, group: groupOf(face) }));
   groupKeyOf = new Map(entries.map(entry => [entry.face.id, entry.group.key]));
   // Groupes : à valider, personnes (par nom), inconnus, filtrés, ignorés ; dans un groupe, les attributions automatiques avant les
@@ -334,7 +352,7 @@ function createTile(face) {
   loadCrop(image, face);
   const label = document.createElement('span');
   label.className = 'face-tile-label';
-  label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?` : (face.name ?? '');
+  label.textContent = face.state === 'suggested' ? `${shownName(face) ?? '?'} ?` : (shownName(face) ?? '');
   node.append(image, label);
   if (face.score != null && face.state !== 'confirmed') {
     const score = document.createElement('span');
@@ -342,7 +360,7 @@ function createTile(face) {
     score.textContent = face.score.toFixed(2);
     node.append(score);
   }
-  node.title = `${t(STATE_TITLES[face.state] ?? face.state)}${face.name ? ` · ${face.name}` : ''}${face.score != null ? ` · ${t('similarity')} ${face.score.toFixed(2)}` : ''}`;
+  node.title = `${t(STATE_TITLES[face.state] ?? face.state)}${shownName(face) ? ` · ${shownName(face)}` : ''}${face.score != null ? ` · ${t('similarity')} ${face.score.toFixed(2)}` : ''}`;
   node.addEventListener('click', event => onTileClick(face, event));
   node.addEventListener('dblclick', () => host.openPhotoFullscreen(face.photo_id));
   return node;
@@ -414,7 +432,7 @@ function renderStatusFilters() {
     button.type = 'button';
     button.className = `faces-status-chip state-${status.id}${visibleStatuses.has(status.id) ? ' active' : ''}`;
     button.setAttribute('aria-pressed', String(visibleStatuses.has(status.id)));
-    const count = faces.filter(face => face.state === status.id).length;
+    const count = scopedFaces().filter(face => face.state === status.id).length;
     button.textContent = `${t(status.label)} (${count})`;
     button.addEventListener('click', () => {
       if (visibleStatuses.has(status.id)) visibleStatuses.delete(status.id); else visibleStatuses.add(status.id);
@@ -460,15 +478,30 @@ async function useAsCover() {
     return;
   }
   await refreshFaces();
-  host.showToast(t('Cover face of {name} changed', { name: face.name ?? '?' }));
+  host.showToast(t('Cover face of {name} changed', { name: shownName(face) ?? '?' }));
 }
 
-// « Écrire dans les fichiers (N photos) » : visages en attente de toute la photothèque ; grisé pendant une écriture ou sans rien à écrire.
+// « Écrire dans les fichiers » (toujours présent, grisé pendant une écriture ou sans rien à écrire) suivi, s'il y a des visages en attente de
+// toute la photothèque, du bouton « N photos » (vert, comme Confirmé) qui bascule l'affichage de ces visages.
 function updateWriteButton() {
   const button = document.getElementById('btn-faces-write');
   const pending = getPendingFaceWriteCount();
-  button.textContent = tp('Write to files ({count} photo)', pending);
   button.disabled = pending === 0 || isWriteLocked();
+  const pendingButton = document.getElementById('btn-faces-pending');
+  if (pending === 0 && pendingMode) setPendingMode(false);
+  pendingButton.textContent = tp('{count} photo', pending);
+  pendingButton.hidden = pending === 0;
+}
+
+// Bouton « N photos » : bascule entre les visages à écrire de toute la photothèque et ceux des photos affichées.
+function setPendingMode(enabled) {
+  pendingMode = enabled;
+  const button = document.getElementById('btn-faces-pending');
+  button.classList.toggle('active', enabled);
+  button.setAttribute('aria-pressed', String(enabled));
+  selected.clear();
+  anchorIndex = null;
+  reloadFacesView();
 }
 
 function writeFaces() {
@@ -551,6 +584,7 @@ export function initFacesGrid(hostApi) {
   // Clavier de la vue : Entrée valide, Ctrl + A sélectionne tout, Échap désélectionne. Les raccourcis des photos sont coupés pendant ce temps
   // (voir le gestionnaire de main.js).
   document.getElementById('btn-faces-write').addEventListener('click', writeFaces);
+  document.getElementById('btn-faces-pending').addEventListener('click', () => setPendingMode(!pendingMode));
   onLockChange(() => { if (open) updateWriteButton(); });
   // Ctrl + Entrée : écriture des visages en attente. Écouté en phase de capture, avant le Ctrl + Entrée du panneau Mots-clés.
   window.addEventListener('keydown', event => {

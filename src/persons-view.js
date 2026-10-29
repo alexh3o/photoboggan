@@ -6,7 +6,7 @@
 
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { listedPersons, openPersonMenu, filterOnPerson, getShowHiddenPersons, setShowHiddenPersons } from './faces-panel.js';
+import { listedPersons, openPersonMenu, filterOnPerson, getShowHiddenPersons, setShowHiddenPersons, personLabel, clearPersonSelection } from './faces-panel.js';
 
 const SIZE_STORAGE_KEY = 'personsTileSize';
 const GAP = 12;
@@ -56,7 +56,7 @@ export function closePersonsView() {
 // Personnes rechargées (après un scan, une révision, une suppression…) : la grille est reconstruite, défilement conservé.
 export function reloadPersonsView() {
   if (!open) return;
-  shown = [...listedPersons()].sort((a, b) => b.photo_count - a.photo_count || a.name.localeCompare(b.name));
+  shown = [...listedPersons()].sort((a, b) => b.photo_count - a.photo_count || personLabel(a).localeCompare(personLabel(b)));
   document.getElementById('persons-count').textContent = tp('{count} person', shown.length);
   document.getElementById('persons-show-hidden').checked = getShowHiddenPersons();
   document.getElementById('persons-empty-view').hidden = shown.length > 0;
@@ -110,7 +110,7 @@ function createTile(person) {
   image.className = 'person-tile-image';
   const name = document.createElement('div');
   name.className = 'person-tile-name';
-  name.textContent = person.name;
+  name.textContent = personLabel(person);
   const count = document.createElement('div');
   count.className = 'person-tile-count';
   count.textContent = tp('{count} photo', person.photo_count);
@@ -162,6 +162,7 @@ export function initPersonsView(hostApi) {
     rebuild();
   });
   document.getElementById('persons-show-hidden').addEventListener('change', event => setShowHiddenPersons(event.target.checked));
-  document.getElementById('btn-persons-manage').addEventListener('click', () => host.openFacesManagement());
+  // Bouton de la barre d'outils : vue de gestion sur tous les visages des photos affichées (aucune personne choisie).
+  document.getElementById('btn-persons-manage').addEventListener('click', () => { clearPersonSelection(); host.openFacesManagement(); });
   onLanguageChange(() => { if (open) reloadPersonsView(); });
 }

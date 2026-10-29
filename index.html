@@ -178,6 +178,8 @@
           <div class="faces-actions">
             <span id="faces-count" class="faces-count"></span>
             <button id="btn-faces-cluster" type="button" data-i18n="Group unknown faces" data-i18n-title="Group the similar unknown faces of the displayed photos (click again to ungroup)" title="Regrouper les visages inconnus ressemblants des photos affichées (nouveau clic : annuler)">Regrouper les inconnus</button>
+            <!-- Actions de révision, en un seul bloc de boutons accolés -->
+            <div class="faces-button-group" role="group">
             <button id="btn-faces-confirm" type="button" title="Entrée" data-i18n="Confirm">Valider</button>
             <button id="btn-faces-name" type="button" data-i18n="Name…">Nommer…</button>
             <button id="btn-faces-unknown" type="button" data-i18n="Unknown">Inconnu</button>
@@ -185,8 +187,13 @@
             <button id="btn-faces-unignore" type="button" data-i18n="Stop ignoring" hidden>Ne plus ignorer</button>
             <button id="btn-faces-not-face" type="button" data-i18n="Not a face">N'est pas un visage</button>
             <button id="btn-faces-is-face" type="button" data-i18n="It is a face" hidden>C'est un visage</button>
+            </div>
             <button id="btn-faces-cover" type="button" data-i18n="Use as cover face" data-i18n-title="Use this face as the picture of the person" title="Utiliser ce visage comme image de la personne" disabled>Visage représentatif</button>
-            <button id="btn-faces-write" type="button" class="btn-primary" title="Ctrl + Entrée" disabled></button>
+            <!-- Écriture : « Écrire dans les fichiers » (toujours là) + nombre de photos en attente (si besoin, clic : n'afficher que ces visages), en un seul bloc -->
+            <div class="faces-button-group faces-write-group" role="group">
+              <button id="btn-faces-write" type="button" class="btn-primary" title="Ctrl + Entrée" data-i18n="Write to files" disabled>Écrire dans les fichiers</button>
+              <button id="btn-faces-pending" type="button" class="faces-pending-count" data-i18n-title="Show only the faces waiting to be written to the files (click again to go back)" title="N'afficher que les visages en attente d'écriture dans les fichiers (nouveau clic : revenir)" aria-pressed="false" hidden></button>
+            </div>
           </div>
         </div>
         <div id="faces-scroll" class="faces-scroll" tabindex="0">
@@ -465,10 +472,6 @@
               </label>
               <ol id="metadata-order-list" class="keyword-format-order"></ol>
             </section>
-            <section class="settings-section">
-              <h4 data-i18n="Faces">Visages</h4>
-              <label class="settings-row settings-check"><input id="face-scan-subfolders" type="checkbox" /><span data-i18n="Always include subfolders when detecting faces">Toujours inclure les sous-dossiers lors de la détection des visages</span></label>
-            </section>
           </div>
           <!-- Onglet Visages (faces-panel.js) -->
           <div id="settings-tab-faces" class="settings-tab-pane" role="tabpanel" hidden>
@@ -482,6 +485,7 @@
             </section>
             <section class="settings-section">
               <label class="settings-row settings-check" title="Détecte les visages des photos choisies (menu contextuel d'un dossier ou d'une sélection > Visages). Tout se passe sur cet ordinateur ; les fichiers photo ne sont pas modifiés." data-i18n-title="Enable face detection help"><input id="face-detection-toggle" type="checkbox" /><span data-i18n="Enable face detection and recognition">Activer la détection et la reconnaissance des visages</span></label>
+              <label class="settings-row settings-check"><input id="face-scan-subfolders" type="checkbox" /><span data-i18n="Always include subfolders when detecting faces">Toujours inclure les sous-dossiers lors de la détection des visages</span></label>
               <div id="face-detection-settings" class="face-detection-settings" hidden>
                 <h4 data-i18n="Model">Modèle</h4>
                 <p id="face-model-status" class="sort-note"></p>

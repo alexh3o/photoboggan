@@ -13,6 +13,7 @@
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
+- [ ] *feat*: `metadata` international title and description
 - [ ] *feat*: `Controls` **keyboard shortcuts** customizing
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [x] *chore*: Add **Linux** release
