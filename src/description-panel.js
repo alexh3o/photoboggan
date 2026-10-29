@@ -10,7 +10,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
-import { registerEditor, onLockChange, isWriteLocked, applyPending, hasPendingEdits, resolvePendingSelection, isPromptOpen } from './metadata-writes.js';
+import { registerEditor, onLockChange, onPendingChange, notifyPendingChange, isWriteLocked, applyPending, hasPendingEdits, resolvePendingSelection, isPromptOpen } from './metadata-writes.js';
 
 let host = null; // services de main.js, voir initDescriptionPanel
 let initialized = false;
@@ -119,6 +119,7 @@ function updateState() {
   applyButton.title = locked ? t('Metadata writing in progress…') : t('Write the pending changes into the files (Ctrl+Enter)');
   resetButton.disabled = !isDirty();
   resetButton.title = t('Put the title and description back to their saved values');
+  notifyPendingChange(); // pastilles des onglets et boutons de l'onglet Mots-clés
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +194,7 @@ export function initDescriptionPanel(hostApi) {
   resetButton.addEventListener('click', () => descriptionEditor.discard());
   registerEditor(descriptionEditor);
   onLockChange(updateState);
+  onPendingChange(updateState);
 
   // Ctrl+Entrée (Appliquer, avec les mots-clés en attente) : actif même dans les champs de saisie (le gestionnaire de touches de main.js
   // ignore les champs de saisie).

@@ -12,7 +12,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import {
   registerEditor, runLocked, isWriteLocked, onLockChange, applyPending, choiceDialog, showFailureDialog, resolvePendingSelection,
-  isPromptOpen, publishWritten, hasPendingEdits,
+  isPromptOpen, publishWritten, hasPendingEdits, onPendingChange, notifyPendingChange, pendingKinds,
 } from './metadata-writes.js';
 
 const TAB_STORAGE_KEY = 'sidePanelTab';
@@ -108,6 +108,7 @@ function applyTab() {
   descriptionTabButton.disabled = compareActive;
   descriptionTabButton.title = compareActive ? t('Description panel unavailable in compare mode') : `${t('Title and description')} (D)`;
   infoTabButton.title = `${t('Info')} (J)`;
+  updateTabBadges();
   if (shown === 'keywords') refreshKeywordsPanel();
 }
 
@@ -398,6 +399,20 @@ function updateButtons() {
   unifyButton.disabled = !canUnify();
   unifyButton.title = t('Give every selected photo all the keywords that at least one of them has');
   inputField.disabled = working.size === 0;
+  updateTabBadges();
+  notifyPendingChange(); // l'onglet Description met à jour ses boutons
+}
+
+// Pastille sur l'onglet qui porte des modifications en attente d'écriture, quel que soit l'onglet affiché.
+function updateTabBadges() {
+  const kinds = pendingKinds();
+  const pending = t('Changes waiting to be written');
+  keywordsTabButton.classList.toggle('pending', kinds.has('keyword_ids'));
+  descriptionTabButton.classList.toggle('pending', kinds.has('title') || kinds.has('description'));
+  if (!compareActive) {
+    keywordsTabButton.title = `${t('Keywords')} (K)${kinds.has('keyword_ids') ? ` · ${pending}` : ''}`;
+    descriptionTabButton.title = `${t('Title and description')} (D)${kinds.has('title') || kinds.has('description') ? ` · ${pending}` : ''}`;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1075,6 +1090,20 @@ export function initKeywordsPanel(hostApi) {
 
   registerEditor(keywordEditor);
   onLockChange(updateButtons);
+  onPendingChange(updateButtons);
+
+  // Onglet Info : les lignes Mots-clés, Titre et Description mènent à l'onglet où on les modifie.
+  for (const [valueId, tab] of [['exif-keywords', 'keywords'], ['exif-title', 'description'], ['exif-caption', 'description']]) {
+    const row = document.getElementById(valueId)?.closest('li');
+    if (!row) continue;
+    row.classList.add('exif-editable');
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.title = t(tab === 'keywords' ? 'Edit in the Keywords tab' : 'Edit in the Description tab');
+    const open = () => { if (!compareActive) setTab(tab); };
+    row.addEventListener('click', open);
+    row.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); open(); } });
+  }
 
   // Ctrl+K (filtre d'affichage) et Ctrl+Entrée (Appliquer, mots-clés et description ensemble) : actifs même quand un champ de saisie a le focus
   // (le gestionnaire de touches de main.js ignore les champs de saisie).
@@ -1092,6 +1121,8 @@ export function initKeywordsPanel(hostApi) {
   new MutationObserver(() => refreshKeywordsPanel()).observe(exifPanel, { attributes: true, attributeFilter: ['class'] });
 
   onLanguageChange(() => {
+    document.getElementById('exif-keywords')?.closest('li')?.setAttribute('title', t('Edit in the Keywords tab'));
+    for (const id of ['exif-title', 'exif-caption']) document.getElementById(id)?.closest('li')?.setAttribute('title', t('Edit in the Description tab'));
     applyTab();
     updateModeButton();
     updateButtons();

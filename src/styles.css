@@ -570,3 +570,6 @@ body.immersive .titlebar { display: none; }
 .thumbnail:hover .video-play-badge { opacity: var(--video-badge-hover-opacity); }
 .preview-cell .video-play-badge { width: min(var(--video-badge-size-preview), 30%); opacity: 10%; } /* opacité mettre à 0% pour désactiver le logo en apercu */
 .thumbnail.is-video .thumbnail-inner > img { filter: var(--video-thumb-filter); }
+/* Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier */
+.folder-tree-empty { padding: 0.75rem 0.65rem; font-size: 0.8rem; color: var(--text-muted); white-space: normal; }
+.folder-tree-empty p { margin: 0 0 0.6rem; }

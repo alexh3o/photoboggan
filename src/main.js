@@ -1021,6 +1021,20 @@ function renderFolderTree() {
     renderNode(root, folderTree, 0, true);
   }
   folderTreeInitialized = true;
+  // Aucun dossier suivi (premier lancement) : l'arborescence propose directement d'en ajouter un, sans passer par les Paramètres.
+  if (folders.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'folder-tree-empty';
+    const message = document.createElement('p');
+    message.textContent = t('No folder yet. Add a folder to start.');
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'btn-highlight';
+    addButton.textContent = t('Add folder');
+    addButton.addEventListener('click', () => document.getElementById('btn-add-folder').click());
+    empty.append(message, addButton);
+    folderTree.appendChild(empty);
+  }
 }
 
 const folderTreeExpanded = new Set();

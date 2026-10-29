@@ -17,6 +17,11 @@
 .side-tab-btn:hover { background: var(--control-bg); }
 .side-tab-btn.active { background: transparent; color: var(--text-strong); border-bottom-color: var(--active-button); }
 .side-tab-btn:disabled { opacity: 0.45; cursor: default; background: transparent; }
+/* Pastille : l'onglet porte des modifications pas encore écrites dans les fichiers */
+.side-tab-btn.pending::after { content: "●"; margin-left: 0.3rem; font-size: 0.6rem; vertical-align: 0.1em; color: var(--active-button); }
+/* Lignes de l'onglet Info qui mènent à un onglet d'édition */
+#exif-data li.exif-editable { cursor: pointer; }
+#exif-data li.exif-editable:hover, #exif-data li.exif-editable:focus-visible { background: var(--control-bg); outline: none; }
 .side-tab-pane { flex: 1 1 auto; min-height: 0; padding: 1rem; overflow-y: auto; }
 .side-tab-pane[hidden] { display: none; }
 

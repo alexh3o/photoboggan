@@ -25,7 +25,7 @@
       <div class="panel-toggles">
         <button id="btn-toggle-sidebar" class="active" title="Open filters panel" data-i18n-title="Open filters panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Filters">Filtres</span></button>
         <!-- Vue Visages (faces-grid.js) : visible quand la détection des visages est activée -->
-        <button id="btn-toggle-faces" type="button" hidden title="Vue Visages : révision des visages des photos affichées" data-i18n-title="Faces view: review the faces of the displayed photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-face preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg> <span data-i18n="Faces">Visages</span></button>
+        <button id="btn-toggle-faces" type="button" hidden title="Personnes" data-i18n-title="People view: the people of the photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-face preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg> <span data-i18n="People">Personnes</span></button>
       </div>
       <div class="actions">
         <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -180,18 +180,18 @@
             <button id="btn-faces-cluster" type="button" data-i18n="Group unknown faces" data-i18n-title="Group the similar unknown faces of the displayed photos (click again to ungroup)" title="Regrouper les visages inconnus ressemblants des photos affichées (nouveau clic : annuler)">Regrouper les inconnus</button>
             <!-- Actions de révision, en un seul bloc de boutons accolés -->
             <div class="faces-button-group" role="group">
-            <button id="btn-faces-confirm" type="button" title="Entrée" data-i18n="Confirm">Valider</button>
-            <button id="btn-faces-name" type="button" data-i18n="Name…">Nommer…</button>
-            <button id="btn-faces-unknown" type="button" data-i18n="Unknown">Inconnu</button>
-            <button id="btn-faces-ignore" type="button" data-i18n="Ignore">Ignorer</button>
-            <button id="btn-faces-unignore" type="button" data-i18n="Stop ignoring" hidden>Ne plus ignorer</button>
-            <button id="btn-faces-not-face" type="button" data-i18n="Not a face">N'est pas un visage</button>
-            <button id="btn-faces-is-face" type="button" data-i18n="It is a face" hidden>C'est un visage</button>
+            <button id="btn-faces-confirm" type="button" title="Valider les visages sélectionnés pour la personne attribuée ou proposée (Entrée)" data-i18n-title="Confirm faces help" data-i18n="Confirm">Valider</button>
+            <button id="btn-faces-name" type="button" title="Nommer les visages sélectionnés : choisir une personne existante ou saisir un nouveau nom (ou commencer à taper directement)" data-i18n-title="Name faces help" data-i18n="Name…">Nommer…</button>
+            <button id="btn-faces-unknown" type="button" title="Retirer la personne attribuée ou proposée : le visage devient inconnu et ne sera plus proposé" data-i18n-title="Unknown faces help" data-i18n="Unknown">Inconnu</button>
+            <button id="btn-faces-ignore" type="button" title="Écarter un vrai visage qui ne vous intéresse pas (inconnu dans la foule) : il n'est plus attribué, proposé ni écrit dans les fichiers" data-i18n-title="Ignore faces help" data-i18n="Ignore">Ignorer</button>
+            <button id="btn-faces-unignore" type="button" title="Redonner à ces visages leur statut normal : ils pourront de nouveau être attribués" data-i18n-title="Stop ignoring help" data-i18n="Stop ignoring" hidden>Ne plus ignorer</button>
+            <button id="btn-faces-not-face" type="button" title="Fausse détection (motif, statue…) : jamais attribué, proposé ni écrit dans les fichiers ; une zone déjà écrite est retirée à la prochaine écriture" data-i18n-title="Not a face help" data-i18n="Not a face">N'est pas un visage</button>
+            <button id="btn-faces-is-face" type="button" title="Annuler « N'est pas un visage » : ces zones redeviennent des visages" data-i18n-title="It is a face help" data-i18n="It is a face" hidden>C'est un visage</button>
             </div>
             <button id="btn-faces-cover" type="button" data-i18n="Use as cover face" data-i18n-title="Use this face as the picture of the person" title="Utiliser ce visage comme image de la personne" disabled>Visage représentatif</button>
             <!-- Écriture : « Écrire dans les fichiers » (toujours là) + nombre de photos en attente (si besoin, clic : n'afficher que ces visages), en un seul bloc -->
             <div class="faces-button-group faces-write-group" role="group">
-              <button id="btn-faces-write" type="button" class="btn-primary" title="Ctrl + Entrée" data-i18n="Write to files" disabled>Écrire dans les fichiers</button>
+              <button id="btn-faces-write" type="button" class="btn-primary" title="Écrire dans les fichiers les visages en attente (Ctrl + Entrée)" data-i18n-title="Write faces help" data-i18n="Write to files" disabled>Écrire dans les fichiers</button>
               <button id="btn-faces-pending" type="button" class="faces-pending-count" data-i18n-title="Show only the faces waiting to be written to the files (click again to go back)" title="N'afficher que les visages en attente d'écriture dans les fichiers (nouveau clic : revenir)" aria-pressed="false" hidden></button>
             </div>
           </div>
@@ -208,7 +208,7 @@
           <div class="faces-actions">
             <label class="persons-size" title="Taille des vignettes" data-i18n-title="Thumbnail size"><input id="persons-size" type="range" min="96" max="512" step="8" /></label>
             <label class="settings-check persons-show-hidden"><input id="persons-show-hidden" type="checkbox" /><span data-i18n="Show hidden people">Afficher les personnes masquées</span></label>
-            <button id="btn-persons-manage" type="button" class="btn-primary" data-i18n="Manage faces" data-i18n-title="Review and name the faces of the displayed photos" title="Réviser et nommer les visages des photos affichées">Gérer les visages</button>
+            <button id="btn-persons-manage" type="button" class="btn-primary" data-i18n="Review faces" data-i18n-title="Review and name the faces of the displayed photos" title="Réviser et nommer les visages des photos affichées">Réviser les visages</button>
           </div>
         </div>
         <p id="persons-empty-view" class="persons-empty-view" data-i18n="No people yet: name faces in the face management view." hidden>Aucune personne pour l'instant : nommez des visages dans la vue de gestion.</p>
@@ -271,8 +271,8 @@
               <input type="text" id="keyword-input" class="keyword-input" autocomplete="off" spellcheck="false" placeholder="Ajouter un mot-clé…" data-i18n-placeholder="Add a keyword…" aria-label="Ajouter un mot-clé" data-i18n-aria-label="Add a keyword">
             </div>
             <div class="keyword-actions">
-              <button type="button" id="btn-keyword-apply" data-i18n="Apply">Appliquer</button>
-              <button type="button" id="btn-keyword-reset" data-i18n="Reset">Réinitialiser</button>
+              <button type="button" id="btn-keyword-apply" data-i18n="Write to files">Écrire dans les fichiers</button>
+              <button type="button" id="btn-keyword-reset" data-i18n="Discard changes">Annuler les modifications</button>
               <button type="button" id="btn-keyword-unify" data-i18n="Unify">Unifier</button>
             </div>
           </div>
@@ -283,8 +283,8 @@
           <label class="description-field" for="description-text"><span data-i18n="Description">Description</span></label>
           <textarea id="description-text" class="keyword-input description-input description-textarea"></textarea>
           <div class="keyword-actions">
-            <button type="button" id="btn-description-apply" data-i18n="Apply">Appliquer</button>
-            <button type="button" id="btn-description-reset" data-i18n="Reset">Réinitialiser</button>
+            <button type="button" id="btn-description-apply" data-i18n="Write to files">Écrire dans les fichiers</button>
+            <button type="button" id="btn-description-reset" data-i18n="Discard changes">Annuler les modifications</button>
           </div>
         </div>
       </aside>

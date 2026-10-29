@@ -22,6 +22,17 @@ let pendingPrompt = null; // question en cours au changement de sélection (part
 let promptOpen = false;
 
 export const isAutoApply = () => localStorage.getItem(AUTO_APPLY_STORAGE_KEY) === 'true';
+
+// La proposition « Toujours écrire automatiquement » n'est faite qu'une fois : à la première question posée au changement de sélection.
+const AUTO_APPLY_ASKED_STORAGE_KEY = 'keywordsAutoApplyAsked';
+const wasAutoApplyOffered = () => localStorage.getItem(AUTO_APPLY_ASKED_STORAGE_KEY) === 'true';
+
+// Active ou désactive l'écriture automatique (même réglage que la case des Paramètres, qui est mise à jour).
+function setAutoApply(enabled) {
+  localStorage.setItem(AUTO_APPLY_STORAGE_KEY, String(enabled));
+  const autoApplyBox = document.getElementById('keywords-auto-apply');
+  if (autoApplyBox) autoApplyBox.checked = enabled;
+}
 const fileName = path => String(path).split(/[\\/]/).pop();
 
 // Services fournis par main.js : showToast, enqueueKeywordTask, isTaskQueued, updatePhotoMetadata, findIndicesByPhotoIds, setSelectionIndices,
@@ -31,7 +42,10 @@ export function initMetadataWrites(hostApi) {
   const autoApplyBox = document.getElementById('keywords-auto-apply');
   if (autoApplyBox) {
     autoApplyBox.checked = isAutoApply();
-    autoApplyBox.addEventListener('change', () => localStorage.setItem(AUTO_APPLY_STORAGE_KEY, String(autoApplyBox.checked)));
+    autoApplyBox.addEventListener('change', () => {
+      localStorage.setItem(AUTO_APPLY_STORAGE_KEY, String(autoApplyBox.checked));
+      localStorage.setItem(AUTO_APPLY_ASKED_STORAGE_KEY, 'true'); // le réglage a été choisi à la main : plus de proposition
+    });
   }
 }
 
@@ -43,6 +57,35 @@ export function registerEditor(editor) {
 }
 
 const followsSelection = editor => editor.scope !== 'library';
+
+// Les onglets (boutons, pastilles « modifications en attente ») se mettent à jour quand les modifications en attente de l'un d'eux changent.
+// Les écouteurs peuvent rappeler notifyPendingChange : le garde évite la boucle.
+const pendingListeners = new Set();
+let notifyingPending = false;
+export function onPendingChange(listener) {
+  pendingListeners.add(listener);
+}
+export function notifyPendingChange() {
+  if (notifyingPending) return;
+  notifyingPending = true;
+  try {
+    for (const listener of pendingListeners) listener();
+  } finally {
+    notifyingPending = false;
+  }
+}
+
+// Types de métadonnées en attente d'écriture, parmi 'keyword_ids', 'title', 'description' et 'faces' (une pastille par onglet concerné).
+export function pendingKinds() {
+  const kinds = new Set();
+  for (const editor of editors) {
+    if (!editor.isDirty()) continue;
+    for (const item of editor.pendingItems()) {
+      for (const field of ['keyword_ids', 'title', 'description', 'faces']) if (item[field] !== undefined) kinds.add(field);
+    }
+  }
+  return kinds;
+}
 
 export const isPromptOpen = () => promptOpen;
 export const hasPendingEdits = () => editors.some(editor => editor.isDirty());
@@ -313,16 +356,25 @@ export function resolvePendingSelection(currentIds) {
 async function askPendingDecision(canCancel, locked) {
   if (!locked && isAutoApply()) return 'apply';
   const buttons = [];
-  if (!locked) buttons.push({ label: t('Apply'), value: 'apply', primary: true });
+  if (!locked) buttons.push({ label: t('Write to files'), value: 'apply', primary: true });
+  // Première question : on propose de ne plus la poser (écriture automatique), sans l'imposer.
+  const offerAuto = !locked && !wasAutoApplyOffered();
+  if (offerAuto) buttons.push({ label: t('Always write automatically'), value: 'auto' });
   buttons.push({ label: t('Ignore'), value: 'ignore', primary: locked });
   if (canCancel) buttons.push({ label: t('Cancel'), value: 'cancel', cancel: true });
-  return choiceDialog({
+  const decision = await choiceDialog({
     title: t('Pending changes'),
     message: t(locked
       ? 'Keyword, title or description changes are not written to the files yet, and another write is in progress. Ignore them?'
       : 'Keyword, title or description changes are not written to the files yet. Apply them before changing the selection?'),
     buttons,
   });
+  if (offerAuto) localStorage.setItem(AUTO_APPLY_ASKED_STORAGE_KEY, 'true');
+  if (decision === 'auto') {
+    setAutoApply(true);
+    return 'apply';
+  }
+  return decision;
 }
 
 // Ce qui reste à écrire, pour la fenêtre de fermeture : seuls les types de métadonnées en attente, chacun avec son nombre de photos, ex.
@@ -372,7 +424,7 @@ export async function confirmCloseWithPendingEdits() {
       decision = 'apply';
     } else {
       const buttons = [];
-      if (!locked) buttons.push({ label: t('Apply'), value: 'apply', primary: true });
+      if (!locked) buttons.push({ label: t('Write to files'), value: 'apply', primary: true });
       buttons.push({ label: t('Quit without applying'), value: 'quit', primary: locked });
       buttons.push({ label: t('Cancel'), value: 'cancel', cancel: true });
       decision = await choiceDialog({
