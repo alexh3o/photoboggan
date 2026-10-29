@@ -9,8 +9,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { promptDialog } from './photo-actions.js';
-import { orientRect, refreshFaces, keywordPaths, getPersons, getPendingFaceWriteCount } from './faces-panel.js';
+import { orientRect, refreshFaces, getPendingFaceWriteCount, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
 import { applyPending, isWriteLocked, onLockChange } from './metadata-writes.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
@@ -485,7 +484,7 @@ async function runAction(command, extraArgs = {}) {
   try {
     result = await invoke(command, { faceIds: targets.map(face => face.id), ...extraArgs });
   } catch (error) {
-    host.showToast(reviewErrorMessage(error));
+    host.showToast(faceNameErrorMessage(error));
     return null;
   }
   try {
@@ -497,64 +496,20 @@ async function runAction(command, extraArgs = {}) {
   return result;
 }
 
-function reviewErrorMessage(error) {
-  const messages = {
-    invalid_name: t('Names cannot be empty or contain "|" or ","'),
-    person_name_taken: t('Another person already has this name'),
-    keyword_taken: t('This keyword is already linked to another person'),
-    unknown_person: t('This person no longer exists'),
-    unknown_keyword: t('No keyword has this path'),
-  };
-  return messages[String(error)] ?? String(error);
-}
-
-// Nommer : une personne existante, un chemin de mot-clé de l'arbre (personne créée et reliée si besoin), ou un nouveau nom (personne reliée à
-// un nouveau mot-clé sous la racine réglée dans Paramètres > Visages). « / » sépare les niveaux : « gaetan/gaetan m » crée le mot-clé
-// « <racine>/gaetan/gaetan m » pour la personne « gaetan m ». `typed` : premier caractère tapé sur la vignette (saisie directe).
+// Nommer les visages sélectionnés (fenêtre partagée avec le plein écran : faces-panel.js, promptPersonName). `typed` : premier caractère tapé
+// sur la vignette (saisie directe).
 async function nameSelection(typed = null) {
   const targets = selectedFaces();
   if (targets.length === 0) return;
-  let paths;
-  try {
-    paths = await keywordPaths();
-  } catch {
-    paths = new Map();
-  }
-  const persons = getPersons();
-  const normalize = text => text.split('/').map(segment => segment.trim().toLowerCase()).filter(Boolean).join('/');
-  // Propositions : les personnes, et les mots-clés situés sous la racine des personnes (Paramètres > Visages) ; sans racine, tout l'arbre.
-  const rootKey = normalize(host.getPersonRoot());
-  const keywordSuggestions = [...paths.values()].filter(path => !rootKey || normalize(path).startsWith(`${rootKey}/`));
-  const suggestions = [...new Set([...persons.map(person => person.name), ...keywordSuggestions])].sort((a, b) => a.localeCompare(b));
-  const proposed = typed ?? targets.find(face => face.name)?.name ?? '';
-  await promptDialog({
+  await promptPersonName({
     title: t('Name the faces'),
     message: tp('Person shown on the {count} selected face (existing person, keyword path, or new name)', targets.length),
-    inputLabel: t('Name'),
-    confirmLabel: t('Name'),
-    cancelLabel: t('Cancel'),
-    value: proposed,
+    proposed: typed ?? targets.find(face => face.name)?.name ?? '',
     selectValue: typed === null,
-    suggestions,
-    onSubmit: async value => {
-      const segments = value.split('/').map(segment => segment.trim()).filter(Boolean);
-      if (segments.length === 0 || segments.some(segment => /[|,]/.test(segment))) return t('Names cannot be empty or contain "|" or ","');
-      const wanted = segments.join('/');
-      const root = host.getPersonRoot();
-      const person = segments.length === 1 ? persons.find(item => item.name.toLowerCase() === wanted.toLowerCase()) : null;
-      // Mot-clé existant : chemin complet, ou chemin sous la racine des personnes.
-      const keyword = [...paths.entries()].find(([, path]) => normalize(path) === normalize(wanted) || (root && normalize(path) === normalize(`${root}/${wanted}`)));
-      const args = person ? { personId: person.id }
-        : keyword ? { keywordId: keyword[0] }
-        : { name: segments.at(-1), root: [root, ...segments.slice(0, -1)].filter(Boolean).join('/') };
-      try {
-        await invoke('assign_faces', { faceIds: targets.map(face => face.id), ...args });
-      } catch (error) {
-        return reviewErrorMessage(error);
-      }
+    submit: async args => {
+      await invoke('assign_faces', { faceIds: targets.map(face => face.id), ...args });
       try { await invoke('recognize_faces', { photoIds: host.getDisplayedPhotoIds() }); } catch { /* réattribution facultative */ }
       await refreshFaces();
-      return null;
     },
   });
 }

@@ -1491,7 +1491,7 @@ fn main() {
             faces::person_delete_info,
             faces::delete_person,
             faces::get_person_cover,
-            faces::cluster_unknown_faces,
+            faces::cluster_unknown_faces, faces::merge_persons, faces::get_person_merges, faces::undo_person_merge, faces::get_persons_without_faces, faces::delete_persons, faces::add_manual_face, faces::delete_faces,
             face_models::get_face_model_status,
             face_models::download_face_models,
             face_models::import_face_models,

@@ -112,6 +112,9 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 
 /* Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la souris */
 .face-overlay { position: absolute; z-index: 1; pointer-events: none; }
+/* Les zones captent le clic droit (menu de la zone, lot 5c) ; le glisser et la molette remontent au plein écran. Zone en cours de dessin : pointillés blancs. */
+.face-overlay .face-box { pointer-events: auto; }
+.face-box.drawing { border-color: #fff; border-style: dashed; pointer-events: none; }
 .face-box { position: absolute; border: 2px solid #2ecc71; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
 .face-box.unknown { border-color: #f1c40f; border-style: dashed; }
 .face-box.state-suggested { border-color: #e67e22; border-style: dashed; }

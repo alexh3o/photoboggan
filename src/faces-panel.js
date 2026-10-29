@@ -370,9 +370,12 @@ async function loadAvatar(element, cover) {
   image.src = url;
 }
 
-// Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, masquer / afficher, supprimer.
-export function openPersonMenu(event, person) {
+// Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, fusionner (et annuler les
+// fusions qu'elle a absorbées), masquer / afficher, supprimer.
+export async function openPersonMenu(event, person) {
   event.preventDefault();
+  let merges = [];
+  try { merges = await invoke('get_person_merges', { personId: person.id }); } catch (error) { console.error('Fusions illisibles', error); }
   const items = [
     // Vue de gestion sur les visages de ses photos (grille filtrée sur elle).
     { label: t('Manage their faces'), onSelect: () => showPersonFaces(person.id) },
@@ -380,6 +383,8 @@ export function openPersonMenu(event, person) {
     { label: t('Link to a keyword…'), onSelect: () => linkPersonToKeyword(person) },
   ];
   if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => saveLink(person, null) });
+  items.push({ label: t('Merge into…'), onSelect: () => mergePerson(person) });
+  for (const merge of merges) items.push({ label: t('Undo the merge of {name}', { name: merge.name }), onSelect: () => undoMerge(merge) });
   items.push(
     { label: person.hidden ? t('Show this person') : t('Hide this person'), onSelect: () => setPersonHidden(person, !person.hidden) },
     { label: t('Delete this person…'), onSelect: () => confirmDeletePerson(person), danger: true },
@@ -391,7 +396,87 @@ const personErrorMessage = error => ({
   invalid_name: t('Names cannot be empty or contain "/", "|" or ","'),
   person_name_taken: t('Another person already has this name'),
   unknown_person: t('This person no longer exists'),
+  same_person: t('Choose another person'),
+  merge_not_found: t('This merge has already been undone'),
 }[String(error)] ?? String(error));
+
+// Fusionner : la personne choisie reçoit les visages de `person` (à réécrire dans les fichiers), puis `person` est supprimée. La fusion
+// s'annule depuis le menu de la personne gardée (« Annuler la fusion de … »).
+async function mergePerson(person) {
+  const others = persons.filter(other => other.id !== person.id);
+  await promptDialog({
+    title: t('Merge {name}', { name: person.name }),
+    message: t('Person who receives the faces of {name}. {name} is then deleted; the merge can be undone from the menu of the person kept.', { name: person.name }),
+    inputLabel: t('Person'),
+    confirmLabel: t('Merge'),
+    cancelLabel: t('Cancel'),
+    suggestions: others.map(other => other.name).sort((a, b) => a.localeCompare(b)),
+    onSubmit: async value => {
+      const target = others.find(other => other.name.toLowerCase() === value.trim().toLowerCase());
+      if (!target) return t('No person has this name');
+      let result;
+      try {
+        result = await invoke('merge_persons', { fromPersonId: person.id, intoPersonId: target.id });
+      } catch (error) {
+        return personErrorMessage(error);
+      }
+      personFilters = [...new Set(personFilters.map(id => (id === person.id ? target.id : id)))];
+      await refreshFaces();
+      host.onFilterChange();
+      host.showToast(tp('{name} merged into {target}: {count} face to write', result.face_count, { name: person.name, target: target.name }));
+      return null;
+    },
+  });
+}
+
+// Annule une fusion : la personne absorbée revient avec ses visages (à réécrire).
+async function undoMerge(merge) {
+  let count;
+  try {
+    count = await invoke('undo_person_merge', { mergeId: merge.id });
+  } catch (error) {
+    host.showToast(personErrorMessage(error));
+    return;
+  }
+  await refreshFaces();
+  host.onFilterChange();
+  host.showToast(tp('{name} restored with {count} face', count, { name: merge.name }));
+}
+
+// Paramètres > Visages, « Nettoyer… » : les personnes sans aucun visage attribué sont listées, puis supprimées après confirmation.
+async function cleanPersonsWithoutFaces() {
+  let found;
+  try {
+    found = await invoke('get_persons_without_faces');
+  } catch (error) {
+    host.showToast(String(error));
+    return;
+  }
+  if (found.length === 0) {
+    host.showToast(t('No person without faces'));
+    return;
+  }
+  const names = found.map(([, name]) => name);
+  const listed = names.length > 40 ? [...names.slice(0, 40), '…'] : names;
+  const confirmed = await confirmDialog({
+    title: tp('Delete {count} person without faces?', found.length),
+    message: `${listed.join(', ')}. ${t('Their keywords stay in the keyword tree.')}`,
+    confirmLabel: t('Delete'),
+    cancelLabel: t('Cancel'),
+  });
+  if (!confirmed) return;
+  const ids = found.map(([id]) => id);
+  try {
+    await invoke('delete_persons', { personIds: ids });
+  } catch (error) {
+    host.showToast(String(error));
+    return;
+  }
+  personFilters = personFilters.filter(id => !ids.includes(id));
+  await refreshFaces();
+  host.onFilterChange();
+  host.showToast(tp('{count} person deleted', ids.length));
+}
 
 // Renommer : une personne non reliée change de nom ; pour une personne reliée, c'est son mot-clé qui est renommé (son nom vient de lui), avec la
 // réécriture des fichiers qui le portent, comme depuis le panneau Mots-clés.
@@ -509,6 +594,65 @@ export async function keywordPaths() {
   return paths;
 }
 
+// Messages des erreurs de « Nommer » (faces.rs, resolve_person).
+export function faceNameErrorMessage(error) {
+  const messages = {
+    invalid_name: t('Names cannot be empty or contain "|" or ","'),
+    person_name_taken: t('Another person already has this name'),
+    keyword_taken: t('This keyword is already linked to another person'),
+    unknown_person: t('This person no longer exists'),
+    unknown_keyword: t('No keyword has this path'),
+  };
+  return messages[String(error)] ?? String(error);
+}
+
+// Fenêtre « Nommer » (vue de gestion, zone dessinée en plein écran) : une personne existante, un chemin de mot-clé de l'arbre (personne créée
+// et reliée si besoin), ou un nouveau nom (personne reliée à un nouveau mot-clé sous la racine réglée dans Paramètres > Visages). « / » sépare
+// les niveaux : « gaetan/gaetan m » crée le mot-clé « <racine>/gaetan/gaetan m » pour la personne « gaetan m ».
+// `submit(args)` enregistre avec { personId } | { keywordId } | { name, root } (arguments de assign_faces / add_manual_face).
+// Renvoie true si le nom a été enregistré.
+export async function promptPersonName({ title, message, proposed = '', selectValue = true, submit }) {
+  let paths;
+  try {
+    paths = await keywordPaths();
+  } catch {
+    paths = new Map();
+  }
+  const normalize = text => text.split('/').map(segment => segment.trim().toLowerCase()).filter(Boolean).join('/');
+  // Propositions : les personnes, et les mots-clés situés sous la racine des personnes (Paramètres > Visages) ; sans racine, tout l'arbre.
+  const root = getPersonRoot();
+  const rootKey = normalize(root);
+  const keywordSuggestions = [...paths.values()].filter(path => !rootKey || normalize(path).startsWith(`${rootKey}/`));
+  const suggestions = [...new Set([...persons.map(person => person.name), ...keywordSuggestions])].sort((a, b) => a.localeCompare(b));
+  return promptDialog({
+    title,
+    message,
+    inputLabel: t('Name'),
+    confirmLabel: t('Name'),
+    cancelLabel: t('Cancel'),
+    value: proposed,
+    selectValue,
+    suggestions,
+    onSubmit: async value => {
+      const segments = value.split('/').map(segment => segment.trim()).filter(Boolean);
+      if (segments.length === 0 || segments.some(segment => /[|,]/.test(segment))) return t('Names cannot be empty or contain "|" or ","');
+      const wanted = segments.join('/');
+      const person = segments.length === 1 ? persons.find(item => item.name.toLowerCase() === wanted.toLowerCase()) : null;
+      // Mot-clé existant : chemin complet, ou chemin sous la racine des personnes.
+      const keyword = [...paths.entries()].find(([, path]) => normalize(path) === normalize(wanted) || (root && normalize(path) === normalize(`${root}/${wanted}`)));
+      const args = person ? { personId: person.id }
+        : keyword ? { keywordId: keyword[0] }
+        : { name: segments.at(-1), root: [root, ...segments.slice(0, -1)].filter(Boolean).join('/') };
+      try {
+        await submit(args);
+      } catch (error) {
+        return faceNameErrorMessage(error);
+      }
+      return null;
+    },
+  });
+}
+
 async function linkPersonToKeyword(person) {
   let paths;
   try {
@@ -619,8 +763,101 @@ function renderOverlayFaces(overlay) {
     label.className = 'face-label';
     label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?` : (face.name || t('Unknown'));
     box.append(label);
+    box.addEventListener('contextmenu', event => openZoneMenu(event, face));
     return box;
   }));
+}
+
+// Relit les visages de la photo du plein écran (après une action sur une zone), puis la section Personnes et les vues.
+async function reloadOverlayFaces() {
+  overlayPhotoId = null;
+  layoutFullscreenFaces(host.getFullscreenSlot());
+  await refreshFaces();
+}
+
+// Menu d'une zone en plein écran (clic droit) : nommer / renommer, valider une suggestion, passer en inconnu, supprimer la zone.
+function openZoneMenu(event, face) {
+  event.preventDefault();
+  event.stopPropagation(); // pas le menu de la photo (photo-actions.js)
+  const run = async (command, args = {}) => {
+    try {
+      await invoke(command, { faceIds: [face.id], ...args });
+    } catch (error) {
+      host.showToast(String(error));
+      return;
+    }
+    await reloadOverlayFaces();
+  };
+  const items = [{
+    label: face.person_id != null ? t('Rename…') : t('Name…'),
+    onSelect: () => promptPersonName({
+      title: t('Name the face'),
+      message: t('Person shown in this area (existing person, keyword path, or new name)'),
+      proposed: face.name ?? '',
+      submit: async args => {
+        await invoke('assign_faces', { faceIds: [face.id], ...args });
+        await reloadOverlayFaces();
+      },
+    }),
+  }];
+  if (face.state === 'suggested' || face.state === 'auto') items.push({ label: t('Confirm'), onSelect: () => run('confirm_faces') });
+  if (face.person_id != null || face.state === 'suggested') items.push({ label: t('Unknown'), onSelect: () => run('set_faces_unknown') });
+  items.push({ label: t('Delete this area'), onSelect: () => run('delete_faces'), danger: true });
+  openContextMenuAt(event, items);
+}
+
+// Orientation inverse : repasse de l'image affichée (orientée) au repère de l'image stockée. Seules les rotations d'un quart de tour (6 et 8)
+// ne sont pas leur propre inverse.
+const inverseOrientation = orientation => ({ 6: 8, 8: 6 }[orientation] ?? orientation);
+
+// Zone dessinée à la main (Maj + glisser sur la photo du plein écran) : les zones s'affichent si besoin, le rectangle suit la souris, puis la
+// fenêtre « Nommer » enregistre le visage (manuel, confirmé, à écrire). Annuler la fenêtre abandonne la zone.
+function startZoneDrawing(event) {
+  if (event.button !== 0 || !event.shiftKey || !readingEnabled || !host?.isFullscreen()) return;
+  const slot = host.getFullscreenSlot();
+  const photo = slot?.photo;
+  if (!photo || !(slot.naturalWidth > 0)) return;
+  event.preventDefault();
+  event.stopImmediatePropagation(); // pas de déplacement de l'image zoomée (main.js)
+  if (!overlayVisible) toggleFaceRegions();
+  const overlay = document.getElementById('fullscreen-faces');
+  const bounds = overlay.getBoundingClientRect();
+  if (!(bounds.width > 0 && bounds.height > 0)) return;
+  const clamp = value => Math.min(1, Math.max(0, value));
+  const point = pointer => ({ x: clamp((pointer.clientX - bounds.left) / bounds.width), y: clamp((pointer.clientY - bounds.top) / bounds.height) });
+  const origin = point(event);
+  let rect = { x: origin.x, y: origin.y, w: 0, h: 0 };
+  const box = document.createElement('div');
+  box.className = 'face-box drawing';
+  overlay.append(box);
+  const view = event.currentTarget;
+  view.setPointerCapture(event.pointerId);
+  const move = pointer => {
+    const current = point(pointer);
+    rect = { x: Math.min(origin.x, current.x), y: Math.min(origin.y, current.y), w: Math.abs(current.x - origin.x), h: Math.abs(current.y - origin.y) };
+    box.style.left = `${rect.x * 100}%`;
+    box.style.top = `${rect.y * 100}%`;
+    box.style.width = `${rect.w * 100}%`;
+    box.style.height = `${rect.h * 100}%`;
+  };
+  const end = async () => {
+    view.removeEventListener('pointermove', move);
+    view.removeEventListener('pointerup', end);
+    view.removeEventListener('pointercancel', end);
+    // Trop petite (simple clic) : rien à enregistrer.
+    if (rect.w < 0.01 || rect.h < 0.01) { box.remove(); return; }
+    const stored = orientRect(rect, inverseOrientation(overlayFaces?.orientation ?? photo.orientation ?? 1));
+    await promptPersonName({
+      title: t('Name the face'),
+      message: t('Person shown in the drawn area (existing person, keyword path, or new name)'),
+      submit: args => invoke('add_manual_face', { photoId: photo.id, rect: [stored.x, stored.y, stored.w, stored.h], ...args }),
+    });
+    box.remove();
+    await reloadOverlayFaces();
+  };
+  view.addEventListener('pointermove', move);
+  view.addEventListener('pointerup', end);
+  view.addEventListener('pointercancel', end);
 }
 
 export function toggleFaceRegions() {
@@ -993,6 +1230,9 @@ export function initFacesPanel(hostApi) {
     if (readingEnabled) refreshFaces();
   });
   document.getElementById('btn-face-rescan').addEventListener('click', () => document.getElementById('btn-rescan-folders').click());
+  document.getElementById('btn-face-clean-persons').addEventListener('click', cleanPersonsWithoutFaces);
+  // Plein écran : Maj + glisser dessine une zone de visage (phase de capture : avant le déplacement de l'image zoomée de main.js).
+  document.getElementById('fullscreen-view').addEventListener('pointerdown', startZoneDrawing, true);
 
   document.getElementById('persons-sort').addEventListener('click', () => {
     sortMode = sortMode === 'name' ? 'count' : 'name';

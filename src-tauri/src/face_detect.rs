@@ -346,10 +346,13 @@ fn is_raw_path(path: &str) -> bool {
 
 /// Photos visées : une sélection (`photo_ids`) ou un dossier (`folder`, sous-dossiers compris si `recursive`). Les vidéos sont exclues, les RAW
 /// aussi si le réglage l'indique. Renvoie (photo, déjà scannée ?) : scannée = détecteur et modèle de reconnaissance actuels, et pas « à revérifier ».
+/// Une photo qui a une zone dessinée à la main sans empreinte n'est pas « scannée » : le scan calculera cette empreinte (les zones importées
+/// n'en font pas partie : une zone dont l'empreinte ne peut pas être calculée ferait repasser sa photo à chaque scan).
 fn select_targets(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&str>, recursive: bool) -> Result<Vec<(Target, bool)>, String> {
     let columns = format!(
         "SELECT p.id, p.path, p.width, p.height, p.orientation, p.modified,
-         EXISTS(SELECT 1 FROM photo_face_scans s WHERE s.photo_id = p.id AND s.detector_id = ?1 AND s.model_id = '{model}' AND s.needs_review = 0),
+         EXISTS(SELECT 1 FROM photo_face_scans s WHERE s.photo_id = p.id AND s.detector_id = ?1 AND s.model_id = '{model}' AND s.needs_review = 0)
+           AND NOT EXISTS(SELECT 1 FROM faces f WHERE f.photo_id = p.id AND f.origin = 'manual' AND f.state NOT IN ('filtered', 'ignored', 'not_face') AND (f.embedding IS NULL OR f.model_id IS NOT '{model}')),
          EXISTS(SELECT 1 FROM photo_face_scans s WHERE s.photo_id = p.id AND s.needs_review = 1)
          FROM photos p WHERE p.path IS NOT NULL AND ",
         model = crate::face_recognize::MODEL_ID

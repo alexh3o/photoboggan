@@ -506,6 +506,8 @@
                 <label class="settings-row" for="face-margin" title="0 à 0,5. Ex. 0,05 : un visage à 0,62 pour Paul et 0,59 pour Pierre (écart 0,03) est seulement proposé, jamais attribué automatiquement." data-i18n-title="Face margin hint"><span data-i18n="Minimum gap with the next person">Écart minimal avec la personne suivante</span><input id="face-margin" class="face-threshold" type="number" min="0" max="0.5" step="0.01" /></label>
                 <label class="settings-row" for="face-person-root" title="Mots-clés créés pour les nouvelles personnes nommées dans la vue Visages : « gaetan m » devient « &lt;racine>/gaetan m », et « gaetan/gaetan m » devient « &lt;racine>/gaetan/gaetan m ». Ex. #CONTACTS. Vide : premier niveau de l'arbre. Les personnes et mots-clés existants sont réutilisés." data-i18n-title="Face person root hint"><span data-i18n="Keyword root for new people">Racine des mots-clés des nouvelles personnes</span><input id="face-person-root" class="face-person-root" type="text" placeholder="#CONTACTS" autocomplete="off" spellcheck="false" /></label>
                 <p class="sort-note" data-i18n="Face thresholds help">Un visage sous l'un de ces seuils est écarté (filtré). Changer un seuil reclasse les visages déjà détectés, sans nouveau scan. Valeurs par défaut provisoires.</p>
+                <h4 data-i18n="People">Personnes</h4>
+                <div class="settings-row" title="Supprime, après confirmation, les personnes qui n'ont plus aucun visage attribué. Elles ne sont jamais supprimées automatiquement (une personne peut être créée en attente d'attribution). Les mots-clés de l'arbre restent." data-i18n-title="Clean persons hint"><span data-i18n="People without faces">Personnes sans visage</span><button id="btn-face-clean-persons" type="button" data-i18n="Clean up…">Nettoyer…</button></div>
               </div>
             </section>
           </div>
@@ -657,6 +659,10 @@
             <div class="guide-row">
               <span class="guide-action" data-i18n="Show / hide face regions (fullscreen)">Afficher / masquer les zones de visage (plein écran)</span>
               <span class="guide-control"><kbd>V</kbd></span>
+            </div>
+            <div class="guide-row">
+              <span class="guide-action" data-i18n="Draw a face region (fullscreen; right-click a region: name, delete)">Dessiner une zone de visage (plein écran ; clic droit sur une zone : nommer, supprimer)</span>
+              <span class="guide-control"><kbd data-i18n="Shift">Maj</kbd> + <span data-i18n="drag">glisser</span></span>
             </div>
             <div class="guide-row">
               <span class="guide-action" data-i18n="Delete">Supprimer</span>

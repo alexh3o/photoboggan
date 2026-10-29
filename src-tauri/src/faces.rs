@@ -385,6 +385,28 @@ pub fn init_schema(conn: &Connection) {
         DELETE FROM face_keywords WHERE photo_id NOT IN (SELECT id FROM photos);
         DELETE FROM photo_face_writes WHERE photo_id NOT IN (SELECT id FROM photos);",
     );
+    // Fusion de personnes (lot 5c, spec §9.5) : la personne absorbée est gardée dans le journal (nom, mot-clé lié, visage représentatif,
+    // masquage) avec ses visages, pour pouvoir l'annuler. role : 'person' (visage attribué), 'suggested' (suggestion), 'rejected' (refus).
+    let _ = conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS person_merges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_person_id INTEGER NOT NULL,
+            to_person_id INTEGER NOT NULL,
+            from_name TEXT NOT NULL,
+            from_name_key TEXT NOT NULL,
+            from_keyword_node_id INTEGER,
+            from_cover_face_id INTEGER,
+            from_hidden INTEGER NOT NULL DEFAULT 0,
+            merged_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            undone INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS person_merge_faces (
+            merge_id INTEGER NOT NULL,
+            face_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            PRIMARY KEY (merge_id, face_id, role)
+        );",
+    );
     unlink_missing_keywords(conn);
 }
 
@@ -1273,23 +1295,267 @@ pub fn delete_person(state: State<'_, AppState>, person_id: i64) -> Result<usize
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = (|| -> rusqlite::Result<usize> {
-        let released = conn.execute(
-            "UPDATE faces SET state = CASE WHEN state IN ('auto', 'confirmed') THEN 'unknown' ELSE state END, person_id = NULL, dirty = 1 WHERE person_id = ?1",
-            params![person_id],
-        )?;
-        conn.execute(
-            "UPDATE faces SET state = CASE WHEN state = 'suggested' THEN 'unknown' ELSE state END, suggested_person_id = NULL WHERE suggested_person_id = ?1",
-            params![person_id],
-        )?;
-        conn.execute("UPDATE faces SET rejected_person_id = NULL WHERE rejected_person_id = ?1", params![person_id])?;
-        conn.execute("DELETE FROM persons WHERE id = ?1", params![person_id])?;
-        Ok(released)
-    })();
+    let result = delete_person_rows(&conn, person_id);
     let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
     let released = result.map_err(|error| error.to_string())?;
     remove_person_covers(&person_covers_dir(&state), person_id, None);
     Ok(released)
+}
+
+/// Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
+fn delete_person_rows(conn: &Connection, person_id: i64) -> rusqlite::Result<usize> {
+    let released = conn.execute(
+        "UPDATE faces SET state = CASE WHEN state IN ('auto', 'confirmed') THEN 'unknown' ELSE state END, person_id = NULL, dirty = 1 WHERE person_id = ?1",
+        params![person_id],
+    )?;
+    conn.execute(
+        "UPDATE faces SET state = CASE WHEN state = 'suggested' THEN 'unknown' ELSE state END, suggested_person_id = NULL WHERE suggested_person_id = ?1",
+        params![person_id],
+    )?;
+    conn.execute("UPDATE faces SET rejected_person_id = NULL WHERE rejected_person_id = ?1", params![person_id])?;
+    conn.execute("DELETE FROM persons WHERE id = ?1", params![person_id])?;
+    Ok(released)
+}
+
+// ---------------------------------------------------------------------------
+// Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5)
+// ---------------------------------------------------------------------------
+
+/// Fusion en base (voir merge_persons), dans la transaction de l'appelant.
+fn merge_rows(conn: &Connection, from_person_id: i64, into_person_id: i64) -> Result<MergeResult, String> {
+    let inserted = conn
+        .execute(
+            "INSERT INTO person_merges (from_person_id, to_person_id, from_name, from_name_key, from_keyword_node_id, from_cover_face_id, from_hidden)
+             SELECT id, ?2, name, name_key, keyword_node_id, cover_face_id, hidden FROM persons WHERE id = ?1",
+            params![from_person_id, into_person_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if inserted == 0 { return Err("unknown_person".to_string()); }
+    let merge_id = conn.last_insert_rowid();
+    for (role, column) in [("person", "person_id"), ("suggested", "suggested_person_id"), ("rejected", "rejected_person_id")] {
+        conn.execute(
+            &format!("INSERT INTO person_merge_faces (merge_id, face_id, role) SELECT ?1, id, ?2 FROM faces WHERE {column} = ?3"),
+            params![merge_id, role, from_person_id],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    let face_count = conn
+        .execute(
+            "UPDATE faces SET person_id = ?2, dirty = CASE WHEN state IN ('auto', 'confirmed') THEN 1 ELSE dirty END WHERE person_id = ?1",
+            params![from_person_id, into_person_id],
+        )
+        .map_err(|error| error.to_string())?;
+    conn.execute("UPDATE faces SET suggested_person_id = ?2 WHERE suggested_person_id = ?1", params![from_person_id, into_person_id])
+        .map_err(|error| error.to_string())?;
+    conn.execute("UPDATE faces SET rejected_person_id = NULL WHERE rejected_person_id = ?1", params![from_person_id])
+        .map_err(|error| error.to_string())?;
+    conn.execute("DELETE FROM persons WHERE id = ?1", params![from_person_id]).map_err(|error| error.to_string())?;
+    Ok(MergeResult { merge_id, face_count })
+}
+
+/// Annulation en base (voir undo_person_merge), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentatif, masquage.
+#[allow(clippy::type_complexity)]
+fn undo_merge_rows(conn: &Connection, merge_id: i64, from_id: i64, to_id: i64, person: (&str, &str, Option<i64>, Option<i64>, bool)) -> rusqlite::Result<usize> {
+    let (name, name_key, keyword_id, cover_id, hidden) = person;
+    let keyword_id = match keyword_id {
+        Some(node_id) => conn.query_row(
+            "SELECT ?1 WHERE EXISTS(SELECT 1 FROM keyword_nodes WHERE id = ?1) AND NOT EXISTS(SELECT 1 FROM persons WHERE keyword_node_id = ?1)",
+            params![node_id],
+            |row| row.get::<_, i64>(0),
+        ).ok(),
+        None => None,
+    };
+    conn.execute(
+        "INSERT INTO persons (id, name, name_key, keyword_node_id, cover_face_id, hidden) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![from_id, name, name_key, keyword_id, cover_id, hidden],
+    )?;
+    // Paramètres des trois requêtes : ?1 fusion, ?2 personne recréée, ?3 personne gardée, ?4 rôle (?3 inutilisé pour les refus).
+    let face_ids = "SELECT face_id FROM person_merge_faces WHERE merge_id = ?1 AND role = ?4";
+    let restored = conn.execute(
+        &format!("UPDATE faces SET person_id = ?2, dirty = CASE WHEN state IN ('auto', 'confirmed') THEN 1 ELSE dirty END
+                  WHERE person_id = ?3 AND id IN ({face_ids})"),
+        params![merge_id, from_id, to_id, "person"],
+    )?;
+    conn.execute(
+        &format!("UPDATE faces SET suggested_person_id = ?2 WHERE suggested_person_id = ?3 AND id IN ({face_ids})"),
+        params![merge_id, from_id, to_id, "suggested"],
+    )?;
+    conn.execute(
+        &format!("UPDATE faces SET rejected_person_id = ?2 WHERE rejected_person_id IS NULL AND id IN ({face_ids})"),
+        params![merge_id, from_id, to_id, "rejected"],
+    )?;
+    conn.execute("UPDATE person_merges SET undone = 1 WHERE id = ?1", params![merge_id])?;
+    Ok(restored)
+}
+
+/// Résultat d'une fusion : identifiant du journal (pour l'annuler) et nombre de visages passés à la personne gardée.
+#[derive(Serialize)]
+pub struct MergeResult {
+    pub merge_id: i64,
+    pub face_count: usize,
+}
+
+/// Fusionne `from_person_id` dans `into_person_id` : les visages de la première passent à la seconde (à réécrire : nom des zones et mot-clé
+/// de la personne gardée ; le mot-clé de l'absorbée n'est retiré des photos que s'il avait été posé par la reconnaissance), ses suggestions
+/// aussi ; ses refus sont oubliés. Puis elle est supprimée, mais gardée dans le journal pour l'annulation. Le mot-clé de l'arbre reste.
+#[tauri::command(async)]
+pub fn merge_persons(state: State<'_, AppState>, from_person_id: i64, into_person_id: i64) -> Result<MergeResult, String> {
+    if from_person_id == into_person_id { return Err("same_person".to_string()); }
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let exists: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE id = ?1)", params![into_person_id], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if !exists { return Err("unknown_person".to_string()); }
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = merge_rows(&conn, from_person_id, into_person_id);
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    if result.is_ok() { remove_person_covers(&person_covers_dir(&state), from_person_id, None); }
+    result
+}
+
+/// Fusion annulable, absorbée par une personne (menu de cette personne).
+#[derive(Serialize)]
+pub struct MergeInfo {
+    pub id: i64,
+    pub name: String,
+    pub face_count: i64,
+    pub merged_at: i64,
+}
+
+#[tauri::command(async)]
+pub fn get_person_merges(state: State<'_, AppState>, person_id: i64) -> Result<Vec<MergeInfo>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT m.id, COALESCE(k.name, m.from_name), (SELECT COUNT(*) FROM person_merge_faces f WHERE f.merge_id = m.id AND f.role = 'person'), m.merged_at
+             FROM person_merges m LEFT JOIN keyword_nodes k ON k.id = m.from_keyword_node_id
+             WHERE m.to_person_id = ?1 AND m.undone = 0 ORDER BY m.merged_at DESC, m.id DESC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![person_id], |row| Ok(MergeInfo { id: row.get(0)?, name: row.get(1)?, face_count: row.get(2)?, merged_at: row.get(3)? }))
+        .map_err(|error| error.to_string())?;
+    Ok(rows.flatten().collect())
+}
+
+/// Annule une fusion : la personne absorbée est recréée (même identifiant, nom, masquage ; mot-clé lié s'il existe encore et n'a pas été relié
+/// à une autre personne entre-temps) et reprend ceux de ses visages qui sont toujours attribués à la personne gardée (à réécrire), ses
+/// suggestions et ses refus. Erreurs : `merge_not_found` (inconnue ou déjà annulée), `person_name_taken` (une personne a pris ce nom depuis).
+/// Renvoie le nombre de visages rendus.
+#[tauri::command(async)]
+pub fn undo_person_merge(state: State<'_, AppState>, merge_id: i64) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let (from_id, to_id, name, name_key, keyword_id, cover_id, hidden): (i64, i64, String, String, Option<i64>, Option<i64>, bool) = conn
+        .query_row(
+            "SELECT from_person_id, to_person_id, from_name, from_name_key, from_keyword_node_id, from_cover_face_id, from_hidden
+             FROM person_merges WHERE id = ?1 AND undone = 0",
+            params![merge_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?)),
+        )
+        .map_err(|_| "merge_not_found".to_string())?;
+    let taken: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE name_key = ?1 OR id = ?2)", params![name_key, from_id], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if taken { return Err("person_name_taken".to_string()); }
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = undo_merge_rows(&conn, merge_id, from_id, to_id, (&name, &name_key, keyword_id, cover_id, hidden));
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    if result.is_ok() { remove_person_covers(&person_covers_dir(&state), to_id, None); }
+    result.map_err(|error| error.to_string())
+}
+
+/// Personnes sans aucun visage attribué (« Nettoyer les personnes sans visage », Paramètres > Visages) : (identifiant, nom affiché).
+#[tauri::command(async)]
+pub fn get_persons_without_faces(state: State<'_, AppState>) -> Result<Vec<(i64, String)>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT p.id, COALESCE(k.name, p.name) AS shown FROM persons p LEFT JOIN keyword_nodes k ON k.id = p.keyword_node_id
+             WHERE NOT EXISTS(SELECT 1 FROM faces f WHERE f.person_id = p.id) ORDER BY shown COLLATE NOCASE",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(|error| error.to_string())?;
+    Ok(rows.flatten().collect())
+}
+
+/// Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
+#[tauri::command(async)]
+pub fn delete_persons(state: State<'_, AppState>, person_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = person_ids.iter().try_for_each(|&id| delete_person_rows(&conn, id).map(|_| ()));
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    result.map_err(|error| error.to_string())?;
+    let dir = person_covers_dir(&state);
+    for &id in &person_ids { remove_person_covers(&dir, id, None); }
+    Ok(person_ids.len())
+}
+
+// ---------------------------------------------------------------------------
+// Zones dessinées à la main en plein écran (lot 5c, spec §9.4)
+// ---------------------------------------------------------------------------
+
+/// Ajoute une zone dessinée à la main sur une photo (`rect` : x, y, w, h normalisés, repère de l'image STOCKÉE) pour la personne désignée
+/// comme pour « Nommer » (voir resolve_person). Le visage est « manuel », confirmé et à écrire ; son empreinte sera calculée au prochain scan
+/// de la photo (une photo qui a un visage sans empreinte est comptée « non scannée »). Renvoie (visage, personne).
+#[tauri::command(async)]
+#[allow(clippy::too_many_arguments)]
+pub fn add_manual_face(
+    state: State<'_, AppState>,
+    photo_id: i64,
+    rect: [f64; 4],
+    person_id: Option<i64>,
+    keyword_id: Option<i64>,
+    name: Option<String>,
+    root: Option<String>,
+) -> Result<(i64, i64), String> {
+    let [x, y, w, h] = rect;
+    if !(w > 0.0 && h > 0.0 && x >= 0.0 && y >= 0.0 && x + w <= 1.0 + 1e-6 && y + h <= 1.0 + 1e-6) { return Err("invalid_region".to_string()); }
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let (width, height): (f64, f64) = conn
+        .query_row("SELECT COALESCE(width, 0), COALESCE(height, 0) FROM photos WHERE id = ?1", params![photo_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|_| "unknown_photo".to_string())?;
+    let size_px = (w * width).max(h * height);
+    let size_pct = if width.max(height) > 0.0 { size_px / width.max(height) * 100.0 } else { 0.0 };
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = resolve_person(&conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or("")).and_then(|person| {
+        conn.execute(
+            "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id, size_px, size_pct, dirty)
+             VALUES (?1, ?2, ?3, ?4, ?5, 'manual', 'confirmed', ?6, ?7, ?8, 1)",
+            params![photo_id, x, y, w.min(1.0 - x), h.min(1.0 - y), person, size_px, size_pct],
+        )
+        .map_err(|error| error.to_string())?;
+        Ok((conn.last_insert_rowid(), person))
+    });
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    result
+}
+
+/// Supprime des zones de visage (plein écran) : les photos dont une zone nommée disparaît sont à réécrire. Un visage détecté supprimé peut
+/// revenir avec « Détecter et reconnaître toutes les photos » (« N'est pas un visage » le garde écarté). Renvoie le nombre de zones supprimées.
+#[tauri::command(async)]
+pub fn delete_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let ids = ids_json(&face_ids)?;
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = (|| -> rusqlite::Result<usize> {
+        conn.execute(
+            "INSERT OR IGNORE INTO photo_face_writes (photo_id)
+             SELECT DISTINCT photo_id FROM faces WHERE id IN (SELECT value FROM json_each(?1)) AND person_id IS NOT NULL AND state IN ('auto', 'confirmed')",
+            params![ids],
+        )?;
+        conn.execute("UPDATE persons SET cover_face_id = NULL WHERE cover_face_id IN (SELECT value FROM json_each(?1))", params![ids])?;
+        conn.execute("DELETE FROM faces WHERE id IN (SELECT value FROM json_each(?1))", params![ids])
+    })();
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    result.map_err(|error| error.to_string())
 }
 
 /// Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).
