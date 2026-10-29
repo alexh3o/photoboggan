@@ -1392,8 +1392,8 @@ function onContextMenu(event) {
   if (target?.closest('input[type="text"], input:not([type]), textarea')) return;
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
-  // Section Personnes : son menu est ouvert par faces-panel.js (openContextMenuAt).
-  if (target?.closest('.person-item')) return;
+  // Section Personnes et vue Personnes : leur menu est ouvert par faces-panel.js (openContextMenuAt).
+  if (target?.closest('.person-item, .person-tile')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');

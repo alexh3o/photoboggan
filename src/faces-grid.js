@@ -72,6 +72,7 @@ export function hasFaceSelection() {
 
 // Ouvre la vue Visages ; `statuses` (facultatif) : statuts à afficher (ex. depuis la section Personnes, « À valider »).
 export function openFacesView(statuses = null) {
+  host.closePersonsView(); // une seule des deux vues (Personnes, gestion) à la fois
   if (statuses) {
     visibleStatuses = new Set(statuses);
     saveStatuses();
@@ -355,7 +356,23 @@ function updateToolbar() {
   const notFaces = targets.filter(face => face.state === 'not_face');
   document.getElementById('btn-faces-not-face').disabled = targets.length === notFaces.length;
   document.getElementById('btn-faces-is-face').hidden = notFaces.length === 0;
+  // Visage représentatif : un seul visage, attribué à une personne (automatiquement ou confirmé).
+  document.getElementById('btn-faces-cover').disabled = !(targets.length === 1 && targets[0].person_id != null);
   updateWriteButton();
+}
+
+// « Visage représentatif » : ce visage devient l'image de sa personne (section et vue Personnes ; vignette régénérée depuis la photo d'origine).
+async function useAsCover() {
+  const [face] = selectedFaces();
+  if (!face || face.person_id == null) return;
+  try {
+    await invoke('set_person_cover', { personId: face.person_id, faceId: face.id });
+  } catch (error) {
+    host.showToast(String(error));
+    return;
+  }
+  await refreshFaces();
+  host.showToast(t('Cover face of {name} changed', { name: face.name ?? '?' }));
 }
 
 // « Écrire dans les fichiers (N photos) » : visages en attente de toute la photothèque ; grisé pendant une écriture ou sans rien à écrire.
@@ -476,7 +493,9 @@ export function initFacesGrid(hostApi) {
     renderVisible();
     updateToolbar();
   });
-  document.getElementById('btn-toggle-faces').addEventListener('click', toggleFacesView);
+  // Le bouton « Visages » de la barre du haut ouvre la vue Personnes (main.js) ; cette vue a son bouton de retour vers elle.
+  document.getElementById('btn-faces-persons').addEventListener('click', () => host.openPersonsView());
+  document.getElementById('btn-faces-cover').addEventListener('click', useAsCover);
   document.getElementById('btn-faces-confirm').addEventListener('click', () => runAction('confirm_faces'));
   document.getElementById('btn-faces-name').addEventListener('click', () => nameSelection());
   document.getElementById('btn-faces-unknown').addEventListener('click', () => runAction('set_faces_unknown'));

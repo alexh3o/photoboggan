@@ -218,6 +218,8 @@ pub struct KeywordWriteResult {
     pub cancelled: usize,
     /// Suppression d'un mot-clé : vrai quand le mot-clé (et ses descendants) a été retiré de l'arbre, c'est-à-dire quand plus aucun fichier ne le porte.
     pub deleted: bool,
+    /// Suppression d'un mot-clé : personnes qui lui étaient reliées, désormais déliées (identifiant, nom) : l'interface propose de les supprimer.
+    pub unlinked_persons: Vec<(i64, String)>,
 }
 
 /// Chemin complet (du premier niveau au mot-clé) d'un nœud de l'arbre.
@@ -376,7 +378,7 @@ fn run_write(
     let _ = conn.execute("COMMIT", []);
     store_photo_keywords(&conn, &keyword_batches);
     crate::faces::store_photo_faces(&conn, &face_batches);
-    Ok(KeywordWriteResult { written, failed, cancelled, deleted: false })
+    Ok(KeywordWriteResult { written, failed, cancelled, deleted: false, unlinked_persons: Vec::new() })
 }
 
 /// Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
@@ -517,7 +519,7 @@ fn run_delete(
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     // Pour chaque photo qui porte le mot-clé ou l'un de ses descendants : ses mots-clés actifs moins ceux-là.
-    let items = {
+    let (items, unlinked_persons) = {
         let conn = pool.get().map_err(|error| error.to_string())?;
         let ids = subtree_ids(&conn, keyword_id)?;
         if ids.is_empty() { return Err("unknown_keyword".to_string()); }
@@ -525,12 +527,17 @@ fn run_delete(
         // Personnes reliées à ces mots-clés : déliées d'abord (elles gardent leur nom et leurs visages), sinon l'écriture de leurs visages
         // remettrait le mot-clé dans les fichiers (voir faces::plan_face_write).
         let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
+        let linked: Vec<(i64, String)> = conn
+            .prepare("SELECT p.id, COALESCE(k.name, p.name) FROM persons p JOIN keyword_nodes k ON k.id = p.keyword_node_id WHERE p.keyword_node_id IN (SELECT value FROM json_each(?1))")
+            .and_then(|mut statement| statement.query_map(params![ids_json], |row| Ok((row.get(0)?, row.get(1)?))).map(|rows| rows.flatten().collect()))
+            .unwrap_or_default();
         let _ = conn.execute("UPDATE persons SET keyword_node_id = NULL WHERE keyword_node_id IN (SELECT value FROM json_each(?1))", params![ids_json]);
-        photos_carrying(&conn, &ids, &removed)?
+        (photos_carrying(&conn, &ids, &removed)?, linked)
     };
 
     // Écriture des fichiers (même mécanisme que l'application des modifications : écriture atomique, relecture, base mise à jour).
     let mut result = run_write(app, pool, items, task_id, cancel)?;
+    result.unlinked_persons = unlinked_persons;
 
     // Le mot-clé ne quitte l'arbre que si plus aucun fichier ne le porte : en cas d'échec ou d'arrêt, il reste pour les fichiers concernés.
     if result.failed.is_empty() && result.cancelled == 0 {

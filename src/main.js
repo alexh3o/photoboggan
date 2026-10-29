@@ -8,11 +8,12 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings } from './metadata-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWritten } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData } from './faces-panel.js';
-import { initFacesGrid, isFacesViewOpen, hasFaceSelection, closeFacesView, reloadFacesView } from './faces-grid.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons } from './faces-panel.js';
+import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView } from './faces-grid.js';
+import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -1822,6 +1823,7 @@ window.addEventListener('keydown', (e) => {
   // seul le guide (H) reste disponible, et seulement sans visage sélectionné (une lettre tapée commence alors un nom). Les touches de la vue
   // sont gérées par faces-grid.js.
   if (isFacesViewOpen() && !isFullscreen && (e.key.toLowerCase() !== 'h' || hasFaceSelection())) return;
+  if (isPersonsViewOpen() && !isFullscreen && e.key.toLowerCase() !== 'h') return; // vue Personnes : idem
   // Ctrl+C : copie les photos sélectionnées dans le presse-papiers de l'OS. Traité avant le raccourci « C » seul (Copier vers…),
   // qui ne doit pas s'ouvrir sur Ctrl+C. Ignoré quand une fenêtre (Paramètres, Guide, Tri…) est ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
@@ -4338,10 +4340,18 @@ const getSelectedPhotos = () => [...selectedIndices].map(index => photos[index])
 initKeywordsPanel({
   getSelectedPhotos,
   showToast: message => showWriteToast(message),
+  // Mot-clé supprimé qui était relié à des personnes : proposer de les supprimer aussi (voir faces-panel.js).
+  onPersonsUnlinked: unlinked => proposeDeletePersons(unlinked),
 });
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
 initDescriptionPanel({ getSelectedPhotos });
+
+// Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
+function setPhotoGridVisible(visible) {
+  gridContainer.hidden = !visible;
+  if (visible) requestAnimationFrame(updateVirtualScroller);
+}
 
 // Visages (voir faces-panel.js) : section Personnes, filtre Personnes, zones en plein écran. Vignettes des personnes découpées dans les miniatures en cache.
 initFacesPanel({
@@ -4362,8 +4372,33 @@ initFacesPanel({
   isFullscreen: () => isFullscreen,
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
+  // Détection désactivée : les vues Personnes et de gestion se ferment.
+  closeFacesView: () => { closeFacesView(); closePersonsView(); },
+  onFacesChanged: () => { reloadFacesView(); reloadPersonsView(); },
+  // « Voir » (suppression d'une personne), double-clic dans la vue Personnes : vue de gestion sur les visages des photos affichées.
+  openFacesManagement: () => { closePersonsView(); openFacesView(); },
+  // Renommer une personne reliée : c'est son mot-clé qui est renommé, avec réécriture des fichiers qui le portent (même commande que le panneau Mots-clés).
+  renameKeyword: (keywordId, name, photoCount, after) => runLocked('rename_keyword', { keywordId, name }, photoCount, async (result, error) => {
+    if (!result) {
+      showWriteToast(t('Could not rename the keyword: {error}', { error: String(error ?? '') }));
+      return;
+    }
+    publishWritten(result.written);
+    invalidateKeywordTree();
+    await after();
+    if (result.failed.length) showWriteToast(tp('{count} file could not be written', result.failed.length));
+  }),
+});
+
+// Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
+initPersonsView({
+  setPhotoGridVisible,
   closeFacesView: () => closeFacesView(),
-  onFacesChanged: () => reloadFacesView(),
+  openFacesManagement: () => { closePersonsView(); openFacesView(); },
+});
+// Bouton « Visages » : ouvre la vue Personnes, ou ferme la vue (Personnes ou gestion) ouverte.
+document.getElementById('btn-toggle-faces').addEventListener('click', () => {
+  if (isPersonsViewOpen() || isFacesViewOpen()) { closePersonsView(); closeFacesView(); } else openPersonsView();
 });
 
 // Vue Visages (voir faces-grid.js) : visages des photos affichées, à la place de la grille des photos.
@@ -4398,10 +4433,9 @@ initFacesGrid({
     if (index < 0) showWriteToast(t('This photo is not among the displayed photos'));
     else openFullscreen(index);
   },
-  setPhotoGridVisible: visible => {
-    gridContainer.hidden = !visible;
-    if (visible) requestAnimationFrame(updateVirtualScroller);
-  },
+  setPhotoGridVisible,
+  openPersonsView: () => openPersonsView(),
+  closePersonsView: () => closePersonsView(),
   showToast: message => showWriteToast(message),
   getPersonRoot,
   isFullscreen: () => isFullscreen,

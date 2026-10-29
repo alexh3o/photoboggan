@@ -46,8 +46,9 @@ const SHARPNESS_SIDE: usize = 112;
 pub struct FaceSettings {
     /// Scanner les RAW (sur la miniature tirée de leur aperçu JPEG intégré).
     pub scan_raw: bool,
-    /// Taille minimale du visage, en % du plus grand côté de la photo (seul critère de taille : une taille en pixels n'apporterait rien de plus).
-    pub min_size_percent: f64,
+    /// Taille minimale du visage, en ‰ du plus grand côté de la photo (seul critère de taille ; le ‰ est plus fin que le %). La taille mesurée reste
+    /// stockée en % (`faces.size_pct`) : la comparaison se fait en ‰ (× 10).
+    pub min_size_permille: f64,
     /// Confiance minimale de YuNet (0 à 1).
     pub min_confidence: f64,
     /// Netteté minimale (variance du laplacien sur le visage ramené à 112 px, en niveaux de gris).
@@ -68,7 +69,7 @@ impl Default for FaceSettings {
 impl FaceSettings {
     const DEFAULT: FaceSettings = FaceSettings {
         scan_raw: true,
-        min_size_percent: 1.0,
+        min_size_permille: 10.0,
         min_confidence: 0.8,
         min_sharpness: 50.0,
         auto_threshold: 0.50,
@@ -82,7 +83,7 @@ impl FaceSettings {
 
     /// Visage retenu (« inconnu », à reconnaître) ou écarté (« filtré ») d'après ses mesures.
     fn passes(&self, score: f64, sharpness: f64, size_percent: f64) -> bool {
-        score >= self.min_confidence && sharpness >= self.min_sharpness && size_percent >= self.min_size_percent
+        score >= self.min_confidence && sharpness >= self.min_sharpness && size_percent * 10.0 >= self.min_size_permille
     }
 }
 

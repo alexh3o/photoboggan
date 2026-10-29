@@ -1485,6 +1485,12 @@ fn main() {
             faces::get_pending_face_writes,
             faces::face_keyword_conflicts,
             faces::erase_face_data,
+            faces::rename_person,
+            faces::set_person_hidden,
+            faces::set_person_cover,
+            faces::person_delete_info,
+            faces::delete_person,
+            faces::get_person_cover,
             face_models::get_face_model_status,
             face_models::download_face_models,
             face_models::import_face_models,
@@ -1601,7 +1607,7 @@ fn change_storage_location(
     }
 
     // models : fichiers de la détection des visages (face_models.rs), déplacés avec les données pour ne pas les retélécharger.
-    for folder_name in &["thumbnails", "raw_previews", "models"] {
+    for folder_name in &["thumbnails", "raw_previews", "models", "person_covers"] {
         let src = current_base.join(folder_name);
         let dst = target_dir.join(folder_name);
         if src.is_dir() {

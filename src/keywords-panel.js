@@ -1027,6 +1027,8 @@ async function finishDelete(node, photoCount, ids, result, error) {
   if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount));
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword “{name}” deleted', { name: node.name }));
+  // Personnes qui étaient reliées à ce mot-clé (ou à un descendant) : désormais déliées, leur suppression est proposée (faces-panel.js).
+  if (result.unlinked_persons?.length) await host.onPersonsUnlinked?.(result.unlinked_persons);
 }
 
 // ---------------------------------------------------------------------------

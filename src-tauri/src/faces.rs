@@ -555,6 +555,7 @@ pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) {
 /// Visage représentatif d'une personne : de quoi découper sa vignette dans la miniature de la photo (orientation à appliquer à la zone).
 #[derive(Serialize)]
 pub struct FaceCover {
+    pub face_id: i64,
     pub photo_id: i64,
     pub path: String,
     pub x: f64,
@@ -572,6 +573,8 @@ pub struct PersonInfo {
     pub keyword_id: Option<i64>,
     pub photo_count: i64,
     pub cover: Option<FaceCover>,
+    /// Personne masquée : ni attribuée, ni proposée ; absente des listes sauf si l'utilisateur affiche les personnes masquées.
+    pub hidden: bool,
 }
 
 /// Toutes les personnes, avec leur nombre de photos au catalogue (0 pour une personne en attente d'attribution) et leur visage représentatif
@@ -586,7 +589,7 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
     {
         let mut statement = conn
             .prepare(
-                "SELECT f.person_id, f.photo_id, p.path, f.x, f.y, f.w, f.h, p.orientation, f.id = pr.cover_face_id
+                "SELECT f.person_id, f.photo_id, p.path, f.x, f.y, f.w, f.h, p.orientation, f.id = pr.cover_face_id, f.id
                  FROM faces f JOIN photos p ON p.id = f.photo_id JOIN persons pr ON pr.id = f.person_id",
             )
             .map_err(|error| error.to_string())?;
@@ -595,6 +598,7 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
                 Ok((
                     row.get::<_, i64>(0)?,
                     FaceCover {
+                        face_id: row.get(9)?,
                         photo_id: row.get(1)?,
                         path: row.get(2)?,
                         x: row.get(3)?,
@@ -618,16 +622,16 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
         }
     }
     let mut statement = conn
-        .prepare("SELECT pr.id, COALESCE(k.name, pr.name), pr.keyword_node_id FROM persons pr LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id")
+        .prepare("SELECT pr.id, COALESCE(k.name, pr.name), pr.keyword_node_id, pr.hidden FROM persons pr LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id")
         .map_err(|error| error.to_string())?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?)))
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, bool>(3)?)))
         .map_err(|error| error.to_string())?;
     let persons = rows
         .flatten()
-        .map(|(id, name, keyword_id)| {
+        .map(|(id, name, keyword_id, hidden)| {
             let photo_count = photos_by_person.get(&id).map_or(0, |photos| photos.len() as i64);
-            PersonInfo { id, name, keyword_id, photo_count, cover: covers.remove(&id).map(|(_, _, cover)| cover) }
+            PersonInfo { id, name, keyword_id, photo_count, cover: covers.remove(&id).map(|(_, _, cover)| cover), hidden }
         })
         .collect();
     Ok(persons)
@@ -1155,6 +1159,182 @@ pub fn erase_face_data(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Resul
     })();
     let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
     result.map_err(|error| error.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Gestion des personnes (lot 5a) : renommer, masquer, visage représentatif, supprimer, vignette de la vue Personnes
+// ---------------------------------------------------------------------------
+
+/// Renomme une personne non reliée à un mot-clé (pour une personne reliée, le nom affiché et écrit est celui du mot-clé : c'est lui qu'on renomme,
+/// voir keywords::rename_keyword). Erreurs : `invalid_name`, `person_linked`, `person_name_taken`, `unknown_person`.
+#[tauri::command(async)]
+pub fn rename_person(state: State<'_, AppState>, person_id: i64, name: String) -> Result<(), String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let name = valid_person_name(&name).ok_or_else(|| "invalid_name".to_string())?;
+    let linked: bool = conn
+        .query_row("SELECT keyword_node_id IS NOT NULL FROM persons WHERE id = ?1", params![person_id], |row| row.get(0))
+        .map_err(|_| "unknown_person".to_string())?;
+    if linked { return Err("person_linked".to_string()); }
+    let key = crate::keywords::name_key(&name);
+    let taken: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE name_key = ?1 AND id <> ?2)", params![key, person_id], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if taken { return Err("person_name_taken".to_string()); }
+    conn.execute("UPDATE persons SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, person_id]).map_err(|error| error.to_string())?;
+    // Les zones écrites portent l'ancien nom : visages de la personne à réécrire.
+    let _ = conn.execute("UPDATE faces SET dirty = 1 WHERE person_id = ?1 AND state IN ('auto', 'confirmed')", params![person_id]);
+    Ok(())
+}
+
+/// Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (face_recognize::attribute_faces), et l'interface la cache.
+#[tauri::command(async)]
+pub fn set_person_hidden(state: State<'_, AppState>, person_id: i64, hidden: bool) -> Result<(), String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute("UPDATE persons SET hidden = ?1 WHERE id = ?2", params![hidden, person_id]).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Visage représentatif choisi par l'utilisateur (vue de gestion) : il doit être attribué à cette personne.
+#[tauri::command(async)]
+pub fn set_person_cover(state: State<'_, AppState>, person_id: i64, face_id: i64) -> Result<(), String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let belongs: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM faces WHERE id = ?1 AND person_id = ?2)", params![face_id, person_id], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    if !belongs { return Err("face_not_of_person".to_string()); }
+    conn.execute("UPDATE persons SET cover_face_id = ?1 WHERE id = ?2", params![face_id, person_id]).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+/// Ce que la suppression d'une personne touche (fenêtre d'alerte) : visages encore rattachés et photos qui les portent.
+#[derive(Serialize)]
+pub struct PersonDeleteInfo {
+    pub name: String,
+    pub face_count: i64,
+    pub photo_count: i64,
+}
+
+#[tauri::command(async)]
+pub fn person_delete_info(state: State<'_, AppState>, person_id: i64) -> Result<PersonDeleteInfo, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let name: String = conn
+        .query_row(
+            "SELECT COALESCE(k.name, p.name) FROM persons p LEFT JOIN keyword_nodes k ON k.id = p.keyword_node_id WHERE p.id = ?1",
+            params![person_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "unknown_person".to_string())?;
+    let (face_count, photo_count): (i64, i64) = conn
+        .query_row("SELECT COUNT(*), COUNT(DISTINCT photo_id) FROM faces WHERE person_id = ?1", params![person_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|error| error.to_string())?;
+    Ok(PersonDeleteInfo { name, face_count, photo_count })
+}
+
+/// Supprime une personne et ses caractéristiques de reconnaissance (ses visages confirmés ne servent plus de référence). Ses visages restants
+/// deviennent « inconnus » et sont à réécrire (zone sans nom retirée, mot-clé retiré seulement s'il a été posé par la reconnaissance) ; les
+/// suggestions et refus qui la visaient sont oubliés. Le mot-clé de l'arbre n'est pas supprimé. Renvoie le nombre de visages libérés.
+#[tauri::command(async)]
+pub fn delete_person(state: State<'_, AppState>, person_id: i64) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let _ = conn.execute("BEGIN TRANSACTION", []);
+    let result = (|| -> rusqlite::Result<usize> {
+        let released = conn.execute(
+            "UPDATE faces SET state = CASE WHEN state IN ('auto', 'confirmed') THEN 'unknown' ELSE state END, person_id = NULL, dirty = 1 WHERE person_id = ?1",
+            params![person_id],
+        )?;
+        conn.execute(
+            "UPDATE faces SET state = CASE WHEN state = 'suggested' THEN 'unknown' ELSE state END, suggested_person_id = NULL WHERE suggested_person_id = ?1",
+            params![person_id],
+        )?;
+        conn.execute("UPDATE faces SET rejected_person_id = NULL WHERE rejected_person_id = ?1", params![person_id])?;
+        conn.execute("DELETE FROM persons WHERE id = ?1", params![person_id])?;
+        Ok(released)
+    })();
+    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
+    let released = result.map_err(|error| error.to_string())?;
+    remove_person_covers(&person_covers_dir(&state), person_id, None);
+    Ok(released)
+}
+
+/// Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).
+pub fn person_covers_dir(state: &AppState) -> std::path::PathBuf {
+    state.base_dir().join("person_covers")
+}
+
+/// Supprime les vignettes d'une personne, sauf `keep` (la vignette à jour).
+fn remove_person_covers(dir: &std::path::Path, person_id: i64, keep: Option<&std::path::Path>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return; };
+    let prefix = format!("{person_id}-");
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if keep.is_some_and(|kept| kept == path) { continue; }
+        if path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.starts_with(&prefix)) { let _ = std::fs::remove_file(path); }
+    }
+}
+
+/// Vignette d'une personne pour la vue Personnes : son visage représentatif (choisi, à défaut le plus grand), recadré en carré autour du visage
+/// depuis la photo d'ORIGINE (aperçu JPEG pour un RAW) et réduit à la taille du cache des miniatures (Paramètres > Données), orientation appliquée.
+/// Gardée dans `person_covers/` sous un nom qui change avec le visage, la taille du cache et le fichier (chemin, taille, date) : une vignette
+/// périmée n'est jamais resservie. Renvoie son chemin, ou None pour une personne sans visage.
+#[tauri::command(async)]
+pub fn get_person_cover(state: State<'_, AppState>, person_id: i64) -> Result<Option<String>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let found = conn.query_row(
+        "SELECT f.id, p.path, f.x, f.y, f.w, f.h, COALESCE(p.orientation, 1), COALESCE(p.width, 0), COALESCE(p.height, 0)
+         FROM faces f JOIN photos p ON p.id = f.photo_id JOIN persons pr ON pr.id = f.person_id
+         WHERE f.person_id = ?1 ORDER BY (f.id = pr.cover_face_id) DESC, f.w * f.h DESC LIMIT 1",
+        params![person_id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, [row.get::<_, f64>(2)?, row.get(3)?, row.get(4)?, row.get(5)?], row.get::<_, u32>(6)?, row.get::<_, i64>(7)?, row.get::<_, i64>(8)?)),
+    );
+    let Ok((face_id, path, rect, orientation, width, height)) = found else { return Ok(None); };
+    drop(conn);
+    let side = state.thumbnail_cache_size();
+    let dir = person_covers_dir(&state);
+    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    // Empreinte du fichier (chemin, taille, date) : même calcul que le cache des miniatures.
+    let fingerprint = crate::thumbnail_cache_file(&dir, &path)?;
+    let stem = fingerprint.file_stem().and_then(|stem| stem.to_str()).unwrap_or("0").to_string();
+    let destination = dir.join(format!("{person_id}-{face_id}-{side}-{stem}.jpg"));
+    if destination.is_file() { return Ok(Some(destination.to_string_lossy().into_owned())); }
+    render_face_cover(std::path::Path::new(&path), rect, orientation, width, height, side, &destination)?;
+    remove_person_covers(&dir, person_id, Some(&destination));
+    Ok(Some(destination.to_string_lossy().into_owned()))
+}
+
+/// Recadre le visage `rect` (normalisé, repère de l'image stockée) dans un carré de 1,6 fois son plus grand côté, depuis l'original décodé à une
+/// échelle suffisante pour que ce carré atteigne `side` px, puis réduit à `side` px au plus, applique l'orientation et écrit le JPEG.
+fn render_face_cover(source: &std::path::Path, rect: [f64; 4], orientation: u32, width: i64, height: i64, side: usize, destination: &std::path::Path) -> Result<(), String> {
+    const MARGIN: f64 = 1.6;
+    // Côté du carré en pixels de l'original (dimensions EXIF, repère stocké) : de quoi choisir l'échelle de décodage.
+    let wanted_max_side = if width > 0 && height > 0 {
+        let square = ((rect[2] * width as f64).max(rect[3] * height as f64) * MARGIN).min(width.min(height) as f64).max(1.0);
+        ((width.max(height) as f64) * side as f64 / square).ceil() as usize
+    } else {
+        side * 4
+    };
+    let (rgb, decoded_width, decoded_height) = crate::thumbnails::decode_scaled_rgb(source, wanted_max_side.clamp(side, 8000))?;
+    let square = ((rect[2] * decoded_width as f64).max(rect[3] * decoded_height as f64) * MARGIN)
+        .min(decoded_width.min(decoded_height) as f64)
+        .max(1.0) as usize;
+    let center_x = (rect[0] + rect[2] / 2.0) * decoded_width as f64;
+    let center_y = (rect[1] + rect[3] / 2.0) * decoded_height as f64;
+    let left = (center_x - square as f64 / 2.0).clamp(0.0, (decoded_width - square) as f64) as usize;
+    let top = (center_y - square as f64 / 2.0).clamp(0.0, (decoded_height - square) as f64) as usize;
+    let mut crop = Vec::with_capacity(square * square * 3);
+    for row in top..top + square {
+        let start = (row * decoded_width + left) * 3;
+        crop.extend_from_slice(&rgb[start..start + square * 3]);
+    }
+    let output_side = square.min(side).max(1);
+    let resized = if output_side == square { crop } else { crate::thumbnails::resize_area(&crop, square, square, output_side, output_side) };
+    let (oriented, oriented_width, oriented_height) = crate::thumbnails::apply_orientation(resized, output_side, output_side, orientation);
+    crate::thumbnails::write_jpeg(destination, &oriented, oriented_width, oriented_height)
 }
 
 #[cfg(test)]

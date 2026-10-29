@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
-import { registerEditor, writeMetadataItems } from './metadata-writes.js';
+import { registerEditor, writeMetadataItems, choiceDialog } from './metadata-writes.js';
 
 const READING_STORAGE_KEY = 'faceReading'; // « true » : lecture des zones de visage activée
 const DETECTION_STORAGE_KEY = 'faceDetection'; // « true » : détection et reconnaissance activées (menus « Visages », réglages du modèle)
@@ -16,11 +16,11 @@ const FACE_SETTINGS_STORAGE_KEY = 'faceSettings'; // réglages de détection (JS
 const SUBFOLDERS_STORAGE_KEY = 'faceScanSubfolders'; // « true » : toujours inclure les sous-dossiers d'un dossier scanné
 // Valeurs par défaut provisoires (spec §8), à ajuster après les premiers essais.
 const DEFAULT_FACE_SETTINGS = {
-  scanRaw: true, minSizePercent: 1, minConfidence: 0.8, minSharpness: 50,
+  scanRaw: true, minSizePermille: 10, minConfidence: 0.8, minSharpness: 50,
   autoThreshold: 0.5, suggestionThreshold: 0.36, margin: 0.05,
 };
 const THRESHOLD_INPUTS = {
-  minSizePercent: 'face-min-size-percent', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness',
+  minSizePermille: 'face-min-size-permille', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness',
   autoThreshold: 'face-auto-threshold', suggestionThreshold: 'face-suggestion-threshold', margin: 'face-margin',
 };
 const PERSON_ROOT_STORAGE_KEY = 'facePersonRoot'; // racine des mots-clés créés pour les nouvelles personnes (« A/B », vide = premier niveau)
@@ -53,7 +53,10 @@ function loadFaceSettings() {
   try {
     const stored = JSON.parse(readStorage(FACE_SETTINGS_STORAGE_KEY));
     if (stored && typeof stored === 'object') {
-      delete stored.minSizePx; // réglage retiré (la taille en % suffit)
+      delete stored.minSizePx; // réglage retiré (la taille relative suffit)
+      // Ancien réglage en % : converti en ‰.
+      if (typeof stored.minSizePercent === 'number' && typeof stored.minSizePermille !== 'number') stored.minSizePermille = stored.minSizePercent * 10;
+      delete stored.minSizePercent;
       return { ...DEFAULT_FACE_SETTINGS, ...stored };
     }
   } catch { /* valeur absente ou illisible : réglages par défaut */ }
@@ -283,8 +286,23 @@ export async function refreshFaces() {
 }
 
 // Personnes sans aucune photo : absentes de la section Personnes et de la liste du filtre.
-function listedPersons() {
-  return persons.filter(person => person.photo_count > 0);
+// Personnes listées (section Personnes, vue Personnes) : celles qui ont des photos ; les personnes masquées seulement si l'utilisateur les affiche.
+export function listedPersons() {
+  return persons.filter(person => person.photo_count > 0 && (showHiddenPersons || !person.hidden));
+}
+
+const SHOW_HIDDEN_STORAGE_KEY = 'showHiddenPersons';
+let showHiddenPersons = readStorage(SHOW_HIDDEN_STORAGE_KEY) === 'true';
+
+export function getShowHiddenPersons() {
+  return showHiddenPersons;
+}
+
+export function setShowHiddenPersons(show) {
+  showHiddenPersons = show;
+  writeStorage(SHOW_HIDDEN_STORAGE_KEY, String(show));
+  renderPersons();
+  host.onFacesChanged?.();
 }
 
 function sortedPersons() {
@@ -352,11 +370,125 @@ async function loadAvatar(element, cover) {
   image.src = url;
 }
 
-function openPersonMenu(event, person) {
+// Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, masquer / afficher, supprimer.
+export function openPersonMenu(event, person) {
   event.preventDefault();
-  const items = [{ label: t('Link to a keyword…'), onSelect: () => linkPersonToKeyword(person) }];
+  const items = [
+    // Vue de gestion sur les visages de ses photos (grille filtrée sur elle).
+    { label: t('Manage their faces'), onSelect: () => showPersonFaces(person.id) },
+    { label: t('Rename…'), onSelect: () => renamePerson(person) },
+    { label: t('Link to a keyword…'), onSelect: () => linkPersonToKeyword(person) },
+  ];
   if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => saveLink(person, null) });
+  items.push(
+    { label: person.hidden ? t('Show this person') : t('Hide this person'), onSelect: () => setPersonHidden(person, !person.hidden) },
+    { label: t('Delete this person…'), onSelect: () => confirmDeletePerson(person), danger: true },
+  );
   openContextMenuAt(event, items);
+}
+
+const personErrorMessage = error => ({
+  invalid_name: t('Names cannot be empty or contain "/", "|" or ","'),
+  person_name_taken: t('Another person already has this name'),
+  unknown_person: t('This person no longer exists'),
+}[String(error)] ?? String(error));
+
+// Renommer : une personne non reliée change de nom ; pour une personne reliée, c'est son mot-clé qui est renommé (son nom vient de lui), avec la
+// réécriture des fichiers qui le portent, comme depuis le panneau Mots-clés.
+async function renamePerson(person) {
+  const linked = person.keyword_id != null;
+  await promptDialog({
+    title: t('Rename the person'),
+    message: linked ? t('{name} is linked to a keyword: the keyword is renamed, in the keyword tree and in the files that carry it.', { name: person.name }) : t('New name of {name}', { name: person.name }),
+    inputLabel: t('Name'),
+    confirmLabel: t('Rename'),
+    cancelLabel: t('Cancel'),
+    value: person.name,
+    onSubmit: async value => {
+      const name = value.trim();
+      if (!name || /[/|,]/.test(name)) return t('Names cannot be empty or contain "/", "|" or ","');
+      if (name === person.name) return null;
+      if (!linked) {
+        try {
+          await invoke('rename_person', { personId: person.id, name });
+        } catch (error) {
+          return personErrorMessage(error);
+        }
+        await refreshFaces();
+        return null;
+      }
+      host.renameKeyword(person.keyword_id, name, person.photo_count, refreshFaces);
+      return null;
+    },
+  });
+}
+
+async function setPersonHidden(person, hidden) {
+  try {
+    await invoke('set_person_hidden', { personId: person.id, hidden });
+  } catch (error) {
+    host.showToast(String(error));
+    return;
+  }
+  await refreshFaces();
+}
+
+// Supprimer une personne : alerte (caractéristiques de visage effacées ; visages encore rattachés, avec « Voir » pour les traiter d'abord).
+// `intro` : phrase d'introduction (ex. après la suppression de son mot-clé).
+export async function confirmDeletePerson(person, intro = '') {
+  let info;
+  try {
+    info = await invoke('person_delete_info', { personId: person.id });
+  } catch (error) {
+    host.showToast(personErrorMessage(error));
+    return;
+  }
+  const lines = [];
+  if (intro) lines.push(intro);
+  lines.push(t('The face characteristics of {name} (references used for recognition) will be erased.', { name: info.name }));
+  if (info.face_count > 0) {
+    lines.push(tp('{count} face is still attached to this person, on {photos} photo: it will become unknown and its name will be removed from the files at the next write.', info.face_count, { photos: info.photo_count }));
+  }
+  const buttons = [{ label: t('Cancel'), value: 'cancel', cancel: true }];
+  if (info.face_count > 0) buttons.push({ label: t('View'), value: 'view' });
+  buttons.push({ label: t('Erase'), value: 'erase' });
+  const choice = await choiceDialog({ title: t('Delete {name}?', { name: info.name }), message: lines.join('\n\n'), buttons });
+  if (choice === 'view') {
+    showPersonFaces(person.id);
+    return;
+  }
+  if (choice !== 'erase') return;
+  try {
+    await invoke('delete_person', { personId: person.id });
+  } catch (error) {
+    host.showToast(personErrorMessage(error));
+    return;
+  }
+  personFilters = personFilters.filter(id => id !== person.id);
+  await refreshFaces();
+  host.onFilterChange();
+  host.showToast(t('{name} deleted', { name: info.name }));
+}
+
+// Mot-clé relié à des personnes supprimé (panneau Mots-clés) : proposer de supprimer aussi chacune d'elles (à défaut, elles restent, déliées).
+export async function proposeDeletePersons(unlinked) {
+  for (const [id, name] of unlinked) {
+    await confirmDeletePerson({ id, name }, t('The keyword of {name} has been deleted. Delete the person too?', { name }));
+  }
+}
+
+// Vue Personnes, clic sur une personne : la grille des photos est filtrée sur elle seule.
+export function filterOnPerson(personId) {
+  setPersonFilters([personId]);
+}
+
+// Visages d'une personne à traiter : la grille des photos est filtrée sur elle, puis la vue de gestion s'ouvre sur les visages de ces photos.
+export function showPersonFaces(personId) {
+  personFilters = [personId];
+  renderPersonFilterTags();
+  renderPersons();
+  host.onFilterChange();
+  host.openFacesManagement();
 }
 
 // Chemins complets (« A/B/C ») des nœuds de l'arbre des mots-clés, par identifiant.

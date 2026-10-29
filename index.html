@@ -172,6 +172,7 @@
       <!-- Vue Visages (faces-grid.js) : remplace la grille des photos quand elle est ouverte -->
       <section id="faces-view" class="faces-view" aria-label="Visages" data-i18n-aria-label="Faces" hidden>
         <div class="faces-toolbar">
+          <button id="btn-faces-persons" type="button" class="faces-back" data-i18n="← People" data-i18n-title="Back to the People view" title="Retour à la vue Personnes">← Personnes</button>
           <div id="faces-status-filters" class="faces-status-filters" role="group" aria-label="Statuts affichés" data-i18n-aria-label="Displayed statuses"></div>
           <div class="faces-actions">
             <span id="faces-count" class="faces-count"></span>
@@ -182,11 +183,28 @@
             <button id="btn-faces-unignore" type="button" data-i18n="Stop ignoring" hidden>Ne plus ignorer</button>
             <button id="btn-faces-not-face" type="button" data-i18n="Not a face">N'est pas un visage</button>
             <button id="btn-faces-is-face" type="button" data-i18n="It is a face" hidden>C'est un visage</button>
+            <button id="btn-faces-cover" type="button" data-i18n="Use as cover face" data-i18n-title="Use this face as the picture of the person" title="Utiliser ce visage comme image de la personne" disabled>Visage représentatif</button>
             <button id="btn-faces-write" type="button" class="btn-primary" title="Ctrl + Entrée" disabled></button>
           </div>
         </div>
         <div id="faces-scroll" class="faces-scroll" tabindex="0">
           <div id="faces-content" class="faces-content"></div>
+        </div>
+      </section>
+
+      <!-- Vue Personnes (persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut -->
+      <section id="persons-view" class="faces-view persons-view" aria-label="Personnes" data-i18n-aria-label="People" hidden>
+        <div class="faces-toolbar">
+          <span id="persons-count" class="faces-count"></span>
+          <div class="faces-actions">
+            <label class="persons-size" title="Taille des vignettes" data-i18n-title="Thumbnail size"><input id="persons-size" type="range" min="96" max="512" step="8" /></label>
+            <label class="settings-check persons-show-hidden"><input id="persons-show-hidden" type="checkbox" /><span data-i18n="Show hidden people">Afficher les personnes masquées</span></label>
+            <button id="btn-persons-manage" type="button" class="btn-primary" data-i18n="Manage faces" data-i18n-title="Review and name the faces of the displayed photos" title="Réviser et nommer les visages des photos affichées">Gérer les visages</button>
+          </div>
+        </div>
+        <p id="persons-empty-view" class="persons-empty-view" data-i18n="No people yet: name faces in the face management view." hidden>Aucune personne pour l'instant : nommez des visages dans la vue de gestion.</p>
+        <div id="persons-scroll" class="faces-scroll" tabindex="0">
+          <div id="persons-content" class="faces-content"></div>
         </div>
       </section>
 
@@ -477,7 +495,7 @@
                 <h4 data-i18n="Detection">Détection</h4>
                 <label class="settings-row settings-check"><input id="face-scan-raw" type="checkbox" /><span data-i18n="Scan RAW files (embedded preview)">Scanner les RAW (aperçu intégré)</span></label>
                 <!-- Chaque seuil : plage acceptée et exemple, sous la ligne -->
-                <label class="settings-row" for="face-min-size-percent" title="0 à 50. Plus grand côté du visage rapporté au plus grand côté de la photo. Ex. 1 : sur une photo de 6000 px, les visages de moins de 60 px sont écartés." data-i18n-title="Face size hint"><span data-i18n="Minimum face size (% of the photo)">Taille minimale d'un visage (% de la photo)</span><input id="face-min-size-percent" class="face-threshold" type="number" min="0" max="50" step="0.5" /></label>
+                <label class="settings-row" for="face-min-size-permille" title="De 0 à 500. Plus grand côté du visage rapporté au plus grand côté de la photo, en pour mille. Ex. 10 : sur une photo de 6000 px, les visages de moins de 60 px sont écartés ; 5 : moins de 30 px." data-i18n-title="Face size permille hint"><span data-i18n="Minimum face size (‰ of the photo)">Taille minimale d'un visage (‰ de la photo)</span><input id="face-min-size-permille" class="face-threshold" type="number" min="0" max="500" step="1" /></label>
                 <label class="settings-row" for="face-min-confidence" title="0,5 à 1. Ex. 0,8 ; à 0,9, moins de faux visages (motifs, statues) mais plus de visages manqués (profils, visages cachés)." data-i18n-title="Face confidence hint"><span data-i18n="Minimum detection confidence">Confiance minimale de détection</span><input id="face-min-confidence" class="face-threshold" type="number" min="0.5" max="1" step="0.05" /></label>
                 <label class="settings-row" for="face-min-sharpness" title="0 à 2000. Ex. 50 : un visage net mesure souvent 100 à 300, un visage flou ou bougé moins de 30." data-i18n-title="Face sharpness hint"><span data-i18n="Minimum sharpness">Netteté minimale</span><input id="face-min-sharpness" class="face-threshold" type="number" min="0" max="2000" step="5" /></label>
                 <h4 data-i18n="Recognition">Reconnaissance</h4>
