@@ -27,7 +27,7 @@
 
 ## ⚖️ Undecided
 
-- [ ] *feat*: `Faces` [HARD] **Face recognition** (heavy)
+- [x] *feat*: `Faces` [HARD] **Face recognition** (heavy)
 - [ ] *feat*: `internet` **internet permission** toggle
 - [ ] *feat*: `internet` **Map screen**
 - [ ] *feat*: `internet` add a **map widget** in info panel

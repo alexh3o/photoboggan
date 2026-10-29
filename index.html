@@ -15,9 +15,9 @@
       <span class="titlebar-title">photoboggan</span>
     </div>
     <div class="titlebar-controls">
-      <button id="titlebar-minimize" class="titlebar-btn">─</button>
+      <button id="titlebar-minimize" class="titlebar-btn" title="Réduire" aria-label="Réduire" data-i18n-title="Minimize" data-i18n-aria-label="Minimize">─</button>
       <button id="titlebar-maximize" class="titlebar-btn">☐</button>
-      <button id="titlebar-close" class="titlebar-btn close-btn">✕</button>
+      <button id="titlebar-close" class="titlebar-btn close-btn" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">✕</button>
     </div>
   </div>
   <div id="app">
@@ -30,6 +30,7 @@
       <div class="actions">
         <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
         <button id="btn-open-tasks" type="button" hidden title="Actions en cours" aria-label="Actions en cours" aria-haspopup="dialog" data-i18n-title="Running tasks" data-i18n-aria-label="Running tasks"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hourglass preview-icon"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></button>
+        <button id="btn-open-display" type="button" aria-haspopup="dialog" title="Affichage" aria-label="Affichage" data-i18n-title="Display" data-i18n-aria-label="Display"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid preview-icon"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></button>
         <button id="btn-open-sort" type="button" aria-haspopup="dialog"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-down preview-icon"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button>
       </div>
       <div class="panel-toggles">
@@ -81,7 +82,7 @@
           </div>
           <div class="filter-group" data-filter-group="tags">
             <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-tags">
-              <span class="filter-expanded-line two-columns"><span class="filter-group-title" data-i18n="Keywords (&)">Mots-clés (&)</span><span class="filter-group-title" data-i18n="Filename">Nom de fichier</span></span>
+              <span class="filter-expanded-line two-columns"><span class="filter-group-title" data-i18n="Keywords (&)">Mots-clés (tous)</span><span class="filter-group-title" data-i18n="Filename">Nom de fichier</span></span>
               <span id="tags-collapsed-line" class="filter-collapsed-line"><span class="filter-group-title" data-i18n="Keywords / Name">Mots-clés / Nom</span></span>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </button>
@@ -129,7 +130,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days preview-icon"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>
             </button>
             <button id="date-filter-clear" type="button" class="icon-button" title="Effacer le filtre de date" aria-label="Effacer le filtre de date" data-i18n-title="Clear date filter" data-i18n-aria-label="Clear date filter">
-			  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash preview-icon"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+			  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-filter-x preview-icon"><path d="M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055"/><path d="m22 3-5 5"/><path d="m17 3 5 5"/></svg>
 			  
             </button>
           </div>
@@ -140,7 +141,7 @@
         <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">
           <!-- Titre et bouton « Tout désélectionner » sur la même ligne : le bouton vide la sélection, ce qui masque ce panneau (voir updateRatingAction dans main.js) -->
           <div class="selection-header">
-            <h3 data-i18n="Selection & Modification">Sélection/Modification</h3>
+            <h3 data-i18n="Selection & Modification">Sélection</h3>
             <button id="btn-clear-selection" type="button" class="btn-clear-selection" title="Tout désélectionner" aria-label="Tout désélectionner" data-i18n-title="Deselect all" data-i18n-aria-label="Deselect all">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
             </button>
@@ -188,7 +189,7 @@
             <button id="btn-faces-not-face" type="button" title="Fausse détection (motif, statue…) : jamais attribué, proposé ni écrit dans les fichiers ; une zone déjà écrite est retirée à la prochaine écriture" data-i18n-title="Not a face help" data-i18n="Not a face">N'est pas un visage</button>
             <button id="btn-faces-is-face" type="button" title="Annuler « N'est pas un visage » : ces zones redeviennent des visages" data-i18n-title="It is a face help" data-i18n="It is a face" hidden>C'est un visage</button>
             </div>
-            <button id="btn-faces-cover" type="button" data-i18n="Use as cover face" data-i18n-title="Use this face as the picture of the person" title="Utiliser ce visage comme image de la personne" disabled>Visage représentatif</button>
+            <button id="btn-faces-cover" type="button" data-i18n="Use as cover face" data-i18n-title="Use this face as the picture of the person" title="Utiliser ce visage comme image de la personne" disabled>Photo de profil</button>
             <!-- Écriture : « Écrire dans les fichiers » (toujours là) + nombre de photos en attente (si besoin, clic : n'afficher que ces visages), en un seul bloc -->
             <div class="faces-button-group faces-write-group" role="group">
               <button id="btn-faces-write" type="button" class="btn-primary" title="Écrire dans les fichiers les visages en attente (Ctrl + Entrée)" data-i18n-title="Write faces help" data-i18n="Write to files" disabled>Écrire dans les fichiers</button>
@@ -234,30 +235,26 @@
           <button type="button" id="side-tab-description" class="side-tab-btn" role="tab" aria-selected="false" aria-controls="exif-tab-description" data-i18n="Description">Description</button>
         </div>
         <div id="exif-tab-info" class="side-tab-pane" role="tabpanel">
-        <h3 data-i18n="Metadata">Métadonnées</h3>
         <ul id="exif-data">
-          <li><strong class="exif-label" data-i18n="File">Fichier</strong> <span id="exif-filename">-</span></li>
+          <li data-always><strong class="exif-label" data-i18n="File">Fichier</strong> <span id="exif-filename">-</span></li>
           <li><strong class="exif-label" data-i18n="Date taken">Date de prise de vue</strong> <span id="exif-date">-</span></li>
-          <li>
-            <strong class="exif-label" data-i18n="Manufacturer">Fabricant</strong> 
-            <span id="exif-manufacturer">-</span>
-          </li>
-          <li>
-            <strong class="exif-label" data-i18n="Model">Modèle</strong> 
-            <span id="exif-model">-</span>
-          </li>
-          <li><strong class="exif-label" data-i18n="Lens">Objectif</strong> <span id="exif-lens">-</span></li>
-          <li><strong class="exif-label" data-i18n="Focal Length">Focale</strong> <span id="exif-focal">-</span></li>
-          <li><strong class="exif-label" data-i18n="Aperture">Ouverture</strong> <span id="exif-aperture">-</span></li>
-          <li><strong class="exif-label" data-i18n="Shutter Speed">Vitesse</strong> <span id="exif-shutter">-</span></li>
-          <li><strong class="exif-label" data-i18n="ISO">ISO</strong> <span id="exif-iso">-</span></li>
           <li><strong class="exif-label" data-i18n="Dimensions">Dimensions</strong> <span id="exif-dim">-</span></li>
           <li><strong class="exif-label" data-i18n="Filesize">Poids</strong> <span id="exif-size">-</span></li>
-          <li><strong class="exif-label" data-i18n="Rating">Note</strong> <span id="exif-rating">-</span></li>
-          <li><strong class="exif-label" data-i18n="Color">Couleur</strong> <span id="exif-color">-</span></li>
-          <li><strong class="exif-label" data-i18n="Keywords">Mots-clés</strong> <span id="exif-keywords">-</span></li>
-          <li><strong class="exif-label" data-i18n="Title">Titre</strong> <span id="exif-title">-</span></li>
-          <li><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
+          <li class="exif-group-title" data-group-title="camera" data-i18n="Camera">Appareil photo</li>
+          <li data-group="camera"><strong class="exif-label" data-i18n="Manufacturer">Fabricant</strong> <span id="exif-manufacturer">-</span></li>
+          <li data-group="camera"><strong class="exif-label" data-i18n="Model">Modèle</strong> <span id="exif-model">-</span></li>
+          <li data-group="camera"><strong class="exif-label" data-i18n="Lens">Objectif</strong> <span id="exif-lens">-</span></li>
+          <li class="exif-group-title" data-group-title="exposure" data-i18n="Exposure">Exposition</li>
+          <li data-group="exposure"><strong class="exif-label" data-i18n="Focal Length">Focale</strong> <span id="exif-focal">-</span></li>
+          <li data-group="exposure"><strong class="exif-label" data-i18n="Aperture">Ouverture</strong> <span id="exif-aperture">-</span></li>
+          <li data-group="exposure"><strong class="exif-label" data-i18n="Shutter Speed">Vitesse</strong> <span id="exif-shutter">-</span></li>
+          <li data-group="exposure"><strong class="exif-label" data-i18n="ISO">ISO</strong> <span id="exif-iso">-</span></li>
+          <li class="exif-group-title" data-group-title="metadata" data-i18n="Metadata">Métadonnées</li>
+          <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Rating">Note</strong> <span id="exif-rating">-</span></li>
+          <li data-group="metadata"><strong class="exif-label" data-i18n="Color">Couleur</strong> <span id="exif-color">-</span></li>
+          <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Keywords">Mots-clés</strong> <span id="exif-keywords">-</span></li>
+          <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Title">Titre</strong> <span id="exif-title">-</span></li>
+          <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
         </ul>
         </div>
         <div id="exif-tab-keywords" class="side-tab-pane" role="tabpanel" hidden>
@@ -318,8 +315,8 @@
         <div class="modal-header">
           <h3 data-i18n="Settings">Paramètres</h3>
           <div class="modal-header-actions">
-            <button id="btn-open-guide" class="close-x" title="Guide" aria-label="Guide et touches" data-i18n-title="Guide" data-i18n-aria-label="Guide and keys"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
-            <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de photoboggan" data-i18n-title="About" data-i18n-aria-label="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-help preview-icon"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+            <button id="btn-open-guide" class="close-x" title="Afficher les commandes et raccourcis clavier" aria-label="Afficher les commandes et raccourcis clavier" data-i18n-title="Show controls and keyboard shortcuts" data-i18n-aria-label="Show controls and keyboard shortcuts"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
+            <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de photoboggan" data-i18n-title="About" data-i18n-aria-label="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info preview-icon"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
             <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
           </div>
         </div>
@@ -327,8 +324,8 @@
         <!-- Barre des onglets -->
         <div class="settings-tabs" role="tablist" aria-label="Onglets des paramètres">
           <button type="button" class="settings-tab-btn active" role="tab" aria-selected="true" data-tab="general" data-i18n="General">Général</button>
-          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="data" data-i18n="Data">Données</button>
-          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Open with">Ouvrir avec</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="data" data-i18n="Storage">Stockage</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Applications">Applications</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
@@ -337,14 +334,27 @@
         <div class="modal-body">
           <!-- Onglet Général -->
           <div id="settings-tab-general" class="settings-tab-pane active" role="tabpanel">
+            <section class="settings-section">
+              <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
+                <select id="language-select"></select>
+              </label>
+            </section>
             <section class="settings-section" role="radiogroup" aria-labelledby="startup-view-title">
               <h4 id="startup-view-title" data-i18n="At startup, show">Au démarrage, afficher</h4>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="last" /><span data-i18n="The last opened location">Le dernier emplacement ouvert</span></label>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="all" /><span data-i18n="All photos">Toutes les photos</span></label>
             </section>
+            <section class="settings-section">
+              <h4 data-i18n="Library">Bibliothèque</h4>
+              <div class="settings-button-row">
+                <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
+                <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
+              </div>
+              <ul id="settings-folder-list"></ul>
+            </section>
           </div>
 
-          <!-- Onglet Données -->
+          <!-- Onglet Stockage (données de l'application et miniatures) -->
           <div id="settings-tab-data" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Storage location">Emplacement des données</h4>
@@ -365,15 +375,7 @@
                 </select>
               </label>
             </section>
-            <section class="settings-section">
-              <h4 data-i18n="Folders">Dossiers balayés</h4>
-              <div class="settings-button-row">
-                <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
-                <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
-              </div>
-              <ul id="settings-folder-list"></ul>
-            </section>
-          </div>
+                      </div>
 
           <!-- Onglet Ouvrir avec -->
           <div id="settings-tab-open-with" class="settings-tab-pane" role="tabpanel" hidden>
@@ -388,10 +390,7 @@
           <div id="settings-tab-display" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Display">Affichage</h4>
-              <label class="settings-row" for="language-select"><span data-i18n="Language">Langue</span>
-                <select id="language-select"></select>
-              </label>
-              <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
+                            <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
                 <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
                   <button type="button" class="accent-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
                   <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
@@ -415,27 +414,7 @@
                   <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
                 </span>
               </div>
-              <label class="settings-row" for="dim-unselected-select">
-                <span data-i18n="Dim unselected on hover">Assombrir les photos hors sélection au survol</span>
-                <select id="dim-unselected-select">
-                  <option value="none" data-i18n="Disabled">Désactivé</option>
-                  <option value="0.75" data-i18n="Light (75%)">Léger (75 %)</option>
-                  <option value="0.65" data-i18n="Medium (65%)">Moyen (65 %)</option>
-                  <option value="0.5" data-i18n="Strong (50%)">Fort (50 %)</option>
-                </select>
-              </label>
-              <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
-                <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
-              </label>
-              <label class="settings-row" for="text-size-select"><span data-i18n="Text size">Taille des textes</span>
-                <select id="text-size-select">
-                  <option value="90" data-i18n="Small">Petit</option>
-                  <option value="100" data-i18n="Medium">Moyen</option>
-                  <option value="110" data-i18n="Large">Grand</option>
-                  <option value="120" data-i18n="Very large">Très grand</option>
-                </select>
-              </label>
-            </section>
+                          </section>
           </div>
           <!-- Onglet Métadonnées (écriture et priorités de lecture : metadata-settings.js ; application automatique : metadata-writes.js) -->
           <div id="settings-tab-metadata" class="settings-tab-pane" role="tabpanel" hidden>
@@ -518,12 +497,12 @@
         </div>
       </div>
     </div>
-    <!-- Modale de tri des miniatures -->
-    <div id="sort-modal" class="modal hidden">
-      <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="sort-modal-title">
+    <!-- Modale d'affichage : disposition et taille des miniatures, thème, taille des textes -->
+    <div id="display-modal" class="modal hidden">
+      <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="display-modal-title">
         <div class="modal-header">
-          <h3 id="sort-modal-title" data-i18n="Display options">Options d'affichage</h3>
-          <button id="btn-close-sort" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+          <h3 id="display-modal-title" data-i18n="Display">Affichage</h3>
+          <button id="btn-close-display" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
           <section class="settings-section">
@@ -532,11 +511,44 @@
               <select id="thumbnail-layout"><option value="square" data-i18n="Square">Carrées</option><option value="justified" data-i18n="Justified">Justifiées</option><option value="masonry" data-i18n="Waterfall">Cascade</option></select>
             </label>
             <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
-              <input id="thumbnail-size" type="range" min="96" max="512" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
+              <input id="thumbnail-size" type="range" min="96" max="1024" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
               <span id="thumbnail-size-value">160 px</span>
             </label>
           </section>
-          <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
+          <section class="settings-section">
+            <label class="settings-row" for="dim-unselected-select">
+                <span data-i18n="Dim unselected on hover">Assombrir les photos hors sélection au survol</span>
+                <select id="dim-unselected-select">
+                  <option value="none" data-i18n="Disabled">Désactivé</option>
+                  <option value="0.75" data-i18n="Light (75%)">Léger (75 %)</option>
+                  <option value="0.65" data-i18n="Medium (65%)">Moyen (65 %)</option>
+                  <option value="0.5" data-i18n="Strong (50%)">Fort (50 %)</option>
+                </select>
+              </label>
+              <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
+                <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
+              </label>
+              <label class="settings-row" for="text-size-select"><span data-i18n="Text size">Taille des textes</span>
+                <select id="text-size-select">
+                  <option value="90" data-i18n="Small">Petit</option>
+                  <option value="100" data-i18n="Medium">Moyen</option>
+                  <option value="110" data-i18n="Large">Grand</option>
+                  <option value="120" data-i18n="Very large">Très grand</option>
+                </select>
+              </label>
+          </section>
+        </div>
+      </div>
+    </div>
+    <!-- Modale de tri des miniatures -->
+    <div id="sort-modal" class="modal hidden">
+      <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="sort-modal-title">
+        <div class="modal-header">
+          <h3 id="sort-modal-title" data-i18n="Sort">Tri</h3>
+          <button id="btn-close-sort" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+                    <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
             <h4 id="sort-key-title" data-i18n="Sort by">Trier par</h4>
             <label class="settings-row settings-check"><input type="radio" name="sort-key" value="taken" /><span data-i18n="Date taken">Date de prise de vue</span></label>
             <label class="settings-row settings-check"><input type="radio" name="sort-key" value="modified" /><span data-i18n="Date modified">Date de modification</span></label>
@@ -637,7 +649,7 @@
               <span class="guide-control"><kbd>0</kbd> - <kbd>5</kbd></span>
             </div>
             <div class="guide-row">
-              <span class="guide-action" data-i18n="Copy to…">Copier vers...</span>
+              <span class="guide-action" data-i18n="Copy to…">Copier vers…</span>
               <span class="guide-control"><kbd>C</kbd></span>
             </div>
             <div class="guide-row">
@@ -645,7 +657,7 @@
               <span class="guide-control"><kbd>Ctrl</kbd> + <kbd>C</kbd></span>
             </div>
             <div class="guide-row">
-              <span class="guide-action" data-i18n="Resize…">Redimensionner...</span>
+              <span class="guide-action" data-i18n="Resize…">Redimensionner…</span>
               <span class="guide-control"><kbd>S</kbd></span>
             </div>
             <div class="guide-row">

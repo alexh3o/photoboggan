@@ -573,3 +573,8 @@ body.immersive .titlebar { display: none; }
 /* Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier */
 .folder-tree-empty { padding: 0.75rem 0.65rem; font-size: 0.8rem; color: var(--text-muted); white-space: normal; }
 .folder-tree-empty p { margin: 0 0 0.6rem; }
+
+/* Onglet Info : titres de groupe */
+.exif-section li.exif-group-title { margin: 1rem 0 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--border); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: var(--text-dim); }
+/* Zones de clic d'au moins 1,5 rem pour les boutons d'icône */
+.close-x, .titlebar-btn, .btn-clear-filters, .btn-clear-selection { min-width: 1.5rem; min-height: 1.5rem; }

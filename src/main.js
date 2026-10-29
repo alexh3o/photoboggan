@@ -686,6 +686,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     updateRatingAction();
     document.getElementById('exif-title').textContent = '-';
     document.getElementById('exif-caption').textContent = '-';
+    refreshInfoRows();
   }
   updateFilteredPhotosCount();
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
@@ -1637,6 +1638,20 @@ function updateUIOnSelection() {
     document.getElementById('exif-title').textContent = photo.title || '-';
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
   }
+  refreshInfoRows();
+}
+
+// Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Note, Titre et Description, toujours présents), et un titre de groupe
+// (Appareil photo, Exposition, Métadonnées) disparaît quand aucune de ses lignes n'est affichée.
+function refreshInfoRows() {
+  const rows = [...document.querySelectorAll('#exif-data li:not(.exif-group-title)')];
+  for (const row of rows) {
+    const value = row.querySelector('span')?.textContent.trim();
+    row.hidden = !row.hasAttribute('data-always') && (!value || value === '-');
+  }
+  for (const heading of document.querySelectorAll('#exif-data .exif-group-title')) {
+    heading.hidden = !rows.some(row => !row.hidden && row.dataset.group === heading.dataset.groupTitle);
+  }
 }
 
 // Normalise ouverture (« f/4 ») et vitesse (« 1/100 s »), y compris les valeurs déjà en base avec un préfixe ou un suffixe en double.
@@ -2549,6 +2564,25 @@ window.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || sortModal.classList.contains('hidden')) return;
   event.preventDefault();
   closeSortModal();
+});
+
+// Modale « Affichage » (disposition et taille des miniatures, thème, taille des textes…) : ouverte par le bouton à gauche du bouton de tri.
+const displayModal = document.getElementById('display-modal');
+function openDisplayModal() {
+  displayModal.classList.remove('hidden');
+  // Comme pour le tri : le focus dans la modale évite que les raccourcis clavier visent la grille pendant qu'elle est ouverte.
+  document.getElementById('thumbnail-layout').focus();
+}
+function closeDisplayModal() {
+  displayModal.classList.add('hidden');
+}
+document.getElementById('btn-open-display').addEventListener('click', openDisplayModal);
+document.getElementById('btn-close-display').addEventListener('click', closeDisplayModal);
+displayModal.addEventListener('click', event => { if (event.target === displayModal) closeDisplayModal(); });
+window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || displayModal.classList.contains('hidden')) return;
+  event.preventDefault();
+  closeDisplayModal();
 });
 updateSortUI();
 
