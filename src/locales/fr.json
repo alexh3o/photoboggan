@@ -149,7 +149,8 @@
   "Previous month": "Mois précédent",
   "Next month": "Mois suivant",
   "Next year": "Année suivante",
-  "Click a day, then a second one for a range.": "Cliquez un jour, puis un second pour une plage.","Thumbnail cache size": "Taille des miniatures en cache",
+  "Click a day, then a second one for a range.": "Cliquez un jour, puis un second pour une plage.",
+  "Thumbnail cache size": "Taille des miniatures en cache",
   "Max resolution": "Résolution maximale",
   "Change thumbnail cache size? This will delete all thumbnails, they will be gradually rebuilt during navigation.": "Changer la taille des miniatures en cache ? Cela effacera toutes les miniatures, elles seront progressivement reconstruites au fil de la navigation.",
   "Change": "Changer",
@@ -651,5 +652,16 @@
   "{count} file could not be written": "Un fichier n'a pas pu être écrit",
   "{count} file could not be written|other": "{count} fichiers n'ont pas pu être écrits",
   "Manage their faces": "Gérer ses visages",
-  "Click: show the photos of this person · Right-click: manage this person and their faces": "Clic : photos de cette personne · Clic droit : gérer la personne et ses visages"
+  "Click: show the photos of this person · Right-click: manage this person and their faces": "Clic : photos de cette personne · Clic droit : gérer la personne et ses visages",
+  "Detected": "Détectés",
+  "Imported": "Importés",
+  "Manual": "Manuels",
+  "Displayed origins": "Origines affichées",
+  "Unknown no. {number}": "Inconnu n° {number}",
+  "Other unknown faces": "Autres visages inconnus",
+  "Click: select the faces of this group (Ctrl+click: add them)": "Clic : sélectionner les visages de ce groupe (Ctrl+clic : les ajouter)",
+  "{count} group of similar unknown faces": "{count} groupe de visages inconnus ressemblants",
+  "{count} group of similar unknown faces|other": "{count} groupes de visages inconnus ressemblants",
+  "Group unknown faces": "Regrouper les inconnus",
+  "Group the similar unknown faces of the displayed photos (click again to ungroup)": "Regrouper les visages inconnus ressemblants des photos affichées (nouveau clic : annuler)"
 }

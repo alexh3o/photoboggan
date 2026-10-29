@@ -557,7 +557,6 @@
   "{count} unreadable photo": "{count} unreadable photo",
   "{count} unreadable photo|other": "{count} unreadable photos",
   "Include subfolders?": "Include subfolders?",
-  "No": "No",
   "Include": "Include",
   "Photos to scan: {here} in this folder, {all} with its subfolders.": "Photos to scan: {here} in this folder, {all} with its subfolders.",
   "To confirm": "To confirm",
@@ -653,5 +652,16 @@
   "{count} file could not be written": "One file could not be written",
   "{count} file could not be written|other": "{count} files could not be written",
   "Manage their faces": "Manage their faces",
-  "Click: show the photos of this person · Right-click: manage this person and their faces": "Click: show the photos of this person · Right-click: manage this person and their faces"
+  "Click: show the photos of this person · Right-click: manage this person and their faces": "Click: show the photos of this person · Right-click: manage this person and their faces",
+  "Detected": "Detected",
+  "Imported": "Imported",
+  "Manual": "Manual",
+  "Displayed origins": "Displayed origins",
+  "Unknown no. {number}": "Unknown no. {number}",
+  "Other unknown faces": "Other unknown faces",
+  "Click: select the faces of this group (Ctrl+click: add them)": "Click: select the faces of this group (Ctrl+click: add them)",
+  "{count} group of similar unknown faces": "{count} group of similar unknown faces",
+  "{count} group of similar unknown faces|other": "{count} groups of similar unknown faces",
+  "Group unknown faces": "Group unknown faces",
+  "Group the similar unknown faces of the displayed photos (click again to ungroup)": "Group the similar unknown faces of the displayed photos (click again to ungroup)"
 }

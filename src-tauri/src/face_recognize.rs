@@ -22,9 +22,11 @@ pub const EMBEDDING_SIZE: usize = 128;
 const FACE_SIDE: usize = 112;
 /// Gabarit des 5 points de repère (œil gauche de l'image, œil droit, nez, coin gauche de la bouche, coin droit) dans l'image 112 × 112.
 const TEMPLATE: [[f32; 2]; 5] = [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366], [41.5493, 92.3655], [70.7299, 92.2041]];
-/// Nombre maximal de visages de référence par personne (au-delà, un échantillon régulier) : l'attribution reste rapide sur une grande photothèque.
-/// Les multi-centroïdes (lot 5) remplaceront cet échantillon.
-const MAX_REFERENCES_PER_PERSON: usize = 40;
+/// Multi-centroïdes (spec §5.2) : en dessous de ce nombre de visages confirmés, chacun sert de référence ; au-delà, des centroïdes (k-means).
+const MIN_FACES_FOR_CENTROIDS: usize = 10;
+/// Nombre maximal de centroïdes par personne (âges, lunettes, profils…).
+const MAX_CENTROIDS: usize = 5;
+const KMEANS_ITERATIONS: usize = 12;
 
 /// Points de repère approchés d'une zone sans repères (zone importée que YuNet n'a pas retrouvée) : positions du gabarit rapportées au cadre.
 pub fn landmarks_from_box(rect: [f64; 4]) -> [f32; 10] {
@@ -106,6 +108,87 @@ pub fn similarity(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
+/// Références d'une personne : ses visages confirmés, ou au-delà de MIN_FACES_FOR_CENTROIDS des centroïdes (un tous les 10 visages, au plus
+/// MAX_CENTROIDS) : la personne est représentée par ses « apparences » (âges, lunettes…) sans comparer chaque visage à des centaines d'autres.
+fn person_references(embeddings: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+    if embeddings.len() < MIN_FACES_FOR_CENTROIDS { return embeddings; }
+    let count = (embeddings.len() / MIN_FACES_FOR_CENTROIDS + 1).min(MAX_CENTROIDS);
+    kmeans(&embeddings, count)
+}
+
+fn normalized(mut vector: Vec<f32>) -> Vec<f32> {
+    let norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+    if norm > f32::EPSILON { for value in &mut vector { *value /= norm; } }
+    vector
+}
+
+/// k-means sur la sphère (ressemblance cosinus), déterministe : premier centre = visage le plus proche de la moyenne, suivants = visage le plus
+/// éloigné des centres déjà choisis ; puis affectations et moyennes renormalisées, KMEANS_ITERATIONS fois (un groupe vide garde son centre).
+pub(crate) fn kmeans(points: &[Vec<f32>], count: usize) -> Vec<Vec<f32>> {
+    let count = count.clamp(1, points.len().max(1));
+    if points.is_empty() { return Vec::new(); }
+    let dimension = points[0].len();
+    let mut mean = vec![0f32; dimension];
+    for point in points { for (sum, value) in mean.iter_mut().zip(point) { *sum += value; } }
+    let mean = normalized(mean);
+    let first = (0..points.len()).max_by(|&a, &b| similarity(&points[a], &mean).total_cmp(&similarity(&points[b], &mean))).unwrap_or(0);
+    let mut centers = vec![points[first].clone()];
+    while centers.len() < count {
+        let farthest = (0..points.len())
+            .min_by(|&a, &b| {
+                let closest = |index: usize| centers.iter().map(|center| similarity(&points[index], center)).fold(f32::MIN, f32::max);
+                closest(a).total_cmp(&closest(b))
+            })
+            .unwrap_or(0);
+        centers.push(points[farthest].clone());
+    }
+    for _ in 0..KMEANS_ITERATIONS {
+        let mut sums = vec![vec![0f32; dimension]; centers.len()];
+        let mut sizes = vec![0usize; centers.len()];
+        for point in points {
+            let nearest = (0..centers.len()).max_by(|&a, &b| similarity(point, &centers[a]).total_cmp(&similarity(point, &centers[b]))).unwrap_or(0);
+            for (sum, value) in sums[nearest].iter_mut().zip(point) { *sum += value; }
+            sizes[nearest] += 1;
+        }
+        for (index, sum) in sums.into_iter().enumerate() {
+            if sizes[index] > 0 { centers[index] = normalized(sum); }
+        }
+    }
+    centers
+}
+
+/// Regroupement DBSCAN (spec §5.3) : deux visages sont voisins si leur ressemblance atteint `min_similarity` ; un visage qui a au moins
+/// `min_points` voisins (lui compris) est un cœur, et les groupes réunissent les cœurs voisins et leurs voisins. Les visages isolés ne sont
+/// dans aucun groupe. Renvoie les groupes (identifiants), du plus grand au plus petit.
+pub fn dbscan(faces: &[(i64, Vec<f32>)], min_similarity: f32, min_points: usize) -> Vec<Vec<i64>> {
+    let neighbors: Vec<Vec<usize>> = (0..faces.len())
+        .into_par_iter()
+        .map(|index| (0..faces.len()).filter(|&other| similarity(&faces[index].1, &faces[other].1) >= min_similarity).collect())
+        .collect();
+    let mut cluster_of: Vec<Option<usize>> = vec![None; faces.len()];
+    let mut clusters: Vec<Vec<i64>> = Vec::new();
+    for start in 0..faces.len() {
+        if cluster_of[start].is_some() || neighbors[start].len() < min_points { continue; }
+        let cluster = clusters.len();
+        clusters.push(Vec::new());
+        let mut queue = vec![start];
+        cluster_of[start] = Some(cluster);
+        while let Some(current) = queue.pop() {
+            clusters[cluster].push(faces[current].0);
+            // Seul un cœur étend le groupe ; un voisin non cœur y entre sans l'étendre.
+            if neighbors[current].len() < min_points { continue; }
+            for &next in &neighbors[current] {
+                if cluster_of[next].is_none() {
+                    cluster_of[next] = Some(cluster);
+                    queue.push(next);
+                }
+            }
+        }
+    }
+    clusters.sort_by(|a, b| b.len().cmp(&a.len()));
+    clusters
+}
+
 /// Seuils d'attribution (Paramètres > Visages).
 #[derive(Clone, Copy)]
 pub struct Thresholds {
@@ -123,7 +206,7 @@ pub struct AttributionSummary {
 /// Attribue les visages non confirmés qui ont une empreinte (« inconnu », « suggéré », « auto ») : ceux des photos `photo_ids`, ou tous.
 /// Un visage dont l'utilisateur a refusé une personne (`rejected_person_id`) ne lui est plus proposé.
 pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds: Thresholds) -> Result<AttributionSummary, String> {
-    // Références : visages confirmés des personnes visibles, échantillonnés au-delà de MAX_REFERENCES_PER_PERSON.
+    // Références : visages confirmés des personnes visibles (chacun, ou des centroïdes au-delà de MIN_FACES_FOR_CENTROIDS).
     let mut by_person: HashMap<i64, Vec<Vec<f32>>> = HashMap::new();
     {
         let mut statement = conn
@@ -141,10 +224,7 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
     }
     let references: Vec<(i64, Vec<f32>)> = by_person
         .into_iter()
-        .flat_map(|(person_id, embeddings)| {
-            let step = embeddings.len().div_ceil(MAX_REFERENCES_PER_PERSON).max(1);
-            embeddings.into_iter().step_by(step).map(move |embedding| (person_id, embedding)).collect::<Vec<_>>()
-        })
+        .flat_map(|(person_id, embeddings)| person_references(embeddings).into_iter().map(move |embedding| (person_id, embedding)).collect::<Vec<_>>())
         .collect();
 
     struct Candidate { id: i64, embedding: Vec<f32>, state: String, person_id: Option<i64>, suggested: Option<i64>, rejected: Option<i64> }

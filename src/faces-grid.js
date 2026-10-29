@@ -42,12 +42,79 @@ let contentHeight = 0;
 let selected = new Set(); // identifiants de visages
 let anchorIndex = null; // dernier visage cliqué (sélection Maj + clic)
 let loadToken = 0;
+// Regroupement des inconnus (DBSCAN, « Regrouper les inconnus ») : identifiant de visage -> numéro de groupe (1 = le plus grand) ; null = non regroupés.
+// Gardé tant que la vue reste ouverte (les visages nommés en sortent d'eux-mêmes) ; un second clic sur le bouton l'annule.
+let clusters = null;
+let groupKeyOf = new Map(); // identifiant de visage -> clé de son groupe affiché
+// Filtre par origine : visages détectés, importés des fichiers, dessinés à la main.
+const ORIGINS = [
+  { id: 'detected', label: 'Detected' },
+  { id: 'imported', label: 'Imported' },
+  { id: 'manual', label: 'Manual' },
+];
+const ORIGINS_STORAGE_KEY = 'facesViewOrigins';
+let visibleOrigins = loadOrigins();
 const renderedNodes = new Map(); // clé de l'élément de layout -> nœud
 const thumbnailInfo = new Map(); // chemin de la photo -> Promise<{ url, width, height } | null>
 
 const view = () => document.getElementById('faces-view');
 const scroller = () => document.getElementById('faces-scroll');
 const content = () => document.getElementById('faces-content');
+
+function loadOrigins() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(ORIGINS_STORAGE_KEY));
+    if (Array.isArray(stored)) return new Set(stored.filter(id => ORIGINS.some(origin => origin.id === id)));
+  } catch { /* valeur absente ou illisible */ }
+  return new Set(ORIGINS.map(origin => origin.id));
+}
+
+function renderOriginFilters() {
+  const container = document.getElementById('faces-origin-filters');
+  container.replaceChildren(...ORIGINS.map(origin => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `faces-status-chip faces-origin-chip${visibleOrigins.has(origin.id) ? ' active' : ''}`;
+    button.setAttribute('aria-pressed', String(visibleOrigins.has(origin.id)));
+    button.textContent = `${t(origin.label)} (${faces.filter(face => face.origin === origin.id).length})`;
+    button.addEventListener('click', () => {
+      if (visibleOrigins.has(origin.id)) visibleOrigins.delete(origin.id); else visibleOrigins.add(origin.id);
+      try { localStorage.setItem(ORIGINS_STORAGE_KEY, JSON.stringify([...visibleOrigins])); } catch { /* stockage indisponible */ }
+      rebuild();
+    });
+    return button;
+  }));
+}
+
+// « Regrouper les inconnus » : groupes de visages inconnus ressemblants parmi les photos affichées (second clic : annule le regroupement).
+async function toggleClusters() {
+  const button = document.getElementById('btn-faces-cluster');
+  if (clusters) {
+    clusters = null;
+    button.classList.remove('active');
+    rebuild();
+    return;
+  }
+  button.disabled = true;
+  let groups;
+  try {
+    groups = await invoke('cluster_unknown_faces', { photoIds: host.getDisplayedPhotoIds() });
+  } catch (error) {
+    host.showToast(String(error));
+    return;
+  } finally {
+    button.disabled = false;
+  }
+  clusters = new Map();
+  groups.forEach((ids, index) => { for (const id of ids) clusters.set(id, index + 1); });
+  button.classList.add('active');
+  if (!visibleStatuses.has('unknown')) {
+    visibleStatuses.add('unknown');
+    saveStatuses();
+  }
+  rebuild();
+  host.showToast(tp('{count} group of similar unknown faces', groups.length));
+}
 
 function loadStatuses() {
   try {
@@ -89,6 +156,9 @@ export function openFacesView(statuses = null) {
 export function closeFacesView() {
   if (!open) return;
   open = false;
+  // Le regroupement vaut pour les photos affichées à ce moment : il n'est pas conservé d'une ouverture à l'autre.
+  clusters = null;
+  document.getElementById('btn-faces-cluster')?.classList.remove('active');
   view().hidden = true;
   host.setPhotoGridVisible(true);
   document.getElementById('btn-toggle-faces')?.classList.remove('active');
@@ -125,7 +195,12 @@ function groupOf(face) {
     case 'suggested': return { order: 0, key: `s${face.suggested_person_id}`, label: t('To confirm: {name}', { name: face.name ?? '?' }), sortName: face.name ?? '' };
     case 'auto':
     case 'confirmed': return { order: 1, key: `p${face.person_id}`, label: face.name ?? '?', sortName: face.name ?? '' };
-    case 'unknown': return { order: 2, key: 'unknown', label: t('Unknown faces'), sortName: '' };
+    case 'unknown': {
+      // Inconnus regroupés (« Regrouper les inconnus ») : un groupe par ressemblance, du plus grand au plus petit, puis les visages isolés.
+      const cluster = clusters?.get(face.id);
+      if (cluster) return { order: 2, key: `c${cluster}`, label: t('Unknown no. {number}', { number: cluster }), sortName: String(cluster).padStart(6, '0') };
+      return { order: 2.5, key: 'unknown', label: t(clusters ? 'Other unknown faces' : 'Unknown faces'), sortName: '' };
+    }
     case 'filtered': return { order: 3, key: 'filtered', label: t('Filtered (below the thresholds)'), sortName: '' };
     case 'not_face': return { order: 5, key: 'not_face', label: t('Not faces'), sortName: '' };
     default: return { order: 4, key: 'ignored', label: t('Ignored'), sortName: '' };
@@ -149,7 +224,10 @@ function readTileMetrics() {
 
 function rebuild() {
   readTileMetrics();
-  const entries = faces.filter(face => visibleStatuses.has(face.state)).map(face => ({ face, group: groupOf(face) }));
+  const entries = faces
+    .filter(face => visibleStatuses.has(face.state) && visibleOrigins.has(face.origin))
+    .map(face => ({ face, group: groupOf(face) }));
+  groupKeyOf = new Map(entries.map(entry => [entry.face.id, entry.group.key]));
   // Groupes : à valider, personnes (par nom), inconnus, filtrés, ignorés ; dans un groupe, les attributions automatiques avant les
   // confirmées, puis par ressemblance décroissante.
   entries.sort((a, b) => a.group.order - b.group.order
@@ -176,7 +254,7 @@ function rebuild() {
     if (newGroup) {
       currentGroup = entry.group.key;
       const count = entries.filter(other => other.group.key === currentGroup).length;
-      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, label: `${entry.group.label} (${count})` });
+      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, label: `${entry.group.label} (${count})`, group: currentGroup });
       y += SEPARATOR_HEIGHT;
     }
     if (column === 0) layout.push({ kind: 'bar', key: `b:${entry.face.id}`, x: SIDE_MARGIN, y, state: entry.face.state });
@@ -229,6 +307,16 @@ function createStatusBar(item) {
 function createSeparator(item) {
   const node = document.createElement('div');
   node.className = 'group-separator faces-separator';
+  // Clic sur le titre d'un groupe : tous ses visages sont sélectionnés (ex. nommer d'un coup un groupe d'inconnus) ; Ctrl + clic : ajoutés.
+  node.title = t('Click: select the faces of this group (Ctrl+click: add them)');
+  node.addEventListener('click', event => {
+    event.stopPropagation();
+    const ids = shown.filter(face => groupKeyOf.get(face.id) === item.group).map(face => face.id);
+    if (!(event.ctrlKey || event.metaKey)) selected.clear();
+    for (const id of ids) selected.add(id);
+    renderVisible();
+    updateToolbar();
+  });
   const label = document.createElement('span');
   label.className = 'group-separator-label';
   label.textContent = item.label;
@@ -341,6 +429,7 @@ function renderStatusFilters() {
 
 function updateToolbar() {
   renderStatusFilters();
+  renderOriginFilters();
   const targets = selectedFaces();
   const count = document.getElementById('faces-count');
   count.textContent = targets.length > 0
@@ -496,6 +585,7 @@ export function initFacesGrid(hostApi) {
   // Le bouton « Visages » de la barre du haut ouvre la vue Personnes (main.js) ; cette vue a son bouton de retour vers elle.
   document.getElementById('btn-faces-persons').addEventListener('click', () => host.openPersonsView());
   document.getElementById('btn-faces-cover').addEventListener('click', useAsCover);
+  document.getElementById('btn-faces-cluster').addEventListener('click', toggleClusters);
   document.getElementById('btn-faces-confirm').addEventListener('click', () => runAction('confirm_faces'));
   document.getElementById('btn-faces-name').addEventListener('click', () => nameSelection());
   document.getElementById('btn-faces-unknown').addEventListener('click', () => runAction('set_faces_unknown'));

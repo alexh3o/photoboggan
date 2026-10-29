@@ -1162,6 +1162,37 @@ pub fn erase_face_data(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Resul
 }
 
 // ---------------------------------------------------------------------------
+// Regroupement des visages inconnus (lot 5b, spec §5.3)
+// ---------------------------------------------------------------------------
+
+/// Nombre minimal de visages (cœur compris) pour former un groupe d'inconnus.
+const CLUSTER_MIN_POINTS: usize = 2;
+
+/// Groupes de visages inconnus qui se ressemblent, parmi ceux des photos `photo_ids` (vue de gestion) : DBSCAN sur leurs empreintes. Deux visages
+/// sont voisins à partir du seuil d'attribution automatique (plus strict que la suggestion, pour ne pas enchaîner des personnes proches, comme
+/// des frères et sœurs). Renvoie les groupes du plus grand au plus petit ; les visages isolés n'y figurent pas.
+#[tauri::command(async)]
+pub fn cluster_unknown_faces(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Result<Vec<Vec<i64>>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT id, embedding FROM faces WHERE photo_id IN (SELECT value FROM json_each(?1))
+             AND state = 'unknown' AND embedding IS NOT NULL AND model_id = ?2",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![ids_json(&photo_ids)?, crate::face_recognize::MODEL_ID], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)))
+        .map_err(|error| error.to_string())?;
+    let faces: Vec<(i64, Vec<f32>)> = rows
+        .flatten()
+        .filter_map(|(id, blob)| crate::face_recognize::embedding_from_blob(&blob).map(|embedding| (id, embedding)))
+        .collect();
+    let min_similarity = crate::face_detect::settings().auto_threshold as f32;
+    Ok(crate::face_recognize::dbscan(&faces, min_similarity, CLUSTER_MIN_POINTS))
+}
+
+// ---------------------------------------------------------------------------
 // Gestion des personnes (lot 5a) : renommer, masquer, visage représentatif, supprimer, vignette de la vue Personnes
 // ---------------------------------------------------------------------------
 
