@@ -1124,6 +1124,8 @@ function layoutPhotoRange(start, end, offsetY, width, gap) {
     // Nombre de colonnes arrondi au-dessus : la largeur d'une colonne ne dépasse jamais thumbnailSize.
     columns = Math.max(1, Math.ceil((width + gap) / (thumbailSizeCorrected + gap)));
     const columnWidth = (width - gap * (columns - 1)) / columns;
+    // Hauteur maximale d'une case : la résolution du cache (au-delà, la miniature serait agrandie et floue).
+    const maxItemHeight = Math.floor(thumbnailCacheSize / (window.devicePixelRatio || 1));
     const columnBottoms = Array(columns).fill(0);
     const placed = [];
     for (let i = start; i < end; i++) {
@@ -1133,11 +1135,11 @@ function layoutPhotoRange(start, end, offsetY, width, gap) {
       // Les dimensions des vidéos ne sont pas dans le catalogue : leur ratio vient de la miniature (voir learnPhotoAspectRatio).
       const knownRatio = isVideoPath(photo.path) ? photoAspectRatio(photo) : (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 1);
       const ratio = Math.max(0.2, Math.min(5, knownRatio));
-      // Photo en portrait : sa hauteur est plafonnée à thumbnailSize, elle se réduit alors et se centre dans sa colonne.
-      const height = Math.min(columnWidth / ratio, thumbailSizeCorrected);
-      const itemWidth = height * ratio;
+      // Chaque photo occupe toute la largeur de sa colonne (aucun fond visible entre les colonnes). Une photo très haute dont la hauteur
+      // dépasserait la résolution du cache est plafonnée, et recadrée en haut et en bas (object-fit: cover, voir renderVisibleItems).
+      const height = Math.min(columnWidth / ratio, maxItemHeight);
       const y = columnBottoms[column];
-      placed.push({ index: i, x: column * (columnWidth + gap) + (columnWidth - itemWidth) / 2, y: offsetY + y, width: itemWidth, height });
+      placed.push({ index: i, x: column * (columnWidth + gap), y: offsetY + y, width: columnWidth, height });
       columnBottoms[column] = y + height + gap;
       maximumPhotoHeight = Math.max(maximumPhotoHeight, height);
     }
@@ -1240,7 +1242,8 @@ function renderVisibleItems() {
     const padding = thumbnailSpacing === 'normal' ? '4px' : '0';
     if (div._padding !== padding) { div.style.padding = padding; div._padding = padding; }
     div.classList.toggle('frameless', thumbnailSpacing !== 'normal');
-    const objectFit = thumbnailLayout === 'square' ? 'cover' : 'contain';
+    // Cascade : la case a déjà le ratio de la photo ; « cover » évite tout fond visible si ce ratio est approximatif ou plafonné.
+    const objectFit = thumbnailLayout === 'justified' ? 'contain' : 'cover';
     if (div._objectFit !== objectFit) { div._thumbnailImage.style.objectFit = objectFit; div._objectFit = objectFit; }
     const selected = selectedIndices.has(i);
     if (div._selected !== selected) { div.classList.toggle('selected', selected); div._selected = selected; }
