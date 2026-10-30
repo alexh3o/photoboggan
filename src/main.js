@@ -228,20 +228,21 @@ const colorFlagLabels = {
 };
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
-const DEFAULT_SELECTION_COLOR = '#3498db';
+const DEFAULT_SELECTION_COLOR = '#1e72ad';
 let appTheme = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark';
 const storedSelectionColor = localStorage.getItem('selectionColor') || '';
 let selectionColor = /^#[0-9a-f]{6}$/i.test(storedSelectionColor) ? storedSelectionColor : DEFAULT_SELECTION_COLOR;
 // Couleur des boutons activés (Filtres, Comparer, Aperçu, Info), distincte de la couleur de sélection des miniatures.
-const DEFAULT_ACTIVE_BUTTON_COLOR = '#3498db';
+const DEFAULT_ACTIVE_BUTTON_COLOR = '#1e72ad';
 const storedActiveButtonColor = localStorage.getItem('activeButtonColor') || '';
 let activeButtonColor = /^#[0-9a-f]{6}$/i.test(storedActiveButtonColor) ? storedActiveButtonColor : DEFAULT_ACTIVE_BUTTON_COLOR;
-// Texte noir sur les couleurs très claires (jaune…), blanc sinon, pour rester lisible sur le bouton activé.
+// Texte noir ou blanc, selon celui qui contraste le plus avec la couleur du bouton activé (rapport WCAG ≥ 4,5:1 pour toutes les couleurs
+// proposées sauf quelques tons moyens, où le meilleur des deux est retenu). Le seuil de luminance est celui où les deux contrastes s'égalent.
 function readableTextColor(hex) {
   const [r, g, b] = [1, 3, 5]
     .map(start => parseInt(hex.slice(start, start + 2), 16) / 255)
     .map(channel => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5 ? '#111' : '#fff';
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? '#111' : '#fff';
 }
 function applyAppearance() {
   document.documentElement.dataset.theme = appTheme;
@@ -4624,14 +4625,16 @@ async function refreshStorageLocationUI() {
     const pathDisplay = document.getElementById('storage-path-display');
     const resetBtn = document.getElementById('btn-reset-storage');
     if (pathDisplay) {
-      pathDisplay.textContent = info.current_path;
-      pathDisplay.title = info.current_path;
+      pathDisplay.textContent = info.current_path || t('Default');
+      pathDisplay.title = info.current_path || '';
     }
     if (resetBtn) {
       resetBtn.classList.toggle('hidden', !info.is_custom);
     }
   } catch (error) {
     console.error("Lecture de l'emplacement de stockage impossible", error);
+    const pathDisplay = document.getElementById('storage-path-display');
+    if (pathDisplay) pathDisplay.textContent = t('Default'); // emplacement illisible : état explicite plutôt qu'un champ vide
   }
 }
 

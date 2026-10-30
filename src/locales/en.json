@@ -719,5 +719,6 @@
   "Applications": "Applications",
   "Library": "Library",
   "Camera": "Camera",
-  "Exposure": "Exposure"
+  "Exposure": "Exposure",
+  "Default": "Default"
 }

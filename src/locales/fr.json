@@ -719,5 +719,6 @@
   "Applications": "Applications",
   "Library": "Bibliothèque",
   "Camera": "Appareil photo",
-  "Exposure": "Exposition"
+  "Exposure": "Exposition",
+  "Default": "Par défaut"
 }

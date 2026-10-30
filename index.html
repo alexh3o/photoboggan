@@ -326,7 +326,6 @@
           <button type="button" class="settings-tab-btn active" role="tab" aria-selected="true" data-tab="general" data-i18n="General">Général</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="data" data-i18n="Storage">Stockage</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Applications">Applications</button>
-          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="display" data-i18n="Display">Affichage</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
         </div>
@@ -358,7 +357,7 @@
           <div id="settings-tab-data" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Storage location">Emplacement des données</h4>
-              <div id="storage-path-display" class="settings-path-label" title=""></div>
+              <div id="storage-path-display" class="settings-path-label" title="">Par défaut</div>
               <div class="settings-storage-actions">
                 <button id="btn-change-storage" class="btn-highlight" type="button" data-i18n="Change folder…">Modifier le dossier…</button>
                 <button id="btn-reset-storage" class="btn-secondary hidden" type="button" data-i18n="Reset to default">Emplacement par défaut</button>
@@ -386,36 +385,6 @@
             </section>
           </div>
 
-          <!-- Onglet Affichage -->
-          <div id="settings-tab-display" class="settings-tab-pane" role="tabpanel" hidden>
-            <section class="settings-section">
-              <h4 data-i18n="Display">Affichage</h4>
-                            <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
-                <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
-                  <button type="button" class="accent-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
-                  <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
-                  <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
-                  <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
-                  <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
-                  <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
-                  <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
-                  <input id="accent-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
-                </span>
-              </div>
-              <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
-                <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
-                  <button type="button" class="button-swatch" data-color="#3498db" style="background:#3498db" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
-                  <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
-                  <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
-                  <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
-                  <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
-                  <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
-                  <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
-                  <input id="active-button-color" type="color" value="#3498db" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
-                </span>
-              </div>
-                          </section>
-          </div>
           <!-- Onglet Métadonnées (écriture et priorités de lecture : metadata-settings.js ; application automatique : metadata-writes.js) -->
           <div id="settings-tab-metadata" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section" role="radiogroup" aria-labelledby="metadata-writer-title">
@@ -499,7 +468,7 @@
     </div>
     <!-- Modale d'affichage : disposition et taille des miniatures, thème, taille des textes -->
     <div id="display-modal" class="modal hidden">
-      <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="display-modal-title">
+      <div class="modal-card display-card" role="dialog" aria-modal="true" aria-labelledby="display-modal-title">
         <div class="modal-header">
           <h3 id="display-modal-title" data-i18n="Display">Affichage</h3>
           <button id="btn-close-display" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
@@ -536,6 +505,32 @@
                   <option value="120" data-i18n="Very large">Très grand</option>
                 </select>
               </label>
+          </section>
+          <section class="settings-section">
+            <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
+                <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
+                  <button type="button" class="accent-swatch" data-color="#1e72ad" style="background:#1e72ad" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
+                  <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
+                  <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
+                  <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
+                  <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
+                  <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
+                  <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
+                  <input id="accent-color" type="color" value="#1e72ad" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
+                </span>
+              </div>
+              <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
+                <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
+                  <button type="button" class="button-swatch" data-color="#1e72ad" style="background:#1e72ad" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
+                  <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
+                  <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
+                  <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
+                  <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
+                  <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
+                  <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
+                  <input id="active-button-color" type="color" value="#1e72ad" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
+                </span>
+              </div>
           </section>
         </div>
       </div>
