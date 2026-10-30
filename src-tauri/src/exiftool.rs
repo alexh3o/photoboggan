@@ -160,6 +160,42 @@ fn hide_console_window(command: &mut Command) {
 #[cfg(not(windows))]
 fn hide_console_window(_command: &mut Command) {}
 
+/// Windows : lie le processus ExifTool à la vie de l'application (objet Job « KILL_ON_JOB_CLOSE »). Si l'application s'arrête sans passer par
+/// `shutdown` (processus tué, Ctrl+C du mode dev, plantage), Windows ferme le Job et tue ExifTool : sinon `exiftool.exe` (mode -stay_open)
+/// survit, verrouille le dossier `exiftool` de `target` et fait échouer la compilation suivante. Au mieux : un échec est ignoré. Sans effet ailleurs.
+#[cfg(windows)]
+fn bind_to_app_lifetime(child: &Child) {
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::OnceLock;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    // Un seul Job pour toute l'application, jamais fermé explicitement : sa fermeture est celle du processus. Poignée gardée en usize (Sync).
+    static JOB: OnceLock<Option<usize>> = OnceLock::new();
+    let job = JOB.get_or_init(|| unsafe {
+        let job = CreateJobObjectW(None, None).ok()?;
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        )
+        .ok()?;
+        Some(job.0 as usize)
+    });
+    if let Some(job) = job {
+        unsafe { let _ = AssignProcessToJobObject(HANDLE(*job as *mut std::ffi::c_void), HANDLE(child.as_raw_handle())); }
+    }
+}
+
+#[cfg(not(windows))]
+fn bind_to_app_lifetime(_child: &Child) {}
+
 /// Exécutable à utiliser (détecté une fois, puis gardé).
 fn launcher() -> Result<Launcher, String> {
     let mut cached = lock(&LAUNCHER);
@@ -271,6 +307,7 @@ impl Process {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = command.spawn().map_err(|error| format!("Démarrage d'ExifTool impossible : {error}"))?;
+        bind_to_app_lifetime(&child);
         let (Some(stdin), Some(stdout), Some(stderr)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) else {
             let _ = child.kill();
             return Err("Démarrage d'ExifTool impossible : flux indisponibles".to_string());
