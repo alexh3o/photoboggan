@@ -553,6 +553,12 @@ fn region_args(update: &crate::exif::RegionsUpdate) -> Vec<String> {
     ]
 }
 
+/// Nom d'une propriété XMP « liste de langues » à écrire. Valeur non vide : seule l'entrée `x-default` est remplacée, les traductions
+/// (digiKam…) sont conservées, alors qu'écrire sans langue les supprime. Valeur vide : propriété retirée avec toutes ses langues.
+fn lang_alt_tag(tag: &str, value: &str) -> String {
+    if value.is_empty() { tag.to_string() } else { format!("{tag}-x-default") }
+}
+
 /// Arguments ExifTool des mots-clés, du titre et de la description de `update`.
 fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec<String> {
     let jpeg = matches!(target_of(image_path), Target::Jpeg);
@@ -581,7 +587,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
         }
     }
     if let Some(title) = update.clean_title() {
-        args.push(assign("XMP-dc:Title", &title));
+        args.push(assign(&lang_alt_tag("XMP-dc:Title", &title), &title));
         args.push(assign("XMP-acdsee:Caption", &title));
         if jpeg {
             let object_name = crate::exif::truncate_utf8(&title, 64).to_string();
@@ -591,9 +597,10 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
         }
     }
     if let Some(description) = update.clean_description() {
-        for tag in ["XMP-dc:Description", "XMP-exif:UserComment", "XMP-tiff:ImageDescription", "XMP-acdsee:Notes"] {
-            args.push(assign(tag, &description));
+        for tag in ["XMP-dc:Description", "XMP-exif:UserComment", "XMP-tiff:ImageDescription"] {
+            args.push(assign(&lang_alt_tag(tag, &description), &description));
         }
+        args.push(assign("XMP-acdsee:Notes", &description));
         if jpeg {
             for tag in ["File:Comment", "EXIF:ImageDescription", "EXIF:UserComment", "EXIF:XPComment"] {
                 args.push(assign(tag, &description));

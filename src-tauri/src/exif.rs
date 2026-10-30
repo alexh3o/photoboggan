@@ -1476,13 +1476,47 @@ pub(crate) fn keyword_leaves(paths: &[Vec<String>]) -> Vec<String> {
 const EXIF_NS: &str = "http://ns.adobe.com/exif/1.0/";
 const TIFF_NS: &str = "http://ns.adobe.com/tiff/1.0/";
 
-/// Élément XMP « liste de langues » réduit à la valeur par défaut : `<nom><rdf:Alt><rdf:li xml:lang="x-default">…</rdf:li></rdf:Alt></nom>`.
-fn xmp_alt_element(qualified_name: &str, text: &str) -> String {
-    format!("<{qualified_name}><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></{qualified_name}>", xml_escape_text(text))
+/// Entrées d'une liste de langues XMP (`rdf:Alt`) autres que `x-default` (ex. `fr-FR` ajoutée par digiKam), telles qu'écrites dans le
+/// paquet (balise `<rdf:li …>…</rdf:li>` complète, donc réinjectables sans transformation). Vide si la propriété est absente, simple ou
+/// sans traduction.
+fn xmp_other_language_items(xml: &str, qualified_name: &str) -> Vec<String> {
+    let opening = format!("<{qualified_name}");
+    let closing = format!("</{qualified_name}>");
+    let mut items = Vec::new();
+    let mut from = 0;
+    while let Some(relative) = xml[from..].find(&opening) {
+        let start = from + relative;
+        let name_end = start + opening.len();
+        from = name_end;
+        if !xml.as_bytes().get(name_end).is_some_and(|byte| *byte == b'>' || byte.is_ascii_whitespace()) { continue; }
+        let Some(tag_end) = xml_tag_end(xml, start) else { break; };
+        if xml.as_bytes()[tag_end - 1] == b'/' { continue; }
+        let Some(close) = xml[tag_end + 1..].find(&closing).map(|end| tag_end + 1 + end) else { break; };
+        let mut rest = &xml[tag_end + 1..close];
+        while let Some(li) = rest.find("<rdf:li") {
+            let Some(li_tag_end) = rest[li..].find('>').map(|end| li + end) else { break; };
+            if rest[li..li_tag_end].ends_with('/') { rest = &rest[li_tag_end + 1..]; continue; }
+            let Some(item_end) = rest[li_tag_end + 1..].find("</rdf:li>").map(|end| li_tag_end + 1 + end + "</rdf:li>".len()) else { break; };
+            if !rest[li..li_tag_end].contains("x-default") { items.push(rest[li..item_end].to_string()); }
+            rest = &rest[item_end..];
+        }
+        break;
+    }
+    items
+}
+
+/// Élément XMP « liste de langues » : la valeur par défaut `<rdf:li xml:lang="x-default">…</rdf:li>` suivie des autres langues
+/// conservées (`other_languages`, voir `xmp_other_language_items`) : `<nom><rdf:Alt>…</rdf:Alt></nom>`.
+fn xmp_alt_element(qualified_name: &str, text: &str, other_languages: &[String]) -> String {
+    format!(
+        "<{qualified_name}><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li>{}</rdf:Alt></{qualified_name}>",
+        xml_escape_text(text), other_languages.concat()
+    )
 }
 
 /// Remplace le titre (dc:title, acdsee:caption) et/ou la description (dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes)
-/// d'un paquet XMP. Les autres langues éventuelles de dc:title et dc:description sont retirées avec l'ancienne valeur.
+/// d'un paquet XMP. Seule la valeur par défaut (`x-default`) est remplacée : les autres langues (traductions de digiKam) sont conservées,
+/// sauf si le champ est vidé (retrait complet).
 fn update_xmp_texts(xml: &str, update: &MetadataUpdate) -> String {
     let title = update.clean_title();
     let description = update.clean_description();
@@ -1496,25 +1530,29 @@ fn update_xmp_texts(xml: &str, update: &MetadataUpdate) -> String {
     let mut children = String::new();
     let mut namespaces: Vec<(&str, &str)> = Vec::new();
     if let Some(title) = &title {
+        let title_languages = xmp_other_language_items(&updated, "dc:title");
         for (prefix, local_name) in [("dc", "title"), ("acdsee", "caption")] {
             updated = remove_xmp_list_property(&updated, local_name, Some(prefix));
             updated = remove_xmp_attribute(&updated, &format!("{prefix}:{local_name}"));
         }
         if !title.is_empty() {
-            children.push_str(&xmp_alt_element("dc:title", title));
+            children.push_str(&xmp_alt_element("dc:title", title, &title_languages));
             children.push_str(&format!("<acdsee:caption>{}</acdsee:caption>", xml_escape_text(title)));
             namespaces.extend([("dc", DC_NS), ("acdsee", ACDSEE_NS)]);
         }
     }
     if let Some(description) = &description {
+        let languages_of = |name: &str| xmp_other_language_items(&updated, name);
+        let (dc_languages, comment_languages, tiff_languages) =
+            (languages_of("dc:description"), languages_of("exif:UserComment"), languages_of("tiff:ImageDescription"));
         for (prefix, local_name) in [("dc", "description"), ("exif", "UserComment"), ("tiff", "ImageDescription"), ("acdsee", "notes")] {
             updated = remove_xmp_list_property(&updated, local_name, Some(prefix));
             updated = remove_xmp_attribute(&updated, &format!("{prefix}:{local_name}"));
         }
         if !description.is_empty() {
-            children.push_str(&xmp_alt_element("dc:description", description));
-            children.push_str(&xmp_alt_element("exif:UserComment", description));
-            children.push_str(&xmp_alt_element("tiff:ImageDescription", description));
+            children.push_str(&xmp_alt_element("dc:description", description, &dc_languages));
+            children.push_str(&xmp_alt_element("exif:UserComment", description, &comment_languages));
+            children.push_str(&xmp_alt_element("tiff:ImageDescription", description, &tiff_languages));
             children.push_str(&format!("<acdsee:notes>{}</acdsee:notes>", xml_escape_text(description)));
             for namespace in [("dc", DC_NS), ("exif", EXIF_NS), ("tiff", TIFF_NS), ("acdsee", ACDSEE_NS)] {
                 if !namespaces.contains(&namespace) { namespaces.push(namespace); }
