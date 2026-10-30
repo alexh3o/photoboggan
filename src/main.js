@@ -9,6 +9,7 @@ import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, r
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWritten } from './metadata-writes.js';
+import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection } from './faces-panel.js';
@@ -2006,6 +2007,13 @@ if (e.key === 'Delete') {
     setSelectionRating(Number(e.key));
     return;
   }
+  // Couleurs : 6 rouge, 7 jaune, 8 vert, 9 bleu (même touche une seconde fois : couleur retirée, voir setSelectionColorFlag)
+  const colorByKey = { 6: 'red', 7: 'yellow', 8: 'green', 9: 'blue' };
+  if (colorByKey[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey && selectedIndices.size > 0) {
+    e.preventDefault();
+    setSelectionColorFlag(colorByKey[e.key]);
+    return;
+  }
   // Zoom (+ / - / *) : sur l'aperçu (ou l'image survolée en mode désynchronisé), ou sur l'image du plein écran quand il est ouvert
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     const zoomTarget = isFullscreen ? null : hoveredPreviewSlot;
@@ -2136,10 +2144,11 @@ window.addEventListener('keydown', event => {
 // MODALE Guide (ouverte depuis les Paramètres)
 // ==========================================
 const guideModal = document.getElementById('guide-modal');
-const guideVersion = document.getElementById('guide-version');
+const guideVersion = document.getElementById('guide-version'); // absent du guide actuel : la version n'est lue que s'il existe
+initGuide();
 async function openGuide() {
   guideModal.classList.remove('hidden');
-  if (guideVersion.dataset.loaded) return;
+  if (!guideVersion || guideVersion.dataset.loaded) return;
   try {
     guideVersion.textContent = await getVersion();
     guideVersion.dataset.loaded = 'true';

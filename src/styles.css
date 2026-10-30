@@ -513,13 +513,27 @@ body.immersive .titlebar { display: none; }
 
 /* MODALE GUIDE (compatible thème sombre & clair) */
 .guide-card { width: min(52rem, calc(100vw - 2.5rem)); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
-.guide-body { padding: 1.5rem; max-height: 75vh; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
+.guide-body { padding: 1.5rem; max-height: 75vh; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
+/* Recherche et note, toujours visibles en haut pendant le défilement (guide.js) */
+.guide-toolbar { position: sticky; top: -1.5rem; z-index: 2; margin: -1.5rem -1.5rem 0; padding: 1rem 1.5rem 0.75rem; background: var(--card-bg); border-bottom: 1px solid var(--separator); }
+.guide-search { width: 100%; box-sizing: border-box; padding: 0.45rem 0.6rem; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.85rem; }
+.guide-search:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.guide-note { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
+.guide-groups { display: flex; flex-direction: column; gap: 1.25rem; }
+.guide-section[hidden], .guide-row[hidden], .guide-empty[hidden] { display: none; }
+.guide-empty { padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
 .guide-section { background: var(--row-bg); border-radius: 8px; padding: 1.25rem; border: 1px solid var(--control-border); width: 100%; }
 .guide-section-title { margin: 0 0 0.75rem 0; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-text); font-weight: 700; }
-.guide-row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid var(--separator); font-size: 0.85rem; gap: 1rem; }
-.guide-row:last-child { border-bottom: none; }
-.guide-action { color: var(--text-strong); text-align: left; }
-.guide-control kbd, kbd { display: inline-block; padding: 0.2rem 0.5rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.75rem; font-weight: 600; line-height: 1; color: var(--btn-text); background-color: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; box-shadow: 0 1px 0 var(--control-border); white-space: nowrap; }
+/* Une ligne : les touches à gauche (colonne de largeur fixe, pour que l'œil les suive), l'action à droite avec son détail en gris dessous */
+.guide-row { display: grid; grid-template-columns: 12rem 1fr; align-items: start; column-gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--separator); font-size: 0.85rem; }
+.guide-row:not([hidden]):last-of-type { border-bottom: none; }
+.guide-control { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; color: var(--text-muted); font-size: 0.8rem; }
+.guide-separator { color: var(--text-muted); font-size: 0.75rem; }
+.guide-action { display: flex; flex-direction: column; gap: 0.15rem; color: var(--text-strong); text-align: left; }
+.guide-detail { color: var(--text-muted); font-size: 0.75rem; }
+/* Contexte où la ligne s'applique (une même touche peut avoir un autre sens ailleurs : D, Ctrl + A, Entrée…) */
+.guide-tag { display: inline-block; margin-left: 0.3rem; padding: 0.05rem 0.45rem; border: 1px solid var(--control-border); border-radius: 1rem; color: var(--text-muted); font-size: 0.7rem; white-space: nowrap; vertical-align: 0.05em; }
+.guide-control kbd, kbd { display: inline-block; padding: 0.2rem 0.5rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.8rem; font-weight: 600; line-height: 1; color: var(--btn-text); background-color: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; box-shadow: 0 1px 0 var(--control-border); white-space: nowrap; }
 
 /* MODALE À PROPOS */
 .about-card { width: min(24rem, calc(100vw - 2.5rem)); }
