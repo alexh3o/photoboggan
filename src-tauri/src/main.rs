@@ -428,6 +428,45 @@ fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+// Supprime du cache (miniatures et aperçus RAW / vidéo) les fichiers qui ne correspondent plus à aucune photo du catalogue : photo modifiée (taille ou date
+// changées, donc nom de cache différent), supprimée ou déplacée hors de l'application. Le nom de cache est recalculé pour chaque photo du catalogue
+// (une lecture de taille et de date par fichier, aucun décodage d'image) ; tout fichier du cache hors de cet ensemble est supprimé. Renvoie leur nombre.
+// Une photo dont le fichier est introuvable n'a pas de nom attendu : son cache part aussi (il serait régénéré si elle réapparaissait).
+fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &Path) -> Result<usize, String> {
+    use rayon::prelude::*;
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let photo_paths: Vec<String> = {
+        let mut statement = conn.prepare("SELECT path FROM photos").map_err(|error| error.to_string())?;
+        let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())?;
+        rows.collect::<Result<_, _>>().map_err(|error| error.to_string())?
+    };
+    let expected: std::collections::HashSet<PathBuf> = photo_paths
+        .par_iter()
+        .flat_map_iter(|path| [thumbnail_cache_file(thumbnails_dir, path).ok(), raw_preview_cache_file(raw_previews_dir, path).ok()])
+        .flatten()
+        .collect();
+    let mut removed = 0;
+    for dir in [thumbnails_dir, raw_previews_dir] {
+        let Ok(entries) = fs::read_dir(dir) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let is_cache_jpg = path.extension().map_or(false, |extension| extension == "jpg");
+            if is_cache_jpg && !expected.contains(&path) && fs::remove_file(&path).is_ok() { removed += 1; }
+        }
+    }
+    Ok(removed)
+}
+
+// Bouton « Supprimer les miniatures orphelines » (Paramètres > Stockage) ; la même purge termine le rescan complet (voir rescan_all_folders).
+#[tauri::command]
+async fn purge_orphan_thumbnails(state: State<'_, AppState>) -> Result<usize, String> {
+    let pool = state.pool();
+    let (thumbnails_dir, raw_previews_dir) = (state.thumbnails_dir(), state.raw_previews_dir());
+    tokio::task::spawn_blocking(move || purge_orphan_cache(&pool, &thumbnails_dir, &raw_previews_dir))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 // Tailles de cache proposées. 512 px minimum : la détection des visages lit les miniatures en cache et YuNet travaille en 640 px
 // (une miniature de 256 px ferait manquer les petits visages).
 const THUMBNAIL_CACHE_SIZES: [u32; 3] = [512, 768, 1024];
@@ -648,6 +687,12 @@ async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, t
     for (index, folder) in folders.into_iter().enumerate() {
         if cancel.load(Ordering::Relaxed) { break; }
         run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone()).await;
+    }
+    // Rescan terminé sans arrêt demandé : le catalogue est à jour, les miniatures qui ne lui correspondent plus sont supprimées.
+    if !cancel.load(Ordering::Relaxed) {
+        let (thumbnails_dir, raw_previews_dir) = (state.thumbnails_dir(), state.raw_previews_dir());
+        let purge_pool = pool.clone();
+        let _ = tokio::task::spawn_blocking(move || purge_orphan_cache(&purge_pool, &thumbnails_dir, &raw_previews_dir)).await;
     }
     release_scan_cancel_flag(&task_id);
     Ok(())
@@ -1263,9 +1308,20 @@ impl Drop for FileTaskProgress {
     }
 }
 
+// Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renommage
+// échoue, l'ancien fichier est supprimé : il ne serait plus jamais relu.
+fn carry_cache_file(old: Option<PathBuf>, new: Option<PathBuf>) {
+    let Some(old) = old else { return };
+    if !old.is_file() { return; }
+    match new {
+        Some(new) if new != old && fs::rename(&old, &new).is_ok() => {}
+        _ => { let _ = fs::remove_file(&old); }
+    }
+}
+
 // Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
 // Un fichier de même nom n'est jamais écrasé : le fichier déplacé est renommé (« photo (1).jpg »). La ligne de la base est mise à jour (même id : note,
-// couleur et mots-clés sont conservés) et la miniature du cache, qui dépend du chemin, est supprimée.
+// couleur et mots-clés sont conservés) et la miniature du cache, qui dépend du chemin, est renommée pour suivre la photo.
 // Lancé par la file des tâches (`task_id`) : avancement publié, arrêt possible entre deux fichiers (les fichiers déjà déplacés le restent).
 #[tauri::command(async)]
 fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<MoveResult, String> {
@@ -1315,10 +1371,11 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 break 'file;
             }
             move_sidecar(source, &target);
-            if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
-            if let Some(raw_preview_file) = raw_preview_file { let _ = fs::remove_file(raw_preview_file); }
-
             let new_path = target.to_string_lossy().into_owned();
+            // Les noms du cache dépendent du chemin : les miniatures existantes sont renommées vers le nouveau nom au lieu d'être régénérées.
+            carry_cache_file(cache_file, thumbnail_cache_file(&thumbnails_dir, &new_path).ok());
+            carry_cache_file(raw_preview_file, raw_preview_cache_file(&raw_previews_dir, &new_path).ok());
+
             let new_name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
             let (size, modified) = fs::metadata(&target)
                 .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
@@ -1578,6 +1635,7 @@ fn main() {
             delete_folder,
             get_folder_unrecognized_files,
             is_folder_empty,
+            purge_orphan_thumbnails,
             count_permanent_deletions,
             remove_missing_photos,
             sync_library,

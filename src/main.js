@@ -2760,6 +2760,21 @@ thumbnailSizeInput.addEventListener('change', event => {
   localStorage.setItem('thumbnailSize', String(thumbnailSize));
   requestAnimationFrame(updateVirtualScroller);
 });
+// Bouton « Supprimer les miniatures orphelines » : même purge que la fin du rescan complet (purge_orphan_cache côté Rust).
+const purgeOrphanThumbnailsButton = document.getElementById('btn-purge-orphan-thumbnails');
+purgeOrphanThumbnailsButton?.addEventListener('click', async () => {
+  purgeOrphanThumbnailsButton.disabled = true;
+  showTaskToast(t('Removing orphan thumbnails…'), 0);
+  try {
+    const removed = await invoke('purge_orphan_thumbnails');
+    showWriteToast(tp('{count} orphan thumbnail removed', removed, { count: removed }));
+  } catch (error) {
+    showWriteToast(t('Orphan thumbnail removal failed: {error}', { error }));
+  } finally {
+    hideTaskToast();
+    purgeOrphanThumbnailsButton.disabled = false;
+  }
+});
 // Gestionnaire du sélecteur de taille des miniatures en cache
 const thumbnailCacheSelect = document.getElementById('thumbnail-cache-size-select');
 if (thumbnailCacheSelect) {

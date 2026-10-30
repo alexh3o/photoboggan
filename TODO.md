@@ -16,7 +16,7 @@
 - [x] *feat*: `controls` shortcuts for validate / ignore / unknown / not a face
 - [x] *feat*: `ui` display folders without photos with on/off setting
 - [ ] *feat*: `ui` display a text in case of empty grid
-- [ ] *perf*: moving files does not move the thumbnails
+- [x] *perf*: moving files does not move the thumbnails
 
 ## 💡 Ideas / Longer term / On hold
 
