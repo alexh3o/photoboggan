@@ -256,7 +256,7 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
   opacity: 0; /* fondu à l'apparition : la classe .loaded est ajoutée dès que l'image est chargée */
   transition: transform 0.3s ease, opacity 0.15s ease; /* Transition fluide pour l'image */ }
 .thumbnail-inner > img.loaded { opacity: 1; }
-.thumbnail.justified .thumbnail-inner { border: 0; border-radius: 0; }
+.thumbnail.frameless .thumbnail-inner { border: 0; border-radius: 0; }
 .thumbnail.selected .thumbnail-inner {
   outline: 4px solid var(--selected-border);
   outline-offset: -4px;

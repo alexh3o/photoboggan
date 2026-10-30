@@ -32,12 +32,13 @@
 
 ## ⚖️ Undecided
 
-- [ ] *feat*: `internet` **internet permission** toggle
+- [x] *feat*: `internet` **internet permission** toggle
 - [ ] *feat*: `internet` **Map screen**
 - [ ] *feat*: `internet` add a **map widget** in info panel
 - [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `formats` live photos
+- [ ] *feat*: waterfall view without spacing
 
 ## ❌ Ruled out
 

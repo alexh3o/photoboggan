@@ -301,6 +301,11 @@ thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumb
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
 let thumbnailLayout = ['square', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'square';
+// ESPACEMENT DES MINIATURES (mémorisé localement), commun à toutes les dispositions : aucun, petit (0,25 rem) ou normal (marge et cadre historiques de la cascade).
+// Sans choix enregistré, on garde l'aspect d'avant ce réglage : vue justifiée sans espace, autres dispositions espacées.
+const THUMBNAIL_SPACINGS = ['none', 'small', 'normal'];
+const storedThumbnailSpacing = localStorage.getItem('thumbnailSpacing');
+let thumbnailSpacing = THUMBNAIL_SPACINGS.includes(storedThumbnailSpacing) ? storedThumbnailSpacing : (thumbnailLayout === 'justified' ? 'none' : 'normal');
 // TRI DES MINIATURES (critère et ordre mémorisés localement). Par défaut : date de prise de vue, de la plus récente à la plus ancienne (ordre historique de la grille).
 const SORT_KEYS = ['taken', 'modified', 'name'];
 const storedSortKey = localStorage.getItem('photoSortKey');
@@ -1076,10 +1081,11 @@ function layoutPhotoRange(start, end, offsetY, width, gap) {
   const count = end - start;
   const thumbailSizeCorrected = Math.floor(thumbnailSize / (window.devicePixelRatio || 1));
   if (thumbnailLayout === 'square') {
-    columns = Math.max(1, Math.floor(width / thumbailSizeCorrected));
-    const cellSize = Math.min(thumbailSizeCorrected, width / columns);
-    for (let n = 0; n < count; n++) photoLayouts.push({ index: start + n, x: (n % columns) * cellSize, y: offsetY + Math.floor(n / columns) * cellSize, width: cellSize, height: cellSize });
-    return Math.ceil(count / columns) * cellSize;
+    columns = Math.max(1, Math.floor((width + gap) / (thumbailSizeCorrected + gap)));
+    const cellSize = Math.min(thumbailSizeCorrected, (width - gap * (columns - 1)) / columns);
+    const step = cellSize + gap;
+    for (let n = 0; n < count; n++) photoLayouts.push({ index: start + n, x: (n % columns) * step, y: offsetY + Math.floor(n / columns) * step, width: cellSize, height: cellSize });
+    return Math.ceil(count / columns) * step - gap;
   } else if (thumbnailLayout === 'justified') {
     let y = offsetY;
     let index = start;
@@ -1153,9 +1159,17 @@ function separatorHeight() {
   return Math.max(1, separatorProbe.offsetHeight);
 }
 
+// Espace entre deux cases de la grille, en pixels. « Normal » : 6 px entre les cases, auxquels s'ajoute la marge intérieure de 4 px de chaque case
+// (voir renderVisibleItems). « Petit » : 0,25 rem converti en pixels, recalculé à chaque disposition pour suivre la taille du texte.
+function thumbnailGap() {
+  if (thumbnailSpacing === 'normal') return 6;
+  if (thumbnailSpacing === 'small') return Math.round(0.25 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16));
+  return 0;
+}
+
 function updateVirtualScroller() {
   const width = Math.max(1, gridContainer.clientWidth - 2 * GRID_SIDE_MARGIN);
-  const gap = thumbnailLayout === 'justified' ? 0 : 6;
+  const gap = thumbnailGap();
   photoLayouts = [];
   separatorLayouts = [];
   maximumPhotoHeight = thumbnailSize;
@@ -1222,9 +1236,10 @@ function renderVisibleItems() {
     div._y = layout.y; // utilisé pour prioriser la génération des miniatures proches de la zone visible
     if (div._width !== layout.width) { div.style.width = `${layout.width}px`; div._width = layout.width; }
     if (div._height !== layout.height) { div.style.height = `${layout.height}px`; div._height = layout.height; }
-    const padding = thumbnailLayout === 'justified' ? '0' : '4px';
+    // Espacement « Normal » : marge intérieure et cadre arrondi ; « Petit » et « Aucun » : la photo occupe toute sa case, sans cadre.
+    const padding = thumbnailSpacing === 'normal' ? '4px' : '0';
     if (div._padding !== padding) { div.style.padding = padding; div._padding = padding; }
-    div.classList.toggle('justified', thumbnailLayout === 'justified');
+    div.classList.toggle('frameless', thumbnailSpacing !== 'normal');
     const objectFit = thumbnailLayout === 'square' ? 'cover' : 'contain';
     if (div._objectFit !== objectFit) { div._thumbnailImage.style.objectFit = objectFit; div._objectFit = objectFit; }
     const selected = selectedIndices.has(i);
@@ -2364,6 +2379,12 @@ document.getElementById('thumbnail-layout').value = thumbnailLayout;
 document.getElementById('thumbnail-layout').addEventListener('change', event => {
   thumbnailLayout = event.target.value;
   localStorage.setItem('thumbnailLayout', thumbnailLayout);
+  updateVirtualScroller();
+});
+document.getElementById('thumbnail-spacing').value = thumbnailSpacing;
+document.getElementById('thumbnail-spacing').addEventListener('change', event => {
+  thumbnailSpacing = event.target.value;
+  localStorage.setItem('thumbnailSpacing', thumbnailSpacing);
   updateVirtualScroller();
 });
 // ==========================================
