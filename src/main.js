@@ -300,12 +300,14 @@ if (![512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
 thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
-let thumbnailLayout = ['square', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'square';
+// Encadrée (framed) : grille carrée où chaque photo entière (non recadrée) s'inscrit dans sa case ; portrait et paysage de même ratio ont la même taille.
+let thumbnailLayout = ['square', 'framed', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'square';
 // ESPACEMENT DES MINIATURES (mémorisé localement), commun à toutes les dispositions : aucun, petit (0,25 rem) ou normal (marge et cadre historiques de la cascade).
 // Sans choix enregistré, on garde l'aspect d'avant ce réglage : vue justifiée sans espace, autres dispositions espacées.
 const THUMBNAIL_SPACINGS = ['none', 'small', 'normal'];
 const storedThumbnailSpacing = localStorage.getItem('thumbnailSpacing');
 let thumbnailSpacing = THUMBNAIL_SPACINGS.includes(storedThumbnailSpacing) ? storedThumbnailSpacing : (thumbnailLayout === 'justified' ? 'none' : 'normal');
+// En disposition Encadrée, l'espacement « Aucun » est interdit (les cadres se toucheraient) : voir syncThumbnailSpacingWithLayout.
 // TRI DES MINIATURES (critère et ordre mémorisés localement). Par défaut : date de prise de vue, de la plus récente à la plus ancienne (ordre historique de la grille).
 const SORT_KEYS = ['taken', 'modified', 'name'];
 const storedSortKey = localStorage.getItem('photoSortKey');
@@ -356,7 +358,7 @@ function scheduleJustifiedRelayout(photo = null) {
   if (thumbnailLayout === 'masonry' && !(photo && isVideoPath(photo.path))) return;
   clearTimeout(justifiedLayoutTimer);
   justifiedLayoutTimer = setTimeout(() => {
-    if (thumbnailLayout !== 'square') updateVirtualScroller();
+    if (thumbnailLayout !== 'square' && thumbnailLayout !== 'framed') updateVirtualScroller();
   }, 80);
 }
 
@@ -1080,7 +1082,7 @@ function layoutPhotoRange(start, end, offsetY, width, gap) {
   if (end <= start) return 0;
   const count = end - start;
   const thumbailSizeCorrected = Math.floor(thumbnailSize / (window.devicePixelRatio || 1));
-  if (thumbnailLayout === 'square') {
+  if (thumbnailLayout === 'square' || thumbnailLayout === 'framed') {
     columns = Math.max(1, Math.floor((width + gap) / (thumbailSizeCorrected + gap)));
     const cellSize = Math.min(thumbailSizeCorrected, (width - gap * (columns - 1)) / columns);
     const step = cellSize + gap;
@@ -1243,7 +1245,8 @@ function renderVisibleItems() {
     if (div._padding !== padding) { div.style.padding = padding; div._padding = padding; }
     div.classList.toggle('frameless', thumbnailSpacing !== 'normal');
     // Cascade : la case a déjà le ratio de la photo ; « cover » évite tout fond visible si ce ratio est approximatif ou plafonné.
-    const objectFit = thumbnailLayout === 'justified' ? 'contain' : 'cover';
+    // Encadrée : la photo entière s'inscrit dans sa case carrée, le fond de la case forme le cadre.
+    const objectFit = thumbnailLayout === 'justified' || thumbnailLayout === 'framed' ? 'contain' : 'cover';
     if (div._objectFit !== objectFit) { div._thumbnailImage.style.objectFit = objectFit; div._objectFit = objectFit; }
     const selected = selectedIndices.has(i);
     if (div._selected !== selected) { div.classList.toggle('selected', selected); div._selected = selected; }
@@ -2378,14 +2381,26 @@ document.getElementById('btn-toggle-preview').addEventListener('click', event =>
   localStorage.setItem('previewVisible', String(visible)); // Mémorisation
   requestAnimationFrame(updateVirtualScroller);
 });
+const thumbnailSpacingSelect = document.getElementById('thumbnail-spacing');
+// L'option « Aucun » est grisée en disposition Encadrée ; si elle était choisie, l'espacement passe à « Petit » (et ce choix est mémorisé).
+function syncThumbnailSpacingWithLayout() {
+  const framed = thumbnailLayout === 'framed';
+  thumbnailSpacingSelect.querySelector('option[value="none"]').disabled = framed;
+  if (framed && thumbnailSpacing === 'none') {
+    thumbnailSpacing = 'small';
+    localStorage.setItem('thumbnailSpacing', thumbnailSpacing);
+  }
+  thumbnailSpacingSelect.value = thumbnailSpacing;
+}
 document.getElementById('thumbnail-layout').value = thumbnailLayout;
 document.getElementById('thumbnail-layout').addEventListener('change', event => {
   thumbnailLayout = event.target.value;
   localStorage.setItem('thumbnailLayout', thumbnailLayout);
+  syncThumbnailSpacingWithLayout();
   updateVirtualScroller();
 });
-document.getElementById('thumbnail-spacing').value = thumbnailSpacing;
-document.getElementById('thumbnail-spacing').addEventListener('change', event => {
+syncThumbnailSpacingWithLayout();
+thumbnailSpacingSelect.addEventListener('change', event => {
   thumbnailSpacing = event.target.value;
   localStorage.setItem('thumbnailSpacing', thumbnailSpacing);
   updateVirtualScroller();
