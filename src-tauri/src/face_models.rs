@@ -2,6 +2,7 @@
 //!
 //! Ils sont téléchargés à la demande depuis une release GitHub de photoboggan (manifeste `face_models.json`, préparé par
 //! scripts/prepare-face-models.mjs : noms, tailles et SHA-256 figés), ou copiés depuis un dossier choisi par l'utilisateur (sans Internet).
+//! C'est le seul accès à Internet de l'application : il est refusé en mode hors ligne (`set_internet_allowed`).
 //! Ils sont rangés dans le dossier de données de l'application (`models/`), jamais dans les dossiers de photos. Un fichier n'est installé
 //! qu'une fois sa somme SHA-256 vérifiée : il est écrit à côté (`.part`) puis renommé.
 
@@ -34,6 +35,15 @@ struct ModelFile {
 struct Manifest {
     base_url: String,
     files: Vec<ModelFile>,
+}
+
+/// Accès à Internet autorisé (Paramètres > Général, « Mode hors ligne » décoché) ; envoyé par l'interface au démarrage puis à chaque changement.
+/// Refusé tant que l'interface ne l'a pas envoyé : aucun téléchargement ne peut partir avant que le réglage soit connu.
+static INTERNET_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+#[tauri::command]
+pub fn set_internet_allowed(allowed: bool) {
+    INTERNET_ALLOWED.store(allowed, Ordering::Relaxed);
 }
 
 fn manifest() -> &'static Manifest {
@@ -179,6 +189,8 @@ pub async fn download_face_models(app: tauri::AppHandle, state: State<'_, AppSta
         let mut done = 0u64;
         let mut last_percent = u32::MAX;
         for file in missing {
+            // Vérifié avant chaque fichier : passer en mode hors ligne arrête aussi un téléchargement en cours.
+            if !INTERNET_ALLOWED.load(Ordering::Relaxed) { return Err("internet_disabled".to_string()); }
             let url = format!("{}{}", manifest().base_url, file.asset);
             let response = ureq::get(&url).call().map_err(|error| format!("{url} : {error}"))?;
             let mut reader = response.into_body().into_reader();

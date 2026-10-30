@@ -1495,6 +1495,7 @@ fn main() {
             face_models::get_face_model_status,
             face_models::download_face_models,
             face_models::import_face_models,
+            face_models::set_internet_allowed,
             face_detect::set_face_settings,
             face_detect::apply_face_thresholds,
             face_detect::count_face_scan_targets,

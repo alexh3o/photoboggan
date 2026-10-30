@@ -13,6 +13,7 @@
   * **Performance brute & Réactivité** : Défilement virtuel fluide, lecture multithreadée, génération de miniatures optimisée, décodage RAW instantané via prévisualisation JPEG intégrée.
   * **Interopérabilité maximale** : Les métadonnées à écrire le sont dans les fichiers d'image (ou en sidecars `.xmp` standards pour les fichiers qui ne peuvent pas les contenir : RAW, PNG, HEIC, vidéos…), compatibles avec digiKam, Lightroom et l'Explorateur Windows.
   * **Multiplateforme** : Code portable (Windows et Linux distribués ; éviter tout ce qui bloquerait un autre OS).
+  * **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau (aujourd'hui : téléchargement du modèle de visages) est refusé en mode hors ligne (Paramètres > Général, `set_internet_allowed` dans `face_models.rs`) et propose une installation manuelle.
 
 ---
 

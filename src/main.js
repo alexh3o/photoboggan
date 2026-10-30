@@ -12,7 +12,7 @@ import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWri
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
@@ -4638,6 +4638,19 @@ document.querySelectorAll('input[name="startup-view"]').forEach(input => {
     startupView = input.value === 'last' ? 'last' : 'all';
     localStorage.setItem('startupView', startupView);
   });
+});
+
+// Mode hors ligne (Paramètres > Général) : le backend refuse tout téléchargement (modèle de visages) tant qu'il est actif.
+const offlineModeToggle = document.getElementById('offline-mode-toggle');
+offlineModeToggle.checked = localStorage.getItem('offlineMode') === 'true';
+function sendInternetAllowed() {
+  invoke('set_internet_allowed', { allowed: !offlineModeToggle.checked }).catch(error => console.error('Réglage du mode hors ligne refusé', error));
+}
+sendInternetAllowed();
+offlineModeToggle.addEventListener('change', () => {
+  localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
+  sendInternetAllowed();
+  onOfflineModeChanged();
 });
 
 // ==========================================

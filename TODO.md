@@ -12,7 +12,7 @@
 - [x] *feat*:  `UI` add faces display with V on preview
 - [x] *feat*: `UI` cycle faces display to never / on hover / always
 - [x] *feat*: `faces` **Faces detection & recognition** 
-- [x] *feat*: `controls` shift+(rating key) ta rate and go to next photo
+- [x] *feat*: `controls` shift+(rating key) to rate and go to next photo
 - [x] *feat*: shortcuts for validate / ignore / unknown / not a face
 
 ## 💡 Ideas / Longer term / On hold

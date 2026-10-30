@@ -4,9 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>photoboggan</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="titlebar" class="titlebar">
@@ -348,6 +345,10 @@
               <h4 id="startup-view-title" data-i18n="At startup, show">Au démarrage, afficher</h4>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="last" /><span data-i18n="The last opened location">Le dernier emplacement ouvert</span></label>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="all" /><span data-i18n="All photos">Toutes les photos</span></label>
+            </section>
+            <section class="settings-section">
+              <h4>Internet</h4>
+              <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages)." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Library">Bibliothèque</h4>

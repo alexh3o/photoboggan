@@ -964,9 +964,19 @@ export function isFaceDetectionEnabled() {
 // Codes d'erreur du backend (face_models.rs) traduits ; les autres messages sont affichés tels quels.
 function faceErrorMessage(error) {
   const text = String(error);
-  if (text === 'face_models_missing') return t('Download the face model first (Settings > Faces)');
+  if (text === 'face_models_missing') return isOffline() ? t('Install the face model first (Settings > Faces)') : t('Download the face model first (Settings > Faces)');
   if (text === 'faces_unsupported_platform') return t('Face detection is not available on this system');
+  if (text === 'internet_disabled') return t('Offline mode is on (Settings > General)');
   return text;
+}
+
+// Mode hors ligne (Paramètres > Général, géré par main.js) : le modèle s'installe uniquement depuis un dossier.
+function isOffline() {
+  return readStorage('offlineMode') === 'true';
+}
+
+export function onOfflineModeChanged() {
+  renderModelStatus();
 }
 
 function formatMegabytes(bytes) {
@@ -998,10 +1008,14 @@ function renderModelStatus() {
     list.replaceChildren();
     return;
   }
+  const offline = isOffline();
   importButton.hidden = !modelStatus.supported;
-  download.hidden = !modelStatus.supported || modelStatus.installed;
+  // Mode hors ligne : pas de téléchargement, la liste des fichiers à récupérer à la main est dépliée.
+  download.hidden = offline || !modelStatus.supported || modelStatus.installed;
+  if (offline && modelStatus.supported && !modelStatus.installed) list.closest('details').open = true;
   if (!modelStatus.supported) status.textContent = t('Face detection is not available on this system');
   else if (modelStatus.installed) status.textContent = t('Face model installed in {folder}', { folder: modelStatus.directory });
+  else if (offline) status.textContent = t('Offline mode: download the files listed below ({size}) on another computer, then install them from a folder. They are stored in {folder}.', { size: formatMegabytes(modelStatus.missing_size), folder: modelStatus.directory });
   else status.textContent = t('The face model must be downloaded ({size}). It is stored in {folder}.', { size: formatMegabytes(modelStatus.missing_size), folder: modelStatus.directory });
   download.textContent = t('Download ({size})', { size: formatMegabytes(modelStatus.missing_size) });
   list.replaceChildren(...modelStatus.files.map(file => {
