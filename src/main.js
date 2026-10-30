@@ -4007,6 +4007,7 @@ function applyDeletedFolder(deletedPath, removedPaths) {
   const deleted = normalize(deletedPath);
   const isInside = value => normalize(value) === deleted || normalize(value).startsWith(`${deleted}/`);
   for (const created of [...createdFolders]) if (isInside(created)) createdFolders.delete(created);
+  diskFolders = diskFolders.filter(folder => !isInside(folder)); // sinon le dossier supprimé resterait dans l'arbre (option « dossiers sans photo »)
   for (const key of [...folderTreeExpanded]) if (isInside(key)) folderTreeExpanded.delete(key);
   const viewAffected = currentFolderFilter !== null && isInside(currentFolderFilter);
   removePhotosFromLibrary(removedPaths);
@@ -4027,6 +4028,7 @@ async function deleteFolderToTrash(path, { permanent = false } = {}) {
     showWriteToast(t(permanent ? 'Folder deleted' : 'Folder moved to the trash'));
   } catch (error) {
     showWriteToast(t('Folder deletion failed: {error}', { error }));
+    if (showEmptyFolders) refreshDiskFolders(); // le dossier a peut-être disparu du disque : l'arbre est resynchronisé
   } finally {
     photoMoveRunning = false;
   }

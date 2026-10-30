@@ -177,7 +177,8 @@ export function createModal({ title, cardClass = '', onClose = null, focusSelect
 // Confirmation Oui / Non
 // le focus est sur « Oui » (rouge) et les flèches du clavier passent de l'un à l'autre.
 // Renvoie true uniquement si « Oui » est activé.
-export function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
+// `extraLabel` / `onExtra` (facultatifs) : bouton supplémentaire entre « Non » et « Oui » (ex. « Ouvrir » le dossier) qui ne ferme pas la fenêtre.
+export function confirmDialog({ title, message, confirmLabel, cancelLabel, extraLabel, onExtra }) {
   return new Promise(resolve => {
     let answer = false;
     const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(answer) });
@@ -198,13 +199,24 @@ export function confirmDialog({ title, message, confirmLabel, cancelLabel }) {
       answer = true;
       modal.close();
     });
-    actions.append(cancel, confirm);
+    actions.append(cancel);
+    if (extraLabel && onExtra) {
+      const extra = document.createElement('button');
+      extra.type = 'button';
+      extra.textContent = extraLabel;
+      extra.addEventListener('click', onExtra);
+      actions.append(extra);
+    }
+    actions.append(confirm);
     modal.body.append(text, actions);
-    // Flèches : le choix suit la position des boutons (gauche / haut = « Non », droite / bas = « Oui »). Entrée valide le bouton ayant le focus.
+    // Flèches : le choix suit la position des boutons (gauche / haut = précédent, droite / bas = suivant). Entrée valide le bouton ayant le focus.
     modal.overlay.addEventListener('keydown', event => {
       if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
       event.preventDefault();
-      (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? cancel : confirm).focus();
+      const buttons = [...actions.querySelectorAll('button')];
+      const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
+      const next = Math.min(buttons.length - 1, Math.max(0, buttons.indexOf(document.activeElement) + step));
+      buttons[next].focus();
     });
     confirm.focus();
   });
@@ -1297,13 +1309,19 @@ function confirmUnrecognizedFilesDialog(folderName, files) {
 async function confirmAndDeleteFolder(path) {
   const permanent = (await countPermanentDeletions([path])) > 0;
   const name = baseName(path);
+  // Dossier vide (aucun fichier, même caché) : le message n'évoque pas de contenu à perdre. En cas d'échec de la vérification, message complet.
+  const empty = await invoke('is_folder_empty', { path }).catch(() => false);
   const confirmed = await confirmDialog({
     title: permanent ? t('Confirm permanent deletion') : t('Confirm deletion'),
-    message: permanent
-      ? t('Permanently delete folder “{name}” and everything it contains (subfolders and files)? This storage has no trash (USB drive or network): it cannot be undone.', { name })
-      : t('Move folder “{name}” and everything it contains (subfolders and files) to the trash?', { name }),
+    message: empty
+      ? t(permanent ? 'Permanently delete the empty folder “{name}”? This storage has no trash (USB drive or network).' : 'Move the empty folder “{name}” to the trash?', { name })
+      : permanent
+        ? t('Permanently delete folder “{name}” and everything it contains (subfolders and files)? This storage has no trash (USB drive or network): it cannot be undone.', { name })
+        : t('Move folder “{name}” and everything it contains (subfolders and files) to the trash?', { name }),
     confirmLabel: t('Yes'),
     cancelLabel: t('No'),
+    // Dossier non vide : « Ouvrir » permet de voir son contenu dans l'explorateur avant de décider.
+    ...(empty ? {} : { extraLabel: t('Open'), onExtra: () => openFolderInFileManager(path) }),
   });
   if (!confirmed) return;
   // Vérification de la présence de fichiers non gérés par photoboggan

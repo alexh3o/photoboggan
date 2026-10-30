@@ -13,14 +13,15 @@
 - [x] *feat*: `UI` cycle faces display to never / on hover / always
 - [x] *feat*: `faces` **Faces detection & recognition** 
 - [x] *feat*: `controls` shift+(rating key) to rate and go to next photo
-- [x] *feat*: shortcuts for validate / ignore / unknown / not a face
-- [ ] *feat*: `ui` display folders without photos with on/off setting
+- [x] *feat*: `controls` shortcuts for validate / ignore / unknown / not a face
+- [x] *feat*: `ui` display folders without photos with on/off setting
 - [ ] *feat*: `ui` display a text in case of empty grid
+- [ ] *perf*: moving files does not move the thumbnails
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *test*: `safety` new files security audit
+- [x] *test*: `safety` new files security audit
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)

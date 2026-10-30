@@ -971,6 +971,21 @@ fn count_permanent_deletions(paths: Vec<String>) -> usize {
     paths.iter().filter(|path| !has_trash(path)).count()
 }
 
+// Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
+// (Thumbs.db, desktop.ini, .DS_Store) : un dossier qui n'en contient que ces fichiers est considéré comme vide. Sert à adapter le message de suppression.
+#[tauri::command(async)]
+fn is_folder_empty(state: State<'_, AppState>, path: String) -> Result<bool, String> {
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    let has_content = WalkDir::new(&folder).into_iter().filter_map(|e| e.ok()).any(|entry| {
+        if entry.file_type().is_dir() { return false; }
+        let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+        !matches!(name.as_str(), "thumbs.db" | "desktop.ini" | ".ds_store")
+    });
+    Ok(!has_content)
+}
+
 // Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
 // ni des sidecars .xmp associés, ni des fichiers systèmes cachés (Thumbs.db, desktop.ini).
 #[tauri::command(async)]
@@ -1562,6 +1577,7 @@ fn main() {
             delete_photos,
             delete_folder,
             get_folder_unrecognized_files,
+            is_folder_empty,
             count_permanent_deletions,
             remove_missing_photos,
             sync_library,
