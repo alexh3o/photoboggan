@@ -187,6 +187,15 @@ button.filter-tag.tag-person:hover { background: var(--tag-person-hover); }
 .faces-count-badge { margin-left: 0.4rem; font-weight: 600; font-variant-numeric: tabular-nums; opacity: 0.75; }
 .faces-status-chip.state-not_face .faces-chip-label { text-decoration: line-through; }
 .faces-separator .group-separator-label { font-weight: 700; }
+/* Duplicata du titre de groupe courant, collé en haut de la vue pendant le défilement (updateStickySeparator) */
+.faces-sticky { position: absolute; z-index: 4; overflow: hidden; pointer-events: none; }
+.faces-sticky > * { pointer-events: auto; }
+.faces-separator-sticky { background: var(--grid-bg); } /* la hauteur vient de .faces-separator : elle doit être celle que la mise en page réserve */
+.faces-separator-sticky.level-0 { z-index: 5; }
+.faces-separator-sticky.level-1 { z-index: 4; }
+/* Bouton « Regrouper les inconnus » dans le titre « Visages inconnus » */
+.faces-cluster-button { flex: none; margin-left: 0.6rem; padding: 0.1rem 0.6rem; font-size: 0.75rem; line-height: 1.2; cursor: pointer; }
+.faces-cluster-button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* Barre d'actions flottante (faces-grid.js) : en bas de la vue, visible seulement avec une sélection. Boutons d'icône (infobulle + libellé pour les lecteurs d'écran). */
 .faces-action-bar { position: absolute; left: 50%; bottom: 1rem; z-index: 5; transform: translateX(-50%); display: flex; align-items: center; gap: 0.3rem; max-width: calc(100% - 2rem); padding: 0.4rem 0.5rem 0.4rem 0.9rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); }

@@ -50,6 +50,8 @@ let loadToken = 0;
 // Gardé tant que la vue reste ouverte (les visages nommés en sortent d'eux-mêmes) ; un second clic sur le bouton l'annule.
 let clusters = null;
 let groupKeyOf = new Map(); // identifiant de visage -> clé de son groupe affiché
+let layoutSeparators = []; // titres de `layout`, dans l'ordre (parcourus à chaque défilement par les titres collants)
+let sectionKeyOf = new Map(); // identifiant de visage -> section regroupant plusieurs groupes (inconnus regroupés), ou null
 // « Visages en attente » : la vue montre les visages à écrire de toute la photothèque (au lieu de ceux des photos affichées).
 let pendingMode = false;
 // Filtre par origine : visages détectés, importés des fichiers, dessinés à la main.
@@ -93,15 +95,16 @@ function renderOriginFilters() {
 }
 
 // « Regrouper les inconnus » : groupes de visages inconnus ressemblants parmi les photos affichées (second clic : annule le regroupement).
+// Le bouton vit dans le titre « Visages inconnus » de la grille (createSeparator) ; il est recréé à chaque rebuild, d'où `clusterBusy`.
+let clusterBusy = false;
 async function toggleClusters() {
-  const button = document.getElementById('btn-faces-cluster');
+  if (clusterBusy) return;
   if (clusters) {
     clusters = null;
-    button.classList.remove('active');
     rebuild();
     return;
   }
-  button.disabled = true;
+  clusterBusy = true;
   let groups;
   try {
     groups = await invoke('cluster_unknown_faces', { photoIds: host.getDisplayedPhotoIds() });
@@ -109,11 +112,10 @@ async function toggleClusters() {
     host.showToast(String(error));
     return;
   } finally {
-    button.disabled = false;
+    clusterBusy = false;
   }
   clusters = new Map();
   groups.forEach((ids, index) => { for (const id of ids) clusters.set(id, index + 1); });
-  button.classList.add('active');
   if (!visibleStatuses.has('unknown')) {
     visibleStatuses.add('unknown');
     saveStatuses();
@@ -164,7 +166,6 @@ export function closeFacesView() {
   open = false;
   // Le regroupement vaut pour les photos affichées à ce moment : il n'est pas conservé d'une ouverture à l'autre.
   clusters = null;
-  document.getElementById('btn-faces-cluster')?.classList.remove('active');
   pendingMode = false;
   document.getElementById('btn-faces-pending')?.classList.remove('active');
   view().hidden = true;
@@ -219,8 +220,9 @@ function groupOf(face) {
     case 'unknown': {
       // Inconnus regroupés (« Regrouper les inconnus ») : un groupe par ressemblance, du plus grand au plus petit, puis les visages isolés.
       const cluster = clusters?.get(face.id);
-      if (cluster) return { order: 2, key: `c${cluster}`, label: t('Unknown no. {number}', { number: cluster }), sortName: String(cluster).padStart(6, '0') };
-      return { order: 2.5, key: 'unknown', label: t(clusters ? 'Other unknown faces' : 'Unknown faces'), sortName: '' };
+      // `section` : une fois regroupés, les inconnus ont en plus un titre « Visages inconnus » (portant le bouton de regroupement) au-dessus de leurs sous-groupes.
+      if (cluster) return { order: 2, key: `c${cluster}`, section: 'unknown', label: t('Unknown no. {number}', { number: cluster }), sortName: String(cluster).padStart(6, '0') };
+      return { order: 2.5, key: 'unknown', section: clusters ? 'unknown' : null, label: t(clusters ? 'Other unknown faces' : 'Unknown faces'), hasClusterButton: !clusters, sortName: '' };
     }
     case 'filtered': return { order: 3, key: 'filtered', label: t('Filtered (below the thresholds)'), sortName: '' };
     case 'not_face': return { order: 5, key: 'not_face', label: t('Not faces'), sortName: '' };
@@ -253,6 +255,7 @@ function rebuild() {
     .filter(face => pendingMode || (visibleStatuses.has(face.state) && visibleOrigins.has(face.origin)))
     .map(face => ({ face, group: groupOf(face) }));
   groupKeyOf = new Map(entries.map(entry => [entry.face.id, entry.group.key]));
+  sectionKeyOf = new Map(entries.map(entry => [entry.face.id, entry.group.section]));
   // Groupes : à valider, personnes (par nom), inconnus, filtrés, ignorés ; dans un groupe, les attributions automatiques avant les
   // confirmées, puis par ressemblance décroissante.
   entries.sort((a, b) => a.group.order - b.group.order
@@ -274,18 +277,29 @@ function rebuild() {
   let y = 0;
   let column = 0;
   let currentGroup = null;
+  let currentSection = null;
   let currentState = null;
   entries.forEach((entry, index) => {
     const newGroup = entry.group.key !== currentGroup;
+    const newSection = entry.group.section && entry.group.section !== currentSection;
     // Une ligne ne mêle pas les états : une nouvelle ligne commence au changement de groupe ou d'état (une seule bande colorée par ligne).
     if (newGroup || entry.face.state !== currentState) {
       if (column !== 0) { y += TILE + GAP; column = 0; }
       currentState = entry.face.state;
     }
-    if (newGroup) {
+    if (newSection) {
+      // Titre de section (inconnus regroupés) : niveau 0 ; ses sous-groupes sont au niveau 1. Il se sélectionne et reste collant avec eux.
+      currentSection = entry.group.section;
+      const count = entries.filter(other => other.group.section === currentSection).length;
+      layout.push({ kind: 'separator', key: `s:${currentSection}`, x: SIDE_MARGIN, y, level: 0, label: t('Unknown faces'), count, section: currentSection, hasClusterButton: true });
+      y += SEPARATOR_HEIGHT;
+    } else if (!entry.group.section) {
+      currentSection = null;
+    }
+    if (newGroup || newSection) {
       currentGroup = entry.group.key;
       const count = entries.filter(other => other.group.key === currentGroup).length;
-      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, label: entry.group.label, count, group: currentGroup });
+      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, level: entry.group.section ? 1 : 0, label: entry.group.label, count, group: currentGroup, hasClusterButton: !!entry.group.hasClusterButton });
       y += SEPARATOR_HEIGHT;
     }
     if (column === 0) layout.push({ kind: 'bar', key: `b:${entry.face.id}`, x: SIDE_MARGIN, y, state: entry.face.state });
@@ -296,9 +310,11 @@ function rebuild() {
   });
   if (column !== 0) y += TILE + GAP;
   contentHeight = y;
+  layoutSeparators = layout.filter(item => item.kind === 'separator');
   content().style.height = `${contentHeight}px`;
   for (const node of renderedNodes.values()) node.remove();
   renderedNodes.clear();
+  clearSticky(); // recréé par renderVisible avec le nouveau compteur
   renderVisible();
   updateToolbar();
 }
@@ -326,6 +342,59 @@ function renderVisible() {
   }
   for (const [key, node] of renderedNodes) {
     if (!visible.has(key)) { node.remove(); renderedNodes.delete(key); }
+  }
+  updateStickySeparator(area.scrollTop);
+}
+
+// Titres de groupe « collants » : tant qu'un groupe est long, son titre reste en haut de la vue (l'utilisateur sait dans quel groupe il se trouve).
+// Les éléments étant positionnés en absolu (grille virtuelle), ce sont des duplicatas des titres courants, calés sur le haut visible ;
+// le titre suivant les repousse en arrivant. Deux niveaux : le titre de section (« Visages inconnus » une fois regroupés, niveau 0) reste
+// toujours en haut, et le titre de sous-groupe (« Inconnu n° 2 », niveau 1) se cale juste dessous.
+const stickySlots = [null, null]; // un emplacement par niveau : { node, key }
+function clearSticky() {
+  stickySlots.forEach((slot, level) => { slot?.node.remove(); stickySlots[level] = null; });
+}
+// Les titres collants vivent dans une couche posée par-dessus la zone de défilement, et non dans son contenu : ils ne défilent donc pas avec
+// elle (aucun décalage ni saccade, même si la mise à jour suit le défilement avec un léger retard) ; seule la poussée par le titre suivant bouge.
+function stickyLayer() {
+  const area = scroller();
+  let layer = document.getElementById('faces-sticky');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'faces-sticky';
+    layer.className = 'faces-sticky';
+    area.after(layer);
+  }
+  Object.assign(layer.style, { top: `${area.offsetTop}px`, left: `${area.offsetLeft}px`, width: `${area.clientWidth}px`, height: `${area.clientHeight}px` });
+  return layer;
+}
+function placeSticky(level, item, y, scrollTop) {
+  if (stickySlots[level]?.key !== item.key) {
+    stickySlots[level]?.node.remove();
+    const node = createSeparator(item);
+    node.classList.add('faces-separator-sticky', `level-${level}`);
+    stickyLayer().append(node);
+    stickySlots[level] = { node, key: item.key };
+  }
+  stickySlots[level].node.style.translate = `${item.x}px ${y - scrollTop}px`;
+}
+function updateStickySeparator(scrollTop) {
+  const separators = layoutSeparators;
+  const c0 = separators.findLast(item => item.level === 0 && item.y <= scrollTop);
+  const next0 = separators.find(item => item.level === 0 && item.y > scrollTop);
+  // Sous-groupe courant : celui dont le vrai titre est passé sous le titre de section collé (donc avant scrollTop + hauteur d'un titre).
+  const c1 = c0 && separators.findLast(item => item.level === 1 && item.y <= scrollTop + SEPARATOR_HEIGHT && item.y > c0.y && (!next0 || item.y < next0.y));
+  if (c1) {
+    // Les deux titres forment un bloc : ils sont repoussés ensemble par le titre de la section suivante, jamais séparés.
+    const y0 = Math.min(scrollTop, next0 ? next0.y - 2 * SEPARATOR_HEIGHT : Infinity);
+    placeSticky(0, c0, y0, scrollTop);
+    placeSticky(1, c1, y0 + SEPARATOR_HEIGHT, scrollTop);
+  } else if (c0 && c0.y < scrollTop) {
+    // Le vrai titre est sorti de la vue ; sinon (ou sans groupe au-dessus) rien à superposer.
+    placeSticky(0, c0, Math.min(scrollTop, next0 ? next0.y - SEPARATOR_HEIGHT : Infinity), scrollTop);
+    stickySlots[1]?.node.remove(); stickySlots[1] = null;
+  } else {
+    clearSticky();
   }
 }
 
@@ -358,7 +427,7 @@ function createSeparator(item) {
   node.title = t('Click: select the faces of this group (Ctrl+click: add them)');
   node.addEventListener('click', event => {
     event.stopPropagation();
-    const ids = shown.filter(face => groupKeyOf.get(face.id) === item.group).map(face => face.id);
+    const ids = shown.filter(face => (item.section ? sectionKeyOf.get(face.id) === item.section : groupKeyOf.get(face.id) === item.group)).map(face => face.id);
     if (!(event.ctrlKey || event.metaKey)) { selected.clear(); selectionOrder = []; }
     for (const id of ids) selected.add(id);
     selectionOrder.push(...ids.slice().reverse()); // le premier visage du groupe compte comme le dernier sélectionné : la barre se place en haut du groupe
@@ -369,6 +438,17 @@ function createSeparator(item) {
   label.className = 'group-separator-label';
   label.textContent = item.label;
   node.append(label, countBadge(item.count));
+  if (item.hasClusterButton) {
+    // « Regrouper les inconnus » : sur le titre « Visages inconnus » (second clic : annule le regroupement).
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'faces-cluster-button';
+    button.classList.toggle('active', !!clusters);
+    button.textContent = t('Group unknown faces');
+    button.title = t('Group the similar unknown faces of the displayed photos (click again to ungroup)');
+    button.addEventListener('click', event => { event.stopPropagation(); toggleClusters(); });
+    node.append(button);
+  }
   return node;
 }
 
@@ -615,6 +695,7 @@ export function initFacesGrid(hostApi) {
   host = hostApi;
   let scrollPending = false;
   scroller().addEventListener('scroll', () => {
+    updateStickySeparator(scroller().scrollTop); // tout de suite (pas dans le requestAnimationFrame) : les titres collants suivent le défilement
     if (scrollPending) return;
     scrollPending = true;
     requestAnimationFrame(() => { scrollPending = false; renderVisible(); positionActionBar(); });
@@ -645,7 +726,6 @@ export function initFacesGrid(hostApi) {
   // Après un clic dans la barre d'actions, le focus revient à la grille : sinon Entrée (valider) activerait aussi le bouton resté actif.
   document.getElementById('faces-action-bar').addEventListener('click', () => scroller().focus({ preventScroll: true }));
   document.getElementById('btn-faces-cover').addEventListener('click', useAsCover);
-  document.getElementById('btn-faces-cluster').addEventListener('click', toggleClusters);
   document.getElementById('btn-faces-confirm').addEventListener('click', () => runAction('confirm_faces'));
   document.getElementById('btn-faces-name').addEventListener('click', () => nameSelection());
   document.getElementById('btn-faces-unknown').addEventListener('click', () => runAction('set_faces_unknown'));
