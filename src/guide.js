@@ -42,7 +42,7 @@ const GROUPS = [
     { a: 'Compare: select all photos', d: 'Press again to clear', k: [['A']] },
   ] },
   { title: 'Panels (show / hide)', rows: [
-    { a: 'Filters panel', k: [['N']] },
+    { a: 'Library panel', k: [['N']] },
     { a: 'Preview', k: [['P']] },
     { a: 'Info panel', k: [['J']] },
     { a: 'Keywords panel', k: [['K']] },

@@ -1901,7 +1901,7 @@ async function setSelectionRating(rating) {
 // J      : Info panel
 // K      : Keywords panel
 // Ctrl+K : Keywords panel: all keywords / keywords of the selection
-// N      : Navigation/Filters panel
+// N      : panneau Bibliothèque
 // P      : Preview panel
 // R      : Rating bar in fullscreen
 // S      : Resize
