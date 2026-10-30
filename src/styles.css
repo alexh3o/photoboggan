@@ -658,8 +658,10 @@ body.immersive .titlebar { display: none; }
 .marking-panel .marking-count { margin-bottom: 0.5rem; }
 /* Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans hauteur, calée sur le bord bas de la zone visible) */
 .marking-float-anchor { position: sticky; top: 100%; z-index: 5; height: 0; pointer-events: none; }
-.marking-bar { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem); padding: 0.3rem 0.5rem 0.3rem 0.9rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); pointer-events: auto; }
+.marking-bar { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem); padding: 0.3rem 0.5rem 0.3rem 0.9rem; background: color-mix(in srgb, var(--card-bg) 80%, transparent); backdrop-filter: blur(6px); transition: background-color 0.15s; border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); pointer-events: auto; }
 .marking-bar[hidden] { display: none; }
+/* Légèrement translucide au repos (la grille reste visible dessous), entièrement opaque au survol et au clavier */
+.marking-bar:hover, .marking-bar:focus-within { background: var(--card-bg); }
 .marking-bar .marking-controls { flex-direction: row; }
 /* Grille étroite (aperçu ouvert, fenêtre réduite) : la barre passe sur deux lignes, le nombre de photos sous les étoiles. */
 .grid-section { container-type: inline-size; }
