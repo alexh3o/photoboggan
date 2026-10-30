@@ -136,6 +136,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
   --tag-more-bg: #6b4e16; --tag-more-border: #a8802c;
   --tag-rating-bg: #4d4214; --tag-rating-border: #8a7620; --tag-rating-text: #ffd43b;
   --tag-keyword-active-bg: #3b78a0; --tag-keyword-active-border: #8fc9ee;
+  --tag-color-bg: #444; --tag-color-border: #8a8a8a;
   --tag-failed-border: #c0504d;
 }
 .sidebar-section { width: 15rem; background: var(--bg-panel); padding: 0.75rem; padding-bottom: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; transition: width 0.3s ease, padding 0.3s ease; }
@@ -199,12 +200,18 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-tag.tag-filename { background: var(--tag-filename-bg); border-color: var(--tag-filename-border); }
 .filter-tag.tag-more { background: var(--tag-more-bg); border-color: var(--tag-more-border); }
 .filter-tag.tag-date { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
+.filter-tag.tag-color { background: var(--tag-color-bg); border-color: var(--tag-color-border); }
 .filter-tag.tag-rating { background: var(--tag-rating-bg); border-color: var(--tag-rating-border); color: var(--tag-rating-text); }
 button.filter-tag { cursor: pointer; }
 button.filter-tag.tag-keyword:hover { background: var(--tag-keyword-hover); }
 button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filters-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}
+/* Bloc Filtres replié : taille minimale de 5 rem ; reste visible le bouton « tout effacer », le nombre de photos et un badge par type de filtre actif */
+.photo-filters.collapsed { min-height: 5rem; }
+.filter-badges { display: none; }
+.photo-filters.collapsed .filter-badges:not(:empty) { display: flex; flex-wrap: wrap; gap: 5px; }
+#filters-body[hidden] { display: none; }
 .btn-clear-filters { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--danger-text); cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
 .btn-clear-filters:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); color: var(--text-strong); }
 /* Masqué, le bouton garde sa place : l'en-tête ne change pas de hauteur quand le premier filtre apparaît */

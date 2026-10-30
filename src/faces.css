@@ -13,6 +13,8 @@
 
 /* Section Personnes */
 .persons-section { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 7rem; margin-top: var(--side-block-gap); padding-top: 0.75rem; border-top: 1px solid var(--separator); }
+/* Replié, le bloc garde une taille minimale de 5 rem */
+.persons-section.collapsed { min-height: 5rem; }
 .persons-section .sidebar-block-header { margin-bottom: 0.5rem; }
 /* Bouton de tri : cible d'au moins 1,5 rem de haut */
 .persons-sort { min-height: 1.5rem; padding: 0 0.5rem; border: 1px solid var(--separator); border-radius: 4px; background: transparent; color: var(--text-dim); font-size: var(--side-meta-size); }

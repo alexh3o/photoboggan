@@ -27,7 +27,7 @@ const PERSON_ROOT_STORAGE_KEY = 'facePersonRoot'; // racine des mots-clés cré�
 const SCAN_FILTER_STORAGE_KEY = 'faceScanFilter'; // filtre de la vue Photos par statut du scan : all, unscanned, scanned, review
 const OVERLAY_STORAGE_KEY = 'fullscreenFacesVisible'; // mode des zones en plein écran et dans l'aperçu (touche V) : hover, always ou hidden
 const SORT_STORAGE_KEY = 'personsSort'; // « count » (fréquence, par défaut) ou « name »
-const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed' };
+const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed', filters: 'filtersCollapsed' };
 
 let host = null; // fonctions fournies par main.js (voir initFacesPanel)
 let readingEnabled = readStorage(READING_STORAGE_KEY) === 'true';
@@ -744,7 +744,7 @@ async function saveLink(person, keywordId) {
 }
 
 // ==========================================
-// SECTIONS REPLIABLES (Dossiers, Personnes)
+// SECTIONS REPLIABLES (Dossiers, Personnes, Filtres)
 // ==========================================
 function isCollapsed(name) {
   return readStorage(COLLAPSED_STORAGE_KEYS[name]) === 'true';
@@ -756,6 +756,8 @@ function applyCollapsed(name) {
   toggle.setAttribute('aria-expanded', String(!collapsed));
   toggle.querySelector('.sidebar-block-chevron').textContent = collapsed ? '▸' : '▾';
   document.getElementById(toggle.getAttribute('aria-controls')).hidden = collapsed;
+  // Classe sur le bloc (Personnes, Filtres) : le CSS règle sa taille minimale et les badges des filtres repliés
+  toggle.closest('.persons-section, .photo-filters')?.classList.toggle('collapsed', collapsed);
   if (name === 'persons') document.getElementById('persons-empty').hidden = collapsed || listedPersons().length > 0;
 }
 
@@ -1350,6 +1352,7 @@ export function initFacesPanel(hostApi) {
 
   initCollapsibleSection('folders');
   initCollapsibleSection('persons');
+  initCollapsibleSection('filters');
   applyReadingEnabled();
   onLanguageChange(() => {
     renderPersons();

@@ -54,13 +54,16 @@
           <p id="persons-empty" class="persons-empty" data-i18n="No people found in the files yet" hidden>Aucune personne trouvée dans les fichiers pour l'instant.</p>
         </section>
         <section class="photo-filters" aria-label="Filtres photo" data-i18n-aria-label="Photo filters">
+          <!-- Bloc repliable comme Dossiers et Personnes (faces-panel.js) : replié, il garde le bouton « tout effacer », le nombre de photos et des badges par type de filtre actif -->
           <div class="filters-header">
-            <h3 data-i18n="Filters">Filtres</h3>
+            <h3 id="filters-title" class="sidebar-block-title"><button type="button" id="filters-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="filters-body"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Filters">Filtres</span></button></h3>
             <button id="btn-clear-all-filters" type="button" class="btn-clear-filters hidden" title="Effacer tous les filtres" aria-label="Effacer tous les filtres" data-i18n-title="Clear all filters" data-i18n-aria-label="Clear all filters">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-filter-x"><path d="M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055"/><path d="m22 3-5 5"/><path d="m17 3 5 5"/></svg>
             </button>
           </div>
           <span id="filtered-photos-count" class="selection-count"></span>
+          <div id="active-filter-badges" class="filter-badges" aria-live="polite"></div>
+          <div id="filters-body">
           <!-- Accordéon : un seul groupe déplié à la fois (voir « ACCORDÉON DES FILTRES » dans main.js). Déplié : titre(s) et contrôles ; replié : titre + résumé sur une ligne compacte. -->
           <div class="filter-group" data-filter-group="rating-color">
             <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-rating-color">
@@ -132,6 +135,7 @@
           </div>
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
             </div>
+          </div>
           </div>
         </section>
         <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">

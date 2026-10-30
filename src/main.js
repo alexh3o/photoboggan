@@ -958,6 +958,29 @@ function renderFilterSummaries() {
   document.getElementById('date-summary').replaceChildren(...dateNodes);
 
   renderFilterTags();
+  renderActiveFilterBadges();
+}
+
+// Badges du bloc Filtres replié : un par type de filtre actif (note, couleur, mots-clés, nom de fichier, personnes, date, fichiers en échec),
+// avec la couleur de l'étiquette correspondante. Le CSS ne les affiche que quand le bloc est replié.
+function renderActiveFilterBadges() {
+  const container = document.getElementById('active-filter-badges');
+  if (!container) return;
+  const kinds = [
+    [Number(document.getElementById('rating-filter')?.value ?? -1) >= 0, 'rating', 'Rating'],
+    [colorFilters.size > 0, 'color', 'Color'],
+    [keywordFilters.length > 0, 'keyword', 'Keywords'],
+    [filenameFilters.length > 0, 'filename', 'Filename'],
+    [hasPersonFilters(), 'person', 'People'],
+    [dateFilter !== null, 'date', 'Date'],
+    [pathFilter !== null, 'failed', 'Failed files'],
+  ];
+  container.replaceChildren(...kinds.filter(([active]) => active).map(([, kind, label]) => {
+    const badge = document.createElement('span');
+    badge.className = `filter-tag tag-${kind}`;
+    badge.textContent = t(label);
+    return badge;
+  }));
 }
 
 function decodeHtmlEntities(text) {
