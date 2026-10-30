@@ -204,7 +204,8 @@ pub struct AttributionSummary {
 }
 
 /// Attribue les visages non confirmés qui ont une empreinte (« inconnu », « suggéré », « auto ») : ceux des photos `photo_ids`, ou tous.
-/// Un visage dont l'utilisateur a refusé une personne (`rejected_person_id`) ne lui est plus proposé.
+/// Un visage dont l'utilisateur a refusé une personne (`rejected_person_id`) ne lui est plus proposé ; un visage passé en « Inconnu » par
+/// l'utilisateur (`unknown_locked`) n'est plus proposé à personne.
 pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds: Thresholds) -> Result<AttributionSummary, String> {
     // Références : visages confirmés des personnes visibles (chacun, ou des centroïdes au-delà de MIN_FACES_FOR_CENTROIDS).
     let mut by_person: HashMap<i64, Vec<Vec<f32>>> = HashMap::new();
@@ -230,7 +231,7 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
     struct Candidate { id: i64, embedding: Vec<f32>, state: String, person_id: Option<i64>, suggested: Option<i64>, rejected: Option<i64> }
     let candidates: Vec<Candidate> = {
         let base = "SELECT id, embedding, state, person_id, suggested_person_id, rejected_person_id FROM faces
-                    WHERE embedding IS NOT NULL AND model_id = ?1 AND state IN ('unknown', 'suggested', 'auto')";
+                    WHERE embedding IS NOT NULL AND model_id = ?1 AND state IN ('unknown', 'suggested', 'auto') AND unknown_locked = 0";
         let map = |row: &rusqlite::Row| -> rusqlite::Result<(i64, Vec<u8>, String, Option<i64>, Option<i64>, Option<i64>)> {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?))
         };

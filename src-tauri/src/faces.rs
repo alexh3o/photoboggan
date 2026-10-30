@@ -370,6 +370,10 @@ pub fn init_schema(conn: &Connection) {
     let _ = conn.execute("ALTER TABLE faces ADD COLUMN landmarks BLOB", []);
     // Personne que l'utilisateur a refusée pour ce visage (« Inconnu ») : l'attribution ne la lui propose plus (lot 3).
     let _ = conn.execute("ALTER TABLE faces ADD COLUMN rejected_person_id INTEGER", []);
+    // « Inconnu » demandé par l'utilisateur : le visage reste inconnu, l'attribution automatique ne le propose plus à personne (elle ne le
+    // reprendrait sinon qu'en excluant la dernière personne refusée, et le ferait revenir sur une autre, ou sur la précédente). Levé quand
+    // l'utilisateur nomme le visage.
+    let _ = conn.execute("ALTER TABLE faces ADD COLUMN unknown_locked INTEGER NOT NULL DEFAULT 0", []);
     // Écriture dans les fichiers (lot 4) :
     // - face_keywords : mots-clés activés sur une photo par la reconnaissance (et non par l'utilisateur) : seuls ceux-là sont retirés quand le
     //   dernier visage de la personne quitte la photo (spec §6.3). Le nœud de l'arbre n'est jamais supprimé par ces opérations ;
@@ -856,7 +860,7 @@ pub fn confirm_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<u
     let conn = pool.get().map_err(|error| error.to_string())?;
     conn.execute(
         "UPDATE faces SET state = 'confirmed', person_id = COALESCE(person_id, suggested_person_id), suggested_person_id = NULL,
-                rejected_person_id = NULL, dirty = 1
+                rejected_person_id = NULL, unknown_locked = 0, dirty = 1
          WHERE id IN (SELECT value FROM json_each(?1)) AND state IN ('auto', 'suggested', 'confirmed')
            AND COALESCE(person_id, suggested_person_id) IS NOT NULL",
         params![ids_json(&face_ids)?],
@@ -935,7 +939,7 @@ pub fn assign_faces(
     let _ = conn.execute("BEGIN TRANSACTION", []);
     let result = resolve_person(&conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or("")).and_then(|person| {
         conn.execute(
-            "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL, rejected_person_id = NULL, dirty = 1
+            "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL, rejected_person_id = NULL, unknown_locked = 0, dirty = 1
              WHERE id IN (SELECT value FROM json_each(?2))",
             params![person, ids_json(&face_ids)?],
         )
@@ -946,14 +950,15 @@ pub fn assign_faces(
     result
 }
 
-/// Inconnu : la personne attribuée ou suggérée est retirée (et ne sera plus proposée pour ce visage).
+/// Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
+/// personne, tant que l'utilisateur ne l'a pas nommé.
 #[tauri::command(async)]
 pub fn set_faces_unknown(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     conn.execute(
         "UPDATE faces SET rejected_person_id = COALESCE(person_id, suggested_person_id, rejected_person_id), person_id = NULL,
-                suggested_person_id = NULL, state = 'unknown', dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+                suggested_person_id = NULL, state = 'unknown', unknown_locked = 1, dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
          WHERE id IN (SELECT value FROM json_each(?1)) AND state <> 'filtered'",
         params![ids_json(&face_ids)?],
     )

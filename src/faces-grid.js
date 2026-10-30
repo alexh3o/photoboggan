@@ -28,7 +28,7 @@ const DEFAULT_STATUSES = ['suggested', 'auto', 'confirmed', 'unknown'];
 let TILE = 120; // côté d'une vignette carrée (px)
 let BAR = 0; // largeur de la bande d'état, à gauche de chaque ligne (px)
 let GAP = 0; // espacement entre vignettes (px)
-const SEPARATOR_HEIGHT = 30;
+let SEPARATOR_HEIGHT = 40; // hauteur d'un titre de groupe (px) : lue dans --face-separator-height (faces.css, en rem)
 const SIDE_MARGIN = 8;
 
 let host = null; // fonctions fournies par main.js (voir initFacesGrid)
@@ -40,6 +40,11 @@ let layout = []; // { kind: 'separator' | 'face', x, y, label?, index? }
 let contentHeight = 0;
 let selected = new Set(); // identifiants de visages
 let anchorIndex = null; // dernier visage cliqué (sélection Maj + clic)
+let selectionOrder = []; // identifiants dans l'ordre où ils ont été sélectionnés (le dernier sert à placer la barre d'actions verticale)
+let verticalBar = false; // plus de MAX_COLUMNS_BOTTOM_BAR vignettes en largeur : barre d'actions verticale à droite (voir rebuild)
+let faceRows = new Map(); // identifiant de visage -> ordonnée (px) de sa ligne dans la grille
+const MAX_COLUMNS_BOTTOM_BAR = 5;
+let BAR_RESERVE = 0; // largeur réservée à droite de la grille pour la barre verticale (px), lue dans --face-bar-reserve
 let loadToken = 0;
 // Regroupement des inconnus (DBSCAN, « Regrouper les inconnus ») : identifiant de visage -> numéro de groupe (1 = le plus grand) ; null = non regroupés.
 // Gardé tant que la vue reste ouverte (les visages nommés en sortent d'eux-mêmes) ; un second clic sur le bouton l'annule.
@@ -77,7 +82,7 @@ function renderOriginFilters() {
     button.type = 'button';
     button.className = `faces-status-chip faces-origin-chip${visibleOrigins.has(origin.id) ? ' active' : ''}`;
     button.setAttribute('aria-pressed', String(visibleOrigins.has(origin.id)));
-    button.textContent = `${t(origin.label)} (${scopedFaces().filter(face => face.origin === origin.id).length})`;
+    button.append(...chipContent(t(origin.label), scopedFaces().filter(face => face.origin === origin.id).length));
     button.addEventListener('click', () => {
       if (visibleOrigins.has(origin.id)) visibleOrigins.delete(origin.id); else visibleOrigins.add(origin.id);
       try { localStorage.setItem(ORIGINS_STORAGE_KEY, JSON.stringify([...visibleOrigins])); } catch { /* stockage indisponible */ }
@@ -227,12 +232,15 @@ function groupOf(face) {
 function readTileMetrics() {
   const probe = document.createElement('div');
   probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;box-sizing:content-box;'
-    + 'width:var(--face-tile-size);height:var(--face-tile-gap);padding-left:var(--face-status-bar-width)';
+    + 'width:var(--face-tile-size);height:var(--face-tile-gap);padding-left:var(--face-status-bar-width);padding-top:var(--face-separator-height);margin-left:var(--face-bar-reserve)';
   view().append(probe);
   const size = probe.getBoundingClientRect().width - parseFloat(getComputedStyle(probe).paddingLeft);
   const bar = parseFloat(getComputedStyle(probe).paddingLeft) || 0;
-  const gap = probe.getBoundingClientRect().height;
+  const separator = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+  BAR_RESERVE = Math.round(parseFloat(getComputedStyle(probe).marginLeft) || 0);
+  const gap = probe.getBoundingClientRect().height - separator;
   probe.remove();
+  if (Math.round(separator) > 0) SEPARATOR_HEIGHT = Math.round(separator);
   TILE = Math.round(size) > 0 ? Math.round(size) : 120;
   BAR = Math.round(bar);
   GAP = Math.round(gap);
@@ -254,9 +262,15 @@ function rebuild() {
     || (b.face.score ?? 0) - (a.face.score ?? 0)
     || a.face.id - b.face.id);
   shown = entries.map(entry => entry.face);
-  const width = Math.max(BAR + TILE, scroller().clientWidth - 2 * SIDE_MARGIN);
-  const columns = Math.max(1, Math.floor((width - BAR + GAP) / (TILE + GAP)));
+  const fullWidth = Math.max(BAR + TILE, scroller().clientWidth - 2 * SIDE_MARGIN);
+  const columnsFor = available => Math.max(1, Math.floor((available - BAR + GAP) / (TILE + GAP)));
+  // Plus de 5 vignettes en largeur : la barre d'actions passe à droite, à la verticale, et une marge de sa largeur lui est réservée (le nombre de
+  // colonnes se calcule alors sans elle, sans que la barre revienne en bas si ce nombre tombe à 5).
+  verticalBar = columnsFor(fullWidth) > MAX_COLUMNS_BOTTOM_BAR;
+  document.getElementById('faces-action-bar').classList.toggle('vertical', verticalBar);
+  const columns = columnsFor(verticalBar ? fullWidth - BAR_RESERVE : fullWidth);
   layout = [];
+  faceRows = new Map();
   let y = 0;
   let column = 0;
   let currentGroup = null;
@@ -271,11 +285,12 @@ function rebuild() {
     if (newGroup) {
       currentGroup = entry.group.key;
       const count = entries.filter(other => other.group.key === currentGroup).length;
-      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, label: `${entry.group.label} (${count})`, group: currentGroup });
+      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, label: entry.group.label, count, group: currentGroup });
       y += SEPARATOR_HEIGHT;
     }
     if (column === 0) layout.push({ kind: 'bar', key: `b:${entry.face.id}`, x: SIDE_MARGIN, y, state: entry.face.state });
     layout.push({ kind: 'face', key: `f:${entry.face.id}`, x: SIDE_MARGIN + BAR + column * (TILE + GAP), y, index });
+    faceRows.set(entry.face.id, y);
     column += 1;
     if (column === columns) { column = 0; y += TILE + GAP; }
   });
@@ -321,6 +336,21 @@ function createStatusBar(item) {
   return node;
 }
 
+// Compteur d'un titre de groupe ou d'une pastille : même présentation partout, sans parenthèses.
+function countBadge(count) {
+  const badge = document.createElement('span');
+  badge.className = 'faces-count-badge';
+  badge.textContent = String(count);
+  return badge;
+}
+
+function chipContent(label, count) {
+  const text = document.createElement('span');
+  text.className = 'faces-chip-label';
+  text.textContent = label;
+  return [text, countBadge(count)];
+}
+
 function createSeparator(item) {
   const node = document.createElement('div');
   node.className = 'group-separator faces-separator';
@@ -329,15 +359,16 @@ function createSeparator(item) {
   node.addEventListener('click', event => {
     event.stopPropagation();
     const ids = shown.filter(face => groupKeyOf.get(face.id) === item.group).map(face => face.id);
-    if (!(event.ctrlKey || event.metaKey)) selected.clear();
+    if (!(event.ctrlKey || event.metaKey)) { selected.clear(); selectionOrder = []; }
     for (const id of ids) selected.add(id);
+    selectionOrder.push(...ids.slice().reverse()); // le premier visage du groupe compte comme le dernier sélectionné : la barre se place en haut du groupe
     renderVisible();
     updateToolbar();
   });
   const label = document.createElement('span');
   label.className = 'group-separator-label';
   label.textContent = item.label;
-  node.append(label);
+  node.append(label, countBadge(item.count));
   return node;
 }
 
@@ -404,18 +435,38 @@ function onTileClick(face, event) {
   if (event.shiftKey && anchorIndex !== null) {
     const [from, to] = anchorIndex < index ? [anchorIndex, index] : [index, anchorIndex];
     for (let position = from; position <= to; position++) selected.add(shown[position].id);
+    selectionOrder.push(face.id);
     anchorIndex = index;
   } else if (event.ctrlKey || event.metaKey) {
-    if (selected.has(face.id)) selected.delete(face.id); else selected.add(face.id);
+    if (selected.has(face.id)) selected.delete(face.id); else { selected.add(face.id); selectionOrder.push(face.id); }
     anchorIndex = index;
   } else {
     selected = new Set([face.id]);
+    selectionOrder = [face.id];
     anchorIndex = index;
   }
   renderVisible();
   updateToolbar();
   // Les panneaux de droite (Info, Mots-clés) suivent les photos des visages sélectionnés.
   host.selectPhotos(selectedFaces().map(item => item.photo_id), face.photo_id);
+}
+
+// Barre d'actions verticale (à droite) : son haut est aligné avec la dernière vignette sélectionnée dans le temps ; elle suit donc la sélection et
+// le défilement, en restant entièrement visible. Barre du bas : aucun placement à calculer.
+function positionActionBar() {
+  const bar = document.getElementById('faces-action-bar');
+  if (!verticalBar || bar.hidden) { bar.style.removeProperty('top'); return; }
+  const area = scroller();
+  let id = null;
+  for (let index = selectionOrder.length - 1; index >= 0 && id === null; index--) if (selected.has(selectionOrder[index])) id = selectionOrder[index];
+  if (id === null) id = shown.find(face => selected.has(face.id))?.id ?? null;
+  const row = id === null ? undefined : faceRows.get(id);
+  if (row === undefined) return;
+  // Écart entre la barre de défilement et le bord droit de la vue : la barre se place à gauche de la barre de défilement.
+  bar.style.setProperty('--face-bar-scrollbar', `${area.offsetWidth - area.clientWidth}px`);
+  const wanted = area.offsetTop + row - area.scrollTop;
+  const lowest = area.offsetTop + area.clientHeight - bar.offsetHeight - 8;
+  bar.style.top = `${Math.max(area.offsetTop + 8, Math.min(wanted, lowest))}px`;
 }
 
 function selectedFaces() {
@@ -433,11 +484,11 @@ function renderStatusFilters() {
     button.className = `faces-status-chip state-${status.id}${visibleStatuses.has(status.id) ? ' active' : ''}`;
     button.setAttribute('aria-pressed', String(visibleStatuses.has(status.id)));
     const count = scopedFaces().filter(face => face.state === status.id).length;
-    button.textContent = `${t(status.chip ?? status.label)} (${count})`;
+    button.append(...chipContent(t(status.chip ?? status.label), count));
     // Pastille raccourcie : le nom complet reste disponible en infobulle et pour les lecteurs d'écran.
     if (status.chip) {
       button.title = t(status.label);
-      button.setAttribute('aria-label', `${t(status.label)} (${count})`);
+      button.setAttribute('aria-label', `${t(status.label)} : ${count}`);
     }
     button.addEventListener('click', () => {
       if (visibleStatuses.has(status.id)) visibleStatuses.delete(status.id); else visibleStatuses.add(status.id);
@@ -453,10 +504,11 @@ function updateToolbar() {
   renderStatusFilters();
   renderOriginFilters();
   const targets = selectedFaces();
-  const count = document.getElementById('faces-count');
-  count.textContent = targets.length > 0
-    ? tp('{count} face selected', targets.length)
-    : tp('{count} face shown', shown.length);
+  document.getElementById('faces-count').textContent = tp('{count} face shown', shown.length);
+  // Barre d'actions flottante : visible seulement quand des visages sont sélectionnés.
+  const actionBar = document.getElementById('faces-action-bar');
+  actionBar.hidden = targets.length === 0;
+  document.getElementById('faces-selection-label').textContent = tp('{count} face selected', targets.length);
   const hasConfirmable = targets.some(face => face.state === 'suggested' || face.state === 'auto');
   document.getElementById('btn-faces-confirm').disabled = !hasConfirmable;
   document.getElementById('btn-faces-name').disabled = targets.length === 0;
@@ -469,6 +521,7 @@ function updateToolbar() {
   document.getElementById('btn-faces-is-face').hidden = notFaces.length === 0;
   // Visage représentatif : un seul visage, attribué à une personne (automatiquement ou confirmé).
   document.getElementById('btn-faces-cover').disabled = !(targets.length === 1 && targets[0].person_id != null);
+  positionActionBar();
   updateWriteButton();
 }
 
@@ -505,6 +558,7 @@ function setPendingMode(enabled) {
   button.classList.toggle('active', enabled);
   button.setAttribute('aria-pressed', String(enabled));
   selected.clear();
+  selectionOrder = [];
   anchorIndex = null;
   reloadFacesView();
 }
@@ -563,7 +617,7 @@ export function initFacesGrid(hostApi) {
   scroller().addEventListener('scroll', () => {
     if (scrollPending) return;
     scrollPending = true;
-    requestAnimationFrame(() => { scrollPending = false; renderVisible(); });
+    requestAnimationFrame(() => { scrollPending = false; renderVisible(); positionActionBar(); });
   });
   window.addEventListener('resize', () => { if (open) rebuild(); });
   // La largeur de la vue change aussi sans que la fenêtre bouge (aperçu ou panneaux affichés ou masqués) : les vignettes sont alors replacées.
@@ -581,12 +635,15 @@ export function initFacesGrid(hostApi) {
     if (event.target instanceof Element && event.target.closest('.face-tile')) return;
     if (event.ctrlKey || event.metaKey || event.shiftKey || selected.size === 0) return;
     selected.clear();
+    selectionOrder = [];
     anchorIndex = null;
     renderVisible();
     updateToolbar();
   });
   // Le bouton « Visages » de la barre du haut ouvre la vue Personnes (main.js) ; cette vue a son bouton de retour vers elle.
   document.getElementById('btn-faces-persons').addEventListener('click', () => host.openPersonsView());
+  // Après un clic dans la barre d'actions, le focus revient à la grille : sinon Entrée (valider) activerait aussi le bouton resté actif.
+  document.getElementById('faces-action-bar').addEventListener('click', () => scroller().focus({ preventScroll: true }));
   document.getElementById('btn-faces-cover').addEventListener('click', useAsCover);
   document.getElementById('btn-faces-cluster').addEventListener('click', toggleClusters);
   document.getElementById('btn-faces-confirm').addEventListener('click', () => runAction('confirm_faces'));
@@ -615,6 +672,12 @@ export function initFacesGrid(hostApi) {
     if (event.key === 'Enter') {
       event.preventDefault();
       if (!document.getElementById('btn-faces-confirm').disabled) runAction('confirm_faces');
+    } else if (['-', '/', 'Delete'].includes(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      // - : Inconnu ; / : Ignorer ; Suppr : Pas un visage. Même effet que les boutons de la barre d'actions (et seulement s'ils sont actifs) ; ces
+      // touches ne sont pas prises pour le début d'un nom. Inactives pendant la fenêtre « Nommer » (fenêtre modale : voir le garde plus haut).
+      event.preventDefault();
+      const button = document.getElementById({ '-': 'btn-faces-unknown', '/': 'btn-faces-ignore', Delete: 'btn-faces-not-face' }[event.key]);
+      if (!event.repeat && selected.size > 0 && !button.disabled) button.click();
     } else if (event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey && selected.size > 0) {
       // Saisie directe : une lettre tapée sur les visages sélectionnés ouvre « Nommer » avec cette lettre.
       event.preventDefault();
@@ -622,11 +685,13 @@ export function initFacesGrid(hostApi) {
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
       event.preventDefault();
       selected = new Set(shown.map(face => face.id));
+      selectionOrder = shown.map(face => face.id).reverse();
       renderVisible();
       updateToolbar();
     } else if (event.key === 'Escape' && selected.size > 0) {
       event.preventDefault();
       selected.clear();
+      selectionOrder = [];
       renderVisible();
       updateToolbar();
     }
