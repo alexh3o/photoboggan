@@ -1001,7 +1001,8 @@ function renderFolderTree() {
   folderTree.appendChild(allItem);
   const roots = folders.map(folder => ({ path: folder.path.replace(/[\\/]+$/, ''), name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path, children: new Map() }));
   const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  const addFolderToTree = parent => {
+  // `empty` : dossier sans photo ; seuls les nœuds créés par cet appel sont marqués (ceux déjà déduits des photos ne le sont jamais).
+  const addFolderToTree = (parent, empty = false) => {
     const root = roots.find(candidate => {
       const rootPath = candidate.path.replace(/\\/g, '/').replace(/\/+$/, '');
       return normalize(parent) === normalize(rootPath) || normalize(parent).startsWith(`${normalize(rootPath)}/`);
@@ -1013,7 +1014,7 @@ function renderFolderTree() {
     let currentPath = root.path;
     for (const segment of relative.split('/').filter(Boolean)) {
       currentPath += `/${segment}`;
-      if (!node.children.has(segment)) node.children.set(segment, { path: currentPath, name: segment, children: new Map() });
+      if (!node.children.has(segment)) node.children.set(segment, { path: currentPath, name: segment, children: new Map(), empty });
       node = node.children.get(segment);
     }
   };
@@ -1023,9 +1024,11 @@ function renderFolderTree() {
   }
   // Dossiers créés depuis l'application et encore vides : l'arborescence est déduite des photos, ils n'y figureraient pas sinon.
   for (const folderPath of createdFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''));
+  // Option « Afficher les dossiers sans photo » : tous les dossiers présents sur le disque (listés par `refreshDiskFolders`).
+  if (showEmptyFolders) for (const folderPath of diskFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''), true);
   const renderNode = (node, parentElement, depth, isRoot = false) => {
     const li = document.createElement('li');
-    li.className = `folder-tree-item ${currentFolderFilter && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''}`;
+    li.className = `folder-tree-item ${currentFolderFilter && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
     li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
     if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
     li.style.paddingLeft = `${10 + depth * 16}px`;
@@ -1042,7 +1045,7 @@ function renderFolderTree() {
       folderTreeInitialized = true;
       renderFolderTree();
     });
-    const icon = document.createElement('span'); icon.textContent = '📁';
+    const icon = document.createElement('span'); icon.className = 'folder-tree-icon'; icon.textContent = '📁';
     const label = document.createElement('span'); label.textContent = node.name; label.title = node.path;
     li.append(toggle, icon, label);
     li.addEventListener('click', () => selectFolder(node.path));
@@ -1072,6 +1075,18 @@ function renderFolderTree() {
 
 const folderTreeExpanded = new Set();
 const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
+let showEmptyFolders = localStorage.getItem('showEmptyFolders') === 'true';
+let diskFolders = []; // sous-dossiers présents sur le disque, lus seulement si showEmptyFolders est actif
+// Relit les sous-dossiers du disque puis redessine l'arborescence ; sans l'option, la liste est vidée et rien n'est lu.
+async function refreshDiskFolders() {
+  try {
+    diskFolders = showEmptyFolders ? await invoke('list_disk_folders') : [];
+  } catch (error) {
+    console.debug('Liste des dossiers du disque indisponible', error);
+    diskFolders = [];
+  }
+  renderFolderTree();
+}
 let folderTreeInitialized = false;
 // Appelé après la création d'un sous-dossier : il apparaît tout de suite dans l'arborescence, dossier parent déplié.
 function addCreatedFolder(parentPath, name) {
@@ -2947,6 +2962,13 @@ document.getElementById('keyword-filter-input').addEventListener('keydown', even
 document.getElementById('filename-filter-input').addEventListener('keydown', event => {
   if (event.key === 'Enter') { event.preventDefault(); addFilenameFilter(event.target.value); }
 });
+document.getElementById('show-empty-folders-toggle').checked = showEmptyFolders;
+document.getElementById('show-empty-folders-toggle').addEventListener('change', event => {
+  showEmptyFolders = event.target.checked;
+  localStorage.setItem('showEmptyFolders', String(showEmptyFolders));
+  refreshDiskFolders();
+});
+if (showEmptyFolders) refreshDiskFolders();
 document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
   includeSubfolders = event.target.checked;
@@ -3162,6 +3184,7 @@ async function reloadPhotosAfterRescan() {
     folderTreePhotos = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: null, recursive: includeSubfolders });
   }
   await loadPhotos();
+  if (showEmptyFolders) refreshDiskFolders(); // dossiers ajoutés ou supprimés sur le disque depuis la dernière lecture
 }
 
 // Retire une tâche en attente de la file, ou demande l'arrêt de la tâche en cours (les photos déjà lues restent dans le catalogue ;

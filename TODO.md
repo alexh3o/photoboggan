@@ -14,7 +14,7 @@
 - [x] *feat*: `faces` **Faces detection & recognition** 
 - [x] *feat*: `controls` shift+(rating key) to rate and go to next photo
 - [x] *feat*: shortcuts for validate / ignore / unknown / not a face
-- [ ] *feat*: `ui` display folders without photos wicth on/off setting
+- [ ] *feat*: `ui` display folders without photos with on/off setting
 - [ ] *feat*: `ui` display a text in case of empty grid
 
 ## 💡 Ideas / Longer term / On hold
@@ -37,14 +37,14 @@
 - [ ] *feat*: `internet` add a **map widget** in info panel
 - [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
-- [ ] *feat*: `formats` live photos
-- [ ] *feat*: waterfall view without spacing
+- [x] *feat*: waterfall view without spacing
 
 ## ❄️ Cold storage
 
 - [ ] *feat*: `metadata` international title and description
 - [ ] *feat*: `Controls` **keyboard shortcuts** customizing
 - [ ] *feat*: `Controls` Add **mouse settings** screen
+- [ ] **feat*: `formats` live photos
 
 ## ❌ Ruled out
 

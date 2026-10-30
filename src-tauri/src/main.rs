@@ -752,6 +752,23 @@ fn create_subfolder(state: State<'_, AppState>, parent: String, name: String) ->
     fs::create_dir(&target).map_err(|error| format!("Création impossible : {error}"))
 }
 
+// Liste tous les sous-dossiers présents sur le disque sous les dossiers suivis. L'arborescence de l'interface est déduite des photos : cette liste
+// sert à y montrer aussi les dossiers sans photo (option « Afficher les dossiers vides »), par exemple pour y déplacer ou copier des photos.
+// Les dossiers cachés (nom commençant par « . ») et les dossiers système Windows (« $RECYCLE.BIN »…) sont ignorés ; les liens symboliques ne sont pas suivis.
+#[tauri::command(async)]
+fn list_disk_folders(state: State<'_, AppState>) -> Vec<String> {
+    let pool = state.pool();
+    let mut result = Vec::new();
+    for tracked in db::get_folders(&pool) {
+        let walker = walkdir::WalkDir::new(&tracked.path).min_depth(1).into_iter()
+            .filter_entry(|entry| entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with(['.', '$']));
+        for entry in walker.flatten() {
+            if entry.file_type().is_dir() { result.push(entry.path().to_string_lossy().into_owned()); }
+        }
+    }
+    result
+}
+
 fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>, photos: &[Photo]) {
     let _ = conn.execute("BEGIN TRANSACTION", []);
     {
@@ -1523,6 +1540,7 @@ fn main() {
             clear_thumbnail_cache,
             set_thumbnail_cache_size,
             get_folders,
+            list_disk_folders,
             add_folder,
             scan_folder,
             cancel_scan,

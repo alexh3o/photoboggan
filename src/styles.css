@@ -153,6 +153,9 @@ button.active { background: var(--active-button); border-color: var(--active-but
 #folder-tree { list-style: none; flex: 1 1 0; min-height: 7rem; overflow-y: auto; }
 .folder-tree-item { box-sizing: border-box; min-height: var(--side-row-height); padding: 0.25rem 0.65rem; margin-bottom: 0.125rem; border-radius: 4px; cursor: pointer; font-size: var(--side-row-size); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.5rem; }
 .folder-tree-item:hover { background: var(--control-bg); }
+/* Dossier sans photo (option « Afficher les dossiers sans photo ») : icône estompée, texte atténué. */
+.folder-tree-item.folder-empty { color: var(--text-muted); }
+.folder-tree-item.folder-empty .folder-tree-icon { opacity: 0.35; filter: grayscale(1); }
 /* Élément actif : fond teinté et filet d'accent à gauche, repérable même au défilement */
 .folder-tree-item.active { background: color-mix(in srgb, var(--active-button) 50%, transparent); box-shadow: inset 3px 0 0 var(--accent); color: var(--text-muted); font-weight: bold; }
 /* Dossier visé par le menu contextuel ouvert */
