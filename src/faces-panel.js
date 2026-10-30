@@ -25,13 +25,18 @@ const THRESHOLD_INPUTS = {
 };
 const PERSON_ROOT_STORAGE_KEY = 'facePersonRoot'; // racine des mots-clés créés pour les nouvelles personnes (« A/B », vide = premier niveau)
 const SCAN_FILTER_STORAGE_KEY = 'faceScanFilter'; // filtre de la vue Photos par statut du scan : all, unscanned, scanned, review
-const OVERLAY_STORAGE_KEY = 'fullscreenFacesVisible'; // zones affichées en plein écran (touche V)
+const OVERLAY_STORAGE_KEY = 'fullscreenFacesVisible'; // mode des zones en plein écran et dans l'aperçu (touche V) : hover, always ou hidden
 const SORT_STORAGE_KEY = 'personsSort'; // « count » (fréquence, par défaut) ou « name »
 const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed' };
 
 let host = null; // fonctions fournies par main.js (voir initFacesPanel)
 let readingEnabled = readStorage(READING_STORAGE_KEY) === 'true';
-let overlayVisible = readStorage(OVERLAY_STORAGE_KEY) === 'true';
+// Anciennes valeurs mémorisées : « true » (zones affichées) et « false » (masquées).
+const OVERLAY_MODES = ['hover', 'always', 'hidden'];
+let overlayMode = (() => {
+  const stored = readStorage(OVERLAY_STORAGE_KEY);
+  return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : 'hidden';
+})();
 let sortMode = readStorage(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
 let persons = []; // [{ id, name, keyword_id, photo_count, cover }]
 let faceIndex = new Map(); // identifiant de photo -> Set des identifiants de personnes
@@ -39,10 +44,8 @@ let personFilters = []; // identifiants des personnes filtrées (ET)
 let scanIndex = new Map(); // identifiant de photo scannée -> à revérifier ? (get_face_scan_index)
 let scanFilter = 'all';
 let refreshToken = 0;
-// Plein écran : visages de la photo affichée (chargés une fois par photo).
-let overlayPhotoId = null;
-let overlayFaces = null; // { orientation, faces } ou null pendant le chargement
-let overlayToken = 0;
+// Calques de zones (plein écran et cases de l'aperçu) : visages de la photo affichée, chargés une fois par photo.
+const overlayStates = new WeakMap(); // calque -> { photoId, faces: { orientation, faces } ou null pendant le chargement, token }
 // Détection : réglages, état des fichiers du modèle (get_face_model_status) et reclassement différé après un changement de seuil.
 let detectionEnabled = readStorage(DETECTION_STORAGE_KEY) === 'true';
 let faceSettings = loadFaceSettings();
@@ -305,7 +308,7 @@ export async function refreshFaces() {
   renderPersons();
   renderPersonFilterTags();
   if (hasPersonFilters() || filtersChanged) host.onFilterChange({ keepState: true });
-  layoutFullscreenFaces(host.getFullscreenSlot());
+  relayoutOverlays();
   await refreshPendingFaceWrites(); // visages en attente d'écriture (bouton de la vue Visages, confirmation à la fermeture)
   host.onFacesChanged?.(); // vue Visages ouverte : rechargée
 }
@@ -771,25 +774,45 @@ function initCollapsibleSection(name) {
 // Appelée par main.js à chaque mise en page du plein écran (photo, zoom, déplacement) : le calque suit l'image affichée.
 export function layoutFullscreenFaces(slot) {
   const overlay = document.getElementById('fullscreen-faces');
-  if (!overlay) return;
+  if (overlay) layoutFaceOverlay(overlay, slot, readingEnabled && host?.isFullscreen(), true);
+}
+
+// Idem pour une case de l'aperçu (appelée par main.js à chaque mise en page de la case) ; le calque est créé à la demande.
+export function layoutPreviewFaces(slot) {
+  if (!slot.faceOverlay) {
+    if (!readingEnabled || overlayMode === 'hidden') return;
+    slot.faceOverlay = document.createElement('div');
+    slot.faceOverlay.className = 'face-overlay preview-faces';
+    slot.faceOverlay.setAttribute('aria-hidden', 'true');
+    slot.cell.append(slot.faceOverlay);
+  }
+  layoutFaceOverlay(slot.faceOverlay, slot, readingEnabled, false);
+}
+
+// Cale un calque sur l'image affichée du slot (même translation et même taille que l'image) et charge les visages si la photo a changé.
+// interactive : zones avec menu contextuel (plein écran) ; sinon elles ne servent qu'à regarder.
+function layoutFaceOverlay(overlay, slot, active, interactive) {
   const photo = slot?.photo;
-  if (!readingEnabled || !overlayVisible || !host?.isFullscreen() || !photo || !(slot.naturalWidth > 0)) {
+  if (!active || overlayMode === 'hidden' || !photo || !(slot.naturalWidth > 0)) {
     overlay.hidden = true;
     return;
   }
-  if (photo.id !== overlayPhotoId) {
-    overlayPhotoId = photo.id;
-    overlayFaces = null;
+  let state = overlayStates.get(overlay);
+  if (!state) overlayStates.set(overlay, state = { photoId: null, faces: null, token: 0 });
+  if (photo.id !== state.photoId) {
+    state.photoId = photo.id;
+    state.faces = null;
     overlay.replaceChildren();
-    const token = ++overlayToken;
+    const token = ++state.token;
     invoke('get_photo_faces', { photoId: photo.id })
       .then(info => {
-        if (token !== overlayToken) return;
-        overlayFaces = info;
-        renderOverlayFaces(overlay);
+        if (token !== state.token) return;
+        state.faces = info;
+        renderOverlayFaces(overlay, info, interactive);
       })
       .catch(error => console.error('Lecture des visages impossible', error));
   }
+  overlay.classList.toggle('hover-only', overlayMode === 'hover');
   overlay.style.left = `${slot.tx}px`;
   overlay.style.top = `${slot.ty}px`;
   overlay.style.width = `${slot.displayWidth}px`;
@@ -797,10 +820,9 @@ export function layoutFullscreenFaces(slot) {
   overlay.hidden = false;
 }
 
-function renderOverlayFaces(overlay) {
-  if (!overlayFaces) return;
-  overlay.replaceChildren(...overlayFaces.faces.map(face => {
-    const rect = orientRect(face, overlayFaces.orientation);
+function renderOverlayFaces(overlay, info, interactive) {
+  overlay.replaceChildren(...info.faces.map(face => {
+    const rect = orientRect(face, info.orientation);
     const box = document.createElement('div');
     box.className = `face-box state-${face.state}${face.person_id == null && face.state !== 'suggested' ? ' unknown' : ''}`;
     box.style.left = `${rect.x * 100}%`;
@@ -811,15 +833,21 @@ function renderOverlayFaces(overlay) {
     label.className = 'face-label';
     label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?` : (face.name || t('Unknown'));
     box.append(label);
-    box.addEventListener('contextmenu', event => openZoneMenu(event, face));
+    if (interactive) box.addEventListener('contextmenu', event => openZoneMenu(event, face));
     return box;
   }));
 }
 
+// Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
+function relayoutOverlays() {
+  for (const overlay of document.querySelectorAll('.face-overlay')) overlayStates.delete(overlay);
+  layoutFullscreenFaces(host.getFullscreenSlot());
+  host.layoutPreview?.();
+}
+
 // Relit les visages de la photo du plein écran (après une action sur une zone), puis la section Personnes et les vues.
 async function reloadOverlayFaces() {
-  overlayPhotoId = null;
-  layoutFullscreenFaces(host.getFullscreenSlot());
+  relayoutOverlays();
   await refreshFaces();
 }
 
@@ -867,7 +895,7 @@ function startZoneDrawing(event) {
   if (!photo || !(slot.naturalWidth > 0)) return;
   event.preventDefault();
   event.stopImmediatePropagation(); // pas de déplacement de l'image zoomée (main.js)
-  if (!overlayVisible) toggleFaceRegions();
+  if (overlayMode === 'hidden') setFaceRegionsMode('always');
   const overlay = document.getElementById('fullscreen-faces');
   const bounds = overlay.getBoundingClientRect();
   if (!(bounds.width > 0 && bounds.height > 0)) return;
@@ -894,7 +922,7 @@ function startZoneDrawing(event) {
     view.removeEventListener('pointercancel', end);
     // Trop petite (simple clic) : rien à enregistrer.
     if (rect.w < 0.01 || rect.h < 0.01) { box.remove(); return; }
-    const stored = orientRect(rect, inverseOrientation(overlayFaces?.orientation ?? photo.orientation ?? 1));
+    const stored = orientRect(rect, inverseOrientation(overlayStates.get(document.getElementById('fullscreen-faces'))?.faces?.orientation ?? photo.orientation ?? 1));
     await promptPersonName({
       title: t('Name the face'),
       message: t('Person shown in the drawn area (existing person, keyword path, or new name)'),
@@ -908,11 +936,23 @@ function startZoneDrawing(event) {
   view.addEventListener('pointercancel', end);
 }
 
-export function toggleFaceRegions() {
-  if (!readingEnabled) return;
-  overlayVisible = !overlayVisible;
-  writeStorage(OVERLAY_STORAGE_KEY, String(overlayVisible));
+function setFaceRegionsMode(mode) {
+  overlayMode = mode;
+  writeStorage(OVERLAY_STORAGE_KEY, mode);
   layoutFullscreenFaces(host.getFullscreenSlot());
+  host.layoutPreview?.();
+}
+
+// Touche V : survol seulement > toujours > masquées. Un toast annonce le nouveau mode. Renvoie false si la lecture des visages est désactivée.
+export function toggleFaceRegions() {
+  if (!readingEnabled) return false;
+  setFaceRegionsMode(OVERLAY_MODES[(OVERLAY_MODES.indexOf(overlayMode) + 1) % OVERLAY_MODES.length]);
+  host.showToast({
+    hover: t('Face regions: shown on hover'),
+    always: t('Face regions: always shown'),
+    hidden: t('Face regions: hidden'),
+  }[overlayMode]);
+  return true;
 }
 
 // ==========================================
@@ -1238,7 +1278,7 @@ function applyReadingEnabled() {
     renderPersons();
     renderPersonFilterTags();
   }
-  layoutFullscreenFaces(host.getFullscreenSlot());
+  relayoutOverlays();
 }
 
 // hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),

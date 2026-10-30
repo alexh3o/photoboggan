@@ -11,7 +11,7 @@ import { initMetadataSettings } from './metadata-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWritten } from './metadata-writes.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
@@ -1897,10 +1897,9 @@ window.addEventListener('keydown', (e) => {
     toggleFullscreenInfo();
     return;
   }
-  // Zones de visage en plein écran (lecture des visages activée dans les Paramètres)
-  if (e.key.toLowerCase() === 'v' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
-    toggleFaceRegions();
-    return;
+  // Zones de visage en plein écran et dans l'aperçu (lecture des visages activée dans les Paramètres)
+  if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
+    if (toggleFaceRegions()) return;
   }
   // Modale info
   if (e.key.toLowerCase() === 'i') {
@@ -3358,6 +3357,7 @@ function layoutPreviewSlot(slot) {
   slot.displayHeight = height;
   slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})`;
   positionPreviewMarks(slot, cellWidth, cellHeight);
+  if (slot !== fullscreenSlot) layoutPreviewFaces(slot); // zones de visage (touche V)
 }
 
 function renderPreviewTransforms() {
@@ -4419,6 +4419,7 @@ initFacesPanel({
   onFilterChange: options => applyPhotoFilters(options),
   getFullscreenSlot: () => fullscreenSlot,
   isFullscreen: () => isFullscreen,
+  layoutPreview: () => previewSlots.forEach(layoutPreviewSlot),
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
   // Détection désactivée : les vues Personnes et de gestion se ferment.
