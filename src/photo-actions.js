@@ -450,17 +450,27 @@ export async function copyPhotosTo(targets) {
   }
   if (typeof destination !== 'string' || !destination) return;
   localStorage.setItem(LAST_COPY_FOLDER_KEY, destination);
-  api.showToast(tp('Copying {count} file…', targets.length), true);
-  try {
-    const result = await invoke('copy_photos', { paths: targets.map(photo => photo.path), destination });
-    const failures = result.failed.length;
-    if (failures) console.error('Copie : échecs', result.failed);
-    api.showToast(failures && !result.copied
-      ? t('Copy failed: {error}', { error: result.failed[0].error })
-      : `${tp('{count} file copied', result.copied)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
-  } catch (error) {
-    api.showToast(t('Copy failed: {error}', { error }));
-  }
+  // Tâche de la file (progression, arrêt possible entre deux fichiers, voir copy_photos).
+  api.enqueueFileTask({
+    kind: 'copy',
+    path: null,
+    command: 'copy_photos',
+    args: { paths: targets.map(photo => photo.path), destination },
+    labelKey: 'Copying files ({count})',
+    labelParams: { count: targets.length },
+    onResult: (result, stopped, error) => {
+      if (error) {
+        api.showToast(t('Copy failed: {error}', { error }));
+        return;
+      }
+      const failures = result.failed.length;
+      if (failures) console.error('Copie : échecs', result.failed);
+      if (stopped) return;
+      api.showToast(failures && !result.copied
+        ? t('Copy failed: {error}', { error: result.failed[0].error })
+        : `${tp('{count} file copied', result.copied)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
+    },
+  });
 }
 
 // Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite
@@ -478,14 +488,14 @@ export async function copyPhotosToClipboard(targets) {
 // ==========================================
 // REDIMENSIONNER PAR LOT
 // ==========================================
-// Une fenêtre d'options, puis le lot est traité photo par photo (commande `resize_photo`, quelques appels en parallèle). Quand le fichier de
+// Une fenêtre d'options, puis le lot devient une tâche de la file de main.js (progression, arrêt possible, une tâche à la fois) : il est traité photo par
+// photo (commande `resize_photo`, quelques appels en parallèle). Quand le fichier de
 // destination existe déjà, une question est posée (une à la fois) avec la possibilité d'appliquer le choix aux fichiers suivants.
 const RESIZE_SETTINGS_KEY = 'resizeSettings';
 const LAST_RESIZE_FOLDER_KEY = 'lastResizeFolder';
 const RESIZE_SIDE_LIMITS = { min: 16, max: 30000 };
 const FORM_FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled])';
 const FORBIDDEN_SUFFIX_CHARACTERS = /[\\/:*?"<>|\u0000-\u001f]/;
-let resizeRunning = false;
 
 const makeElement = (tag, className = '', text = '') => {
   const node = document.createElement(tag);
@@ -749,8 +759,9 @@ function resizeConflictDialog(output) {
   });
 }
 
-async function runResizeBatch(targets, options, ignoredVideosCount = 0) {
-  resizeRunning = true;
+// Traitement du lot, exécuté par la file des tâches (`task` : sa tâche, `setPercent` : avancement en %). Un arrêt demandé (`task.stopRequested`) laisse finir
+// les photos en cours et ne démarre pas les suivantes ; les fichiers déjà redimensionnés le restent. Renvoie le bilan pour `showResizeSummary`.
+async function runResizeBatch(targets, options, task, setPercent) {
   const total = targets.length;
   const workerCount = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1, total));
   let next = 0;
@@ -760,7 +771,6 @@ async function runResizeBatch(targets, options, ignoredVideosCount = 0) {
   const failures = [];
   let appliedPolicy = null; // choix « Appliquer à tous les fichiers suivants »
   let conflictQueue = Promise.resolve();
-  const showProgress = () => api.showToast(t('Resizing… {done}/{total}', { done: finished, total }), true);
 
   // Les questions sont posées une à la fois ; pendant qu'une fenêtre est ouverte, les autres photos continuent d'être traitées.
   const askConflict = output => {
@@ -796,28 +806,27 @@ async function runResizeBatch(targets, options, ignoredVideosCount = 0) {
   };
 
   const worker = async () => {
-    while (next < total) {
+    while (next < total && !task.stopRequested) {
       await processPhoto(targets[next++]);
       finished += 1;
-      showProgress();
+      setPercent(Math.floor(finished * 100 / total));
     }
   };
 
-  showProgress();
-  try {
-    await Promise.all(Array.from({ length: workerCount }, worker));
-  } finally {
-    resizeRunning = false;
-  }
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return { written, skipped, failures };
+}
+
+// Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
+function showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped) {
   if (failures.length) console.error('Redimensionnement : échecs', failures);
+  if (stopped) return; // le toast « Action arrêtée » de la file suffit
   const parts = [];
   if (written) parts.push(tp('{count} file resized', written));
   if (skipped) parts.push(tp('{count} file skipped', skipped));
   if (failures.length) parts.push(tp('{count} failure', failures.length));
   if (ignoredVideosCount > 0) parts.push(tp('{count} video file ignored', ignoredVideosCount));
   api.showToast(!written && !skipped && failures.length ? t('Resize failed: {error}', { error: failures[0].error }) : parts.join(' · '));
-  // Les nouvelles photos entrent dans le catalogue si elles sont dans un dossier suivi.
-  if (written) api.syncLibrary?.();
 }
 
 // Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
@@ -831,12 +840,24 @@ export async function resizePhotos(targets) {
     }
     return;
   }
-  if (resizeRunning) {
-    api.showToast(t('A resize is already in progress'));
-    return;
-  }
   const options = await resizeOptionsDialog(resizableTargets.length, resizableTargets[0].path);
-  if (options) await runResizeBatch(resizableTargets, options, ignoredVideosCount);
+  if (!options) return;
+  api.enqueueFileTask({
+    kind: 'resize',
+    path: null,
+    labelKey: 'Resizing files ({count})',
+    labelParams: { count: resizableTargets.length },
+    runner: (task, setPercent) => runResizeBatch(resizableTargets, options, task, setPercent),
+    onResult: (summary, stopped, error) => {
+      if (error) {
+        api.showToast(t('Resize failed: {error}', { error }));
+        return;
+      }
+      showResizeSummary(summary, ignoredVideosCount, stopped);
+      // Les nouveaux fichiers entrent dans le catalogue : la synchronisation attend la fin de la tâche (elle est suspendue tant que la file travaille).
+      if (summary.written) setTimeout(() => api.syncLibrary?.(), 0);
+    },
+  });
 }
 
 async function openWith(program, targets) {

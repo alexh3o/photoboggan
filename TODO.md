@@ -14,18 +14,18 @@
 - [x] *feat*: `faces` **Faces detection & recognition** 
 - [x] *feat*: `controls` shift+(rating key) to rate and go to next photo
 - [x] *feat*: shortcuts for validate / ignore / unknown / not a face
+- [ ] *feat*: `ui` display folders without photos wicth on/off setting
+- [ ] *feat*: `ui` display a text in case of empty grid
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: `metadata` international title and description
-- [ ] *feat*: `Controls` **keyboard shortcuts** customizing
+- [ ] *test*: `safety` new files security audit
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [ ] *fix*: **Cannot move window** by title bar
   - [ ] **Test** linux release (more)
-- [ ] *feat*: `Controls` Add **mouse settings** screen
 - [ ] *feat*: `Info` add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
@@ -39,6 +39,12 @@
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `formats` live photos
 - [ ] *feat*: waterfall view without spacing
+
+## ❄️ Cold storage
+
+- [ ] *feat*: `metadata` international title and description
+- [ ] *feat*: `Controls` **keyboard shortcuts** customizing
+- [ ] *feat*: `Controls` Add **mouse settings** screen
 
 ## ❌ Ruled out
 

@@ -3174,7 +3174,7 @@ function removeOrStopTask(task) {
   } else if (!task.stopRequested) {
     task.stopRequested = true;
     syncTaskUI();
-    invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Arrêt du scan impossible', error));
+    if (!task.runner) invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Arrêt du scan impossible', error));
   }
 }
 
@@ -3185,18 +3185,25 @@ function dropScanTasksForFolder(path) {
   }
 }
 
+// Tâches sur des fichiers (déplacement, copie, redimensionnement) : famille « files », attendent leur tour sans jamais être refusées comme doublon.
+const FILE_TASK_KINDS = ['move', 'copy', 'resize'];
+const hasFileTask = () => scanTasks.some(task => FILE_TASK_KINDS.includes(task.kind));
+
 // Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours ou en attente
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
-function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult }) {
+// `runner(task, setPercent)` (facultatif) : tâche pilotée par l'interface (redimensionnement), exécutée à la place de la commande du backend ;
+// elle doit surveiller `task.stopRequested` et publier son avancement avec `setPercent`.
+function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, runner }) {
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
   const isIntegrity = kind === 'integrity';
   // Familles de tâches qui ne se bloquent pas entre elles : scans et relectures, vérifications d'intégrité, écritures de mots-clés
   // (ces dernières attendent simplement leur tour dans la file, sans jamais être refusées comme doublon), détections de visages (d'un dossier :
   // « faces » ; d'une sélection : « faces-selection », jamais refusée comme doublon), téléchargement des modèles de visages (« face-models »).
   const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords'
-    : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models' : 'scan');
+    : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models'
+    : FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan');
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' || kind === 'faces-selection' ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
@@ -3206,7 +3213,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   scanTaskCounter += 1;
   scanTasks.push({
     id: `scan-${Date.now()}-${scanTaskCounter}`,
-    kind, path, command, args, labelKey, labelParams, onResult,
+    kind, path, command, args, labelKey, labelParams, onResult, runner,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
   syncTaskUI();
@@ -3231,7 +3238,9 @@ async function runScanTask(task) {
   task.status = 'running';
   syncTaskUI();
   try {
-    const result = await invoke(task.command, { ...task.args, taskId: task.id });
+    const result = task.runner
+      ? await task.runner(task, percent => { task.percent = Math.max(task.percent, percent); syncTaskUI(); })
+      : await invoke(task.command, { ...task.args, taskId: task.id });
     task.percent = 100;
     syncTaskUI();
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
@@ -3525,7 +3534,8 @@ function renderPreview() {
   pruneCompareSubSelection();
   const list = currentPreviewPhotos();
   const signature = list.map(photo => photo.path).join('|');
-  if (signature === previewSignature) { // mêmes images : on garde zoom et position
+  // Un aperçu vidé (signature '') ne doit pas réutiliser d'anciennes cases : leurs photos n'existeraient plus (ex. photos déplacées hors de la vue).
+  if (signature === previewSignature && list.length === previewSlots.length) { // mêmes images : on garde zoom et position
     previewSlots.forEach((slot, index) => { slot.photo = list[index]; }); // objets renouvelés après une synchronisation
     syncPreviewMeta();
     syncPreviewSubSelection();
@@ -3985,7 +3995,7 @@ function applyDeletedFolder(deletedPath, removedPaths) {
 // Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirmation par
 // photo-actions.js, qui a aussi demandé la confirmation). Le même indicateur que le déplacement suspend la synchronisation automatique pendant l'opération.
 async function deleteFolderToTrash(path, { permanent = false } = {}) {
-  if (photoMoveRunning) return;
+  if (photoMoveRunning || hasFileTask()) return;
   photoMoveRunning = true;
   showWriteToast(t(permanent ? 'Deleting folder…' : 'Moving folder to the trash…'), true);
   try {
@@ -3999,49 +4009,62 @@ async function deleteFolderToTrash(path, { permanent = false } = {}) {
   }
 }
 
-async function movePhotosToFolder(targets, folderPath) {
-  if (photoMoveRunning || !targets.length) return;
-  photoMoveRunning = true;
-  showWriteToast(tp('Moving {count} file…', targets.length), true);
-  try {
-    const result = await invoke('move_photos', { paths: targets.map(photo => photo.path), destination: folderPath });
-    if (result.failed.length) console.error('Déplacement : échecs', result.failed);
-    if (result.moved.length) await applyMovedPhotos(result.moved);
-    const parts = [];
-    if (result.moved.length) parts.push(tp('{count} file moved', result.moved.length));
-    if (result.skipped) parts.push(tp('{count} file already in this folder', result.skipped));
-    if (result.failed.length) parts.push(tp('{count} failure', result.failed.length));
-    showWriteToast(!result.moved.length && !result.skipped && result.failed.length
-      ? t('Move failed: {error}', { error: result.failed[0].error })
-      : parts.join(' · '));
-  } catch (error) {
-    showWriteToast(t('Move failed: {error}', { error }));
-  } finally {
-    photoMoveRunning = false;
-  }
+// Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent après un arrêt.
+function movePhotosToFolder(targets, folderPath) {
+  if (!targets.length) return;
+  enqueueScanTask({
+    kind: 'move',
+    path: null,
+    command: 'move_photos',
+    args: { paths: targets.map(photo => photo.path), destination: folderPath },
+    labelKey: 'Moving files ({count})',
+    labelParams: { count: targets.length },
+    onResult: async (result, stopped, error) => {
+      if (error) {
+        showWriteToast(t('Move failed: {error}', { error }));
+        return;
+      }
+      if (result.failed.length) console.error('Déplacement : échecs', result.failed);
+      if (result.moved.length) await applyMovedPhotos(result.moved);
+      const parts = [];
+      if (result.moved.length) parts.push(tp('{count} file moved', result.moved.length));
+      if (result.skipped) parts.push(tp('{count} file already in this folder', result.skipped));
+      if (result.failed.length) parts.push(tp('{count} failure', result.failed.length));
+      if (!stopped) {
+        showWriteToast(!result.moved.length && !result.skipped && result.failed.length
+          ? t('Move failed: {error}', { error: result.failed[0].error })
+          : parts.join(' · '));
+      }
+    },
+  });
 }
 
-// Copie (Ctrl + glisser) : les fichiers originaux sont copiés dans le dossier, puis la synchronisation incrémentale les ajoute au catalogue (le backend
-// ne lit que les nouveaux fichiers). Le même indicateur que le déplacement suspend la synchronisation automatique pendant l'opération.
-async function copyPhotosToFolder(targets, folderPath) {
-  if (photoMoveRunning || !targets.length) return;
-  photoMoveRunning = true;
-  showWriteToast(tp('Copying {count} file…', targets.length), true);
-  try {
-    const result = await invoke('copy_photos_to_tracked_folder', { paths: targets.map(photo => photo.path), destination: folderPath });
-    if (result.failed.length) console.error('Copie : échecs', result.failed);
-    if (result.copied) {
-      const changes = await invoke('sync_library');
-      if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
-    }
-    showWriteToast(!result.copied && result.failed.length
-      ? t('Copy failed: {error}', { error: result.failed[0].error })
-      : `${tp('{count} file copied', result.copied)}${result.failed.length ? ` · ${tp('{count} failure', result.failed.length)}` : ''}`);
-  } catch (error) {
-    showWriteToast(t('Copy failed: {error}', { error }));
-  } finally {
-    photoMoveRunning = false;
-  }
+function copyPhotosToFolder(targets, folderPath) {
+  if (!targets.length) return;
+  enqueueScanTask({
+    kind: 'copy',
+    path: null,
+    command: 'copy_photos_to_tracked_folder',
+    args: { paths: targets.map(photo => photo.path), destination: folderPath },
+    labelKey: 'Copying files ({count})',
+    labelParams: { count: targets.length },
+    onResult: async (result, stopped, error) => {
+      if (error) {
+        showWriteToast(t('Copy failed: {error}', { error }));
+        return;
+      }
+      if (result.failed.length) console.error('Copie : échecs', result.failed);
+      if (result.copied) {
+        const changes = await invoke('sync_library');
+        if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
+      }
+      if (!stopped) {
+        showWriteToast(!result.copied && result.failed.length
+          ? t('Copy failed: {error}', { error: result.failed[0].error })
+          : `${tp('{count} file copied', result.copied)}${result.failed.length ? ` · ${tp('{count} failure', result.failed.length)}` : ''}`);
+      }
+    },
+  });
 }
 
 // Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrouvée par
@@ -4400,6 +4423,7 @@ initPhotoActions({
   checkFolderIntegrity,
   folderCreated: addCreatedFolder,
   syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
+  enqueueFileTask: task => enqueueScanTask(task), // copie vers un dossier choisi, redimensionnement : tâches de la file (voir enqueueScanTask)
   deleteFolder: deleteFolderToTrash,
   // Sous-menu « Visages » (voir faces-panel.js) : affiché quand la détection est activée, il ouvre la fenêtre de lancement d'un scan.
   faceDetectionEnabled: isFaceDetectionEnabled,
@@ -4713,6 +4737,18 @@ offlineModeToggle.addEventListener('change', () => {
   localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
   sendInternetAllowed();
   onOfflineModeChanged();
+});
+
+// Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, choix mémorisé et transmis au backend.
+const verifyMovesToggle = document.getElementById('verify-moves-toggle');
+verifyMovesToggle.checked = localStorage.getItem('verifyCrossDriveMoves') !== 'false';
+function sendVerifyMoves() {
+  invoke('set_verify_cross_drive_moves', { enabled: verifyMovesToggle.checked }).catch(error => console.error('Réglage de la vérification des déplacements refusé', error));
+}
+sendVerifyMoves();
+verifyMovesToggle.addEventListener('change', () => {
+  localStorage.setItem('verifyCrossDriveMoves', String(verifyMovesToggle.checked));
+  sendVerifyMoves();
 });
 
 // ==========================================

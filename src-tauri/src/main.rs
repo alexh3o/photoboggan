@@ -1123,13 +1123,55 @@ fn lowercase_segments(path: &Path) -> Vec<String> {
     path_segments(&path.to_string_lossy()).into_iter().map(|segment| segment.to_lowercase()).collect()
 }
 
+// Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, l'interface envoie le choix mémorisé au démarrage.
+static VERIFY_CROSS_DRIVE_MOVES: AtomicBool = AtomicBool::new(true);
+
+#[tauri::command]
+fn set_verify_cross_drive_moves(enabled: bool) {
+    VERIFY_CROSS_DRIVE_MOVES.store(enabled, Ordering::Relaxed);
+}
+
+// Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
+fn file_sha256(path: &Path) -> std::io::Result<[u8; 32]> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 1024 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 { break; }
+        hasher.update(&buffer[..count]);
+    }
+    Ok(hasher.finalize().into())
+}
+
+fn files_have_same_hash(first: &Path, second: &Path) -> std::io::Result<bool> {
+    Ok(file_sha256(first)? == file_sha256(second)?)
+}
+
 // Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
 // Si la copie réussit mais que l'original ne peut pas être supprimé, la copie est retirée : le fichier n'est jamais dupliqué.
+// Avec la vérification activée (Paramètres > Stockage), la copie est relue et comparée à l'original par somme SHA-256 avant toute suppression :
+// en cas de différence, la copie est retirée et l'original reste en place.
 fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
     if fs::rename(source, target).is_ok() { return Ok(()); }
     if let Err(error) = fs::copy(source, target) {
         let _ = fs::remove_file(target);
         return Err(error);
+    }
+    if VERIFY_CROSS_DRIVE_MOVES.load(Ordering::Relaxed) {
+        match files_have_same_hash(source, target) {
+            Ok(true) => {}
+            Ok(false) => {
+                let _ = fs::remove_file(target);
+                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "La copie diffère de l'original : déplacement annulé, l'original est conservé"));
+            }
+            Err(error) => {
+                let _ = fs::remove_file(target);
+                return Err(error);
+            }
+        }
     }
     if let Err(error) = fs::remove_file(source) {
         let _ = fs::remove_file(target);
@@ -1150,11 +1192,52 @@ fn move_sidecar(source: &Path, target: &Path) {
     }
 }
 
+// Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondéré par la taille
+// des fichiers, pour qu'un gros fichier pèse plus qu'une miniature) et relaie la demande d'arrêt, vérifiée entre deux fichiers. Sans `task_id`
+// (appel direct), il ne fait rien.
+struct FileTaskProgress {
+    app: tauri::AppHandle,
+    task_id: Option<String>,
+    cancel: Option<Arc<AtomicBool>>,
+    total: u64,
+    done: u64,
+}
+
+impl FileTaskProgress {
+    fn new(app: tauri::AppHandle, task_id: Option<String>, sources: &[String]) -> Self {
+        // Un fichier vide ou illisible compte pour 1 octet : l'avancement progresse tout de même.
+        let total = sources.iter().map(|path| fs::metadata(path).map(|metadata| metadata.len()).unwrap_or(0).max(1)).sum::<u64>().max(1);
+        let cancel = task_id.as_deref().map(scan_cancel_flag);
+        Self { app, task_id, cancel, total, done: 0 }
+    }
+
+    fn cancelled(&self) -> bool {
+        self.cancel.as_ref().map_or(false, |flag| flag.load(Ordering::Relaxed))
+    }
+
+    // À appeler après chaque fichier traité (réussi ou non) avec sa taille.
+    fn advance(&mut self, size: u64) {
+        self.done += size.max(1);
+        if let Some(id) = &self.task_id {
+            let percent = (self.done.min(self.total) * 100 / self.total) as u32;
+            let _ = self.app.emit("scan-progress", ScanProgress { task_id: id.clone(), percent });
+        }
+    }
+}
+
+impl Drop for FileTaskProgress {
+    fn drop(&mut self) {
+        if let Some(id) = &self.task_id { release_scan_cancel_flag(id); }
+    }
+}
+
 // Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
 // Un fichier de même nom n'est jamais écrasé : le fichier déplacé est renommé (« photo (1).jpg »). La ligne de la base est mise à jour (même id : note,
 // couleur et mots-clés sont conservés) et la miniature du cache, qui dépend du chemin, est supprimée.
+// Lancé par la file des tâches (`task_id`) : avancement publié, arrêt possible entre deux fichiers (les fichiers déjà déplacés le restent).
 #[tauri::command(async)]
-fn move_photos(state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<MoveResult, String> {
+fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<MoveResult, String> {
+    let mut progress = FileTaskProgress::new(app, task_id, &paths);
     let pool = state.pool();
     let destination_dir = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
     if !destination_dir.is_dir() { return Err(format!("Dossier de destination introuvable : {destination}")); }
@@ -1167,91 +1250,106 @@ fn move_photos(state: State<'_, AppState>, paths: Vec<String>, destination: Stri
     let raw_previews_dir = state.raw_previews_dir();
 
     for path in paths {
-        let tracked: bool = conn
-            .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
-            .unwrap_or(false);
-        if !tracked {
-            failed.push(FileFailure { path: path.clone(), error: "Photo absente du catalogue".into() });
-            continue;
-        }
-        let source = Path::new(&path);
-        let Some(file_name) = source.file_name() else {
-            failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() });
-            continue;
-        };
-        if source.parent().map_or(false, |parent| lowercase_segments(parent) == destination_segments) {
-            skipped += 1;
-            continue;
-        }
-        if !source.is_file() {
-            failed.push(FileFailure { path: path.clone(), error: "Fichier introuvable".into() });
-            continue;
-        }
-        let target = unique_destination(&destination_dir, file_name);
+        if progress.cancelled() { break; } // arrêt demandé : les fichiers suivants restent où ils sont
+        let file_size = fs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        'file: {
+            let tracked: bool = conn
+                .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
+                .unwrap_or(false);
+            if !tracked {
+                failed.push(FileFailure { path: path.clone(), error: "Photo absente du catalogue".into() });
+                break 'file;
+            }
+            let source = Path::new(&path);
+            let Some(file_name) = source.file_name() else {
+                failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() });
+                break 'file;
+            };
+            if source.parent().map_or(false, |parent| lowercase_segments(parent) == destination_segments) {
+                skipped += 1;
+                break 'file;
+            }
+            if !source.is_file() {
+                failed.push(FileFailure { path: path.clone(), error: "Fichier introuvable".into() });
+                break 'file;
+            }
+            let target = unique_destination(&destination_dir, file_name);
         
-        let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
-        let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
+            let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
+            let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
 
-        if let Err(error) = move_file(source, &target) {
-            failed.push(FileFailure { path: path.clone(), error: error.to_string() });
-            continue;
+            if let Err(error) = move_file(source, &target) {
+                failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+                break 'file;
+            }
+            move_sidecar(source, &target);
+            if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
+            if let Some(raw_preview_file) = raw_preview_file { let _ = fs::remove_file(raw_preview_file); }
+
+            let new_path = target.to_string_lossy().into_owned();
+            let new_name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+            let (size, modified) = fs::metadata(&target)
+                .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
+                .unwrap_or((0, 0));
+            let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![new_path]);
+            let _ = conn.execute(
+                "UPDATE photos SET path = ?, filename = ?, file_size = ?, modified = ? WHERE path = ?",
+                params![new_path, new_name, size, modified, path],
+            );
+            moved.push(MovedFile { from: path.clone(), to: new_path });
         }
-        move_sidecar(source, &target);
-        if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
-        if let Some(raw_preview_file) = raw_preview_file { let _ = fs::remove_file(raw_preview_file); }
-
-        let new_path = target.to_string_lossy().into_owned();
-        let new_name = target.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
-        let (size, modified) = fs::metadata(&target)
-            .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
-            .unwrap_or((0, 0));
-        let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![new_path]);
-        let _ = conn.execute(
-            "UPDATE photos SET path = ?, filename = ?, file_size = ?, modified = ? WHERE path = ?",
-            params![new_path, new_name, size, modified, path],
-        );
-        moved.push(MovedFile { from: path.clone(), to: new_path });
+        progress.advance(file_size);
     }
     Ok(MoveResult { moved, skipped, failed })
 }
 
 // Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est jamais écrasé :
 // la copie est renommée (« photo (1).jpg »). Les dossiers suivis ne sont pas rescannés automatiquement.
-#[tauri::command(async)]
-fn copy_photos(paths: Vec<String>, destination: String) -> Result<CopyResult, String> {
-    let destination_dir = Path::new(&destination);
-    if !destination_dir.is_dir() { return Err(format!("Dossier de destination introuvable : {destination}")); }
+// Lancée par la file des tâches (`task_id`) : avancement publié, arrêt possible entre deux fichiers (les fichiers déjà copiés le restent).
+fn copy_photos_with_progress(paths: Vec<String>, destination: &Path, mut progress: FileTaskProgress) -> Result<CopyResult, String> {
+    if !destination.is_dir() { return Err(format!("Dossier de destination introuvable : {}", destination.display())); }
     let mut copied = 0;
     let mut failed = Vec::new();
     for path in paths {
+        if progress.cancelled() { break; }
         let source = Path::new(&path);
-        let Some(file_name) = source.file_name() else {
-            failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() });
-            continue;
-        };
-        let target = unique_destination(destination_dir, file_name);
-        match fs::copy(source, &target) {
-            Ok(_) => {
-                copy_sidecar(source, &target);
-                copied += 1;
-            }
-            Err(error) => {
-                let _ = fs::remove_file(&target);
-                failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+        let file_size = fs::metadata(source).map(|metadata| metadata.len()).unwrap_or(0);
+        match source.file_name() {
+            None => failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() }),
+            Some(file_name) => {
+                let target = unique_destination(destination, file_name);
+                match fs::copy(source, &target) {
+                    Ok(_) => {
+                        copy_sidecar(source, &target);
+                        copied += 1;
+                    }
+                    Err(error) => {
+                        let _ = fs::remove_file(&target);
+                        failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+                    }
+                }
             }
         }
+        progress.advance(file_size);
     }
     Ok(CopyResult { copied, failed })
+}
+
+#[tauri::command(async)]
+fn copy_photos(app: tauri::AppHandle, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<CopyResult, String> {
+    let progress = FileTaskProgress::new(app, task_id, &paths);
+    copy_photos_with_progress(paths, Path::new(&destination), progress)
 }
 
 // Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (jamais d'écrasement, sidecar copié), mais la
 // destination doit être un dossier suivi ou l'un de ses sous-dossiers, et son chemin est reconstruit comme pour les autres commandes de dossier.
 // Les copies ne sont pas ajoutées au catalogue ici : l'interface lance ensuite la synchronisation incrémentale (sync_library).
 #[tauri::command(async)]
-fn copy_photos_to_tracked_folder(state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<CopyResult, String> {
+fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<CopyResult, String> {
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
-    copy_photos(paths, folder.to_string_lossy().into_owned())
+    let progress = FileTaskProgress::new(app, task_id, &paths);
+    copy_photos_with_progress(paths, &folder, progress)
 }
 
 // Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
@@ -1496,6 +1594,7 @@ fn main() {
             face_models::download_face_models,
             face_models::import_face_models,
             face_models::set_internet_allowed,
+            set_verify_cross_drive_moves,
             face_detect::set_face_settings,
             face_detect::apply_face_thresholds,
             face_detect::count_face_scan_targets,
