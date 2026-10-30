@@ -274,7 +274,7 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover) .thumbnail:not(.selected) .thumbnail-inner {
   filter: brightness(var(--dim-unselected-brightness, 0.65));
 }
-.meta-overlay { position: absolute; bottom: 0; left: 0; width: 100%; background: linear-gradient(transparent, rgba(0,0,0,0.8)); display: flex; justify-content: space-between; padding: 4px 6px; font-size: 0.7rem; }
+.meta-overlay { position: absolute; bottom: 0; left: 0; width: 100%; display: flex; justify-content: space-between; padding: 4px 6px; font-size: 0.7rem; }
 .flag-red { --flag-color: #e74c3c; } .flag-orange { --flag-color: #e67e22; } .flag-yellow { --flag-color: #f1c40f; } .flag-green { --flag-color: #2ecc71; } .flag-blue { --flag-color: #3498db; }
 .flag-magenta { --flag-color: #d63ad6; } .flag-grey { --flag-color: #95a5a6; } .flag-black { --flag-color: #1a1a1a; } .flag-white { --flag-color: #f5f5f5; } .flag-none { --flag-color: transparent; }
 .flag-indicator { flex: 0 0 auto; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--flag-color, transparent); }
