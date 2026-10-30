@@ -15,7 +15,7 @@
 - [x] *feat*: `controls` shift+(rating key) to rate and go to next photo
 - [x] *feat*: `controls` shortcuts for validate / ignore / unknown / not a face
 - [x] *feat*: `ui` display folders without photos with on/off setting
-- [ ] *feat*: `ui` display a text in case of empty grid
+- [x] *feat*: `ui` display a text in case of empty grid
 - [x] *perf*: `files` moving files does not move the thumbnails
 
 ## 💡 Ideas / Longer term / On hold
