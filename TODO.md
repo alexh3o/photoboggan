@@ -42,7 +42,7 @@
 
 ## ❌ Ruled out
 
-- [ ] *feat*: `faces` **better resolution for faces** view thumbnails : can be demanding on storage with big collections
+- [ ] *feat*: `faces` **better resolution for faces** view thumbnails : can be demanding on storage with big collections, goes against staying light principle
 - [ ] *feat*: **Image editing**, cropping : not a goal of the app
 
 ## 🧪 To be tested & potential bugs to be confirmed

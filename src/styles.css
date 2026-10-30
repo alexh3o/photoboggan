@@ -119,19 +119,41 @@ button.active { background: var(--active-button); border-color: var(--active-but
 
 .main-content { display: flex; flex: 1; overflow: hidden; }
 
-/* SIDEBAR */
+/* SIDEBAR
+   Échelle commune du panneau de gauche : titre de bloc (Dossiers, Personnes, Filtres, Sélection), ligne (dossier, personne, groupe de filtres),
+   métadonnée (compteurs, étiquettes, sous-titres). Un bloc commence toujours par un filet, séparé du précédent par --side-block-gap. */
+:root {
+  --side-title-size: 0.85rem;
+  --side-row-size: 0.8rem;
+  --side-meta-size: 0.7rem;
+  --side-row-height: 2rem;
+  --side-block-gap: 1rem;
+  /* Étiquettes de filtre : fond foncé et texte clair dans les deux thèmes */
+  --tag-keyword-bg: #29485c; --tag-keyword-border: #376782; --tag-keyword-hover: #37607a;
+  --tag-filename-bg: #2f5d3a; --tag-filename-border: #3f8a52; --tag-filename-hover: #3d7a4b;
+  --tag-person-bg: #4b3a5e; --tag-person-border: #6c5287; --tag-person-hover: #5d4875;
+  --tag-date-bg: #4a3a63; --tag-date-border: #6b559a;
+  --tag-more-bg: #6b4e16; --tag-more-border: #a8802c;
+  --tag-rating-bg: #4d4214; --tag-rating-border: #8a7620; --tag-rating-text: #ffd43b;
+  --tag-keyword-active-bg: #3b78a0; --tag-keyword-active-border: #8fc9ee;
+  --tag-failed-border: #c0504d;
+}
 .sidebar-section { width: 15rem; background: var(--bg-panel); padding: 0.75rem; padding-bottom: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; transition: width 0.3s ease, padding 0.3s ease; }
 .sidebar-section.resizing { transition: none !important; }
 .sidebar-section.hidden { width: 0 !important; min-width: 0 !important; max-width: 0 !important; padding: 0 !important; border: none !important; overflow: hidden !important; }
-.sidebar-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }
-.sidebar-section h4 { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }
+/* Titres de bloc : même style partout (les groupes de filtres, plus bas dans la hiérarchie, sont en casse normale et plus petits) */
+.sidebar-section h3 { flex: 0 0 auto; font-size: var(--side-title-size); font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.5rem; letter-spacing: 0.06em; }
+.sidebar-section h4 { font-size: var(--side-meta-size); color: var(--text-dim); margin-bottom: 0.5rem; letter-spacing: 0.06em; }
 #sidebar-resizer { flex: 0 0 6px; cursor: col-resize; touch-action: none; background: var(--resizer-bg); border-left: 1px solid var(--border); border-right: 1px solid var(--grid-bg); z-index: 2; }
 #sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--accent); }
 #sidebar-panel.hidden + #sidebar-resizer { display: none !important; }
-#folder-tree { list-style: none; flex: 1; min-height: 0; overflow-y: auto; }
-.folder-tree-item { padding: 0.5rem 0.65rem; margin-bottom: 0.25rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.5rem; }
+/* Hauteur : la liste des dossiers prend la place restante mais garde de quoi afficher quelques lignes ; si tout ne tient pas, c'est le panneau
+   qui défile (les Filtres ne sont jamais écrasés). */
+#folder-tree { list-style: none; flex: 1 1 0; min-height: 7rem; overflow-y: auto; }
+.folder-tree-item { box-sizing: border-box; min-height: var(--side-row-height); padding: 0.25rem 0.65rem; margin-bottom: 0.125rem; border-radius: 4px; cursor: pointer; font-size: var(--side-row-size); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.5rem; }
 .folder-tree-item:hover { background: var(--control-bg); }
-.folder-tree-item.active { background: color-mix(in srgb, var(--active-button) 50%, transparent); color: var(--text-muted); font-weight: bold; }
+/* Élément actif : fond teinté et filet d'accent à gauche, repérable même au défilement */
+.folder-tree-item.active { background: color-mix(in srgb, var(--active-button) 50%, transparent); box-shadow: inset 3px 0 0 var(--accent); color: var(--text-muted); font-weight: bold; }
 /* Dossier visé par le menu contextuel ouvert */
 .folder-tree-item.context-target { outline: 1px solid var(--accent); outline-offset: -1px; }
 .folder-tree-item.context-target:not(.active) { background: var(--control-bg); }
@@ -145,13 +167,14 @@ button.active { background: var(--active-button); border-color: var(--active-but
 body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .folder-tree-toggle { flex: 0 0 1rem; width: 1rem; padding: 0; border: 0; color: var(--text-soft); background: transparent; font-size: 0.75rem; }
 .folder-tree-toggle:hover { background: transparent; color: var(--btn-text); }
-.photo-filters { margin-top: 1.2rem; border-top: 1px solid var(--separator); padding-top: 0.875rem; font-size: 0.75rem; color: var(--text-muted); }
+.photo-filters { flex: 0 0 auto; margin-top: var(--side-block-gap); border-top: 1px solid var(--separator); padding-top: 0.75rem; font-size: var(--side-row-size); color: var(--text-muted); }
 /* ACCORDÉON DES FILTRES : déplié, un groupe montre son titre et ses contrôles ; replié, une ligne compacte (titre + résumé) cliquable.
    Toutes les étiquettes et le titre ont la même hauteur : la répartition sur deux lignes max. des étiquettes (fitCollapsedTags dans main.js) se mesure sur leur position verticale. */
 .filter-group { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--separator); }
-.filter-group-toggle { display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 2px 4px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font-size: 0.75rem; text-align: left; }
+.filter-group-toggle { display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 2px 4px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font-size: var(--side-row-size); text-align: left; }
 .filter-group-toggle:hover { background: var(--control-bg); }
-.filter-group-chevron { flex: 0 0 auto; align-self: center; color: var(--text-faint); transition: transform 0.15s; }
+/* Chevron à gauche du titre, comme celui des blocs Dossiers et Personnes */
+.filter-group-chevron { order: -1; flex: 0 0 0.7rem; align-self: center; color: var(--text-faint); font-size: var(--side-meta-size); transition: transform 0.15s; }
 .filter-group.expanded .filter-group-chevron { transform: rotate(90deg); }
 .filter-expanded-line, .filter-collapsed-line { flex: 1 1 0; min-width: 0; }
 .filter-expanded-line { display: none; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; align-items: center; }
@@ -169,22 +192,23 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-two-columns input { min-width: 0; }
 .filter-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .filter-tags:empty { margin-top: 0; }
-.filter-tag { display: block; flex: 0 1 auto; height: 1.4rem; max-width: 100%; padding: 0 7px; overflow: hidden; border: 1px solid transparent; border-radius: 4px; color: #fff; font-size: 0.7rem; line-height: calc(1.4rem - 2px); white-space: nowrap; text-overflow: ellipsis; }
+.filter-tag { display: block; flex: 0 1 auto; height: 1.4rem; max-width: 100%; padding: 0 7px; overflow: hidden; border: 1px solid transparent; border-radius: 4px; color: #fff; font-size: var(--side-meta-size); line-height: calc(1.4rem - 2px); white-space: nowrap; text-overflow: ellipsis; }
 .filter-tag[hidden] { display: none; }
-/* Une couleur par type d'étiquette ; « … » (étiquettes masquées) a la sienne. Le double sélecteur l'emporte sur button:hover. */
-.filter-tag.tag-keyword { background: #29485c; border-color: #376782; }
-.filter-tag.tag-filename { background: #2f5d3a; border-color: #3f8a52; }
-.filter-tag.tag-more { background: #6b4e16; border-color: #a8802c; }
-.filter-tag.tag-date { background: #4a3a63; border-color: #6b559a; }
-.filter-tag.tag-rating { background: #4d4214; border-color: #8a7620; color: #ffd43b; }
+/* Une couleur par type d'étiquette (variables --tag-* plus haut) ; « … » (étiquettes masquées) a la sienne. Le double sélecteur l'emporte sur button:hover. */
+.filter-tag.tag-keyword { background: var(--tag-keyword-bg); border-color: var(--tag-keyword-border); }
+.filter-tag.tag-filename { background: var(--tag-filename-bg); border-color: var(--tag-filename-border); }
+.filter-tag.tag-more { background: var(--tag-more-bg); border-color: var(--tag-more-border); }
+.filter-tag.tag-date { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
+.filter-tag.tag-rating { background: var(--tag-rating-bg); border-color: var(--tag-rating-border); color: var(--tag-rating-text); }
 button.filter-tag { cursor: pointer; }
-button.filter-tag.tag-keyword:hover { background: #37607a; }
-button.filter-tag.tag-filename:hover { background: #3d7a4b; }
+button.filter-tag.tag-keyword:hover { background: var(--tag-keyword-hover); }
+button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filters-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}
 .btn-clear-filters { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--danger-text); cursor: pointer; transition: background-color 0.15s, border-color 0.15s; }
 .btn-clear-filters:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); color: var(--text-strong); }
-.btn-clear-filters.hidden { display: none; }
+/* Masqué, le bouton garde sa place : l'en-tête ne change pas de hauteur quand le premier filtre apparaît */
+.btn-clear-filters.hidden { visibility: hidden; pointer-events: none; }
 #rating-filter { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 6px; }
 #keyword-filter-input, #filename-filter-input { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.45rem; }
 .color-bar { display: flex; flex-wrap: nowrap; gap: 2px; }
@@ -192,9 +216,8 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 .color-square:hover { background: var(--flag-color); filter: brightness(1.15); }
 .color-square.checked { outline: 2px solid var(--btn-text); outline-offset: 1px; }
 .color-square.checked::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.875rem; font-weight: bold; text-shadow: 0 0 2px #000, 0 0 2px #000; }
-.selection-actions { margin-top: 18px; padding: 0.875rem 8px 8px; border-top: 1px solid var(--separator); }
+.selection-actions { flex: 0 0 auto; margin-top: var(--side-block-gap); padding: 0.75rem 0 0.5rem; border-top: 1px solid var(--separator); }
 .selection-actions.hidden { display: none; }
-.selection-actions h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px; }
 /* Ligne de titre du panneau : titre à gauche, bouton « Tout désélectionner » à droite (même gabarit que le bouton d'effacement des filtres, mais neutre) */
 .selection-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .selection-header h3 { margin-bottom: 0; }
@@ -204,7 +227,7 @@ button.filter-tag.tag-filename:hover { background: #3d7a4b; }
 .selection-color-title { margin-top: 0.875rem; }
 .selection-rating-stars button { background: transparent; border: 0; padding: 2px 3px; color: var(--star-off); font-size: 1.7rem; line-height: 1; }
 .selection-rating-stars button:hover, .selection-rating-stars button.active { color: #ffd43b; }
-.selection-count {display: block; margin: -2px 0 10px 0; color: var(--text-faint); font-size: 0.75rem; text-align:right }
+.selection-count {display: block; margin: -2px 0 10px 0; color: var(--text-faint); font-size: var(--side-meta-size); text-align:right }
 .write-toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1000; padding: 0.75rem 1rem; max-width: min(22.5rem, calc(100vw - 2.5rem)); border: 1px solid var(--control-border); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; }
 .write-toast.writing { border-color: #d6a900; }
 .write-toast.hidden { display: none; }
@@ -346,7 +369,7 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .exif-section.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
 /* Mots-clés du panneau d'infos : étiquettes cliquables (même aspect que celles du filtre) ; « active » = déjà dans le filtre de mots-clés */
 .exif-section li span#exif-keywords { display: flex; flex-wrap: wrap; gap: 5px; }
-.filter-tag.tag-keyword.active { background: #3b78a0; border-color: #8fc9ee; }
+.filter-tag.tag-keyword.active { background: var(--tag-keyword-active-bg); border-color: var(--tag-keyword-active-border); }
 .exif-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
 .exif-section ul { list-style: none; }
 /* Deux-points des libellés traduits : espace insécable avant en français, collant en anglais */
