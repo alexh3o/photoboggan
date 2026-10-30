@@ -9,8 +9,10 @@
 - [x] *feat*: `metadata` handle **ACDSee category** (hierarchical keywords)
 - [x] *feat*: `metadata` implement **Exif ratings Rating & RatingPercent**
 - [x] *feat*: `metadata` **title and description** metadata
-- [ ] *feat*:  `UI` add faces display with V on preview
-- [ ] *feat*: `UI` cycle faces display to never / on hover / always
+- [x] *feat*:  `UI` add faces display with V on preview
+- [x] *feat*: `UI` cycle faces display to never / on hover / always
+- [x] *feat*: `faces` **Faces detection & recognition** 
+- [ ] feat
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -29,7 +31,6 @@
 
 ## ⚖️ Undecided
 
-- [x] *feat*: `Faces` [HARD] **Face recognition** (heavy)
 - [ ] *feat*: `internet` **internet permission** toggle
 - [ ] *feat*: `internet` **Map screen**
 - [ ] *feat*: `internet` add a **map widget** in info panel
@@ -39,11 +40,8 @@
 
 ## ❌ Ruled out
 
-- [ ] *feat*: `faces` better resolution for faces view thumbnails (storage penalty)
-
-## ❌ Not planned (use "Open with...")
-
-- [ ] **Image editing**, cropping...
+- [ ] *feat*: `faces` **better resolution for faces** view thumbnails : can be demanding on storage with big collections
+- [ ] *feat*: **Image editing**, cropping : not a goal of the app
 
 ## 🧪 To be tested & potential bugs to be confirmed
 

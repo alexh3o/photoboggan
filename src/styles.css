@@ -367,7 +367,7 @@ html[lang="en"] .exif-label::after { content: ":"; }
 /* MODALE DE TRI */
 .sort-card { width: min(24rem, calc(100vw - 2.5rem)); }
 .sort-hint { color: var(--text-faint); font-size: 0.7rem; }
-.sort-note { margin: -4px 0 0 1.6rem; color: var(--text-faint); font-size: 0.7rem; }
+.sort-note { margin: 0.25rem 0 0.5rem 1.6rem; color: var(--text-faint); font-size: 0.8rem; }
 
 /* SÉPARATEURS DE LA GRILLE (tri par date ou par dossier, voir la modale de tri).
    Une fine ligne de texte suivie d'un trait. Tout se règle ici : les variables ci-dessous suffisent pour l'essentiel. */

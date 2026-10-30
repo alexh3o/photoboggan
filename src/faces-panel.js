@@ -276,7 +276,6 @@ function renderPersonFilterTags() {
 // ==========================================
 // Recharge les personnes et l'index photo -> personnes (après un scan, une relecture ou une synchronisation : voir loadPhotos dans main.js).
 export async function refreshFaces() {
-  overlayPhotoId = null; // les zones de la photo affichée ont pu changer
   if (!readingEnabled) return;
   const token = ++refreshToken;
   let loadedPersons;
@@ -1342,6 +1341,10 @@ export function initFacesPanel(hostApi) {
     renderPersons();
     renderPersonFilterTags();
     renderModelStatus();
-    if (overlayFaces) renderOverlayFaces(document.getElementById('fullscreen-faces'));
+    // Étiquettes des zones (« Inconnu ») : calques déjà chargés, plein écran (interactif) et aperçu.
+    for (const overlay of document.querySelectorAll('.face-overlay')) {
+      const faces = overlayStates.get(overlay)?.faces;
+      if (faces) renderOverlayFaces(overlay, faces, overlay.id === 'fullscreen-faces');
+    }
   });
 }
