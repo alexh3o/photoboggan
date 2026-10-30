@@ -1655,7 +1655,7 @@ function toggleSelectAllPhotos() {
   updateUIOnSelection();
 }
 
-// Bouton « Tout désélectionner » du panneau Sélection & Modification : vide la sélection, ce qui masque le panneau (voir updateRatingAction).
+// Bouton « Tout désélectionner » de la barre de marquage flottante : vide la sélection, ce qui masque la barre (voir updateRatingAction).
 document.getElementById('btn-clear-selection')?.addEventListener('click', () => {
   if (selectedIndices.size === 0) return;
   selectedIndices.clear();
@@ -1693,8 +1693,6 @@ function updateUIOnSelection() {
     document.getElementById('exif-iso').textContent = photo.iso ? photo.iso.toString() : '-';
     showPhotoDimensions(photo);
     document.getElementById('exif-size').textContent = `${(photo.file_size / 1024 / 1024).toFixed(2)} MB`;
-    document.getElementById('exif-rating').textContent = photo.rating > 0 ? `${'★'.repeat(photo.rating)} (${photo.rating}/5)` : '-';
-    document.getElementById('exif-color').textContent = colorFlagLabels.get(photo.color_flag) || '-';
     renderInfoKeywords(photo);
     document.getElementById('exif-title').textContent = photo.title || '-';
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
@@ -1702,7 +1700,7 @@ function updateUIOnSelection() {
   refreshInfoRows();
 }
 
-// Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Note, Titre et Description, toujours présents), et un titre de groupe
+// Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
 // (Appareil photo, Exposition, Métadonnées) disparaît quand aucune de ses lignes n'est affichée.
 function refreshInfoRows() {
   const rows = [...document.querySelectorAll('#exif-data li:not(.exif-group-title)')];
@@ -1758,25 +1756,19 @@ function showPhotoDimensions(photo) {
 }
 
 
+// Met à jour les contrôles de marquage (panneau Info et barre flottante) d'après la sélection : nombre de photos, étoiles, couleur, emplacement affiché.
 function updateRatingAction() {
-  const panel = document.getElementById('selection-actions');
-  if (selectedIndices.size === 0) {
-    panel.classList.add('hidden');
-    return;
-  }
-  panel.classList.remove('hidden');
   const count = selectedIndices.size;
-  const countElement = document.getElementById('selection-count');
-  if (countElement) countElement.textContent = tp('{count} photo selected', count);
-
-  const selectedPhoto = commandReferencePhoto(); // en mode Comparer avec plusieurs photos : celle de la sous-sélection
-  const rating = selectedPhoto?.rating || 0;
-  document.querySelectorAll('#selection-rating-stars button').forEach(button => {
-    button.classList.toggle('active', Number(button.dataset.rating) <= rating);
-  });
+  if (count > 0) {
+    const label = tp('{count} photo selected', count);
+    document.querySelectorAll('.marking-count').forEach(element => { element.textContent = label; });
+    const rating = commandReferencePhoto()?.rating || 0; // en mode Comparer avec plusieurs photos : celle de la sous-sélection
+    document.querySelectorAll('.marking-stars button').forEach(button => {
+      button.classList.toggle('active', Number(button.dataset.rating) <= rating);
+    });
+  }
+  updateMarkingPlacement();
 }
-
-
 
 let writeToastTimeout = null;
 
@@ -1810,12 +1802,15 @@ function setColorSquareChecked(button, checked) {
   button.setAttribute('aria-pressed', String(checked));
 }
 
-// Barre d'écriture : met en évidence la couleur de la photo de référence de la sélection (une seule couleur possible).
+// Contrôles de marquage : met en évidence la couleur de la photo de référence de la sélection (une seule couleur possible).
 function updateColorAction() {
   if (selectedIndices.size === 0) return;
   const selectedPhoto = commandReferencePhoto();
   const flag = selectedPhoto?.color_flag || 'none';
-  document.querySelectorAll('#selection-color-flags button').forEach(button => setColorSquareChecked(button, button.dataset.flag === flag));
+  document.querySelectorAll('.marking-colors .color-square').forEach(button => setColorSquareChecked(button, button.dataset.flag === flag));
+  // Pastille de la barre flottante : couleur de la photo de référence (arc-en-ciel quand elle n'en a pas)
+  const colorButton = document.getElementById('marking-color-button');
+  if (colorButton) colorButton.className = `marking-color-button${flag === 'none' ? '' : ` flag-${flag}`}`;
 }
 
 async function setSelectionColorFlag(flag) {
@@ -2963,12 +2958,111 @@ colorFilterBar.addEventListener('click', event => {
   applyPhotoFilters();
 });
 
-// Écriture de la couleur sur la sélection : une seule couleur, un nouveau clic sur la couleur active l'efface.
-const selectionColorBar = document.getElementById('selection-color-flags');
-selectionColorBar.replaceChildren(...COLOR_FLAGS.map(createColorSquare));
-selectionColorBar.addEventListener('click', event => {
-  const button = event.target instanceof Element ? event.target.closest('.color-square') : null;
-  if (button) setSelectionColorFlag(button.dataset.flag);
+// ==========================================
+// MARQUAGE (note et couleur de la sélection)
+// ==========================================
+// Deux présentations des mêmes contrôles : une section « Marquage » en bas du panneau Info, et une barre flottante en bas de la grille.
+// Le réglage « Emplacement des barres de marquage » (modale Affichage) choisit : off, panel, floating, hybrid (panneau Info s'il est
+// affiché avec son onglet Info, barre flottante sinon). Rien n'est affiché sans photo sélectionnée ; les raccourcis 0 à 9 marchent toujours.
+const MARKING_MODES = ['off', 'panel', 'floating', 'hybrid'];
+const storedMarkingMode = localStorage.getItem('markingPlacement');
+let markingMode = MARKING_MODES.includes(storedMarkingMode) ? storedMarkingMode : 'hybrid';
+const markingPanel = document.getElementById('marking-panel');
+const markingBar = document.getElementById('marking-bar');
+const markingColorButton = document.getElementById('marking-color-button');
+const markingColorPopover = document.getElementById('marking-color-popover');
+
+// Cinq étoiles : un clic sur la note active l'efface (voir setSelectionRating).
+function createMarkingStars() {
+  const group = document.createElement('div');
+  group.className = 'selection-rating-stars marking-stars';
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', t('Set a rating from 1 to 5'));
+  group.setAttribute('data-i18n-aria-label', 'Set a rating from 1 to 5');
+  for (let rating = 1; rating <= 5; rating++) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.rating = String(rating);
+    button.textContent = '★';
+    const label = rating === 1 ? 'Set 1 star' : `Set ${rating} stars`;
+    button.title = t(label);
+    button.setAttribute('aria-label', t(label));
+    button.setAttribute('data-i18n-title', label);
+    button.setAttribute('data-i18n-aria-label', label);
+    button.addEventListener('click', () => setSelectionRating(rating));
+    group.append(button);
+  }
+  return group;
+}
+
+// Couleurs : une seule possible, un nouveau clic sur la couleur active l'efface (voir setSelectionColorFlag).
+function createMarkingColors() {
+  const bar = document.createElement('div');
+  bar.className = 'color-bar marking-colors';
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', t('Set a color'));
+  bar.setAttribute('data-i18n-aria-label', 'Set a color');
+  bar.replaceChildren(...COLOR_FLAGS.map(createColorSquare));
+  bar.addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest('.color-square') : null;
+    if (button) setSelectionColorFlag(button.dataset.flag);
+  });
+  return bar;
+}
+
+document.getElementById('marking-panel-controls').append(createMarkingStars(), createMarkingColors());
+document.getElementById('marking-bar-stars').append(createMarkingStars());
+// Dans la barre flottante, les couleurs se déroulent dans une bulle ouverte par la pastille multicolore.
+markingColorPopover.append(createMarkingColors());
+
+function closeMarkingColorPopover() {
+  markingColorPopover.hidden = true;
+  markingColorButton.setAttribute('aria-expanded', 'false');
+}
+markingColorButton.addEventListener('click', () => {
+  const open = markingColorPopover.hidden;
+  markingColorPopover.hidden = !open;
+  markingColorButton.setAttribute('aria-expanded', String(open));
+});
+markingColorPopover.addEventListener('click', event => {
+  if (event.target instanceof Element && event.target.closest('.color-square')) closeMarkingColorPopover();
+});
+// Un clic ailleurs ou Échap referme la bulle (Échap ne doit alors rien faire d'autre, comme vider la sélection).
+document.addEventListener('pointerdown', event => {
+  if (!markingColorPopover.hidden && !(event.target instanceof Element && event.target.closest('.marking-color-wrap'))) closeMarkingColorPopover();
+}, true);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || markingColorPopover.hidden) return;
+  closeMarkingColorPopover();
+  event.stopImmediatePropagation();
+}, true);
+
+// Le panneau Info compte comme « ouvert » quand il est affiché avec son onglet Info (le seul qui porte la section Marquage).
+function isInfoTabVisible() {
+  return !document.getElementById('exif-panel').classList.contains('hidden') && !document.getElementById('exif-tab-info').hidden;
+}
+
+function updateMarkingPlacement() {
+  const hasSelection = selectedIndices.size > 0;
+  const infoVisible = isInfoTabVisible();
+  const showPanel = hasSelection && (markingMode === 'panel' || (markingMode === 'hybrid' && infoVisible));
+  const showBar = hasSelection && (markingMode === 'floating' || (markingMode === 'hybrid' && !infoVisible));
+  markingPanel.hidden = !showPanel;
+  markingBar.hidden = !showBar;
+  document.getElementById('grid-view').classList.toggle('has-marking-bar', showBar);
+  if (!showBar) closeMarkingColorPopover();
+  if (hasSelection) updateColorAction();
+}
+// Le panneau Info et ses onglets changent sans passer par la sélection : on suit leurs attributs.
+new MutationObserver(updateMarkingPlacement).observe(document.getElementById('exif-panel'), { attributes: true, attributeFilter: ['class'] });
+new MutationObserver(updateMarkingPlacement).observe(document.getElementById('exif-tab-info'), { attributes: true, attributeFilter: ['hidden'] });
+
+const markingPlacementSelect = document.getElementById('marking-placement');
+markingPlacementSelect.value = markingMode;
+markingPlacementSelect.addEventListener('change', event => {
+  markingMode = MARKING_MODES.includes(event.target.value) ? event.target.value : 'hybrid';
+  localStorage.setItem('markingPlacement', markingMode);
+  updateMarkingPlacement();
 });
 document.getElementById('keyword-filter-input').addEventListener('change', event => addKeywordFilter(event.target.value));
 document.getElementById('keyword-filter-input').addEventListener('keydown', event => {
@@ -2989,9 +3083,6 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
   includeSubfolders = event.target.checked;
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
   loadPhotos();
-});
-document.querySelectorAll('#selection-rating-stars button').forEach(button => {
-  button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating)));
 });
 // ==========================================
 // FILE D'ATTENTE DES TÂCHES (scan d'un dossier ajouté, relecture de la collection ou d'un dossier)

@@ -30,6 +30,7 @@
 - [ ] *feat*: `Info` add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
+- [ ] *test*: `UI` verify UI on 1080 resolution
 
 ## ⚖️ Undecided
 

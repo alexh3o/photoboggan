@@ -138,26 +138,6 @@
           </div>
           </div>
         </section>
-        <section id="selection-actions" class="selection-actions hidden" aria-label="Actions sur la sélection" data-i18n-aria-label="Selection actions">
-          <!-- Titre et bouton « Tout désélectionner » sur la même ligne : le bouton vide la sélection, ce qui masque ce panneau (voir updateRatingAction dans main.js) -->
-          <div class="selection-header">
-            <h3 data-i18n="Selection & Modification">Sélection</h3>
-            <button id="btn-clear-selection" type="button" class="btn-clear-selection" title="Tout désélectionner" aria-label="Tout désélectionner" data-i18n-title="Deselect all" data-i18n-aria-label="Deselect all">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            </button>
-          </div>
-          <span id="selection-count" class="selection-count"></span>
-          <h4 data-i18n="Rating">Note</h4>
-          <div id="selection-rating-stars" class="selection-rating-stars" role="group" aria-label="Attribuer une note de 1 à 5" data-i18n-aria-label="Set a rating from 1 to 5">
-            <button type="button" data-rating="1" aria-label="Attribuer 1 étoile" data-i18n-aria-label="Set 1 star">★</button>
-            <button type="button" data-rating="2" aria-label="Attribuer 2 étoiles" data-i18n-aria-label="Set 2 stars">★</button>
-            <button type="button" data-rating="3" aria-label="Attribuer 3 étoiles" data-i18n-aria-label="Set 3 stars">★</button>
-            <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles" data-i18n-aria-label="Set 4 stars">★</button>
-            <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles" data-i18n-aria-label="Set 5 stars">★</button>
-          </div>
-          <h4 class="selection-color-title" data-i18n="Color">Couleur</h4>
-          <div id="selection-color-flags" class="color-bar" role="group" aria-label="Attribuer une couleur" data-i18n-aria-label="Set a color"></div>
-        </section>
       </aside>
 
       <!-- Poignée de redimensionnement de la barre latérale -->
@@ -167,6 +147,21 @@
       <section id="grid-view" class="grid-section">
         <div id="virtual-scroll-container">
           <div id="virtual-scroll-content"></div>
+        </div>
+        <!-- Barre de marquage flottante (main.js, « MARQUAGE ») : collée en bas de la zone visible de la grille -->
+        <div class="marking-float-anchor">
+          <div id="marking-bar" class="marking-bar" role="toolbar" aria-label="Marquage" data-i18n-aria-label="Labels" hidden>
+            <span class="marking-count"></span>
+            <div id="marking-bar-stars" class="marking-controls"></div>
+            <span class="marking-separator" aria-hidden="true"></span>
+            <div class="marking-color-wrap">
+              <button id="marking-color-button" type="button" class="marking-color-button" aria-haspopup="true" aria-expanded="false" title="Couleur" aria-label="Couleur" data-i18n-title="Color" data-i18n-aria-label="Color"></button>
+              <div id="marking-color-popover" class="marking-color-popover color-bar" role="group" aria-label="Couleur" data-i18n-aria-label="Color" hidden></div>
+            </div>
+            <button id="btn-clear-selection" type="button" class="marking-clear" title="Tout désélectionner" aria-label="Tout désélectionner" data-i18n-title="Deselect all" data-i18n-aria-label="Deselect all">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -255,12 +250,16 @@
           <li data-group="exposure"><strong class="exif-label" data-i18n="Shutter Speed">Vitesse</strong> <span id="exif-shutter">-</span></li>
           <li data-group="exposure"><strong class="exif-label" data-i18n="ISO">ISO</strong> <span id="exif-iso">-</span></li>
           <li class="exif-group-title" data-group-title="metadata" data-i18n="Metadata">Métadonnées</li>
-          <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Rating">Note</strong> <span id="exif-rating">-</span></li>
-          <li data-group="metadata"><strong class="exif-label" data-i18n="Color">Couleur</strong> <span id="exif-color">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Keywords">Mots-clés</strong> <span id="exif-keywords">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Title">Titre</strong> <span id="exif-title">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
         </ul>
+        <!-- Marquage (note et couleur de la sélection), en bas du panneau Info ; contrôles créés par main.js (voir « MARQUAGE ») -->
+        <section id="marking-panel" class="marking-panel" aria-labelledby="marking-panel-title" hidden>
+          <h4 id="marking-panel-title" class="marking-title" data-i18n="Labels">Marquage</h4>
+          <span class="marking-count"></span>
+          <div id="marking-panel-controls" class="marking-controls"></div>
+        </section>
         </div>
         <div id="exif-tab-keywords" class="side-tab-pane" role="tabpanel" hidden>
           <div class="keyword-toolbar">
@@ -498,6 +497,9 @@
             </label>
             <label class="settings-row" for="thumbnail-spacing" data-i18n="Thumbnail spacing">Espacement des miniatures
               <select id="thumbnail-spacing"><option value="none" data-i18n="Spacing none">Aucun</option><option value="small" data-i18n="Spacing small">Petit</option><option value="normal" data-i18n="Spacing normal">Normal</option></select>
+            </label>
+            <label class="settings-row" for="marking-placement"><span data-i18n="Marking bars location">Emplacement des barres de marquage</span>
+              <select id="marking-placement"><option value="off" data-i18n="Marking disabled">Désactivées</option><option value="panel" data-i18n="Info panel">Panneau Info</option><option value="floating" data-i18n="Floating bar">Barre flottante</option><option value="hybrid" data-i18n="Hybrid" data-i18n-title="Hybrid help" title="Panneau Info s'il est ouvert, barre flottante sinon">Hybride</option></select>
             </label>
             <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
               <input id="thumbnail-size" type="range" min="96" max="1024" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
