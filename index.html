@@ -490,16 +490,12 @@
         </div>
         <div class="modal-body">
           <section class="settings-section">
-            <label class="settings-row settings-check"><input id="recursive-folder-toggle" type="checkbox" checked /><p data-i18n="Include subfolders">Inclure les sous-dossiers</p></label>
-            <label class="settings-row settings-check"><input id="show-empty-folders-toggle" type="checkbox" /><p data-i18n="Show empty folders">Afficher les dossiers sans photo</p></label>
+            <h4 data-i18n="Display grid">Grille</h4>
             <label class="settings-row" for="thumbnail-layout" data-i18n="Thumbnails grid">Disposition des miniatures
               <select id="thumbnail-layout"><option value="square" data-i18n="Square">Carrées</option><option value="framed" data-i18n="Framed">Encadrées</option><option value="justified" data-i18n="Justified">Justifiées</option><option value="masonry" data-i18n="Waterfall">Cascade</option></select>
             </label>
             <label class="settings-row" for="thumbnail-spacing" data-i18n="Thumbnail spacing">Espacement des miniatures
               <select id="thumbnail-spacing"><option value="none" data-i18n="Spacing none">Aucun</option><option value="small" data-i18n="Spacing small">Petit</option><option value="normal" data-i18n="Spacing normal">Normal</option></select>
-            </label>
-            <label class="settings-row" for="marking-placement"><span data-i18n="Marking bars location">Emplacement des barres de marquage</span>
-              <select id="marking-placement"><option value="off" data-i18n="Marking disabled">Désactivées</option><option value="panel" data-i18n="Info panel">Panneau Info</option><option value="floating" data-i18n="Floating bar">Barre flottante</option><option value="hybrid" data-i18n="Hybrid" data-i18n-title="Hybrid help" title="Panneau Info s'il est ouvert, barre flottante sinon">Hybride</option></select>
             </label>
             <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
               <input id="thumbnail-size" type="range" min="96" max="1024" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
@@ -507,6 +503,15 @@
             </label>
           </section>
           <section class="settings-section">
+            <h4 data-i18n="Folders">Dossiers</h4>
+            <label class="settings-row settings-check"><input id="recursive-folder-toggle" type="checkbox" checked /><p data-i18n="Include subfolders">Inclure les sous-dossiers</p></label>
+            <label class="settings-row settings-check"><input id="show-empty-folders-toggle" type="checkbox" /><p data-i18n="Show empty folders">Afficher les dossiers sans photo</p></label>
+          </section>
+          <section class="settings-section">
+            <h4 data-i18n="Interface">Interface</h4>
+            <label class="settings-row" for="marking-placement"><span data-i18n="Marking bars location">Emplacement des barres de marquage</span>
+              <select id="marking-placement"><option value="off" data-i18n="Marking disabled">Désactivées</option><option value="panel" data-i18n="Info panel">Panneau Info</option><option value="floating" data-i18n="Floating bar">Barre flottante</option><option value="hybrid" data-i18n="Hybrid" data-i18n-title="Hybrid help" title="Panneau Info s'il est ouvert, barre flottante sinon">Hybride</option></select>
+            </label>
             <label class="settings-row" for="dim-unselected-select">
                 <span data-i18n="Dim unselected on hover">Assombrir les photos hors sélection au survol</span>
                 <select id="dim-unselected-select">
@@ -516,10 +521,13 @@
                   <option value="0.5" data-i18n="Strong (50%)">Fort (50 %)</option>
                 </select>
               </label>
-              <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
+          </section>
+          <section class="settings-section">
+            <h4 data-i18n="Appearance">Apparence</h4>
+            <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
                 <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
               </label>
-              <label class="settings-row" for="text-size-select"><span data-i18n="Text size">Taille des textes</span>
+            <label class="settings-row" for="text-size-select"><span data-i18n="Text size">Taille des textes</span>
                 <select id="text-size-select">
                   <option value="90" data-i18n="Small">Petit</option>
                   <option value="100" data-i18n="Medium">Moyen</option>
@@ -527,8 +535,6 @@
                   <option value="120" data-i18n="Very large">Très grand</option>
                 </select>
               </label>
-          </section>
-          <section class="settings-section">
             <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
                 <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
                   <button type="button" class="accent-swatch" data-color="#1e72ad" style="background:#1e72ad" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
@@ -541,7 +547,7 @@
                   <input id="accent-color" type="color" value="#1e72ad" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
                 </span>
               </div>
-              <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
+            <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
                 <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
                   <button type="button" class="button-swatch" data-color="#1e72ad" style="background:#1e72ad" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
                   <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
