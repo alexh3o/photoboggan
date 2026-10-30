@@ -1827,6 +1827,8 @@ async function setSelectionRating(rating) {
 // -      : Zoom out
 // *      : Zoom to full size / Fit to window
 // 0-5    : Rate
+// 6-9    : Color label
+// Alt+0-9 : Rate / color, then next photo (fullscreen or single selection)
 // A      : Select / deselect all in compare mode
 // Ctrl+A : Select/Deselect All
 // C      : Copy to
@@ -2001,17 +2003,29 @@ if (e.key === 'Delete') {
     toggleAllCompareSubSelection();
     return;
   }
+  // Alt + note ou couleur : la photo passe ensuite à la suivante, pour noter une série d'affilée. Seulement en plein écran ou avec
+  // une seule photo sélectionnée ; sinon, Alt est sans effet et la touche note simplement la sélection. (Maj est écarté : sur le pavé
+  // numérique, il transforme les chiffres en Fin, Inser…) Ctrl est exclu pour ne pas confondre avec AltGr (Ctrl+Alt sous Windows).
+  const altAdvance = e.altKey && !e.ctrlKey && !e.metaKey;
+  // Chiffre tapé pour la note ou la couleur. Avec Alt, e.key ne donne pas toujours le chiffre (rangée du haut en AZERTY…) : on le lit
+  // alors sur la touche physique (e.code), rangée du haut ou pavé numérique.
+  const digitKey = /^[0-9]$/.test(e.key) ? e.key
+    : (altAdvance && /^(Digit|Numpad)[0-9]$/.test(e.code) ? e.code.slice(-1) : null);
+  const advanceAfter = altAdvance && (isFullscreen || selectedIndices.size === 1);
   // Rating shortcuts
-  if (/^[0-5]$/.test(e.key) && selectedIndices.size > 0) {
+  if (digitKey !== null && digitKey <= '5' && selectedIndices.size > 0) {
     e.preventDefault();
-    setSelectionRating(Number(e.key));
+    // Les photos visées sont lues avant tout await : passer à la suivante tout de suite n'affecte pas l'écriture en cours.
+    setSelectionRating(Number(digitKey));
+    if (advanceAfter) navigatePhoto(1);
     return;
   }
   // Couleurs : 6 rouge, 7 jaune, 8 vert, 9 bleu (même touche une seconde fois : couleur retirée, voir setSelectionColorFlag)
   const colorByKey = { 6: 'red', 7: 'yellow', 8: 'green', 9: 'blue' };
-  if (colorByKey[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey && selectedIndices.size > 0) {
+  if (colorByKey[digitKey] && !e.ctrlKey && !e.metaKey && selectedIndices.size > 0) {
     e.preventDefault();
-    setSelectionColorFlag(colorByKey[e.key]);
+    setSelectionColorFlag(colorByKey[digitKey]);
+    if (advanceAfter) navigatePhoto(1);
     return;
   }
   // Zoom (+ / - / *) : sur l'aperçu (ou l'image survolée en mode désynchronisé), ou sur l'image du plein écran quand il est ouvert
