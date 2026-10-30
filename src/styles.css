@@ -658,9 +658,18 @@ body.immersive .titlebar { display: none; }
 .marking-panel .marking-count { margin-bottom: 0.5rem; }
 /* Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans hauteur, calée sur le bord bas de la zone visible) */
 .marking-float-anchor { position: sticky; top: 100%; z-index: 5; height: 0; pointer-events: none; }
-.marking-bar { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem); padding: 0.3rem 0.5rem 0.3rem 0.9rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); pointer-events: auto; }
+.marking-bar { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem); padding: 0.3rem 0.5rem 0.3rem 0.9rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); pointer-events: auto; }
 .marking-bar[hidden] { display: none; }
 .marking-bar .marking-controls { flex-direction: row; }
+/* Grille étroite (aperçu ouvert, fenêtre réduite) : la barre passe sur deux lignes, le nombre de photos sous les étoiles. */
+.grid-section { container-type: inline-size; }
+@container (max-width: 25rem) {
+  .marking-bar { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; align-items: center; column-gap: 0.5rem; row-gap: 0.1rem; padding: 0.3rem 0.6rem 0.4rem; }
+  .marking-bar .marking-count { grid-row: 2; grid-column: 1 / -1; text-align: center; }
+  .marking-bar .marking-controls, .marking-bar .marking-separator, .marking-bar .marking-color-wrap { grid-row: 1; }
+  /* Croix de désélection sur la ligne du compteur, à gauche : loin des étoiles pour ne pas la confondre avec elles */
+  .marking-bar .marking-clear { grid-row: 2; grid-column: 1; justify-self: start; z-index: 1; width: 1.5rem; height: 1.5rem; }
+}
 .marking-bar .selection-rating-stars button { padding: 0 0.1rem; font-size: 1.5rem; }
 .marking-separator { align-self: stretch; width: 1px; margin: 0.25rem 0; background: var(--separator); }
 .marking-clear { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-muted); cursor: pointer; }
@@ -669,12 +678,14 @@ body.immersive .titlebar { display: none; }
 .grid-section.has-marking-bar { padding-bottom: 4.5rem; }
 .grid-section.has-marking-bar .marking-bar { bottom: -3.5rem; }
 /* Pastille multicolore : ouvre la bulle des couleurs ; prend la couleur de la photo quand elle en a une */
-.marking-color-wrap { position: relative; display: flex; }
+.marking-color-wrap { display: flex; }
 .marking-color-button { width: 1.5rem; height: 1.5rem; min-width: 1.5rem; padding: 0; border: 1px solid var(--control-border); border-radius: 50%; background: conic-gradient(#e74c3c, #e67e22, #f1c40f, #2ecc71, #3498db, #d63ad6, #e74c3c); }
 .marking-color-button:hover { background: conic-gradient(#e74c3c, #e67e22, #f1c40f, #2ecc71, #3498db, #d63ad6, #e74c3c); filter: brightness(1.15); }
 .marking-color-button[class*="flag-"] { background: var(--flag-color); }
 .marking-color-button[class*="flag-"]:hover { background: var(--flag-color); }
-.marking-color-popover { position: absolute; bottom: calc(100% + 0.6rem); right: -0.5rem; z-index: 6; padding: 0.4rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.5rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); }
+/* Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la grille) */
+.marking-color-popover { position: absolute; bottom: calc(100% + 0.6rem); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100cqw - 2rem); z-index: 6; padding: 0.4rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.5rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); }
 .marking-color-popover[hidden] { display: none; }
 .marking-color-popover .marking-colors { gap: 4px; }
-.marking-color-popover .color-square { width: 1.5rem; height: 1.5rem; }
+.marking-color-popover .marking-colors { flex: 0 1 15.5rem; width: 15.5rem; max-width: 100%; min-width: 0; }
+.marking-color-popover .color-square { flex: 0 1 1.5rem; width: auto; min-width: 0.9rem; height: auto; aspect-ratio: 1; }
