@@ -720,5 +720,8 @@
   "Library": "Library",
   "Camera": "Camera",
   "Exposure": "Exposure",
-  "Default": "Default"
+  "Default": "Default",
+  "Auto": "Auto",
+  "Unknowns": "Unknowns",
+  "Face": "Face"
 }

@@ -154,6 +154,15 @@ export function initPersonsView(hostApi) {
     requestAnimationFrame(() => { scrollPending = false; renderVisible(); });
   });
   window.addEventListener('resize', () => { if (open) rebuild(); });
+  // Même chose quand seule la largeur de la vue change (aperçu ou panneaux affichés ou masqués).
+  const personsView = document.getElementById('persons-view');
+  let observedWidth = personsView.clientWidth;
+  new ResizeObserver(() => {
+    const width = personsView.clientWidth;
+    if (width === observedWidth) return;
+    observedWidth = width;
+    if (open && width > 0) rebuild();
+  }).observe(personsView);
   const slider = document.getElementById('persons-size');
   slider.value = String(tileSize);
   slider.addEventListener('input', () => {

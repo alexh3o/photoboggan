@@ -720,5 +720,8 @@
   "Library": "Bibliothèque",
   "Camera": "Appareil photo",
   "Exposure": "Exposition",
-  "Default": "Par défaut"
+  "Default": "Par défaut",
+  "Auto": "Auto",
+  "Unknowns": "Inconnus",
+  "Face": "Visage"
 }

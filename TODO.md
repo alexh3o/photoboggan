@@ -9,6 +9,8 @@
 - [x] *feat*: `metadata` handle **ACDSee category** (hierarchical keywords)
 - [x] *feat*: `metadata` implement **Exif ratings Rating & RatingPercent**
 - [x] *feat*: `metadata` **title and description** metadata
+- [ ] *feat*:  `UI` add faces display with V on preview
+- [ ] *feat*: `UI` cycle faces display to never / on hover / always
 
 ## 💡 Ideas / Longer term / On hold
 

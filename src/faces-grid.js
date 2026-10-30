@@ -16,12 +16,12 @@ const STATUSES_STORAGE_KEY = 'facesViewStatuses';
 // Statuts dans l'ordre d'affichage des groupes, avec la clé de traduction de leur nom.
 const STATUSES = [
   { id: 'suggested', label: 'To confirm' },
-  { id: 'auto', label: 'Automatic' },
+  { id: 'auto', label: 'Automatic', chip: 'Auto' },
   { id: 'confirmed', label: 'Confirmed' },
-  { id: 'unknown', label: 'Unknown faces' },
+  { id: 'unknown', label: 'Unknown faces', chip: 'Unknowns' },
   { id: 'filtered', label: 'Filtered' },
   { id: 'ignored', label: 'Ignored' },
-  { id: 'not_face', label: 'Not faces' },
+  { id: 'not_face', label: 'Not faces', chip: 'Faces' }, // pastille courte, affichée barrée (voir faces.css) ; l'infobulle porte le nom complet
 ];
 const DEFAULT_STATUSES = ['suggested', 'auto', 'confirmed', 'unknown'];
 // Dimensions des vignettes : lues dans le CSS (variables de .faces-view, voir faces.css) à chaque reconstruction.
@@ -433,7 +433,12 @@ function renderStatusFilters() {
     button.className = `faces-status-chip state-${status.id}${visibleStatuses.has(status.id) ? ' active' : ''}`;
     button.setAttribute('aria-pressed', String(visibleStatuses.has(status.id)));
     const count = scopedFaces().filter(face => face.state === status.id).length;
-    button.textContent = `${t(status.label)} (${count})`;
+    button.textContent = `${t(status.chip ?? status.label)} (${count})`;
+    // Pastille raccourcie : le nom complet reste disponible en infobulle et pour les lecteurs d'écran.
+    if (status.chip) {
+      button.title = t(status.label);
+      button.setAttribute('aria-label', `${t(status.label)} (${count})`);
+    }
     button.addEventListener('click', () => {
       if (visibleStatuses.has(status.id)) visibleStatuses.delete(status.id); else visibleStatuses.add(status.id);
       saveStatuses();
@@ -561,6 +566,16 @@ export function initFacesGrid(hostApi) {
     requestAnimationFrame(() => { scrollPending = false; renderVisible(); });
   });
   window.addEventListener('resize', () => { if (open) rebuild(); });
+  // La largeur de la vue change aussi sans que la fenêtre bouge (aperçu ou panneaux affichés ou masqués) : les vignettes sont alors replacées.
+  // On observe la vue entière (sa largeur ne dépend pas de la barre de défilement) et on ne réagit qu'à un vrai changement de largeur.
+  const facesView = document.getElementById('faces-view');
+  let observedWidth = facesView.clientWidth;
+  new ResizeObserver(() => {
+    const width = facesView.clientWidth;
+    if (width === observedWidth) return;
+    observedWidth = width;
+    if (open && width > 0) rebuild();
+  }).observe(facesView);
   // Clic dans une zone vide de la grille (ni vignette, ni modificateur) : tous les visages sont désélectionnés.
   scroller().addEventListener('click', event => {
     if (event.target instanceof Element && event.target.closest('.face-tile')) return;

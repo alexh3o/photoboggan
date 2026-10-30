@@ -58,8 +58,27 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .faces-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem; border-bottom: 1px solid var(--separator); }
 .faces-status-filters, .faces-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
 /* Pastille de statut : contour à la couleur du statut ; remplie de cette couleur quand le statut est affiché. */
-.faces-status-chip { padding: 2px 0.6rem; border-radius: 1rem; font-size: var(--face-chip-font-size); border-color: var(--face-status-color); opacity: 0.55; }
+.faces-status-chip { padding: 0.125rem 0.5rem; border-radius: 1rem; font-size: var(--face-chip-font-size); border-color: var(--face-status-color); opacity: 0.55; }
 .faces-status-chip.active { opacity: 1; background: var(--face-status-color); border-color: var(--face-status-color); color: #fff; }
+/* Pastilles d'origine actives : sans couleur de statut, leur fond reste celui de la barre ; le texte blanc y disparaît en thème clair */
+:root[data-theme="light"] .faces-origin-chip.active { color: #1a1a1a; }
+/* Pastilles d'un même filtre (statuts, origines) : collées en un seul bloc, seuls les coins extérieurs arrondis. Le bloc reste d'un seul tenant
+   tant que la place le permet ; trop étroit, il passe à la ligne en entier avant de se couper. */
+.faces-status-filters { gap: 0; }
+.faces-status-filters > .faces-status-chip { margin-right: -1px; border-radius: 0; white-space: nowrap; }
+.faces-status-filters > .faces-status-chip:first-child { border-top-left-radius: 1rem; border-bottom-left-radius: 1rem; padding-left: 0.75rem; }
+.faces-status-filters > .faces-status-chip:last-child { margin-right: 0; border-top-right-radius: 1rem; border-bottom-right-radius: 1rem; padding-right: 0.75rem; }
+.faces-status-filters > .faces-status-chip.active { position: relative; z-index: 1; }
+/* Vue Visages : le retour, les deux blocs de filtres et les actions forment un seul flux qui passe à la ligne ; tout démarre dès la ligne du bouton
+   de retour (les actions ne forment plus un bloc à part, sous les filtres). Le bloc d'écriture reste calé à droite de sa ligne. */
+#faces-view .faces-toolbar { justify-content: flex-start; }
+#faces-view .faces-actions { display: contents; }
+#faces-view .faces-write-group { margin-left: auto; }
+/* Boutons de la barre un peu plus serrés : plus d'éléments tiennent sur la même ligne */
+#faces-view .faces-button-group > button, #faces-view .faces-actions > button { padding: 0.25rem 0.6rem; white-space: nowrap; }
+/* Hauteurs de la barre (en rem) : pastilles et boutons plus grands de 50 % (1,25 rem et 1,5 rem avant), pour être faciles à cliquer */
+#faces-view .faces-status-chip { display: inline-flex; align-items: center; min-height: var(--face-chip-height); }
+#faces-view .faces-back, #faces-view .faces-button-group > button, #faces-view .faces-actions > button { min-height: var(--face-button-height); }
 .faces-count { color: var(--text-dim); font-size: 0.75rem; margin-right: 0.25rem; }
 .faces-actions button[hidden] { display: none; }
 /* Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls les
@@ -83,7 +102,9 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
   --face-tile-gap: 0px;
   --face-tile-radius: 0px;
   --face-status-bar-width: 2rem;
-  --face-chip-font-size: 0.85rem;
+  --face-chip-font-size: 0.8rem;
+  --face-chip-height: 1.875rem; /* hauteur des pastilles de filtre (statuts, origines) */
+  --face-button-height: 2.25rem; /* hauteur des boutons de la barre d'outils */
   --face-color-suggested: #e67e22;
   --face-color-auto: #3498db;
   --face-color-confirmed: mediumseagreen; /* #2ecc71; */
@@ -145,7 +166,8 @@ button.filter-tag.tag-person:hover { background: #5d4875; }
 .person-tile-count { overflow: hidden; color: var(--text-dim); font-size: 0.72rem; white-space: nowrap; text-align: center; }
 .person-tile.hidden-person { opacity: 0.45; }
 
-/* Vue de gestion (lot 5b) : filtre par origine, titres de groupe cliquables (sélection du groupe) */
-.faces-origin-filters { padding-left: 0.5rem; border-left: 1px solid var(--separator); }
+/* Vue de gestion (lot 5b) : titres de groupe cliquables (sélection du groupe) */
 .faces-separator { cursor: pointer; }
 .faces-separator:hover .group-separator-label { color: var(--accent); }
+/* « Pas des visages » : pastille et bouton « Visage » barrés (le nom complet est dans l'infobulle) */
+.faces-status-chip.state-not_face, #btn-faces-not-face { text-decoration: line-through; }
