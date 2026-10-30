@@ -625,6 +625,7 @@ async function loadPhotos() {
     folderFilter: currentFolderFilter,
     recursive: includeSubfolders,
   });
+  photosLoadedOnce = true;
   if (currentFolderFilter === null) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
@@ -643,6 +644,20 @@ function hasActiveFilters() {
   return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters();
 }
 
+// Grille vide : message centré selon la cause. Dossier sans photo ; photos présentes mais toutes écartées par les filtres ; sinon un message neutre.
+// Rien n'est affiché avant la fin du premier chargement : sinon « rien à voir ici » clignoterait au démarrage.
+let photosLoadedOnce = false;
+function updateGridEmptyState() {
+  const element = document.getElementById('grid-empty');
+  if (!element) return;
+  element.hidden = !photosLoadedOnce || photos.length > 0;
+  if (element.hidden) return;
+  const key = loadedPhotos.length === 0 ? 'Nothing to show here'
+    : hasActiveFilters() ? 'A little too selective! Try adjusting your filters'
+    : 'Hmm, no photos here...';
+  element.textContent = t(key);
+}
+
 function updateFilteredPhotosCount() {
   const countElement = document.getElementById('filtered-photos-count');
   const clearBtn = document.getElementById('btn-clear-all-filters');
@@ -656,6 +671,7 @@ function updateFilteredPhotosCount() {
     const translationKey = isFiltered ? '{count} photo filtered' : '{count} photo displayed';
     countElement.textContent = tp(translationKey, photos.length);
   }
+  updateGridEmptyState();
 }
 
 function applyPhotoFilters({ keepState = false } = {}) {

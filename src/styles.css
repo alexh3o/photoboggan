@@ -262,6 +262,9 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .main-content.preview-hidden .grid-section { flex: 1 1 0; }
 .main-content.preview-hidden .preview-section, .main-content.preview-hidden #preview-resizer { display: none !important; }
 #virtual-scroll-container { position: relative; width: 100%; }
+/* Grille vide : message centré, de la taille des textes de la barre d'outils */
+.grid-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; text-align: center; pointer-events: none; }
+.grid-empty[hidden] { display: none; }
 #virtual-scroll-content { position: absolute; top: 0; left: 0; width: 100%; }
 
 .thumbnail { position: absolute; width: var(--item-size); height: var(--item-size); padding: 4px; cursor: pointer; }
