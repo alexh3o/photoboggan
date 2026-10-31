@@ -983,8 +983,25 @@ fn get_photo_details(path: String) -> exif::MetadataDetails {
     exif::read_metadata_details(Path::new(&path))
 }
 
+// Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom compatible
+// digiKam, dernière extension remplacée) peut être partagé avec une paire RAW + JPEG : il n'est supprimé que si aucun autre fichier de même nom
+// (hors .xmp) n'existe dans le dossier. Un « IMG.2024.cr2 » ne vise donc jamais « IMG.xmp ».
+fn sidecar_to_trash(photo: &Path) -> Option<PathBuf> {
+    let [appended, compatible] = exif::sidecar_candidates(photo);
+    if appended.is_file() { return Some(appended); }
+    if !compatible.is_file() { return None; }
+    let stem = photo.file_stem()?.to_string_lossy().to_lowercase();
+    let shared = fs::read_dir(photo.parent()?).ok()?.flatten().any(|entry| {
+        let other = entry.path();
+        other != photo
+            && other.file_stem().is_some_and(|name| name.to_string_lossy().to_lowercase() == stem)
+            && !other.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("xmp"))
+    });
+    if shared { None } else { Some(compatible) }
+}
+
 // Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
-// peuvent être supprimées. La photo disparaît du catalogue, avec sa miniature en cache ; un éventuel sidecar .xmp est conservé.
+// peuvent être supprimées. La photo disparaît du catalogue, avec sa miniature en cache ; son sidecar .xmp part à la corbeille avec elle.
 // Si le fichier n'est pas mis à la corbeille (erreur), la photo reste dans le catalogue et l'échec est signalé : jamais de suppression définitive de repli.
 #[tauri::command(async)]
 fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
@@ -1014,10 +1031,14 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
 
         // Fichier déjà absent (supprimé hors de l'application) : rien à mettre à la corbeille, on retire simplement la photo du catalogue.
         if Path::new(&path).exists() {
+            // Sidecar repéré avant la mise à la corbeille : la recherche d'un fichier frère a besoin que l'original soit encore là.
+            let sidecar = sidecar_to_trash(Path::new(&path));
             if let Err(error) = trash::delete(&path) {
                 failed.push(FileFailure { path, error: error.to_string() });
                 continue;
             }
+            // Le sidecar suit son fichier à la corbeille (restaurable aussi). Échec sans gravité : la photo, elle, est bien supprimée.
+            if let Some(sidecar) = sidecar { let _ = trash::delete(sidecar); }
         }
 
         // Le fichier est à la corbeille : la photo doit quitter le catalogue. Si ce n'est pas possible, l'échec est signalé (jamais de succès
