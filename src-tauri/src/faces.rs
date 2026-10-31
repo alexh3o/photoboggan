@@ -8,7 +8,7 @@
 //!   l'utilisateur la relie lui-même. Le nom affiché est celui du nœud lié, à défaut le nom lu dans le fichier ;
 //! - la lecture n'a lieu que si l'utilisateur l'a activée (Paramètres > Visages) : désactivée, la base n'est pas touchée.
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -432,8 +432,7 @@ fn person_for_name(conn: &Connection, name: &str) -> rusqlite::Result<i64> {
     let linked: Vec<i64> = conn
         .prepare_cached("SELECT p.id FROM persons p JOIN keyword_nodes k ON k.id = p.keyword_node_id WHERE k.name_key = ?1")?
         .query_map(params![key], |row| row.get(0))?
-        .flatten()
-        .collect();
+        .collect::<rusqlite::Result<_>>()?;
     if let [person_id] = linked[..] { return Ok(person_id); }
     ensure_person(conn, name)
 }
@@ -492,42 +491,54 @@ fn mark_geometry_change(conn: &Connection, photo_id: i64, width: i64, height: i6
 /// À appeler après l'insertion des photos et de leurs mots-clés (la liaison automatique cherche les nœuds de l'arbre).
 pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) -> bool {
     if items.is_empty() { return true; }
-    if let Err(error) = conn.execute_batch("BEGIN TRANSACTION") {
-        eprintln!("Faces not stored (transaction not started): {error}");
-        return false;
+    match in_transaction(conn, |conn| store_photo_faces_in(conn, items)) {
+        Ok(()) => true,
+        Err(error) => {
+            eprintln!("Faces not stored for {} photos: {error}", items.len());
+            false
+        }
     }
+}
+
+/// Corps de `store_photo_faces`, dans la transaction de l'appelant : toute erreur de base l'interrompt (rien n'est enregistré à moitié).
+/// Un visage modifié par l'utilisateur et pas encore écrit dans le fichier (`dirty`) n'est ni remplacé ni supprimé par ce que le fichier contient.
+fn store_photo_faces_in(conn: &Connection, items: &[(String, PhotoFaces)]) -> rusqlite::Result<()> {
     let mut touched: HashSet<i64> = HashSet::new();
     for (path, faces) in items {
-        let Ok((photo_id, width, height)) = conn.query_row(
-            "SELECT id, width, height FROM photos WHERE path = ?1",
-            params![path],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?.unwrap_or(0), row.get::<_, Option<i64>>(2)?.unwrap_or(0))),
-        ) else { continue; };
-        let _ = conn.execute("UPDATE photos SET orientation = ?1 WHERE id = ?2", params![faces.orientation, photo_id]);
+        let Some((photo_id, width, height)) = conn
+            .query_row(
+                "SELECT id, width, height FROM photos WHERE path = ?1",
+                params![path],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?.unwrap_or(0), row.get::<_, Option<i64>>(2)?.unwrap_or(0))),
+            )
+            .optional()?
+        else { continue; };
+        conn.execute("UPDATE photos SET orientation = ?1 WHERE id = ?2", params![faces.orientation, photo_id])?;
         mark_geometry_change(conn, photo_id, width, height);
         let Some(regions) = &faces.regions else { continue; };
-        struct Existing { id: i64, rect: [f64; 4], state: String, origin: String, person_id: Option<i64> }
+        struct Existing { id: i64, rect: [f64; 4], state: String, origin: String, person_id: Option<i64>, dirty: bool }
         // Tous les visages de la photo : une zone relue peut être un visage détecté que photoboggan a lui-même écrit (lot 4), à ne pas dédoubler.
-        let existing: Vec<Existing> = conn
-            .prepare_cached("SELECT id, x, y, w, h, state, origin, person_id FROM faces WHERE photo_id = ?1")
-            .and_then(|mut statement| {
-                statement
-                    .query_map(params![photo_id], |row| {
-                        Ok(Existing {
-                            id: row.get(0)?,
-                            rect: [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?],
-                            state: row.get(5)?,
-                            origin: row.get(6)?,
-                            person_id: row.get(7)?,
-                        })
-                    })
-                    .map(|rows| rows.flatten().collect())
-            })
-            .unwrap_or_default();
+        let existing: Vec<Existing> = {
+            let mut statement = conn.prepare_cached("SELECT id, x, y, w, h, state, origin, person_id, dirty FROM faces WHERE photo_id = ?1")?;
+            let rows = statement.query_map(params![photo_id], |row| {
+                Ok(Existing {
+                    id: row.get(0)?,
+                    rect: [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?],
+                    state: row.get(5)?,
+                    origin: row.get(6)?,
+                    person_id: row.get(7)?,
+                    dirty: row.get(8)?,
+                })
+            })?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
         let mut matched: Vec<i64> = Vec::new();
         for region in regions {
             let rect = [region.x, region.y, region.w, region.h];
-            let person_id = region.name.as_deref().and_then(|name| person_for_name(conn, name).ok());
+            let person_id = match region.name.as_deref() {
+                Some(name) => Some(person_for_name(conn, name)?),
+                None => None,
+            };
             if let Some(id) = person_id { touched.insert(id); }
             let best = existing
                 .iter()
@@ -536,55 +547,51 @@ pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) -> b
                 .filter(|(_, overlap)| *overlap >= 0.5)
                 .max_by(|a, b| a.1.total_cmp(&b.1));
             match best {
+                // Modification de l'utilisateur en attente d'écriture : le fichier (ancienne version) ne la remplace pas.
+                Some((candidate, _)) if candidate.dirty => matched.push(candidate.id),
                 Some((candidate, _)) if candidate.origin == "imported" => {
                     matched.push(candidate.id);
-                    let _ = conn.execute("UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4 WHERE id = ?5", params![rect[0], rect[1], rect[2], rect[3], candidate.id]);
+                    conn.execute("UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4 WHERE id = ?5", params![rect[0], rect[1], rect[2], rect[3], candidate.id])?;
                     if matches!(candidate.state.as_str(), "ignored" | "not_face") { continue; }
                     if person_id.is_some() {
-                        let _ = conn.execute(
+                        conn.execute(
                             "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL WHERE id = ?2",
                             params![person_id, candidate.id],
-                        );
+                        )?;
                     } else if candidate.state == "confirmed" {
-                        let _ = conn.execute("UPDATE faces SET person_id = NULL, state = 'unknown' WHERE id = ?1", params![candidate.id]);
+                        conn.execute("UPDATE faces SET person_id = NULL, state = 'unknown' WHERE id = ?1", params![candidate.id])?;
                     }
                 }
                 Some((candidate, _)) => {
                     // Visage détecté ou dessiné : sa zone écrite revient telle quelle (rien à faire), sauf si un autre logiciel l'a renommée.
                     matched.push(candidate.id);
                     if !matches!(candidate.state.as_str(), "ignored" | "not_face") && person_id.is_some() && candidate.person_id != person_id {
-                        let _ = conn.execute(
+                        conn.execute(
                             "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL WHERE id = ?2",
                             params![person_id, candidate.id],
-                        );
+                        )?;
                     }
                 }
                 None => {
                     // Zone nommée lue dans un fichier : validée par l'utilisateur dans l'autre logiciel. Sans nom : visage inconnu.
                     let state = if person_id.is_some() { "confirmed" } else { "unknown" };
-                    let _ = conn.execute(
+                    conn.execute(
                         "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id) VALUES (?1, ?2, ?3, ?4, ?5, 'imported', ?6, ?7)",
                         params![photo_id, rect[0], rect[1], rect[2], rect[3], state, person_id],
-                    );
+                    )?;
                 }
             }
         }
-        // Zones importées absentes du fichier : retirées (les visages détectés restent, même si leur zone n'est pas encore écrite).
-        for candidate in existing.iter().filter(|candidate| candidate.origin == "imported" && !matched.contains(&candidate.id)) {
-            let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id]);
+        // Zones importées absentes du fichier : retirées (les visages détectés restent, même si leur zone n'est pas encore écrite ; ceux dont
+        // la modification attend d'être écrite aussi).
+        for candidate in existing.iter().filter(|candidate| candidate.origin == "imported" && !candidate.dirty && !matched.contains(&candidate.id)) {
+            conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id])?;
         }
     }
     for person_id in touched { auto_link_person(conn, person_id); }
     // Une personne qui n'a plus aucun visage est conservée : elle peut attendre une attribution. Le nettoyage se fera à la demande
     // (action prévue dans Paramètres > Visages).
-    match conn.execute_batch("COMMIT") {
-        Ok(()) => true,
-        Err(error) => {
-            eprintln!("Faces not stored for {} photos: {error}", items.len());
-            let _ = conn.execute_batch("ROLLBACK");
-            false
-        }
-    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -652,7 +659,7 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
                 ))
             })
             .map_err(|error| error.to_string())?;
-        for (person_id, cover, chosen) in rows.flatten() {
+        for (person_id, cover, chosen) in crate::keywords::collect_rows(rows)? {
             photos_by_person.entry(person_id).or_default().insert(cover.photo_id);
             let area = cover.w * cover.h;
             let better = match covers.get(&person_id) {
@@ -668,8 +675,8 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, bool>(3)?, row.get::<_, Option<String>>(4)?)))
         .map_err(|error| error.to_string())?;
-    let persons = rows
-        .flatten()
+    let persons = crate::keywords::collect_rows(rows)?
+        .into_iter()
         .map(|(id, name, keyword_id, hidden, alias)| {
             let photo_count = photos_by_person.get(&id).map_or(0, |photos| photos.len() as i64);
             PersonInfo { id, name, keyword_id, photo_count, cover: covers.remove(&id).map(|(_, _, cover)| cover), hidden, alias }
@@ -689,8 +696,7 @@ pub fn get_face_index(state: State<'_, AppState>) -> Result<Vec<(i64, i64)>, Str
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
         .map_err(|error| error.to_string())?;
-    let pairs: Vec<(i64, i64)> = rows.flatten().collect();
-    Ok(pairs)
+    crate::keywords::collect_rows(rows)
 }
 
 #[derive(Serialize)]
@@ -744,7 +750,7 @@ pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64) -> Result<Phot
             })
         })
         .map_err(|error| error.to_string())?;
-    let faces: Vec<FaceInfo> = rows.flatten().collect();
+    let faces = crate::keywords::collect_rows(rows)?;
     Ok(PhotoFacesInfo { orientation, faces })
 }
 
@@ -839,8 +845,7 @@ pub fn get_faces_for_photos(state: State<'_, AppState>, photo_ids: Vec<i64>) -> 
             })
         })
         .map_err(|error| error.to_string())?;
-    let faces: Vec<FaceItem> = rows.flatten().collect();
-    Ok(faces)
+    crate::keywords::collect_rows(rows)
 }
 
 /// Statut de scan des photos (filtre de la vue Photos) : (photo, à revérifier ?) pour les photos scannées avec le modèle actuel ou à revérifier.
@@ -855,8 +860,16 @@ pub fn get_face_scan_index(state: State<'_, AppState>) -> Result<Vec<(i64, bool)
     let rows = statement
         .query_map(params![crate::face_detect::DETECTOR_ID, crate::face_recognize::MODEL_ID], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))
         .map_err(|error| error.to_string())?;
-    let pairs: Vec<(i64, bool)> = rows.flatten().collect();
-    Ok(pairs)
+    crate::keywords::collect_rows(rows)
+}
+
+/// Exécute `body` dans une transaction : validée si `body` réussit, annulée sinon (y compris en cas de panique). Une erreur de validation est
+/// renvoyée : jamais de succès annoncé pour une modification non enregistrée, jamais de transaction laissée ouverte sur la connexion du pool.
+pub(crate) fn in_transaction<T, E: ToString>(conn: &Connection, body: impl FnOnce(&Connection) -> Result<T, E>) -> Result<T, String> {
+    let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
+    let value = body(&tx).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    Ok(value)
 }
 
 fn ids_json(ids: &[i64]) -> Result<String, String> {
@@ -946,18 +959,16 @@ pub fn assign_faces(
 ) -> Result<i64, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = resolve_person(&conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or("")).and_then(|person| {
+    in_transaction(&conn, |conn| {
+        let person = resolve_person(conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or(""))?;
         conn.execute(
             "UPDATE faces SET person_id = ?1, state = 'confirmed', suggested_person_id = NULL, rejected_person_id = NULL, unknown_locked = 0, dirty = 1
              WHERE id IN (SELECT value FROM json_each(?2))",
             params![person, ids_json(&face_ids)?],
         )
         .map_err(|error| error.to_string())?;
-        Ok(person)
-    });
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    result
+        Ok::<i64, String>(person)
+    })
 }
 
 /// Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
@@ -1067,7 +1078,7 @@ pub fn has_pending_face_write(conn: &Connection, photo_id: i64) -> bool {
 fn id_set(conn: &Connection, sql: &str, photo_id: i64) -> Result<HashSet<i64>, String> {
     let mut statement = conn.prepare_cached(sql).map_err(|error| error.to_string())?;
     let rows = statement.query_map(params![photo_id], |row| row.get::<_, i64>(0)).map_err(|error| error.to_string())?;
-    Ok(rows.flatten().collect())
+    crate::keywords::collect_rows(rows).map(|ids| ids.into_iter().collect())
 }
 
 /// Plan d'écriture des visages d'une photo :
@@ -1093,7 +1104,7 @@ pub fn plan_face_write(conn: &Connection, photo_id: i64, explicit: Option<&[i64]
                 Ok((row.get::<_, f64>(0)?, row.get::<_, f64>(1)?, row.get::<_, f64>(2)?, row.get::<_, f64>(3)?, row.get::<_, String>(4)?, row.get::<_, Option<i64>>(5)?))
             })
             .map_err(|error| error.to_string())?;
-        for (x, y, w, h, name, keyword_id) in rows.flatten() {
+        for (x, y, w, h, name, keyword_id) in crate::keywords::collect_rows(rows)? {
             regions.push(crate::exif::RegionWrite { name: Some(name), x, y, w, h });
             if let Some(id) = keyword_id { wanted.insert(id); }
         }
@@ -1110,15 +1121,16 @@ pub fn plan_face_write(conn: &Connection, photo_id: i64, explicit: Option<&[i64]
 }
 
 /// Après une écriture vérifiée : mots-clés posés par la reconnaissance notés (ou oubliés), visages de la photo écrits.
-pub fn finish_face_write(conn: &Connection, photo_id: i64, plan: &FaceWritePlan) {
+pub fn finish_face_write(conn: &Connection, photo_id: i64, plan: &FaceWritePlan) -> rusqlite::Result<()> {
     for keyword_id in &plan.added_by_faces {
-        let _ = conn.execute("INSERT OR IGNORE INTO face_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_id, keyword_id]);
+        conn.execute("INSERT OR IGNORE INTO face_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_id, keyword_id])?;
     }
     for keyword_id in &plan.released {
-        let _ = conn.execute("DELETE FROM face_keywords WHERE photo_id = ?1 AND keyword_id = ?2", params![photo_id, keyword_id]);
+        conn.execute("DELETE FROM face_keywords WHERE photo_id = ?1 AND keyword_id = ?2", params![photo_id, keyword_id])?;
     }
-    let _ = conn.execute("UPDATE faces SET dirty = 0 WHERE photo_id = ?1", params![photo_id]);
-    let _ = conn.execute("DELETE FROM photo_face_writes WHERE photo_id = ?1", params![photo_id]);
+    conn.execute("UPDATE faces SET dirty = 0 WHERE photo_id = ?1", params![photo_id])?;
+    conn.execute("DELETE FROM photo_face_writes WHERE photo_id = ?1", params![photo_id])?;
+    Ok(())
 }
 
 /// Photo dont un visage nommé disparaît de la base (rescan, effacement) : sa zone est à retirer du fichier.
@@ -1138,8 +1150,7 @@ pub fn get_pending_face_writes(state: State<'_, AppState>) -> Result<Vec<(i64, S
         )
         .map_err(|error| error.to_string())?;
     let rows = statement.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(|error| error.to_string())?;
-    let pending: Vec<(i64, String)> = rows.flatten().collect();
-    Ok(pending)
+    crate::keywords::collect_rows(rows)
 }
 
 #[derive(serde::Deserialize)]
@@ -1176,7 +1187,7 @@ pub fn face_keyword_conflicts(state: State<'_, AppState>, changes: Vec<KeywordCh
             .query_map(params![change.photo_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?)))
             .map_err(|error| error.to_string())?;
         let mut by_keyword: HashMap<i64, FaceKeywordConflict> = HashMap::new();
-        for (face_id, keyword_id, name) in rows.flatten() {
+        for (face_id, keyword_id, name) in crate::keywords::collect_rows(rows)? {
             if !current.contains(&keyword_id) || change.keyword_ids.contains(&keyword_id) { continue; }
             by_keyword
                 .entry(keyword_id)
@@ -1197,17 +1208,14 @@ pub fn erase_face_data(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Resul
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let ids = ids_json(&photo_ids)?;
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = (|| -> rusqlite::Result<Vec<(i64, String)>> {
+    in_transaction(&conn, |conn| -> rusqlite::Result<Vec<(i64, String)>> {
         conn.execute("DELETE FROM faces WHERE photo_id IN (SELECT value FROM json_each(?1))", params![ids])?;
         conn.execute("DELETE FROM photo_face_scans WHERE photo_id IN (SELECT value FROM json_each(?1))", params![ids])?;
         conn.execute("INSERT OR IGNORE INTO photo_face_writes (photo_id) SELECT value FROM json_each(?1)", params![ids])?;
         let mut statement = conn.prepare("SELECT id, path FROM photos WHERE id IN (SELECT value FROM json_each(?1))")?;
         let rows = statement.query_map(params![ids], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?;
-        Ok(rows.flatten().collect())
-    })();
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    result.map_err(|error| error.to_string())
+        rows.collect()
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -1233,8 +1241,8 @@ pub fn cluster_unknown_faces(state: State<'_, AppState>, photo_ids: Vec<i64>) ->
     let rows = statement
         .query_map(params![ids_json(&photo_ids)?, crate::face_recognize::MODEL_ID], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)))
         .map_err(|error| error.to_string())?;
-    let faces: Vec<(i64, Vec<f32>)> = rows
-        .flatten()
+    let faces: Vec<(i64, Vec<f32>)> = crate::keywords::collect_rows(rows)?
+        .into_iter()
         .filter_map(|(id, blob)| crate::face_recognize::embedding_from_blob(&blob).map(|embedding| (id, embedding)))
         .collect();
     let min_similarity = crate::face_detect::settings().auto_threshold as f32;
@@ -1331,10 +1339,7 @@ pub fn person_delete_info(state: State<'_, AppState>, person_id: i64) -> Result<
 pub fn delete_person(state: State<'_, AppState>, person_id: i64) -> Result<usize, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = delete_person_rows(&conn, person_id);
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    let released = result.map_err(|error| error.to_string())?;
+    let released = in_transaction(&conn, |conn| delete_person_rows(conn, person_id))?;
     remove_person_covers(&person_covers_dir(&state), person_id, None);
     Ok(released)
 }
@@ -1444,11 +1449,9 @@ pub fn merge_persons(state: State<'_, AppState>, from_person_id: i64, into_perso
         .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE id = ?1)", params![into_person_id], |row| row.get(0))
         .map_err(|error| error.to_string())?;
     if !exists { return Err("unknown_person".to_string()); }
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = merge_rows(&conn, from_person_id, into_person_id);
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    if result.is_ok() { remove_person_covers(&person_covers_dir(&state), from_person_id, None); }
-    result
+    let merged = in_transaction(&conn, |conn| merge_rows(conn, from_person_id, into_person_id))?;
+    remove_person_covers(&person_covers_dir(&state), from_person_id, None);
+    Ok(merged)
 }
 
 /// Fusion annulable, absorbée par une personne (menu de cette personne).
@@ -1474,7 +1477,7 @@ pub fn get_person_merges(state: State<'_, AppState>, person_id: i64) -> Result<V
     let rows = statement
         .query_map(params![person_id], |row| Ok(MergeInfo { id: row.get(0)?, name: row.get(1)?, face_count: row.get(2)?, merged_at: row.get(3)? }))
         .map_err(|error| error.to_string())?;
-    Ok(rows.flatten().collect())
+    crate::keywords::collect_rows(rows)
 }
 
 /// Annule une fusion : la personne absorbée est recréée (même identifiant, nom, masquage ; mot-clé lié s'il existe encore et n'a pas été relié
@@ -1497,11 +1500,9 @@ pub fn undo_person_merge(state: State<'_, AppState>, merge_id: i64) -> Result<us
         .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE name_key = ?1 OR id = ?2)", params![name_key, from_id], |row| row.get(0))
         .map_err(|error| error.to_string())?;
     if taken { return Err("person_name_taken".to_string()); }
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = undo_merge_rows(&conn, merge_id, from_id, to_id, (&name, &name_key, keyword_id, cover_id, hidden));
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    if result.is_ok() { remove_person_covers(&person_covers_dir(&state), to_id, None); }
-    result.map_err(|error| error.to_string())
+    let restored = in_transaction(&conn, |conn| undo_merge_rows(conn, merge_id, from_id, to_id, (&name, &name_key, keyword_id, cover_id, hidden)))?;
+    remove_person_covers(&person_covers_dir(&state), to_id, None);
+    Ok(restored)
 }
 
 /// Personnes sans aucun visage attribué (« Nettoyer les personnes sans visage », Paramètres > Visages) : (identifiant, nom affiché).
@@ -1516,7 +1517,7 @@ pub fn get_persons_without_faces(state: State<'_, AppState>) -> Result<Vec<(i64,
         )
         .map_err(|error| error.to_string())?;
     let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(|error| error.to_string())?;
-    Ok(rows.flatten().collect())
+    crate::keywords::collect_rows(rows)
 }
 
 /// Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
@@ -1524,10 +1525,7 @@ pub fn get_persons_without_faces(state: State<'_, AppState>) -> Result<Vec<(i64,
 pub fn delete_persons(state: State<'_, AppState>, person_ids: Vec<i64>) -> Result<usize, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = person_ids.iter().try_for_each(|&id| delete_person_rows(&conn, id).map(|_| ()));
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    result.map_err(|error| error.to_string())?;
+    in_transaction(&conn, |conn| person_ids.iter().try_for_each(|&id| delete_person_rows(conn, id).map(|_| ())))?;
     let dir = person_covers_dir(&state);
     for &id in &person_ids { remove_person_covers(&dir, id, None); }
     Ok(person_ids.len())
@@ -1560,18 +1558,16 @@ pub fn add_manual_face(
         .map_err(|_| "unknown_photo".to_string())?;
     let size_px = (w * width).max(h * height);
     let size_pct = if width.max(height) > 0.0 { size_px / width.max(height) * 100.0 } else { 0.0 };
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = resolve_person(&conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or("")).and_then(|person| {
+    in_transaction(&conn, |conn| {
+        let person = resolve_person(conn, person_id, keyword_id, name.as_deref(), root.as_deref().unwrap_or(""))?;
         conn.execute(
             "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id, size_px, size_pct, dirty)
              VALUES (?1, ?2, ?3, ?4, ?5, 'manual', 'confirmed', ?6, ?7, ?8, 1)",
             params![photo_id, x, y, w.min(1.0 - x), h.min(1.0 - y), person, size_px, size_pct],
         )
         .map_err(|error| error.to_string())?;
-        Ok((conn.last_insert_rowid(), person))
-    });
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    result
+        Ok::<(i64, i64), String>((conn.last_insert_rowid(), person))
+    })
 }
 
 /// Supprime des zones de visage (plein écran) : les photos dont une zone nommée disparaît sont à réécrire. Un visage détecté supprimé peut
@@ -1581,8 +1577,7 @@ pub fn delete_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<us
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let ids = ids_json(&face_ids)?;
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let result = (|| -> rusqlite::Result<usize> {
+    in_transaction(&conn, |conn| -> rusqlite::Result<usize> {
         conn.execute(
             "INSERT OR IGNORE INTO photo_face_writes (photo_id)
              SELECT DISTINCT photo_id FROM faces WHERE id IN (SELECT value FROM json_each(?1)) AND person_id IS NOT NULL AND state IN ('auto', 'confirmed')",
@@ -1590,9 +1585,7 @@ pub fn delete_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<us
         )?;
         conn.execute("UPDATE persons SET cover_face_id = NULL WHERE cover_face_id IN (SELECT value FROM json_each(?1))", params![ids])?;
         conn.execute("DELETE FROM faces WHERE id IN (SELECT value FROM json_each(?1))", params![ids])
-    })();
-    let _ = conn.execute(if result.is_ok() { "COMMIT" } else { "ROLLBACK" }, []);
-    result.map_err(|error| error.to_string())
+    })
 }
 
 /// Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).

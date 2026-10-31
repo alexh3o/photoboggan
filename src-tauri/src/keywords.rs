@@ -110,7 +110,7 @@ fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>
 }
 
 /// Lignes d'une requête, en erreur dès que l'une d'elles est illisible : jamais de résultat partiel présenté comme complet.
-fn collect_rows<T, F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<T>, String> {
+pub(crate) fn collect_rows<T, F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<T>, String> {
     rows.collect::<rusqlite::Result<Vec<T>>>().map_err(|error| error.to_string())
 }
 
@@ -423,7 +423,14 @@ fn run_write(
                     push_failure(&mut failed, item.photo_id, item.path, format!("Base de données non mise à jour : {error}"));
                     continue;
                 }
-                if let Some(plan) = face_plans.get(&item.photo_id) { crate::faces::finish_face_write(&tx, item.photo_id, plan); }
+                if let Some(plan) = face_plans.get(&item.photo_id) {
+                    if let Err(error) = crate::faces::finish_face_write(&tx, item.photo_id, plan) {
+                        // Fichier écrit mais visages non notés en base : la photo est marquée pour être relue à la prochaine synchronisation.
+                        let _ = tx.execute("UPDATE photos SET file_size = -1 WHERE id = ?1", params![item.photo_id]);
+                        push_failure(&mut failed, item.photo_id, item.path, format!("Base de données non mise à jour : {error}"));
+                        continue;
+                    }
+                }
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
                 face_batches.push((item.path.clone(), meta.faces));
                 written_paths.insert(item.photo_id, item.path);
