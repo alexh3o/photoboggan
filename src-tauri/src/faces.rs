@@ -1134,8 +1134,8 @@ pub fn finish_face_write(conn: &Connection, photo_id: i64, plan: &FaceWritePlan)
 }
 
 /// Photo dont un visage nommé disparaît de la base (rescan, effacement) : sa zone est à retirer du fichier.
-pub fn mark_photo_for_write(conn: &Connection, photo_id: i64) {
-    let _ = conn.execute("INSERT OR IGNORE INTO photo_face_writes (photo_id) VALUES (?1)", params![photo_id]);
+pub fn mark_photo_for_write(conn: &Connection, photo_id: i64) -> rusqlite::Result<()> {
+    conn.execute("INSERT OR IGNORE INTO photo_face_writes (photo_id) VALUES (?1)", params![photo_id]).map(|_| ())
 }
 
 /// Photos dont les visages attendent d'être écrits dans les fichiers : (identifiant, chemin).

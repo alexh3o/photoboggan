@@ -114,19 +114,20 @@ pub fn apply_face_thresholds(state: State<'_, AppState>) -> Result<usize, String
         let rows = statement
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)))
             .map_err(|error| error.to_string())?;
-        rows.flatten().collect()
+        crate::keywords::collect_rows(rows)?
     };
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    let mut changed = 0usize;
-    for (id, face_state, score, sharpness, size_percent) in rows {
-        let wanted = if current.passes(score, sharpness, size_percent) { "unknown" } else { "filtered" };
-        if wanted != face_state {
-            let _ = conn.execute("UPDATE faces SET state = ?1 WHERE id = ?2", params![wanted, id]);
-            changed += 1;
+    // Une transaction : validée seulement si toutes les mises à jour réussissent ; le compte ne contient que des visages réellement changés.
+    crate::faces::in_transaction(&conn, |conn| -> rusqlite::Result<usize> {
+        let mut changed = 0usize;
+        for (id, face_state, score, sharpness, size_percent) in rows {
+            let wanted = if current.passes(score, sharpness, size_percent) { "unknown" } else { "filtered" };
+            if wanted != face_state {
+                conn.execute("UPDATE faces SET state = ?1 WHERE id = ?2", params![wanted, id])?;
+                changed += 1;
+            }
         }
-    }
-    let _ = conn.execute("COMMIT", []);
-    Ok(changed)
+        Ok(changed)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -169,15 +170,17 @@ pub(crate) fn orient_rect(rect: [f64; 4], orientation: u32) -> [f64; 4] {
 
 /// Environnement ONNX Runtime, créé une seule fois par processus (contrainte de la crate ort) et gardé ensuite.
 fn environment(runtime: &Path) -> Result<Environment, String> {
-    static ENVIRONMENT: OnceLock<Result<Environment, String>> = OnceLock::new();
-    ENVIRONMENT
-        .get_or_init(|| {
-            ort::init_from(runtime)
-                .map_err(|error| format!("ONNX Runtime impossible à charger : {error}"))?
-                .build()
-                .map_err(|error| format!("ONNX Runtime impossible à initialiser : {error}"))
-        })
-        .clone()
+    static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
+    static INIT_LOCK: Mutex<()> = Mutex::new(());
+    if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
+    // Un seul essai à la fois, et seul un succès est gardé : un échec (bibliothèque pas encore importée, verrouillée…) peut être retenté.
+    let _guard = INIT_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
+    let built = ort::init_from(runtime)
+        .map_err(|error| format!("ONNX Runtime impossible à charger : {error}"))?
+        .build()
+        .map_err(|error| format!("ONNX Runtime impossible à initialiser : {error}"))?;
+    Ok(ENVIRONMENT.get_or_init(|| built).clone())
 }
 
 /// Visage détecté, en coordonnées normalisées de l'image orientée (la miniature).
@@ -377,7 +380,7 @@ fn select_targets(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&
             .prepare(&format!("{columns} p.id IN (SELECT value FROM json_each(?2))"))
             .map_err(|error| error.to_string())?;
         let rows = statement.query_map(params![DETECTOR_ID, ids_json], map_row).map_err(|error| error.to_string())?;
-        rows.flatten().collect()
+        crate::keywords::collect_rows(rows)?
     } else {
         // Même critère que db::get_photos : chemins comparés avec des « / », sous-dossiers selon `recursive`.
         let folder = folder.ok_or("Aucune photo visée")?;
@@ -389,7 +392,7 @@ fn select_targets(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&
             ))
             .map_err(|error| error.to_string())?;
         let rows = statement.query_map(params![DETECTOR_ID, prefix, recursive], map_row).map_err(|error| error.to_string())?;
-        rows.flatten().collect()
+        crate::keywords::collect_rows(rows)?
     };
     let scan_raw = settings().scan_raw;
     Ok(rows
@@ -584,36 +587,34 @@ const REVIEW_MATCH_SIMILARITY: f32 = 0.80;
 /// - les zones importées ou manuelles, et les visages confirmés ou ignorés, sont toujours conservés ;
 /// - les détections automatiques non confirmées sans correspondance sont remplacées ; les nouvelles détections arrivent « inconnues »
 ///   (ou « filtrées » sous les seuils) et sont attribuées ensuite (face_recognize::attribute_faces).
-fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, current: &FaceSettings) {
+/// Erreur de base : renvoyée (la transaction de l'appelant est alors annulée et la photo signalée en échec).
+fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, current: &FaceSettings) -> rusqlite::Result<()> {
     struct Existing { id: i64, rect: [f64; 4], origin: String, state: String, person_id: Option<i64>, embedding: Option<Vec<f32>> }
     for (id, embedding) in &analysis.pending_embeddings {
-        let _ = conn.execute(
+        conn.execute(
             "UPDATE faces SET embedding = ?1, model_id = ?2 WHERE id = ?3",
             params![crate::face_recognize::embedding_blob(embedding), crate::face_recognize::MODEL_ID, id],
-        );
+        )?;
     }
-    let existing: Vec<Existing> = conn
-        .prepare_cached("SELECT id, x, y, w, h, origin, state, person_id, embedding, model_id FROM faces WHERE photo_id = ?1")
-        .and_then(|mut statement| {
-            statement
-                .query_map(params![target.photo_id], |row| {
-                    let embedding: Option<Vec<u8>> = row.get(8)?;
-                    let model: Option<String> = row.get(9)?;
-                    Ok(Existing {
-                        id: row.get(0)?,
-                        rect: [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?],
-                        origin: row.get(5)?,
-                        state: row.get(6)?,
-                        person_id: row.get(7)?,
-                        embedding: embedding
-                            .filter(|_| model.as_deref() == Some(crate::face_recognize::MODEL_ID))
-                            .as_deref()
-                            .and_then(crate::face_recognize::embedding_from_blob),
-                    })
-                })
-                .map(|rows| rows.flatten().collect())
-        })
-        .unwrap_or_default();
+    let existing: Vec<Existing> = {
+        let mut statement = conn.prepare_cached("SELECT id, x, y, w, h, origin, state, person_id, embedding, model_id FROM faces WHERE photo_id = ?1")?;
+        let rows = statement.query_map(params![target.photo_id], |row| {
+            let embedding: Option<Vec<u8>> = row.get(8)?;
+            let model: Option<String> = row.get(9)?;
+            Ok(Existing {
+                id: row.get(0)?,
+                rect: [row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?],
+                origin: row.get(5)?,
+                state: row.get(6)?,
+                person_id: row.get(7)?,
+                embedding: embedding
+                    .filter(|_| model.as_deref() == Some(crate::face_recognize::MODEL_ID))
+                    .as_deref()
+                    .and_then(crate::face_recognize::embedding_from_blob),
+            })
+        })?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
     let mut matched: Vec<i64> = Vec::new();
     for face in &analysis.faces {
         let measured_state = if current.passes(face.score, face.sharpness, face.size_percent) { "unknown" } else { "filtered" };
@@ -645,44 +646,45 @@ fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, cur
                 let rect = if detected || target.needs_review { face.rect } else { candidate.rect };
                 // Sur une photo à revérifier, un visage nommé change de position : sa zone est à réécrire dans le fichier.
                 let moved_named = target.needs_review && candidate.person_id.is_some();
-                let _ = conn.execute(
+                conn.execute(
                     "UPDATE faces SET x = ?1, y = ?2, w = ?3, h = ?4, state = ?5, det_score = ?6, sharpness = ?7, size_px = ?8, size_pct = ?9, landmarks = ?10,
                      embedding = COALESCE(?11, embedding), model_id = COALESCE(?12, model_id), dirty = CASE WHEN ?13 THEN 1 ELSE dirty END
                      WHERE id = ?14",
                     params![rect[0], rect[1], rect[2], rect[3], state, face.score, face.sharpness, face.size_px, face.size_percent, landmarks_blob(&face.landmarks),
                         embedding_blob, model_id, moved_named, candidate.id],
-                );
+                )?;
             }
             None => {
-                let _ = conn.execute(
+                conn.execute(
                     "INSERT INTO faces (photo_id, x, y, w, h, origin, state, det_score, sharpness, size_px, size_pct, landmarks, embedding, model_id)
                      VALUES (?1, ?2, ?3, ?4, ?5, 'detected', ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     params![target.photo_id, face.rect[0], face.rect[1], face.rect[2], face.rect[3], measured_state, face.score, face.sharpness, face.size_px,
                         face.size_percent, landmarks_blob(&face.landmarks), embedding_blob, model_id],
-                );
+                )?;
             }
         }
     }
     for candidate in existing.iter().filter(|candidate| !matched.contains(&candidate.id)) {
         let replaceable = candidate.origin == "detected" && matches!(candidate.state.as_str(), "unknown" | "filtered" | "suggested" | "auto");
         if replaceable {
-            let _ = conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id]);
+            conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id])?;
             // Visage nommé (attribution automatique) supprimé : sa zone a pu être écrite, la photo est à réécrire.
-            if candidate.person_id.is_some() { crate::faces::mark_photo_for_write(conn, target.photo_id); }
+            if candidate.person_id.is_some() { crate::faces::mark_photo_for_write(conn, target.photo_id)?; }
         } else if target.needs_review && candidate.person_id.is_some() && !matches!(candidate.state.as_str(), "ignored" | "not_face") {
             // Photo à revérifier : un visage nommé non retrouvé reste à son ancienne position, « suggéré », pour que l'utilisateur tranche (§4.2).
-            let _ = conn.execute(
+            conn.execute(
                 "UPDATE faces SET state = 'suggested', suggested_person_id = person_id, person_id = NULL, dirty = 1 WHERE id = ?1",
                 params![candidate.id],
-            );
+            )?;
         }
     }
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|duration| duration.as_secs() as i64).unwrap_or(0);
-    let _ = conn.execute(
+    conn.execute(
         "INSERT OR REPLACE INTO photo_face_scans (photo_id, detector_id, model_id, scanned_at, file_mtime, width, height, orientation, needs_review)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0)",
         params![target.photo_id, DETECTOR_ID, crate::face_recognize::MODEL_ID, now, target.modified, target.width, target.height, target.orientation],
-    );
+    )?;
+    Ok(())
 }
 
 #[derive(Serialize)]
@@ -763,19 +765,23 @@ pub async fn detect_faces(
                     })
                     .collect()
             });
-            let _ = conn.execute("BEGIN TRANSACTION", []);
+            // Une transaction par photo : un échec d'enregistrement n'annule que cette photo, qui est signalée dans le rapport (jamais comptée scannée).
             for (target, result) in chunk.iter().zip(results) {
-                match result {
+                let stored = result.and_then(|analysis| {
+                    crate::faces::in_transaction(&conn, |conn| store_detections(conn, target, &analysis, &current)).map(|_| analysis)
+                });
+                match stored {
                     Ok(analysis) => {
-                        store_detections(&conn, target, &analysis, &current);
                         report.scanned += 1;
                         report.faces += analysis.faces.len();
                         scanned_ids.push(target.photo_id);
                     }
-                    Err(error) => report.failed.push(ScanFailure { path: target.path.clone(), error }),
+                    Err(error) => {
+                        eprintln!("Face scan failed for {}: {error}", target.path);
+                        report.failed.push(ScanFailure { path: target.path.clone(), error });
+                    }
                 }
             }
-            let _ = conn.execute("COMMIT", []);
             let done = (chunk_index * 24 + chunk.len()).min(total);
             let _ = app.emit("scan-progress", crate::ScanProgress { task_id: worker_task_id.clone(), percent: (done * 100 / total) as u32 });
         }
