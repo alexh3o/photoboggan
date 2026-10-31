@@ -20,6 +20,11 @@ use crate::{is_inside_folder, tracked_root_is_reachable};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
+/// Une synchronisation est en cours (le changement d'emplacement des données est alors refusé).
+pub fn is_running() -> bool {
+    RUNNING.load(Ordering::SeqCst)
+}
+
 struct RunningGuard;
 
 impl Drop for RunningGuard {

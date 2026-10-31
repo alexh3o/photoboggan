@@ -50,22 +50,22 @@ impl AppDataPaths {
 
 impl AppState {
     pub fn pool(&self) -> DbPool {
-        self.db_pool.read().unwrap().clone()
+        self.db_pool.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
     }
     pub fn base_dir(&self) -> PathBuf {
-        self.paths.read().unwrap().base_dir.clone()
+        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).base_dir.clone()
     }
     pub fn thumbnails_dir(&self) -> PathBuf {
-        self.paths.read().unwrap().thumbnails_dir.clone()
+        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).thumbnails_dir.clone()
     }
     pub fn raw_previews_dir(&self) -> PathBuf {
-        self.paths.read().unwrap().raw_previews_dir.clone()
+        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).raw_previews_dir.clone()
     }
     pub fn is_custom(&self) -> bool {
-        self.paths.read().unwrap().is_custom
+        self.paths.read().unwrap_or_else(|poisoned| poisoned.into_inner()).is_custom
     }
     pub fn thumbnail_cache_size(&self) -> usize {
-        *self.thumbnail_cache_size.read().unwrap() as usize
+        *self.thumbnail_cache_size.read().unwrap_or_else(|poisoned| poisoned.into_inner()) as usize
     }
 }
 
@@ -572,6 +572,12 @@ fn scan_cancel_flags() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
 fn scan_cancel_flag(task_id: &str) -> Arc<AtomicBool> {
     let mut flags = scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     flags.entry(task_id.to_string()).or_insert_with(|| Arc::new(AtomicBool::new(false))).clone()
+}
+
+/// Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargement
+/// des modèles) : chacune garde un clone de son drapeau d'arrêt. Une entrée orpheline (arrêt demandé après la fin d'une tâche) n'en a pas.
+fn running_tasks() -> usize {
+    scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).values().filter(|flag| Arc::strong_count(flag) > 1).count()
 }
 
 fn release_scan_cancel_flag(task_id: &str) {
@@ -1914,10 +1920,17 @@ fn change_storage_location(
             return Err(format!("Le dossier choisi contient déjà « {name} » : choisissez un dossier sans données de l'application"));
         }
     }
+    // Le verrou d'écriture du pool est tenu pendant toute la copie et la bascule : une commande qui démarre maintenant attend, puis prend le nouveau
+    // pool, au lieu d'écrire dans l'ancienne base. Une tâche déjà en cours (scan, synchronisation, écriture…) garderait l'ancienne base : refusé.
+    let mut pool_guard = state.db_pool.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if running_tasks() > 0 || library_sync::is_running() {
+        return Err("Une tâche est en cours (scan, synchronisation, écriture des métadonnées, copie, détection des visages…) : attendez sa fin ou arrêtez-la, puis réessayez".into());
+    }
     fs::create_dir_all(&target_dir).map_err(|e| format!("Impossible de créer le dossier cible : {e}"))?;
 
     // 1. Copie des données (la source n'est pas touchée : en cas d'échec, l'emplacement actuel reste valable).
-    if let Err(error) = copy_storage(&state.pool(), &current_base, &target_dir) {
+    let current_pool = pool_guard.clone();
+    if let Err(error) = copy_storage(&current_pool, &current_base, &target_dir) {
         remove_storage(&target_dir);
         return Err(error);
     }
@@ -1933,11 +1946,9 @@ fn change_storage_location(
     // 3. Bascule de l'état de l'application.
     let is_custom = new_path.is_some() && target_dir != default_dir;
     let new_paths = AppDataPaths::from_base(target_dir.clone(), is_custom);
-    let (old_pool, old_paths) = {
-        let mut pool_guard = state.db_pool.write().map_err(|e| e.to_string())?;
-        let mut paths_guard = state.paths.write().map_err(|e| e.to_string())?;
-        (std::mem::replace(&mut *pool_guard, new_pool), std::mem::replace(&mut *paths_guard, new_paths))
-    };
+    let mut paths_guard = state.paths.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let old_pool = std::mem::replace(&mut *pool_guard, new_pool);
+    let old_paths = std::mem::replace(&mut *paths_guard, new_paths);
 
     // 4. Sauvegarde dans config.json. En cas d'échec, retour à l'ancien emplacement (ses fichiers n'ont pas été touchés) : au prochain démarrage,
     // l'application retrouverait sinon un autre emplacement que celui où elle travaille.
@@ -1947,15 +1958,18 @@ fn change_storage_location(
         save_config(&app, &config_data)
     });
     if let Err(error) = saved {
-        if let (Ok(mut pool_guard), Ok(mut paths_guard)) = (state.db_pool.write(), state.paths.write()) {
-            *pool_guard = old_pool; // la base copiée est fermée ici
-            *paths_guard = old_paths;
-        }
+        *pool_guard = old_pool; // la base copiée est fermée ici
+        *paths_guard = old_paths;
+        drop(paths_guard);
+        drop(pool_guard);
         remove_storage(&target_dir);
         return Err(format!("Configuration non enregistrée, l'emplacement n'a pas changé : {error}"));
     }
 
-    // 5. Ancien emplacement nettoyé (au mieux : sous Windows, des tâches encore en cours peuvent garder la base ouverte).
+    // 5. Ancien emplacement nettoyé (au mieux : un processus extérieur peut encore garder la base ouverte).
+    drop(paths_guard);
+    drop(pool_guard);
+    drop(current_pool);
     drop(old_pool);
     remove_storage(&current_base);
 
