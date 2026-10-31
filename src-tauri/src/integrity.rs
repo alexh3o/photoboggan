@@ -245,7 +245,7 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Gat
     Ok(Outcome::Healthy(match thumbnails::write_jpeg(&destination, &rgb, width, height) {
         Ok(()) => Thumbnail::Created,
         Err(error) => {
-            eprintln!("Miniature non écrite pour {} : {error}", source.display());
+            eprintln!("Thumbnail not written for {}: {error}", source.display());
             Thumbnail::Failed
         }
     }))

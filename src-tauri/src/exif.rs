@@ -40,8 +40,8 @@ pub struct ExifMetadata {
 
 fn xmp_value(xml: &str, names: &[&str]) -> Option<String> {
     for name in names {
-        // XMP is XML; accept both rdf attributes and element values, including
-        // arbitrary namespace prefixes used by metadata editors.
+        // XMP est du XML : attributs rdf et valeurs d'élément acceptés, avec n'importe quel préfixe d'espace de noms
+        // (selon l'éditeur de métadonnées).
         let mut search_from = 0;
         while let Some(rel) = xml[search_from..].find(name) {
             let start = search_from + rel;
@@ -218,12 +218,8 @@ struct ParsedXmp {
 }
 
 fn parse_xmp(path: &Path) -> ParsedXmp {
-    let mut sources = Vec::new();
-    // digiKam can use either `photo.jpg.xmp` or the compatible `photo.xmp` name.
-    sources.push(std::path::PathBuf::from(format!("{}.xmp", path.display())));
-    if let Some(stem) = path.file_stem() {
-        if let Some(parent) = path.parent() { sources.push(parent.join(stem).with_extension("xmp")); }
-    }
+    // digiKam utilise `photo.jpg.xmp` ou le nom compatible `photo.xmp`.
+    let sources = sidecar_candidates(path);
     let mut keywords = Vec::new();
     let mut hierarchical: Vec<Vec<String>> = Vec::new();
     let mut ratings: [Option<i32>; 3] = Default::default();
@@ -252,7 +248,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
             if slot.is_none() { *slot = xmp_text(xml, name); }
         }
     };
-    // The image itself is the source of truth when it contains an XMP packet.
+    // Le fichier image fait foi quand il contient un paquet XMP.
     if let Some(embedded) = read_embedded_xmp(path) {
         keywords = parse_xmp_subjects(&embedded);
         hierarchical = parse_hierarchical_keywords(&embedded);
@@ -836,8 +832,7 @@ fn read_image_dimensions(path: &Path) -> Option<(i32, i32)> {
 /// Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
 /// sinon la date de modification du fichier (comme les logiciels photo quand un fichier n'a pas de date de prise de vue).
 fn video_date_taken(path: &Path) -> String {
-    let appended = std::path::PathBuf::from(format!("{}.xmp", path.display()));
-    for source in [appended, path.with_extension("xmp")] {
+    for source in sidecar_candidates(path) {
         let Ok(text) = fs::read_to_string(source) else { continue; };
         let Some(raw) = xmp_value(&text, &["exif:DateTimeOriginal", "xmp:CreateDate", "photoshop:DateCreated"]) else { continue; };
         let value = xml_unescape(raw.trim());
@@ -1362,68 +1357,31 @@ fn update_xmp_metadata(xml: &str, edit: XmpEdit) -> String {
     updated
 }
 
-/// Writes xmp:Rating, xmp:Label and/or the pick flag into JPEG APP1 XMP, preserving the rest of the JPEG and its metadata.
-/// Only the provided values are modified (see `XmpEdit`).
-/// HEIC / HEIF : le paquet XMP du fichier est modifié (ou créé) dans le conteneur, voir heif.rs ; sidecar seulement si la structure du fichier ne le permet pas.
-/// Other image formats continue to use a sidecar because they have different container layouts.
+/// Écrit la note, la couleur et/ou le fanion pick (voir `XmpEdit` : seules les valeurs fournies sont modifiées), sans toucher au reste du fichier.
+/// JPEG : paquet XMP du segment APP1, réécrit sans décompresser l'image. HEIC / HEIF : paquet XMP du conteneur (voir heif.rs), sidecar
+/// seulement si la structure du fichier ne le permet pas. Autres formats : sidecar XMP, leurs conteneurs étant trop différents.
 /// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles et mêmes valeurs).
 pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()> {
     let path = Path::new(image_path);
     if crate::exiftool::is_enabled() { return crate::exiftool::write_marking(path, edit); }
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
+    let xmp_update = |xml: &str| update_xmp_metadata(xml, edit);
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
-        return match crate::heif::update_xmp(path, &|xml| update_xmp_metadata(xml, edit))? {
+        return match crate::heif::update_xmp(path, &xmp_update)? {
             crate::heif::Outcome::Written | crate::heif::Outcome::Unchanged => Ok(()),
-            crate::heif::Outcome::Unsupported(_) => write_xmp_sidecar(path, edit),
+            crate::heif::Outcome::Unsupported(reason) => {
+                eprintln!("HEIF cannot be edited in place for {} ({reason}): writing to a sidecar instead", path.display());
+                write_xmp_sidecar_with(path, &xmp_update)
+            }
         };
     }
-    if extension != "jpg" && extension != "jpeg" {
-        return write_xmp_sidecar(path, edit);
-    }
+    if extension != "jpg" && extension != "jpeg" { return write_xmp_sidecar_with(path, &xmp_update); }
 
     let data = fs::read(path)?;
-    if data.len() < 2 || data[0..2] != [0xff, 0xd8] {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Le fichier n'est pas un JPEG valide"));
-    }
-    let packet = if let Some((segment_start, segment_end, packet_start)) = find_jpeg_xmp_segment(&data) {
-        let packet = std::str::from_utf8(&data[packet_start..segment_end])
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Le paquet XMP JPEG n'est pas en UTF-8"))?;
-        let updated_packet = update_xmp_metadata(packet, edit);
-        let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + updated_packet.len());
-        payload.extend_from_slice(JPEG_XMP_HEADER);
-        payload.extend_from_slice(updated_packet.as_bytes());
-        let segment_length = payload.len() + 2;
-        if segment_length > u16::MAX as usize {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Le paquet XMP dépasse la taille maximale d'un segment JPEG"));
-        }
-        let mut replacement = vec![0xff, 0xe1];
-        replacement.extend_from_slice(&(segment_length as u16).to_be_bytes());
-        replacement.extend_from_slice(&payload);
-        let mut output = Vec::with_capacity(data.len() - (segment_end - segment_start) + replacement.len());
-        output.extend_from_slice(&data[..segment_start]);
-        output.extend_from_slice(&replacement);
-        output.extend_from_slice(&data[segment_end..]);
-        output
-    } else {
-        let packet = update_xmp_metadata("", edit);
-        if packet.is_empty() { return Ok(()); } // rien à retirer d'un fichier sans XMP
-        let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + packet.len());
-        payload.extend_from_slice(JPEG_XMP_HEADER);
-        payload.extend_from_slice(packet.as_bytes());
-        let segment_length = payload.len() + 2;
-        if segment_length > u16::MAX as usize {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Le paquet XMP dépasse la taille maximale d'un segment JPEG"));
-        }
-        let mut output = Vec::with_capacity(data.len() + payload.len() + 4);
-        output.extend_from_slice(&data[..2]);
-        output.extend_from_slice(&[0xff, 0xe1]);
-        output.extend_from_slice(&(segment_length as u16).to_be_bytes());
-        output.extend_from_slice(&payload);
-        output.extend_from_slice(&data[2..]);
-        output
-    };
-
-    write_file_atomically(path, &packet)
+    if data.len() < 2 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
+    let output = jpeg_replace_xmp(&data, &xmp_update)?;
+    if output == data { return Ok(()); } // rien à modifier (ou rien à retirer d'un fichier sans XMP)
+    write_file_atomically(path, &output)
 }
 
 // ---------------------------------------------------------------------------
@@ -1795,9 +1753,7 @@ pub fn read_face_regions(path: &Path) -> Vec<crate::faces::FaceRegion> {
         let regions = crate::faces::parse_regions(&embedded);
         if !regions.is_empty() { return regions; }
     }
-    let appended = std::path::PathBuf::from(format!("{}.xmp", path.display()));
-    let compatible = path.with_extension("xmp");
-    [appended, compatible]
+    sidecar_candidates(path)
         .into_iter()
         .filter_map(|sidecar| fs::read_to_string(sidecar).ok())
         .map(|text| crate::faces::parse_regions(&text))
@@ -1828,12 +1784,22 @@ fn jpeg_replace_comment(data: &[u8], text: &str) -> std::io::Result<Vec<u8>> {
     let mut segments: Vec<(usize, usize, u8)> = Vec::new();
     let mut pos = 2;
     while pos + 4 <= data.len() && data[pos] == 0xff {
-        let marker = data[pos + 1];
+        // Octets de remplissage 0xFF autorisés avant un marqueur : ils font partie du segment qui suit (recopiés tels quels).
+        let mut marker_at = pos + 1;
+        while marker_at < data.len() && data[marker_at] == 0xff { marker_at += 1; }
+        if marker_at + 2 >= data.len() { break; }
+        let marker = data[marker_at];
         if marker == 0xda || marker == 0xd9 { break; }
-        let length = u16::from_be_bytes([data[pos + 2], data[pos + 3]]) as usize;
-        if length < 2 || pos + 2 + length > data.len() { return Err(invalid_data("Structure JPEG illisible")); }
-        segments.push((pos, pos + 2 + length, marker));
-        pos += 2 + length;
+        // Marqueurs sans contenu (TEM, RSTn).
+        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
+            segments.push((pos, marker_at + 1, marker));
+            pos = marker_at + 1;
+            continue;
+        }
+        let length = u16::from_be_bytes([data[marker_at + 1], data[marker_at + 2]]) as usize;
+        if length < 2 || marker_at + 1 + length > data.len() { return Err(invalid_data("Structure JPEG illisible")); }
+        segments.push((pos, marker_at + 1 + length, marker));
+        pos = marker_at + 1 + length;
     }
     let mut comment = Vec::new();
     if !text.is_empty() {
@@ -2124,11 +2090,16 @@ fn write_jpeg_metadata(path: &Path, update: &MetadataUpdate) -> std::io::Result<
 /// Sidecar XMP d'une image : `photo.ext.xmp` s'il existe, sinon `photo.xmp` (nom compatible digiKam) s'il existe, sinon `photo.ext.xmp` à créer.
 /// Renvoie aussi s'il existe déjà.
 pub(crate) fn sidecar_target(image_path: &Path) -> (std::path::PathBuf, bool) {
-    let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
+    let [appended, compatible] = sidecar_candidates(image_path);
     if appended.exists() { return (appended, true); }
-    // Même nom que les lecteurs : `with_extension` remplace seulement la dernière extension (`IMG.2024.cr2` -> `IMG.2024.xmp`).
-    let compatible = image_path.with_extension("xmp");
     if compatible.exists() { (compatible, true) } else { (appended, false) }
+}
+
+/// Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
+/// où ces noms sont construits, pour que lecture et écriture visent toujours les mêmes fichiers (`with_extension` ne remplace que la
+/// dernière extension : `IMG.2024.cr2` -> `IMG.2024.xmp`).
+pub(crate) fn sidecar_candidates(image_path: &Path) -> [std::path::PathBuf; 2] {
+    [std::path::PathBuf::from(format!("{}.xmp", image_path.display())), image_path.with_extension("xmp")]
 }
 
 /// Sidecar XMP (`photo.ext.xmp` ou `photo.xmp` existant) dont le contenu est remplacé par `update(contenu actuel)` ; créé si nécessaire.
@@ -2157,7 +2128,10 @@ pub fn write_metadata(image_path: &str, update: &MetadataUpdate) -> std::io::Res
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
         return match crate::heif::update_xmp(path, &xmp_update)? {
             crate::heif::Outcome::Written | crate::heif::Outcome::Unchanged => Ok(()),
-            crate::heif::Outcome::Unsupported(_) => write_xmp_sidecar_with(path, &xmp_update),
+            crate::heif::Outcome::Unsupported(reason) => {
+                eprintln!("HEIF cannot be edited in place for {} ({reason}): writing to a sidecar instead", path.display());
+                write_xmp_sidecar_with(path, &xmp_update)
+            }
         };
     }
     if extension != "jpg" && extension != "jpeg" { return write_xmp_sidecar_with(path, &xmp_update); }
@@ -2195,18 +2169,6 @@ pub fn text_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) 
         }
     }
     None
-}
-
-fn write_xmp_sidecar(image_path: &Path, edit: XmpEdit) -> std::io::Result<()> {
-    let (sidecar, _) = sidecar_target(image_path);
-    let xml = match fs::read_to_string(&sidecar) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(error),
-    };
-    let updated = update_xmp_metadata(&xml, edit);
-    if updated.is_empty() { return Ok(()); } // rien à retirer d'un sidecar inexistant
-    write_file_atomically(&sidecar, updated.as_bytes())
 }
 
 // ---------------------------------------------------------------------------
@@ -2256,9 +2218,7 @@ fn read_exif_entries(path: &Path) -> Vec<MetadataEntry> {
 /// Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
 fn read_xmp_packet(path: &Path) -> Option<String> {
     if let Some(embedded) = read_embedded_xmp(path) { return Some(embedded); }
-    let appended = std::path::PathBuf::from(format!("{}.xmp", path.display()));
-    let compatible = path.with_extension("xmp");
-    [appended, compatible].into_iter().find_map(|sidecar| fs::read_to_string(sidecar).ok())
+    sidecar_candidates(path).into_iter().find_map(|sidecar| fs::read_to_string(sidecar).ok())
 }
 
 /// Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.

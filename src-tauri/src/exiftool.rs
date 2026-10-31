@@ -113,8 +113,9 @@ pub fn exiftool_prewarm() {
     static PREWARMING: AtomicBool = AtomicBool::new(false);
     if !is_enabled() || lock(&POOL).running > 0 || PREWARMING.swap(true, Ordering::SeqCst) { return; }
     std::thread::spawn(|| {
-        if let Ok(found) = launcher() {
-            if let Ok(process) = acquire(&found) { release(process, true); }
+        match launcher().and_then(|found| acquire(&found)) {
+            Ok(process) => release(process, true),
+            Err(error) => eprintln!("ExifTool prewarm failed: {error}"),
         }
         PREWARMING.store(false, Ordering::SeqCst);
     });
@@ -189,7 +190,10 @@ fn bind_to_app_lifetime(child: &Child) {
         Some(job.0 as usize)
     });
     if let Some(job) = job {
-        unsafe { let _ = AssignProcessToJobObject(HANDLE(*job as *mut std::ffi::c_void), HANDLE(child.as_raw_handle())); }
+        let assigned = unsafe { AssignProcessToJobObject(HANDLE(*job as *mut std::ffi::c_void), HANDLE(child.as_raw_handle())) };
+        if let Err(error) = assigned { eprintln!("ExifTool not bound to the application lifetime: {error}"); }
+    } else {
+        eprintln!("ExifTool not bound to the application lifetime: Job object unavailable");
     }
 }
 
@@ -476,6 +480,10 @@ fn run(args: Vec<String>) -> std::io::Result<()> {
     let (stdout, stderr) = result.map_err(std::io::Error::other)?;
     let errors: Vec<&str> = stderr.lines().filter(|line| line.starts_with("Error")).map(|line| line.trim_start_matches("Error:").trim()).collect();
     if !errors.is_empty() { return Err(std::io::Error::other(format!("ExifTool : {}", errors.join(" ; ")))); }
+    // Avertissements (champ ignoré, format inattendu…) : l'écriture reste un succès, mais la trace aide à comprendre un champ manquant.
+    for warning in stderr.lines().filter(|line| line.starts_with("Warning")) {
+        eprintln!("ExifTool warning: {} ({})", warning.trim(), args.last().map(String::as_str).unwrap_or_default());
+    }
     let done = stdout.lines().any(|line| {
         let line = line.trim();
         line.starts_with("1 ") && (line.ends_with("files updated") || line.ends_with("files unchanged") || line.ends_with("files created"))
@@ -684,25 +692,25 @@ pub fn write_marking(image_path: &Path, edit: crate::exif::XmpEdit) -> std::io::
     if let Some(rating) = rating {
         let rating = rating.clamp(0, 5);
         let microsoft_rating = match rating { 0 => 0, 1 => 1, 2 => 25, 3 => 50, 4 => 75, _ => 99 };
-        args.push(format!("-XMP-xmp:Rating={rating}"));
-        args.push(format!("-XMP-acdsee:Rating={rating}"));
-        args.push(format!("-XMP-microsoft:RatingPercent={microsoft_rating}"));
+        args.push(assign("XMP-xmp:Rating", &rating.to_string()));
+        args.push(assign("XMP-acdsee:Rating", &rating.to_string()));
+        args.push(assign("XMP-microsoft:RatingPercent", &microsoft_rating.to_string()));
         if matches!(target_of(image_path), Target::Jpeg) {
-            args.push(format!("-EXIF:Rating={rating}"));
-            args.push(format!("-EXIF:RatingPercent={microsoft_rating}"));
+            args.push(assign("EXIF:Rating", &rating.to_string()));
+            args.push(assign("EXIF:RatingPercent", &microsoft_rating.to_string()));
         }
     }
     if let Some(label) = label {
         let number = label.and_then(crate::exif::color_to_urgency_and_digikam).map(|value| value.to_string()).unwrap_or_default();
-        args.push(format!("-XMP-xmp:Label={}", label.unwrap_or_default()));
-        args.push(format!("-XMP-photoshop:Urgency={number}"));
-        args.push(format!("-XMP-digiKam:ColorLabel={number}"));
+        args.push(assign("XMP-xmp:Label", label.unwrap_or_default()));
+        args.push(assign("XMP-photoshop:Urgency", &number));
+        args.push(assign("XMP-digiKam:ColorLabel", &number));
     }
     if let Some(pick) = pick {
         let (digikam, xmpdm_pick, xmpdm_good) = crate::exif::pick_values(pick);
-        args.push(format!("-XMP-digiKam:PickLabel={digikam}"));
-        args.push(format!("-XMP-xmpDM:Pick={xmpdm_pick}"));
-        args.push(format!("-XMP-xmpDM:Good={}", xmpdm_good.unwrap_or_default())); // valeur vide : balise supprimée
+        args.push(assign("XMP-digiKam:PickLabel", &digikam.to_string()));
+        args.push(assign("XMP-xmpDM:Pick", &xmpdm_pick.to_string()));
+        args.push(assign("XMP-xmpDM:Good", xmpdm_good.unwrap_or_default())); // valeur vide : balise supprimée
     }
     if args.is_empty() { return Ok(()); }
     write_to(image_path, args, has_values)
