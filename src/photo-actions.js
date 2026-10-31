@@ -26,13 +26,30 @@ function loadPrograms() {
     return stored
       .filter(program => program && typeof program.path === 'string' && program.path)
       .map(program => ({ name: String(program.name || '').trim() || defaultProgramName(program.path), path: program.path }));
-  } catch {
+  } catch (error) {
+    console.debug('Programs list unreadable', error);
     return [];
   }
 }
 
 function savePrograms(programs) {
   localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify(programs));
+}
+
+// Boîte de dialogue de l'OS pour choisir un dossier de destination ; null si l'utilisateur annule ou si la boîte ne s'ouvre pas.
+async function pickDirectory(defaultPath) {
+  try {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: t('Choose the destination folder'),
+      defaultPath: defaultPath || undefined,
+    });
+    return typeof selected === 'string' && selected ? selected : null;
+  } catch (error) {
+    console.error('Folder selection failed', error);
+    return null;
+  }
 }
 
 // Boîte de dialogue de l'OS pour choisir un programme ; null si l'utilisateur annule.
@@ -46,7 +63,7 @@ async function pickProgram() {
     });
     return typeof selected === 'string' && selected ? selected : null;
   } catch (error) {
-    console.error('Sélection de programme impossible', error);
+    console.error('Program selection failed', error);
     return null;
   }
 }
@@ -413,7 +430,8 @@ export async function showPhotoInfo(photo) {
 async function countPermanentDeletions(paths) {
   try {
     return Number(await invoke('count_permanent_deletions', { paths })) || 0;
-  } catch {
+  } catch (error) {
+    console.debug('Permanent deletion count unavailable', error);
     return 0;
   }
 }
@@ -437,7 +455,7 @@ export async function confirmAndDelete(targets) {
     const result = await invoke('delete_photos', { paths: targets.map(photo => photo.path) });
     if (result.deleted.length) api.removePhotos(result.deleted);
     const failures = result.failed.length;
-    if (failures) console.error('Suppression : échecs', result.failed);
+    if (failures) console.error('Delete failures', result.failed);
     api.showToast(failures && !result.deleted.length
       ? t('Delete failed: {error}', { error: result.failed[0].error })
       : `${tp(permanent ? '{count} file deleted' : '{count} file moved to the trash', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
@@ -448,19 +466,8 @@ export async function confirmAndDelete(targets) {
 
 // Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
 export async function copyPhotosTo(targets) {
-  let destination = null;
-  try {
-    destination = await open({
-      directory: true,
-      multiple: false,
-      title: t('Choose the destination folder'),
-      defaultPath: localStorage.getItem(LAST_COPY_FOLDER_KEY) || undefined,
-    });
-  } catch (error) {
-    console.error('Sélection de dossier impossible', error);
-    return;
-  }
-  if (typeof destination !== 'string' || !destination) return;
+  const destination = await pickDirectory(localStorage.getItem(LAST_COPY_FOLDER_KEY));
+  if (!destination) return;
   localStorage.setItem(LAST_COPY_FOLDER_KEY, destination);
   // Tâche de la file (progression, arrêt possible entre deux fichiers, voir copy_photos).
   api.enqueueFileTask({
@@ -476,7 +483,7 @@ export async function copyPhotosTo(targets) {
         return;
       }
       const failures = result.failed.length;
-      if (failures) console.error('Copie : échecs', result.failed);
+      if (failures) console.error('Copy failures', result.failed);
       if (stopped) return;
       api.showToast(failures && !result.copied
         ? t('Copy failed: {error}', { error: result.failed[0].error })
@@ -532,7 +539,8 @@ function loadResizeSettings() {
   let stored = {};
   try {
     stored = JSON.parse(localStorage.getItem(RESIZE_SETTINGS_KEY) || '{}') || {};
-  } catch {
+  } catch (error) {
+    console.debug('Resize settings unreadable', error);
     stored = {};
   }
   const integer = (value, min, max, fallback) => {
@@ -709,18 +717,13 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     }
     chooseButton.addEventListener('click', async () => {
       try {
-        const selected = await open({
-          directory: true,
-          multiple: false,
-          title: t('Choose the destination folder'),
-          defaultPath: destination || localStorage.getItem(LAST_RESIZE_FOLDER_KEY) || firstPhotoPath.replace(/[\\/][^\\/]*$/, '') || undefined,
-        });
-        if (typeof selected !== 'string' || !selected) return;
+        const selected = await pickDirectory(destination || localStorage.getItem(LAST_RESIZE_FOLDER_KEY) || firstPhotoPath.replace(/[\\/][^\\/]*$/, ''));
+        if (!selected) return;
         destination = selected;
         localStorage.setItem(LAST_RESIZE_FOLDER_KEY, selected);
         refresh();
       } catch (failure) {
-        console.error('Sélection de dossier impossible', failure);
+        console.error('Folder selection failed', failure);
       }
     });
     resetButton.addEventListener('click', () => {
@@ -831,7 +834,7 @@ async function runResizeBatch(targets, options, task, setPercent) {
 
 // Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
 function showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped) {
-  if (failures.length) console.error('Redimensionnement : échecs', failures);
+  if (failures.length) console.error('Resize failures', failures);
   if (stopped) return; // le toast « Action arrêtée » de la file suffit
   const parts = [];
   if (written) parts.push(tp('{count} file resized', written));
@@ -872,12 +875,17 @@ export async function resizePhotos(targets) {
   });
 }
 
-async function openWith(program, targets) {
+// Lance une commande d'ouverture (programme externe, gestionnaire de fichiers) ; un échec est signalé par un message.
+async function invokeOpen(command, args) {
   try {
-    await invoke('open_with', { program, paths: targets.map(photo => photo.path) });
+    await invoke(command, args);
   } catch (error) {
     api.showToast(t('Open failed: {error}', { error }));
   }
+}
+
+function openWith(program, targets) {
+  return invokeOpen('open_with', { program, paths: targets.map(photo => photo.path) });
 }
 
 async function chooseProgramAndOpen(targets) {
@@ -887,12 +895,8 @@ async function chooseProgramAndOpen(targets) {
 
 // Affiche la photo dans le gestionnaire de fichiers de l'OS, avec le fichier sélectionné. Une seule photo est montrée :
 // en cas de sélection multiple, c'est celle sous le curseur (celle du clic droit).
-export async function revealInFileManager(photo) {
-  try {
-    await invoke('reveal_in_file_manager', { path: photo.path });
-  } catch (error) {
-    api.showToast(t('Open failed: {error}', { error }));
-  }
+export function revealInFileManager(photo) {
+  return invokeOpen('reveal_in_file_manager', { path: photo.path });
 }
 
 // Crée un sous-dossier dans un dossier de l'arborescence (nom demandé dans une fenêtre ; le backend vérifie le nom et refuse d'écraser).
@@ -969,19 +973,8 @@ function buildIntegrityReportPreamble(report, version, hasSuspects) {
 
 async function exportIntegrityReport(report) {
   const suspects = report.suspects ?? [];
-  let directory = null;
-  try {
-    directory = await open({
-      directory: true,
-      multiple: false,
-      title: t('Choose the destination folder'),
-      defaultPath: localStorage.getItem(LAST_INTEGRITY_EXPORT_FOLDER_KEY) || undefined,
-    });
-  } catch (error) {
-    console.error('Sélection de dossier impossible', error);
-    return;
-  }
-  if (typeof directory !== 'string' || !directory) return;
+  const directory = await pickDirectory(localStorage.getItem(LAST_INTEGRITY_EXPORT_FOLDER_KEY));
+  if (!directory) return;
   localStorage.setItem(LAST_INTEGRITY_EXPORT_FOLDER_KEY, directory);
   try {
     const version = await getVersion().catch(() => '');
@@ -1057,12 +1050,8 @@ export function showIntegrityReport(report, stopped = false) {
 }
 
 // Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
-export async function openFolderInFileManager(path) {
-  try {
-    await invoke('open_folder_in_file_manager', { path });
-  } catch (error) {
-    api.showToast(t('Open failed: {error}', { error }));
-  }
+export function openFolderInFileManager(path) {
+  return invokeOpen('open_folder_in_file_manager', { path });
 }
 
 // ==========================================
@@ -1332,7 +1321,7 @@ async function confirmAndDeleteFolder(path) {
       if (!secondConfirm) return;
     }
   } catch (err) {
-    console.error('Erreur vérification fichiers non gérés :', err);
+    console.error('Unrecognized files check failed:', err);
   }
   await api.deleteFolder(path, { permanent });
 }

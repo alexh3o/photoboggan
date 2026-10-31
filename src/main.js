@@ -20,11 +20,11 @@ import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
   const appWindow = getCurrentWindow();
-  console.log("Fenêtre Tauri initialisée pour la barre de titre");
+  console.log("Tauri window initialized for the title bar");
 
   document.getElementById('titlebar-minimize')?.addEventListener('click', () => {
     console.log("Clic sur Minimiser");
-    appWindow.minimize().catch(err => console.error("Erreur minimize:", err));
+    appWindow.minimize().catch(err => console.error("Window minimize failed:", err));
   });
 
   document.getElementById('titlebar-maximize')?.addEventListener('click', async () => {
@@ -38,20 +38,20 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       await syncWindowState();
     } catch (err) {
-      console.error("Erreur maximize/unmaximize:", err);
+      console.error("Window maximize/unmaximize failed:", err);
     }
   });
 
   document.getElementById('titlebar-close')?.addEventListener('click', () => {
     console.log("Clic sur Fermer");
-    appWindow.close().catch(err => console.error("Erreur close:", err));
+    appWindow.close().catch(err => console.error("Window close failed:", err));
   });
 
   // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés, titres ou descriptions non écrits ou une écriture en cours
   // demandent confirmation (voir metadata-writes.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
   appWindow.onCloseRequested(async event => {
     if (!(await confirmCloseWithPendingEdits())) event.preventDefault();
-  }).catch(err => console.error("Erreur onCloseRequested:", err));
+  }).catch(err => console.error("Close-request handler failed:", err));
 
   // Icône du bouton Maximiser / Restaurer d'après l'état réel de la fenêtre (aussi modifié hors du bouton : double-clic sur la barre, raccourcis Windows).
   const maximizeButton = document.getElementById('titlebar-maximize');
@@ -75,7 +75,7 @@ window.addEventListener('DOMContentLoaded', () => {
       renderMaximizeButton();
       document.body.classList.toggle('immersive', fullscreen);
     } catch (err) {
-      console.error("Erreur lecture de l'état de la fenêtre:", err);
+      console.error("Window state read failed:", err);
     }
   }
 
@@ -87,7 +87,7 @@ window.addEventListener('DOMContentLoaded', () => {
       windowStateSyncScheduled = false;
       syncWindowState();
     });
-  }).catch(err => console.error("Erreur suivi du redimensionnement:", err));
+  }).catch(err => console.error("Resize tracking failed:", err));
   onLanguageChange(renderMaximizeButton);
   renderMaximizeButton();
   syncWindowState();
@@ -114,7 +114,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       await syncWindowState();
     } catch (err) {
-      console.error("Erreur mode immersif:", err);
+      console.error("Immersive mode failed:", err);
     } finally {
       immersiveToggleRunning = false;
     }
@@ -199,7 +199,7 @@ async function getPhotoDisplayUrl(photo) {
     promise = invoke('get_raw_preview_path', { sourcePath: photo.path })
       .then(cachedPath => convertFileSrc(cachedPath))
       .catch(err => {
-        console.error('Extraction preview RAW impossible', photo.path, err);
+        console.error('RAW preview extraction failed', photo.path, err);
         // Vidéo : jamais le fichier vidéo lui-même comme image (case laissée vide, avec son icône Play).
         return isVideoPath(photo.path) ? '' : photoUrl(photo);
       });
@@ -401,7 +401,10 @@ function flushThumbnailLookups() {
   for (let start = 0; start < pending.length; start += THUMBNAIL_LOOKUP_BATCH_SIZE) {
     const batch = pending.slice(start, start + THUMBNAIL_LOOKUP_BATCH_SIZE);
     invoke('get_cached_thumbnail_paths', { sourcePaths: batch.map(([sourcePath]) => sourcePath) })
-      .catch(() => [])
+      .catch(error => {
+        console.debug('Cached thumbnail lookup failed', error);
+        return [];
+      })
       .then(paths => batch.forEach(([, resolve], index) => resolve(paths[index] ?? null)));
   }
 }
@@ -442,7 +445,7 @@ function pumpThumbnailGenerationQueue() {
     const job = takeNextThumbnailGeneration();
     if (!job) return;
     activeThumbnailGenerations++;
-    job.run().catch(() => {}).finally(() => {
+    job.run().catch(error => console.debug('Thumbnail generation failed', error)).finally(() => {
       activeThumbnailGenerations--;
       pumpThumbnailGenerationQueue();
     });
@@ -574,7 +577,7 @@ function cacheThumbnail(image, sourcePath) {
         image.src = convertFileSrc(cachedPath);
       }
     } catch (error) {
-      console.debug('Mise en cache de miniature impossible', sourcePath, error);
+      console.debug('Thumbnail caching failed', sourcePath, error);
     } finally {
       bitmap?.close();
       thumbnailCacheWrites.delete(sourcePath);
@@ -613,7 +616,7 @@ async function flushMissingChecks() {
   try {
     removed = await invoke('remove_missing_photos', { paths: batch.map(([path]) => path) });
   } catch (error) {
-    console.debug('Vérification des fichiers manquants impossible', error);
+    console.debug('Missing files check failed', error);
   }
   const removedPaths = new Set(removed);
   if (removedPaths.size) removePhotosFromLibrary(removed, { keepSelection: true });
@@ -1121,7 +1124,7 @@ async function refreshDiskFolders() {
   try {
     diskFolders = showEmptyFolders ? await invoke('list_disk_folders') : [];
   } catch (error) {
-    console.debug('Liste des dossiers du disque indisponible', error);
+    console.debug('Disk folder list unavailable', error);
     diskFolders = [];
   }
   renderFolderTree();
@@ -2053,8 +2056,6 @@ window.addEventListener('keydown', (e) => {
   }
   // Modale info
   if (e.key.toLowerCase() === 'i') {
-    console.log("Touche I pressée, photo active :", photos[lastSelectedIndex], lastSelectedIndex);
-    console.log("lasSelectedIndex :", lastSelectedIndex);
     if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
       showPhotoInfo(photos[lastSelectedIndex]);
       return;
@@ -2062,8 +2063,6 @@ window.addEventListener('keydown', (e) => {
   }
   // Ouvrir dans l'explorateur OS
   if (e.key.toLowerCase() === 'e') {
-    console.log("Touche E pressée, photo active :", photos[lastSelectedIndex], lastSelectedIndex);
-    console.log("lasSelectedIndex :", lastSelectedIndex);
     if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
       revealInFileManager(photos[lastSelectedIndex]);
       return;
@@ -2071,7 +2070,6 @@ window.addEventListener('keydown', (e) => {
   }
   // Copie vers
   if (e.key.toLowerCase() === 'c') {
-    console.log("Touche C pressée, indice photos actives:", selectedIndices);
     if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
       const selectedPhotos = commandTargetPhotos(); // mode Comparer avec plusieurs photos : sous-sélection
       if (selectedPhotos.length > 0) {
@@ -2262,7 +2260,7 @@ async function openAbout() {
     aboutVersion.textContent = await getVersion();
     aboutVersion.dataset.loaded = 'true';
   } catch (error) {
-    console.error('Version indisponible', error);
+    console.error('Version unavailable', error);
   }
 }
 function closeAbout() {
@@ -2276,7 +2274,7 @@ document.getElementById('about-github-link').addEventListener('click', async (e)
     try {
         await openUrl('https://github.com/alexh3o/photoboggan');
     } catch (err) {
-        console.error("Impossible d'ouvrir le lien :", err);
+        console.error("Could not open the link:", err);
     }
 });
 document.getElementById('about-issues-link')?.addEventListener('click', async (e) => {
@@ -2284,7 +2282,7 @@ document.getElementById('about-issues-link')?.addEventListener('click', async (e
   try {
     await openUrl('https://github.com/alexh3o/photoboggan/issues');
   } catch (err) {
-    console.error("Impossible d'ouvrir le lien :", err);
+    console.error("Could not open the link:", err);
   }
 });
 
@@ -2314,7 +2312,7 @@ async function openGuide() {
     guideVersion.textContent = await getVersion();
     guideVersion.dataset.loaded = 'true';
   } catch (error) {
-    console.error('Version indisponible', error);
+    console.error('Version unavailable', error);
   }
 }
 function closeGuide() {
@@ -2348,7 +2346,7 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
       renderFolderTree();
       renderSettingsFolderList();
     } catch (error) {
-      console.error('Ajout de dossier impossible', error);
+      console.error('Adding folder failed', error);
       showWriteToast(t('Unable to read metadata: {error}', { error }));
       return;
     }
@@ -2909,7 +2907,7 @@ if (thumbnailCacheSelect) {
       updateVirtualScroller();
       showWriteToast(t('Thumbnails cache cleared'));
     } catch (err) {
-      console.error('Erreur lors du changement de taille du cache', err);
+      console.error('Thumbnail cache size change failed', err);
       thumbnailCacheSelect.value = String(thumbnailCacheSize);
     } finally {
       hideTaskToast();
@@ -3447,7 +3445,7 @@ listenToBackend('scan-progress', event => {
   if (!task || task.status !== 'running') return;
   task.percent = Math.max(task.percent, Number(percent) || 0);
   syncTaskUI();
-}).catch(error => console.debug('Suivi de la progression indisponible', error));
+}).catch(error => console.debug('Progress tracking unavailable', error));
 
 // Dossier en cours d'analyse par une tâche (vérification d'intégrité) : affiché sous le pourcentage, dans le toast et dans la fenêtre des actions.
 listenToBackend('scan-detail', event => {
@@ -3456,7 +3454,7 @@ listenToBackend('scan-detail', event => {
   if (!task || task.status !== 'running') return;
   task.detail = typeof detail === 'string' ? detail : '';
   syncTaskUI();
-}).catch(error => console.debug('Suivi du dossier en cours indisponible', error));
+}).catch(error => console.debug('Current folder tracking unavailable', error));
 
 // Recharge les photos après un rescan. L'arborescence est construite depuis la liste complète de la collection : quand un dossier est
 // filtré, cette liste est relue aussi, sinon un sous-dossier découvert par le rescan n'y apparaîtrait pas.
@@ -3478,7 +3476,7 @@ function removeOrStopTask(task) {
   } else if (!task.stopRequested) {
     task.stopRequested = true;
     syncTaskUI();
-    if (!task.runner) invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Arrêt du scan impossible', error));
+    if (!task.runner) invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Scan stop failed', error));
   }
 }
 
@@ -3553,7 +3551,7 @@ async function runScanTask(task) {
     else await reloadPhotosAfterRescan();
     if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
-    console.error('Rescan impossible', error);
+    console.error('Rescan failed', error);
     if (task.onResult) await task.onResult(null, task.stopRequested, error);
     else showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
   } finally {
@@ -4337,7 +4335,7 @@ function movePhotosToFolder(targets, folderPath) {
         showWriteToast(t('Move failed: {error}', { error }));
         return;
       }
-      if (result.failed.length) console.error('Déplacement : échecs', result.failed);
+      if (result.failed.length) console.error('Move failures', result.failed);
       if (result.moved.length) await applyMovedPhotos(result.moved);
       const parts = [];
       if (result.moved.length) parts.push(tp('{count} file moved', result.moved.length));
@@ -4366,7 +4364,7 @@ function copyPhotosToFolder(targets, folderPath) {
         showWriteToast(t('Copy failed: {error}', { error }));
         return;
       }
-      if (result.failed.length) console.error('Copie : échecs', result.failed);
+      if (result.failed.length) console.error('Copy failures', result.failed);
       if (result.copied) {
         const changes = await invoke('sync_library');
         if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
@@ -4843,20 +4841,25 @@ function setPhotoGridVisible(visible) {
   if (visible) requestAnimationFrame(updateVirtualScroller);
 }
 
+// URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
+// chaîne vide si le format n'est pas géré par le backend (pas de vignette).
+async function thumbnailUrlFor(sourcePath) {
+  let cachedPath = await lookupCachedThumbnail(sourcePath);
+  if (!cachedPath) {
+    try {
+      cachedPath = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
+    } catch (error) {
+      console.debug('Thumbnail generation failed', sourcePath, error);
+      cachedPath = null;
+    }
+    if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
+  }
+  return cachedPath ? convertFileSrc(cachedPath) : '';
+}
+
 // Visages (voir faces-panel.js) : section Personnes, filtre Personnes, zones en plein écran. Vignettes des personnes découpées dans les miniatures en cache.
 initFacesPanel({
-  getThumbnailUrl: async sourcePath => {
-    let cachedPath = await lookupCachedThumbnail(sourcePath);
-    if (!cachedPath) {
-      try {
-        cachedPath = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
-      } catch {
-        cachedPath = null; // format non géré par le backend : pas de vignette
-      }
-      if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
-    }
-    return cachedPath ? convertFileSrc(cachedPath) : '';
-  },
+  getThumbnailUrl: thumbnailUrlFor,
   onFilterChange: options => applyPhotoFilters(options),
   getFullscreenSlot: () => fullscreenSlot,
   isFullscreen: () => isFullscreen,
@@ -4897,18 +4900,7 @@ document.getElementById('btn-toggle-faces').addEventListener('click', () => {
 // Vue Visages (voir faces-grid.js) : visages des photos affichées, à la place de la grille des photos.
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
-  getThumbnailUrl: async sourcePath => {
-    let cachedPath = await lookupCachedThumbnail(sourcePath);
-    if (!cachedPath) {
-      try {
-        cachedPath = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
-      } catch {
-        cachedPath = null;
-      }
-      if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
-    }
-    return cachedPath ? convertFileSrc(cachedPath) : '';
-  },
+  getThumbnailUrl: thumbnailUrlFor,
   // Clic sur des visages : leurs photos deviennent la sélection (panneau Info, Mots-clés…), la photo du dernier visage cliqué étant la principale.
   selectPhotos: (photoIds, mainPhotoId) => {
     const wanted = new Set(photoIds);
@@ -4952,7 +4944,7 @@ async function syncLibraryWithDisk() {
     const changes = await invoke('sync_library');
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   } catch (error) {
-    console.debug('Synchronisation avec le disque impossible', error);
+    console.debug('Disk synchronization failed', error);
   } finally {
     librarySyncNotBefore = Date.now() + Math.max(LIBRARY_SYNC_MIN_INTERVAL_MS, (Date.now() - startedAt) * 10);
     librarySyncRunning = false;
@@ -5044,7 +5036,7 @@ async function restoreStartupFolder() {
 
 refreshStorageLocationUI();
 restoreStartupFolder()
-  .catch(error => console.error('Restauration du dossier de démarrage impossible', error))
+  .catch(error => console.error('Startup folder restore failed', error))
   .then(() => loadPhotos())
   .then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
 
@@ -5062,7 +5054,7 @@ document.querySelectorAll('input[name="startup-view"]').forEach(input => {
 const offlineModeToggle = document.getElementById('offline-mode-toggle');
 offlineModeToggle.checked = localStorage.getItem('offlineMode') === 'true';
 function sendInternetAllowed() {
-  invoke('set_internet_allowed', { allowed: !offlineModeToggle.checked }).catch(error => console.error('Réglage du mode hors ligne refusé', error));
+  invoke('set_internet_allowed', { allowed: !offlineModeToggle.checked }).catch(error => console.error('Offline mode setting rejected', error));
 }
 sendInternetAllowed();
 offlineModeToggle.addEventListener('change', () => {
@@ -5075,7 +5067,7 @@ offlineModeToggle.addEventListener('change', () => {
 const verifyMovesToggle = document.getElementById('verify-moves-toggle');
 verifyMovesToggle.checked = localStorage.getItem('verifyCrossDriveMoves') !== 'false';
 function sendVerifyMoves() {
-  invoke('set_verify_cross_drive_moves', { enabled: verifyMovesToggle.checked }).catch(error => console.error('Réglage de la vérification des déplacements refusé', error));
+  invoke('set_verify_cross_drive_moves', { enabled: verifyMovesToggle.checked }).catch(error => console.error('Move verification setting rejected', error));
 }
 sendVerifyMoves();
 verifyMovesToggle.addEventListener('change', () => {
@@ -5099,7 +5091,7 @@ async function refreshStorageLocationUI() {
       resetBtn.classList.toggle('hidden', !info.is_custom);
     }
   } catch (error) {
-    console.error("Lecture de l'emplacement de stockage impossible", error);
+    console.error("Storage location read failed", error);
     const pathDisplay = document.getElementById('storage-path-display');
     if (pathDisplay) pathDisplay.textContent = t('Default'); // emplacement illisible : état explicite plutôt qu'un champ vide
   }
@@ -5120,7 +5112,7 @@ document.getElementById('btn-change-storage')?.addEventListener('click', async (
     showWriteToast(t('Data location updated successfully'));
     loadPhotos();
   } catch (error) {
-    console.error('Changement de dossier impossible', error);
+    console.error('Storage folder change failed', error);
     showWriteToast(t('Error moving data: {error}', { error: String(error) }));
   } finally {
     hideTaskToast();
@@ -5135,7 +5127,7 @@ document.getElementById('btn-reset-storage')?.addEventListener('click', async ()
     showWriteToast(t('Data location updated successfully'));
     loadPhotos();
   } catch (error) {
-    console.error('Réinitialisation impossible', error);
+    console.error('Storage location reset failed', error);
     showWriteToast(t('Error moving data: {error}', { error: String(error) }));
   } finally {
     hideTaskToast();
