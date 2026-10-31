@@ -75,18 +75,20 @@ pub(crate) fn ensure_node(conn: &Connection, parent_id: i64, name: &str) -> rusq
 /// Enregistre, pour chaque photo (identifiée par son chemin), les mots-clés hiérarchiques lus dans ses fichiers : l'arbre est complété
 /// des niveaux inconnus, et les associations de la photo sont remplacées par celles du fichier (le fichier fait foi).
 /// À appeler après l'insertion des photos en base (leur identifiant doit exister). Une erreur annule tout le lot (rien n'est enregistré à moitié)
-/// et est tracée dans les logs ; les photos concernées seront relues à la prochaine synchronisation.
-pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>>)]) {
-    if items.is_empty() { return; }
+/// et est tracée dans les logs. Renvoie vrai si tout est enregistré : l'appelant ne doit alors pas considérer ces photos comme lues.
+pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>>)]) -> bool {
+    if items.is_empty() { return true; }
     if let Err(error) = conn.execute_batch("BEGIN TRANSACTION") {
         eprintln!("Keywords not stored (transaction not started): {error}");
-        return;
+        return false;
     }
     let result = store_photo_keywords_in(conn, items).and_then(|_| conn.execute_batch("COMMIT"));
     if let Err(error) = result {
         eprintln!("Keywords not stored for {} photos: {error}", items.len());
         let _ = conn.execute_batch("ROLLBACK");
+        return false;
     }
+    true
 }
 
 /// Corps de `store_photo_keywords`, sans transaction : l'appelant fournit la sienne (voir `run_write`).

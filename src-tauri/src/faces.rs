@@ -490,9 +490,12 @@ fn mark_geometry_change(conn: &Connection, photo_id: i64, width: i64, height: i6
 /// - zone sans nom : un visage confirmé redevient « inconnu » (son nom a été retiré dans l'autre logiciel), les autres gardent leur état ;
 /// - zone importée absente du fichier : supprimée.
 /// À appeler après l'insertion des photos et de leurs mots-clés (la liaison automatique cherche les nœuds de l'arbre).
-pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) {
-    if items.is_empty() { return; }
-    let _ = conn.execute("BEGIN TRANSACTION", []);
+pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) -> bool {
+    if items.is_empty() { return true; }
+    if let Err(error) = conn.execute_batch("BEGIN TRANSACTION") {
+        eprintln!("Faces not stored (transaction not started): {error}");
+        return false;
+    }
     let mut touched: HashSet<i64> = HashSet::new();
     for (path, faces) in items {
         let Ok((photo_id, width, height)) = conn.query_row(
@@ -574,7 +577,14 @@ pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) {
     for person_id in touched { auto_link_person(conn, person_id); }
     // Une personne qui n'a plus aucun visage est conservée : elle peut attendre une attribution. Le nettoyage se fera à la demande
     // (action prévue dans Paramètres > Visages).
-    let _ = conn.execute("COMMIT", []);
+    match conn.execute_batch("COMMIT") {
+        Ok(()) => true,
+        Err(error) => {
+            eprintln!("Faces not stored for {} photos: {error}", items.len());
+            let _ = conn.execute_batch("ROLLBACK");
+            false
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

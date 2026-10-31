@@ -16,7 +16,7 @@ use serde::Serialize;
 use walkdir::WalkDir;
 
 use crate::db::{self, DbPool, Photo};
-use crate::{insert_batch, is_inside_folder, tracked_root_is_reachable};
+use crate::{is_inside_folder, tracked_root_is_reachable};
 
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
@@ -46,22 +46,51 @@ pub fn modified_millis(metadata: &fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
-/// Enregistre la date de modification (ms) des fichiers qui viennent d'être lus, par chemin.
-pub fn store_modified(conn: &rusqlite::Connection, items: &[(String, i64)]) {
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    if let Ok(mut update) = conn.prepare_cached("UPDATE photos SET modified = ? WHERE path = ?") {
+/// Enregistre la date de modification (ms) des fichiers qui viennent d'être lus, par chemin (une transaction : tout ou rien).
+pub fn store_modified(conn: &rusqlite::Connection, items: &[(String, i64)]) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    {
+        let mut update = tx.prepare_cached("UPDATE photos SET modified = ? WHERE path = ?")?;
         for (path, modified) in items {
-            let _ = update.execute(params![modified, path]);
+            update.execute(params![modified, path])?;
         }
     }
-    let _ = conn.execute("COMMIT", []);
+    tx.commit()
 }
 
-// Mêmes formats que le scan initial (run_scan).
-//fn is_photo_file(path: &Path) -> bool {
-//    let name = path.to_string_lossy().to_lowercase();
-//    name.ends_with(".jpg") || name.ends_with(".jpeg") || name.ends_with(".png") || name.ends_with(".raw")
-//}
+/// Enregistre un lot de photos lues : lignes, mots-clés, visages, puis dates de modification. Les dates ne sont écrites que si tout le reste
+/// l'est : sinon la photo serait prise pour lue (taille et date identiques) alors que ses mots-clés ou ses visages manquent. En cas d'échec,
+/// les lignes du lot sont marquées (taille -1) pour être relues à la prochaine synchronisation.
+pub fn store_read_batch(
+    conn: &rusqlite::Connection,
+    photos: &[Photo],
+    modified: &[(String, i64)],
+    keyword_batches: &[(String, Vec<Vec<String>>)],
+    face_batches: &[(String, crate::faces::PhotoFaces)],
+) -> Result<(), String> {
+    let stored = crate::insert_batch(conn, photos)
+        .map_err(|error| format!("photos not stored: {error}"))
+        .and_then(|_| if crate::keywords::store_photo_keywords(conn, keyword_batches) { Ok(()) } else { Err("keywords not stored".to_string()) })
+        .and_then(|_| if crate::faces::store_photo_faces(conn, face_batches) { Ok(()) } else { Err("faces not stored".to_string()) })
+        .and_then(|_| store_modified(conn, modified).map_err(|error| format!("modification dates not stored: {error}")));
+    if let Err(error) = &stored {
+        let marked = conn.unchecked_transaction().and_then(|tx| {
+            for photo in photos { tx.execute("UPDATE photos SET file_size = -1 WHERE path = ?1", params![photo.path])?; }
+            tx.commit()
+        });
+        if let Err(mark_error) = marked { eprintln!("Photos not marked for re-reading ({error}): {mark_error}"); }
+    }
+    stored
+}
+
+/// Retire des photos du catalogue, par chemin (une transaction : tout ou rien).
+fn delete_photos(conn: &rusqlite::Connection, paths: &[String]) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    for path in paths { tx.execute("DELETE FROM photos WHERE path = ?", params![path])?; }
+    tx.commit()
+}
+
+// Formats pris en charge (scan initial et synchronisation).
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     // Formats standards
     "jpg", "jpeg", "png", "webp", "avif", "gif", "bmp", "jfif",
@@ -69,9 +98,8 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "heic", "heif", "hif",
     // Formats RAW
     "arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "raw",
-    // Tried and removed:
-    // Not working at all: jp2
-    // Thumbnail only: svg
+    // Essayés puis retirés :
+    // jp2 (ne fonctionne pas), svg (miniature seulement)
 ];
 pub fn is_photo_file(path: &Path) -> bool {
     // Les vidéos (video.rs) sont cataloguées comme les photos : même scan, même synchronisation incrémentale.
@@ -85,9 +113,16 @@ pub fn is_photo_file(path: &Path) -> bool {
 }
 
 /// Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et faces.rs).
-fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>, crate::faces::PhotoFaces) {
+/// Erreur si le fichier est illisible ou a changé pendant la lecture (copie en cours, fichier verrouillé…) : ses métadonnées seraient vides
+/// ou incomplètes, et l'enregistrer le ferait passer pour lu. Il sera relu à la prochaine synchronisation.
+fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(Photo, Vec<Vec<String>>, crate::faces::PhotoFaces), String> {
     let source = Path::new(path);
+    fs::File::open(source).map_err(|error| format!("file not readable: {error}"))?;
     let exif_data = crate::exif::read_exif(source);
+    let after = fs::metadata(source).map_err(|error| format!("file not readable after the read: {error}"))?;
+    if after.len() as i64 != file_size || modified_millis(&after) != modified {
+        return Err("file changed during the read".to_string());
+    }
     let photo = Photo {
         id: 0,
         path: path.to_string(),
@@ -109,9 +144,9 @@ fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>, crate::fa
         keywords: exif_data.keywords,
         title: exif_data.title,
         caption: exif_data.caption,
-        modified: 0, // non utilisé : la date est enregistrée séparément par sync_library
+        modified: 0, // non utilisé : la date est enregistrée séparément par store_read_batch
     };
-    (photo, exif_data.keyword_paths, exif_data.faces)
+    Ok((photo, exif_data.keyword_paths, exif_data.faces))
 }
 
 /// Compare les dossiers suivis au catalogue :
@@ -152,7 +187,8 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
                 ))
             })
             .map_err(|error| error.to_string())?;
-        for (path, size, modified) in rows.flatten() {
+        for row in rows {
+            let (path, size, modified) = row.map_err(|error| error.to_string())?;
             known.insert(path, (size, modified));
         }
     }
@@ -205,35 +241,37 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
             .num_threads(2)
             .build()
             .map_err(|error| error.to_string())?;
-        let read: Vec<(Photo, Vec<Vec<String>>, crate::faces::PhotoFaces)> = threads.install(|| {
-            changed.par_iter().map(|(path, size, _, _)| read_photo(path, *size)).collect()
+        let read: Vec<Result<(Photo, Vec<Vec<String>>, crate::faces::PhotoFaces), String>> = threads.install(|| {
+            changed.par_iter().map(|(path, size, modified, _)| read_photo(path, *size, *modified)).collect()
         });
         let mut photos: Vec<Photo> = Vec::with_capacity(read.len());
+        let mut modified_dates: Vec<(String, i64)> = Vec::with_capacity(read.len());
         let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::with_capacity(read.len());
         let mut face_batches: Vec<(String, crate::faces::PhotoFaces)> = Vec::with_capacity(read.len());
-        for (photo, keyword_paths, faces) in read {
-            keyword_batches.push((photo.path.clone(), keyword_paths));
-            face_batches.push((photo.path.clone(), faces));
-            photos.push(photo);
+        // Fichiers non lus (illisibles, ou modifiés pendant la lecture) : ni enregistrés ni signalés, relus à la prochaine synchronisation.
+        let mut unread: HashSet<String> = HashSet::new();
+        for ((path, _, modified, _), outcome) in changed.iter().zip(read) {
+            match outcome {
+                Ok((photo, keyword_paths, faces)) => {
+                    modified_dates.push((path.clone(), *modified));
+                    keyword_batches.push((path.clone(), keyword_paths));
+                    face_batches.push((path.clone(), faces));
+                    photos.push(photo);
+                }
+                Err(error) => {
+                    eprintln!("File skipped by the synchronization ({path}): {error}");
+                    unread.insert(path.clone());
+                }
+            }
         }
-        insert_batch(&conn, &photos);
-        crate::keywords::store_photo_keywords(&conn, &keyword_batches);
-        crate::faces::store_photo_faces(&conn, &face_batches);
+        changed.retain(|(path, _, _, _)| !unread.contains(path));
+        store_read_batch(&conn, &photos, &modified_dates, &keyword_batches, &face_batches)
+            .map_err(|error| format!("Synchronization stopped: {error}"))?;
     }
 
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    if let Ok(mut update) = conn.prepare_cached("UPDATE photos SET modified = ? WHERE path = ?") {
-        for (path, _, modified, _) in &changed {
-            let _ = update.execute(params![modified, path]);
-        }
-        for (path, modified) in &baseline {
-            let _ = update.execute(params![modified, path]);
-        }
-    }
-    for path in &removed {
-        let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![path]);
-    }
-    let _ = conn.execute("COMMIT", []);
+    // Lignes sans date enregistrée (taille inchangée) et fichiers disparus.
+    store_modified(&conn, &baseline).map_err(|error| error.to_string())?;
+    delete_photos(&conn, &removed).map_err(|error| error.to_string())?;
 
     let (added, updated): (Vec<(String, i64, i64, bool)>, Vec<(String, i64, i64, bool)>) =
         changed.into_iter().partition(|item| item.3);

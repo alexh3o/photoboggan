@@ -570,10 +570,9 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             face_batches.push((photo.path.clone(), photo_faces));
             buffer.push(photo);
             if buffer.len() >= 500 {
-                insert_batch(&conn, &buffer);
-                library_sync::store_modified(&conn, &modified_dates);
-                keywords::store_photo_keywords(&conn, &keyword_batches);
-                faces::store_photo_faces(&conn, &face_batches);
+                if let Err(error) = library_sync::store_read_batch(&conn, &buffer, &modified_dates, &keyword_batches, &face_batches) {
+                    eprintln!("Scan batch not stored: {error}");
+                }
                 buffer.clear();
                 modified_dates.clear();
                 keyword_batches.clear();
@@ -581,10 +580,9 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             }
         }
         if !buffer.is_empty() {
-            insert_batch(&conn, &buffer);
-            library_sync::store_modified(&conn, &modified_dates);
-            keywords::store_photo_keywords(&conn, &keyword_batches);
-            faces::store_photo_faces(&conn, &face_batches);
+            if let Err(error) = library_sync::store_read_batch(&conn, &buffer, &modified_dates, &keyword_batches, &face_batches) {
+                eprintln!("Scan batch not stored: {error}");
+            }
         }
     });
 
@@ -815,11 +813,12 @@ fn list_disk_folders(state: State<'_, AppState>) -> Vec<String> {
     result
 }
 
-fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManager>, photos: &[Photo]) {
-    let _ = conn.execute("BEGIN TRANSACTION", []);
+/// Insère (ou met à jour) un lot de photos en une seule transaction : tout ou rien, l'erreur est renvoyée à l'appelant.
+fn insert_batch(conn: &rusqlite::Connection, photos: &[Photo]) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
     {
-        let mut stmt = conn.prepare_cached(
-            "INSERT INTO photos 
+        let mut stmt = tx.prepare_cached(
+            "INSERT INTO photos
             (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, title, pick_flag)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
@@ -831,23 +830,27 @@ fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManag
                 rating=excluded.rating, color_flag=excluded.color_flag,
                 keywords=excluded.keywords, caption=excluded.caption, lens_model=excluded.lens_model, title=excluded.title,
                 pick_flag=excluded.pick_flag"
-        ).unwrap();
+        )?;
 
         for p in photos {
-            let _ = stmt.execute(params![
-                p.path, p.filename, p.date_taken, p.aperture, p.shutter_speed, 
+            stmt.execute(params![
+                p.path, p.filename, p.date_taken, p.aperture, p.shutter_speed,
                 p.iso, p.focal_length, p.manufacturer, p.camera_model, p.width, p.height, p.file_size,
                 p.rating, p.color_flag, p.keywords, p.caption, p.lens_model, p.title, p.pick_flag
-            ]);
+            ])?;
         }
     }
-    let _ = conn.execute("COMMIT", []);
+    tx.commit()
 }
 
 #[tauri::command]
 fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool) -> Vec<Photo> {
     let pool = state.pool();
-    db::get_photos(&pool, offset, limit, folder_filter, recursive)
+    // L'interface attend une liste : une erreur est tracée et donne une liste vide plutôt qu'un rejet de la commande.
+    db::get_photos(&pool, offset, limit, folder_filter, recursive).unwrap_or_else(|error| {
+        eprintln!("Photo list unavailable: {error}");
+        Vec::new()
+    })
 }
 
 #[tauri::command(async)]

@@ -42,6 +42,16 @@ pub struct TrackedFolder {
     pub path: String,
 }
 
+/// Ajoute une colonne à une table existante (mise à niveau d'un catalogue sans le perdre). « Colonne déjà présente » est le cas normal ;
+/// toute autre erreur arrête le démarrage avec un message clair, plutôt que de laisser des requêtes échouer plus tard.
+fn add_column(conn: &rusqlite::Connection, table: &str, definition: &str) {
+    if let Err(error) = conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {definition}"), []) {
+        if !error.to_string().contains("duplicate column name") {
+            panic!("Database migration failed ({table}: {definition}): {error}");
+        }
+    }
+}
+
 pub fn init_db(db_path: &str) -> DbPool {
     let manager = SqliteConnectionManager::file(db_path).with_init(|c| {
         c.execute_batch(
@@ -54,8 +64,8 @@ pub fn init_db(db_path: &str) -> DbPool {
         Ok(())
     });
 
-    let pool = Pool::new(manager).expect("Erreur pool DB");
-    let conn = pool.get().unwrap();
+    let pool = Pool::new(manager).expect("Database pool could not be created");
+    let conn = pool.get().expect("Database connection unavailable");
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS folders (
@@ -86,17 +96,17 @@ pub fn init_db(db_path: &str) -> DbPool {
         [],
     ).unwrap();
 
-    // Upgrade existing libraries without discarding the catalog.
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN keywords TEXT NOT NULL DEFAULT ''", []);
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN caption TEXT NOT NULL DEFAULT ''", []);
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN lens_model TEXT NOT NULL DEFAULT ''", []);
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN title TEXT NOT NULL DEFAULT ''", []);
+    // Mise à niveau des catalogues existants, sans perdre les données.
+    add_column(&conn, "photos", "keywords TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "caption TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "lens_model TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "title TEXT NOT NULL DEFAULT ''");
     // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN modified INTEGER NOT NULL DEFAULT 0", []);
+    add_column(&conn, "photos", "modified INTEGER NOT NULL DEFAULT 0");
     // Orientation EXIF (1 à 8) : les zones de visage sont dans le repère de l'image stockée et l'interface l'applique pour les afficher (faces.rs).
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN orientation INTEGER NOT NULL DEFAULT 1", []);
+    add_column(&conn, "photos", "orientation INTEGER NOT NULL DEFAULT 1");
     // Fanion « pick » (none, pending, picked, rejected) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
-    let _ = conn.execute("ALTER TABLE photos ADD COLUMN pick_flag TEXT NOT NULL DEFAULT 'none'", []);
+    add_column(&conn, "photos", "pick_flag TEXT NOT NULL DEFAULT 'none'");
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
@@ -112,104 +122,120 @@ pub fn init_db(db_path: &str) -> DbPool {
 }
 
 pub fn get_folders(pool: &DbPool) -> Vec<TrackedFolder> {
-    let conn = pool.get().unwrap();
-    let mut stmt = conn.prepare("SELECT id, path FROM folders ORDER BY path ASC").unwrap();
-    let rows = stmt.query_map([], |row| {
-        Ok(TrackedFolder {
-            id: row.get(0)?,
-            path: row.get(1)?,
-        })
-    }).unwrap();
-    rows.filter_map(|r| r.ok()).collect()
+    let conn = match pool.get() {
+        Ok(conn) => conn,
+        Err(error) => {
+            eprintln!("Tracked folders unavailable (no connection): {error}");
+            return Vec::new();
+        }
+    };
+    let folders = (|| -> rusqlite::Result<Vec<TrackedFolder>> {
+        let mut stmt = conn.prepare("SELECT id, path FROM folders ORDER BY path ASC")?;
+        let rows = stmt.query_map([], |row| Ok(TrackedFolder { id: row.get(0)?, path: row.get(1)? }))?;
+        rows.collect()
+    })();
+    folders.unwrap_or_else(|error| {
+        eprintln!("Tracked folders unavailable: {error}");
+        Vec::new()
+    })
 }
 
 pub fn add_folder(pool: &DbPool, path: &str) -> Result<i64, String> {
-    let conn = pool.get().unwrap();
+    let conn = pool.get().map_err(|e| e.to_string())?;
     conn.execute("INSERT OR IGNORE INTO folders (path) VALUES (?)", params![path])
         .map_err(|e| e.to_string())?;
     Ok(conn.last_insert_rowid())
 }
 
+/// Retire un dossier suivi et les photos qu'il contenait, en une seule transaction. Une photo qui se trouve aussi dans un autre dossier suivi
+/// (dossiers imbriqués) reste au catalogue ; les dossiers voisins au nom proche (`D:\Photo2` pour `D:\Photo`) ne sont pas touchés.
 pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), String> {
-    let conn = pool.get().unwrap();
-    conn.execute("DELETE FROM folders WHERE id = ?", params![id]).map_err(|e| e.to_string())?;
-    let prefix = format!("{}%", folder_path);
-    conn.execute("DELETE FROM photos WHERE path LIKE ?", params![prefix]).map_err(|e| e.to_string())?;
-    Ok(())
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM folders WHERE id = ?", params![id]).map_err(|e| e.to_string())?;
+    let remaining: Vec<String> = {
+        let mut stmt = tx.prepare("SELECT path FROM folders").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0)).map_err(|e| e.to_string())?;
+        rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())?
+    };
+    let doomed: Vec<i64> = {
+        let mut stmt = tx.prepare("SELECT id, path FROM photos WHERE path IS NOT NULL").map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))).map_err(|e| e.to_string())?;
+        let photos: Vec<(i64, String)> = rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())?;
+        photos
+            .into_iter()
+            .filter(|(_, path)| crate::is_inside_folder(folder_path, path) && !remaining.iter().any(|root| crate::is_inside_folder(root, path)))
+            .map(|(id, _)| id)
+            .collect()
+    };
+    let ids_json = serde_json::to_string(&doomed).map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM photos WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
 }
 
-pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool) -> Vec<Photo> {
-    let conn = pool.get().unwrap();
+/// Colonnes lues par `photo_from_row`, dans cet ordre.
+const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
+     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag";
 
-    let sql = if folder_filter.is_some() {
-        "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag
-         FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
-         AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
-         ORDER BY date_taken DESC LIMIT ?3 OFFSET ?4"
-    } else {
-        "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag
-         FROM photos ORDER BY date_taken DESC LIMIT ? OFFSET ?"
-    };
-
-    let mut stmt = conn.prepare(sql).unwrap();
-
-    if let Some(folder) = folder_filter {
-        let normalized_folder = folder.replace('\\', "/").trim_end_matches('/').to_string();
-        let prefix = format!("{normalized_folder}/");
-        let photo_iter = stmt.query_map(params![prefix, recursive, limit, offset], |row| {
-            Ok(Photo {
-                modified: row.get(18)?,
-                id: row.get(0)?,
-                path: row.get(1)?,
-                filename: row.get(2)?,
-                date_taken: row.get(3)?,
-                aperture: row.get(4)?,
-                shutter_speed: row.get(5)?,
-                iso: row.get(6)?,
-                focal_length: row.get(7)?,
-                manufacturer: row.get(8)?,
-                camera_model: row.get(9)?,
-                lens_model: row.get(17)?,
-                width: row.get(10)?,
-                height: row.get(11)?,
-                file_size: row.get(12)?,
-                rating: row.get(13)?,
-                color_flag: row.get(14)?,
-                keywords: row.get(15)?,
-                caption: row.get(16)?,
-                title: row.get(19)?,
-                pick_flag: row.get(20)?,
-            })
-        }).unwrap();
-        photo_iter.filter_map(|p| p.ok()).collect()
-    } else {
-        let photo_iter = stmt.query_map(params![limit, offset], |row| {
-            Ok(Photo {
-                modified: row.get(18)?,
-                id: row.get(0)?,
-                path: row.get(1)?,
-                filename: row.get(2)?,
-                date_taken: row.get(3)?,
-                aperture: row.get(4)?,
-                shutter_speed: row.get(5)?,
-                iso: row.get(6)?,
-                focal_length: row.get(7)?,
-                manufacturer: row.get(8)?,
-                camera_model: row.get(9)?,
-                lens_model: row.get(17)?,
-                width: row.get(10)?,
-                height: row.get(11)?,
-                file_size: row.get(12)?,
-                rating: row.get(13)?,
-                color_flag: row.get(14)?,
-                keywords: row.get(15)?,
-                caption: row.get(16)?,
-                title: row.get(19)?,
-                pick_flag: row.get(20)?,
-            })
-        }).unwrap();
-        photo_iter.filter_map(|p| p.ok()).collect()
+/// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
+/// jamais écartée de la liste parce qu'une de ses colonnes est vide.
+fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo> {
+    fn text(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<String> {
+        Ok(row.get::<_, Option<String>>(index)?.unwrap_or_default())
     }
+    fn flag(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<String> {
+        Ok(row.get::<_, Option<String>>(index)?.unwrap_or_else(|| "none".to_string()))
+    }
+    Ok(Photo {
+        id: row.get(0)?,
+        path: text(row, 1)?,
+        filename: text(row, 2)?,
+        date_taken: text(row, 3)?,
+        aperture: text(row, 4)?,
+        shutter_speed: text(row, 5)?,
+        iso: row.get::<_, Option<i32>>(6)?.unwrap_or_default(),
+        focal_length: text(row, 7)?,
+        manufacturer: text(row, 8)?,
+        camera_model: text(row, 9)?,
+        width: row.get::<_, Option<i32>>(10)?.unwrap_or_default(),
+        height: row.get::<_, Option<i32>>(11)?.unwrap_or_default(),
+        file_size: row.get::<_, Option<i64>>(12)?.unwrap_or_default(),
+        rating: row.get::<_, Option<i32>>(13)?.unwrap_or_default(),
+        color_flag: flag(row, 14)?,
+        keywords: text(row, 15)?,
+        caption: text(row, 16)?,
+        lens_model: text(row, 17)?,
+        modified: row.get::<_, Option<i64>>(18)?.unwrap_or_default(),
+        title: text(row, 19)?,
+        pick_flag: flag(row, 20)?,
+    })
+}
+
+/// Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
+/// Une erreur de lecture est renvoyée, jamais masquée par une liste incomplète.
+pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool) -> Result<Vec<Photo>, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let photos = match folder_filter {
+        Some(folder) => {
+            let normalized_folder = folder.replace('\\', "/").trim_end_matches('/').to_string();
+            let prefix = format!("{normalized_folder}/");
+            let mut stmt = conn
+                .prepare(&format!(
+                    "SELECT {PHOTO_COLUMNS} FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
+                     AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
+                     ORDER BY date_taken DESC, id DESC LIMIT ?3 OFFSET ?4"
+                ))
+                .map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(params![prefix, recursive, limit, offset], photo_from_row).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<Vec<Photo>>>()
+        }
+        None => {
+            let mut stmt = conn
+                .prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos ORDER BY date_taken DESC, id DESC LIMIT ? OFFSET ?"))
+                .map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(params![limit, offset], photo_from_row).map_err(|e| e.to_string())?;
+            rows.collect::<rusqlite::Result<Vec<Photo>>>()
+        }
+    };
+    photos.map_err(|e| e.to_string())
 }
