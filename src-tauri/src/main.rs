@@ -108,18 +108,47 @@ fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("config.json"))
 }
 
-fn load_config(app: &tauri::AppHandle) -> AppConfig {
-    config_file_path(app)
-        .ok()
-        .and_then(|p| fs::read_to_string(p).ok())
-        .and_then(|data| serde_json::from_str(&data).ok())
-        .unwrap_or_default()
+/// Config lue sur le disque. Fichier absent : config par défaut. Fichier présent mais illisible ou invalide : erreur, jamais la config par défaut,
+/// pour qu'un fichier abîmé ne fasse pas perdre l'emplacement des données et ne soit pas écrasé par la suite.
+fn load_config(app: &tauri::AppHandle) -> Result<AppConfig, String> {
+    let path = config_file_path(app)?;
+    if !path.exists() { return Ok(AppConfig::default()); }
+    let data = fs::read_to_string(&path).map_err(|error| format!("config.json illisible : {error}"))?;
+    serde_json::from_str(&data).map_err(|error| format!("config.json invalide : {error}"))
 }
 
+/// Config au démarrage : un config.json invalide est mis de côté (`config.json.invalid-<date>`, jamais supprimé) et l'application démarre avec
+/// les réglages par défaut. Les écritures de config ultérieures refusent de partir d'un fichier invalide (voir load_config).
+fn load_config_at_startup(app: &tauri::AppHandle) -> AppConfig {
+    match load_config(app) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("Configuration ignored at startup: {error}");
+            if let Ok(path) = config_file_path(app) {
+                let seconds = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+                let backup = path.with_file_name(format!("config.json.invalid-{seconds}"));
+                if let Err(rename_error) = fs::rename(&path, &backup) {
+                    eprintln!("Invalid configuration not set aside ({}): {rename_error}", backup.display());
+                }
+            }
+            AppConfig::default()
+        }
+    }
+}
+
+/// Écriture atomique : fichier temporaire puis remplacement, jamais un config.json à moitié écrit.
 fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
     let path = config_file_path(app)?;
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())
+    let temp = path.with_file_name("config.json.tmp");
+    if let Err(error) = fs::write(&temp, json) {
+        let _ = fs::remove_file(&temp);
+        return Err(error.to_string());
+    }
+    fs::rename(&temp, &path).map_err(|error| {
+        let _ = fs::remove_file(&temp);
+        error.to_string()
+    })
 }
 
 /////////////////////////
@@ -228,7 +257,13 @@ fn save_current_window_state(window: &tauri::Window, state: &AppState) {
     };
 
     let app = window.app_handle();
-    let mut config = load_config(app);
+    let mut config = match load_config(app) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("Window state not saved: {error}");
+            return;
+        }
+    };
     config.window_state = Some(WindowStateConfig {
         x,
         y,
@@ -236,7 +271,7 @@ fn save_current_window_state(window: &tauri::Window, state: &AppState) {
         height,
         is_maximized,
     });
-    let _ = save_config(app, &config);
+    if let Err(error) = save_config(app, &config) { eprintln!("Window state not saved: {error}"); }
 }
 /////////////////////////
 /////////////////////////
@@ -247,7 +282,7 @@ fn default_data_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn resolve_app_paths(app: &tauri::AppHandle) -> Result<AppDataPaths, String> {
-    let config = load_config(app);
+    let config = load_config_at_startup(app);
     let default_dir = default_data_directory(app)?;
     let (base_dir, is_custom) = match config.custom_data_dir {
         Some(dir_str) if !dir_str.trim().is_empty() => (PathBuf::from(dir_str), true),
@@ -261,9 +296,11 @@ fn resolve_app_paths(app: &tauri::AppHandle) -> Result<AppDataPaths, String> {
     let legacy_db = Path::new("photos_library.db");
     let target_db = base_dir.join("photos_library.db");
     if legacy_db.is_file() && !target_db.is_file() {
-        let _ = move_file_or_copy(legacy_db, &target_db);
-        let _ = move_file_or_copy(Path::new("photos_library.db-wal"), &base_dir.join("photos_library.db-wal"));
-        let _ = move_file_or_copy(Path::new("photos_library.db-shm"), &base_dir.join("photos_library.db-shm"));
+        for name in ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"] {
+            if let Err(error) = move_file_or_copy(Path::new(name), &base_dir.join(name)) {
+                eprintln!("Legacy database file not migrated ({name}): {error}");
+            }
+        }
     }
 
     Ok(AppDataPaths::from_base(base_dir, is_custom))
@@ -480,7 +517,7 @@ fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, s
         let mut guard = state.thumbnail_cache_size.write().map_err(|e| e.to_string())?;
         *guard = size;
     }
-    let mut config = load_config(&app);
+    let mut config = load_config(&app)?;
     config.thumbnail_cache_size = Some(size);
     save_config(&app, &config)?;
     Ok(())
@@ -550,7 +587,9 @@ fn cancel_scan(task_id: String) {
 
 // `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
 // `task_id` / `cancel` : identifiant de la tâche pour les événements de progression, et drapeau d'arrêt demandé par l'interface
-async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) {
+// Renvoie une erreur si le parcours ou l'enregistrement a échoué (tâche en erreur, panique, lots non enregistrés) : un scan n'est jamais
+// annoncé réussi alors que des photos n'ont pas été enregistrées.
+async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) -> Result<(), String> {
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
     let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>, faces::PhotoFaces)>(100);
@@ -563,7 +602,8 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
         let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::new();
         // Orientation et zones de visage, enregistrées après les mots-clés (la liaison personne ↔ mot-clé cherche les nœuds de l'arbre).
         let mut face_batches: Vec<(String, faces::PhotoFaces)> = Vec::new();
-        let conn = pool_clone.get().unwrap();
+        let conn = pool_clone.get().map_err(|error| format!("Connexion à la base impossible : {error}"))?;
+        let mut failed_batches = 0usize;
         while let Some((photo, modified, keyword_paths, photo_faces)) = rx.recv().await {
             modified_dates.push((photo.path.clone(), modified));
             keyword_batches.push((photo.path.clone(), keyword_paths));
@@ -572,6 +612,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             if buffer.len() >= 500 {
                 if let Err(error) = library_sync::store_read_batch(&conn, &buffer, &modified_dates, &keyword_batches, &face_batches) {
                     eprintln!("Scan batch not stored: {error}");
+                    failed_batches += 1;
                 }
                 buffer.clear();
                 modified_dates.clear();
@@ -582,12 +623,17 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
         if !buffer.is_empty() {
             if let Err(error) = library_sync::store_read_batch(&conn, &buffer, &modified_dates, &keyword_batches, &face_batches) {
                 eprintln!("Scan batch not stored: {error}");
+                failed_batches += 1;
             }
         }
+        if failed_batches > 0 { return Err(format!("{failed_batches} lot(s) de photos n'ont pas pu être enregistrés")); }
+        Ok::<(), String>(())
     });
 
     let progress_app = app.clone();
     let scanner = tokio::task::spawn_blocking(move || {
+        // Vrai quand l'écriture s'est arrêtée (son récepteur est fermé) : le parcours cesse au lieu de lire des fichiers qui ne seront pas enregistrés.
+        let writer_gone = AtomicBool::new(false);
         // Rajout de format depuis la liste SUPPORTED_EXTENSIONS de libary_sync.rs
         //let entries: Vec<_> = WalkDir::new(scan_path)
         //    .into_iter()
@@ -607,7 +653,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
         };
         let entries: Vec<_> = WalkDir::new(scan_path)
             .into_iter()
-            .take_while(|_| !cancel.load(Ordering::Relaxed))
+            .take_while(|_| !cancel.load(Ordering::Relaxed) && !writer_gone.load(Ordering::Relaxed))
             .filter_map(|e| e.ok())
             .filter(|e| !e.file_type().is_dir() && library_sync::is_photo_file(e.path()))
             .collect();
@@ -622,7 +668,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
 
         entries.par_iter().for_each(|entry| {
             // Arrêt demandé : les fichiers restants ne sont pas lus (ceux déjà lus sont enregistrés normalement).
-            if cancel.load(Ordering::Relaxed) { return; }
+            if cancel.load(Ordering::Relaxed) || writer_gone.load(Ordering::Relaxed) { return; }
             // Progression : un événement environ tous les 1 % du dossier. Valeur approximative : l'ordre d'arrivée entre threads n'est pas garanti.
             let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
             if finished % step == 0 || finished == total {
@@ -659,11 +705,13 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
                 modified,
             };
 
-            let _ = tx.blocking_send((photo, modified, exif_data.keyword_paths, exif_data.faces));
+            if tx.blocking_send((photo, modified, exif_data.keyword_paths, exif_data.faces)).is_err() { writer_gone.store(true, Ordering::Relaxed); }
         });
     });
-    let _ = scanner.await;
-    let _ = writer.await;
+    let scanned = scanner.await;
+    let stored = writer.await;
+    scanned.map_err(|error| format!("Le parcours du dossier a échoué : {error}"))?;
+    stored.map_err(|error| format!("L'enregistrement des photos a échoué : {error}"))?
 }
 
 // Découverte d'un dossier qui vient d'être ajouté (voir add_folder) : lit les métadonnées de ses photos et rend la main quand c'est terminé.
@@ -672,9 +720,9 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
 async fn scan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<(), String> {
     let pool = state.pool();
     let cancel = scan_cancel_flag(&task_id);
-    run_scan(app, pool, path, ScanMode::FolderScan, task_id.clone(), cancel).await;
+    let outcome = run_scan(app, pool, path, ScanMode::FolderScan, task_id.clone(), cancel).await;
     release_scan_cancel_flag(&task_id);
-    Ok(())
+    outcome
 }
 
 #[tauri::command]
@@ -685,7 +733,10 @@ async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, t
     let cancel = scan_cancel_flag(&task_id);
     for (index, folder) in folders.into_iter().enumerate() {
         if cancel.load(Ordering::Relaxed) { break; }
-        run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone()).await;
+        if let Err(error) = run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone()).await {
+            release_scan_cancel_flag(&task_id);
+            return Err(error);
+        }
     }
     // Rescan terminé sans arrêt demandé : le catalogue est à jour, les miniatures qui ne lui correspondent plus sont supprimées.
     if !cancel.load(Ordering::Relaxed) {
@@ -726,9 +777,9 @@ async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: 
     let scan_path = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !scan_path.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
     let cancel = scan_cancel_flag(&task_id);
-    run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }, task_id.clone(), cancel).await;
+    let outcome = run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }, task_id.clone(), cancel).await;
     release_scan_cancel_flag(&task_id);
-    Ok(())
+    outcome
 }
 
 // Dossier en cours d'analyse par une tâche (vérification d'intégrité), publié dans l'événement « scan-detail » à chaque changement de dossier.
@@ -869,23 +920,23 @@ fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rati
     if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
     exif::write_xmp_metadata(&path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string())?;
     let pool = state.pool();
-    let conn = pool.get().unwrap();
-    // Le fichier vient d'être réécrit par l'application : on enregistre sa nouvelle taille et sa date pour que la
-    // synchronisation ne le prenne pas pour une modification externe.
-    if let Ok(metadata) = fs::metadata(&path) {
-        let _ = conn.execute("UPDATE photos SET file_size = ?, modified = ? WHERE id = ?", params![metadata.len() as i64, library_sync::modified_millis(&metadata), id]);
-    }
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    // Le fichier vient d'être réécrit par l'application : sa nouvelle taille et sa date sont enregistrées avec les valeurs, dans une même
+    // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
+    let metadata = fs::metadata(&path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
+    let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
+    tx.execute("UPDATE photos SET file_size = ?, modified = ? WHERE id = ?", params![metadata.len() as i64, library_sync::modified_millis(&metadata), id])
+        .map_err(|error| error.to_string())?;
     if let Some(rating) = rating {
-        conn.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|e| e.to_string())?;
+        tx.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|error| error.to_string())?;
     }
     if let Some(flag) = color_flag {
-        conn.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(&flag), id]).map_err(|e| e.to_string())?;
+        tx.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(&flag), id]).map_err(|error| error.to_string())?;
     }
     if let Some(pick) = pick {
-        conn.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|e| e.to_string())?;
+        tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
     }
-
-    Ok(())
+    tx.commit().map_err(|error| error.to_string())
 }
 
 #[derive(serde::Serialize)]
@@ -939,9 +990,13 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
     let raw_previews_dir = state.raw_previews_dir();
 
     for path in paths {
-        let tracked: bool = conn
-            .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
-            .unwrap_or(false);
+        let tracked: bool = match conn.query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0)) {
+            Ok(tracked) => tracked,
+            Err(error) => {
+                failed.push(FileFailure { path, error: format!("Catalogue illisible : {error}") });
+                continue;
+            }
+        };
         if !tracked {
             failed.push(FileFailure { path, error: "Photo absente du catalogue".into() });
             continue;
@@ -959,11 +1014,16 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
             }
         }
 
+        // Le fichier est à la corbeille : la photo doit quitter le catalogue. Si ce n'est pas possible, l'échec est signalé (jamais de succès
+        // annoncé pour une photo qui reste dans la liste) ; la synchronisation retirera la ligne dont le fichier a disparu.
+        if let Err(error) = conn.execute("DELETE FROM photos WHERE path = ?", params![path]) {
+            failed.push(FileFailure { path, error: format!("Fichier mis à la corbeille, mais photo non retirée du catalogue : {error}") });
+            continue;
+        }
+
         // Nettoyage des caches correspondants
         if let Some(cache_file) = cache_file { let _ = fs::remove_file(cache_file); }
         if let Some(raw_preview_file) = raw_preview_file { let _ = fs::remove_file(raw_preview_file); }
-
-        let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![path]);
         deleted.push(path);
     }
     Ok(DeleteResult { deleted, failed })
@@ -1196,16 +1256,17 @@ fn unique_destination(directory: &Path, file_name: &std::ffi::OsStr) -> PathBuf 
 }
 
 // Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
-fn copy_sidecar(source: &Path, target: &Path) {
+fn copy_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
     let appended = PathBuf::from(format!("{}.xmp", source.display()));
     let (from, to) = if appended.is_file() {
         (appended, PathBuf::from(format!("{}.xmp", target.display())))
     } else {
         let compatible = source.with_extension("xmp");
-        if !compatible.is_file() { return; }
+        if !compatible.is_file() { return Ok(()); }
         (compatible, target.with_extension("xmp"))
     };
-    if !to.exists() { let _ = fs::copy(from, to); }
+    if !to.exists() { fs::copy(from, to)?; }
+    Ok(())
 }
 
 fn lowercase_segments(path: &Path) -> Vec<String> {
@@ -1271,13 +1332,14 @@ fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
 
 // Sidecar XMP d'une photo déplacée : « photo.jpg.xmp » est déplacé avec elle. Un sidecar « photo.xmp » peut être partagé avec un autre fichier du même nom
 // (paire RAW + JPEG) : il est copié et l'original reste en place, pour ne pas priver l'autre fichier de ses métadonnées.
-fn move_sidecar(source: &Path, target: &Path) {
+fn move_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
     let appended = PathBuf::from(format!("{}.xmp", source.display()));
     if appended.is_file() {
         let destination = PathBuf::from(format!("{}.xmp", target.display()));
-        if !destination.exists() { let _ = move_file(&appended, &destination); }
+        if !destination.exists() { move_file(&appended, &destination)?; }
+        Ok(())
     } else {
-        copy_sidecar(source, target);
+        copy_sidecar(source, target)
     }
 }
 
@@ -1382,7 +1444,10 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 failed.push(FileFailure { path: path.clone(), error: error.to_string() });
                 break 'file;
             }
-            move_sidecar(source, &target);
+            if let Err(error) = move_sidecar(source, &target) {
+                // La photo est déplacée mais pas son sidecar XMP : ses métadonnées sont restées à l'ancien emplacement, l'échec est signalé.
+                failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non déplacé : {error}") });
+            }
             let new_path = target.to_string_lossy().into_owned();
             // Les noms du cache dépendent du chemin : les miniatures existantes sont renommées vers le nouveau nom au lieu d'être régénérées.
             carry_cache_file(cache_file, thumbnail_cache_file(&thumbnails_dir, &new_path).ok());
@@ -1392,11 +1457,19 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
             let (size, modified) = fs::metadata(&target)
                 .map(|metadata| (metadata.len() as i64, library_sync::modified_millis(&metadata)))
                 .unwrap_or((0, 0));
-            let _ = conn.execute("DELETE FROM photos WHERE path = ?", params![new_path]);
-            let _ = conn.execute(
-                "UPDATE photos SET path = ?, filename = ?, file_size = ?, modified = ? WHERE path = ?",
-                params![new_path, new_name, size, modified, path],
-            );
+            let updated = conn.unchecked_transaction().and_then(|tx| {
+                tx.execute("DELETE FROM photos WHERE path = ?", params![new_path])?;
+                tx.execute(
+                    "UPDATE photos SET path = ?, filename = ?, file_size = ?, modified = ? WHERE path = ?",
+                    params![new_path, new_name, size, modified, path],
+                )?;
+                tx.commit()
+            });
+            if let Err(error) = updated {
+                // Fichier déplacé mais ligne inchangée : la photo n'est pas annoncée déplacée ; la synchronisation retirera l'ancienne ligne et ajoutera le fichier.
+                failed.push(FileFailure { path: path.clone(), error: format!("Fichier déplacé vers {new_path}, mais catalogue non mis à jour : {error}") });
+                break 'file;
+            }
             moved.push(MovedFile { from: path.clone(), to: new_path });
         }
         progress.advance(file_size);
@@ -1421,7 +1494,9 @@ fn copy_photos_with_progress(paths: Vec<String>, destination: &Path, mut progres
                 let target = unique_destination(destination, file_name);
                 match fs::copy(source, &target) {
                     Ok(_) => {
-                        copy_sidecar(source, &target);
+                        if let Err(error) = copy_sidecar(source, &target) {
+                            failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
+                        }
                         copied += 1;
                     }
                     Err(error) => {
@@ -1564,7 +1639,7 @@ fn main() {
             exiftool::init(handle.path().resource_dir().ok());
             let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
-            let config = load_config(handle);
+            let config = load_config_at_startup(handle);
             let cache_size = config.thumbnail_cache_size.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or(512);
 
             // Restauration de la fenêtre au démarrage avec vérification des écrans
@@ -1731,21 +1806,65 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn move_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
-    if !src.is_dir() { return Ok(()); }
+/// Fichiers et dossiers de données de l'application, dans le dossier de stockage. `models` : fichiers de la détection des visages
+/// (face_models.rs), conservés avec les données pour ne pas les retélécharger.
+const STORAGE_FILES: [&str; 3] = ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"];
+const STORAGE_DIRS: [&str; 4] = ["thumbnails", "raw_previews", "models", "person_covers"];
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
-            move_dir_recursive(&src_path, &dst_path)?;
+        let destination = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&entry.path(), &destination)?;
         } else {
-            move_file_or_copy(&src_path, &dst_path)?;
+            fs::copy(entry.path(), destination)?;
         }
     }
-    let _ = fs::remove_dir(src);
     Ok(())
+}
+
+/// Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+fn remove_storage(base: &Path) {
+    for name in STORAGE_FILES {
+        let path = base.join(name);
+        if let Err(error) = fs::remove_file(&path) {
+            if error.kind() != std::io::ErrorKind::NotFound { eprintln!("Storage file not removed ({}): {error}", path.display()); }
+        }
+    }
+    for name in STORAGE_DIRS {
+        let path = base.join(name);
+        if let Err(error) = fs::remove_dir_all(&path) {
+            if error.kind() != std::io::ErrorKind::NotFound { eprintln!("Storage folder not removed ({}): {error}", path.display()); }
+        }
+    }
+}
+
+/// Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écriture
+/// est tenue : aucune tâche ne peut la modifier entre-temps, et une base occupée fait refuser le changement avant toute copie.
+fn copy_storage(pool: &DbPool, from: &Path, to: &Path) -> Result<(), String> {
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);").map_err(|error| format!("Point de contrôle de la base impossible : {error}"))?;
+    conn.execute_batch("BEGIN IMMEDIATE").map_err(|error| format!("La base est utilisée par une tâche en cours, réessayez plus tard : {error}"))?;
+    let copied = (|| -> Result<(), String> {
+        for name in ["photos_library.db", "photos_library.db-wal"] {
+            let source = from.join(name);
+            // Le journal WAL est vide après le point de contrôle : il n'est copié que s'il contient quelque chose. Le fichier -shm se reconstruit seul.
+            let empty_wal = name.ends_with("-wal") && fs::metadata(&source).map(|metadata| metadata.len() == 0).unwrap_or(true);
+            if !source.is_file() || empty_wal { continue; }
+            fs::copy(&source, to.join(name)).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
+        }
+        for name in STORAGE_DIRS {
+            let source = from.join(name);
+            if source.is_dir() {
+                copy_dir_recursive(&source, &to.join(name)).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
+            }
+        }
+        Ok(())
+    })();
+    let _ = conn.execute_batch("ROLLBACK");
+    copied
 }
 
 #[derive(serde::Serialize)]
@@ -1788,56 +1907,57 @@ fn change_storage_location(
         }
     };
 
-    // 1. Checkpoint WAL sur la base courante pour intégrer toutes les transactions dans photos_library.db
-    {
-        let pool = state.pool();
-        if let Ok(conn) = pool.get() {
-            let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    // Le dossier cible ne doit contenir aucune donnée de l'application : rien n'y est écrasé, et il peut être nettoyé en cas d'échec.
+    let current_base = state.base_dir();
+    for name in STORAGE_FILES.iter().chain(STORAGE_DIRS.iter()) {
+        if target_dir.join(name).exists() {
+            return Err(format!("Le dossier choisi contient déjà « {name} » : choisissez un dossier sans données de l'application"));
         }
     }
-
-    // 2. Verrouille le pool pour couper l'ouverture de nouvelles connexions pendant le déplacement
-    let mut pool_guard = state.db_pool.write().map_err(|e| e.to_string())?;
-
-    // 3. Déplacement des fichiers
-    let current_base = state.base_dir();
     fs::create_dir_all(&target_dir).map_err(|e| format!("Impossible de créer le dossier cible : {e}"))?;
 
-    for file_name in &["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"] {
-        let src = current_base.join(file_name);
-        let dst = target_dir.join(file_name);
-        if src.is_file() {
-            move_file_or_copy(&src, &dst).map_err(|e| format!("Erreur lors du déplacement de {file_name} : {e}"))?;
-        }
+    // 1. Copie des données (la source n'est pas touchée : en cas d'échec, l'emplacement actuel reste valable).
+    if let Err(error) = copy_storage(&state.pool(), &current_base, &target_dir) {
+        remove_storage(&target_dir);
+        return Err(error);
     }
 
-    // models : fichiers de la détection des visages (face_models.rs), déplacés avec les données pour ne pas les retélécharger.
-    for folder_name in &["thumbnails", "raw_previews", "models", "person_covers"] {
-        let src = current_base.join(folder_name);
-        let dst = target_dir.join(folder_name);
-        if src.is_dir() {
-            move_dir_recursive(&src, &dst).map_err(|e| format!("Erreur lors du déplacement de {folder_name} : {e}"))?;
-        }
-    }
-
-    // 4. Initialise le nouveau pool sur la nouvelle base
+    // 2. Ouverture de la base copiée, avant de toucher à l'état de l'application.
     let new_db_path = target_dir.join("photos_library.db");
-    let new_pool = db::init_db(&new_db_path.to_string_lossy());
-    *pool_guard = new_pool;
+    let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| db::init_db(&new_db_path.to_string_lossy())));
+    let Ok(new_pool) = opened else {
+        remove_storage(&target_dir);
+        return Err("La copie de la base n'a pas pu être ouverte : l'emplacement n'a pas changé".into());
+    };
 
-    // 5. Met à jour les chemins dans l'état de l'application
+    // 3. Bascule de l'état de l'application.
     let is_custom = new_path.is_some() && target_dir != default_dir;
     let new_paths = AppDataPaths::from_base(target_dir.clone(), is_custom);
-    {
+    let (old_pool, old_paths) = {
+        let mut pool_guard = state.db_pool.write().map_err(|e| e.to_string())?;
         let mut paths_guard = state.paths.write().map_err(|e| e.to_string())?;
-        *paths_guard = new_paths;
+        (std::mem::replace(&mut *pool_guard, new_pool), std::mem::replace(&mut *paths_guard, new_paths))
+    };
+
+    // 4. Sauvegarde dans config.json. En cas d'échec, retour à l'ancien emplacement (ses fichiers n'ont pas été touchés) : au prochain démarrage,
+    // l'application retrouverait sinon un autre emplacement que celui où elle travaille.
+    let saved = load_config(&app).and_then(|mut config_data| {
+        config_data.custom_data_dir = if is_custom { Some(target_dir.to_string_lossy().into_owned()) } else { None };
+        config_data.thumbnail_cache_size = Some(state.thumbnail_cache_size() as u32);
+        save_config(&app, &config_data)
+    });
+    if let Err(error) = saved {
+        if let (Ok(mut pool_guard), Ok(mut paths_guard)) = (state.db_pool.write(), state.paths.write()) {
+            *pool_guard = old_pool; // la base copiée est fermée ici
+            *paths_guard = old_paths;
+        }
+        remove_storage(&target_dir);
+        return Err(format!("Configuration non enregistrée, l'emplacement n'a pas changé : {error}"));
     }
 
-    // 6. Sauvegarde dans le fichier config.json
-    let mut config_data = load_config(&app);
-    config_data.custom_data_dir = if is_custom { Some(target_dir.to_string_lossy().into_owned()) } else { None };
-    config_data.thumbnail_cache_size = Some(state.thumbnail_cache_size() as u32);
-    save_config(&app, &config_data)?;
+    // 5. Ancien emplacement nettoyé (au mieux : sous Windows, des tâches encore en cours peuvent garder la base ouverte).
+    drop(old_pool);
+    remove_storage(&current_base);
 
     Ok(StorageLocationInfo {
         current_path: target_dir.to_string_lossy().into_owned(),
