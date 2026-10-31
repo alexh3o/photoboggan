@@ -104,7 +104,7 @@ pub fn init_db(db_path: &str) -> DbPool {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_path ON photos(path)", []).unwrap();
 
     // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
-    crate::keywords::init_schema(&conn);
+    crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
     // Visages et personnes : voir faces.rs.
     crate::faces::init_schema(&conn);
 
