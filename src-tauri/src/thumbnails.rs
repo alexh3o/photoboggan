@@ -1,4 +1,4 @@
-//! Génération des miniatures du cache en Rust (JPEG uniquement).
+//! Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos).
 //!
 //! Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille demandée) :
 //! une photo de 24 Mpx n'est jamais décodée en pleine résolution. Le redimensionnement final est une moyenne
@@ -18,8 +18,7 @@ use exif::{In, Reader, Tag};
 use jpeg_decoder::{Decoder, PixelFormat};
 use jpeg_encoder::{ColorType, Encoder};
 
-/// Plus grand côté des miniatures du cache (identique à l'ancienne génération côté interface).
-//pub const THUMBNAIL_MAX_SIDE: usize = 512;
+/// Qualité JPEG des miniatures et des aperçus écrits dans le cache.
 const THUMBNAIL_JPEG_QUALITY: u8 = 84;
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -77,7 +76,6 @@ pub fn jpeg_size(path: &Path) -> Result<ThumbnailSize, String> {
     Ok(ThumbnailSize { width: info.width as u32, height: info.height as u32 })
 }
 
-//// Tentative de decodage extraction preview raw
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 ///////
@@ -100,7 +98,10 @@ pub fn extract_raw_preview(source: &Path) -> Result<Vec<u8>, String> {
         file.read_exact(&mut buf).map_err(|e| e.to_string())?;
         let offset = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]) as u64;
         let length = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize;
-        if offset > 0 && length > 1000 {
+        // Offset et longueur viennent du fichier : un en-tête corrompu ne doit pas provoquer une allocation énorme.
+        let file_len = file.metadata().map_err(|e| e.to_string())?.len();
+        let fits = offset.checked_add(length as u64).is_some_and(|end| end <= file_len);
+        if offset > 0 && length > 1000 && fits {
             file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
             let mut jpeg_data = vec![0u8; length];
             file.read_exact(&mut jpeg_data).map_err(|e| e.to_string())?;
@@ -124,6 +125,42 @@ pub fn extract_raw_preview(source: &Path) -> Result<Vec<u8>, String> {
     find_embedded_jpeg_stream(&mut file)
 }
 
+/// Fin (exclue) du flux JPEG qui commence en `start` (marqueur SOI). Les segments sont parcourus par leur longueur : une vignette EXIF intégrée,
+/// avec son propre EOI, ne termine donc pas l'image ; puis les données de l'image sont lues jusqu'à l'EOI. None si le flux est tronqué ou illisible.
+fn jpeg_stream_end(data: &[u8], start: usize) -> Option<usize> {
+    let mut pos = start.checked_add(2)?;
+    loop {
+        // Octets de remplissage 0xFF, puis marqueur.
+        if *data.get(pos)? != 0xff { return None; }
+        while *data.get(pos)? == 0xff { pos += 1; }
+        let marker = *data.get(pos)?;
+        pos += 1;
+        match marker {
+            0xd9 => return Some(pos),
+            0x01 | 0xd0..=0xd7 => continue, // marqueurs sans contenu
+            0x00 | 0xd8 => return None,
+            _ => {}
+        }
+        let length = u16::from_be_bytes([*data.get(pos)?, *data.get(pos + 1)?]) as usize;
+        if length < 2 { return None; }
+        pos = pos.checked_add(length)?;
+        if pos > data.len() { return None; }
+        if marker == 0xda {
+            // Données de l'image : jusqu'au prochain marqueur (0xFF suivi d'autre chose que 0x00 ou d'un redémarrage RSTn).
+            loop {
+                let at = pos + data[pos..].iter().position(|&byte| byte == 0xff)?;
+                match *data.get(at + 1)? {
+                    0x00 | 0xd0..=0xd7 => pos = at + 2,
+                    _ => {
+                        pos = at;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Recherche un flux JPEG intégré dans le fichier (méthode rapide par segments de 512 Ko)
 fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
     file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
@@ -140,15 +177,11 @@ fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
             let marker = buffer[i + 3];
             if (0xe0..=0xef).contains(&marker) || marker == 0xdb || marker == 0xc0 || marker == 0xc2 {
                 let start = i;
-                // Trouver la fin du JPEG (EOI : FF D9)
-                let mut end = start + 4;
-                while end + 2 <= buffer.len() {
-                    if buffer[end] == 0xff && buffer[end + 1] == 0xd9 {
-                        end += 2;
-                        break;
-                    }
-                    end += 1;
-                }
+                // Flux tronqué ou illisible : pas un aperçu, la recherche continue.
+                let Some(end) = jpeg_stream_end(&buffer, start) else {
+                    i += 1;
+                    continue;
+                };
                 let len = end - start;
                 // On privilégie une image d'au moins 20 Ko pour éviter les minuscules icônes 160x120
                 if len >= 20_000 {
@@ -171,12 +204,12 @@ fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
         return Ok(buffer[start..start + len].to_vec());
     }
 
-    // Si on a trouvé un JPEG même plus petit (ex: 8 Ko)
-    if let Some(pos) = buffer.windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
-        let tail = &buffer[pos..];
-        if let Some(end_rel) = tail.windows(2).position(|w| w == [0xff, 0xd9]) {
-            return Ok(tail[..end_rel + 2].to_vec());
-        }
+    // Sinon, le premier flux JPEG complet, même petit (ex: 8 Ko).
+    let mut from = 0;
+    while let Some(relative) = buffer[from..].windows(3).position(|w| w == [0xff, 0xd8, 0xff]) {
+        let pos = from + relative;
+        if let Some(end) = jpeg_stream_end(&buffer, pos) { return Ok(buffer[pos..end].to_vec()); }
+        from = pos + 1;
     }
 
     Err("Aucune prévisualisation JPEG trouvée dans le fichier RAW".into())
@@ -192,16 +225,13 @@ fn find_cr3_preview(file: &mut File) -> Result<Vec<u8>, String> {
     // L'en-tête de boîte fait 8 octets : 4 octets de taille + 4 octets de nom ('PRVW')
     if let Some(pos) = buffer.windows(4).position(|w| w == b"PRVW") {
         let content_start = pos + 4;
-        // On cherche le marqueur FF D8 dans les 64 octets suivants
+        // On cherche le marqueur FF D8 dans les 128 octets suivants
         if let Some(soi_rel) = buffer[content_start..content_start + 128.min(buffer.len() - content_start)]
             .windows(2)
             .position(|w| w == [0xff, 0xd8])
         {
             let jpeg_start = content_start + soi_rel;
-            let tail = &buffer[jpeg_start..];
-            if let Some(eoi_rel) = tail.windows(2).position(|w| w == [0xff, 0xd9]) {
-                return Ok(tail[..eoi_rel + 2].to_vec());
-            }
+            if let Some(end) = jpeg_stream_end(&buffer, jpeg_start) { return Ok(buffer[jpeg_start..end].to_vec()); }
         }
     }
     Err("Prévisualisation CR3 introuvable".into())
