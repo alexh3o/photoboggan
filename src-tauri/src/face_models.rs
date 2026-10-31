@@ -13,9 +13,16 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
+use std::time::Duration;
 use tauri::{Emitter, State};
 
 use crate::AppState;
+
+/// Délais du téléchargement : sans eux, une connexion qui ne répond plus bloquerait la tâche pour toujours (l'arrêt demandé n'est vu qu'entre deux lectures).
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
+/// Durée maximale de réception d'un fichier (le plus gros fait quelques dizaines de Mo) : large pour une liaison lente, mais finie.
+const BODY_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 
 #[derive(Deserialize)]
 struct ModelFile {
@@ -168,7 +175,11 @@ fn install_from(reader: &mut dyn Read, dir: &Path, file: &ModelFile, cancel: Opt
         Ok(())
     })();
     match result {
-        Ok(()) => fs::rename(&partial, dir.join(&file.local)).map_err(|error| error.to_string()),
+        // Fichier vérifié mais impossible à mettre en place (cible utilisée, droits…) : le `.part` complet ne doit pas rester dans le dossier.
+        Ok(()) => fs::rename(&partial, dir.join(&file.local)).map_err(|error| {
+            let _ = fs::remove_file(&partial);
+            error.to_string()
+        }),
         Err(error) => {
             let _ = fs::remove_file(&partial);
             Err(error)
@@ -192,7 +203,14 @@ pub async fn download_face_models(app: tauri::AppHandle, state: State<'_, AppSta
             // Vérifié avant chaque fichier : passer en mode hors ligne arrête aussi un téléchargement en cours.
             if !INTERNET_ALLOWED.load(Ordering::Relaxed) { return Err("internet_disabled".to_string()); }
             let url = format!("{}{}", manifest().base_url, file.asset);
-            let response = ureq::get(&url).call().map_err(|error| format!("{url} : {error}"))?;
+            let response = ureq::get(&url)
+                .config()
+                .timeout_connect(Some(CONNECT_TIMEOUT))
+                .timeout_recv_response(Some(RESPONSE_TIMEOUT))
+                .timeout_recv_body(Some(BODY_TIMEOUT))
+                .build()
+                .call()
+                .map_err(|error| format!("{url} : {error}"))?;
             let mut reader = response.into_body().into_reader();
             install_from(&mut reader, &dir, file, Some(&cancel), &mut |bytes| {
                 done += bytes;
