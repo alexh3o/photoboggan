@@ -3,6 +3,12 @@
 ## 🚀 Next in line
 
 - [ ] *feat*: `metadata` manage pick label optionnaly
+- [ ] *feat*: `faces` allow always show faces in faces review preview
+- [ ] *fix*: `metadata` xmp sidecars stay on disk when deleting file
+- [ ] *refactor*: `faces` group "undo the merge of"
+- [ ] *fix*: portrait oriented ARW are rotated in thumbnail but not in preview and full screen
+- [ ] *refactor*: copy silently creates second copy if filename exists
+- [ ] *feat*: rename file
 
 ## 💡 Ideas / Longer term / On hold
 

@@ -325,12 +325,15 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .pick-square.checked::after { content: none; }
 /* Marquage : un seul glyphe (drapeau) dont la couleur porte le fanion ; « aucun » est blanc. Contour sombre pour rester lisible sur fond clair.
    Sans cadre : le drapeau est aussi grand qu'un carré de couleur (1,25 rem dans le panneau Info, 1,5 rem dans la barre flottante). */
-.marking-pick .pick-square, .marking-pick-button { --pick-color: var(--pick-state-color); text-shadow: 0 0 2px #000, 0 0 1px #000; }
-.marking-pick .pick-none, .marking-pick-button.pick-none { --pick-state-color: #f5f5f5; }
-.marking-pick .pick-pending, .marking-pick-button.pick-pending { --pick-state-color: #f1c40f; }
-.marking-pick .pick-picked, .marking-pick-button.pick-picked { --pick-state-color: #2ecc71; }
-.marking-pick .pick-rejected, .marking-pick-button.pick-rejected { --pick-state-color: #e74c3c; }
+.marking-pick .pick-square, #pick-filter-bar .pick-square, .marking-pick-button { --pick-color: var(--pick-state-color); text-shadow: 0 0 2px #000, 0 0 1px #000; }
+.marking-pick .pick-none, #pick-filter-bar .pick-none, .marking-pick-button.pick-none { --pick-state-color: #f5f5f5; }
+.marking-pick .pick-pending, #pick-filter-bar .pick-pending, .marking-pick-button.pick-pending { --pick-state-color: #f1c40f; }
+.marking-pick .pick-picked, #pick-filter-bar .pick-picked, .marking-pick-button.pick-picked { --pick-state-color: #2ecc71; }
+.marking-pick .pick-rejected, #pick-filter-bar .pick-rejected, .marking-pick-button.pick-rejected { --pick-state-color: #e74c3c; }
 .marking-pick-wrap { display: flex; }
+#pick-filter-bar .pick-square { width: 1.25rem; height: 1.25rem; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; font-size: 1.25rem; line-height: 1; }
+#pick-filter-bar .pick-square:hover { background: transparent; filter: brightness(1.15); }
+#pick-filter-bar .pick-square.checked { background: transparent; outline: 2px solid var(--pick-color); outline-offset: 1px; }
 .marking-pick .pick-square, .marking-pick-button.pick-square { width: 1.25rem; height: 1.25rem; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; font-size: 1.25rem; line-height: 1; }
 .marking-pick .pick-square:hover, .marking-pick-button.pick-square:hover { background: transparent; filter: brightness(1.15); }
 .marking-pick .pick-square.checked { background: transparent; outline: 2px solid var(--pick-color); outline-offset: 1px; }

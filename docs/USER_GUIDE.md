@@ -94,13 +94,13 @@ Panels can be shown or hidden (see [shortcuts](#9-keyboard-shortcuts)) and resiz
 
 Filters are in the left panel and **combine with each other**. The grid shows the number of matching photos; the cross button next to **Filters** clears everything.
 
-| Filter               | How it works                                                                                                         |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Filter               | How it works                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ratings & Colors** | Minimum rating (*≥ 1 star* … *= 5 stars*), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
-| **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter. |
-| **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                     |
-| **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                             |
-| **Date taken**       | Type a date or range, or use the calendar button.                                                                    |
+| **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter.                                |
+| **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                                                    |
+| **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                                                            |
+| **Date taken**       | Type a date or range, or use the calendar button.                                                                                                   |
 
 **Date filter examples** (formats `YYYY`, `YYYYMM`, `YYYYMMDD`, `YYYYMMDDHH`, `YYYYMMDDHHmm`):
 
@@ -215,14 +215,14 @@ Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity che
 
 ### Operations that modify or create files
 
-| Operation                                   | Effect                                                               |
-| ------------------------------------------- | -------------------------------------------------------------------- |
+| Operation                                              | Effect                                                               |
+| ------------------------------------------------------ | -------------------------------------------------------------------- |
 | Rating, color, pick flag, keywords, title, description | Changes metadata only (inside the file or its sidecar).              |
-| Writing faces / **Erase face data…**        | Changes face-region metadata (and keywords set by face recognition). |
-| Move, Copy to…, drag and drop               | Moves or copies files (and their sidecars).                          |
-| Resize                                      | Creates new files; it cannot replace the original files.             |
-| Delete                                      | Trash (or permanent on drives without one).                          |
-| New subfolder                               | Creates a folder.                                                    |
+| Writing faces / **Erase face data…**                   | Changes face-region metadata (and keywords set by face recognition). |
+| Move, Copy to…, drag and drop                          | Moves or copies files (and their sidecars).                          |
+| Resize                                                 | Creates new files; it cannot replace the original files.             |
+| Delete                                                 | Trash (or permanent on drives without one).                          |
+| New subfolder                                          | Creates a folder.                                                    |
 
 ### How metadata writing protects your files
 
@@ -264,7 +264,7 @@ Photoboggan can read face areas already stored by other software, and can detect
 
 RAW files are scanned only if **Scan RAW files (embedded preview)** is ticked. Detection uses the cached thumbnails (512 px minimum, so the thumbnail cache cannot be set lower, and higher is better).
 
-### Detection and Recongnition tuning
+### Detection and Recognition tuning
 
 The detection and recognition thresholds in **Settings > Faces** have sensible hints next to each field; defaults are provisional, so adjust them if you get too many false faces or suggestions. Changing a threshold reclassifies existing faces without a new scan, so slowly adjust and check the effects.
 
@@ -290,7 +290,7 @@ Right-click a person to rename, set an alias (display only, never written), hide
 
 ### Saving faces
 
-Faces and names are only written to your files when you click **Write to files** (`Ctrl`+`Enter`) in the faces view; the button shows how many photos are waiting. Naming a new person also creates a keyword for them (under the root set in **Keyword root for new people**, for example `#CONTACTS`).
+Faces and names are only written to your files when you click **Write to files** (`Ctrl`+`Enter`) in the faces view; the button shows how many photos are waiting. Naming a new person also creates a keyword for them (under the root set in **Keyword root for new people**, for example `#CONTACTS`). The keyword will only appear in the keyword tree when the face is written.
 
 ---
 
@@ -303,7 +303,7 @@ Open with the gear icon. The keyboard icon shows the shortcut guide; the *i* ico
 | **General**      | **Language** choice; <br/>**At startup, show** all photos or last folder<br/>**Offline mode** (never connect to the Internet)<br/>**Library**:<br/> - **+ Add folder**, remove folders,<br/> - **Rescan all collection** re-reads every file; ti can be long. It also cleans up orphan thumbnails.                                                                                                                                                                                      |
 | **Storage**      | **Application data location** (database, thumbnails, face models; moving it moves the files; a fast SSD is best). <br/>**Thumbnail cache size**: 512, 768 or 1024 px. Higher is better for face recognition's display in faces review page. Changing it deletes thumbnails, which are rebuilt as you browse. <br/>**Remove orphan thumbnails** deletes potential useless thumbnails<br/>**Verify moves between drives** (checksum)**: on by default, see [File safety](#6-file-safety). |
 | **Applications** | **Open with** programs shown in the context menu.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Labels**: use color labels, use pick / reject flags (off by default);<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder).                                                                                                                                                                                                                                                     |
+| **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Labels**: use color labels, use pick / reject flags (off by default);<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder).                                                                                                                                                                         |
 | **Faces**        | Face reading, detection, model, thresholds (see [section 7](#7-people-and-face-recognition)).                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **ExifTool vs Internal:** ExifTool is bundled with Photoboggan (on Linux it needs `perl`) and also writes the Windows/EXIF fields of JPEGs (Windows keywords, title and comment fields). The *Internal* method should be faster but writes only XMP and IPTC. Both write the same core data.

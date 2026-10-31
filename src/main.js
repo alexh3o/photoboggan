@@ -3054,7 +3054,8 @@ function createPickSquare(flag) {
 
 // Filtre par fanion pick : plusieurs carrés peuvent être cochés (une photo est affichée si elle a l'un des fanions cochés).
 const pickFilterBar = document.getElementById('pick-filter-bar');
-pickFilterBar.replaceChildren(...PICK_FLAGS.map(createPickSquare));
+// Mêmes drapeaux que dans la barre flottante : un seul glyphe dont la couleur porte le fanion.
+pickFilterBar.replaceChildren(...PICK_FLAGS.map(flag => createPickSquare({ ...flag, glyph: '⚑' })));
 pickFilterBar.addEventListener('click', event => {
   const button = event.target instanceof Element ? event.target.closest('.pick-square') : null;
   if (!button) return;
