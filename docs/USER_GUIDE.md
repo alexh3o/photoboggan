@@ -1,6 +1,6 @@
 # Photoboggan User Guide
 
-Photoboggan is a fast, lightweight photo browser and organizer for your computer. It works directly on the folders you already have: no import, no copy, no proprietary library. Rate, color-label, keyword, compare and filter your photos, and everything you add is stored in the standard way, so other programs (digiKam, Lightroom, Windows Explorer…) see it too.
+Photoboggan is a fast, lightweight photo browser and organizer for your computer. It works directly on the folders you already have: no import, no copy, no proprietary library. Rate, color-label, pick or reject, keyword, compare and filter your photos, and everything you add is stored in the standard way, so other programs (digiKam, Lightroom, Windows Explorer…) see it too.
 
 > **Beta software.** Always keep a complete backup of your photos.
 
@@ -96,7 +96,7 @@ Filters are in the left panel and **combine with each other**. The grid shows th
 
 | Filter               | How it works                                                                                                         |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Ratings & Colors** | Minimum rating (*≥ 1 star* … *= 5 stars*), plus one or more color labels (a photo matches any selected color).       |
+| **Ratings & Colors** | Minimum rating (*≥ 1 star* … *= 5 stars*), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
 | **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter. |
 | **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                     |
 | **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                             |
@@ -112,13 +112,18 @@ Filters are in the left panel and **combine with each other**. The grid shows th
 
 ## 4. Organizing photos
 
-### Rating and color labels
+### Rating, color labels and pick flags
 
 - **Rating:** keys `0`–`5` (`0` removes it), the Selection box, or the stars in fullscreen.
 - **Color labels:** keys `6` (red), `7` (yellow), `8` (green), `9` (blue); pressing the same key again removes it. More colors (orange, magenta, grey, black, white) are available in the Selection box and filters.
+- **Pick / reject flags:** `Shift`+`P` picks, `Shift`+`X` rejects; pressing the same key again removes the flag. Photos carry a small square on their thumbnail (green: picked, red: rejected, yellow: pending; nothing when unflagged). In the Selection box and the floating bar, a single flag icon shows the current flag by its color (white: none, yellow: pending, green: picked, red: rejected); in the bar it unfolds to let you choose.
+  - The choices offered follow the format ranked first under **Settings > Metadata > Reading priority > Pick**: *digiKam* (`digiKam:PickLabel`): none, pending, picked, rejected; *Adobe Lightroom* (`xmpDM:pick`) or *Adobe XMP* (`xmpDM:good`): none, picked, rejected. Whatever the order, all three fields are written.
+  - The **Ratings & Colors** filter has a matching *Pick* row (picked, rejected, pending, no flag).
 - `Alt` + a rating/color key applies it and moves to the next photo, for fast culling.
 
-Ratings and colors are written to your files right away (see [File safety](#6-file-safety)).
+**Settings > Metadata > Labels** lets you turn **color labels** and **pick / reject flags** on or off. Pick flags are **off by default**. A turned-off feature is still read from the files but is no longer shown (filters, indicators, buttons) or modified (shortcuts ignored); `Shift`+`P` and `Shift`+`X` then keep their usual meaning. Rescan the collection to load the flags of photos already cataloged.
+
+Ratings, colors and flags are written to your files right away (see [File safety](#6-file-safety)).
 
 ### Compare mode
 
@@ -192,7 +197,7 @@ Large keyword changes (20 photos or more) run as a background task.
 
 Photoboggan understands the main keyword conventions: digiKam, Lightroom, Media Pro, Microsoft Photo, ACDSee, plus flat lists (Dublin Core, IPTC, Windows). It writes all of them so other programs agree. When reading, one source wins, in the order set under **Settings > Metadata > Reading priority** (default: digiKam, Lightroom, Media Pro, Microsoft, ACDSee). A new order applies to files read afterwards, so rescan to apply it.
 
-Ratings and color labels use the standard XMP fields (plus Microsoft and ACDSee equivalents), which digiKam and Lightroom read.
+Ratings and color labels use the standard XMP fields (plus Microsoft and ACDSee equivalents), which digiKam and Lightroom read. Pick flags use `digiKam:PickLabel` (0 none, 1 rejected, 2 pending, 3 picked), `xmpDM:pick` (-1 rejected, 0 none, 1 picked, as written by Lightroom) and `xmpDM:good` (true / false). When reading, the first of these present in the **Pick** reading priority wins; a value of 0 counts as an answer ("no flag"), only an absent field passes to the next one.
 
 ### Changes made outside Photoboggan
 
@@ -212,7 +217,7 @@ Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity che
 
 | Operation                                   | Effect                                                               |
 | ------------------------------------------- | -------------------------------------------------------------------- |
-| Rating, color, keywords, title, description | Changes metadata only (inside the file or its sidecar).              |
+| Rating, color, pick flag, keywords, title, description | Changes metadata only (inside the file or its sidecar).              |
 | Writing faces / **Erase face data…**        | Changes face-region metadata (and keywords set by face recognition). |
 | Move, Copy to…, drag and drop               | Moves or copies files (and their sidecars).                          |
 | Resize                                      | Creates new files; it cannot replace the original files.             |
@@ -298,7 +303,7 @@ Open with the gear icon. The keyboard icon shows the shortcut guide; the *i* ico
 | **General**      | **Language** choice; <br/>**At startup, show** all photos or last folder<br/>**Offline mode** (never connect to the Internet)<br/>**Library**:<br/> - **+ Add folder**, remove folders,<br/> - **Rescan all collection** re-reads every file; ti can be long. It also cleans up orphan thumbnails.                                                                                                                                                                                      |
 | **Storage**      | **Application data location** (database, thumbnails, face models; moving it moves the files; a fast SSD is best). <br/>**Thumbnail cache size**: 512, 768 or 1024 px. Higher is better for face recognition's display in faces review page. Changing it deletes thumbnails, which are rebuilt as you browse. <br/>**Remove orphan thumbnails** deletes potential useless thumbnails<br/>**Verify moves between drives** (checksum)**: on by default, see [File safety](#6-file-safety). |
 | **Applications** | **Open with** programs shown in the context menu.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder).                                                                                                                                                                                                                                                     |
+| **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Labels**: use color labels, use pick / reject flags (off by default);<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder).                                                                                                                                                                                                                                                     |
 | **Faces**        | Face reading, detection, model, thresholds (see [section 7](#7-people-and-face-recognition)).                                                                                                                                                                                                                                                                                                                                                                                           |
 
 **ExifTool vs Internal:** ExifTool is bundled with Photoboggan (on Linux it needs `perl`) and also writes the Windows/EXIF fields of JPEGs (Windows keywords, title and comment fields). The *Internal* method should be faster but writes only XMP and IPTC. Both write the same core data.

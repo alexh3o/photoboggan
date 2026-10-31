@@ -30,6 +30,10 @@ pub struct ExifMetadata {
     pub rating_sources: [Option<i32>; 5],
     /// Couleur de chaque source (clé de couleur), dans l'ordre de COLOR_SOURCE_IDS.
     pub color_sources: [Option<&'static str>; 3],
+    /// Fanion pick retenu (clé de PICK_FLAGS) : la première source présente dans l'ordre de priorité réglé (voir PICK_SOURCE_IDS).
+    pub pick_flag: String,
+    /// Fanion pick de chaque source, dans l'ordre de PICK_SOURCE_IDS (None : propriété absente ; « none » : valeur explicite « aucun fanion »).
+    pub pick_sources: [Option<&'static str>; 3],
     /// Orientation EXIF et zones de visage (voir faces.rs).
     pub faces: crate::faces::PhotoFaces,
 }
@@ -201,6 +205,8 @@ struct ParsedXmp {
     ratings: [Option<i32>; 3],
     /// Sources XMP de la couleur, dans l'ordre de COLOR_SOURCE_IDS.
     colors: [Option<&'static str>; 3],
+    /// Sources XMP du fanion pick, dans l'ordre de PICK_SOURCE_IDS.
+    picks: [Option<&'static str>; 3],
     keywords: String,
     keyword_paths: Vec<Vec<String>>,
     /// Sources XMP du titre, dans l'ordre de TITLE_SOURCE_IDS (les deux premières).
@@ -222,6 +228,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     let mut hierarchical: Vec<Vec<String>> = Vec::new();
     let mut ratings: [Option<i32>; 3] = Default::default();
     let mut colors: [Option<&'static str>; 3] = Default::default();
+    let mut picks: [Option<&'static str>; 3] = Default::default();
     let mut titles: [Option<String>; 2] = Default::default();
     let mut descriptions: [Option<String>; 4] = Default::default();
     // Zones de visage : celles du paquet intégré, sinon celles du sidecar (pas de mélange des deux).
@@ -233,6 +240,9 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
             if slot.is_none() { *slot = value; }
         }
         for (slot, value) in colors.iter_mut().zip(xmp_colors(xml)) {
+            if slot.is_none() { *slot = value; }
+        }
+        for (slot, value) in picks.iter_mut().zip(xmp_picks(xml)) {
             if slot.is_none() { *slot = value; }
         }
         for (slot, name) in titles.iter_mut().zip(XMP_TITLE_PROPERTIES) {
@@ -260,6 +270,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     ParsedXmp {
         ratings,
         colors,
+        picks,
         keywords: keywords.join(", "),
         keyword_paths: hierarchical,
         titles,
@@ -284,8 +295,11 @@ const XMP_DESCRIPTION_PROPERTIES: [&str; 4] = ["dc:description", "exif:UserComme
 pub const RATING_SOURCE_IDS: [&str; 5] = ["xmp", "microsoft", "acdsee", "exif", "exif-percent"];
 /// Sources de la couleur, ordre par défaut : XMP xmp:Label, digiKam:ColorLabel, photoshop:Urgency.
 pub const COLOR_SOURCE_IDS: [&str; 3] = ["xmp-label", "digikam", "urgency"];
+/// Sources du fanion pick, ordre par défaut : digiKam:PickLabel, xmpDM:pick (Lightroom), xmpDM:good.
+pub const PICK_SOURCE_IDS: [&str; 3] = ["digikam", "xmpdm-pick", "xmpdm-good"];
 static RATING_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
 static COLOR_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);
+static PICK_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);
 static TITLE_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
 static DESCRIPTION_PRIORITY: std::sync::RwLock<[usize; 9]> = std::sync::RwLock::new([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
@@ -308,9 +322,9 @@ pub(crate) fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -
     Ok(indices)
 }
 
-/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »
-/// ou « faces ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
-/// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »,
+/// « pick » ou « faces ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
+/// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
 pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
     fn store<T>(lock: &std::sync::RwLock<T>, value: T) {
         *lock.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
@@ -321,6 +335,7 @@ pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
         "description" => store(&DESCRIPTION_PRIORITY, order_indices(&DESCRIPTION_SOURCE_IDS, order)?),
         "rating" => store(&RATING_PRIORITY, order_indices(&RATING_SOURCE_IDS, order)?),
         "color" => store(&COLOR_PRIORITY, order_indices(&COLOR_SOURCE_IDS, order)?),
+        "pick" => store(&PICK_PRIORITY, order_indices(&PICK_SOURCE_IDS, order)?),
         "faces" => store(&crate::faces::REGION_PRIORITY, order_indices(&crate::faces::REGION_SOURCE_IDS, order)?),
         _ => return Err("invalid_kind".to_string()),
     }
@@ -499,6 +514,53 @@ fn xmp_colors(xml: &str) -> [Option<&'static str>; 3] {
         number(&["digiKam:ColorLabel", "digikam:ColorLabel"]).and_then(color_from_number),
         number(&["photoshop:Urgency"]).and_then(color_from_number),
     ]
+}
+
+/// Fanion d'un numéro digiKam PickLabel : 0 aucun, 1 rejeté, 2 en attente, 3 accepté.
+fn pick_from_digikam(number: i32) -> Option<&'static str> {
+    match number {
+        0 => Some("none"),
+        1 => Some("rejected"),
+        2 => Some("pending"),
+        3 => Some("picked"),
+        _ => None,
+    }
+}
+
+/// Fanion d'un numéro xmpDM:pick (Lightroom) : -1 rejeté, 0 aucun, 1 retenu.
+fn pick_from_xmpdm(number: i32) -> Option<&'static str> {
+    match number {
+        -1 => Some("rejected"),
+        0 => Some("none"),
+        1 => Some("picked"),
+        _ => None,
+    }
+}
+
+/// Fanions pick d'un paquet XMP, dans l'ordre de PICK_SOURCE_IDS : digiKam:PickLabel, xmpDM:pick, xmpDM:good (booléen : true = retenu,
+/// false = rejeté). Une valeur 0 est une réponse explicite (« aucun fanion »), pas une absence : seule une propriété absente laisse la main à la source suivante.
+fn xmp_picks(xml: &str) -> [Option<&'static str>; 3] {
+    let number = |names: &[&str]| xmp_value(xml, names).and_then(|value| value.trim().parse::<i32>().ok());
+    [
+        number(&["digiKam:PickLabel", "digikam:PickLabel"]).and_then(pick_from_digikam),
+        number(&["xmpDM:pick"]).and_then(pick_from_xmpdm),
+        xmp_value(xml, &["xmpDM:good"]).and_then(|value| match value.trim().to_ascii_lowercase().as_str() {
+            "true" => Some("picked"),
+            "false" => Some("rejected"),
+            _ => None,
+        }),
+    ]
+}
+
+/// Valeur normalisée d'un fanion pick demandé par l'interface (« none », « pending », « picked » ou « rejected »).
+pub fn normalize_pick_flag(flag: &str) -> Result<&'static str, String> {
+    match flag.trim().to_ascii_lowercase().as_str() {
+        "" | "none" => Ok("none"),
+        "pending" => Ok("pending"),
+        "picked" => Ok("picked"),
+        "rejected" => Ok("rejected"),
+        _ => Err(format!("Fanion inconnu : {flag}")),
+    }
 }
 
 /// Mots-clés à plat d'un paquet XMP (dc:subject).
@@ -794,6 +856,7 @@ fn video_date_taken(path: &Path) -> String {
 fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
     meta.rating_sources[..3].copy_from_slice(&parsed.ratings);
     meta.color_sources = parsed.colors;
+    meta.pick_sources = parsed.picks;
     meta.keywords = parsed.keywords;
     meta.keyword_paths = parsed.keyword_paths;
     meta.text_sources.title[..2].clone_from_slice(&parsed.titles);
@@ -805,10 +868,12 @@ fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
 fn resolve_values(meta: &mut ExifMetadata) {
     let rating_priority = *lock_read(&RATING_PRIORITY);
     let color_priority = *lock_read(&COLOR_PRIORITY);
+    let pick_priority = *lock_read(&PICK_PRIORITY);
     let title_priority = *lock_read(&TITLE_PRIORITY);
     let description_priority = *lock_read(&DESCRIPTION_PRIORITY);
     meta.rating = rating_priority.iter().find_map(|index| meta.rating_sources[*index]).unwrap_or(0);
     meta.color_flag = color_priority.iter().find_map(|index| meta.color_sources[*index]).unwrap_or("none").to_string();
+    meta.pick_flag = pick_priority.iter().find_map(|index| meta.pick_sources[*index]).unwrap_or("none").to_string();
     meta.title = resolve_text(&meta.text_sources.title, &title_priority);
     meta.caption = resolve_text(&meta.text_sources.description, &description_priority);
 }
@@ -1181,16 +1246,107 @@ fn remove_xmp_attribute(xml: &str, name: &str) -> String {
     updated
 }
 
-/// Applique uniquement ce qui est demandé : `rating` (`None` = note inchangée) et `label`
-/// (`None` = label inchangé, `Some(None)` = label retiré, `Some(Some(v))` = label écrit).
-fn update_xmp_metadata(xml: &str, rating: Option<i32>, label: Option<Option<&str>>) -> String {
+/// Marquage demandé : seules les valeurs fournies sont modifiées.
+#[derive(Clone, Copy, Default)]
+pub struct XmpEdit<'a> {
+    /// `None` = note inchangée.
+    pub rating: Option<i32>,
+    /// `None` = label inchangé, `Some(None)` = label retiré, `Some(Some(v))` = label écrit.
+    pub label: Option<Option<&'a str>>,
+    /// `None` = fanion pick inchangé, sinon « none », « pending », « picked » ou « rejected » (voir normalize_pick_flag).
+    pub pick: Option<&'static str>,
+}
+
+impl XmpEdit<'_> {
+    /// Vrai si la modification écrit une valeur (et pas seulement un retrait) : seule elle justifie de créer un paquet XMP ou un sidecar.
+    pub fn adds_values(&self) -> bool {
+        self.rating.is_some_and(|rating| rating > 0)
+            || self.label.is_some_and(|label| label.is_some())
+            || self.pick.is_some_and(|pick| pick != "none")
+    }
+}
+
+/// Valeurs écrites pour un fanion pick : (digiKam:PickLabel, xmpDM:pick, xmpDM:good). `good` est un booléen : sans fanion (ou « en attente »,
+/// que seul digiKam connaît), il est retiré.
+pub(crate) fn pick_values(pick: &str) -> (i32, i32, Option<&'static str>) {
+    match pick {
+        "picked" => (3, 1, Some("True")),
+        "rejected" => (1, -1, Some("False")),
+        "pending" => (2, 0, None),
+        _ => (0, 0, None),
+    }
+}
+
+/// Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par remove_xmp_attribute.
+fn remove_xmp_element(xml: &str, name: &str) -> String {
     let mut updated = xml.to_string();
-    if let Some(rating) = rating { updated = update_xmp_rating(&updated, rating); }
-    if let Some(label) = label {
+    let opening = format!("<{name}");
+    let closing = format!("</{name}>");
+    let mut search_from = 0;
+    while let Some(relative) = updated[search_from..].find(&opening) {
+        let start = search_from + relative;
+        let after = start + opening.len();
+        if !updated.as_bytes().get(after).is_some_and(|b| *b == b'>' || *b == b'/' || b.is_ascii_whitespace()) { search_from = after; continue; }
+        let Some(open_end_relative) = updated[start..].find('>') else { break; };
+        let open_end = start + open_end_relative;
+        let end = if updated.as_bytes()[open_end - 1] == b'/' {
+            open_end + 1
+        } else {
+            match updated[open_end + 1..].find(&closing) { Some(close) => open_end + 1 + close + closing.len(), None => break }
+        };
+        updated.replace_range(start..end, "");
+        search_from = start;
+    }
+    updated
+}
+
+/// Remplace une propriété XMP par un attribut du premier rdf:Description (la propriété existante, en attribut ou en élément, est retirée avant).
+/// `names` : toutes les graphies possibles du préfixe (ex. digiKam / digikam) ; `value` `None` retire simplement la propriété.
+fn set_description_attribute(xml: &str, names: &[&str], namespace: (&str, &str), value: Option<&str>) -> String {
+    let mut updated = xml.to_string();
+    for name in names {
+        updated = remove_xmp_attribute(&updated, name);
+        updated = remove_xmp_element(&updated, name);
+    }
+    let Some(value) = value else { return updated; };
+    let Some(description) = updated.find("<rdf:Description") else { return updated; };
+    let Some(open_end_relative) = updated[description..].find('>') else { return updated; };
+    let mut insert_at = description + open_end_relative;
+    if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
+    let (prefix, uri) = namespace;
+    // Préfixe déjà déclaré dans le paquet (quelle que soit sa casse) : réutilisé tel quel, sans seconde déclaration du même espace de noms.
+    let declared = updated[..insert_at].contains(&format!("xmlns:{prefix}="));
+    let declaration = if declared { String::new() } else { format!(" xmlns:{prefix}=\"{uri}\"") };
+    let name = format!("{prefix}:{}", names[0].rsplit(':').next().unwrap_or_default());
+    updated.insert_str(insert_at, &format!("{declaration} {name}=\"{value}\""));
+    updated
+}
+
+/// Écrit le fanion pick dans les trois formats : digiKam:PickLabel (0 à 3), xmpDM:pick (-1, 0, 1) et xmpDM:good (True / False, retiré sans fanion).
+fn update_xmp_pick(xml: &str, pick: &str) -> String {
+    let (digikam, xmpdm_pick, xmpdm_good) = pick_values(pick);
+    // digiKam : le préfixe déjà présent dans le paquet est conservé (« digikam » écrit par cette application pour ColorLabel, « digiKam » ailleurs).
+    let digikam_prefix = if xml.contains("xmlns:digikam=") && !xml.contains("xmlns:digiKam=") { "digikam" } else { "digiKam" };
+    let digikam_names = [format!("{digikam_prefix}:PickLabel"), format!("{}:PickLabel", if digikam_prefix == "digikam" { "digiKam" } else { "digikam" })];
+    let mut updated = set_description_attribute(xml, &[digikam_names[0].as_str(), digikam_names[1].as_str()], (digikam_prefix, "http://www.digikam.org/ns/1.0/"), Some(&digikam.to_string()));
+    let dynamic_media = ("xmpDM", "http://ns.adobe.com/xmp/1.0/DynamicMedia/");
+    updated = set_description_attribute(&updated, &["xmpDM:pick"], dynamic_media, Some(&xmpdm_pick.to_string()));
+    set_description_attribute(&updated, &["xmpDM:good"], dynamic_media, xmpdm_good)
+}
+
+/// Applique uniquement ce qui est demandé (voir XmpEdit).
+fn update_xmp_metadata(xml: &str, edit: XmpEdit) -> String {
+    let mut updated = xml.to_string();
+    if let Some(rating) = edit.rating { updated = update_xmp_rating(&updated, rating); }
+    if edit.label.is_some() || edit.pick.is_some() {
         if !updated.contains("rdf:Description") {
-            if label.is_none() { return updated; }
+            // Rien à retirer d'un fichier sans XMP : le paquet n'est créé que pour écrire une valeur.
+            let adds = edit.label.is_some_and(|label| label.is_some()) || edit.pick.is_some_and(|pick| pick != "none");
+            if !adds { return updated; }
             updated = EMPTY_XMP_PACKET.to_string();
         }
+    }
+    if let Some(label) = edit.label {
         // label xmp standard
         updated = update_xmp_label(&updated, label);
         // Couleurs dans Photoshop Urgency et digiKam ColorLabel
@@ -1202,26 +1358,27 @@ fn update_xmp_metadata(xml: &str, rating: Option<i32>, label: Option<Option<&str
         updated = update_photoshop_urgency(&updated, urgency_val);
         updated = update_digikam_color_label(&updated, urgency_val);
     }
+    if let Some(pick) = edit.pick { updated = update_xmp_pick(&updated, pick); }
     updated
 }
 
-/// Writes xmp:Rating and/or xmp:Label into JPEG APP1 XMP, preserving the rest of the JPEG and its metadata.
-/// Only the provided values are modified (see `update_xmp_metadata`).
+/// Writes xmp:Rating, xmp:Label and/or the pick flag into JPEG APP1 XMP, preserving the rest of the JPEG and its metadata.
+/// Only the provided values are modified (see `XmpEdit`).
 /// HEIC / HEIF : le paquet XMP du fichier est modifié (ou créé) dans le conteneur, voir heif.rs ; sidecar seulement si la structure du fichier ne le permet pas.
 /// Other image formats continue to use a sidecar because they have different container layouts.
 /// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles et mêmes valeurs).
-pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
+pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()> {
     let path = Path::new(image_path);
-    if crate::exiftool::is_enabled() { return crate::exiftool::write_rating_label(path, rating, label); }
+    if crate::exiftool::is_enabled() { return crate::exiftool::write_marking(path, edit); }
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
-        return match crate::heif::update_xmp(path, &|xml| update_xmp_metadata(xml, rating, label))? {
+        return match crate::heif::update_xmp(path, &|xml| update_xmp_metadata(xml, edit))? {
             crate::heif::Outcome::Written | crate::heif::Outcome::Unchanged => Ok(()),
-            crate::heif::Outcome::Unsupported(_) => write_xmp_sidecar(path, rating, label),
+            crate::heif::Outcome::Unsupported(_) => write_xmp_sidecar(path, edit),
         };
     }
     if extension != "jpg" && extension != "jpeg" {
-        return write_xmp_sidecar(path, rating, label);
+        return write_xmp_sidecar(path, edit);
     }
 
     let data = fs::read(path)?;
@@ -1231,7 +1388,7 @@ pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<O
     let packet = if let Some((segment_start, segment_end, packet_start)) = find_jpeg_xmp_segment(&data) {
         let packet = std::str::from_utf8(&data[packet_start..segment_end])
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Le paquet XMP JPEG n'est pas en UTF-8"))?;
-        let updated_packet = update_xmp_metadata(packet, rating, label);
+        let updated_packet = update_xmp_metadata(packet, edit);
         let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + updated_packet.len());
         payload.extend_from_slice(JPEG_XMP_HEADER);
         payload.extend_from_slice(updated_packet.as_bytes());
@@ -1248,7 +1405,7 @@ pub fn write_xmp_metadata(image_path: &str, rating: Option<i32>, label: Option<O
         output.extend_from_slice(&data[segment_end..]);
         output
     } else {
-        let packet = update_xmp_metadata("", rating, label);
+        let packet = update_xmp_metadata("", edit);
         if packet.is_empty() { return Ok(()); } // rien à retirer d'un fichier sans XMP
         let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + packet.len());
         payload.extend_from_slice(JPEG_XMP_HEADER);
@@ -2044,14 +2201,14 @@ pub fn text_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) 
     None
 }
 
-fn write_xmp_sidecar(image_path: &Path, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
+fn write_xmp_sidecar(image_path: &Path, edit: XmpEdit) -> std::io::Result<()> {
     let (sidecar, _) = sidecar_target(image_path);
     let xml = match fs::read_to_string(&sidecar) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error),
     };
-    let updated = update_xmp_metadata(&xml, rating, label);
+    let updated = update_xmp_metadata(&xml, edit);
     if updated.is_empty() { return Ok(()); } // rien à retirer d'un sidecar inexistant
     // --- Écriture atomique sécurisée ---
     let temp_path = Path::new(&format!("{}.photoboggan-tmp", sidecar.display())).to_path_buf();

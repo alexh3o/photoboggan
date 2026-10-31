@@ -652,11 +652,12 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
 }
 
 /// Note (`xmp:Rating`, `acdsee:rating`, `MicrosoftPhoto:Rating` ; dans les JPEG, aussi EXIF `Rating` et `RatingPercent` de Windows) et/ou
-/// couleur (`xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`) : seules les valeurs fournies sont modifiées ; `Some(None)` retire la
-/// couleur. Mêmes valeurs que l'écriture interne, qui ne touche pas à l'EXIF.
-pub fn write_rating_label(image_path: &Path, rating: Option<i32>, label: Option<Option<&str>>) -> std::io::Result<()> {
+/// couleur (`xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`) et/ou fanion pick (`digiKam:PickLabel`, `xmpDM:pick`, `xmpDM:good`) : seules
+/// les valeurs fournies sont modifiées ; `Some(None)` retire la couleur. Mêmes valeurs que l'écriture interne, qui ne touche pas à l'EXIF.
+pub fn write_marking(image_path: &Path, edit: crate::exif::XmpEdit) -> std::io::Result<()> {
+    let crate::exif::XmpEdit { rating, label, pick } = edit;
     let mut args = Vec::new();
-    let mut has_values = false;
+    let has_values = edit.adds_values();
     if let Some(rating) = rating {
         let rating = rating.clamp(0, 5);
         let microsoft_rating = match rating { 0 => 0, 1 => 1, 2 => 25, 3 => 50, 4 => 75, _ => 99 };
@@ -667,14 +668,18 @@ pub fn write_rating_label(image_path: &Path, rating: Option<i32>, label: Option<
             args.push(format!("-EXIF:Rating={rating}"));
             args.push(format!("-EXIF:RatingPercent={microsoft_rating}"));
         }
-        has_values |= rating > 0;
     }
     if let Some(label) = label {
         let number = label.and_then(crate::exif::color_to_urgency_and_digikam).map(|value| value.to_string()).unwrap_or_default();
         args.push(format!("-XMP-xmp:Label={}", label.unwrap_or_default()));
         args.push(format!("-XMP-photoshop:Urgency={number}"));
         args.push(format!("-XMP-digiKam:ColorLabel={number}"));
-        has_values |= label.is_some();
+    }
+    if let Some(pick) = pick {
+        let (digikam, xmpdm_pick, xmpdm_good) = crate::exif::pick_values(pick);
+        args.push(format!("-XMP-digiKam:PickLabel={digikam}"));
+        args.push(format!("-XMP-xmpDM:Pick={xmpdm_pick}"));
+        args.push(format!("-XMP-xmpDM:Good={}", xmpdm_good.unwrap_or_default())); // valeur vide : balise supprimée
     }
     if args.is_empty() { return Ok(()); }
     write_to(image_path, args, has_values)

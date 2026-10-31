@@ -23,6 +23,8 @@ pub struct Photo {
     pub file_size: i64,
     pub rating: i32,
     pub color_flag: String,
+    /// Fanion « pick » : none, pending (digiKam seulement), picked ou rejected (voir exif::PICK_SOURCE_IDS).
+    pub pick_flag: String,
     pub keywords: String,
     /// Titre retenu à la lecture (voir exif::TITLE_SOURCE_IDS).
     pub title: String,
@@ -93,6 +95,8 @@ pub fn init_db(db_path: &str) -> DbPool {
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN modified INTEGER NOT NULL DEFAULT 0", []);
     // Orientation EXIF (1 à 8) : les zones de visage sont dans le repère de l'image stockée et l'interface l'applique pour les afficher (faces.rs).
     let _ = conn.execute("ALTER TABLE photos ADD COLUMN orientation INTEGER NOT NULL DEFAULT 1", []);
+    // Fanion « pick » (none, pending, picked, rejected) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
+    let _ = conn.execute("ALTER TABLE photos ADD COLUMN pick_flag TEXT NOT NULL DEFAULT 'none'", []);
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
@@ -139,13 +143,13 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
 
     let sql = if folder_filter.is_some() {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag
          FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
          AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
          ORDER BY date_taken DESC LIMIT ?3 OFFSET ?4"
     } else {
         "SELECT id, path, filename, date_taken, aperture, shutter_speed, iso, 
-         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title 
+         focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag
          FROM photos ORDER BY date_taken DESC LIMIT ? OFFSET ?"
     };
 
@@ -176,6 +180,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 keywords: row.get(15)?,
                 caption: row.get(16)?,
                 title: row.get(19)?,
+                pick_flag: row.get(20)?,
             })
         }).unwrap();
         photo_iter.filter_map(|p| p.ok()).collect()
@@ -202,6 +207,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
                 keywords: row.get(15)?,
                 caption: row.get(16)?,
                 title: row.get(19)?,
+                pick_flag: row.get(20)?,
             })
         }).unwrap();
         photo_iter.filter_map(|p| p.ok()).collect()

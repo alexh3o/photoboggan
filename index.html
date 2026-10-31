@@ -78,6 +78,7 @@
                 <option value="4" data-i18n="= 5 stars">= 5 étoiles</option>
               </select>
               <div id="color-filter-bar" class="color-bar" role="group" aria-label="Couleur" data-i18n-aria-label="Color"></div>
+              <div id="pick-filter-bar" class="pick-bar pick-control" role="group" aria-label="Pick" data-i18n-aria-label="Pick"></div>
             </div>
           </div>
           <div class="filter-group" data-filter-group="tags">
@@ -159,6 +160,10 @@
             <div class="marking-color-wrap">
               <button id="marking-color-button" type="button" class="marking-color-button" aria-haspopup="true" aria-expanded="false" title="Couleur" aria-label="Couleur" data-i18n-title="Color" data-i18n-aria-label="Color"></button>
               <div id="marking-color-popover" class="marking-color-popover color-bar" role="group" aria-label="Couleur" data-i18n-aria-label="Color" hidden></div>
+            </div>
+            <div class="marking-pick-wrap pick-control">
+              <button id="marking-pick-button" type="button" class="marking-pick-button pick-square pick-none" aria-haspopup="true" aria-expanded="false" title="Pick" aria-label="Pick" data-i18n-title="Pick" data-i18n-aria-label="Pick">⚑</button>
+              <div id="marking-pick-popover" class="marking-color-popover marking-pick-popover" role="group" aria-label="Pick" data-i18n-aria-label="Pick" hidden></div>
             </div>
             <button id="btn-clear-selection" type="button" class="marking-clear" title="Tout désélectionner" aria-label="Tout désélectionner" data-i18n-title="Deselect all" data-i18n-aria-label="Deselect all">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -418,6 +423,12 @@
               </div>
             </section>
             <section class="settings-section">
+              <h4 data-i18n="Labels">Marquage</h4>
+              <p class="sort-note" data-i18n="Labels settings help">Une fonction désactivée reste lue dans les fichiers, mais n'est plus affichée ni modifiée (filtres, indicateurs, boutons et raccourcis masqués).</p>
+              <label class="settings-row settings-check"><input id="color-label-toggle" type="checkbox" /><span data-i18n="Use color labels">Utiliser les couleurs</span></label>
+              <label class="settings-row settings-check" title="Fanion pick / rejet, compatible digiKam et Lightroom (digiKam:PickLabel, xmpDM:pick, xmpDM:good). Raccourcis : Maj+P retient, Maj+X rejette." data-i18n-title="Use pick flags help"><input id="pick-label-toggle" type="checkbox" /><span data-i18n="Use pick flags">Utiliser les fanions pick et rejet</span></label>
+            </section>
+            <section class="settings-section">
               <h4 data-i18n="Pending changes">Modifications en attente</h4>
               <label class="settings-row settings-check"><input id="keywords-auto-apply" type="checkbox" title="Automatically apply" data-i18n-title="Automatically apply keyword changes help" /><span data-i18n="Automatically apply pending changes" title="Automatically apply" data-i18n-title="Automatically apply keyword changes help">Appliquer automatiquement les modifications de mots-clés, titres et descriptions</span></label>
             </section>
@@ -432,6 +443,7 @@
                   <option value="description" data-i18n="Description">Description</option>
                   <option value="rating" data-i18n="Rating">Note</option>
                   <option value="color" data-i18n="Color">Couleur</option>
+                  <option value="pick" data-i18n="Pick">Pick</option>
                   <option value="faces" data-i18n="Face regions">Zones de visage</option>
                 </select>
               </label>

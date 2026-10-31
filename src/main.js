@@ -7,7 +7,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
-import { initMetadataSettings } from './metadata-settings.js';
+import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
+import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWritten } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
@@ -140,6 +141,7 @@ let keywordFilters = [];
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
+let pickFilters = new Set(); // fanions pick cochés dans le filtre (vide = pas de filtre)
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
 let isFullscreen = false; // Etat d'affichage plein écran de photos
@@ -227,6 +229,15 @@ const colorFlagLabels = {
     return flag ? t(flag.label) : undefined;
   },
 };
+
+// FANIONS PICK (digiKam:PickLabel, xmpDM:pick, xmpDM:good) : clé stockée en base, label = clé de traduction, glyph = symbole affiché.
+// « pending » (en attente) n'existe que dans digiKam : il n'est proposé à la pose que si digiKam est le format de tête (voir PICK_CHOICES).
+const PICK_FLAGS = [
+  { key: 'picked', label: 'Picked', glyph: '⚑' },
+  { key: 'rejected', label: 'Rejected', glyph: '✖' },
+  { key: 'pending', label: 'Pending', glyph: '◔' },
+  { key: 'none', label: 'No flag', glyph: '○' },
+];
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
 const DEFAULT_SELECTION_COLOR = '#1e72ad';
@@ -637,7 +648,7 @@ async function loadPhotos() {
 function hasActiveFilters() {
   const ratingThreshold = Number(document.getElementById('rating-filter')?.value ?? -1);
   const hasRating = ratingThreshold >= 0;
-  const hasColor = colorFilters.size > 0;
+  const hasColor = colorFilters.size > 0 || pickFilters.size > 0;
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
@@ -688,6 +699,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && matchesFilenameFilters(photo)
     && (pathFilter === null || pathFilter.has(photo.path))
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
+    && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
     && matchesDateFilter(photo));
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
   renderFilterSummaries();
@@ -756,6 +768,10 @@ function clearAllFilters() {
   // Réinitialise les couleurs
   colorFilters.clear();
   document.querySelectorAll('#color-filter-bar .color-square').forEach(btn => setColorSquareChecked(btn, false));
+
+  // Réinitialise les fanions pick
+  pickFilters.clear();
+  document.querySelectorAll('#pick-filter-bar .pick-square').forEach(btn => setColorSquareChecked(btn, false));
 
   // Réinitialise les mots-clés
   keywordFilters = [];
@@ -960,6 +976,12 @@ function renderFilterSummaries() {
     dot.title = colorFlagLabels.get(key) ?? key;
     ratingColorNodes.push(dot);
   }
+  for (const key of pickFilters) {
+    const mark = document.createElement('span');
+    mark.className = `pick-indicator pick-${key}`;
+    mark.title = t(PICK_FLAGS.find(flag => flag.key === key)?.label ?? key);
+    ratingColorNodes.push(mark);
+  }
   document.getElementById('rating-color-summary').replaceChildren(...ratingColorNodes);
 
   const dateNodes = dateFilter ? [
@@ -985,6 +1007,7 @@ function renderActiveFilterBadges() {
   const kinds = [
     [Number(document.getElementById('rating-filter')?.value ?? -1) >= 0, 'rating', 'Rating'],
     [colorFilters.size > 0, 'color', 'Color'],
+    [pickFilters.size > 0, 'pick', 'Pick'],
     [keywordFilters.length > 0, 'keyword', 'Keywords'],
     [filenameFilters.length > 0, 'filename', 'Filename'],
     [hasPersonFilters(), 'person', 'People'],
@@ -1280,9 +1303,11 @@ function renderVisibleItems() {
       const overlay = document.createElement('div'); overlay.className = 'meta-overlay';
       const stars = document.createElement('span'); stars.className = 'thumbnail-rating';
       const flag = document.createElement('span'); flag.className = `flag-indicator flag-${photo.color_flag}`;
-      overlay.append(stars, flag); inner.append(thumbnailImage, overlay); div.appendChild(inner);
+      const pick = document.createElement('span'); pick.className = 'pick-indicator pick-none';
+      const flags = document.createElement('span'); flags.className = 'meta-flags'; flags.append(pick, flag);
+      overlay.append(stars, flags); inner.append(thumbnailImage, overlay); div.appendChild(inner);
       if (isVideoPath(photo.path)) { div.classList.add('is-video'); inner.append(createVideoPlayBadge()); }
-      div._ratingLabel = stars; div._flag = flag; div._thumbnailImage = thumbnailImage;
+      div._ratingLabel = stars; div._flag = flag; div._pick = pick; div._thumbnailImage = thumbnailImage;
       div._selected = false; div._transform = '';
       div.addEventListener('click', event => handleSelection(Number(div.dataset.index), event));
       div.addEventListener('dblclick', () => openFullscreen(Number(div.dataset.index)));
@@ -1308,6 +1333,8 @@ function renderVisibleItems() {
     if (div._ratingLabel.textContent !== stars) div._ratingLabel.textContent = stars;
     const flagClass = `flag-indicator flag-${photo.color_flag}`;
     if (div._flag.className !== flagClass) div._flag.className = flagClass;
+    const pickClass = `pick-indicator pick-${photo.pick_flag || 'none'}`;
+    if (div._pick.className !== pickClass) div._pick.className = pickClass;
   }
   renderVisibleSeparators(top, bottom);
   for (const [index, node] of renderedThumbnailNodes) {
@@ -1827,9 +1854,19 @@ function updateColorAction() {
   // Pastille de la barre flottante : couleur de la photo de référence (arc-en-ciel quand elle n'en a pas)
   const colorButton = document.getElementById('marking-color-button');
   if (colorButton) colorButton.className = `marking-color-button${flag === 'none' ? '' : ` flag-${flag}`}`;
+  updatePickAction();
+}
+
+// Met en évidence le fanion pick de la photo de référence de la sélection (un seul possible) ; le drapeau de la barre flottante en prend la couleur.
+function updatePickAction() {
+  const flag = commandReferencePhoto()?.pick_flag || 'none';
+  document.querySelectorAll('.marking-pick .pick-square').forEach(button => setColorSquareChecked(button, button.dataset.pick === flag));
+  const pickButton = document.getElementById('marking-pick-button');
+  if (pickButton) pickButton.className = `marking-pick-button pick-square pick-${flag}`;
 }
 
 async function setSelectionColorFlag(flag) {
+  if (!isColorEnabled()) return; // couleurs désactivées (Paramètres > Métadonnées) : jamais modifiées
   const targets = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
   if (!targets.length) {
     if (isCompareMultiple()) notifyNoCompareTarget();
@@ -1852,6 +1889,37 @@ async function setSelectionColorFlag(flag) {
   updateUIOnSelection();
   const successMessage = finalFlag === 'none'
     ? tp('Color removed for {count} file', successful.length)
+    : tp('{count} file modified', successful.length);
+  showWriteToast(`${successMessage}${failureSummary(failures)}`);
+}
+
+// Fanion pick de la sélection. `toggle` (raccourcis Maj+P / Maj+X) : si toutes les photos visées ont déjà ce fanion, il est retiré ; sans `toggle`
+// (boutons, qui proposent « aucun »), le fanion choisi est posé tel quel. Les photos qui l'ont déjà ne sont pas réécrites.
+// Seul le fanion est envoyé : la note et la couleur de chaque fichier ne sont pas réécrites.
+async function setSelectionPickFlag(flag, { toggle = true } = {}) {
+  if (!isPickEnabled()) return; // pick désactivé (Paramètres > Métadonnées) : jamais modifié
+  const selected = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
+  if (!selected.length) {
+    if (isCompareMultiple()) notifyNoCompareTarget();
+    return;
+  }
+  const finalFlag = toggle && selected.every(photo => (photo.pick_flag || 'none') === flag) ? 'none' : flag;
+  const targets = selected.filter(photo => (photo.pick_flag || 'none') !== finalFlag);
+  if (!targets.length) return;
+  showWriteToast(finalFlag === 'none'
+    ? tp('Removing flag for {count} file…', targets.length)
+    : tp('Writing {count} file (flag: {flag})…', targets.length, { flag: t(PICK_FLAGS.find(candidate => candidate.key === finalFlag).label) }), true);
+  const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
+    id: photo.id,
+    path: photo.path,
+    pickFlag: finalFlag,
+  })));
+  const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
+  const failures = results.filter(result => result.status === 'rejected');
+  for (const photo of successful) photo.pick_flag = finalFlag;
+  updateUIOnSelection();
+  const successMessage = finalFlag === 'none'
+    ? tp('Flag removed for {count} file', successful.length)
     : tp('{count} file modified', successful.length);
   showWriteToast(`${successMessage}${failureSummary(failures)}`);
 }
@@ -1951,6 +2019,15 @@ window.addEventListener('keydown', (e) => {
   // CTrl+D debug to console
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
     console.log("Display Scaling Ratio: ", window.devicePixelRatio);
+  }
+  // Fanion pick : Maj+P retient, Maj+X rejette (même touche une seconde fois : fanion retiré, voir setSelectionPickFlag). Traité avant P et X seuls
+  // (aperçu, mode Comparer). Fanion désactivé dans les Paramètres : la touche garde son comportement d'avant.
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && isPickEnabled() && (e.key.toLowerCase() === 'p' || e.key.toLowerCase() === 'x')) {
+    e.preventDefault();
+    if (selectedIndices.size > 0 && !e.repeat && !document.querySelector('.modal:not(.hidden)')) {
+      setSelectionPickFlag(e.key.toLowerCase() === 'p' ? 'picked' : 'rejected');
+    }
+    return;
   }
   // Show rating bar Shortcut
   if (e.key.toLowerCase() === 'r' && isFullscreen) {
@@ -2092,7 +2169,7 @@ if (e.key === 'Delete') {
   }
   // Couleurs : 6 rouge, 7 jaune, 8 vert, 9 bleu (même touche une seconde fois : couleur retirée, voir setSelectionColorFlag)
   const colorByKey = { 6: 'red', 7: 'yellow', 8: 'green', 9: 'blue' };
-  if (colorByKey[digitKey] && !e.ctrlKey && !e.metaKey && selectedIndices.size > 0) {
+  if (colorByKey[digitKey] && isColorEnabled() && !e.ctrlKey && !e.metaKey && selectedIndices.size > 0) {
     e.preventDefault();
     setSelectionColorFlag(colorByKey[digitKey]);
     if (advanceAfter) navigatePhoto(1);
@@ -2962,6 +3039,33 @@ exifResizer?.addEventListener('keydown', event => {
 
 document.getElementById('rating-filter').addEventListener('change', applyPhotoFilters);
 
+// Carré de fanion pick cliquable (filtre : quatre états ; marquage : retenu et rejeté), même présentation que les carrés de couleur.
+function createPickSquare(flag) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `color-square pick-square pick-${flag.key}`;
+  button.dataset.pick = flag.key;
+  button.textContent = flag.glyph;
+  button.title = t(flag.label);
+  button.setAttribute('aria-label', t(flag.label));
+  button.setAttribute('data-i18n-title', flag.label);
+  button.setAttribute('data-i18n-aria-label', flag.label);
+  button.setAttribute('aria-pressed', 'false');
+  return button;
+}
+
+// Filtre par fanion pick : plusieurs carrés peuvent être cochés (une photo est affichée si elle a l'un des fanions cochés).
+const pickFilterBar = document.getElementById('pick-filter-bar');
+pickFilterBar.replaceChildren(...PICK_FLAGS.map(createPickSquare));
+pickFilterBar.addEventListener('click', event => {
+  const button = event.target instanceof Element ? event.target.closest('.pick-square') : null;
+  if (!button) return;
+  const key = button.dataset.pick;
+  if (pickFilters.has(key)) pickFilters.delete(key); else pickFilters.add(key);
+  setColorSquareChecked(button, pickFilters.has(key));
+  applyPhotoFilters();
+});
+
 // Filtre par couleur : plusieurs carrés peuvent être cochés (une photo est affichée si elle a l'une des couleurs cochées).
 const colorFilterBar = document.getElementById('color-filter-bar');
 colorFilterBar.replaceChildren(...COLOR_FLAGS.map(createColorSquare));
@@ -3026,30 +3130,85 @@ function createMarkingColors() {
   return bar;
 }
 
-document.getElementById('marking-panel-controls').append(createMarkingStars(), createMarkingColors());
+// Fanions pick proposés selon le format placé en tête de l'ordre de lecture (Paramètres > Métadonnées) : digiKam connaît aussi « en attente »,
+// xmpDM:pick et xmpDM:good seulement retenu / rejeté ; « none » (blanc) retire le fanion.
+const PICK_CHOICES = {
+  digikam: ['none', 'pending', 'picked', 'rejected'],
+  'xmpdm-pick': ['none', 'picked', 'rejected'],
+  'xmpdm-good': ['none', 'picked', 'rejected'],
+};
+const markingPickBars = []; // barres de choix (panneau Info et bulle de la barre flottante), reconstruites quand l'ordre de lecture change
+
+function fillMarkingPickBar(bar) {
+  const keys = PICK_CHOICES[topPickFormat()] ?? PICK_CHOICES.digikam;
+  // Un seul glyphe (drapeau) : c'est sa couleur qui porte le fanion (blanc aucun, jaune en attente, vert retenu, rouge rejeté).
+  bar.replaceChildren(...keys.map(key => createPickSquare({ ...PICK_FLAGS.find(flag => flag.key === key), glyph: '⚑' })));
+}
+
+// Choix de fanion pick : un clic pose le fanion choisi sur la sélection (ceux déjà au même état ne sont pas réécrits).
+function createMarkingPick() {
+  const bar = document.createElement('div');
+  bar.className = 'pick-bar marking-pick pick-control'; // sans « color-bar » : ce dernier est masqué quand les couleurs sont désactivées
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', t('Pick'));
+  bar.setAttribute('data-i18n-aria-label', 'Pick');
+  fillMarkingPickBar(bar);
+  markingPickBars.push(bar);
+  bar.addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest('.pick-square') : null;
+    if (button) setSelectionPickFlag(button.dataset.pick, { toggle: false });
+  });
+  return bar;
+}
+onPickOrderChange(() => {
+  markingPickBars.forEach(fillMarkingPickBar);
+  updatePickAction();
+});
+
+document.getElementById('marking-panel-controls').append(createMarkingStars(), createMarkingColors(), createMarkingPick());
 document.getElementById('marking-bar-stars').append(createMarkingStars());
-// Dans la barre flottante, les couleurs se déroulent dans une bulle ouverte par la pastille multicolore.
+// Dans la barre flottante, les couleurs se déroulent dans une bulle ouverte par la pastille multicolore, et les fanions pick dans une autre,
+// ouverte par un drapeau à la couleur du fanion de la photo.
 markingColorPopover.append(createMarkingColors());
+const markingPickButton = document.getElementById('marking-pick-button');
+const markingPickPopover = document.getElementById('marking-pick-popover');
+markingPickPopover.append(createMarkingPick());
 
 function closeMarkingColorPopover() {
   markingColorPopover.hidden = true;
   markingColorButton.setAttribute('aria-expanded', 'false');
 }
+function closeMarkingPickPopover() {
+  markingPickPopover.hidden = true;
+  markingPickButton.setAttribute('aria-expanded', 'false');
+}
 markingColorButton.addEventListener('click', () => {
   const open = markingColorPopover.hidden;
+  closeMarkingPickPopover();
   markingColorPopover.hidden = !open;
   markingColorButton.setAttribute('aria-expanded', String(open));
+});
+markingPickButton.addEventListener('click', () => {
+  const open = markingPickPopover.hidden;
+  closeMarkingColorPopover();
+  markingPickPopover.hidden = !open;
+  markingPickButton.setAttribute('aria-expanded', String(open));
 });
 markingColorPopover.addEventListener('click', event => {
   if (event.target instanceof Element && event.target.closest('.color-square')) closeMarkingColorPopover();
 });
+markingPickPopover.addEventListener('click', event => {
+  if (event.target instanceof Element && event.target.closest('.pick-square')) closeMarkingPickPopover();
+});
 // Un clic ailleurs ou Échap referme la bulle (Échap ne doit alors rien faire d'autre, comme vider la sélection).
 document.addEventListener('pointerdown', event => {
   if (!markingColorPopover.hidden && !(event.target instanceof Element && event.target.closest('.marking-color-wrap'))) closeMarkingColorPopover();
+  if (!markingPickPopover.hidden && !(event.target instanceof Element && event.target.closest('.marking-pick-wrap'))) closeMarkingPickPopover();
 }, true);
 document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape' || markingColorPopover.hidden) return;
+  if (event.key !== 'Escape' || (markingColorPopover.hidden && markingPickPopover.hidden)) return;
   closeMarkingColorPopover();
+  closeMarkingPickPopover();
   event.stopImmediatePropagation();
 }, true);
 
@@ -3066,7 +3225,7 @@ function updateMarkingPlacement() {
   markingPanel.hidden = !showPanel;
   markingBar.hidden = !showBar;
   document.getElementById('grid-view').classList.toggle('has-marking-bar', showBar);
-  if (!showBar) closeMarkingColorPopover();
+  if (!showBar) { closeMarkingColorPopover(); closeMarkingPickPopover(); }
   if (hasSelection) updateColorAction();
 }
 // Le panneau Info et ses onglets changent sans passer par la sélection : on suit leurs attributs.
@@ -3647,7 +3806,12 @@ function createPreviewSlot(photo) {
   slot.ratingLabel.className = 'thumbnail-rating';
   slot.flagDot = document.createElement('span');
   slot.flagDot.className = 'flag-indicator flag-none';
-  meta.append(slot.ratingLabel, slot.flagDot);
+  slot.pickMark = document.createElement('span');
+  slot.pickMark.className = 'pick-indicator pick-none';
+  const flags = document.createElement('span');
+  flags.className = 'meta-flags';
+  flags.append(slot.pickMark, slot.flagDot);
+  meta.append(slot.ratingLabel, flags);
   cell.append(img, check, meta, zoomBadge);
   if (isVideoPath(photo.path)) cell.append(createVideoPlayBadge());
   slot.check = check;
@@ -3672,6 +3836,8 @@ function syncPreviewMeta() {
     if (slot.ratingLabel.textContent !== stars) slot.ratingLabel.textContent = stars;
     const flagClass = `flag-indicator flag-${slot.photo.color_flag || 'none'}`;
     if (slot.flagDot.className !== flagClass) slot.flagDot.className = flagClass;
+    const pickClass = `pick-indicator pick-${slot.photo.pick_flag || 'none'}`;
+    if (slot.pickMark.className !== pickClass) slot.pickMark.className = pickClass;
   }
 }
 
@@ -4580,6 +4746,25 @@ initPhotoActions({
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
+
+// Paramètres, onglet Métadonnées : utilisation des couleurs et des fanions pick (voir marking-settings.js). Une fonction désactivée voit ses filtres
+// vidés (sinon ils masqueraient des photos sans qu'on puisse les voir) ; le CSS masque ses contrôles et indicateurs.
+initMarkingSettings();
+onMarkingSettingsChange(() => {
+  let filtersCleared = false;
+  if (!isColorEnabled() && colorFilters.size > 0) {
+    colorFilters.clear();
+    document.querySelectorAll('#color-filter-bar .color-square').forEach(button => setColorSquareChecked(button, false));
+    filtersCleared = true;
+  }
+  if (!isPickEnabled() && pickFilters.size > 0) {
+    pickFilters.clear();
+    document.querySelectorAll('#pick-filter-bar .pick-square').forEach(button => setColorSquareChecked(button, false));
+    filtersCleared = true;
+  }
+  if (filtersCleared) applyPhotoFilters({ keepState: true });
+  updateColorAction();
+});
 
 // Écriture des métadonnées éditées dans le panneau de droite (onglets Mots-clés et Description, voir metadata-writes.js).
 initMetadataWrites({

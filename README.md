@@ -50,14 +50,15 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
 
   - ✅ **Flexible selection**: multiple and non-contiguous photos (`Ctrl` / `Shift` + click), in any order and direction.
   - **Fast keyboard rating**: colors and 0 to 5 stars in a snap with the number keys, in the grid or in fullscreen.
+  - 🚩 **Pick / reject flags** (optional, in Settings): `Shift`+`P` / `Shift`+`X`, compatible with digiKam and Lightroom. Colors can also be switched off if you don't use them.
   - ⚖️ **Side-by-side comparison**: up to 4 photos at once, with synchronized or unlinked zoom/pan. Rate or delete per shot.
-  - **Filter** by rating, color, keywords, dates, filenames, people.
+  - **Filter** by rating, color, pick flag, keywords, dates, filenames, people.
 
 - 🏷️ **Hierarchical keywords, titles and descriptions**: build an editable keyword tree, tag one photo or a whole selection, and write them to the files when you are ready. Keywords are read and written in the formats used by digiKam, Lightroom, ACDSee, Microsoft and Media Pro, with their order of priority being configurable.
 
 - 🙂 **People (face recognition)**: optional, 100% local. Faces are detected and suggested, you confirm or correct them, then write them to the files as standard face regions. Filter your collection by person.
 
-- 🔁 **Interoperability, leave anytime**: ratings, color labels, keywords, titles and faces are written in standard embedded XMP/IPTC (JPEG), or in companion `.xmp` sidecars for RAW, PNG and other files that can't hold metadata. Your changes are recognized by digiKam, Lightroom and the OS file manager. Writing is done by the embedded [ExifTool](https://exiftool.org) or by an internal writer, at your choice.
+- 🔁 **Interoperability, leave anytime**: ratings, color labels, pick flags, keywords, titles and faces are written in standard embedded XMP/IPTC (JPEG), or in companion `.xmp` sidecars for RAW, PNG and other files that can't hold metadata. Your changes are recognized by digiKam, Lightroom and the OS file manager. Writing is done by the embedded [ExifTool](https://exiftool.org) or by an internal writer, at your choice.
 
 - 🖥️ **Flexible UI**: choose text, thumbnails and panels size, thumbnails layout (square, justified, masonry), the panels to display, fullscreen infos or an unobstructed view. Dark or light theme.
 

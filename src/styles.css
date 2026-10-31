@@ -204,6 +204,7 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-tag.tag-more { background: var(--tag-more-bg); border-color: var(--tag-more-border); }
 .filter-tag.tag-date { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
 .filter-tag.tag-color { background: var(--tag-color-bg); border-color: var(--tag-color-border); }
+.filter-tag.tag-pick { background: var(--tag-color-bg); border-color: var(--tag-color-border); }
 .filter-tag.tag-rating { background: var(--tag-rating-bg); border-color: var(--tag-rating-border); color: var(--tag-rating-text); }
 button.filter-tag { cursor: pointer; }
 button.filter-tag.tag-keyword:hover { background: var(--tag-keyword-hover); }
@@ -307,6 +308,37 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .flag-magenta { --flag-color: #d63ad6; } .flag-grey { --flag-color: #95a5a6; } .flag-black { --flag-color: #1a1a1a; } .flag-white { --flag-color: #f5f5f5; } .flag-none { --flag-color: transparent; }
 .flag-indicator { flex: 0 0 auto; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--flag-color, transparent); }
 .flag-indicator:not(.flag-none) { box-shadow: 0 0 0 1px rgba(255,255,255,0.75), 0 0 3px 1px rgba(0,0,0,0.7); }
+/* FANIONS PICK : glyphe (⚑ retenu, ✖ rejeté, ◔ en attente) sur les vignettes et l'aperçu, carrés cliquables du filtre et du marquage.
+   Masqués quand le fanion est désactivé (Paramètres > Métadonnées : classe no-pick-labels sur <body>, voir marking-settings.js) ; idem pour les couleurs. */
+.meta-flags { display: flex; align-items: center; gap: 5px; }
+/* Indicateur des vignettes, de l'aperçu et du résumé des filtres : petit carré aux coins à peine arrondis, de la taille de la pastille de couleur, rempli de la couleur du fanion */
+.pick-indicator { flex: 0 0 auto; width: 0.75rem; height: 0.75rem; border-radius: 2px; background: var(--pick-color); box-shadow: 0 0 0 1px rgba(255,255,255,0.75), 0 0 3px 1px rgba(0,0,0,0.7); }
+.pick-indicator.pick-none { display: none; }
+.filter-summary .pick-indicator.pick-none { display: inline-block; --pick-color: #f5f5f5; }
+.pick-picked { --pick-color: #2ecc71; } .pick-rejected { --pick-color: #e74c3c; } .pick-pending { --pick-color: #f1c40f; } .pick-none { --pick-color: #95a5a6; }
+.preview-meta .pick-indicator { width: 0.9rem; height: 0.9rem; }
+.pick-bar { display: flex; flex-wrap: nowrap; gap: 2px; margin-top: 8px; }
+.marking-controls .pick-bar, .marking-pick { margin-top: 0; }
+.pick-square { display: inline-flex; align-items: center; justify-content: center; background: var(--control-bg); color: var(--pick-color); font-size: 0.8rem; line-height: 1; }
+.pick-square:hover { background: var(--control-bg); }
+.pick-square.checked { background: color-mix(in srgb, var(--pick-color) 30%, var(--control-bg)); outline: 2px solid var(--pick-color); outline-offset: 1px; }
+.pick-square.checked::after { content: none; }
+/* Marquage : un seul glyphe (drapeau) dont la couleur porte le fanion ; « aucun » est blanc. Contour sombre pour rester lisible sur fond clair.
+   Sans cadre : le drapeau est aussi grand qu'un carré de couleur (1,25 rem dans le panneau Info, 1,5 rem dans la barre flottante). */
+.marking-pick .pick-square, .marking-pick-button { --pick-color: var(--pick-state-color); text-shadow: 0 0 2px #000, 0 0 1px #000; }
+.marking-pick .pick-none, .marking-pick-button.pick-none { --pick-state-color: #f5f5f5; }
+.marking-pick .pick-pending, .marking-pick-button.pick-pending { --pick-state-color: #f1c40f; }
+.marking-pick .pick-picked, .marking-pick-button.pick-picked { --pick-state-color: #2ecc71; }
+.marking-pick .pick-rejected, .marking-pick-button.pick-rejected { --pick-state-color: #e74c3c; }
+.marking-pick-wrap { display: flex; }
+.marking-pick .pick-square, .marking-pick-button.pick-square { width: 1.25rem; height: 1.25rem; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: transparent; font-size: 1.25rem; line-height: 1; }
+.marking-pick .pick-square:hover, .marking-pick-button.pick-square:hover { background: transparent; filter: brightness(1.15); }
+.marking-pick .pick-square.checked { background: transparent; outline: 2px solid var(--pick-color); outline-offset: 1px; }
+.marking-bar .marking-pick .pick-square, .marking-pick-button.pick-square { width: 1.5rem; height: 1.5rem; min-width: 1.5rem; font-size: 1.5rem; }
+.marking-pick-button { cursor: pointer; }
+.marking-pick-popover .marking-pick { margin-top: 0; gap: 4px; }
+body.no-color-labels .color-bar, body.no-color-labels .flag-indicator, body.no-color-labels .marking-color-wrap { display: none !important; }
+body.no-pick-labels .pick-control, body.no-pick-labels .pick-indicator { display: none !important; }
 .thumbnail-rating {  color: #ffd43b;  font-size: 0.85rem;  line-height: 1;  letter-spacing: -1px;  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);}
 
 /* PREVIEW */
@@ -671,7 +703,7 @@ body.immersive .titlebar { display: none; }
 @container (max-width: 25rem) {
   .marking-bar { display: grid; grid-template-columns: repeat(4, auto); justify-content: center; align-items: center; column-gap: 0.5rem; row-gap: 0.1rem; padding: 0.3rem 0.6rem 0.4rem; }
   .marking-bar .marking-count { grid-row: 2; grid-column: 1 / -1; text-align: center; }
-  .marking-bar .marking-controls, .marking-bar .marking-separator, .marking-bar .marking-color-wrap { grid-row: 1; }
+  .marking-bar .marking-controls, .marking-bar .marking-separator, .marking-bar .marking-color-wrap, .marking-bar .marking-pick-wrap { grid-row: 1; }
   /* Croix de désélection sur la ligne du compteur, à gauche : loin des étoiles pour ne pas la confondre avec elles */
   .marking-bar .marking-clear { grid-row: 2; grid-column: 1; justify-self: start; z-index: 1; width: 1.5rem; height: 1.5rem; }
 }

@@ -105,6 +105,7 @@ fn read_photo(path: &str, file_size: i64) -> (Photo, Vec<Vec<String>>, crate::fa
         file_size,
         rating: exif_data.rating,
         color_flag: exif_data.color_flag,
+        pick_flag: exif_data.pick_flag,
         keywords: exif_data.keywords,
         title: exif_data.title,
         caption: exif_data.caption,

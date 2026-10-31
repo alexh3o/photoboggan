@@ -654,6 +654,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
                 file_size,
                 rating: exif_data.rating,
                 color_flag: exif_data.color_flag,
+                pick_flag: exif_data.pick_flag,
                 keywords: exif_data.keywords,
                 title: exif_data.title,
                 caption: exif_data.caption,
@@ -819,8 +820,8 @@ fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManag
     {
         let mut stmt = conn.prepare_cached(
             "INSERT INTO photos 
-            (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, title) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, title, pick_flag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
                 filename=excluded.filename, date_taken=excluded.date_taken,
                 aperture=excluded.aperture, shutter_speed=excluded.shutter_speed,
@@ -828,14 +829,15 @@ fn insert_batch(conn: &r2d2::PooledConnection<r2d2_sqlite::SqliteConnectionManag
                 camera_model=excluded.camera_model, width=excluded.width,
                 height=excluded.height, file_size=excluded.file_size,
                 rating=excluded.rating, color_flag=excluded.color_flag,
-                keywords=excluded.keywords, caption=excluded.caption, lens_model=excluded.lens_model, title=excluded.title"
+                keywords=excluded.keywords, caption=excluded.caption, lens_model=excluded.lens_model, title=excluded.title,
+                pick_flag=excluded.pick_flag"
         ).unwrap();
 
         for p in photos {
             let _ = stmt.execute(params![
                 p.path, p.filename, p.date_taken, p.aperture, p.shutter_speed, 
                 p.iso, p.focal_length, p.manufacturer, p.camera_model, p.width, p.height, p.file_size,
-                p.rating, p.color_flag, p.keywords, p.caption, p.lens_model, p.title
+                p.rating, p.color_flag, p.keywords, p.caption, p.lens_model, p.title, p.pick_flag
             ]);
         }
     }
@@ -849,16 +851,20 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
 }
 
 #[tauri::command(async)]
-fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rating: Option<i32>, color_flag: Option<String>) -> Result<(), String> {
+fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rating: Option<i32>, color_flag: Option<String>, pick_flag: Option<String>) -> Result<(), String> {
     // Seules les valeurs fournies sont modifiées : écrire la note ne touche pas au xmp:Label (qui peut contenir
-    // une valeur non reconnue par l'application), et inversement.
+    // une valeur non reconnue par l'application), ni au fanion pick, et inversement.
     let rating = rating.map(|value| value.clamp(0, 5));
     let label = match color_flag.as_deref() {
         Some(flag) => Some(exif::label_for_color_flag(flag)?),
         None => None,
     };
-    if rating.is_none() && label.is_none() { return Ok(()); }
-    exif::write_xmp_metadata(&path, rating, label).map_err(|e| e.to_string())?;
+    let pick = match pick_flag.as_deref() {
+        Some(flag) => Some(exif::normalize_pick_flag(flag)?),
+        None => None,
+    };
+    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
+    exif::write_xmp_metadata(&path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string())?;
     let pool = state.pool();
     let conn = pool.get().unwrap();
     // Le fichier vient d'être réécrit par l'application : on enregistre sa nouvelle taille et sa date pour que la
@@ -871,6 +877,9 @@ fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rati
     }
     if let Some(flag) = color_flag {
         conn.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(&flag), id]).map_err(|e| e.to_string())?;
+    }
+    if let Some(pick) = pick {
+        conn.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|e| e.to_string())?;
     }
 
     Ok(())

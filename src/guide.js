@@ -18,6 +18,7 @@ const GROUPS = [
     { a: 'Select all / none', d: 'Not in compare mode', k: [['Ctrl', 'A']] },
     { a: 'Rate', d: '0 removes the rating', k: [['0 – 5']] },
     { a: 'Color label', d: 'Red, yellow, green, blue. Same key again: remove the color', k: [['6'], ['7'], ['8'], ['9']], sep: 'space' },
+    { a: 'Pick or reject', d: 'Same key again: remove the flag. Enable it in Settings > Metadata', k: [['Shift', 'P'], ['Shift', 'X']], sep: 'space' },
     { a: 'Rate or color, then next photo', d: 'Fullscreen or a single selected photo', k: [['Alt', '0 – 9']] },
     { a: 'Delete', k: [['Delete Key']] },
     { a: 'Copy to…', k: [['C']] },

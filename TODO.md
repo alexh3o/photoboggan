@@ -2,7 +2,7 @@
 
 ## 🚀 Next in line
 
-
+- [ ] *feat*: `metadata` manage pick label optionnaly
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -29,7 +29,7 @@
 - [ ] *feat*: `metadata` international title and description
 - [ ] *feat*: `Controls` **keyboard shortcuts** customizing
 - [ ] *feat*: `Controls` Add **mouse settings** screen
-- [ ] **feat*: `formats` live photos
+- [ ] *feat*: `formats` live photos
 
 ## ❌ Ruled out
 

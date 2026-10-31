@@ -13,7 +13,7 @@ const EXIFTOOL_PATH_STORAGE_KEY = 'exiftoolPath'; // exécutable choisi par l'ut
 const ORDER_KIND_STORAGE_KEY = 'metadataOrderKind'; // type de métadonnée affiché dans le tableau des priorités
 
 // Formats lus pour chaque type de métadonnée, dans l'ordre de lecture par défaut. Le premier qui contient une valeur l'emporte ; tous sont écrits.
-// Identifiants : ceux de exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS).
+// Identifiants : ceux de exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS).
 const READ_ORDERS = {
   keywords: {
     storageKey: 'keywordFormatOrder',
@@ -66,6 +66,14 @@ const READ_ORDERS = {
       { id: 'urgency', label: 'Photoshop', property: 'photoshop:Urgency' },
     ],
   },
+  pick: {
+    storageKey: 'pickFormatOrder',
+    formats: [
+      { id: 'digikam', label: 'digiKam', property: 'digiKam:PickLabel' },
+      { id: 'xmpdm-pick', label: 'Adobe Lightroom', property: 'xmpDM:pick' },
+      { id: 'xmpdm-good', label: 'Adobe XMP', property: 'xmpDM:good' },
+    ],
+  },
   // Zones de visage (lues seulement si Paramètres > Visages > « Lire les données de visages » est coché ; voir faces.rs).
   faces: {
     storageKey: 'faceRegionFormatOrder',
@@ -77,7 +85,24 @@ const READ_ORDERS = {
   },
 };
 
-let writerMode = localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';
+// Format de fanion pick placé en tête de l'ordre de lecture : il décide des fanions proposés dans les boutons de marquage (main.js). `listener()` est
+// appelé quand l'ordre change.
+const pickOrderListeners = [];
+export function onPickOrderChange(listener) {
+  pickOrderListeners.push(listener);
+}
+export function topPickFormat() {
+  const { storageKey, formats } = READ_ORDERS.pick;
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey));
+    if (Array.isArray(stored) && formats.some(format => format.id === stored[0])) return stored[0];
+  } catch {
+    // valeur absente ou illisible : ordre par défaut
+  }
+  return formats[0].id;
+}
+
+let writerMode =localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';
 let customPath = localStorage.getItem(EXIFTOOL_PATH_STORAGE_KEY) || '';
 let lastStatus = null; // dernier état renvoyé par get_exiftool_status
 let statusToken = 0;
@@ -159,7 +184,10 @@ export function initMetadataSettings() {
     element: listElement,
     formats,
     storageKey,
-    send: order => invoke('set_metadata_read_order', { kind, order }).catch(error => console.error(`Ordre de lecture refusé (${kind})`, error)),
+    send: order => {
+      if (kind === 'pick') for (const listener of pickOrderListeners) listener();
+      return invoke('set_metadata_read_order', { kind, order }).catch(error => console.error(`Ordre de lecture refusé (${kind})`, error));
+    },
   })]));
   let shownKind = localStorage.getItem(ORDER_KIND_STORAGE_KEY);
   if (!(shownKind in orderLists)) shownKind = 'keywords';
