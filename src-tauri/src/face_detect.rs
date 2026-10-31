@@ -484,7 +484,7 @@ impl EmbeddingSources<'_> {
             }
             (rgb.as_slice(), *width, *height, points)
         };
-        let aligned = crate::face_recognize::align(rgb, width, height, &points);
+        let aligned = crate::face_recognize::align(rgb, width, height, &points)?; // None : visage hors image ou repères dégénérés, pas d'empreinte
         crate::face_recognize::embed(recognizer, &aligned).ok()
     }
 }

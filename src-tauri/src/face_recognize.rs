@@ -38,8 +38,12 @@ pub fn landmarks_from_box(rect: [f64; 4]) -> [f32; 10] {
     landmarks
 }
 
-/// Visage aligné 112 × 112 (RGB) à partir d'une image RGB et de ses 5 points de repère en pixels.
-pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> Vec<u8> {
+/// Part minimale du visage aligné qui doit tomber dans l'image : en dessous, le recadrage est surtout du noir et son empreinte ne vaut rien.
+const MIN_INSIDE_RATIO: f32 = 0.75;
+
+/// Visage aligné 112 × 112 (RGB) à partir d'une image RGB et de ses 5 points de repère en pixels. None si les repères sont dégénérés, si l'image
+/// est trop petite, ou si une trop grande part du visage aligné est hors de l'image (un recadrage noir donnerait une fausse empreinte).
+pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> Option<Vec<u8>> {
     let source: Vec<[f32; 2]> = (0..5).map(|point| [landmarks[point * 2], landmarks[point * 2 + 1]]).collect();
     let mean = |points: &[[f32; 2]]| [points.iter().map(|p| p[0]).sum::<f32>() / 5.0, points.iter().map(|p| p[1]).sum::<f32>() / 5.0];
     let source_mean = mean(&source);
@@ -54,10 +58,11 @@ pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> 
         denominator += sx * sx + sy * sy;
     }
     let mut output = vec![0u8; FACE_SIDE * FACE_SIDE * 3];
-    if denominator <= f32::EPSILON || width < 2 || height < 2 { return output; }
+    if denominator <= f32::EPSILON || width < 2 || height < 2 { return None; }
     let (a, b) = (numerator_a / denominator, numerator_b / denominator);
     let norm = a * a + b * b;
-    if norm <= f32::EPSILON { return output; }
+    if norm <= f32::EPSILON { return None; }
+    let mut inside = 0usize;
     // Pour chaque pixel du visage aligné : point source par la transformation inverse, échantillonnage bilinéaire (noir hors de l'image).
     for v in 0..FACE_SIDE {
         for u in 0..FACE_SIDE {
@@ -65,6 +70,7 @@ pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> 
             let px = (a * qx + b * qy) / norm + source_mean[0];
             let py = (-b * qx + a * qy) / norm + source_mean[1];
             if px < 0.0 || py < 0.0 || px >= (width - 1) as f32 || py >= (height - 1) as f32 { continue; }
+            inside += 1;
             let (x0, y0) = (px.floor() as usize, py.floor() as usize);
             let (fx, fy) = (px.fract(), py.fract());
             for channel in 0..3 {
@@ -75,7 +81,8 @@ pub fn align(rgb: &[u8], width: usize, height: usize, landmarks: &[f32; 10]) -> 
             }
         }
     }
-    output
+    if (inside as f32) < MIN_INSIDE_RATIO * (FACE_SIDE * FACE_SIDE) as f32 { return None; }
+    Some(output)
 }
 
 /// Empreinte SFace (normalisée) d'un visage aligné 112 × 112 RGB.
@@ -219,7 +226,7 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
         let rows = statement
             .query_map(params![MODEL_ID], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?)))
             .map_err(|error| error.to_string())?;
-        for (person_id, blob) in rows.flatten() {
+        for (person_id, blob) in crate::keywords::collect_rows(rows)? {
             if let Some(embedding) = embedding_from_blob(&blob) { by_person.entry(person_id).or_default().push(embedding); }
         }
     }
@@ -240,12 +247,12 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
                 let ids_json = serde_json::to_string(ids).map_err(|error| error.to_string())?;
                 let mut statement = conn.prepare(&format!("{base} AND photo_id IN (SELECT value FROM json_each(?2))")).map_err(|error| error.to_string())?;
                 let rows = statement.query_map(params![MODEL_ID, ids_json], map).map_err(|error| error.to_string())?;
-                rows.flatten().collect()
+                crate::keywords::collect_rows(rows)?
             }
             None => {
                 let mut statement = conn.prepare(base).map_err(|error| error.to_string())?;
                 let rows = statement.query_map(params![MODEL_ID], map).map_err(|error| error.to_string())?;
-                rows.flatten().collect()
+                crate::keywords::collect_rows(rows)?
             }
         };
         rows.into_iter()
@@ -283,28 +290,29 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
 
     let previous: HashMap<i64, (&str, Option<i64>, Option<i64>)> =
         candidates.iter().map(|candidate| (candidate.id, (candidate.state.as_str(), candidate.person_id, candidate.suggested))).collect();
-    let mut summary = AttributionSummary::default();
-    let _ = conn.execute("BEGIN TRANSACTION", []);
-    for (id, state, person_id, suggested, score, margin) in decisions {
-        match state {
-            "auto" => summary.auto += 1,
-            "suggested" => summary.suggested += 1,
-            _ => {}
+    // Une transaction : les mises à jour sont toutes enregistrées ou aucune ; le compte ne porte que sur des attributions enregistrées.
+    crate::faces::in_transaction(conn, |conn| -> rusqlite::Result<AttributionSummary> {
+        let mut summary = AttributionSummary::default();
+        for (id, state, person_id, suggested, score, margin) in decisions {
+            match state {
+                "auto" => summary.auto += 1,
+                "suggested" => summary.suggested += 1,
+                _ => {}
+            }
+            let (old_state, old_person, old_suggested) = previous[&id];
+            // Une personne attribuée (ou retirée) change ce qui sera écrit dans le fichier : visage à réécrire.
+            let dirty = old_person != person_id;
+            if old_state != state || old_person != person_id || old_suggested != suggested || dirty {
+                conn.execute(
+                    "UPDATE faces SET state = ?1, person_id = ?2, suggested_person_id = ?3, score = ?4, margin = ?5, dirty = MAX(dirty, ?6) WHERE id = ?7",
+                    params![state, person_id, suggested, score, margin, dirty, id],
+                )?;
+            } else {
+                conn.execute("UPDATE faces SET score = ?1, margin = ?2 WHERE id = ?3", params![score, margin, id])?;
+            }
         }
-        let (old_state, old_person, old_suggested) = previous[&id];
-        // Une personne attribuée (ou retirée) change ce qui sera écrit dans le fichier : visage à réécrire.
-        let dirty = old_person != person_id;
-        if old_state != state || old_person != person_id || old_suggested != suggested || dirty {
-            let _ = conn.execute(
-                "UPDATE faces SET state = ?1, person_id = ?2, suggested_person_id = ?3, score = ?4, margin = ?5, dirty = MAX(dirty, ?6) WHERE id = ?7",
-                params![state, person_id, suggested, score, margin, dirty, id],
-            );
-        } else {
-            let _ = conn.execute("UPDATE faces SET score = ?1, margin = ?2 WHERE id = ?3", params![score, margin, id]);
-        }
-    }
-    let _ = conn.execute("COMMIT", []);
-    Ok(summary)
+        Ok(summary)
+    })
 }
 
 #[cfg(test)]
@@ -318,7 +326,7 @@ mod tests {
         for (index, value) in rgb.iter_mut().enumerate() { *value = (index % 251) as u8; }
         let mut landmarks = [0f32; 10];
         for (point, [x, y]) in TEMPLATE.iter().enumerate() { landmarks[point * 2] = *x; landmarks[point * 2 + 1] = *y; }
-        let aligned = align(&rgb, FACE_SIDE, FACE_SIDE, &landmarks);
+        let aligned = align(&rgb, FACE_SIDE, FACE_SIDE, &landmarks).expect("repères du gabarit : alignement possible");
         let center = (56 * FACE_SIDE + 56) * 3;
         assert_eq!(aligned[center], rgb[center]);
     }
