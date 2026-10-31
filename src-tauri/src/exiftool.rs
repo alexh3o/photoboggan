@@ -11,7 +11,9 @@
 //! dans keywords.rs), arrêtés après IDLE_TIMEOUT sans activité et à la fermeture de l'application. ExifTool écrit dans un fichier temporaire
 //! puis remplace l'original (`-overwrite_original`) : jamais d'écriture en place. La relecture de vérification reste faite par l'appelant.
 
+use std::collections::hash_map::DefaultHasher;
 use std::ffi::OsString;
+use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -255,10 +257,11 @@ fn probe(program: PathBuf, prefix: Vec<OsString>, source: &'static str) -> Resul
     })?;
     // La sortie est lue par un fil dédié ; le processus reste ici pour pouvoir être tué si le délai est dépassé.
     let stdout = child.stdout.take().ok_or_else(|| "flux indisponible".to_string())?;
-    let reader = std::thread::spawn(move || {
+    let (text_sender, text_receiver) = mpsc::channel();
+    std::thread::spawn(move || {
         let mut text = String::new();
         let _ = BufReader::new(stdout).take(1024).read_to_string(&mut text);
-        text
+        let _ = text_sender.send(text);
     });
     let deadline = Instant::now() + PROBE_TIMEOUT;
     let status = loop {
@@ -277,7 +280,8 @@ fn probe(program: PathBuf, prefix: Vec<OsString>, source: &'static str) -> Resul
             }
         }
     };
-    let version = reader.join().unwrap_or_default().trim().to_string();
+    // Un processus fils qui garderait le tube ouvert ne doit pas bloquer la détection : la lecture est attendue au plus quelques secondes.
+    let version = text_receiver.recv_timeout(Duration::from_secs(2)).unwrap_or_default().trim().to_string();
     if !status.success() || version.is_empty() || !version.starts_with(|c: char| c.is_ascii_digit()) {
         return Err("réponse inattendue".to_string());
     }
@@ -515,10 +519,10 @@ fn target_of(path: &Path) -> Target {
     }
 }
 
-/// Affectation `-TAG=valeur`, valeur échappée pour l'option -ec d'ExifTool (barre oblique inverse doublée, retour à la ligne en `\n`).
+/// Affectation `-TAG=valeur`, valeur échappée pour l'option -ec d'ExifTool (barre oblique inverse doublée, retour à la ligne en `\n`, retour chariot en `\r`).
 /// Valeur vide : la balise est supprimée.
 fn assign(tag: &str, value: &str) -> String {
-    format!("-{tag}={}", value.replace('\\', "\\\\").replace('\n', "\\n"))
+    format!("-{tag}={}", value.replace('\\', "\\\\").replace('\n', "\\n").replace('\r', "\\r"))
 }
 
 /// Balise de liste : ses valeurs remplacent les anciennes ; liste vide = balise supprimée.
@@ -549,9 +553,21 @@ fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
     })
 }
 
+/// Verrous par « tranche » de chemin : deux écritures sur la même image (ou son sidecar) ne se font jamais en même temps (fichiers temporaires
+/// communs, sidecar créé deux fois), alors que des photos différentes restent écrites en parallèle (sauf rencontre de tranche, sans conséquence).
+fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
+    #[allow(clippy::declare_interior_mutable_const)]
+    const UNLOCKED: Mutex<()> = Mutex::new(());
+    static LOCKS: [Mutex<()>; 16] = [UNLOCKED; 16];
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    lock(&LOCKS[(hasher.finish() % LOCKS.len() as u64) as usize])
+}
+
 /// Écrit `tag_args` dans le fichier, ou dans son sidecar XMP selon le format. `has_values` : faux quand la commande ne fait que supprimer,
 /// auquel cas un sidecar absent n'est pas créé.
 fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
+    let _guard = path_lock(image_path);
     if !matches!(target_of(image_path), Target::Sidecar) { return overwrite(image_path, tag_args); }
     let (sidecar, exists) = crate::exif::sidecar_target(image_path);
     if exists { return overwrite(&sidecar, tag_args); }
