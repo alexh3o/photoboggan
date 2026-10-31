@@ -228,8 +228,31 @@ fn read_item(d: &[u8], lay: &Layout, loc: &Loc) -> Option<Vec<u8>> {
     Some(out)
 }
 
-fn xmp_item<'a>(lay: &'a Layout) -> Option<(&'a Infe, &'a Loc)> {
-    let infe = lay.infe.iter().find(|i| &i.kind == b"mime" && XMP_TYPES.iter().any(|t| i.content_type.starts_with(t)))?;
+/// Pour chaque item qui en décrit d'autres (références `cdsc` du bloc `iref`) : les items décrits.
+fn described_items(d: &[u8], lay: &Layout) -> std::collections::HashMap<u32, Vec<u32>> {
+    let mut links: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
+    let Some((iref, version)) = lay.iref else { return links; };
+    let Some(entries) = children(d, iref.payload() + 4, iref.end) else { return links; };
+    let id_size = if version == 0 { 2 } else { 4 };
+    for entry in entries.iter().filter(|entry| &entry.kind == b"cdsc") {
+        let at = entry.payload();
+        let (Some(from), Some(count)) = (uint(d, at, id_size), be16(d, at + id_size)) else { continue; };
+        let targets = (0..count as usize).filter_map(|index| uint(d, at + id_size + 2 + index * id_size, id_size)).map(|id| id as u32);
+        links.entry(from as u32).or_default().extend(targets);
+    }
+    links
+}
+
+/// Item XMP de l'image principale. Un HEIC d'Apple en contient plusieurs : celui du gain map HDR décrit l'image auxiliaire, pas la photo ; le prendre
+/// (c'était le premier du fichier) faisait lire et modifier le mauvais paquet. Un item XMP rattaché (`cdsc`) à une autre image est ignoré ;
+/// un item sans rattachement est pris pour celui du fichier.
+fn xmp_item<'a>(d: &[u8], lay: &'a Layout) -> Option<(&'a Infe, &'a Loc)> {
+    let links = described_items(d, lay);
+    let infe = lay.infe.iter().find(|i| {
+        &i.kind == b"mime"
+            && XMP_TYPES.iter().any(|t| i.content_type.starts_with(t))
+            && links.get(&i.id).is_none_or(|targets| targets.contains(&lay.primary))
+    })?;
     Some((infe, lay.locs.iter().find(|l| l.id == infe.id)?))
 }
 
@@ -242,7 +265,7 @@ fn xmp_text(bytes: &[u8]) -> Option<String> {
 pub fn read_xmp(path: &Path) -> Option<String> {
     let data = read_all(path)?;
     let lay = parse(&data)?;
-    let (_, loc) = xmp_item(&lay)?;
+    let (_, loc) = xmp_item(&data, &lay)?;
     xmp_text(&read_item(&data, &lay, loc)?)
 }
 
@@ -285,7 +308,7 @@ pub fn update_xmp(path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Resu
     let Some(lay) = parse(&data) else { return unsupported("structure HEIF non reconnue"); };
     if lay.meta.header != 8 { return unsupported("boîte meta en taille étendue"); }
 
-    let (output, expected, existing_id) = match xmp_item(&lay) {
+    let (output, expected, existing_id) = match xmp_item(&data, &lay) {
         Some((infe, loc)) => {
             let Some(old) = read_item(&data, &lay, loc).filter(|_| loc.extents.len() == 1) else { return unsupported("XMP en plusieurs morceaux"); };
             let Some(old_text) = xmp_text(&old) else { return unsupported("XMP non UTF-8"); };
@@ -330,7 +353,7 @@ pub fn update_xmp(path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Resu
     Ok(Outcome::Written)
 }
 
-/// Ajoute un item XMP à un fichier qui n'en a pas : infe (iinf), entrée iloc, référence cdsc (iref) et données dans un nouveau mdat final.
+/// Ajoute un item XMP à un fichier qui n'en a pas pour l'image principale : infe (iinf), entrée iloc, référence cdsc (iref) et données dans un nouveau mdat final.
 /// Les boîtes grossissent à l'intérieur de meta : les offsets absolus des données situées après sont décalés en conséquence.
 fn add_xmp_item(data: &[u8], lay: &Layout, xmp: &str) -> Result<Vec<u8>, String> {
     if lay.last_is_open { return Err("dernière boîte sans taille".into()); }
@@ -443,7 +466,7 @@ fn verify(old: &[u8], old_lay: &Layout, new: &[u8], expected: &str, replaced_id:
         let new_loc = lay.locs.iter().find(|l| l.id == loc.id).ok_or("item perdu")?;
         if before.is_some() && before != read_item(new, &lay, new_loc) { return Err(format!("données de l'item {} altérées", loc.id)); }
     }
-    let (_, loc) = xmp_item(&lay).ok_or("item XMP absent")?;
+    let (_, loc) = xmp_item(new, &lay).ok_or("item XMP absent")?;
     let stored = xmp_text(&read_item(new, &lay, loc).ok_or("XMP illisible")?).ok_or("XMP non UTF-8")?;
     let squash = |s: &str| s.split_whitespace().collect::<String>();
     if squash(&stored) != squash(expected) { return Err("XMP relu différent".into()); }
