@@ -71,29 +71,77 @@ fn xmp_value(xml: &str, names: &[&str]) -> Option<String> {
 
 const JPEG_XMP_HEADER: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 
-fn find_jpeg_xmp_segment(data: &[u8]) -> Option<(usize, usize, usize)> {
-    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return None; }
-    let mut pos = 2;
-    while pos + 4 <= data.len() {
-        let marker_start = pos;
-        if data[pos] != 0xff { return None; }
-        while pos < data.len() && data[pos] == 0xff { pos += 1; }
-        if pos >= data.len() { return None; }
-        let marker = data[pos];
-        pos += 1;
-        if marker == 0xda || marker == 0xd9 { break; }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
-        if pos + 2 > data.len() { return None; }
-        let length = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
-        if length < 2 || pos + length > data.len() { return None; }
-        let segment_end = pos + length;
-        let payload_start = pos + 2;
-        if marker == 0xe1 && data[payload_start..segment_end].starts_with(JPEG_XMP_HEADER) {
-            return Some((marker_start, segment_end, payload_start + JPEG_XMP_HEADER.len()));
+/// Segment de l'en-tête d'un JPEG : position dans le fichier, marqueur et début du contenu (après les deux octets de longueur).
+#[derive(Clone, Copy)]
+pub(crate) struct JpegSegment {
+    /// Début du segment, octets de remplissage 0xFF compris.
+    pub start: usize,
+    /// Fin du segment (exclue).
+    pub end: usize,
+    pub marker: u8,
+    /// Début du contenu ; le contenu s'étend jusqu'à `end`.
+    pub payload: usize,
+}
+
+impl JpegSegment {
+    pub fn content<'a>(&self, data: &'a [u8]) -> &'a [u8] { &data[self.payload..self.end] }
+}
+
+/// Segments de l'en-tête d'un JPEG, jusqu'au début des données image (SOS) ou à la fin du fichier (EOI). Les octets de remplissage 0xFF et
+/// les marqueurs sans contenu (TEM, RSTn) sont sautés. Une structure illisible arrête le parcours et lève `malformed`.
+pub(crate) struct JpegSegments<'a> {
+    data: &'a [u8],
+    pos: usize,
+    pub malformed: bool,
+}
+
+pub(crate) fn jpeg_segments(data: &[u8]) -> JpegSegments<'_> {
+    let is_jpeg = data.len() >= 4 && data[0..2] == [0xff, 0xd8];
+    JpegSegments { data, pos: if is_jpeg { 2 } else { data.len() }, malformed: false }
+}
+
+impl Iterator for JpegSegments<'_> {
+    type Item = JpegSegment;
+
+    fn next(&mut self) -> Option<JpegSegment> {
+        let data = self.data;
+        loop {
+            if self.pos + 4 > data.len() { return None; }
+            let start = self.pos;
+            let mut at = start;
+            if data[at] != 0xff { return self.stop(true); }
+            while at < data.len() && data[at] == 0xff { at += 1; }
+            if at >= data.len() { return self.stop(true); }
+            let marker = data[at];
+            at += 1;
+            if marker == 0xda || marker == 0xd9 { return self.stop(false); }
+            if marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
+                self.pos = at;
+                continue;
+            }
+            if at + 2 > data.len() { return self.stop(true); }
+            let length = u16::from_be_bytes([data[at], data[at + 1]]) as usize;
+            if length < 2 || at + length > data.len() { return self.stop(true); }
+            self.pos = at + length;
+            return Some(JpegSegment { start, end: at + length, marker, payload: at + 2 });
         }
-        pos = segment_end;
     }
-    None
+}
+
+impl JpegSegments<'_> {
+    /// Termine le parcours (les appels suivants ne renvoient plus rien).
+    fn stop(&mut self, malformed: bool) -> Option<JpegSegment> {
+        self.pos = self.data.len();
+        self.malformed = malformed;
+        None
+    }
+}
+
+/// Segment APP1 du paquet XMP d'un JPEG : (début du segment, fin, début du paquet).
+fn find_jpeg_xmp_segment(data: &[u8]) -> Option<(usize, usize, usize)> {
+    jpeg_segments(data)
+        .find(|segment| segment.marker == 0xe1 && segment.content(data).starts_with(JPEG_XMP_HEADER))
+        .map(|segment| (segment.start, segment.end, segment.payload + JPEG_XMP_HEADER.len()))
 }
 
 fn read_embedded_jpeg_xmp(path: &Path) -> Option<String> {
@@ -133,67 +181,42 @@ fn read_jpeg_fields(path: &Path) -> JpegFields {
     let Ok(file) = fs::File::open(path) else { return fields; };
     let mut bytes = Vec::new();
     if file.take(16 * 1024 * 1024).read_to_end(&mut bytes).is_err() { return fields; }
-    if bytes.len() < 4 || bytes[0..2] != [0xff, 0xd8] { return fields; }
-    let mut pos = 2;
-    while pos + 4 <= bytes.len() {
-        if bytes[pos] != 0xff { break; }
-        while pos < bytes.len() && bytes[pos] == 0xff { pos += 1; }
-        if pos >= bytes.len() { break; }
-        let marker = bytes[pos]; pos += 1;
-        if marker == 0xda || marker == 0xd9 { break; }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
-        if pos + 2 > bytes.len() { break; }
-        let segment_len = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as usize;
-        if segment_len < 2 || pos + segment_len > bytes.len() { break; }
-        let data = &bytes[pos + 2..pos + segment_len];
+    for segment in jpeg_segments(&bytes) {
+        let marker = segment.marker;
+        let data = segment.content(&bytes);
         if marker == 0xfe && fields.comment.is_none() {
             fields.comment = clean_text(&text_from_bytes(data));
         }
-        if marker == 0xed && data.starts_with(b"Photoshop 3.0\0") {
-            let mut p = 14;
-            while p + 12 <= data.len() && &data[p..p + 4] == b"8BIM" {
-                let resource = u16::from_be_bytes([data[p + 4], data[p + 5]]);
-                p += 6;
-                let name_len = data[p] as usize;
-                p += 1 + name_len;
-                if (1 + name_len) % 2 != 0 { p += 1; }
-                if p + 4 > data.len() { break; }
-                let resource_len = u32::from_be_bytes([data[p], data[p+1], data[p+2], data[p+3]]) as usize;
-                p += 4;
-                if p + resource_len > data.len() { break; }
-                if resource == 0x0404 {
-                    let iptc = &data[p..p + resource_len];
-                    let mut q = 0;
-                    while q + 5 <= iptc.len() {
-                        if iptc[q] != 0x1c { q += 1; continue; }
-                        let record = iptc[q + 1]; let dataset = iptc[q + 2];
-                        let mut value_len = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
-                        let mut header = 5;
-                        if value_len & 0x8000 != 0 {
-                            let n = (value_len & 0x7fff) as usize;
-                            if n == 0 || n > 4 || q + 5 + n > iptc.len() { break; }
-                            value_len = 0;
-                            for byte in &iptc[q + 5..q + 5 + n] { value_len = (value_len << 8) | *byte as usize; }
-                            header += n;
-                        }
-                        if q + header + value_len > iptc.len() { break; }
-                        let value = &iptc[q + header..q + header + value_len];
-                        if record == 2 && dataset == 25 {
-                            let word = String::from_utf8_lossy(value).trim().to_string();
-                            if !word.is_empty() && !fields.keywords.contains(&word) { fields.keywords.push(word); }
-                        } else if record == 2 && dataset == 5 && fields.object_name.is_none() {
-                            fields.object_name = clean_text(&String::from_utf8_lossy(value));
-                        } else if record == 2 && dataset == 120 && fields.caption.is_none() {
-                            fields.caption = clean_text(&String::from_utf8_lossy(value));
-                        }
-                        q += header + value_len;
+        if marker == 0xed && data.starts_with(PHOTOSHOP_HEADER) {
+            let (resources, _) = parse_photoshop_resources(&data[PHOTOSHOP_HEADER.len()..]);
+            for iptc in resources.iter().filter(|resource| resource.id == IPTC_RESOURCE_ID).map(|resource| resource.data.as_slice()) {
+                let mut q = 0;
+                while q + 5 <= iptc.len() {
+                    if iptc[q] != 0x1c { q += 1; continue; }
+                    let record = iptc[q + 1]; let dataset = iptc[q + 2];
+                    let mut value_len = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
+                    let mut header = 5;
+                    if value_len & 0x8000 != 0 {
+                        let n = (value_len & 0x7fff) as usize;
+                        if n == 0 || n > 4 || q + 5 + n > iptc.len() { break; }
+                        value_len = 0;
+                        for byte in &iptc[q + 5..q + 5 + n] { value_len = (value_len << 8) | *byte as usize; }
+                        header += n;
                     }
+                    if q + header + value_len > iptc.len() { break; }
+                    let value = &iptc[q + header..q + header + value_len];
+                    if record == 2 && dataset == 25 {
+                        let word = String::from_utf8_lossy(value).trim().to_string();
+                        if !word.is_empty() && !fields.keywords.contains(&word) { fields.keywords.push(word); }
+                    } else if record == 2 && dataset == 5 && fields.object_name.is_none() {
+                        fields.object_name = clean_text(&String::from_utf8_lossy(value));
+                    } else if record == 2 && dataset == 120 && fields.caption.is_none() {
+                        fields.caption = clean_text(&String::from_utf8_lossy(value));
+                    }
+                    q += header + value_len;
                 }
-                p += resource_len;
-                if resource_len % 2 != 0 { p += 1; }
             }
         }
-        pos += segment_len;
     }
     fields
 }
@@ -804,29 +827,13 @@ fn read_image_dimensions(path: &Path) -> Option<(i32, i32)> {
         let height = u32::from_be_bytes([data[20], data[21], data[22], data[23]]) as i32;
         return Some((width, height)).filter(|&(w, h)| w > 0 && h > 0);
     }
-    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return None; }
-    let mut pos = 2;
-    while pos + 4 <= data.len() {
-        if data[pos] != 0xff { return None; }
-        while pos < data.len() && data[pos] == 0xff { pos += 1; }
-        if pos >= data.len() { return None; }
-        let marker = data[pos];
-        pos += 1;
-        if marker == 0xd9 || marker == 0xda { return None; }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
-        if pos + 2 > data.len() { return None; }
-        let length = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
-        if length < 2 || pos + length > data.len() { return None; }
-        let is_sof = (0xc0..=0xcf).contains(&marker) && marker != 0xc4 && marker != 0xc8 && marker != 0xcc;
-        if is_sof {
-            if length < 7 { return None; }
-            let height = u16::from_be_bytes([data[pos + 3], data[pos + 4]]) as i32;
-            let width = u16::from_be_bytes([data[pos + 5], data[pos + 6]]) as i32;
-            return Some((width, height)).filter(|&(w, h)| w > 0 && h > 0);
-        }
-        pos += length;
-    }
-    None
+    // Premier segment SOF (hors DHT, JPG et DAC) : précision (1 octet), hauteur puis largeur.
+    let sof = jpeg_segments(&data).find(|segment| (0xc0..=0xcf).contains(&segment.marker) && ![0xc4, 0xc8, 0xcc].contains(&segment.marker))?;
+    let content = sof.content(&data);
+    if content.len() < 5 { return None; }
+    let height = u16::from_be_bytes([content[1], content[2]]) as i32;
+    let width = u16::from_be_bytes([content[3], content[4]]) as i32;
+    Some((width, height)).filter(|&(w, h)| w > 0 && h > 0)
 }
 
 /// Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
@@ -1780,27 +1787,9 @@ pub(crate) fn rotate_xmp_regions(xml: &str, orientation: u32, width: i64, height
 /// APPn de l'en-tête. Le reste du fichier est recopié tel quel.
 fn jpeg_replace_comment(data: &[u8], text: &str) -> std::io::Result<Vec<u8>> {
     if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
-    // Segments de l'en-tête jusqu'au début des données d'image (SOS) : (début, fin, marqueur).
-    let mut segments: Vec<(usize, usize, u8)> = Vec::new();
-    let mut pos = 2;
-    while pos + 4 <= data.len() && data[pos] == 0xff {
-        // Octets de remplissage 0xFF autorisés avant un marqueur : ils font partie du segment qui suit (recopiés tels quels).
-        let mut marker_at = pos + 1;
-        while marker_at < data.len() && data[marker_at] == 0xff { marker_at += 1; }
-        if marker_at + 2 >= data.len() { break; }
-        let marker = data[marker_at];
-        if marker == 0xda || marker == 0xd9 { break; }
-        // Marqueurs sans contenu (TEM, RSTn).
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
-            segments.push((pos, marker_at + 1, marker));
-            pos = marker_at + 1;
-            continue;
-        }
-        let length = u16::from_be_bytes([data[marker_at + 1], data[marker_at + 2]]) as usize;
-        if length < 2 || marker_at + 1 + length > data.len() { return Err(invalid_data("Structure JPEG illisible")); }
-        segments.push((pos, marker_at + 1 + length, marker));
-        pos = marker_at + 1 + length;
-    }
+    let mut parser = jpeg_segments(data);
+    let segments: Vec<JpegSegment> = parser.by_ref().collect();
+    if parser.malformed { return Err(invalid_data("Structure JPEG illisible")); }
     let mut comment = Vec::new();
     if !text.is_empty() {
         let bytes = truncate_utf8(text, 65533).as_bytes();
@@ -1808,30 +1797,39 @@ fn jpeg_replace_comment(data: &[u8], text: &str) -> std::io::Result<Vec<u8>> {
         comment.extend_from_slice(&((bytes.len() + 2) as u16).to_be_bytes());
         comment.extend_from_slice(bytes);
     }
-    let insert_after = segments.iter().rposition(|(_, _, marker)| (0xe0..=0xef).contains(marker));
+    // Le nouveau commentaire va après le dernier segment APPn (ou juste après SOI s'il n'y en a pas).
+    let insert_at = segments.iter().rev().find(|segment| (0xe0..=0xef).contains(&segment.marker)).map_or(2, |segment| segment.end);
     let mut output = Vec::with_capacity(data.len() + comment.len());
-    output.extend_from_slice(&data[..2]);
-    if insert_after.is_none() { output.extend_from_slice(&comment); }
-    for (index, (start, end, marker)) in segments.iter().enumerate() {
-        if *marker != 0xfe { output.extend_from_slice(&data[*start..*end]); }
-        if Some(index) == insert_after { output.extend_from_slice(&comment); }
+    let mut cursor = 0;
+    let mut inserted = false;
+    for old in segments.iter().filter(|segment| segment.marker == 0xfe) {
+        if !inserted && insert_at <= old.start {
+            output.extend_from_slice(&data[cursor..insert_at]);
+            output.extend_from_slice(&comment);
+            cursor = insert_at;
+            inserted = true;
+        }
+        output.extend_from_slice(&data[cursor..old.start]);
+        cursor = old.end;
     }
-    output.extend_from_slice(&data[pos..]);
+    if !inserted {
+        output.extend_from_slice(&data[cursor..insert_at]);
+        output.extend_from_slice(&comment);
+        cursor = insert_at;
+    }
+    output.extend_from_slice(&data[cursor..]);
     Ok(output)
 }
 
 /// Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
 fn jpeg_insert_position(data: &[u8]) -> usize {
-    let mut pos = 2;
-    while pos + 4 <= data.len() && data[pos] == 0xff {
-        let marker = data[pos + 1];
-        let length = u16::from_be_bytes([data[pos + 2], data[pos + 3]]) as usize;
-        if length < 2 || pos + 2 + length > data.len() { break; }
-        let payload = &data[pos + 4..pos + 2 + length];
-        if !(marker == 0xe0 || (marker == 0xe1 && payload.starts_with(&[b'E', b'x', b'i', b'f', 0, 0]))) { break; }
-        pos += 2 + length;
+    let mut at = 2;
+    for segment in jpeg_segments(data) {
+        let is_exif = segment.marker == 0xe1 && segment.content(data).starts_with(b"Exif\0\0");
+        if segment.marker != 0xe0 && !is_exif { break; }
+        at = segment.end;
     }
-    pos
+    at
 }
 
 fn invalid_data(message: &str) -> std::io::Error {
@@ -1880,25 +1878,9 @@ const IPTC_RESOURCE_ID: u16 = 0x0404;
 
 /// Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
 fn find_jpeg_photoshop_segment(data: &[u8]) -> Option<(usize, usize, usize)> {
-    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return None; }
-    let mut pos = 2;
-    while pos + 4 <= data.len() {
-        let marker_start = pos;
-        if data[pos] != 0xff { return None; }
-        while pos < data.len() && data[pos] == 0xff { pos += 1; }
-        if pos >= data.len() { return None; }
-        let marker = data[pos];
-        pos += 1;
-        if marker == 0xda || marker == 0xd9 { break; }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
-        if pos + 2 > data.len() { return None; }
-        let length = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
-        if length < 2 || pos + length > data.len() { return None; }
-        let segment_end = pos + length;
-        if marker == 0xed && data[pos + 2..segment_end].starts_with(PHOTOSHOP_HEADER) { return Some((marker_start, segment_end, pos + 2)); }
-        pos = segment_end;
-    }
-    None
+    jpeg_segments(data)
+        .find(|segment| segment.marker == 0xed && segment.content(data).starts_with(PHOTOSHOP_HEADER))
+        .map(|segment| (segment.start, segment.end, segment.payload))
 }
 
 struct PhotoshopResource { id: u16, name: Vec<u8>, data: Vec<u8> }
@@ -2357,39 +2339,12 @@ fn read_iptc_entries(path: &Path) -> Vec<MetadataEntry> {
     let Ok(file) = fs::File::open(path) else { return Vec::new(); };
     let mut bytes = Vec::new();
     if file.take(16 * 1024 * 1024).read_to_end(&mut bytes).is_err() { return Vec::new(); }
-    if bytes.len() < 4 || bytes[0..2] != [0xff, 0xd8] { return Vec::new(); }
     let mut grouped: Vec<(u8, Vec<String>)> = Vec::new();
-    let mut pos = 2;
-    while pos + 4 <= bytes.len() {
-        if bytes[pos] != 0xff { break; }
-        while pos < bytes.len() && bytes[pos] == 0xff { pos += 1; }
-        if pos >= bytes.len() { break; }
-        let marker = bytes[pos];
-        pos += 1;
-        if marker == 0xda || marker == 0xd9 { break; }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
-        if pos + 2 > bytes.len() { break; }
-        let segment_len = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as usize;
-        if segment_len < 2 || pos + segment_len > bytes.len() { break; }
-        let data = &bytes[pos + 2..pos + segment_len];
-        if marker == 0xed && data.starts_with(b"Photoshop 3.0\0") {
-            let mut p = 14;
-            while p + 12 <= data.len() && &data[p..p + 4] == b"8BIM" {
-                let resource = u16::from_be_bytes([data[p + 4], data[p + 5]]);
-                p += 6;
-                let name_len = data[p] as usize;
-                p += 1 + name_len;
-                if (1 + name_len) % 2 != 0 { p += 1; }
-                if p + 4 > data.len() { break; }
-                let resource_len = u32::from_be_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
-                p += 4;
-                if p + resource_len > data.len() { break; }
-                if resource == 0x0404 { collect_iptc_datasets(&data[p..p + resource_len], &mut grouped); }
-                p += resource_len;
-                if resource_len % 2 != 0 { p += 1; }
-            }
-        }
-        pos += segment_len;
+    for segment in jpeg_segments(&bytes).filter(|segment| segment.marker == 0xed) {
+        let data = segment.content(&bytes);
+        if !data.starts_with(PHOTOSHOP_HEADER) { continue; }
+        let (resources, _) = parse_photoshop_resources(&data[PHOTOSHOP_HEADER.len()..]);
+        for resource in resources.iter().filter(|resource| resource.id == IPTC_RESOURCE_ID) { collect_iptc_datasets(&resource.data, &mut grouped); }
     }
     grouped.into_iter().map(|(dataset, values)| detail_entry(iptc_dataset_name(dataset), values.join(", "))).collect()
 }

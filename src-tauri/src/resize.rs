@@ -427,19 +427,8 @@ const PHOTOSHOP_HEADER: &[u8] = b"Photoshop 3.0\0";
 fn read_jpeg_metadata(data: &[u8]) -> SourceMetadata {
     let mut metadata = SourceMetadata::default();
     let mut icc_chunks: Vec<(u8, Vec<u8>)> = Vec::new();
-    let mut pos = 2;
-    while pos + 4 <= data.len() {
-        if data[pos] != 0xff { break; }
-        while pos < data.len() && data[pos] == 0xff { pos += 1; }
-        if pos >= data.len() { break; }
-        let marker = data[pos];
-        pos += 1;
-        if marker == 0xda || marker == 0xd9 { break; }
-        if marker == 0x01 || (0xd0..=0xd7).contains(&marker) { continue; }
-        if pos + 2 > data.len() { break; }
-        let length = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
-        if length < 2 || pos + length > data.len() { break; }
-        let payload = &data[pos + 2..pos + length];
+    for segment in crate::exif::jpeg_segments(data) {
+        let (marker, payload) = (segment.marker, segment.content(data));
         match marker {
             0xe1 if payload.starts_with(EXIF_HEADER) && metadata.exif.is_none() => metadata.exif = Some(payload.to_vec()),
             0xe1 if payload.starts_with(XMP_HEADER) && metadata.xmp.is_none() => metadata.xmp = Some(payload.to_vec()),
@@ -449,7 +438,6 @@ fn read_jpeg_metadata(data: &[u8]) -> SourceMetadata {
             }
             _ => {}
         }
-        pos += length;
     }
     if !icc_chunks.is_empty() {
         icc_chunks.sort_by_key(|(sequence, _)| *sequence);
