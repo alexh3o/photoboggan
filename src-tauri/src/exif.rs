@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::io::Read;
+use std::io::{Read, Write};
 use exif::{Context, In, Reader, Tag, Value};
 
 #[derive(Default)]
@@ -1423,13 +1423,7 @@ pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()
         output
     };
 
-    let temp_path = Path::new(&format!("{}.photoboggan-tmp", path.display())).to_path_buf();
-    fs::write(&temp_path, packet)?;
-    if let Err(error) = fs::rename(&temp_path, path) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error);
-    }
-    Ok(())
+    write_file_atomically(path, &packet)
 }
 
 // ---------------------------------------------------------------------------
@@ -2100,12 +2094,16 @@ fn jpeg_replace_iptc(data: &[u8], changes: &IptcChanges) -> std::io::Result<Vec<
 
 fn write_file_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let temp_path = std::path::PathBuf::from(format!("{}.photoboggan-tmp", path.display()));
-    fs::write(&temp_path, bytes)?;
-    if let Err(error) = fs::rename(&temp_path, path) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error);
-    }
-    Ok(())
+    // Écriture, synchronisation sur disque puis remplacement : au moindre échec, le fichier temporaire est supprimé.
+    let result = (|| {
+        let mut file = fs::File::create(&temp_path)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&temp_path, path)
+    })();
+    if result.is_err() { let _ = fs::remove_file(&temp_path); }
+    result
 }
 
 /// JPEG : XMP, IPTC et commentaire réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
@@ -2128,11 +2126,9 @@ fn write_jpeg_metadata(path: &Path, update: &MetadataUpdate) -> std::io::Result<
 pub(crate) fn sidecar_target(image_path: &Path) -> (std::path::PathBuf, bool) {
     let appended = std::path::PathBuf::from(format!("{}.xmp", image_path.display()));
     if appended.exists() { return (appended, true); }
-    let compatible = image_path.file_stem().and_then(|stem| image_path.parent().map(|parent| parent.join(stem).with_extension("xmp")));
-    match compatible.filter(|path| path.exists()) {
-        Some(path) => (path, true),
-        None => (appended, false),
-    }
+    // Même nom que les lecteurs : `with_extension` remplace seulement la dernière extension (`IMG.2024.cr2` -> `IMG.2024.xmp`).
+    let compatible = image_path.with_extension("xmp");
+    if compatible.exists() { (compatible, true) } else { (appended, false) }
 }
 
 /// Sidecar XMP (`photo.ext.xmp` ou `photo.xmp` existant) dont le contenu est remplacé par `update(contenu actuel)` ; créé si nécessaire.
@@ -2210,14 +2206,7 @@ fn write_xmp_sidecar(image_path: &Path, edit: XmpEdit) -> std::io::Result<()> {
     };
     let updated = update_xmp_metadata(&xml, edit);
     if updated.is_empty() { return Ok(()); } // rien à retirer d'un sidecar inexistant
-    // --- Écriture atomique sécurisée ---
-    let temp_path = Path::new(&format!("{}.photoboggan-tmp", sidecar.display())).to_path_buf();
-    fs::write(&temp_path, updated)?;
-    if let Err(error) = fs::rename(&temp_path, &sidecar) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(error);
-    }
-    Ok(())
+    write_file_atomically(&sidecar, updated.as_bytes())
 }
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@
 //! puis remplace l'original (`-overwrite_original`) : jamais d'écriture en place. La relecture de vérification reste faite par l'appelant.
 
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -242,21 +242,39 @@ fn probe(program: PathBuf, prefix: Vec<OsString>, source: &'static str) -> Resul
     let mut found = Launcher { program, prefix, source, version: String::new() };
     let mut command = found.command();
     command.arg("-ver").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
-    let child = command.spawn().map_err(|error| {
+    let mut child = command.spawn().map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             if found.prefix.is_empty() { "programme absent".to_string() } else { "perl introuvable".to_string() }
         } else {
             error.to_string()
         }
     })?;
-    let (sender, receiver) = mpsc::channel();
-    std::thread::spawn(move || { let _ = sender.send(child.wait_with_output()); });
-    let output = match receiver.recv_timeout(PROBE_TIMEOUT) {
-        Ok(output) => output.map_err(|error| error.to_string())?,
-        Err(_) => return Err("pas de réponse".to_string()),
+    // La sortie est lue par un fil dédié ; le processus reste ici pour pouvoir être tué si le délai est dépassé.
+    let stdout = child.stdout.take().ok_or_else(|| "flux indisponible".to_string())?;
+    let reader = std::thread::spawn(move || {
+        let mut text = String::new();
+        let _ = BufReader::new(stdout).take(1024).read_to_string(&mut text);
+        text
+    });
+    let deadline = Instant::now() + PROBE_TIMEOUT;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("pas de réponse".to_string());
+            }
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error.to_string());
+            }
+        }
     };
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !output.status.success() || version.is_empty() || !version.starts_with(|c: char| c.is_ascii_digit()) {
+    let version = reader.join().unwrap_or_default().trim().to_string();
+    if !status.success() || version.is_empty() || !version.starts_with(|c: char| c.is_ascii_digit()) {
         return Err("réponse inattendue".to_string());
     }
     found.version = version;
@@ -384,7 +402,12 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 fn acquire(found: &Launcher) -> Result<Process, String> {
     let mut pool = lock(&POOL);
     loop {
-        if let Some(process) = pool.idle.pop() { return Ok(process); }
+        if let Some(mut process) = pool.idle.pop() {
+            // Un processus mort au repos (tué de l'extérieur, plantage) est écarté : il ferait échouer l'écriture à venir.
+            if matches!(process.child.try_wait(), Ok(None)) { return Ok(process); }
+            pool.running -= 1;
+            continue;
+        }
         if pool.running < MAX_PROCESSES {
             pool.running += 1;
             let generation = pool.generation;
