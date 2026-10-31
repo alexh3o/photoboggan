@@ -119,10 +119,14 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
 
     let directory = target.parent().ok_or("Dossier de destination invalide")?;
     let temp = directory.join(format!(".photoboggan-resize-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
-    fs::write(&temp, &bytes).map_err(|error| format!("Écriture impossible : {error}"))?;
+    if let Err(error) = fs::write(&temp, &bytes) {
+        let _ = fs::remove_file(&temp); // écriture partielle (disque plein…) : rien ne reste dans le dossier de l'utilisateur
+        return Err(format!("Écriture impossible : {error}"));
+    }
 
     // Le nom est résolu une seconde fois sous verrou : un autre fichier du lot a pu créer la même cible entre-temps.
-    let _guard = COMMIT_LOCK.lock().map_err(|_| "Verrou d'écriture indisponible".to_string())?;
+    // Le verrou ne protège aucune donnée : un verrou « empoisonné » par une panique ailleurs reste utilisable.
+    let _guard = COMMIT_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let final_path = match resolve_conflict(&target, options.conflict) {
         Resolution::Write(path) => path,
         Resolution::Ask => { let _ = fs::remove_file(&temp); return Ok(ResizeOutcome::Conflict { output: path_text(&target) }); }
@@ -168,11 +172,17 @@ fn target_path(source: &Path, options: &ResizeOptions) -> Result<PathBuf, String
     Ok(directory.join(format!("{stem}{}.{extension}", options.suffix)))
 }
 
+/// Les deux chemins désignent-ils le même fichier ? Fichiers existants : comparaison des chemins canoniques. Cible pas encore créée : même dossier
+/// (canonique) et même nom ; la casse n'est ignorée que sous Windows (sous Linux, « photo.JPG » et « photo.jpg » sont deux fichiers).
 fn is_same_file(first: &Path, second: &Path) -> bool {
-    match (fs::canonicalize(first), fs::canonicalize(second)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => first.to_string_lossy().to_lowercase() == second.to_string_lossy().to_lowercase(),
-    }
+    if let (Ok(a), Ok(b)) = (fs::canonicalize(first), fs::canonicalize(second)) { return a == b; }
+    let split = |path: &Path| (
+        path.parent().and_then(|parent| fs::canonicalize(parent).ok()),
+        path.file_name().map(|name| name.to_string_lossy().into_owned()),
+    );
+    let ((directory_a, name_a), (directory_b, name_b)) = (split(first), split(second));
+    let same_name = if cfg!(windows) { name_a.map(|name| name.to_lowercase()) == name_b.map(|name| name.to_lowercase()) } else { name_a == name_b };
+    directory_a.is_some() && directory_a == directory_b && same_name
 }
 
 enum Resolution {
@@ -372,17 +382,23 @@ fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetada
     let mut output = Vec::new();
     let mut encoder = Encoder::new(&mut output, options.jpeg_quality.clamp(1, 100));
     // Le profil de couleur est toujours conservé (sans lui, les couleurs changent à l'affichage) ; EXIF, XMP et IPTC seulement si demandé.
-    if let Some(icc) = &metadata.icc { let _ = encoder.add_icc_profile(icc); }
+    // Un segment refusé par l'encodeur (trop gros pour un segment JPEG) est une erreur : jamais un fichier écrit sans son profil ou ses métadonnées.
+    if let Some(icc) = &metadata.icc {
+        encoder.add_icc_profile(icc).map_err(|error| format!("Profil de couleur impossible à intégrer au JPEG : {error}"))?;
+    }
     if options.keep_metadata {
+        let refused = |what: &str, error: jpeg_encoder::EncodingError| {
+            format!("{what} impossible à intégrer au JPEG ({error}) : désactivez la conservation des métadonnées pour redimensionner cette photo")
+        };
         if let Some(exif) = &metadata.exif {
             let mut exif = exif.clone();
             patch_exif(&mut exif, raster.width as u32, raster.height as u32, orientation);
-            let _ = encoder.add_app_segment(1, &exif);
+            encoder.add_app_segment(1, &exif).map_err(|error| refused("EXIF", error))?;
         }
         if let Some(xmp) = &metadata.xmp {
-            let _ = encoder.add_app_segment(1, &patch_xmp(xmp, pixel_orientation, raster.width, raster.height));
+            encoder.add_app_segment(1, &patch_xmp(xmp, pixel_orientation, raster.width, raster.height)).map_err(|error| refused("XMP", error))?;
         }
-        if let Some(iptc) = &metadata.iptc { let _ = encoder.add_app_segment(13, iptc); }
+        if let Some(iptc) = &metadata.iptc { encoder.add_app_segment(13, iptc).map_err(|error| refused("IPTC", error))?; }
     }
     encoder.encode(rgb, raster.width as u16, raster.height as u16, ColorType::Rgb).map_err(|error| format!("Encodage JPEG impossible : {error}"))?;
     Ok(output)
@@ -498,7 +514,6 @@ fn patch_exif(segment: &mut [u8], width: u32, height: u32, original_orientation:
     }
 }
 
-/// Un paquet XMP peut contenir tiff:Orientation : remis à 1 (les pixels sont déjà pivotés), sinon l'image serait pivotée deux fois.
 /// XMP recopié : orientation remise à 1 et, si les pixels ont été tournés, zones de visage (MWG, Microsoft) tournées de la même façon, avec les
 /// dimensions de sortie. Sans rotation, les coordonnées normalisées restent justes : seul l'orientation change.
 fn patch_xmp(segment: &[u8], pixel_orientation: u32, width: usize, height: usize) -> Vec<u8> {
@@ -510,6 +525,7 @@ fn patch_xmp(segment: &[u8], pixel_orientation: u32, width: usize, height: usize
     [XMP_HEADER, rotated.as_bytes()].concat()
 }
 
+/// Un paquet XMP peut contenir tiff:Orientation : remis à 1 (les pixels sont déjà pivotés), sinon l'image serait pivotée deux fois.
 fn patch_xmp_orientation(segment: &[u8]) -> Vec<u8> {
     let Ok(text) = std::str::from_utf8(segment) else { return segment.to_vec() };
     let mut updated = text.to_string();
