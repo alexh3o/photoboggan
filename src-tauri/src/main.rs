@@ -963,7 +963,20 @@ struct DeleteResult {
 #[derive(serde::Serialize)]
 struct CopyResult {
     copied: usize,
+    // Fichiers laissés de côté sur choix de l'utilisateur (« Passer » à la question du fichier existant).
+    skipped: usize,
     failed: Vec<FileFailure>,
+}
+
+// Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en millisecondes).
+#[derive(serde::Serialize)]
+struct CopyConflict {
+    path: String,
+    name: String,
+    source_size: u64,
+    source_modified: i64,
+    target_size: u64,
+    target_modified: i64,
 }
 
 #[derive(serde::Serialize)]
@@ -1452,7 +1465,8 @@ fn unique_destination(directory: &Path, file_name: &std::ffi::OsStr) -> PathBuf 
 }
 
 // Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
-fn copy_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
+// Un sidecar déjà présent à destination n'est écrasé qu'avec `overwrite` (copie qui remplace un fichier existant, choisie par l'utilisateur).
+fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Result<()> {
     let appended = PathBuf::from(format!("{}.xmp", source.display()));
     let (from, to) = if appended.is_file() {
         (appended, PathBuf::from(format!("{}.xmp", target.display())))
@@ -1461,7 +1475,7 @@ fn copy_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
         if !compatible.is_file() { return Ok(()); }
         (compatible, target.with_extension("xmp"))
     };
-    if !to.exists() { fs::copy(from, to)?; }
+    if overwrite || !to.exists() { fs::copy(from, to)?; }
     Ok(())
 }
 
@@ -1535,7 +1549,7 @@ fn move_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
         if !destination.exists() { move_file(&appended, &destination)?; }
         Ok(())
     } else {
-        copy_sidecar(source, target)
+        copy_sidecar(source, target, false)
     }
 }
 
@@ -1673,12 +1687,50 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
     Ok(MoveResult { moved, skipped, failed })
 }
 
-// Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est jamais écrasé :
-// la copie est renommée (« photo (1).jpg »). Les dossiers suivis ne sont pas rescannés automatiquement.
+// Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question posée à
+// l'utilisateur). Une photo copiée dans son propre dossier n'est pas un conflit : la copie y est toujours renommée (« photo (1).jpg »), jamais écrasée.
+fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<CopyConflict> {
+    let destination_segments = lowercase_segments(destination);
+    paths.iter().filter_map(|path| {
+        let source = Path::new(path);
+        let file_name = source.file_name()?;
+        if source.parent().is_some_and(|parent| lowercase_segments(parent) == destination_segments) { return None; }
+        let target = destination.join(file_name);
+        let (source_meta, target_meta) = (fs::metadata(source).ok()?, fs::metadata(&target).ok().filter(|meta| meta.is_file())?);
+        Some(CopyConflict {
+            path: path.clone(),
+            name: file_name.to_string_lossy().into_owned(),
+            source_size: source_meta.len(),
+            source_modified: library_sync::modified_millis(&source_meta),
+            target_size: target_meta.len(),
+            target_modified: library_sync::modified_millis(&target_meta),
+        })
+    }).collect()
+}
+
+// Copie qui remplace un fichier existant : écrite sous un nom temporaire du dossier de destination puis renommée, pour qu'un échec en cours de route
+// (disque plein…) laisse le fichier d'origine intact.
+fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
+    let temp = PathBuf::from(format!("{}.photoboggan-tmp", target.display()));
+    let result = fs::copy(source, &temp).and_then(|_| fs::rename(&temp, target));
+    if result.is_err() { let _ = fs::remove_file(&temp); }
+    result
+}
+
+// Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
+// `resolutions` associe au chemin d'un fichier en conflit « replace » (écraser), « skip » (passer) ou « rename » (copie renommée « photo (1).jpg »,
+// aussi le choix par défaut). Une photo copiée dans son propre dossier est toujours renommée. Les dossiers suivis ne sont pas rescannés automatiquement.
 // Lancée par la file des tâches (`task_id`) : avancement publié, arrêt possible entre deux fichiers (les fichiers déjà copiés le restent).
-fn copy_photos_with_progress(paths: Vec<String>, destination: &Path, mut progress: FileTaskProgress) -> Result<CopyResult, String> {
+fn copy_photos_with_progress(
+    paths: Vec<String>,
+    destination: &Path,
+    resolutions: &std::collections::HashMap<String, String>,
+    mut progress: FileTaskProgress,
+) -> Result<CopyResult, String> {
     if !destination.is_dir() { return Err(format!("Dossier de destination introuvable : {}", destination.display())); }
+    let destination_segments = lowercase_segments(destination);
     let mut copied = 0;
+    let mut skipped = 0;
     let mut failed = Vec::new();
     for path in paths {
         if progress.cancelled() { break; }
@@ -1687,41 +1739,72 @@ fn copy_photos_with_progress(paths: Vec<String>, destination: &Path, mut progres
         match source.file_name() {
             None => failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() }),
             Some(file_name) => {
-                let target = unique_destination(destination, file_name);
-                match fs::copy(source, &target) {
-                    Ok(_) => {
-                        if let Err(error) = copy_sidecar(source, &target) {
-                            failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
+                let exact = destination.join(file_name);
+                let same_folder = source.parent().is_some_and(|parent| lowercase_segments(parent) == destination_segments);
+                let choice = if exact.is_file() && !same_folder { resolutions.get(&path).map(String::as_str).unwrap_or("rename") } else { "rename" };
+                if choice == "skip" {
+                    skipped += 1;
+                } else if choice == "replace" {
+                    match copy_replacing(source, &exact) {
+                        Ok(()) => {
+                            if let Err(error) = copy_sidecar(source, &exact, true) {
+                                failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
+                            }
+                            copied += 1;
                         }
-                        copied += 1;
+                        Err(error) => failed.push(FileFailure { path: path.clone(), error: error.to_string() }),
                     }
-                    Err(error) => {
-                        let _ = fs::remove_file(&target);
-                        failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+                } else {
+                    let target = unique_destination(destination, file_name);
+                    match fs::copy(source, &target) {
+                        Ok(_) => {
+                            if let Err(error) = copy_sidecar(source, &target, false) {
+                                failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
+                            }
+                            copied += 1;
+                        }
+                        Err(error) => {
+                            let _ = fs::remove_file(&target);
+                            failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+                        }
                     }
                 }
             }
         }
         progress.advance(file_size);
     }
-    Ok(CopyResult { copied, failed })
+    Ok(CopyResult { copied, skipped, failed })
+}
+
+// Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en conflit.
+#[tauri::command(async)]
+fn copy_conflicts(paths: Vec<String>, destination: String) -> Vec<CopyConflict> {
+    find_copy_conflicts(&paths, Path::new(&destination))
 }
 
 #[tauri::command(async)]
-fn copy_photos(app: tauri::AppHandle, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<CopyResult, String> {
+fn copy_photos(app: tauri::AppHandle, paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>) -> Result<CopyResult, String> {
     let progress = FileTaskProgress::new(app, task_id, &paths);
-    copy_photos_with_progress(paths, Path::new(&destination), progress)
+    copy_photos_with_progress(paths, Path::new(&destination), &resolutions.unwrap_or_default(), progress)
 }
 
-// Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (jamais d'écrasement, sidecar copié), mais la
-// destination doit être un dossier suivi ou l'un de ses sous-dossiers, et son chemin est reconstruit comme pour les autres commandes de dossier.
-// Les copies ne sont pas ajoutées au catalogue ici : l'interface lance ensuite la synchronisation incrémentale (sync_library).
+// Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
 #[tauri::command(async)]
-fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<CopyResult, String> {
+fn tracked_copy_conflicts(state: State<'_, AppState>, paths: Vec<String>, destination: String) -> Result<Vec<CopyConflict>, String> {
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
+    Ok(find_copy_conflicts(&paths, &folder))
+}
+
+// Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'utilisateur,
+// sidecar copié), mais la destination doit être un dossier suivi ou l'un de ses sous-dossiers, et son chemin est reconstruit comme pour les autres
+// commandes de dossier. Les copies ne sont pas ajoutées au catalogue ici : l'interface lance ensuite la synchronisation incrémentale (sync_library).
+#[tauri::command(async)]
+fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>) -> Result<CopyResult, String> {
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
     let progress = FileTaskProgress::new(app, task_id, &paths);
-    copy_photos_with_progress(paths, &folder, progress)
+    copy_photos_with_progress(paths, &folder, &resolutions.unwrap_or_default(), progress)
 }
 
 // Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
@@ -1912,6 +1995,8 @@ fn main() {
             export_integrity_report,
             open_folder_in_file_manager,
             create_subfolder,
+            copy_conflicts,
+            tracked_copy_conflicts,
             rename_photo,
             rename_folder,
             update_photo_metadata,

@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -4410,13 +4410,15 @@ function movePhotosToFolder(targets, folderPath) {
   });
 }
 
-function copyPhotosToFolder(targets, folderPath) {
+async function copyPhotosToFolder(targets, folderPath) {
   if (!targets.length) return;
+  const paths = targets.map(photo => photo.path);
+  const resolutions = await askCopyResolutions('tracked_copy_conflicts', paths, folderPath); // fichiers déjà présents à destination : l'utilisateur choisit
   enqueueScanTask({
     kind: 'copy',
     path: null,
     command: 'copy_photos_to_tracked_folder',
-    args: { paths: targets.map(photo => photo.path), destination: folderPath },
+    args: { paths, destination: folderPath, resolutions },
     labelKey: 'Copying files ({count})',
     labelParams: { count: targets.length },
     onResult: async (result, stopped, error) => {
@@ -4432,7 +4434,7 @@ function copyPhotosToFolder(targets, folderPath) {
       if (!stopped) {
         showWriteToast(!result.copied && result.failed.length
           ? t('Copy failed: {error}', { error: result.failed[0].error })
-          : `${tp('{count} file copied', result.copied)}${result.failed.length ? ` · ${tp('{count} failure', result.failed.length)}` : ''}`);
+          : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', result.failed.length ? tp('{count} failure', result.failed.length) : ''].filter(Boolean).join(' · '));
       }
     },
   });

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
-import { t, tp, onLanguageChange } from './i18n.js';
+import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath } from './main.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
@@ -464,17 +464,95 @@ export async function confirmAndDelete(targets) {
   }
 }
 
+// Taille d'un fichier pour la question « fichier existant » (Ko sous 1 Mo, Mo au-delà).
+function formatCopySize(bytes) {
+  if (bytes < 1024 * 1024) return t('{size} KB', { size: Math.max(1, Math.round(bytes / 1024)) });
+  return t('{size} MB', { size: (bytes / (1024 * 1024)).toLocaleString(getLanguage(), { maximumFractionDigits: 1 }) });
+}
+
+// Question posée pour un fichier à copier dont le nom existe déjà à destination : montre taille et date de modification des deux fichiers.
+// Renvoie { action: 'rename' | 'skip' | 'replace', applyAll }. Fermer la fenêtre (Échap, ×) revient à « Passer » pour ce fichier seulement ; le focus est
+// sur « Renommer automatiquement », le choix sans perte de données.
+function copyConflictDialog(conflict) {
+  return new Promise(resolve => {
+    let choice = { action: 'skip', applyAll: false };
+    const modal = createModal({ title: t('File already exists'), cardClass: 'confirm-card', focusSelector: FORM_FOCUSABLE, onClose: () => resolve(choice) });
+    const describe = (label, size, modified) => makeElement('p', 'confirm-message', t('{label} {size} · modified on {date}', {
+      label,
+      size: formatCopySize(size),
+      date: new Date(modified).toLocaleString(getLanguage()),
+    }));
+    const text = makeElement('p', 'confirm-message', t('“{name}” already exists in the destination folder.', { name: conflict.name }));
+    const applyAll = makeInput('checkbox');
+    const applyRow = makeElement('div', 'resize-option');
+    applyRow.append(labelled(applyAll, t('Apply my choice to the following files')));
+    const actions = makeElement('div', 'confirm-actions');
+    const buttons = [['rename', t('Rename automatically'), 'btn-primary'], ['skip', t('Skip this file'), ''], ['replace', t('Overwrite the destination file'), 'btn-danger']].map(([action, label, className]) => {
+      const button = makeElement('button', className, label);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        choice = { action, applyAll: applyAll.checked };
+        modal.close();
+      });
+      return button;
+    });
+    actions.append(...buttons);
+    modal.body.append(
+      text,
+      describe(t('Destination file:'), conflict.target_size, conflict.target_modified),
+      describe(t('File to copy:'), conflict.source_size, conflict.source_modified),
+      applyRow,
+      actions,
+    );
+    // Flèches : passent d'un bouton à l'autre. Entrée valide le bouton ayant le focus.
+    modal.overlay.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      if (document.activeElement === applyAll) return;
+      event.preventDefault();
+      const current = buttons.indexOf(document.activeElement);
+      buttons[event.key === 'ArrowLeft' ? Math.max(0, current - 1) : Math.min(buttons.length - 1, current + 1)].focus();
+    });
+    buttons[0].focus();
+  });
+}
+
+// Avant une copie : cherche les fichiers dont le nom existe déjà à destination (`command` : copy_conflicts ou tracked_copy_conflicts) et pose la question
+// pour chacun, l'un après l'autre. « Appliquer mon choix aux fichiers suivants » vaut pour les conflits restants de cette copie seulement.
+// Renvoie { chemin du fichier à copier: 'rename' | 'skip' | 'replace' } à passer à la commande de copie ; un fichier absent de la table est renommé.
+export async function askCopyResolutions(command, paths, destination) {
+  let conflicts = [];
+  try {
+    conflicts = await invoke(command, { paths, destination });
+  } catch (error) {
+    console.debug('Copy conflicts unavailable', error); // sans la liste, la copie renomme comme avant : aucun fichier n'est écrasé
+  }
+  const resolutions = {};
+  let applied = null;
+  for (const conflict of conflicts) {
+    if (applied) {
+      resolutions[conflict.path] = applied;
+      continue;
+    }
+    const choice = await copyConflictDialog(conflict);
+    resolutions[conflict.path] = choice.action;
+    if (choice.applyAll) applied = choice.action;
+  }
+  return resolutions;
+}
+
 // Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
 export async function copyPhotosTo(targets) {
   const destination = await pickDirectory(localStorage.getItem(LAST_COPY_FOLDER_KEY));
   if (!destination) return;
   localStorage.setItem(LAST_COPY_FOLDER_KEY, destination);
+  const paths = targets.map(photo => photo.path);
+  const resolutions = await askCopyResolutions('copy_conflicts', paths, destination);
   // Tâche de la file (progression, arrêt possible entre deux fichiers, voir copy_photos).
   api.enqueueFileTask({
     kind: 'copy',
     path: null,
     command: 'copy_photos',
-    args: { paths: targets.map(photo => photo.path), destination },
+    args: { paths, destination, resolutions },
     labelKey: 'Copying files ({count})',
     labelParams: { count: targets.length },
     onResult: (result, stopped, error) => {
@@ -487,7 +565,7 @@ export async function copyPhotosTo(targets) {
       if (stopped) return;
       api.showToast(failures && !result.copied
         ? t('Copy failed: {error}', { error: result.failed[0].error })
-        : `${tp('{count} file copied', result.copied)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
+        : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', failures ? tp('{count} failure', failures) : ''].filter(Boolean).join(' · '));
     },
   });
 }
