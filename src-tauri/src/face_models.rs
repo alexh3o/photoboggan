@@ -18,11 +18,61 @@ use tauri::{Emitter, State};
 
 use crate::AppState;
 
-/// Délais du téléchargement : sans eux, une connexion qui ne répond plus bloquerait la tâche pour toujours (l'arrêt demandé n'est vu qu'entre deux lectures).
+/// Délais du téléchargement : sans eux, une connexion qui ne répond plus bloquerait la tâche pour toujours.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 /// Durée maximale de réception d'un fichier (le plus gros fait quelques dizaines de Mo) : large pour une liaison lente, mais finie.
 const BODY_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+/// Durée sans aucun octet reçu au bout de laquelle le téléchargement échoue (connexion figée en plein transfert).
+const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Lecteur qui rend la main même quand la connexion est figée : la lecture réelle se fait dans un fil dédié, ce lecteur attend ses blocs par
+/// tranches de 200 ms. Il vérifie ainsi l'arrêt demandé (`cancel`) sans attendre le prochain octet, et échoue après `idle` sans donnée. Le fil
+/// abandonné se termine tout seul : à la fermeture de la connexion, au plus tard au délai `BODY_TIMEOUT`, ou à son prochain envoi.
+struct IdleReader<'a> {
+    chunks: std::sync::mpsc::Receiver<std::io::Result<Vec<u8>>>,
+    pending: Vec<u8>,
+    position: usize,
+    idle: Duration,
+    cancel: &'a AtomicBool,
+}
+
+impl<'a> IdleReader<'a> {
+    fn new(mut source: Box<dyn Read + Send>, idle: Duration, cancel: &'a AtomicBool) -> Self {
+        let (sender, chunks) = std::sync::mpsc::sync_channel(4);
+        std::thread::spawn(move || loop {
+            let mut buffer = vec![0u8; 64 * 1024];
+            let message = source.read(&mut buffer).map(|count| { buffer.truncate(count); buffer });
+            let finished = !matches!(&message, Ok(chunk) if !chunk.is_empty());
+            if sender.send(message).is_err() || finished { break; }
+        });
+        IdleReader { chunks, pending: Vec::new(), position: 0, idle, cancel }
+    }
+}
+
+impl Read for IdleReader<'_> {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        use std::sync::mpsc::RecvTimeoutError;
+        let started = std::time::Instant::now();
+        while self.position >= self.pending.len() {
+            if self.cancel.load(Ordering::Relaxed) { return Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "cancelled")); }
+            match self.chunks.recv_timeout(Duration::from_millis(200)) {
+                Ok(Ok(chunk)) if chunk.is_empty() => return Ok(0),
+                Ok(Ok(chunk)) => { self.pending = chunk; self.position = 0; }
+                Ok(Err(error)) => return Err(error),
+                Err(RecvTimeoutError::Disconnected) => return Ok(0),
+                Err(RecvTimeoutError::Timeout) if started.elapsed() >= self.idle => {
+                    return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("aucune donnée reçue depuis {} s", self.idle.as_secs())));
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+        }
+        let count = out.len().min(self.pending.len() - self.position);
+        out[..count].copy_from_slice(&self.pending[self.position..self.position + count]);
+        self.position += count;
+        Ok(count)
+    }
+}
 
 #[derive(Deserialize)]
 struct ModelFile {
@@ -161,7 +211,10 @@ fn install_from(reader: &mut dyn Read, dir: &Path, file: &ModelFile, cancel: Opt
         let mut buffer = vec![0u8; 256 * 1024];
         loop {
             if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) { return Err("cancelled".to_string()); }
-            let count = reader.read(&mut buffer).map_err(|error| format!("{} : {error}", file.asset))?;
+            let count = reader.read(&mut buffer).map_err(|error| {
+                // Une lecture interrompue par l'arrêt demandé (IdleReader) n'est pas une erreur de téléchargement.
+                if cancel.is_some_and(|flag| flag.load(Ordering::Relaxed)) { "cancelled".to_string() } else { format!("{} : {error}", file.asset) }
+            })?;
             if count == 0 { break; }
             output.write_all(&buffer[..count]).map_err(|error| error.to_string())?;
             hasher.update(&buffer[..count]);
@@ -211,7 +264,7 @@ pub async fn download_face_models(app: tauri::AppHandle, state: State<'_, AppSta
                 .build()
                 .call()
                 .map_err(|error| format!("{url} : {error}"))?;
-            let mut reader = response.into_body().into_reader();
+            let mut reader = IdleReader::new(Box::new(response.into_body().into_reader()), IDLE_TIMEOUT, &cancel);
             install_from(&mut reader, &dir, file, Some(&cancel), &mut |bytes| {
                 done += bytes;
                 let percent = (done * 100 / total) as u32;
