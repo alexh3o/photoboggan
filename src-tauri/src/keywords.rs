@@ -756,3 +756,7 @@ pub async fn rename_keyword(
 pub fn set_metadata_read_order(kind: String, order: Vec<String>) -> Result<(), String> {
     crate::exif::set_read_priority(&kind, &order)
 }
+
+#[cfg(test)]
+#[path = "tests/keywords.rs"]
+mod tests;

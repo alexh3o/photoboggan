@@ -488,3 +488,7 @@ pub fn write_report(directory: &Path, preamble: &str, headers: &[String], rows: 
     }
     Err("Création du fichier impossible".into())
 }
+
+#[cfg(test)]
+#[path = "tests/integrity.rs"]
+mod tests;

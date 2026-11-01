@@ -2372,3 +2372,7 @@ pub fn read_metadata_details(path: &Path) -> MetadataDetails {
     details.iptc = read_iptc_entries(path);
     details
 }
+
+#[cfg(test)]
+#[path = "tests/exif.rs"]
+mod tests;

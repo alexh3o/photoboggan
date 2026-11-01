@@ -239,3 +239,7 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
     };
     photos.map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+#[path = "tests/db.rs"]
+mod tests;

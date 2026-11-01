@@ -731,3 +731,7 @@ pub fn write_marking(image_path: &Path, edit: crate::exif::XmpEdit) -> std::io::
     if args.is_empty() { return Ok(()); }
     write_to(image_path, args, has_values)
 }
+
+#[cfg(test)]
+#[path = "tests/exiftool.rs"]
+mod tests;

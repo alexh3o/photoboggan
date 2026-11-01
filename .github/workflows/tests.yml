@@ -1,0 +1,76 @@
+name: "Tests"
+
+# Tests de non-régression du backend Rust (voir AGENTS.md §5.I) : à chaque envoi sur main et à chaque pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ['ubuntu-22.04', 'windows-latest']
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Cache de la compilation (dépendances Tauri comprises) : sans lui, chaque exécution recompile tout.
+      - name: Cache Cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Mêmes dépendances système que la publication (release.yml) : Tauri les exige pour compiler, même pour les tests.
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install npm dependencies
+        run: npm install
+
+      # Tauri vérifie à la compilation que le frontend construit existe (frontendDist).
+      - name: Build frontend
+        run: npm run build
+
+      # Tests rapides : aucun ExifTool ni modèle de visages requis.
+      - name: Run fast tests
+        working-directory: src-tauri
+        run: cargo test
+
+      # Tests d'intégration ExifTool (marqués #[ignore]) : sous Windows, avec la version embarquée téléchargée comme pour une release.
+      # Le test ignoré de exif.rs (écart connu, voir son commentaire) n'en fait pas partie : on ne lance que le module exiftool.
+      - name: Fetch ExifTool
+        if: matrix.platform == 'windows-latest'
+        run: npm run fetch-exiftool
+
+      - name: Run ExifTool integration tests
+        if: matrix.platform == 'windows-latest'
+        working-directory: src-tauri
+        run: cargo test exiftool:: -- --ignored --test-threads=1

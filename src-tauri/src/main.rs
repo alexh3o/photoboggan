@@ -15,6 +15,9 @@ mod resize;
 mod thumbnails;
 mod video;
 
+#[cfg(test)]
+mod test_support;
+
 use tauri::{State, Emitter, Manager};
 use std::fs;
 use std::path::{Path, PathBuf};

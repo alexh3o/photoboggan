@@ -60,6 +60,9 @@ src-tauri/
     heif.rs             # HEIC / HEIF
     video.rs            # Vidéos : extraction d'une image fixe uniquement
     integrity.rs        # Vérification d'intégrité des fichiers
+    tests/              # Tests de non-régression, un fichier par module (voir §5.I)
+    test_support.rs     # Images synthétiques et catalogue temporaire pour les tests (cfg(test))
+.github/workflows/      # release.yml (publication), tests.yml (cargo test à chaque push / PR)
 ```
 
 ---
@@ -72,11 +75,11 @@ src-tauri/
 4. **Respect des modifications utilisateur** : préserver textes, raccourcis et ajustements existants, ou demander confirmation.
 5. **Sécurité Git et données** : jamais de `git reset --hard`, de checkout destructif, de restauration de fichier ni de suppression de fichiers ou de base sans demande explicite.
 6. **Pas de framework** dans le frontend (React, Vue, jQuery, bibliothèques lourdes…).
-7. **Dépendances** : ne pas en ajouter (ni tests) sans demande ou nécessité. Pour toute dépendance native ou réimplémentation de format, comparer compilation, distribution (Windows/Linux), maintenance, sécurité et performance, et justifier le choix.
+7. **Dépendances** : ne pas en ajouter sans demande ou nécessité (les tests ont `tempfile` en `[dev-dependencies]`, rien d'autre). Pour toute dépendance native ou réimplémentation de format, comparer compilation, distribution (Windows/Linux), maintenance, sécurité et performance, et justifier le choix.
 8. **Portabilité** : pas d'appel spécifique à Windows (cmd.exe, PowerShell, registre…) sans équivalent Linux/macOS ; utiliser les API Tauri (`app.path()`, `PathBuf`).
 9. **Lisibilité** : code facile à relire, commenté en français (utilité de chaque bloc, intention de l'utilisateur), ordonné logiquement.
 10. **Comportement existant** : conserver l'interface en français et le comportement actuel, sauf demande contraire.
-11. **Vérifications honnêtes** : lancer les commandes du §6 si l'agent a un terminal. Sinon (outils fichiers seuls), le dire clairement : la vérification se limite à la relecture du code, et l'agent liste les commandes à exécuter par l'utilisateur. Ne jamais présenter une vérification non faite comme réussie.
+11. **Vérifications honnêtes** : lancer les commandes du §6 (dont `cargo test`) si l'agent a un terminal. Sinon (outils fichiers seuls), le dire clairement : la vérification se limite à la relecture du code, et l'agent liste les commandes à exécuter par l'utilisateur. Ne jamais présenter une vérification non faite comme réussie.
 12. **TODO.md** : lors de la livraison d'un item du backlog, proposer de le cocher (ne pas réécrire le fichier).
 13. **Résumé final** : fichiers modifiés, changements, vérifications faites, limites connues, tests manuels suggérés à l'utilisateur.
 14. **Mise à jour de ce fichier** : après validation de l'utilisateur d'une décision d'architecture, d'un nouveau pattern ou d'une convention modifiée, proposer la modification de ce fichier (diff ciblé), sans le laisser grossir : retirer ce qui devient obsolète.
@@ -143,6 +146,14 @@ src-tauri/
 - Pas d'écritures concurrentes sur un même fichier ; prévoir une sauvegarde/restauration pour les opérations potentiellement destructrices.
 - Un échec d'écriture de métadonnées n'est jamais présenté comme un succès.
 
+### I. Tests
+
+- Backend Rust uniquement (pas de test du frontend ni des commandes IPC) : un module `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` en fin de fichier, le code de test dans `src-tauri/src/tests/`. Rien n'est compilé dans l'application.
+- Fichiers synthétiques dans un dossier `tempfile` (aides dans `test_support.rs`) : jamais une vraie photo, jamais de réseau ni de modèle de visages.
+- Tout correctif sur l'écriture de métadonnées, la base ou la synchronisation s'accompagne d'un test qui l'aurait attrapé. Les tests d'écriture interne appellent les fonctions internes (`write_jpeg_metadata`, `write_xmp_sidecar_with`…) : l'aiguillage `write_metadata` dépend du réglage global ExifTool.
+- Test lent ou dépendant d'un outil externe (ExifTool) : `#[ignore = "raison"]`, lancé par `cargo test <module>:: -- --ignored`. Un test ignoré qui échoue documente un écart connu (voir `rating_zero_on_a_file_without_xmp_creates_nothing`) : le dire, ne pas le « réparer » en affaiblissant l'assertion.
+- État global (verrou de `sync_library`, réglages ExifTool) : un seul test par scénario, pas de modification du réglage dans un test rapide.
+
 ---
 
 ## 6. Commandes
@@ -150,6 +161,8 @@ src-tauri/
 ```bash
 npm run tauri dev                 # Application complète en développement
 cd src-tauri && cargo check       # Vérification rapide du Rust
+cd src-tauri && cargo test        # Tests rapides (≈1 s d'exécution) ; la CI les lance (tests.yml)
+cd src-tauri && cargo test exiftool:: -- --ignored --test-threads=1   # Intégration ExifTool (version embarquée ou PATH)
 npm run build                     # Build du frontend (Vite)
 npm run fetch-exiftool            # Télécharge ExifTool embarqué (lancé aussi avant tauri dev / tauri build)
 npm run tauri build               # Build de production

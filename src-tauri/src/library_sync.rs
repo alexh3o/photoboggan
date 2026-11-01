@@ -286,3 +286,7 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
         removed,
     })
 }
+
+#[cfg(test)]
+#[path = "tests/library_sync.rs"]
+mod tests;

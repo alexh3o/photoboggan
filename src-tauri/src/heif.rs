@@ -502,3 +502,7 @@ fn verify(old: &[u8], old_lay: &Layout, new: &[u8], expected: &str, replaced_id:
     if ctx.xmp_item(ctx.meta.primary).is_none() { return Err("XMP non rattaché à l'image".into()); }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/heif.rs"]
+mod tests;

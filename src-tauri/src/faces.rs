@@ -1738,3 +1738,7 @@ mod tests {
         assert_eq!(regions[0].name, None);
     }
 }
+
+#[cfg(test)]
+#[path = "tests/faces_db.rs"]
+mod db_tests;
