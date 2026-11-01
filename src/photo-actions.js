@@ -1353,13 +1353,16 @@ function openFolderMenu(event, folderItem) {
   showContextMenu(menu, event);
 }
 
-// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger }].
+// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger }] ;
+// un item peut porter `submenu` = [{ label, onSelect }] à la place de `onSelect` pour ouvrir un sous-niveau.
 export function openContextMenuAt(event, items) {
   closeContextMenu();
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
-  menu.append(...items.map(item => menuButton(item.label, item.onSelect, { danger: Boolean(item.danger) })));
+  menu.append(...items.map(item => item.submenu
+    ? buildSubmenuItem(item.label, item.submenu)
+    : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger) })));
   showContextMenu(menu, event);
 }
 

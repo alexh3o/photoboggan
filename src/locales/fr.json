@@ -679,6 +679,7 @@
   "Clean persons hint": "Supprime, après confirmation, les personnes qui n'ont plus aucun visage attribué. Elles ne sont jamais supprimées automatiquement (une personne peut être créée en attente d'attribution). Les mots-clés de l'arbre restent.",
   "Merge into…": "Fusionner avec…",
   "Undo the merge of {name}": "Annuler la fusion de {name}",
+  "Undo the merge of…": "Annuler la fusion de…",
   "Choose another person": "Choisissez une autre personne",
   "This merge has already been undone": "Cette fusion a déjà été annulée",
   "Merge {name}": "Fusionner {name}",

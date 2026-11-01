@@ -412,7 +412,9 @@ export async function openPersonMenu(event, person) {
   ];
   if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => saveLink(person, null) });
   items.push({ label: t('Merge into…'), onSelect: () => mergePerson(person) });
-  for (const merge of merges) items.push({ label: t('Undo the merge of {name}', { name: merge.name }), onSelect: () => undoMerge(merge) });
+  // Une seule fusion reçue : entrée directe ; à partir de deux, elles sont regroupées dans un sous-menu « Annuler la fusion de ».
+  if (merges.length === 1) items.push({ label: t('Undo the merge of {name}', { name: merges[0].name }), onSelect: () => undoMerge(merges[0]) });
+  else if (merges.length > 1) items.push({ label: t('Undo the merge of…'), submenu: merges.map(merge => ({ label: merge.name, onSelect: () => undoMerge(merge) })) });
   items.push(
     { label: person.hidden ? t('Show this person') : t('Hide this person'), onSelect: () => setPersonHidden(person, !person.hidden) },
     { label: t('Delete this person…'), onSelect: () => confirmDeletePerson(person), danger: true },

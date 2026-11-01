@@ -1471,7 +1471,7 @@ pub fn get_person_merges(state: State<'_, AppState>, person_id: i64) -> Result<V
         .prepare(
             "SELECT m.id, COALESCE(k.name, m.from_name), (SELECT COUNT(*) FROM person_merge_faces f WHERE f.merge_id = m.id AND f.role = 'person'), m.merged_at
              FROM person_merges m LEFT JOIN keyword_nodes k ON k.id = m.from_keyword_node_id
-             WHERE m.to_person_id = ?1 AND m.undone = 0 ORDER BY m.merged_at DESC, m.id DESC",
+             WHERE m.to_person_id = ?1 AND m.undone = 0 ORDER BY m.merged_at DESC, m.id DESC LIMIT 10",
         )
         .map_err(|error| error.to_string())?;
     let rows = statement

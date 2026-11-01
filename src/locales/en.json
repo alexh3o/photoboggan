@@ -679,6 +679,7 @@
   "Clean persons hint": "Deletes, after confirmation, the people who no longer have any attributed face. They are never deleted automatically (a person can be created while waiting for faces). The keywords of the tree stay.",
   "Merge into…": "Merge into…",
   "Undo the merge of {name}": "Undo the merge of {name}",
+  "Undo the merge of…": "Undo the merge of…",
   "Choose another person": "Choose another person",
   "This merge has already been undone": "This merge has already been undone",
   "Merge {name}": "Merge {name}",
