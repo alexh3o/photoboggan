@@ -24,10 +24,25 @@ pub fn is_video_path(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Délai maximal de la miniature du Shell : un fournisseur de miniatures qui bloque (codec défaillant, partage injoignable) ne doit pas immobiliser
+/// indéfiniment un fil de l'application ni un créneau de génération de l'interface.
+#[cfg(windows)]
+const SHELL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Image fixe d'une vidéo fournie par Windows (RGB, largeur, hauteur), au plus `max_side` px sur le grand côté
-/// (Windows peut renvoyer plus grand : l'appelant réduit si besoin). Échoue si aucun codec n'est installé pour ce fichier.
+/// (Windows peut renvoyer plus grand : l'appelant réduit si besoin). Échoue si aucun codec n'est installé pour ce fichier, ou si Windows ne répond
+/// pas à temps (l'appel Shell, resté bloqué, est alors abandonné dans son fil).
 #[cfg(windows)]
 pub fn system_thumbnail(path: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
+    let path = path.to_path_buf();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || { let _ = sender.send(shell_thumbnail(&path, max_side)); });
+    receiver.recv_timeout(SHELL_TIMEOUT).unwrap_or_else(|_| Err("Windows n'a pas fourni la miniature à temps".to_string()))
+}
+
+/// Appel Shell lui-même, dans le fil dédié de `system_thumbnail` (COM y est initialisé puis libéré).
+#[cfg(windows)]
+fn shell_thumbnail(path: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     use std::ffi::c_void;
     use std::os::windows::ffi::OsStrExt;
     use windows::core::PCWSTR;
@@ -104,50 +119,91 @@ pub fn system_thumbnail(_path: &Path, _max_side: usize) -> Result<(Vec<u8>, usiz
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Image fixe d'une vidéo extraite par `ffmpeg` (JPEG pleine taille, réduit ensuite par l'appelant), si `ffmpeg` est installé.
-/// Image prise à 1 s (évite le noir d'ouverture), au début si la vidéo est plus courte. Le processus est abandonné après 20 s.
-pub fn ffmpeg_frame_jpeg(source: &Path) -> Result<Vec<u8>, String> {
+/// Message d'erreur quand `ffmpeg` n'est pas installé (cas normal : pas de log).
+const FFMPEG_MISSING: &str = "ffmpeg introuvable";
+/// Délai maximal d'une extraction.
+const FFMPEG_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// Une extraction `ffmpeg` à la position `seek` (secondes) dans `temp`. Un JPEG n'est renvoyé que si ffmpeg s'est terminé normalement : après un
+/// délai dépassé ou un échec, le fichier (éventuellement partiel) n'est jamais lu. Le processus est toujours arrêté avant de sortir.
+fn run_ffmpeg(source: &Path, seek: &str, temp: &Path, timeout: std::time::Duration) -> Result<Vec<u8>, String> {
+    use std::io::Read;
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
 
-    let temp = std::env::temp_dir().join(format!("photoboggan-frame-{}-{}.jpg", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
-    for seek in ["1", "0"] {
-        let _ = fs::remove_file(&temp);
-        let mut command = Command::new("ffmpeg");
-        command
-            .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", seek, "-i"])
-            .arg(source)
-            .args(["-frames:v", "1", "-q:v", "3"])
-            .arg(&temp)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW : pas de fenêtre de console
-        }
-        let mut child = command.spawn().map_err(|_| "ffmpeg introuvable".to_string())?;
-        let started = Instant::now();
-        loop {
-            match child.try_wait() {
-                Ok(Some(_)) => break,
-                Ok(None) if started.elapsed() > Duration::from_secs(20) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break;
-                }
-                Ok(None) => std::thread::sleep(Duration::from_millis(25)),
-                Err(error) => return Err(error.to_string()),
+    let _ = fs::remove_file(temp);
+    let mut command = Command::new("ffmpeg");
+    command
+        .args(["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-ss", seek, "-i"])
+        .arg(source)
+        .args(["-frames:v", "1", "-q:v", "3"])
+        .arg(temp)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW : pas de fenêtre de console
+    }
+    let mut child = command.spawn().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound { FFMPEG_MISSING.to_string() } else { format!("ffmpeg impossible à lancer : {error}") }
+    })?;
+    // Messages d'erreur de ffmpeg, lus par un fil dédié (une sortie qui se remplirait bloquerait le processus).
+    let (sender, receiver) = std::sync::mpsc::channel();
+    if let Some(stderr) = child.stderr.take() {
+        std::thread::spawn(move || {
+            let mut text = String::new();
+            let _ = stderr.take(8192).read_to_string(&mut text);
+            let _ = sender.send(text);
+        });
+    }
+    let started = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if started.elapsed() > timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("ffmpeg : délai dépassé".to_string());
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(25)),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(error.to_string());
             }
         }
-        if let Ok(bytes) = fs::read(&temp) {
-            if bytes.len() > 4 {
+    };
+    let messages = receiver.recv_timeout(Duration::from_secs(1)).unwrap_or_default();
+    let last_message = messages.lines().rev().map(str::trim).find(|line| !line.is_empty()).unwrap_or("");
+    if !status.success() { return Err(format!("ffmpeg a échoué ({status}) : {last_message}")); }
+    match fs::read(temp) {
+        Ok(bytes) if bytes.len() > 4 => Ok(bytes),
+        _ => Err(format!("ffmpeg n'a produit aucune image {last_message}").trim_end().to_string()),
+    }
+}
+
+/// Image fixe d'une vidéo extraite par `ffmpeg` (JPEG pleine taille, réduit ensuite par l'appelant), si `ffmpeg` est installé.
+/// Image prise à 1 s (évite le noir d'ouverture), au début si la vidéo est plus courte. Chaque essai est abandonné après 20 s ; la cause d'un échec
+/// (hors « ffmpeg absent », cas normal) est renvoyée et tracée.
+pub fn ffmpeg_frame_jpeg(source: &Path) -> Result<Vec<u8>, String> {
+    let temp = std::env::temp_dir().join(format!("photoboggan-frame-{}-{}.jpg", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
+    let mut last_error = String::new();
+    for seek in ["1", "0"] {
+        match run_ffmpeg(source, seek, &temp, FFMPEG_TIMEOUT) {
+            Ok(bytes) => {
                 let _ = fs::remove_file(&temp);
                 return Ok(bytes);
+            }
+            Err(error) => {
+                let missing = error == FFMPEG_MISSING;
+                last_error = error;
+                if missing { break; }
             }
         }
     }
     let _ = fs::remove_file(&temp);
-    Err("ffmpeg n'a produit aucune image".into())
+    if last_error != FFMPEG_MISSING { eprintln!("Video frame extraction failed for {}: {last_error}", source.display()); }
+    Err(last_error)
 }
