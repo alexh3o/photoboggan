@@ -355,6 +355,16 @@ const settingsFolderList = document.getElementById('settings-folder-list');
 const renderedThumbnailNodes = new Map();
 const thumbnailCacheLookups = new Map();
 const thumbnailCacheWrites = new Map();
+
+// Fichiers dont seules les métadonnées viennent d'être réécrites : côté Rust, leur miniature et leur aperçu en cache ont été renommés pour
+// suivre la nouvelle taille et la nouvelle date (keep_cached_images, aucune régénération) ; les anciens chemins mémorisés ici sont oubliés.
+function forgetCachedImagePaths(paths) {
+  for (const path of paths) {
+    thumbnailCacheLookups.delete(path);
+    rawPreviewPromises.delete(path);
+  }
+  if (paths.length) fullscreenImageCache.clear();
+}
 let scrollRenderPending = false;
 
 let justifiedLayoutTimer = null;
@@ -1935,6 +1945,7 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     const written = new Set(result.written);
     const successful = targets.filter(photo => written.has(photo.id));
     for (const photo of successful) apply(photo);
+    forgetCachedImagePaths(successful.map(photo => photo.path));
     if (successful.length && refilter()) applyPhotoFilters({ keepState: true });
     else updateUIOnSelection();
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
@@ -4879,6 +4890,7 @@ initMetadataWrites({
   // mots-clés et le panneau Info.
   updatePhotoMetadata: written => {
     const updates = new Map(written.map(entry => [entry.photo_id, entry]));
+    const rewritten = new Set();
     for (const list of new Set([loadedPhotos, folderTreePhotos, photos])) {
       for (const photo of list) {
         const entry = updates.get(photo.id);
@@ -4886,8 +4898,10 @@ initMetadataWrites({
         photo.keywords = entry.keywords;
         photo.title = entry.title;
         photo.caption = entry.description;
+        rewritten.add(photo.path);
       }
     }
+    forgetCachedImagePaths([...rewritten]);
     renderKeywordFilters();
     updateUIOnSelection();
   },

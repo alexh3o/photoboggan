@@ -395,6 +395,33 @@ fn raw_preview_cache_file(raw_previews_dir: &Path, source_path: &str) -> Result<
     thumbnail_cache_file(raw_previews_dir, source_path)
 }
 
+/// Dossiers du cache d'images (miniatures, aperçus extraits des RAW / HEIC / vidéos).
+#[derive(Clone)]
+pub(crate) struct ImageCacheDirs {
+    pub thumbnails: PathBuf,
+    pub raw_previews: PathBuf,
+}
+
+impl ImageCacheDirs {
+    pub fn of(state: &AppState) -> Self {
+        Self { thumbnails: state.thumbnails_dir(), raw_previews: state.raw_previews_dir() }
+    }
+}
+
+/// Écriture de métadonnées seules (note, couleur, mots-clés, titre, zones de visage…) : l'image ne change pas, mais la taille et la date du
+/// fichier, dont dépend le nom de sa miniature et de son aperçu en cache, si. Ceux-ci sont renommés pour suivre le fichier réécrit, au lieu
+/// d'être régénérés au prochain affichage (redémarrage compris). Un sidecar écrit ne change pas le fichier : rien à faire.
+pub(crate) fn keep_cached_images<T>(dirs: &ImageCacheDirs, path: &str, write: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    let before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
+    let result = write()?;
+    let after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
+    for (old, new) in before.into_iter().zip(after) {
+        // Même nom (fichier inchangé) : surtout ne pas passer par carry_cache_file, qui supprimerait le fichier en cache.
+        if old.is_some() && new.is_some() && old != new { carry_cache_file(old, new); }
+    }
+    Ok(result)
+}
+
 /// Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est supprimé
 /// en cas d'erreur. Un fichier déjà présent à la fin (écrit entre-temps par une autre tâche) est accepté.
 fn write_cache_file(destination: &Path, prefix: &str, bytes: &[u8]) -> Result<(), String> {
@@ -949,6 +976,7 @@ async fn update_photos_marking(
     let label = color_flag.as_deref().map(exif::label_for_color_flag).transpose()?;
     let pick = pick_flag.as_deref().map(exif::normalize_pick_flag).transpose()?;
     let pool = state.pool();
+    let dirs = ImageCacheDirs::of(&state);
     let cancel = task_id.as_deref().map(scan_cancel_flag);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<MarkingResult, String> {
@@ -961,7 +989,7 @@ async fn update_photos_marking(
                 .into_par_iter()
                 .map(|photo| {
                     if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) { return (photo, None); }
-                    let result = write_photo_marking(&pool, photo.id, &photo.path, rating, label, pick, color_flag.as_deref());
+                    let result = write_photo_marking(&pool, &dirs, photo.id, &photo.path, rating, label, pick, color_flag.as_deref());
                     let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
                     if let Some(id) = &worker_task_id {
                         let _ = app.emit("scan-progress", ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
@@ -986,8 +1014,11 @@ async fn update_photos_marking(
 }
 
 /// Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
+/// La miniature et l'aperçu en cache suivent le fichier réécrit (keep_cached_images).
+#[allow(clippy::too_many_arguments)]
 fn write_photo_marking(
     pool: &DbPool,
+    dirs: &ImageCacheDirs,
     id: i64,
     path: &str,
     rating: Option<i32>,
@@ -996,7 +1027,7 @@ fn write_photo_marking(
     color_flag: Option<&str>,
 ) -> Result<(), String> {
     if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
-    exif::write_xmp_metadata(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string())?;
+    keep_cached_images(dirs, path, || exif::write_xmp_metadata(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string()))?;
     let conn = pool.get().map_err(|error| error.to_string())?;
     // Le fichier vient d'être réécrit par l'application : sa nouvelle taille et sa date sont enregistrées avec les valeurs, dans une même
     // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
@@ -2337,3 +2368,7 @@ fn change_storage_location(
         default_path: default_dir.to_string_lossy().into_owned(),
     })
 }
+
+#[cfg(test)]
+#[path = "tests/main.rs"]
+mod tests;

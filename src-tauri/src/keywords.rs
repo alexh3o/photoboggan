@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 
 use crate::db::DbPool;
 use crate::AppState;
@@ -292,6 +292,7 @@ fn run_write(
 ) -> Result<KeywordWriteResult, String> {
     let _write_guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let conn = pool.get().map_err(|error| error.to_string())?;
+    let cache_dirs = crate::ImageCacheDirs::of(&app.state::<AppState>()); // miniatures et aperçus qui suivent les fichiers réécrits
     let mut nodes: HashMap<i64, (i64, String)> = HashMap::new();
     {
         let mut statement = conn.prepare("SELECT id, parent_id, name FROM keyword_nodes").map_err(|error| error.to_string())?;
@@ -382,7 +383,11 @@ fn run_write(
                     description: item.description.clone(),
                     regions: plan.map(|plan| plan.regions.clone()),
                 };
-                let result = crate::exif::write_metadata(&item.path, &update).map(|_| update).map_err(|error| error.to_string());
+                // Métadonnées seules : la miniature et l'aperçu en cache sont renommés pour suivre le fichier, pas régénérés.
+                let result = crate::keep_cached_images(&cache_dirs, &item.path, || {
+                    crate::exif::write_metadata(&item.path, &update).map_err(|error| error.to_string())
+                })
+                .map(|_| update);
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
                 if let Some(id) = &task_id {
                     let _ = app.emit("scan-progress", crate::ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });

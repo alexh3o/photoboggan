@@ -173,9 +173,13 @@ fn marking_writes_file_then_catalog_and_keeps_other_values() {
     std::fs::write(&path, jpeg_bytes(16, 16)).unwrap();
     let path_text = path.to_string_lossy().to_string();
     let id = insert_photo(&pool.get().unwrap(), &path_text);
+    let dirs = crate::ImageCacheDirs { thumbnails: dir.path().join("thumbnails"), raw_previews: dir.path().join("raw_previews") };
+    std::fs::create_dir_all(&dirs.thumbnails).unwrap();
+    std::fs::create_dir_all(&dirs.raw_previews).unwrap();
+    std::fs::write(crate::thumbnail_cache_file(&dirs.thumbnails, &path_text).unwrap(), b"miniature").unwrap();
 
-    crate::write_photo_marking(&pool, id, &path_text, None, Some(Some("Green")), Some("picked"), Some("green")).unwrap();
-    crate::write_photo_marking(&pool, id, &path_text, Some(4), None, None, None).unwrap();
+    crate::write_photo_marking(&pool, &dirs, id, &path_text, None, Some(Some("Green")), Some("picked"), Some("green")).unwrap();
+    crate::write_photo_marking(&pool, &dirs, id, &path_text, Some(4), None, None, None).unwrap();
 
     let meta = read_exif(&path);
     assert_eq!((meta.rating, meta.color_flag.as_str(), meta.pick_flag.as_str()), (4, "green", "picked"));
@@ -184,5 +188,9 @@ fn marking_writes_file_then_catalog_and_keeps_other_values() {
         .unwrap();
     assert_eq!((stored.0, stored.1.as_str(), stored.2.as_str()), (4, "green", "picked"));
     assert_eq!(stored.3, std::fs::metadata(&path).unwrap().len() as i64, "taille du fichier écrit enregistrée");
+    // Le fichier a changé de taille : sa miniature en cache a suivi (pas de régénération au prochain démarrage).
+    let thumbnail = crate::thumbnail_cache_file(&dirs.thumbnails, &path_text).unwrap();
+    assert_eq!(std::fs::read(&thumbnail).unwrap(), b"miniature");
+    assert_eq!(std::fs::read_dir(&dirs.thumbnails).unwrap().count(), 1, "aucune miniature orpheline");
     assert!(leftovers(dir.path()).is_empty());
 }
