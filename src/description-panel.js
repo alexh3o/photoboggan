@@ -107,6 +107,10 @@ const descriptionEditor = {
     editedDescription = null;
     render();
   },
+  // Photo renommée ou déplacée : sa saisie en attente sera écrite sous le nouveau chemin.
+  photosMoved(destinations) {
+    for (const target of targets.values()) target.path = destinations.get(target.path) ?? target.path;
+  },
 };
 
 // ---------------------------------------------------------------------------

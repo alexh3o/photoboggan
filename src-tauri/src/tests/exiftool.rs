@@ -162,3 +162,27 @@ fn concurrent_writes_to_one_file_leave_a_valid_file() {
     assert!(titles.contains(&read_exif(&path).title), "titre inattendu : {}", read_exif(&path).title);
     assert!(leftovers(dir.path()).is_empty());
 }
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn marking_writes_file_then_catalog_and_keeps_other_values() {
+    // write_photo_marking (main.rs, commande update_photos_marking) : le fichier puis la base ; la note seule ne touche ni couleur ni pick.
+    if !exiftool_available() { return; }
+    let (dir, pool) = temp_catalog();
+    let path = dir.path().join("a.jpg");
+    std::fs::write(&path, jpeg_bytes(16, 16)).unwrap();
+    let path_text = path.to_string_lossy().to_string();
+    let id = insert_photo(&pool.get().unwrap(), &path_text);
+
+    crate::write_photo_marking(&pool, id, &path_text, None, Some(Some("Green")), Some("picked"), Some("green")).unwrap();
+    crate::write_photo_marking(&pool, id, &path_text, Some(4), None, None, None).unwrap();
+
+    let meta = read_exif(&path);
+    assert_eq!((meta.rating, meta.color_flag.as_str(), meta.pick_flag.as_str()), (4, "green", "picked"));
+    let stored: (i32, String, String, i64) = pool.get().unwrap()
+        .query_row("SELECT rating, color_flag, pick_flag, file_size FROM photos WHERE id = ?1", [id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+        .unwrap();
+    assert_eq!((stored.0, stored.1.as_str(), stored.2.as_str()), (4, "green", "picked"));
+    assert_eq!(stored.3, std::fs::metadata(&path).unwrap().len() as i64, "taille du fichier écrit enregistrée");
+    assert!(leftovers(dir.path()).is_empty());
+}

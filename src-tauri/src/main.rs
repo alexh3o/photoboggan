@@ -908,22 +908,95 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
     })
 }
 
-#[tauri::command(async)]
-fn update_photo_metadata(state: State<'_, AppState>, id: i64, path: String, rating: Option<i32>, color_flag: Option<String>, pick_flag: Option<String>) -> Result<(), String> {
-    // Seules les valeurs fournies sont modifiées : écrire la note ne touche pas au xmp:Label (qui peut contenir
-    // une valeur non reconnue par l'application), ni au fanion pick, et inversement.
+/// Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
+#[derive(serde::Deserialize)]
+struct MarkingTarget {
+    id: i64,
+    path: String,
+}
+
+#[derive(serde::Serialize)]
+struct MarkingFailure {
+    photo_id: i64,
+    path: String,
+    error: String,
+}
+
+#[derive(serde::Serialize)]
+struct MarkingResult {
+    /// Photos écrites (fichier et base).
+    written: Vec<i64>,
+    failed: Vec<MarkingFailure>,
+    /// Photos laissées intactes parce que la tâche a été arrêtée.
+    cancelled: usize,
+}
+
+/// Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
+/// Seules les valeurs fournies sont modifiées : écrire la note ne touche pas au xmp:Label (qui peut contenir une valeur non reconnue par
+/// l'application), ni au fanion pick, et inversement. Les écritures sur une même image sont sérialisées par exiftool::path_lock.
+#[tauri::command]
+async fn update_photos_marking(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    photos: Vec<MarkingTarget>,
+    rating: Option<i32>,
+    color_flag: Option<String>,
+    pick_flag: Option<String>,
+    task_id: Option<String>,
+) -> Result<MarkingResult, String> {
     let rating = rating.map(|value| value.clamp(0, 5));
-    let label = match color_flag.as_deref() {
-        Some(flag) => Some(exif::label_for_color_flag(flag)?),
-        None => None,
-    };
-    let pick = match pick_flag.as_deref() {
-        Some(flag) => Some(exif::normalize_pick_flag(flag)?),
-        None => None,
-    };
-    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
-    exif::write_xmp_metadata(&path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string())?;
+    // Valeurs vérifiées avant toute écriture : une valeur invalide refuse tout le lot.
+    let label = color_flag.as_deref().map(exif::label_for_color_flag).transpose()?;
+    let pick = pick_flag.as_deref().map(exif::normalize_pick_flag).transpose()?;
     let pool = state.pool();
+    let cancel = task_id.as_deref().map(scan_cancel_flag);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || -> Result<MarkingResult, String> {
+        let total = photos.len().max(1);
+        let done = AtomicUsize::new(0);
+        let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
+        // None : photo non traitée (tâche arrêtée) ; Some(Err(message)) : échec.
+        let outcomes: Vec<(MarkingTarget, Option<Result<(), String>>)> = threads.install(|| {
+            photos
+                .into_par_iter()
+                .map(|photo| {
+                    if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) { return (photo, None); }
+                    let result = write_photo_marking(&pool, photo.id, &photo.path, rating, label, pick, color_flag.as_deref());
+                    let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
+                    if let Some(id) = &worker_task_id {
+                        let _ = app.emit("scan-progress", ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
+                    }
+                    (photo, Some(result))
+                })
+                .collect()
+        });
+        let mut result = MarkingResult { written: Vec::new(), failed: Vec::new(), cancelled: 0 };
+        for (photo, outcome) in outcomes {
+            match outcome {
+                None => result.cancelled += 1,
+                Some(Ok(())) => result.written.push(photo.id),
+                Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
+            }
+        }
+        Ok(result)
+    })
+    .await;
+    if let Some(id) = &task_id { release_scan_cancel_flag(id); }
+    outcome.map_err(|error| error.to_string())?
+}
+
+/// Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
+fn write_photo_marking(
+    pool: &DbPool,
+    id: i64,
+    path: &str,
+    rating: Option<i32>,
+    label: Option<Option<&'static str>>,
+    pick: Option<&'static str>,
+    color_flag: Option<&str>,
+) -> Result<(), String> {
+    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
+    exif::write_xmp_metadata(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string())?;
     let conn = pool.get().map_err(|error| error.to_string())?;
     // Le fichier vient d'être réécrit par l'application : sa nouvelle taille et sa date sont enregistrées avec les valeurs, dans une même
     // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
@@ -2007,7 +2080,7 @@ fn main() {
             tracked_copy_conflicts,
             rename_photo,
             rename_folder,
-            update_photo_metadata,
+            update_photos_marking,
             get_photo_details,
             delete_photos,
             delete_folder,

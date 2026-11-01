@@ -9,7 +9,7 @@ import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, r
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
@@ -200,6 +200,7 @@ async function getPhotoDisplayUrl(photo) {
       .then(cachedPath => convertFileSrc(cachedPath))
       .catch(err => {
         console.error('RAW preview extraction failed', photo.path, err);
+        rawPreviewPromises.delete(photo.path); // échec non mémorisé : nouvelle tentative au prochain affichage
         // Vidéo : jamais le fichier vidéo lui-même comme image (case laissée vide, avec son icône Play).
         return isVideoPath(photo.path) ? '' : photoUrl(photo);
       });
@@ -1407,6 +1408,7 @@ function openFullscreen(index) {
   // L'image de la précédente ouverture est retirée : sinon elle s'afficherait un instant, le temps que celle de la photo demandée soit prête.
   if (fullscreenSlot.photo !== target) clearFullscreenImage();
   isFullscreen = true;
+  if (target) loadFullscreenPhoto(target);
   fullscreenRatingPinned = false;
   fullscreenRating.classList.add('hidden');
   fullscreenView.classList.remove('hidden');
@@ -1445,6 +1447,13 @@ function layoutFullscreenSlot() {
 // Affiche la photo en plein écran. Zoom et position repartent de la vue entière seulement quand l'image change : un simple
 // changement de note rappelle cette fonction avec la même image. L'image précédente reste affichée jusqu'à ce que la nouvelle soit
 // prête, puis dimensions, zoom et position sont appliqués d'un coup (pas d'image étirée entre deux photos).
+// Charge l'image de `photo` dans le plein écran, si elle est toujours la photo courante quand son URL est prête.
+function loadFullscreenPhoto(photo) {
+  getPhotoDisplayUrl(photo).then(url => {
+    if (isFullscreen && photos[lastSelectedIndex] === photo) showFullscreenPhoto(photo, url);
+  });
+}
+
 function showFullscreenPhoto(photo, url) {
   fullscreenSlot.photo = photo;
   if (fullscreenSlot.url === url) { updateFullscreenInfo(); return; } // même image (ex. changement de note) : la photo associée a pu changer
@@ -1718,12 +1727,8 @@ function updateUIOnSelection() {
   renderPreview();
   if (selectedIndices.size > 0 && photos[lastSelectedIndex]) {
     const photo = photos[lastSelectedIndex];
-    
-    getPhotoDisplayUrl(photo).then(imgUrl => {
-      if (photos[lastSelectedIndex] === photo) {
-        showFullscreenPhoto(photo, imgUrl);
-      }
-    });
+    // Image pleine résolution (et extraction de l'aperçu d'un RAW) seulement plein écran ouvert : openFullscreen la charge à l'ouverture.
+    if (isFullscreen) loadFullscreenPhoto(photo);
 
     updateFullscreenRatingStars();
     if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
@@ -1793,12 +1798,10 @@ function showPhotoDimensions(photo) {
     photo.measuredHeight = probe.naturalHeight;
     if (photos[lastSelectedIndex] === photo) showPhotoDimensions(photo);
   };
-  //probe.src = photoUrl(photo);
-  // rempalcement pour extracteur raw
+  // URL d'affichage (aperçu JPEG extrait pour un RAW ou un HEIC, que le Webview ne lit pas).
   getPhotoDisplayUrl(photo).then(url => {
     probe.src = url;
   });
-  // fin de rempalacement
 }
 
 
@@ -1877,23 +1880,15 @@ async function setSelectionColorFlag(flag) {
   }
   // Comme pour la note : si toutes les photos sélectionnées ont déjà cette couleur, on l'efface.
   const finalFlag = targets.every(photo => (photo.color_flag || 'none') === flag) ? 'none' : flag;
-  showWriteToast(finalFlag === 'none'
-    ? tp('Removing color for {count} file…', targets.length)
-    : tp('Writing {count} file (color: {color})…', targets.length, { color: colorFlagLabels.get(finalFlag) }), true);
   // Seule la couleur est envoyée : la note de chaque fichier n'est pas réécrite.
-  const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
-    id: photo.id,
-    path: photo.path,
-    colorFlag: finalFlag,
-  })));
-  const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
-  const failures = results.filter(result => result.status === 'rejected');
-  for (const photo of successful) photo.color_flag = finalFlag;
-  updateUIOnSelection();
-  const successMessage = finalFlag === 'none'
-    ? tp('Color removed for {count} file', successful.length)
-    : tp('{count} file modified', successful.length);
-  showWriteToast(`${successMessage}${failureSummary(failures)}`);
+  await writeMarking(targets, { colorFlag: finalFlag }, {
+    startMessage: finalFlag === 'none'
+      ? tp('Removing color for {count} file…', targets.length)
+      : tp('Writing {count} file (color: {color})…', targets.length, { color: colorFlagLabels.get(finalFlag) }),
+    doneMessage: count => (finalFlag === 'none' ? tp('Color removed for {count} file', count) : tp('{count} file modified', count)),
+    apply: photo => { photo.color_flag = finalFlag; },
+    refilter: () => colorFilters.size > 0,
+  });
 }
 
 // Fanion pick de la sélection. `toggle` (raccourcis Maj+P / Maj+X) : si toutes les photos visées ont déjà ce fanion, il est retiré ; sans `toggle`
@@ -1909,27 +1904,48 @@ async function setSelectionPickFlag(flag, { toggle = true } = {}) {
   const finalFlag = toggle && selected.every(photo => (photo.pick_flag || 'none') === flag) ? 'none' : flag;
   const targets = selected.filter(photo => (photo.pick_flag || 'none') !== finalFlag);
   if (!targets.length) return;
-  showWriteToast(finalFlag === 'none'
-    ? tp('Removing flag for {count} file…', targets.length)
-    : tp('Writing {count} file (flag: {flag})…', targets.length, { flag: t(PICK_FLAGS.find(candidate => candidate.key === finalFlag).label) }), true);
-  const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
-    id: photo.id,
-    path: photo.path,
-    pickFlag: finalFlag,
-  })));
-  const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
-  const failures = results.filter(result => result.status === 'rejected');
-  for (const photo of successful) photo.pick_flag = finalFlag;
-  updateUIOnSelection();
-  const successMessage = finalFlag === 'none'
-    ? tp('Flag removed for {count} file', successful.length)
-    : tp('{count} file modified', successful.length);
-  showWriteToast(`${successMessage}${failureSummary(failures)}`);
+  await writeMarking(targets, { pickFlag: finalFlag }, {
+    startMessage: finalFlag === 'none'
+      ? tp('Removing flag for {count} file…', targets.length)
+      : tp('Writing {count} file (flag: {flag})…', targets.length, { flag: t(PICK_FLAGS.find(candidate => candidate.key === finalFlag).label) }),
+    doneMessage: count => (finalFlag === 'none' ? tp('Flag removed for {count} file', count) : tp('{count} file modified', count)),
+    apply: photo => { photo.pick_flag = finalFlag; },
+    refilter: () => pickFilters.size > 0,
+  });
 }
 
-// Échecs d'écriture de la note ou de la couleur : leur nombre et la raison du premier (ex. ExifTool introuvable).
+// Échecs d'écriture de la note, de la couleur ou du fanion : leur nombre et la raison du premier (ex. ExifTool introuvable).
 function failureSummary(failures) {
-  return failures.length ? ` · ${tp('{count} failure', failures.length)} (${failures[0].reason})` : '';
+  return failures.length ? ` · ${tp('{count} failure', failures.length)} (${failures[0].error})` : '';
+}
+
+// Écriture de la note, de la couleur ou du fanion pick (`fields` : { rating } | { colorFlag } | { pickFlag }) de `targets`, lues avant tout
+// await : une seule commande pour le lot (update_photos_marking), par la file des tâches à partir de 20 photos (progression, arrêt), et comptée
+// dans le verrou d'écriture (fermeture de l'application, renommages et déplacements refusés pendant ce temps). Les écritures de marquage
+// partent l'une après l'autre, dans l'ordre des touches. `apply(photo)` reporte la valeur sur chaque photo écrite ; `refilter()` : un filtre
+// porte sur cette valeur, la grille est refiltrée (une photo qui n'y répond plus disparaît).
+let markingChain = Promise.resolve();
+function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter }) {
+  const photosArg = targets.map(photo => ({ id: photo.id, path: photo.path }));
+  const finish = (result, error) => {
+    if (!result) {
+      if (error) showWriteToast(t('Metadata writing failed: {error}', { error: String(error) }));
+      return;
+    }
+    const written = new Set(result.written);
+    const successful = targets.filter(photo => written.has(photo.id));
+    for (const photo of successful) apply(photo);
+    if (successful.length && refilter()) applyPhotoFilters({ keepState: true });
+    else updateUIOnSelection();
+    const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
+    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`);
+  };
+  const run = () => {
+    showWriteToast(startMessage, true);
+    return runLocked('update_photos_marking', { photos: photosArg, ...fields }, targets.length, finish);
+  };
+  markingChain = markingChain.then(run, run);
+  return markingChain;
 }
 
 async function setSelectionRating(rating) {
@@ -1942,23 +1958,15 @@ async function setSelectionRating(rating) {
   // on considère qu'on veut l'effacer (passer à 0).
   const allAlreadyHaveRating = targets.every(photo => photo.rating === rating);
   const finalRating = allAlreadyHaveRating ? 0 : rating;
-  const actionText = finalRating === 0 ? t('Removing rating') : tp('Writing {count} file (rating: {rating})…', targets.length, { rating: finalRating });
-  showWriteToast(actionText, true);
-  const results = await Promise.allSettled(targets.map(photo => invoke('update_photo_metadata', {
-      id: photo.id,
-      path: photo.path,
-      rating: finalRating,
-  })));
-  const successful = results.flatMap((result, index) => result.status === 'fulfilled' ? [targets[index]] : []);
-  const failures = results.filter(result => result.status === 'rejected');
-  for (const photo of successful) photo.rating = finalRating;
-  updateUIOnSelection();
-  if (isFullscreen && successful.length) showFullscreenRatingForAWhile();
+  let anyWritten = false;
+  await writeMarking(targets, { rating: finalRating }, {
+    startMessage: finalRating === 0 ? t('Removing rating') : tp('Writing {count} file (rating: {rating})…', targets.length, { rating: finalRating }),
+    doneMessage: count => (finalRating === 0 ? tp('Rating removed for {count} file', count) : tp('{count} file modified', count)),
+    apply: photo => { photo.rating = finalRating; anyWritten = true; },
+    refilter: () => Number(document.getElementById('rating-filter')?.value ?? -1) >= 0,
+  });
+  if (isFullscreen && anyWritten) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
-  const successMessage = finalRating === 0 
-    ? tp('Rating removed for {count} file', successful.length)
-    : tp('{count} file modified', successful.length);
-    showWriteToast(`${successMessage}${failureSummary(failures)}`);
 }
 
 // ==========================================
@@ -2054,23 +2062,26 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
     if (toggleFaceRegions()) return;
   }
+  // I, E, C et Suppr : sans modificateur, et jamais derrière une fenêtre ouverte (Paramètres, question…), où elles viseraient les photos masquées.
+  const modalOpen = Boolean(document.querySelector('.modal:not(.hidden)'));
+  const plainKey = !e.ctrlKey && !e.metaKey && !e.altKey && !modalOpen;
   // Modale info
-  if (e.key.toLowerCase() === 'i') {
-    if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
+  if (e.key.toLowerCase() === 'i' && plainKey) {
+    if (photos[lastSelectedIndex]) {
       showPhotoInfo(photos[lastSelectedIndex]);
       return;
     }
   }
   // Ouvrir dans l'explorateur OS
-  if (e.key.toLowerCase() === 'e') {
-    if (typeof lastSelectedIndex !== 'undefined' && photos[lastSelectedIndex]) {
+  if (e.key.toLowerCase() === 'e' && plainKey) {
+    if (photos[lastSelectedIndex]) {
       revealInFileManager(photos[lastSelectedIndex]);
       return;
     }
   }
   // Copie vers
-  if (e.key.toLowerCase() === 'c') {
-    if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
+  if (e.key.toLowerCase() === 'c' && plainKey) {
+    if (selectedIndices.size > 0) {
       const selectedPhotos = commandTargetPhotos(); // mode Comparer avec plusieurs photos : sous-sélection
       if (selectedPhotos.length > 0) {
         copyPhotosTo(selectedPhotos);
@@ -2106,8 +2117,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // Suppression
-if (e.key === 'Delete') {
-    if (typeof selectedIndices !== 'undefined' && selectedIndices.size > 0) {
+  if (e.key === 'Delete' && plainKey) {
+    if (selectedIndices.size > 0) {
       // Mode comparaison : seule la photo unique ou les photos de la sous-sélection sont visées, jamais toute la comparaison.
       const targetPhotos = commandTargetPhotos();
       if (targetPhotos.length > 0) {
@@ -2166,8 +2177,15 @@ if (e.key === 'Delete') {
   const digitKey = /^[0-9]$/.test(e.key) ? e.key
     : (altAdvance && /^(Digit|Numpad)[0-9]$/.test(e.code) ? e.code.slice(-1) : null);
   const advanceAfter = altAdvance && (isFullscreen || selectedIndices.size === 1);
+  // Note et couleur : jamais avec Ctrl / ⌘ (Ctrl+0 « zoom 100 % » effacerait les notes), ni derrière une fenêtre ouverte (question en attente,
+  // Paramètres…), ni en touche maintenue (la même touche une seconde fois retire la valeur : elle alternerait).
+  const markingKey = digitKey !== null && !e.ctrlKey && !e.metaKey && selectedIndices.size > 0;
+  if (markingKey && (e.repeat || modalOpen)) {
+    e.preventDefault();
+    return;
+  }
   // Rating shortcuts
-  if (digitKey !== null && digitKey <= '5' && selectedIndices.size > 0) {
+  if (markingKey && digitKey <= '5') {
     e.preventDefault();
     // Les photos visées sont lues avant tout await : passer à la suivante tout de suite n'affecte pas l'écriture en cours.
     setSelectionRating(Number(digitKey));
@@ -2176,7 +2194,7 @@ if (e.key === 'Delete') {
   }
   // Couleurs : 6 rouge, 7 jaune, 8 vert, 9 bleu (même touche une seconde fois : couleur retirée, voir setSelectionColorFlag)
   const colorByKey = { 6: 'red', 7: 'yellow', 8: 'green', 9: 'blue' };
-  if (colorByKey[digitKey] && isColorEnabled() && !e.ctrlKey && !e.metaKey && selectedIndices.size > 0) {
+  if (markingKey && colorByKey[digitKey] && isColorEnabled()) {
     e.preventDefault();
     setSelectionColorFlag(colorByKey[digitKey]);
     if (advanceAfter) navigatePhoto(1);
@@ -4318,6 +4336,7 @@ function applyDeletedFolder(deletedPath, removedPaths) {
 // photo-actions.js, qui a aussi demandé la confirmation). Le même indicateur que le déplacement suspend la synchronisation automatique pendant l'opération.
 async function deleteFolderToTrash(path, { permanent = false } = {}) {
   if (photoMoveRunning || hasFileTask()) return;
+  if (isWriteLocked()) { showWriteToast(t('Metadata writing in progress…')); return; }
   photoMoveRunning = true;
   showWriteToast(t(permanent ? 'Deleting folder…' : 'Moving folder to the trash…'), true);
   try {
@@ -4337,6 +4356,8 @@ async function deleteFolderToTrash(path, { permanent = false } = {}) {
 // automatique est suspendue par le même indicateur, sinon elle verrait le fichier disparaître sous son ancien nom.
 async function renamePhotoOnDisk(photo, newName) {
   if (photoMoveRunning || hasFileTask()) return t('Wait for the running file task to finish.');
+  // Écriture de métadonnées en cours : elle remplacerait le fichier sous son ancien nom (ou échouerait).
+  if (isWriteLocked()) return t('Metadata writing in progress…');
   photoMoveRunning = true;
   try {
     const moved = await invoke('rename_photo', { path: photo.path, newName });
@@ -4353,6 +4374,7 @@ async function renamePhotoOnDisk(photo, newName) {
 // Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nouveau nom.
 async function renameFolderOnDisk(path, newName) {
   if (photoMoveRunning || hasFileTask()) return t('Wait for the running file task to finish.');
+  if (isWriteLocked()) return t('Metadata writing in progress…');
   photoMoveRunning = true;
   try {
     const moved = await invoke('rename_folder', { path, newName });
@@ -4385,6 +4407,8 @@ async function renameFolderOnDisk(path, newName) {
 // Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent après un arrêt.
 function movePhotosToFolder(targets, folderPath) {
   if (!targets.length) return;
+  // Écriture de métadonnées en cours ou en file : le déplacement attend qu'elle soit finie (elle vise les chemins actuels).
+  if (isWriteLocked()) { showWriteToast(t('Metadata writing in progress…')); return; }
   enqueueScanTask({
     kind: 'move',
     path: null,
@@ -4451,6 +4475,7 @@ async function applyMovedPhotos(moved) {
       const destination = destinations.get(photo.path);
       if (!destination) continue;
       thumbnailCacheLookups.delete(photo.path);
+      rawPreviewPromises.delete(photo.path);
       photo.path = destination;
       photo.filename = destination.split(/[\\/]/).pop() || photo.filename;
       delete photo.folderPath; // recalculés par photoFolder() pour le tri et les séparateurs
@@ -4459,6 +4484,7 @@ async function applyMovedPhotos(moved) {
   };
   rename(loadedPhotos);
   if (folderTreePhotos !== loadedPhotos) rename(folderTreePhotos);
+  photosMoved(destinations); // modifications en attente (mots-clés, description) : elles visent le nouveau chemin
   previewSignature = ''; // force le rechargement de l'aperçu
   fullscreenImageCache.clear();
   await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
@@ -5032,6 +5058,7 @@ async function refreshLibraryAfterSync(changes) {
   for (const path of modified) {
     photoVersions.set(path, Date.now());
     thumbnailCacheLookups.delete(path); // la miniature du cache change de nom avec la taille et la date du fichier
+    rawPreviewPromises.delete(path); // aperçu extrait (RAW, HEIC, vidéo) : relu, le fichier a changé
   }
   if (modified.size) {
     previewSignature = ''; // force le rechargement de l'aperçu

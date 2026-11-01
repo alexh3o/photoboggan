@@ -472,6 +472,10 @@ const keywordEditor = {
     if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
   },
   discard: photoIds => resetChanges(photoIds),
+  // Photo renommée ou déplacée : ses mots-clés en attente seront écrits sous le nouveau chemin.
+  photosMoved(destinations) {
+    for (const photo of workingPhotos.values()) photo.path = destinations.get(photo.path) ?? photo.path;
+  },
 };
 
 // ---------------------------------------------------------------------------
