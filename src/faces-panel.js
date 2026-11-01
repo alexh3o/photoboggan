@@ -166,21 +166,11 @@ export function getPersonFilterIds() {
   return readingEnabled ? [...personFilters] : [];
 }
 
-async function refreshPendingFaceWrites() {
-  if (!readingEnabled) {
-    pendingFaceWrites = [];
-    return;
-  }
-  try {
-    pendingFaceWrites = await invoke('get_pending_face_writes');
-  } catch (error) {
-    console.error('Visages en attente illisibles', error);
-  }
-}
-
 const faceEditor = {
   scope: 'library',
-  isDirty: () => pendingFaceWrites.length > 0,
+  // Lecture des visages désactivée : rien n'est proposé à l'écriture (la base des visages n'est plus suivie).
+  isDirty: () => readingEnabled && pendingFaceWrites.length > 0,
+  pendingKinds: () => ['faces'],
   targetIds: () => pendingFaceWrites.map(([photoId]) => photoId),
   pendingItems: () => pendingFaceWrites.map(([photoId, path]) => ({ photo_id: photoId, path, faces: true })),
   afterWrite: () => refreshFaces(),
@@ -264,7 +254,7 @@ function renderPersonFilterTags() {
     return tag;
   }));
   const options = document.getElementById('person-options');
-  options.replaceChildren(...listedPersons().sort((a, b) => a.name.localeCompare(b.name)).map(person => {
+  options?.replaceChildren(...listedPersons().sort((a, b) => a.name.localeCompare(b.name)).map(person => {
     const option = document.createElement('option');
     option.value = person.name;
     return option;
@@ -281,18 +271,23 @@ export async function refreshFaces() {
   let loadedPersons;
   let pairs;
   let scans;
+  let pending;
   try {
-    [loadedPersons, pairs, scans] = await Promise.all([
+    // Visages en attente d'écriture lus avec le reste : une seule lecture, protégée par le même jeton (pas de liste d'une lecture plus ancienne).
+    [loadedPersons, pairs, scans, pending] = await Promise.all([
       invoke('get_persons'),
       invoke('get_face_index'),
       detectionEnabled ? invoke('get_face_scan_index') : Promise.resolve([]),
+      invoke('get_pending_face_writes'),
     ]);
   } catch (error) {
     console.error('Lecture des personnes impossible', error);
     return;
   }
-  if (token !== refreshToken) return;
+  if (token !== refreshToken || !readingEnabled) return;
   persons = loadedPersons;
+  pendingFaceWrites = pending; // bouton de la vue Visages, confirmation à la fermeture
+  avatarStyles.clear(); // couvertures et miniatures ont pu changer
   scanIndex = new Map(scans);
   faceIndex = new Map();
   for (const [photoId, personId] of pairs) {
@@ -308,7 +303,6 @@ export async function refreshFaces() {
   renderPersonFilterTags();
   if (hasPersonFilters() || filtersChanged) host.onFilterChange({ keepState: true });
   relayoutOverlays();
-  await refreshPendingFaceWrites(); // visages en attente d'écriture (bouton de la vue Visages, confirmation à la fermeture)
   host.onFacesChanged?.(); // vue Visages ouverte : rechargée
 }
 
@@ -352,7 +346,10 @@ function renderPersons() {
     item.title = t('Filter on this person (Ctrl+click: add to the filter)');
     const avatar = document.createElement('span');
     avatar.className = 'person-avatar';
-    if (person.cover) loadAvatar(avatar, person.cover);
+    if (person.cover) {
+      avatar.dataset.cover = avatarKey(person.cover);
+      loadAvatar(avatar, person.cover);
+    }
     const name = document.createElement('span');
     name.className = 'person-name';
     name.textContent = personLabel(person);
@@ -375,8 +372,25 @@ function renderPersons() {
   }));
 }
 
+// Styles des vignettes rondes déjà calculés, par couverture : la liste est reconstruite à chaque clic de filtre ou de tri sans relire les
+// miniatures. Vidé à chaque relecture des personnes (refreshFaces).
+const avatarStyles = new Map();
+const avatarKey = cover => `${cover.path}|${cover.x}|${cover.y}|${cover.w}|${cover.h}|${cover.orientation}`;
+
+function applyAvatarStyle(element, style) {
+  element.style.backgroundImage = style.image;
+  element.style.backgroundSize = style.size;
+  element.style.backgroundPosition = style.position;
+}
+
 // Vignette ronde : la zone du visage (orientée comme la miniature), élargie et rendue carrée, découpée dans la miniature en cache par CSS.
 async function loadAvatar(element, cover) {
+  const key = avatarKey(cover);
+  const cached = avatarStyles.get(key);
+  if (cached) {
+    applyAvatarStyle(element, cached);
+    return;
+  }
   const url = await host.getThumbnailUrl(cover.path);
   if (!url || !element.isConnected) return;
   const image = new Image();
@@ -390,9 +404,14 @@ async function loadAvatar(element, cover) {
     const side = Math.min(Math.max(faceWidth, faceHeight) * 1.4, width, height);
     const left = Math.min(Math.max(rect.x * width + faceWidth / 2 - side / 2, 0), width - side);
     const top = Math.min(Math.max(rect.y * height + faceHeight / 2 - side / 2, 0), height - side);
-    element.style.backgroundImage = `url("${url}")`;
-    element.style.backgroundSize = `${(width / side) * 100}% ${(height / side) * 100}%`;
-    element.style.backgroundPosition = `${width > side ? (left / (width - side)) * 100 : 0}% ${height > side ? (top / (height - side)) * 100 : 0}%`;
+    const style = {
+      image: `url("${url}")`,
+      size: `${(width / side) * 100}% ${(height / side) * 100}%`,
+      position: `${width > side ? (left / (width - side)) * 100 : 0}% ${height > side ? (top / (height - side)) * 100 : 0}%`,
+    };
+    avatarStyles.set(key, style);
+    // L'élément a pu être remplacé entre-temps (liste reconstruite) : le style est appliqué aux vignettes de cette couverture affichées.
+    for (const avatar of document.querySelectorAll(`#persons-list .person-avatar[data-cover="${CSS.escape(key)}"]`)) applyAvatarStyle(avatar, style);
   };
   image.src = url;
 }
@@ -410,7 +429,7 @@ export async function openPersonMenu(event, person) {
     { label: t('Alias…'), onSelect: () => editPersonAlias(person) },
     { label: t('Link to a keyword…'), onSelect: () => linkPersonToKeyword(person) },
   ];
-  if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => saveLink(person, null) });
+  if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => unlinkPerson(person) });
   items.push({ label: t('Merge into…'), onSelect: () => mergePerson(person) });
   // Une seule fusion reçue : entrée directe ; à partir de deux, elles sont regroupées dans un sous-menu « Annuler la fusion de ».
   if (merges.length === 1) items.push({ label: t('Undo the merge of {name}', { name: merges[0].name }), onSelect: () => undoMerge(merges[0]) });
@@ -422,13 +441,25 @@ export async function openPersonMenu(event, person) {
   openContextMenuAt(event, items);
 }
 
-const personErrorMessage = error => ({
-  invalid_name: t('Names cannot be empty or contain "/", "|" or ","'),
-  person_name_taken: t('Another person already has this name'),
-  unknown_person: t('This person no longer exists'),
-  same_person: t('Choose another person'),
-  merge_not_found: t('This merge has already been undone'),
-}[String(error)] ?? String(error));
+// Codes d'erreur des commandes de personnes (faces.rs) traduits ; les autres messages sont affichés tels quels. `invalidName` : message du code
+// `invalid_name`, qui dépend de la saisie (« / » sépare les niveaux dans « Nommer », il est refusé ailleurs).
+function personCommandError(error, invalidName) {
+  const messages = {
+    invalid_name: invalidName,
+    person_name_taken: t('Another person already has this name'),
+    keyword_taken: t('This keyword is already linked to another person'),
+    unknown_person: t('This person no longer exists'),
+    unknown_keyword: t('No keyword has this path'),
+    same_person: t('Choose another person'),
+    merge_not_found: t('This merge has already been undone'),
+  };
+  return messages[String(error)] ?? String(error);
+}
+
+const personErrorMessage = error => personCommandError(error, t('Names cannot be empty or contain "/", "|" or ","'));
+
+// Chemin de mot-clé comparable : niveaux sans espaces autour, en minuscules, niveaux vides retirés (« A / b/ » = « a/b »).
+const normalizeKeywordPath = path => path.split('/').map(segment => segment.trim().toLowerCase()).filter(Boolean).join('/');
 
 // Fusionner : la personne choisie reçoit les visages de `person` (à réécrire dans les fichiers), puis `person` est supprimée. La fusion
 // s'annule depuis le menu de la personne gardée (« Annuler la fusion de … »).
@@ -450,9 +481,9 @@ async function mergePerson(person) {
       } catch (error) {
         return personErrorMessage(error);
       }
+      // Le filtre suit la personne gardée ; refreshFaces refiltre la grille.
       personFilters = [...new Set(personFilters.map(id => (id === person.id ? target.id : id)))];
       await refreshFaces();
-      host.onFilterChange();
       host.showToast(tp('{name} merged into {target}: {count} face to write', result.face_count, { name: person.name, target: target.name }));
       return null;
     },
@@ -469,7 +500,6 @@ async function undoMerge(merge) {
     return;
   }
   await refreshFaces();
-  host.onFilterChange();
   host.showToast(tp('{name} restored with {count} face', count, { name: merge.name }));
 }
 
@@ -502,9 +532,7 @@ async function cleanPersonsWithoutFaces() {
     host.showToast(String(error));
     return;
   }
-  personFilters = personFilters.filter(id => !ids.includes(id));
-  await refreshFaces();
-  host.onFilterChange();
+  await refreshFaces(); // retire aussi du filtre les personnes supprimées, et refiltre la grille
   host.showToast(tp('{count} person deleted', ids.length));
 }
 
@@ -532,8 +560,8 @@ async function renamePerson(person) {
         await refreshFaces();
         return null;
       }
-      host.renameKeyword(person.keyword_id, name, person.photo_count, refreshFaces);
-      return null;
+      // Mêmes vérifications que le panneau Mots-clés (écriture en cours, nom déjà pris à ce niveau) : un refus garde la fenêtre ouverte.
+      return host.renameKeyword(person.keyword_id, name, refreshFaces);
     },
   });
 }
@@ -601,9 +629,7 @@ export async function confirmDeletePerson(person, intro = '') {
     host.showToast(personErrorMessage(error));
     return;
   }
-  personFilters = personFilters.filter(id => id !== person.id);
-  await refreshFaces();
-  host.onFilterChange();
+  await refreshFaces(); // retire aussi la personne du filtre, et refiltre la grille
   host.showToast(t('{name} deleted', { name: info.name }));
 }
 
@@ -647,16 +673,7 @@ export async function keywordPaths() {
 }
 
 // Messages des erreurs de « Nommer » (faces.rs, resolve_person).
-export function faceNameErrorMessage(error) {
-  const messages = {
-    invalid_name: t('Names cannot be empty or contain "|" or ","'),
-    person_name_taken: t('Another person already has this name'),
-    keyword_taken: t('This keyword is already linked to another person'),
-    unknown_person: t('This person no longer exists'),
-    unknown_keyword: t('No keyword has this path'),
-  };
-  return messages[String(error)] ?? String(error);
-}
+export const faceNameErrorMessage = error => personCommandError(error, t('Names cannot be empty or contain "|" or ","'));
 
 // Fenêtre « Nommer » (vue de gestion, zone dessinée en plein écran) : une personne existante, un chemin de mot-clé de l'arbre (personne créée
 // et reliée si besoin), ou un nouveau nom (personne reliée à un nouveau mot-clé sous la racine réglée dans Paramètres > Visages). « / » sépare
@@ -670,11 +687,10 @@ export async function promptPersonName({ title, message, proposed = '', selectVa
   } catch {
     paths = new Map();
   }
-  const normalize = text => text.split('/').map(segment => segment.trim().toLowerCase()).filter(Boolean).join('/');
   // Propositions : les personnes, et les mots-clés situés sous la racine des personnes (Paramètres > Visages) ; sans racine, tout l'arbre.
   const root = getPersonRoot();
-  const rootKey = normalize(root);
-  const keywordSuggestions = [...paths.values()].filter(path => !rootKey || normalize(path).startsWith(`${rootKey}/`));
+  const rootKey = normalizeKeywordPath(root);
+  const keywordSuggestions = [...paths.values()].filter(path => !rootKey || normalizeKeywordPath(path).startsWith(`${rootKey}/`));
   const suggestions = [...new Set([...persons.map(person => person.name), ...keywordSuggestions])].sort((a, b) => a.localeCompare(b));
   return promptDialog({
     title,
@@ -690,8 +706,10 @@ export async function promptPersonName({ title, message, proposed = '', selectVa
       if (segments.length === 0 || segments.some(segment => /[|,]/.test(segment))) return t('Names cannot be empty or contain "|" or ","');
       const wanted = segments.join('/');
       const person = segments.length === 1 ? persons.find(item => item.name.toLowerCase() === wanted.toLowerCase()) : null;
-      // Mot-clé existant : chemin complet, ou chemin sous la racine des personnes.
-      const keyword = [...paths.entries()].find(([, path]) => normalize(path) === normalize(wanted) || (root && normalize(path) === normalize(`${root}/${wanted}`)));
+      // Mot-clé existant : d'abord sous la racine des personnes, puis chemin complet (« Rose » désigne « Personnes/Rose » plutôt que la fleur
+      // « Rose » du premier niveau).
+      const findPath = key => [...paths.entries()].find(([, path]) => normalizeKeywordPath(path) === key);
+      const keyword = (rootKey && findPath(normalizeKeywordPath(`${root}/${wanted}`))) || findPath(normalizeKeywordPath(wanted));
       const args = person ? { personId: person.id }
         : keyword ? { keywordId: keyword[0] }
         : { name: segments.at(-1), root: [root, ...segments.slice(0, -1)].filter(Boolean).join('/') };
@@ -714,7 +732,6 @@ async function linkPersonToKeyword(person) {
     return;
   }
   const suggestions = [...paths.values()].sort((a, b) => a.localeCompare(b));
-  const normalize = path => path.split('/').map(segment => segment.trim().toLowerCase()).filter(Boolean).join('/');
   await promptDialog({
     title: t('Link to a keyword'),
     message: t('Keyword of {name} in the keyword tree (full path, levels separated by "/")', { name: person.name }),
@@ -724,25 +741,29 @@ async function linkPersonToKeyword(person) {
     value: person.keyword_id != null ? (paths.get(person.keyword_id) ?? '') : person.name,
     suggestions,
     onSubmit: async value => {
-      const wanted = normalize(value);
-      const match = [...paths.entries()].find(([, path]) => normalize(path) === wanted);
+      const wanted = normalizeKeywordPath(value);
+      const match = [...paths.entries()].find(([, path]) => normalizeKeywordPath(path) === wanted);
       if (!match) return t('No keyword has this path');
       return saveLink(person, match[0]);
     },
   });
 }
 
-// Enregistre le lien (ou le retire) ; renvoie un message d'erreur ou null.
+// Enregistre le lien (ou le retire) ; renvoie un message d'erreur (à afficher par l'appelant) ou null.
 async function saveLink(person, keywordId) {
   try {
     await invoke('link_person_keyword', { personId: person.id, keywordId });
   } catch (error) {
-    const message = String(error) === 'keyword_taken' ? t('This keyword is already linked to another person') : String(error);
-    host.showToast(message);
-    return message;
+    return personErrorMessage(error);
   }
   await refreshFaces();
   return null;
+}
+
+// « Délier le mot-clé » (menu de la personne, sans fenêtre) : l'erreur éventuelle s'affiche en toast.
+async function unlinkPerson(person) {
+  const message = await saveLink(person, null);
+  if (message) host.showToast(message);
 }
 
 // ==========================================
@@ -821,7 +842,10 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
         state.faces = info;
         renderOverlayFaces(overlay, info, interactive);
       })
-      .catch(error => console.error('Lecture des visages impossible', error));
+      .catch(error => {
+        console.error('Lecture des visages impossible', error);
+        if (token === state.token) state.photoId = null; // nouvelle tentative à la prochaine mise en page
+      });
   }
   overlay.classList.toggle('hover-only', mode === 'hover');
   overlay.style.left = `${slot.tx}px`;
@@ -939,7 +963,19 @@ function startZoneDrawing(event) {
     // Trop petite (simple clic) : rien à enregistrer.
     if (rect.w < 0.01 || rect.h < 0.01) { box.remove(); return; }
     if (box.parentNode !== overlay) overlay.append(box);
-    const stored = orientRect(rect, inverseOrientation(overlayStates.get(overlay)?.faces?.orientation ?? photo.orientation ?? 1));
+    // Orientation de la photo : celle des visages du calque, relus ici s'ils ne sont pas encore chargés. Sans elle, la zone serait enregistrée
+    // dans le mauvais repère (tournée sur une photo en portrait) : elle est abandonnée.
+    let orientation = overlayStates.get(overlay)?.faces?.orientation;
+    if (orientation === undefined) {
+      try {
+        orientation = (await invoke('get_photo_faces', { photoId: photo.id })).orientation;
+      } catch (error) {
+        box.remove();
+        host.showToast(String(error));
+        return;
+      }
+    }
+    const stored = orientRect(rect, inverseOrientation(orientation));
     await promptPersonName({
       title: t('Name the face'),
       message: t('Person shown in the drawn area (existing person, keyword path, or new name)'),
@@ -1306,6 +1342,7 @@ function applyReadingEnabled() {
     persons = [];
     faceIndex = new Map();
     personFilters = [];
+    pendingFaceWrites = [];
     renderPersons();
     renderPersonFilterTags();
   }

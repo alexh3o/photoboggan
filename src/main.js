@@ -9,9 +9,9 @@ import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, r
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, publishWritten } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits } from './metadata-writes.js';
 import { initGuide } from './guide.js';
-import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode } from './keywords-panel.js';
+import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView } from './faces-grid.js';
@@ -4936,17 +4936,9 @@ initFacesPanel({
   onFacesChanged: () => { reloadFacesView(); reloadPersonsView(); },
   // « Voir » (suppression d'une personne), double-clic dans la vue Personnes : vue de gestion sur les visages des photos affichées.
   openFacesManagement: () => { closePersonsView(); openFacesView(); },
-  // Renommer une personne reliée : c'est son mot-clé qui est renommé, avec réécriture des fichiers qui le portent (même commande que le panneau Mots-clés).
-  renameKeyword: (keywordId, name, photoCount, after) => runLocked('rename_keyword', { keywordId, name }, photoCount, async (result, error) => {
-    if (!result) {
-      showWriteToast(t('Could not rename the keyword: {error}', { error: String(error ?? '') }));
-      return;
-    }
-    publishWritten(result.written);
-    invalidateKeywordTree();
-    await after();
-    if (result.failed.length) showWriteToast(tp('{count} file could not be written', result.failed.length));
-  }),
+  // Renommer une personne reliée : c'est son mot-clé qui est renommé, avec réécriture des fichiers qui le portent (même circuit que le panneau
+  // Mots-clés). Renvoie un message d'erreur si le renommage n'est pas lancé, sinon null.
+  renameKeyword: (keywordId, name, after) => renameKeywordById(keywordId, name, after),
 });
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.

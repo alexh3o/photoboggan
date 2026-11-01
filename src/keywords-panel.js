@@ -1009,21 +1009,42 @@ async function renameKeywordFlow(node) {
   });
   if (name === null || name === node.name) return;
   if (!(await confirmHomonyms(name, node.id, t('Rename it here anyway?'), t('Rename')))) return;
-  let photoCount = 0;
-  try {
-    photoCount = (await invoke('get_keyword_delete_info', { keywordId: node.id })).photo_count;
-  } catch (error) {
-    console.error('Comptage des photos impossible', error);
-  }
-  await runKeywordRename(node, name, photoCount);
+  await runKeywordRename(node, name, await keywordPhotoCount(node.id));
 }
 
-function runKeywordRename(node, name, photoCount) {
-  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (result, error) => finishRename(node, name, photoCount, result, error));
+// Nombre de photos qui portent le mot-clé ou l'un de ses descendants (choix entre écriture directe et file de tâches).
+async function keywordPhotoCount(keywordId) {
+  try {
+    return (await invoke('get_keyword_delete_info', { keywordId })).photo_count;
+  } catch (error) {
+    console.error('Comptage des photos impossible', error);
+    return 0;
+  }
+}
+
+// Renommage demandé hors de l'arbre (personne reliée à un mot-clé, faces-panel.js) : mêmes vérifications que depuis l'arbre (aucune écriture en
+// cours, nom valide et libre à ce niveau), puis même écriture, avec « Retenter » en cas d'échec. Renvoie un message d'erreur si le renommage
+// n'est pas lancé, sinon null ; `after()` est appelé une fois les fichiers réécrits.
+export async function renameKeywordById(keywordId, name, after) {
+  if (isWriteLocked()) return t('Metadata writing in progress…');
+  if (loadedTreeVersion !== treeVersion || !nodeById.has(keywordId)) await refreshTreeAndUsage();
+  const node = nodeById.get(keywordId);
+  if (!node) return t('No keyword has this path');
+  const cleaned = name.trim();
+  const problem = validateKeywordName(cleaned, node.parent_id, node.id);
+  if (problem) return problem;
+  if (cleaned === node.name) return null;
+  const photoCount = await keywordPhotoCount(node.id);
+  runKeywordRename(node, cleaned, photoCount, after);
+  return null;
+}
+
+function runKeywordRename(node, name, photoCount, after = null) {
+  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (result, error) => finishRename(node, name, photoCount, after, result, error));
 }
 
 // Fin d'un renommage. L'arbre est renommé dès le début de l'opération, même si certains fichiers n'ont pas pu être réécrits (« Retenter » les reprend).
-async function finishRename(node, name, photoCount, result, error) {
+async function finishRename(node, name, photoCount, after, result, error) {
   if (!result) {
     if (error) host.showToast(t('Could not rename the keyword: {error}', { error: describeKeywordError(error) }));
     return;
@@ -1032,7 +1053,8 @@ async function finishRename(node, name, photoCount, result, error) {
   renderTree();
   updateButtons();
   publishWritten(result.written);
-  if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount));
+  await after?.();
+  if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount, after));
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword renamed to “{name}”', { name }));
 }
