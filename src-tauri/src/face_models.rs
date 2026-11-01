@@ -200,7 +200,7 @@ pub async fn download_face_models(app: tauri::AppHandle, state: State<'_, AppSta
         let mut done = 0u64;
         let mut last_percent = u32::MAX;
         for file in missing {
-            // Vérifié avant chaque fichier : passer en mode hors ligne arrête aussi un téléchargement en cours.
+            // Vérifié avant chaque fichier : passer en mode hors ligne n'interrompt pas le fichier en cours (il va jusqu'au bout), mais les suivants sont refusés.
             if !INTERNET_ALLOWED.load(Ordering::Relaxed) { return Err("internet_disabled".to_string()); }
             let url = format!("{}{}", manifest().base_url, file.asset);
             let response = ureq::get(&url)
