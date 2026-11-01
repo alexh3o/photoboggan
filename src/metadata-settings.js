@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, onLanguageChange } from './i18n.js';
-import { createOrderList } from './order-list.js';
+import { createOrderList, resolveOrder } from './order-list.js';
 
 const WRITER_STORAGE_KEY = 'metadataWriter'; // « exiftool » (par défaut) ou « internal »
 const EXIFTOOL_PATH_STORAGE_KEY = 'exiftoolPath'; // exécutable choisi par l'utilisateur ; vide : détection automatique
@@ -93,16 +93,10 @@ export function onPickOrderChange(listener) {
 }
 export function topPickFormat() {
   const { storageKey, formats } = READ_ORDERS.pick;
-  try {
-    const stored = JSON.parse(localStorage.getItem(storageKey));
-    if (Array.isArray(stored) && formats.some(format => format.id === stored[0])) return stored[0];
-  } catch {
-    // valeur absente ou illisible : ordre par défaut
-  }
-  return formats[0].id;
+  return resolveOrder(formats, storageKey)[0]; // même ordre que le tableau et le backend
 }
 
-let writerMode =localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';
+let writerMode = localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';
 let customPath = localStorage.getItem(EXIFTOOL_PATH_STORAGE_KEY) || '';
 let lastStatus = null; // dernier état renvoyé par get_exiftool_status
 let statusToken = 0;

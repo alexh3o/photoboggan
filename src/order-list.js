@@ -4,24 +4,26 @@
 
 import { t } from './i18n.js';
 
-// `formats` : [{ id, label, property }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
-// au backend (au démarrage et à chaque changement). Renvoie { render } pour afficher ou redessiner la liste.
-export function createOrderList({ element, formats, storageKey, send }) {
+// Ordre en vigueur des formats `formats` (identifiants) : celui enregistré sous `storageKey` s'il est valide, sinon l'ordre par défaut. Seule
+// source de cet ordre : le tableau, le backend et les boutons de marquage (metadata-settings.js, topPickFormat) le lisent ici.
+export function resolveOrder(formats, storageKey) {
   const defaultOrder = formats.map(format => format.id);
-  let order = loadOrder();
-
-  function loadOrder() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(storageKey));
-      if (Array.isArray(stored) && stored.every(id => defaultOrder.includes(id)) && new Set(stored).size === stored.length) {
-        // Ordre enregistré avant l'ajout d'un format : conservé, les nouveaux formats sont ajoutés à la fin.
-        return [...stored, ...defaultOrder.filter(id => !stored.includes(id))];
-      }
-    } catch {
-      // valeur absente ou illisible : ordre par défaut
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey));
+    if (Array.isArray(stored) && stored.every(id => defaultOrder.includes(id)) && new Set(stored).size === stored.length) {
+      // Ordre enregistré avant l'ajout d'un format : conservé, les nouveaux formats sont ajoutés à la fin.
+      return [...stored, ...defaultOrder.filter(id => !stored.includes(id))];
     }
-    return [...defaultOrder];
+  } catch {
+    // valeur absente ou illisible : ordre par défaut
   }
+  return defaultOrder;
+}
+
+// `formats` : [{ id, label, property }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
+// au backend (au démarrage et à chaque changement). Renvoie { render } pour afficher ou redessiner la liste (rien n'est affiché avant).
+export function createOrderList({ element, formats, storageKey, send }) {
+  let order = resolveOrder(formats, storageKey);
 
   function save(newOrder) {
     order = newOrder;
@@ -117,8 +119,7 @@ export function createOrderList({ element, formats, storageKey, send }) {
     element.replaceChildren(...items);
   }
 
-  // Ordre transmis dès le démarrage (avant tout scan).
-  render();
+  // Ordre transmis dès le démarrage (avant tout scan). Plusieurs listes partagent l'élément : l'appelant dessine celle qu'il affiche.
   send(order);
   return { render };
 }

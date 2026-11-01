@@ -9,7 +9,7 @@
 // main.js fournit la sélection et les services de l'application (initKeywordsPanel) et appelle refreshKeywordsPanel quand la sélection change.
 import './keywords.css';
 import { invoke } from '@tauri-apps/api/core';
-import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
+import { t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import {
   registerEditor, runLocked, isWriteLocked, onLockChange, applyPending, choiceDialog, keepFocusInModal, showFailureDialog, resolvePendingSelection,
   isPromptOpen, publishWritten, hasSelectionEdits, onPendingChange, notifyPendingChange, pendingKinds,
@@ -73,7 +73,6 @@ let applyButton;
 let resetButton;
 let unifyButton;
 
-const normalizeSearch = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const compareByUsage = (a, b) => (usageById.get(b.id) || 0) - (usageById.get(a.id) || 0) || nameCollator.compare(a.name, b.name);
 
 function setsEqual(a, b) {

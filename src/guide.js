@@ -4,7 +4,7 @@
 // quand la même touche a un autre sens ailleurs). Les textes sont des clés de traduction (src/locales). Les mots des touches (Clic, Maj, Glisser…)
 // sont traduits aussi ; les autres touches (Ctrl, A, F11, ←…) sont affichées telles quelles.
 
-import { t, onLanguageChange } from './i18n.js';
+import { t, onLanguageChange, normalizeSearch } from './i18n.js';
 
 // Mots de touche traduits (clé de traduction) ; toute autre touche s'affiche telle quelle.
 const KEY_WORDS = new Set(['Click', 'Double-click', 'Right-click', 'Shift', 'Drag', 'Mouse wheel', 'Delete Key', 'Enter', 'Esc', 'A letter']);
@@ -131,11 +131,9 @@ function renderRow(row) {
   }
   element.append(renderKeys(row), action);
   // Texte cherché : action, détail, contexte et touches, sans accents ni majuscules.
-  element.dataset.search = normalize([t(row.a), row.d ? t(row.d) : '', row.tag ? t(row.tag) : '', ...row.k.flat().map(keyLabel)].join(' '));
+  element.dataset.search = normalizeSearch([t(row.a), row.d ? t(row.d) : '', row.tag ? t(row.tag) : '', ...row.k.flat().map(keyLabel)].join(' '));
   return element;
 }
-
-const normalize = text => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function render(container) {
   container.replaceChildren(...GROUPS.map(group => {
@@ -144,7 +142,7 @@ function render(container) {
     const title = document.createElement('h4');
     title.className = 'guide-section-title';
     title.textContent = t(group.title);
-    section.dataset.search = normalize(t(group.title));
+    section.dataset.search = normalizeSearch(t(group.title));
     section.append(title, ...group.rows.map(renderRow));
     return section;
   }));
@@ -153,7 +151,7 @@ function render(container) {
 // Recherche : une ligne reste affichée si tous les mots saisis figurent dans son texte (ou dans le titre de son groupe) ; un groupe sans ligne
 // affichée est masqué.
 function applyFilter(container, query, emptyMessage) {
-  const words = normalize(query).split(/\s+/).filter(Boolean);
+  const words = normalizeSearch(query).split(/\s+/).filter(Boolean);
   let shown = 0;
   for (const section of container.querySelectorAll('.guide-section')) {
     let sectionShown = 0;

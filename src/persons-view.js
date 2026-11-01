@@ -38,6 +38,7 @@ export function isPersonsViewOpen() {
 export function openPersonsView() {
   host.closeFacesView();
   open = true;
+  coverUrls.clear(); // vignettes redemandées à chaque ouverture : elles ont pu être régénérées (résolution du cache, autre visage)
   view().hidden = false;
   host.setPhotoGridVisible(false);
   document.getElementById('btn-toggle-faces')?.classList.add('active');
@@ -56,7 +57,7 @@ export function closePersonsView() {
 // Personnes rechargées (après un scan, une révision, une suppression…) : la grille est reconstruite, défilement conservé.
 export function reloadPersonsView() {
   if (!open) return;
-  shown = [...listedPersons()].sort((a, b) => b.photo_count - a.photo_count || personLabel(a).localeCompare(personLabel(b)));
+  shown = listedPersons().sort((a, b) => b.photo_count - a.photo_count || personLabel(a).localeCompare(personLabel(b)));
   document.getElementById('persons-count').textContent = tp('{count} person', shown.length);
   document.getElementById('persons-show-hidden').checked = getShowHiddenPersons();
   document.getElementById('persons-empty-view').hidden = shown.length > 0;
@@ -134,6 +135,7 @@ function loadCover(element, person) {
       .then(path => (path ? convertFileSrc(path) : ''))
       .catch(error => {
         console.error('Vignette de personne impossible', error);
+        coverUrls.delete(key); // échec non mémorisé : nouvelle tentative au prochain affichage
         return '';
       });
     coverUrls.set(key, url);

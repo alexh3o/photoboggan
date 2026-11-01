@@ -26,6 +26,10 @@ let targets = new Map(); // identifiant -> { id, path, title, description }
 // Valeurs saisies : null tant que le champ n'a pas été modifié (il n'est alors pas écrit).
 let editedTitle = null;
 let editedDescription = null;
+// Valeur affichée quand le champ n'est pas modifié (valeur commune, ou vide pour « Valeurs multiples ») : y revenir annule la saisie.
+let untouchedTitle = '';
+let untouchedDescription = '';
+let prewarmed = false; // processus ExifTool déjà démarré pour cette sélection
 let refreshScheduled = false;
 let refreshAfterPrompt = false;
 
@@ -58,6 +62,14 @@ function commonValue(field) {
 const descriptionEditor = {
   isDirty,
   targetIds: () => [...targets.keys()],
+  // Types en attente (pastilles des onglets), sans construire les éléments à écrire.
+  pendingKinds() {
+    const values = [...targets.values()];
+    const kinds = [];
+    if (values.some(titleChangedFor)) kinds.push('title');
+    if (values.some(descriptionChangedFor)) kinds.push('description');
+    return kinds;
+  },
   // Seuls les champs modifiés, et seulement pour les photos dont la valeur change.
   pendingItems() {
     const items = [];
@@ -69,18 +81,25 @@ const descriptionEditor = {
     }
     return items;
   },
-  // Les valeurs relues dans les fichiers écrits deviennent l'état enregistré ; la saisie est conservée tant qu'il reste quelque chose à écrire.
-  afterWrite(result) {
+  // Les valeurs relues dans les fichiers écrits deviennent l'état enregistré. Une saisie est abandonnée quand plus aucune photo ne l'attend :
+  // celles qui l'ont reçue telle qu'elle est maintenant (`items` : ce que cet onglet a envoyé) comptent comme servies, même si la relecture la
+  // normalise autrement ; une saisie modifiée depuis l'envoi, ou des photos en échec, la gardent en attente.
+  afterWrite(result, items) {
+    const writtenIds = new Set();
     for (const written of result.written) {
       const target = targets.get(written.photo_id);
       if (!target) continue;
+      writtenIds.add(written.photo_id);
       target.title = written.title;
       target.description = written.description;
     }
-    if (!isDirty()) {
-      editedTitle = null;
-      editedDescription = null;
-    }
+    const sent = new Map(items.map(item => [item.photo_id, item]));
+    const served = (edited, clean, changedFor, field) => {
+      const value = clean(edited);
+      return [...targets.values()].every(target => !changedFor(target) || (writtenIds.has(target.id) && sent.get(target.id)?.[field] === value));
+    };
+    if (editedTitle !== null && served(editedTitle, cleanTitle, titleChangedFor, 'title')) editedTitle = null;
+    if (editedDescription !== null && served(editedDescription, cleanDescription, descriptionChangedFor, 'description')) editedDescription = null;
     render();
   },
   discard() {
@@ -102,8 +121,12 @@ function renderField(field, edited, common) {
 
 function render() {
   if (!initialized) return;
-  renderField(titleField, editedTitle, commonValue('title'));
-  renderField(descriptionField, editedDescription, commonValue('description'));
+  const commonTitle = commonValue('title');
+  const commonDescription = commonValue('description');
+  untouchedTitle = commonTitle ?? '';
+  untouchedDescription = commonDescription ?? '';
+  renderField(titleField, editedTitle, commonTitle);
+  renderField(descriptionField, editedDescription, commonDescription);
   updateState();
 }
 
@@ -130,6 +153,7 @@ function load(photos) {
   targets = new Map(photos.map(photo => [photo.id, { id: photo.id, path: photo.path, title: photo.title || '', description: photo.caption || '' }]));
   editedTitle = null;
   editedDescription = null;
+  prewarmed = false;
   render();
 }
 
@@ -184,12 +208,20 @@ export function initDescriptionPanel(hostApi) {
   initialized = true;
 
   const onInput = () => {
-    // Mode ExifTool : un processus est démarré dès la première modification, pour que « Appliquer » ne paie pas son démarrage.
-    invoke('exiftool_prewarm').catch(() => {});
+    // Mode ExifTool : un processus est démarré à la première modification, pour que « Appliquer » ne paie pas son démarrage.
+    if (!prewarmed && isDirty()) {
+      prewarmed = true;
+      invoke('exiftool_prewarm').catch(() => {});
+    }
     updateState();
   };
-  titleField.addEventListener('input', () => { editedTitle = titleField.value; onInput(); });
-  descriptionField.addEventListener('input', () => { editedDescription = descriptionField.value; onInput(); });
+  // Revenir à la valeur affichée au départ (ex. une lettre tapée puis effacée dans un champ « Valeurs multiples ») : le champ redevient non
+  // touché et n'est pas écrit, au lieu de remplacer la valeur de toutes les photos par un texte vide.
+  titleField.addEventListener('input', () => { editedTitle = titleField.value === untouchedTitle ? null : titleField.value; onInput(); });
+  descriptionField.addEventListener('input', () => {
+    editedDescription = descriptionField.value === untouchedDescription ? null : descriptionField.value;
+    onInput();
+  });
   applyButton.addEventListener('click', () => applyPending());
   resetButton.addEventListener('click', () => descriptionEditor.discard());
   registerEditor(descriptionEditor);

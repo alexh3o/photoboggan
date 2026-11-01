@@ -31,13 +31,23 @@ export function t(key, params) {
 
 const hasMessage = key => key in LANGUAGES[currentLanguage].messages || key in en;
 
+// Règles de pluriel, une par langue (tp sert dans des boucles de rendu).
+const pluralRules = new Map();
+const pluralRulesFor = language => {
+  if (!pluralRules.has(language)) pluralRules.set(language, new Intl.PluralRules(language));
+  return pluralRules.get(language);
+};
+
 // Texte avec pluriel : la clé porte la forme singulière, la clé suffixée de "|other" la forme plurielle
 // (choix selon les règles de la langue courante : en français 0 et 1 sont au singulier). {count} est ajouté aux paramètres.
 export function tp(key, count, params = {}) {
   const pluralKey = `${key}|other`;
-  const useOther = new Intl.PluralRules(currentLanguage).select(count) !== 'one' && hasMessage(pluralKey);
+  const useOther = pluralRulesFor(currentLanguage).select(count) !== 'one' && hasMessage(pluralKey);
   return t(useOther ? pluralKey : key, { count, ...params });
 }
+
+// Texte comparable pour une recherche : sans accents (marques combinantes retirées après décomposition) et en minuscules.
+export const normalizeSearch = text => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 // Libellé suivi du séparateur de la langue : labelWithColon('Current rating') -> "Note actuelle :" / "Current rating:".
 export function labelWithColon(key) {
@@ -81,5 +91,12 @@ export function setLanguage(language) {
   currentLanguage = language;
   localStorage.setItem(STORAGE_KEY, language);
   applyTranslations();
-  listeners.forEach(listener => listener(language));
+  // Une erreur dans un module ne doit pas laisser les suivants dans l'ancienne langue.
+  for (const listener of listeners) {
+    try {
+      listener(language);
+    } catch (error) {
+      console.error('Changement de langue : mise à jour impossible', error);
+    }
+  }
 }
