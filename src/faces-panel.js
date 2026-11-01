@@ -780,10 +780,17 @@ export function layoutFullscreenFaces(slot) {
   if (overlay) layoutFaceOverlay(overlay, slot, readingEnabled && host?.isFullscreen(), true);
 }
 
+// Mode réellement appliqué : dans la vue de révision des visages, l'aperçu ne reste jamais sans zones
+// (« jamais affiché » devient « au survol »), car l'utilisateur y juge justement les visages.
+function effectiveOverlayMode(interactive) {
+  const facesViewOpen = !interactive && document.getElementById('faces-view')?.hidden === false;
+  return overlayMode === 'hidden' && facesViewOpen ? 'hover' : overlayMode;
+}
+
 // Idem pour une case de l'aperçu (appelée par main.js à chaque mise en page de la case) ; le calque est créé à la demande.
 export function layoutPreviewFaces(slot) {
   if (!slot.faceOverlay) {
-    if (!readingEnabled || overlayMode === 'hidden') return;
+    if (!readingEnabled || effectiveOverlayMode(false) === 'hidden') return;
     slot.faceOverlay = document.createElement('div');
     slot.faceOverlay.className = 'face-overlay preview-faces';
     slot.faceOverlay.setAttribute('aria-hidden', 'true');
@@ -796,7 +803,8 @@ export function layoutPreviewFaces(slot) {
 // interactive : zones avec menu contextuel (plein écran) ; sinon elles ne servent qu'à regarder.
 function layoutFaceOverlay(overlay, slot, active, interactive) {
   const photo = slot?.photo;
-  if (!active || overlayMode === 'hidden' || !photo || !(slot.naturalWidth > 0)) {
+  const mode = effectiveOverlayMode(interactive);
+  if (!active || mode === 'hidden' || !photo || !(slot.naturalWidth > 0)) {
     overlay.hidden = true;
     return;
   }
@@ -815,7 +823,7 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
       })
       .catch(error => console.error('Lecture des visages impossible', error));
   }
-  overlay.classList.toggle('hover-only', overlayMode === 'hover');
+  overlay.classList.toggle('hover-only', mode === 'hover');
   overlay.style.left = `${slot.tx}px`;
   overlay.style.top = `${slot.ty}px`;
   overlay.style.width = `${slot.displayWidth}px`;

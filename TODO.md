@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [x] *feat*: `metadata` manage pick label optionnaly
-- [ ] *feat*: `faces` allow always show faces in faces review preview
+- [x] *feat*: `faces` allow always show faces in faces review preview
 - [x] *fix*: `metadata` delete xmp sidecars when deleting file
 - [x] *refactor*: `faces` group "undo the merge of"
 - [x] *fix*: RAW portrait orientation issues in thumbnail and/or preview and/or fullscreen
@@ -16,7 +16,7 @@
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
-  - [ ] *fix*: **Cannot move window** by title bar
+  - [x] *fix*: **Cannot move window** by title bar
   - [ ] **Test** linux release (more)
 - [ ] *feat*: `Info` add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
