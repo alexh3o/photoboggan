@@ -936,6 +936,9 @@ function openZoneMenu(event, face) {
   }];
   if (face.state === 'suggested' || face.state === 'auto') items.push({ label: t('Confirm'), onSelect: () => run('confirm_faces') });
   if (face.person_id != null || face.state === 'suggested') items.push({ label: t('Unknown'), onSelect: () => run('set_faces_unknown') });
+  // Ignorer (vrai visage sans intérêt) et « Pas un visage » (fausse détection) : proposés quel que soit le statut actuel
+  if (face.state !== 'ignored') items.push({ label: t('Ignore'), onSelect: () => run('ignore_faces') });
+  if (face.state !== 'not_face') items.push({ label: t('Not a face'), onSelect: () => run('mark_faces_not_a_face') });
   items.push({ label: t('Delete this area'), onSelect: () => run('delete_faces'), danger: true });
   openContextMenuAt(event, items);
 }

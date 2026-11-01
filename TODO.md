@@ -9,7 +9,7 @@
 - [x] *fix*: RAW portrait orientation issues in thumbnail and/or preview and/or fullscreen
 - [x] *refactor*: `files` copy silently creates second copy if filename exists
 - [x] *feat*: `files` rename file
-- [ ] *feat*: `docs` more action on various views for faces
+- [x] *feat*: `faces` more action on various views for faces
 - [ ] *docs*: technical documentation
 
 ## 💡 Ideas / Longer term / On hold
