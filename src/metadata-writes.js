@@ -126,9 +126,12 @@ function notifyLock() {
 // attend). Seule la fenêtre du dessus réagit, quand plusieurs sont empilées. Renvoie true si la touche a été traitée.
 export function keepFocusInModal(modal, event) {
   if (event.key !== 'Tab') return false;
-  const modals = document.querySelectorAll('.modal');
+  // Fenêtres affichées seulement (celles d'index.html restent dans la page, masquées par la classe « hidden »).
+  const modals = document.querySelectorAll('.modal:not(.hidden)');
   if (modals[modals.length - 1] !== modal) return false;
-  const focusable = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')];
+  // Éléments réellement affichés (pas ceux d'un onglet masqué des Paramètres).
+  const focusable = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')]
+    .filter(element => element.getClientRects().length > 0);
   const inside = modal.contains(document.activeElement);
   const edge = event.shiftKey ? focusable[0] : focusable.at(-1);
   if (!focusable.length || !inside || document.activeElement === edge) {

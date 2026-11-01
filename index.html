@@ -8,33 +8,33 @@
 <body>
   <div id="titlebar" class="titlebar">
     <div class="titlebar-drag-region" data-tauri-drag-region>
-      <img src="/src-tauri/icons/32x32.png" class="titlebar-icon" alt="logo" />
+      <img src="/src-tauri/icons/32x32.png" class="titlebar-icon" alt="Logo photoboggan" data-i18n-alt="photoboggan logo" />
       <span class="titlebar-title">photoboggan</span>
     </div>
     <div class="titlebar-controls">
-      <button id="titlebar-minimize" class="titlebar-btn" title="Réduire" aria-label="Réduire" data-i18n-title="Minimize" data-i18n-aria-label="Minimize">─</button>
-      <button id="titlebar-maximize" class="titlebar-btn">☐</button>
-      <button id="titlebar-close" class="titlebar-btn close-btn" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">✕</button>
+      <button type="button" id="titlebar-minimize" class="titlebar-btn" title="Réduire" aria-label="Réduire" data-i18n-title="Minimize" data-i18n-aria-label="Minimize">─</button>
+      <button type="button" id="titlebar-maximize" class="titlebar-btn" title="Agrandir" aria-label="Agrandir" data-i18n-title="Maximize" data-i18n-aria-label="Maximize">☐</button>
+      <button type="button" id="titlebar-close" class="titlebar-btn close-btn" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">✕</button>
     </div>
   </div>
   <div id="app">
     <header id="top-bar" class="top-bar">
       <div class="panel-toggles">
-        <button id="btn-toggle-sidebar" class="active" title="Open library panel" data-i18n-title="Open library panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Library">Bibliothèque</span></button>
+        <button type="button" id="btn-toggle-sidebar" class="active" title="Open library panel" data-i18n-title="Open library panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Library">Bibliothèque</span></button>
         <!-- Vue Visages (faces-grid.js) : visible quand la détection des visages est activée -->
         <button id="btn-toggle-faces" type="button" hidden title="Personnes" data-i18n-title="People view: the people of the photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-face preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg> <span data-i18n="People">Personnes</span></button>
       </div>
       <div class="actions">
-        <button id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <button type="button" id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
         <button id="btn-open-tasks" type="button" hidden title="Actions en cours" aria-label="Actions en cours" aria-haspopup="dialog" data-i18n-title="Running tasks" data-i18n-aria-label="Running tasks"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hourglass preview-icon"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></button>
         <button id="btn-open-display" type="button" aria-haspopup="dialog" title="Affichage" aria-label="Affichage" data-i18n-title="Display" data-i18n-aria-label="Display"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid preview-icon"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></button>
         <button id="btn-open-sort" type="button" aria-haspopup="dialog"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-down preview-icon"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button>
       </div>
       <div class="panel-toggles">
-        <label id="compare-desync" class="compare-option hidden" style="display:none" title="Zoom et déplacement indépendants pour chaque image" data-i18n-title="Unlink move & zoom"><input id="compare-desync-toggle" type="checkbox" /><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-unlink preview-icon"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></svg> <span data-i18n="Desynchronize">Désynchroniser</span></label>
-        <button id="btn-toggle-compare" title="Comparer jusqu'à 4 photos" data-i18n-title="Compare up to 4 photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-swords preview-icon"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg> <span data-i18n="Compare">Comparer</span></button>
-        <button id="btn-toggle-preview" title="Open preview panel" data-i18n-title="Open preview panel" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image preview-icon"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> <span data-i18n="Preview">Aperçu</span></button>
-        <button id="btn-toggle-exif" title="Open info & exif panel" data-i18n-title="Open info & exif panel" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-text-search preview-icon"><path d="M21 5H3"/><path d="M10 12H3"/><path d="M10 19H3"/><circle cx="17" cy="15" r="3"/><path d="m21 19-1.9-1.9"/></svg> <span data-i18n="Info">Info</span></button>
+        <label id="compare-desync" class="compare-option hidden" title="Zoom et déplacement indépendants pour chaque image" data-i18n-title="Unlink move & zoom"><input id="compare-desync-toggle" type="checkbox" /><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-unlink preview-icon"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></svg> <span data-i18n="Desynchronize">Désynchroniser</span></label>
+        <button type="button" id="btn-toggle-compare" title="Comparer jusqu'à 4 photos" data-i18n-title="Compare up to 4 photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-swords preview-icon"><path d="m13 19 6-6"/><path d="M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5"/><path d="m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="m5 14 4 4"/><path d="m5 21-2-2"/><path d="M7.5 16.5 4 20"/></svg> <span data-i18n="Compare">Comparer</span></button>
+        <button type="button" id="btn-toggle-preview" title="Open preview panel" data-i18n-title="Open preview panel" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image preview-icon"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> <span data-i18n="Preview">Aperçu</span></button>
+        <button type="button" id="btn-toggle-exif" title="Open info & exif panel" data-i18n-title="Open info & exif panel" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-text-search preview-icon"><path d="M21 5H3"/><path d="M10 12H3"/><path d="M10 19H3"/><circle cx="17" cy="15" r="3"/><path d="m21 19-1.9-1.9"/></svg> <span data-i18n="Info">Info</span></button>
       </div>
     </header>
 
@@ -322,13 +322,13 @@
 
     <!-- Modale de Paramètres -->
     <div id="settings-modal" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <div class="modal-header">
-          <h3 data-i18n="Settings">Paramètres</h3>
+          <h3 id="settings-modal-title" data-i18n="Settings">Paramètres</h3>
           <div class="modal-header-actions">
-            <button id="btn-open-guide" class="close-x" title="Afficher les commandes et raccourcis clavier" aria-label="Afficher les commandes et raccourcis clavier" data-i18n-title="Show controls and keyboard shortcuts" data-i18n-aria-label="Show controls and keyboard shortcuts"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
-            <button id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de photoboggan" data-i18n-title="About" data-i18n-aria-label="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info preview-icon"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
-            <button id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+            <button type="button" id="btn-open-guide" class="close-x" title="Afficher les commandes et raccourcis clavier" aria-label="Afficher les commandes et raccourcis clavier" data-i18n-title="Show controls and keyboard shortcuts" data-i18n-aria-label="Show controls and keyboard shortcuts"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg></button>
+            <button type="button" id="btn-open-about" class="close-x" title="À propos" aria-label="À propos de photoboggan" data-i18n-title="About" data-i18n-aria-label="About"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info preview-icon"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></button>
+            <button type="button" id="btn-close-settings" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
           </div>
         </div>
 
@@ -361,8 +361,8 @@
             <section class="settings-section">
               <h4 data-i18n="Library">Bibliothèque</h4>
               <div class="settings-button-row">
-                <button id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
-                <button id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
+                <button type="button" id="btn-add-folder" class="btn-highlight" data-i18n="Add folder">+ Ajouter un dossier</button>
+                <button type="button" id="btn-rescan-folders" class="btn-highlight" data-i18n="Rescan all collection" title="Read again all files information and metadata for all photos" data-i18n-title="Rescan all data label">Relire toute la collection</button>
               </div>
               <ul id="settings-folder-list"></ul>
             </section>
@@ -372,7 +372,7 @@
           <div id="settings-tab-data" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Storage location">Emplacement des données</h4>
-              <div id="storage-path-display" class="settings-path-label" title="">Par défaut</div>
+              <div id="storage-path-display" class="settings-path-label" title=""></div>
               <div class="settings-storage-actions">
                 <button id="btn-change-storage" class="btn-highlight" type="button" data-i18n="Change folder…">Modifier le dossier…</button>
                 <button id="btn-reset-storage" class="btn-secondary hidden" type="button" data-i18n="Reset to default">Emplacement par défaut</button>
@@ -402,7 +402,7 @@
           <div id="settings-tab-open-with" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Open with">Ouvrir avec</h4>
-              <button id="btn-add-program" class="btn-highlight" data-i18n="Add program">Ajouter un programme</button>
+              <button type="button" id="btn-add-program" class="btn-highlight" data-i18n="Add program">Ajouter un programme</button>
               <ul id="settings-program-list"></ul>
             </section>
           </div>
@@ -500,7 +500,7 @@
       <div class="modal-card display-card" role="dialog" aria-modal="true" aria-labelledby="display-modal-title">
         <div class="modal-header">
           <h3 id="display-modal-title" data-i18n="Display">Affichage</h3>
-          <button id="btn-close-display" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+          <button type="button" id="btn-close-display" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
           <section class="settings-section">
@@ -551,25 +551,11 @@
               </label>
             <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
                 <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">
-                  <button type="button" class="accent-swatch" data-color="#1e72ad" style="background:#1e72ad" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
-                  <button type="button" class="accent-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
-                  <button type="button" class="accent-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
-                  <button type="button" class="accent-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
-                  <button type="button" class="accent-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
-                  <button type="button" class="accent-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
-                  <button type="button" class="accent-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
                   <input id="accent-color" type="color" value="#1e72ad" title="Couleur personnalisée" aria-label="Couleur personnalisée" data-i18n-title="Custom color" data-i18n-aria-label="Custom color" />
                 </span>
               </div>
             <div class="settings-row"><span data-i18n="Active Buttons color">Couleur des boutons actifs</span>
                 <span class="accent-picker" role="group" aria-label="Couleur des boutons actifs" data-i18n-aria-label="Active Buttons color">
-                  <button type="button" class="button-swatch" data-color="#1e72ad" style="background:#1e72ad" title="Bleu" aria-label="Bleu" data-i18n-title="Blue" data-i18n-aria-label="Blue"></button>
-                  <button type="button" class="button-swatch" data-color="#e74c3c" style="background:#e74c3c" title="Rouge" aria-label="Rouge" data-i18n-title="Red" data-i18n-aria-label="Red"></button>
-                  <button type="button" class="button-swatch" data-color="#e67e22" style="background:#e67e22" title="Orange" aria-label="Orange" data-i18n-title="Orange" data-i18n-aria-label="Orange"></button>
-                  <button type="button" class="button-swatch" data-color="#f1c40f" style="background:#f1c40f" title="Jaune" aria-label="Jaune" data-i18n-title="Yellow" data-i18n-aria-label="Yellow"></button>
-                  <button type="button" class="button-swatch" data-color="#2ecc71" style="background:#2ecc71" title="Vert" aria-label="Vert" data-i18n-title="Green" data-i18n-aria-label="Green"></button>
-                  <button type="button" class="button-swatch" data-color="#9b59b6" style="background:#9b59b6" title="Violet" aria-label="Violet" data-i18n-title="Purple" data-i18n-aria-label="Purple"></button>
-                  <button type="button" class="button-swatch" data-color="#ff4fa3" style="background:#ff4fa3" title="Rose" aria-label="Rose" data-i18n-title="Pink" data-i18n-aria-label="Pink"></button>
                   <input id="active-button-color" type="color" value="#1e72ad" title="Couleur personnalisée" aria-label="Couleur personnalisée des boutons actifs" data-i18n-title="Custom color" data-i18n-aria-label="Custom active buttons color" />
                 </span>
               </div>
@@ -582,7 +568,7 @@
       <div class="modal-card sort-card" role="dialog" aria-modal="true" aria-labelledby="sort-modal-title">
         <div class="modal-header">
           <h3 id="sort-modal-title" data-i18n="Sort">Tri</h3>
-          <button id="btn-close-sort" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+          <button type="button" id="btn-close-sort" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
                     <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
@@ -616,10 +602,10 @@
     </div>
     <!-- Modale À propos -->
     <div id="about-modal" class="modal hidden">
-      <div class="modal-card about-card">
+      <div class="modal-card about-card" role="dialog" aria-modal="true" aria-labelledby="about-modal-title">
         <div class="modal-header">
-          <h3 data-i18n="About">À propos</h3>
-          <button id="btn-close-about" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
+          <h3 id="about-modal-title" data-i18n="About">À propos</h3>
+          <button type="button" id="btn-close-about" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body about-body">
           <img class="about-logo" src="/src-tauri/icons/128x128@2x.png" alt="Logo photoboggan" data-i18n-alt="photoboggan logo" />
@@ -635,7 +621,7 @@
       <div class="modal-card tasks-card" role="dialog" aria-modal="true" aria-labelledby="tasks-modal-title">
         <div class="modal-header">
           <h3 id="tasks-modal-title" data-i18n="Running tasks">Actions en cours</h3>
-          <button id="btn-close-tasks" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+          <button type="button" id="btn-close-tasks" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
           <ul id="tasks-list" class="tasks-list"></ul>
@@ -646,13 +632,13 @@
     <div id="write-toast" class="write-toast hidden" role="status" aria-live="polite"></div>
     <div id="task-toasts" class="task-toasts" aria-live="polite"></div>
     <div id="guide-modal" class="modal hidden">
-      <div class="modal-card guide-card">
+      <div class="modal-card guide-card" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title">
         <div class="modal-header">
-          <h3>
+          <h3 id="guide-modal-title">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-keyboard preview-icon"><path d="M10 8h.01"/><path d="M12 12h.01"/><path d="M14 8h.01"/><path d="M16 12h.01"/><path d="M18 8h.01"/><path d="M6 8h.01"/><path d="M7 16h10"/><path d="M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/></svg>
             <span data-i18n="Guide">Guide des raccourcis et actions</span>
           </h3>
-          <button id="btn-close-guide" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
+          <button type="button" id="btn-close-guide" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
         </div>
       
         <div class="modal-body guide-body">

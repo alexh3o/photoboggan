@@ -9,7 +9,7 @@ import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, r
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved, photosRemoved } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
@@ -2307,22 +2307,28 @@ function closeAbout() {
 document.getElementById('btn-open-about').addEventListener('click', openAbout);
 document.getElementById('btn-close-about').addEventListener('click', closeAbout);
 
-document.getElementById('about-github-link').addEventListener('click', async (e) => {
-    e.preventDefault();
+// Liens de « À propos » : ouverts dans le navigateur de l'utilisateur, jamais dans la fenêtre de l'application (clic, clic molette, Maj + clic).
+for (const link of document.querySelectorAll('#about-modal a[href^="http"]')) {
+  const openInBrowser = async event => {
+    if (event.type === 'auxclick' && event.button !== 1) return;
+    event.preventDefault();
     try {
-        await openUrl('https://github.com/alexh3o/photoboggan');
+      await openUrl(link.href);
     } catch (err) {
-        console.error("Could not open the link:", err);
+      console.error('Could not open the link:', err);
     }
-});
-document.getElementById('about-issues-link')?.addEventListener('click', async (e) => {
-  e.preventDefault();
-  try {
-    await openUrl('https://github.com/alexh3o/photoboggan/issues');
-  } catch (err) {
-    console.error("Could not open the link:", err);
-  }
-});
+  };
+  link.addEventListener('click', openInBrowser);
+  link.addEventListener('auxclick', openInBrowser);
+}
+
+// Fenêtres de l'interface (Paramètres, À propos, Guide, Affichage, Tri, Tâches) : Tab reste dans la fenêtre du dessus (sinon Tab puis Entrée
+// activerait un bouton de l'interface derrière elle). Les fenêtres créées en JavaScript gèrent Tab elles-mêmes.
+const STATIC_MODALS = '#settings-modal, #about-modal, #guide-modal, #display-modal, #sort-modal, #tasks-modal';
+document.addEventListener('keydown', event => {
+  const top = [...document.querySelectorAll('.modal:not(.hidden)')].at(-1);
+  if (top?.matches(STATIC_MODALS)) keepFocusInModal(top, event);
+}, true);
 
 // ESC ferme la fenêtre la plus haute (À propos, puis Paramètres), même si un champ des paramètres a le focus.
 window.addEventListener('keydown', event => {
@@ -2341,17 +2347,9 @@ window.addEventListener('keydown', event => {
 // MODALE Guide (ouverte depuis les Paramètres)
 // ==========================================
 const guideModal = document.getElementById('guide-modal');
-const guideVersion = document.getElementById('guide-version'); // absent du guide actuel : la version n'est lue que s'il existe
 initGuide();
-async function openGuide() {
+function openGuide() {
   guideModal.classList.remove('hidden');
-  if (!guideVersion || guideVersion.dataset.loaded) return;
-  try {
-    guideVersion.textContent = await getVersion();
-    guideVersion.dataset.loaded = 'true';
-  } catch (error) {
-    console.error('Version unavailable', error);
-  }
 }
 function closeGuide() {
   guideModal.classList.add('hidden');
@@ -2812,9 +2810,31 @@ updateSortUI();
 
 const themeSelect = document.getElementById('theme-select');
 const selectionColorInput = document.getElementById('accent-color');
-const selectionColorSwatches = document.querySelectorAll('.accent-swatch');
+// Couleurs proposées (Paramètres > Affichage) pour la sélection et pour les boutons actifs : clé de traduction du nom, valeur.
+const ACCENT_PALETTE = [
+  ['Blue', '#1e72ad'], ['Red', '#e74c3c'], ['Orange', '#e67e22'], ['Yellow', '#f1c40f'],
+  ['Green', '#2ecc71'], ['Purple', '#9b59b6'], ['Pink', '#ff4fa3'],
+];
+// Pastilles de la palette, placées avant le sélecteur de couleur personnalisée `input` (noms traduits avec la langue, voir applyTranslations).
+function createAccentSwatches(input, className) {
+  const swatches = ACCENT_PALETTE.map(([label, color]) => {
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = className;
+    swatch.dataset.color = color;
+    swatch.style.background = color;
+    swatch.title = t(label);
+    swatch.setAttribute('aria-label', t(label));
+    swatch.setAttribute('data-i18n-title', label);
+    swatch.setAttribute('data-i18n-aria-label', label);
+    return swatch;
+  });
+  input.before(...swatches);
+  return swatches;
+}
+const selectionColorSwatches = createAccentSwatches(selectionColorInput, 'accent-swatch');
 const activeButtonColorInput = document.getElementById('active-button-color');
-const activeButtonColorSwatches = document.querySelectorAll('.button-swatch');
+const activeButtonColorSwatches = createAccentSwatches(activeButtonColorInput, 'button-swatch');
 function syncAppearanceControls() {
   themeSelect.value = appTheme;
   selectionColorInput.value = selectionColor;
@@ -4096,7 +4116,6 @@ document.getElementById('btn-toggle-compare').addEventListener('click', event =>
   document.getElementById('btn-toggle-preview').disabled = compareMode; // l'aperçu reste affiché tant que le mode Comparer est actif
   const desyncOption = document.getElementById('compare-desync');
   desyncOption.classList.toggle('hidden', !compareMode);
-  desyncOption.style.display = compareMode ? '' : 'none';
   updatePreviewSyncMode();
   if (compareMode) {
     previewHiddenBeforeCompare = mainContent.classList.contains('preview-hidden');
@@ -5158,6 +5177,7 @@ async function restoreStartupFolder() {
 }
 
 refreshStorageLocationUI();
+onLanguageChange(refreshStorageLocationUI); // « Par défaut » suit la langue (un chemin personnalisé reste tel quel)
 restoreStartupFolder()
   .catch(error => console.error('Startup folder restore failed', error))
   .then(() => loadPhotos())
