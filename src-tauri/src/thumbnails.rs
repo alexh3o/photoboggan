@@ -39,10 +39,18 @@ pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) ->
         write_jpeg(destination, &rgb, width, height)?;
         return Ok(ThumbnailSize { width: width as u32, height: height as u32 });
     }
-    let (rgb, width, height) = decode_scaled_rgb(source, max_side)?;
+    // RAW : l'aperçu n'est extrait qu'une fois, pour le décodage et pour choisir l'orientation (la même que celle de l'aperçu plein écran).
+    let mut raw_orientation_value = None;
+    let (rgb, width, height) = if is_raw_path(source) {
+        let jpeg = extract_raw_preview(source)?;
+        raw_orientation_value = Some(raw_orientation(source, &jpeg));
+        decode_scaled_jpeg_reader(Cursor::new(jpeg), max_side)?
+    } else {
+        decode_scaled_rgb(source, max_side)?
+    };
     let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
     // HEIC / HEIF : le décodeur a déjà appliqué la rotation du conteneur, l'orientation EXIF ne doit pas l'être une seconde fois.
-    let orientation = if crate::heif::is_heif_path(source) { 1 } else { read_orientation(source) };
+    let orientation = raw_orientation_value.unwrap_or_else(|| if crate::heif::is_heif_path(source) { 1 } else { read_orientation(source) });
     let (rgb, width, height) = apply_orientation(rgb, width, height, orientation);
     write_jpeg(destination, &rgb, width, height)?;
     Ok(ThumbnailSize { width: width as u32, height: height as u32 })
@@ -281,16 +289,95 @@ pub(crate) fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u
     decode_scaled_jpeg_reader(BufReader::with_capacity(256 * 1024, file), max_side)
 }
 
-/// Orientation EXIF (1 à 8), 1 si absente ou illisible.
-pub(crate) fn read_orientation(source: &Path) -> u32 {
-    let Ok(file) = File::open(source) else { return 1; };
-    let mut reader = BufReader::new(file);
-    Reader::new()
-        .read_from_container(&mut reader)
-        .ok()
-        .and_then(|exif| exif.get_field(Tag::Orientation, In::PRIMARY).and_then(|field| field.value.get_uint(0)))
+/// Orientation (1 à 8) d'un EXIF déjà lu, None si le tag est absent ou hors plage.
+fn orientation_of(exif: &exif::Exif) -> Option<u32> {
+    exif.get_field(Tag::Orientation, In::PRIMARY)
+        .and_then(|field| field.value.get_uint(0))
         .filter(|value| (1..=8).contains(value))
-        .unwrap_or(1)
+}
+
+/// Lecture tolérante : un RAW dont une entrée IFD est mal formée (fréquent) garde les champs déjà lus au lieu de perdre tout l'EXIF.
+fn lenient_exif(result: Result<exif::Exif, exif::Error>) -> Option<exif::Exif> {
+    result.or_else(|error| error.distill_partial_result(|_| {})).ok()
+}
+
+/// Orientation EXIF (1 à 8), 1 si absente ou illisible. Pour un RAW, c'est l'orientation à appliquer à son aperçu JPEG (voir `raw_orientation`).
+pub(crate) fn read_orientation(source: &Path) -> u32 {
+    if is_raw_path(source) {
+        return extract_raw_preview(source).map(|jpeg| raw_orientation(source, &jpeg)).unwrap_or(1);
+    }
+    container_orientation(source).unwrap_or(1)
+}
+
+pub(crate) fn is_raw_path(source: &Path) -> bool {
+    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "raw")
+}
+
+/// Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3).
+fn container_orientation(source: &Path) -> Option<u32> {
+    let mut file = File::open(source).ok()?;
+    let is_cr3 = source.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("cr3"));
+    if is_cr3 {
+        // CR3 : l'EXIF de l'image est un bloc TIFF dans la boîte CMT1 (kamadak-exif ne lit pas ce conteneur).
+        let mut buffer = Vec::new();
+        file.by_ref().take(8 * 1024 * 1024).read_to_end(&mut buffer).ok()?;
+        let name = buffer.windows(4).position(|w| w == b"CMT1")?;
+        let size = u32::from_be_bytes(buffer.get(name.checked_sub(4)?..name)?.try_into().ok()?) as usize;
+        let tiff = buffer.get(name + 4..(name.checked_sub(4)? + size).min(buffer.len()))?.to_vec();
+        return orientation_of(&lenient_exif(Reader::new().continue_on_error(true).read_raw(tiff))?);
+    }
+    let mut reader = BufReader::new(file);
+    orientation_of(&lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut reader))?)
+}
+
+/// Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
+/// Selon le constructeur, l'aperçu est tel que sorti du capteur (l'orientation du RAW s'applique), déjà pivoté (rien à appliquer) ou porte son propre
+/// tag EXIF (le webview l'applique seul). Ordre : tag explicite de l'aperçu, sauf aperçu paysage pour une prise de vue en portrait ; sinon orientation du RAW,
+/// sauf aperçu déjà en portrait.
+pub(crate) fn raw_orientation(source: &Path, jpeg: &[u8]) -> u32 {
+    let own = lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut Cursor::new(jpeg))).as_ref().and_then(orientation_of);
+    let container = container_orientation(source).unwrap_or(1);
+    let mut decoder = Decoder::new(Cursor::new(jpeg));
+    let portrait_preview = decoder.read_info().ok().and_then(|_| decoder.info()).is_some_and(|info| info.height > info.width);
+    match own {
+        Some(value) if value >= 2 => value,
+        Some(_) if container >= 5 && !portrait_preview => container,
+        Some(value) => value,
+        None if container >= 5 && portrait_preview => 1,
+        None => container,
+    }
+}
+
+/// Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme la miniature.
+/// Les octets de l'image ne sont pas retouchés : seul le segment EXIF APP1 est remplacé par un segment minimal ne contenant que l'orientation.
+pub(crate) fn preview_with_orientation(source: &Path, jpeg: Vec<u8>) -> Vec<u8> {
+    let wanted = raw_orientation(source, &jpeg);
+    let own = lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut Cursor::new(&jpeg[..]))).as_ref().and_then(orientation_of);
+    if wanted == own.unwrap_or(1) || jpeg.len() < 4 { return jpeg; }
+    // Segments avant l'image : tout APP1 « Exif » est retiré, le nouveau est inséré après un éventuel APP0 (JFIF).
+    let mut output = Vec::with_capacity(jpeg.len() + 40);
+    output.extend_from_slice(&jpeg[..2]);
+    let mut pos = 2;
+    let mut inserted = false;
+    let insert = |output: &mut Vec<u8>| {
+        output.extend_from_slice(&[0xff, 0xe1, 0x00, 0x22]);
+        output.extend_from_slice(b"Exif\0\0MM\0\x2a\0\0\0\x08\0\x01\x01\x12\0\x03\0\0\0\x01");
+        output.extend_from_slice(&[0x00, wanted as u8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    };
+    while pos + 4 <= jpeg.len() && jpeg[pos] == 0xff && jpeg[pos + 1] != 0xda {
+        let marker = jpeg[pos + 1];
+        let length = u16::from_be_bytes([jpeg[pos + 2], jpeg[pos + 3]]) as usize;
+        let end = pos + 2 + length;
+        if length < 2 || end > jpeg.len() { return jpeg; }
+        let is_exif = marker == 0xe1 && jpeg[pos + 4..end].starts_with(b"Exif\0\0");
+        if marker != 0xe0 && !inserted { insert(&mut output); inserted = true; }
+        if !is_exif { output.extend_from_slice(&jpeg[pos..end]); }
+        pos = end;
+    }
+    if !inserted { insert(&mut output); }
+    output.extend_from_slice(&jpeg[pos..]);
+    output
 }
 
 pub(crate) fn resize_to_fit(rgb: Vec<u8>, width: usize, height: usize, max_side: usize) -> (Vec<u8>, usize, usize) {

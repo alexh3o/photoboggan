@@ -419,7 +419,10 @@ fn get_raw_preview_path(state: State<'_, AppState>, source_path: String) -> Resu
         // HEIC / HEIF : le webview ne sait pas les lire, on affiche un JPEG pleine résolution décodé en Rust (mis en cache comme les aperçus RAW).
         heif::preview_jpeg(Path::new(&source_path))?
     } else {
-        thumbnails::extract_raw_preview(Path::new(&source_path))?
+        // Orientation EXIF de l'aperçu alignée sur celle de la miniature (le webview applique le tag de l'aperçu lui-même).
+        let source = Path::new(&source_path);
+        let jpeg = thumbnails::extract_raw_preview(source)?;
+        if thumbnails::is_raw_path(source) { thumbnails::preview_with_orientation(source, jpeg) } else { jpeg }
     };
     let parent = preview_path.parent().ok_or("Dossier de cache invalide")?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;

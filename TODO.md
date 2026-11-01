@@ -6,7 +6,7 @@
 - [ ] *feat*: `faces` allow always show faces in faces review preview
 - [x] *fix*: `metadata` delete xmp sidecars when deleting file
 - [ ] *refactor*: `faces` group "undo the merge of"
-- [ ] *fix*: portrait oriented ARW are rotated in thumbnail but not in preview and full screen
+- [x] *fix*: RAW portrait orientation issues in thumbnail and/or preview and/or fullscreen
 - [ ] *refactor*: copy silently creates second copy if filename exists
 - [ ] *feat*: `files` rename file
 
