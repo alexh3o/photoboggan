@@ -21,6 +21,7 @@ const GROUPS = [
     { a: 'Pick or reject', d: 'Same key again: remove the flag. Enable it in Settings > Metadata', k: [['Shift', 'P'], ['Shift', 'X']], sep: 'space' },
     { a: 'Rate or color, then next photo', d: 'Fullscreen or a single selected photo', k: [['Alt', '0 – 9']] },
     { a: 'Delete', k: [['Delete Key']] },
+    { a: 'Rename…', d: 'A single selected photo', k: [['F2']] },
     { a: 'Copy to…', k: [['C']] },
     { a: 'Copy to clipboard', k: [['Ctrl', 'C']] },
     { a: 'Resize…', k: [['S']] },

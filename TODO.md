@@ -5,10 +5,10 @@
 - [x] *feat*: `metadata` manage pick label optionnaly
 - [ ] *feat*: `faces` allow always show faces in faces review preview
 - [x] *fix*: `metadata` delete xmp sidecars when deleting file
-- [ ] *refactor*: `faces` group "undo the merge of"
+- [x] *refactor*: `faces` group "undo the merge of"
 - [x] *fix*: RAW portrait orientation issues in thumbnail and/or preview and/or fullscreen
 - [ ] *refactor*: copy silently creates second copy if filename exists
-- [ ] *feat*: `files` rename file
+- [x] *feat*: `files` rename file
 
 ## 💡 Ideas / Longer term / On hold
 

@@ -847,7 +847,7 @@ fn open_folder_in_file_manager(state: State<'_, AppState>, path: String) -> Resu
 // sans caractère interdit par Windows (le même nom reste donc valide sous Linux et macOS), et jamais d'écrasement d'un dossier ou fichier existant.
 #[tauri::command(async)]
 fn create_subfolder(state: State<'_, AppState>, parent: String, name: String) -> Result<(), String> {
-    let name = name.trim();
+    let name = validate_new_name(&name)?;
     let pool = state.pool();
     let parent_folder = resolve_tracked_folder(&pool, &parent).ok_or_else(|| format!("Dossier non suivi : {parent}"))?;
     if !parent_folder.is_dir() { return Err(format!("Dossier introuvable : {parent}")); }
@@ -993,14 +993,180 @@ fn sidecar_to_trash(photo: &Path) -> Option<PathBuf> {
     let [appended, compatible] = exif::sidecar_candidates(photo);
     if appended.is_file() { return Some(appended); }
     if !compatible.is_file() { return None; }
+    if has_same_stem_sibling(photo)? { None } else { Some(compatible) }
+}
+
+// Vrai si un autre fichier (hors .xmp) du même dossier porte le même nom sans extension que la photo : le sidecar « photo.xmp » lui est alors partagé.
+// None si le dossier est illisible (dans le doute, l'appelant ne touche pas au sidecar).
+fn has_same_stem_sibling(photo: &Path) -> Option<bool> {
     let stem = photo.file_stem()?.to_string_lossy().to_lowercase();
-    let shared = fs::read_dir(photo.parent()?).ok()?.flatten().any(|entry| {
+    let found = fs::read_dir(photo.parent()?).ok()?.flatten().any(|entry| {
         let other = entry.path();
         other != photo
             && other.file_stem().is_some_and(|name| name.to_string_lossy().to_lowercase() == stem)
             && !other.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("xmp"))
     });
-    if shared { None } else { Some(compatible) }
+    Some(found)
+}
+
+// Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous Linux et
+// macOS), ni point ou espace final, ni nom réservé de Windows (« CON », « NUL »…, avec ou sans extension).
+fn validate_new_name(name: &str) -> Result<&str, String> {
+    let name = name.trim();
+    if name.is_empty() { return Err("Le nom ne peut pas être vide".into()); }
+    if name.chars().any(|c| c.is_control() || "\\/:*?\"<>|".contains(c)) {
+        return Err("Le nom ne peut pas contenir les caractères \\ / : * ? \" < > |".into());
+    }
+    if name.ends_with('.') { return Err("Le nom ne peut pas se terminer par un point".into()); }
+    let reserved = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"];
+    let before_dot = name.split('.').next().unwrap_or("").trim_end().to_uppercase();
+    if reserved.contains(&before_dot.as_str()) { return Err(format!("« {name} » est un nom réservé par Windows")); }
+    Ok(name)
+}
+
+// Deux chemins qui ne diffèrent que par la casse désignent le même fichier sous Windows et macOS : un changement de casse seule est un renommage valide.
+fn same_path_ignoring_case(first: &Path, second: &Path) -> bool {
+    first.to_string_lossy().to_lowercase() == second.to_string_lossy().to_lowercase()
+}
+
+// Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « photo.jpg.xmp »
+// devient « nouveau.jpg.xmp » ; un « photo.xmp » partagé avec un autre fichier du même nom (paire RAW + JPEG) est copié, sinon renommé en « nouveau.xmp ».
+// Jamais d'écrasement. Comme pour un déplacement, la ligne de la base garde son id (note, couleur, mots-clés) et les miniatures en cache suivent le nouveau chemin.
+#[tauri::command(async)]
+fn rename_photo(state: State<'_, AppState>, path: String, new_name: String) -> Result<MovedFile, String> {
+    let new_stem = validate_new_name(&new_name)?;
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let tracked: bool = conn
+        .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0))
+        .map_err(|error| format!("Catalogue illisible : {error}"))?;
+    if !tracked { return Err("Photo absente du catalogue".into()); }
+    let source = Path::new(&path);
+    if !source.is_file() { return Err("Fichier introuvable".into()); }
+    let parent = source.parent().ok_or("Dossier introuvable")?;
+    let new_file_name = match source.extension() {
+        Some(extension) => format!("{new_stem}.{}", extension.to_string_lossy()),
+        None => new_stem.to_string(),
+    };
+    let target = parent.join(&new_file_name);
+    if target == source { return Ok(MovedFile { from: path.clone(), to: path }); }
+    if target.exists() && !same_path_ignoring_case(source, &target) { return Err(format!("« {new_file_name} » existe déjà dans ce dossier")); }
+
+    // Sidecar : (ancien, nouveau, copie seule). Vérifié avant de toucher à la photo, pour ne rien renommer si le sidecar ne peut pas suivre.
+    let appended = PathBuf::from(format!("{}.xmp", source.display()));
+    let sidecar = if appended.is_file() {
+        Some((appended, PathBuf::from(format!("{}.xmp", target.display())), false))
+    } else {
+        let compatible = source.with_extension("xmp");
+        if compatible.is_file() {
+            let shared = has_same_stem_sibling(source).unwrap_or(true);
+            Some((compatible, target.with_extension("xmp"), shared))
+        } else {
+            None
+        }
+    };
+    if let Some((from, to, copy_only)) = &sidecar {
+        if !copy_only && to.exists() && !same_path_ignoring_case(from, to) {
+            return Err(format!("Le sidecar XMP « {} » existe déjà", to.file_name().unwrap_or_default().to_string_lossy()));
+        }
+    }
+
+    let thumbnails_dir = state.thumbnails_dir();
+    let raw_previews_dir = state.raw_previews_dir();
+    let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
+    let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
+
+    fs::rename(source, &target).map_err(|error| format!("Renommage impossible : {error}"))?;
+    if let Some((from, to, copy_only)) = sidecar {
+        let result = if copy_only { if to.exists() { Ok(()) } else { fs::copy(&from, &to).map(|_| ()) } } else { fs::rename(&from, &to) };
+        if let Err(error) = result {
+            // Photo et sidecar doivent rester ensemble : la photo reprend son nom.
+            let _ = fs::rename(&target, source);
+            return Err(format!("Sidecar XMP non renommé : {error}"));
+        }
+    }
+
+    let new_path = target.to_string_lossy().into_owned();
+    carry_cache_file(cache_file, thumbnail_cache_file(&thumbnails_dir, &new_path).ok());
+    carry_cache_file(raw_preview_file, raw_preview_cache_file(&raw_previews_dir, &new_path).ok());
+    let updated = conn.unchecked_transaction().and_then(|tx| {
+        tx.execute("DELETE FROM photos WHERE path = ?", params![new_path])?;
+        tx.execute("UPDATE photos SET path = ?, filename = ? WHERE path = ?", params![new_path, new_file_name, path])?;
+        tx.commit()
+    });
+    updated.map_err(|error| format!("Fichier renommé en {new_path}, mais catalogue non mis à jour : {error}"))?;
+    Ok(MovedFile { from: path, to: new_path })
+}
+
+// Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent leur ligne dans
+// la base (id, note, couleur, mots-clés) avec leur nouveau chemin, et leurs miniatures en cache suivent. Renvoie les anciens et nouveaux chemins des photos.
+// Mêmes refus que delete_folder : dossier suivi (ou qui en contient un), dossier des données de l'application. Jamais d'écrasement.
+#[tauri::command(async)]
+fn rename_folder(state: State<'_, AppState>, path: String, new_name: String) -> Result<Vec<MovedFile>, String> {
+    let new_name = validate_new_name(&new_name)?;
+    let pool = state.pool();
+    let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
+    if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    let parent = folder.parent().ok_or("Une racine de disque ne peut pas être renommée")?;
+    let folder_segments = lowercase_segments(&folder);
+    if lowercase_segments(&state.base_dir()).starts_with(&folder_segments) {
+        return Err("Ce dossier contient les données de l'application (base de données et miniatures)".into());
+    }
+    if db::get_folders(&pool).iter().any(|root| lowercase_segments(Path::new(&root.path)).starts_with(&folder_segments)) {
+        return Err("Ce dossier est un dossier suivi, ou en contient un : renommez-le hors de l'application après l'avoir retiré de la liste des dossiers (Paramètres)".into());
+    }
+    let target = parent.join(new_name);
+    if target.exists() && !same_path_ignoring_case(&folder, &target) { return Err(format!("« {new_name} » existe déjà dans ce dossier")); }
+    if target == folder { return Ok(Vec::new()); }
+
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let prefix = format!("{}/", folder.to_string_lossy().replace('\\', "/").trim_end_matches('/'));
+    let prefix_len = prefix.chars().count();
+    let photo_paths: Vec<String> = {
+        let mut statement = conn
+            .prepare("SELECT path FROM photos WHERE lower(substr(replace(path, char(92), '/'), 1, length(?1))) = lower(?1)")
+            .map_err(|error| error.to_string())?;
+        let rows = statement.query_map(params![prefix], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())?;
+        rows.filter_map(|row| row.ok()).collect()
+    };
+    // Nouveau chemin de chaque photo : le dernier niveau du dossier est remplacé dans le chemin tel qu'enregistré (séparateurs et casse du reste conservés).
+    let renamed: Vec<MovedFile> = photo_paths.into_iter().filter_map(|old| {
+        let chars: Vec<char> = old.chars().collect();
+        let folder_part: String = chars[..prefix_len.min(chars.len())].iter().collect();
+        let separator = folder_part.chars().last()?;
+        let head = folder_part[..folder_part.trim_end_matches(['/', '\\']).rfind(['/', '\\'])? + 1].to_string();
+        let rest: String = chars[prefix_len.min(chars.len())..].iter().collect();
+        Some(MovedFile { to: format!("{head}{new_name}{separator}{rest}"), from: old })
+    }).collect();
+
+    // Les noms des caches dépendent du chemin, de la taille et de la date : anciens noms calculés avant le renommage.
+    let thumbnails_dir = state.thumbnails_dir();
+    let raw_previews_dir = state.raw_previews_dir();
+    let old_caches: Vec<(Option<PathBuf>, Option<PathBuf>)> = renamed.iter()
+        .map(|item| (thumbnail_cache_file(&thumbnails_dir, &item.from).ok(), raw_preview_cache_file(&raw_previews_dir, &item.from).ok()))
+        .collect();
+
+    let native: PathBuf = folder.components().collect();
+    fs::rename(&native, &target).map_err(|error| format!("Renommage impossible : {error}"))?;
+
+    for (item, (thumbnail, raw_preview)) in renamed.iter().zip(old_caches) {
+        carry_cache_file(thumbnail, thumbnail_cache_file(&thumbnails_dir, &item.to).ok());
+        carry_cache_file(raw_preview, raw_preview_cache_file(&raw_previews_dir, &item.to).ok());
+    }
+    let updated = conn.unchecked_transaction().and_then(|tx| {
+        {
+            let mut delete = tx.prepare_cached("DELETE FROM photos WHERE path = ?")?;
+            let mut update = tx.prepare_cached("UPDATE photos SET path = ?, filename = ? WHERE path = ?")?;
+            for item in &renamed {
+                let name = Path::new(&item.to).file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default();
+                delete.execute(params![item.to])?;
+                update.execute(params![item.to, name, item.from])?;
+            }
+        }
+        tx.commit()
+    });
+    updated.map_err(|error| format!("Dossier renommé, mais catalogue non mis à jour : {error}"))?;
+    Ok(renamed)
 }
 
 // Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
@@ -1746,6 +1912,8 @@ fn main() {
             export_integrity_report,
             open_folder_in_file_manager,
             create_subfolder,
+            rename_photo,
+            rename_folder,
             update_photo_metadata,
             get_photo_details,
             delete_photos,

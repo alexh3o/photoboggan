@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -2094,6 +2094,15 @@ window.addEventListener('keydown', (e) => {
     } else if (isCompareMultiple()) {
       notifyNoCompareTarget();
     }
+    return;
+  }
+  // F2 : renomme la photo sélectionnée, comme « Renommer… » du menu contextuel. Une seule photo ; une sélection multiple ne fait rien.
+  // Les dossiers ne se renomment que par le menu contextuel (avec un aperçu actif, F2 viserait la photo de l'aperçu).
+  if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+    e.preventDefault();
+    if (e.repeat || document.querySelector('.modal:not(.hidden)')) return;
+    const targetPhotos = commandTargetPhotos();
+    if (targetPhotos.length === 1) renamePhoto(targetPhotos[0]);
     return;
   }
   // Suppression
@@ -4321,6 +4330,56 @@ async function deleteFolderToTrash(path, { permanent = false } = {}) {
   }
 }
 
+// Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvée par chemin).
+// Renvoie un message d'erreur à afficher dans la fenêtre de saisie, ou null. Refusé pendant un déplacement ou une tâche de fichiers : la synchronisation
+// automatique est suspendue par le même indicateur, sinon elle verrait le fichier disparaître sous son ancien nom.
+async function renamePhotoOnDisk(photo, newName) {
+  if (photoMoveRunning || hasFileTask()) return t('Wait for the running file task to finish.');
+  photoMoveRunning = true;
+  try {
+    const moved = await invoke('rename_photo', { path: photo.path, newName });
+    if (moved.from !== moved.to) await applyMovedPhotos([moved]);
+    showWriteToast(t('File renamed'));
+    return null;
+  } catch (error) {
+    return String(error);
+  } finally {
+    photoMoveRunning = false;
+  }
+}
+
+// Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nouveau nom.
+async function renameFolderOnDisk(path, newName) {
+  if (photoMoveRunning || hasFileTask()) return t('Wait for the running file task to finish.');
+  photoMoveRunning = true;
+  try {
+    const moved = await invoke('rename_folder', { path, newName });
+    const oldBase = path.replace(/[\\/]+$/, '');
+    const newBase = `${oldBase.replace(/[\\/][^\\/]*$/, '')}/${newName.trim()}`;
+    const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const old = normalize(oldBase);
+    const isInside = value => normalize(value) === old || normalize(value).startsWith(`${old}/`);
+    const follow = value => `${newBase}${value.replace(/\/+$/, '').slice(oldBase.length)}`;
+    const followKey = key => normalize(`${newBase}${key.slice(old.length)}`);
+    for (const created of [...createdFolders]) if (isInside(created)) { createdFolders.delete(created); createdFolders.add(follow(created)); }
+    diskFolders = diskFolders.map(folder => (isInside(folder) ? follow(folder) : folder));
+    for (const key of [...folderTreeExpanded]) if (isInside(key)) { folderTreeExpanded.delete(key); folderTreeExpanded.add(followKey(key)); }
+    if (currentFolderFilter !== null && isInside(currentFolderFilter)) {
+      currentFolderFilter = follow(currentFolderFilter);
+      rememberCurrentFolder();
+    }
+    if (moved.length) await applyMovedPhotos(moved);
+    renderFolderTree();
+    if (showEmptyFolders) refreshDiskFolders(); // relit le disque : un sous-dossier vide renommé garde la bonne casse
+    showWriteToast(t('Folder renamed'));
+    return null;
+  } catch (error) {
+    return String(error);
+  } finally {
+    photoMoveRunning = false;
+  }
+}
+
 // Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent après un arrêt.
 function movePhotosToFolder(targets, folderPath) {
   if (!targets.length) return;
@@ -4737,6 +4796,8 @@ initPhotoActions({
   syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
   enqueueFileTask: task => enqueueScanTask(task), // copie vers un dossier choisi, redimensionnement : tâches de la file (voir enqueueScanTask)
   deleteFolder: deleteFolderToTrash,
+  renamePhoto: renamePhotoOnDisk,
+  renameFolder: renameFolderOnDisk,
   // Sous-menu « Visages » (voir faces-panel.js) : affiché quand la détection est activée, il ouvre la fenêtre de lancement d'un scan.
   faceDetectionEnabled: isFaceDetectionEnabled,
   openFaceScan: scope => openFaceScanDialog(scope),

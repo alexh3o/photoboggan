@@ -919,6 +919,40 @@ async function createSubfolder(parentPath) {
   });
 }
 
+// Renomme un dossier de l'arborescence : la saisie reprend le nom actuel ; le backend vérifie le nom et refuse d'écraser (message affiché dans la fenêtre).
+async function renameFolder(path) {
+  const current = baseName(path);
+  await promptDialog({
+    title: t('Rename folder'),
+    message: t('New name of the folder “{name}”', { name: current }),
+    inputLabel: t('Folder name'),
+    confirmLabel: t('Rename'),
+    cancelLabel: t('Cancel'),
+    value: current,
+    onSubmit: async name => (name.trim() === current ? null : api.renameFolder(path, name)),
+  });
+}
+
+// Renomme une photo ou une vidéo : seul le nom sans extension est modifiable, l'extension (dernier point du nom) est conservée par le backend.
+// « IMG.2024.cr2 » propose donc « IMG.2024 ».
+export async function renamePhoto(photo) {
+  const fileName = baseName(photo.path);
+  const dot = fileName.lastIndexOf('.');
+  const extension = dot > 0 ? fileName.slice(dot) : '';
+  const current = dot > 0 ? fileName.slice(0, dot) : fileName;
+  await promptDialog({
+    title: t('Rename file'),
+    message: extension
+      ? t('New name of “{name}” (the extension {extension} is kept)', { name: fileName, extension })
+      : t('New name of “{name}”', { name: fileName }),
+    inputLabel: t('File name'),
+    confirmLabel: t('Rename'),
+    cancelLabel: t('Cancel'),
+    value: current,
+    onSubmit: async name => (name.trim() === current ? null : api.renamePhoto(photo, name)),
+  });
+}
+
 // ==========================================
 // VÉRIFICATION D'INTÉGRITÉ (rapport final)
 // ==========================================
@@ -1224,6 +1258,8 @@ function openThumbnailMenu(event, index, source = 'grid') {
     menuButton(t('Copy'), () => copyPhotosToClipboard(targets)),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
   ];
+  // Un renommage vise un seul fichier : absent d'une sélection multiple.
+  if (targets.length === 1) menuItems.push(menuButton(t('Rename…'), () => renamePhoto(photo)));
 
   // L'option « Redimensionner… » n'apparaît que pour les photos réelles
   if (hasResizablePhotos) {
@@ -1346,7 +1382,7 @@ function openFolderMenu(event, folderItem) {
   if (api.faceDetectionEnabled?.()) menu.append(buildFacesItem({ folder: path }));
   // Un dossier suivi (racine de l'arborescence, ajouté dans les Paramètres) ne se supprime pas depuis ce menu : seuls ses sous-dossiers.
   if (folderItem.dataset.folderRoot !== '1') {
-    menu.append(separator, menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), { danger: true }));
+    menu.append(separator, menuButton(t('Rename folder…'), () => renameFolder(path)), menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), { danger: true }));
   }
   contextTarget = folderItem;
   folderItem.classList.add('context-target');
