@@ -120,7 +120,7 @@ pub fn is_photo_file(path: &Path) -> bool {
 /// Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et faces.rs).
 /// Erreur si le fichier est illisible ou a changé pendant la lecture (copie en cours, fichier verrouillé…) : ses métadonnées seraient vides
 /// ou incomplètes, et l'enregistrer le ferait passer pour lu. Il sera relu à la prochaine synchronisation.
-fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(Photo, Vec<Vec<String>>, crate::faces::PhotoFaces), String> {
+pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(Photo, Vec<Vec<String>>, crate::faces::PhotoFaces), String> {
     let source = Path::new(path);
     fs::File::open(source).map_err(|error| format!("file not readable: {error}"))?;
     let exif_data = crate::exif::read_exif(source);

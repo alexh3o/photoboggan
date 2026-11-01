@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use rayon::prelude::*;
 use db::{DbPool, Photo, TrackedFolder};
@@ -387,19 +387,27 @@ fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max_side:
     Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
 }
 
-// Extraction de fichier jpeg intégré au RAW
+// Les aperçus (RAW, HEIC, vidéo) ont le même nom de cache que les miniatures (chemin, taille, date du fichier), dans leur propre dossier.
 fn raw_preview_cache_file(raw_previews_dir: &Path, source_path: &str) -> Result<PathBuf, String> {
-    let metadata = fs::metadata(source_path).map_err(|error| error.to_string())?;
-    let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH)
-        .duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
-    let mut hash = 0xcbf29ce484222325u64;
-    let size_bytes = metadata.len().to_le_bytes();
-    let modified_bytes = modified.to_le_bytes();
-    for byte in source_path.as_bytes().iter().chain(size_bytes.iter()).chain(modified_bytes.iter()) {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(0x100000001b3);
+    thumbnail_cache_file(raw_previews_dir, source_path)
+}
+
+/// Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est supprimé
+/// en cas d'erreur. Un fichier déjà présent à la fin (écrit entre-temps par une autre tâche) est accepté.
+fn write_cache_file(destination: &Path, prefix: &str, bytes: &[u8]) -> Result<(), String> {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let parent = destination.parent().ok_or("Dossier de cache invalide")?;
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    let temp = parent.join(format!("{prefix}-{}-{}.tmp", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed)));
+    if let Err(error) = fs::write(&temp, bytes) {
+        let _ = fs::remove_file(&temp); // écriture partielle (disque plein…)
+        return Err(error.to_string());
     }
-    Ok(raw_previews_dir.join(format!("{hash:016x}.jpg")))
+    if let Err(error) = fs::rename(&temp, destination) {
+        let _ = fs::remove_file(&temp);
+        if !destination.is_file() { return Err(error.to_string()); }
+    }
+    Ok(())
 }
 
 // Aperçu d'une vidéo : image fixe plus grande que la miniature de la grille (voir video.rs), mise en cache comme les aperçus RAW.
@@ -424,14 +432,7 @@ fn get_raw_preview_path(state: State<'_, AppState>, source_path: String) -> Resu
         let jpeg = thumbnails::extract_raw_preview(source)?;
         if thumbnails::is_raw_path(source) { thumbnails::preview_with_orientation(source, jpeg) } else { jpeg }
     };
-    let parent = preview_path.parent().ok_or("Dossier de cache invalide")?;
-    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let temp = parent.join(format!("prev-{}-{}.tmp", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()));
-    fs::write(&temp, &jpeg_bytes).map_err(|error| error.to_string())?;
-    if let Err(error) = fs::rename(&temp, &preview_path) {
-        let _ = fs::remove_file(&temp);
-        if !preview_path.is_file() { return Err(error.to_string()); }
-    }
+    write_cache_file(&preview_path, "prev", &jpeg_bytes)?;
     Ok(preview_path.to_string_lossy().into_owned())
 }
 
@@ -441,14 +442,7 @@ fn save_thumbnail_cache(state: State<'_, AppState>, source_path: String, data_ur
     let bytes = decode_thumbnail_base64(encoded)?;
     let path = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
     if path.is_file() { return Ok(path.to_string_lossy().into_owned()); }
-    let parent = path.parent().ok_or("Dossier de cache invalide")?;
-    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let temp = parent.join(format!("thumb-{}-{}.tmp", std::process::id(), SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()));
-    fs::write(&temp, bytes).map_err(|error| error.to_string())?;
-    if let Err(error) = fs::rename(&temp, &path) {
-        let _ = fs::remove_file(&temp);
-        if !path.is_file() { return Err(error.to_string()); }
-    }
+    write_cache_file(&path, "thumb", &bytes)?;
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -456,35 +450,49 @@ fn save_thumbnail_cache(state: State<'_, AppState>, source_path: String, data_ur
 #[tauri::command(async)]
 fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
     let dir = state.thumbnails_dir();
+    // Les fichiers qui ne peuvent pas être supprimés (utilisés par un autre programme) sont comptés : le vidage n'est jamais annoncé réussi à tort.
+    let mut failed = 0usize;
     if dir.is_dir() {
         for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
-            let path = entry.path();
-            if path.is_file() {
-                let _ = fs::remove_file(path);
-            }
+            let path = entry.map_err(|e| e.to_string())?.path();
+            if path.is_file() && fs::remove_file(&path).is_err() { failed += 1; }
         }
     }
+    if failed > 0 { return Err(format!("{failed} miniature(s) n'ont pas pu être supprimées (fichier utilisé par un autre programme ?)")); }
     Ok(())
 }
 
 // Supprime du cache (miniatures et aperçus RAW / vidéo) les fichiers qui ne correspondent plus à aucune photo du catalogue : photo modifiée (taille ou date
 // changées, donc nom de cache différent), supprimée ou déplacée hors de l'application. Le nom de cache est recalculé pour chaque photo du catalogue
 // (une lecture de taille et de date par fichier, aucun décodage d'image) ; tout fichier du cache hors de cet ensemble est supprimé. Renvoie leur nombre.
-// Une photo dont le fichier est introuvable n'a pas de nom attendu : son cache part aussi (il serait régénéré si elle réapparaissait).
+// Une photo dont le fichier a disparu n'a pas de nom attendu : son cache part aussi (il serait régénéré si elle réapparaissait). La purge est reportée
+// (erreur) quand un dossier suivi est injoignable (disque externe débranché, partage coupé : les noms de cache de ses photos sont alors inconnus et
+// seraient supprimés) ou quand un fichier du catalogue est illisible pour une autre raison qu'une absence.
 fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &Path) -> Result<usize, String> {
     use rayon::prelude::*;
+    if db::get_folders(pool).iter().any(|folder| !tracked_root_is_reachable(&folder.path)) {
+        return Err("Un dossier suivi est injoignable (disque débranché ?) : nettoyage des miniatures reporté".to_string());
+    }
     let conn = pool.get().map_err(|error| error.to_string())?;
     let photo_paths: Vec<String> = {
         let mut statement = conn.prepare("SELECT path FROM photos").map_err(|error| error.to_string())?;
         let rows = statement.query_map([], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())?;
         rows.collect::<Result<_, _>>().map_err(|error| error.to_string())?
     };
+    let unreadable = AtomicUsize::new(0);
     let expected: std::collections::HashSet<PathBuf> = photo_paths
         .par_iter()
-        .flat_map_iter(|path| [thumbnail_cache_file(thumbnails_dir, path).ok(), raw_preview_cache_file(raw_previews_dir, path).ok()])
+        .flat_map_iter(|path| match fs::metadata(path) {
+            Ok(_) => [thumbnail_cache_file(thumbnails_dir, path).ok(), raw_preview_cache_file(raw_previews_dir, path).ok()],
+            Err(error) => {
+                if error.kind() != std::io::ErrorKind::NotFound { unreadable.fetch_add(1, Ordering::Relaxed); }
+                [None, None]
+            }
+        })
         .flatten()
         .collect();
+    let unreadable = unreadable.load(Ordering::Relaxed);
+    if unreadable > 0 { return Err(format!("{unreadable} fichier(s) du catalogue illisibles : nettoyage des miniatures reporté")); }
     let mut removed = 0;
     for dir in [thumbnails_dir, raw_previews_dir] {
         let Ok(entries) = fs::read_dir(dir) else { continue };
@@ -567,20 +575,27 @@ struct ScanProgress {
 
 // Drapeaux d'annulation des scans, par identifiant de tâche. Le drapeau est créé par le premier qui le demande (le scan ou la demande d'arrêt),
 // donc un arrêt demandé juste au démarrage d'un scan n'est pas perdu. Le scan le retire à sa fin.
-fn scan_cancel_flags() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
-    static FLAGS: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
+struct CancelEntry {
+    flag: Arc<AtomicBool>,
+    created: Instant,
+}
+
+fn scan_cancel_flags() -> &'static Mutex<HashMap<String, CancelEntry>> {
+    static FLAGS: OnceLock<Mutex<HashMap<String, CancelEntry>>> = OnceLock::new();
     FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn scan_cancel_flag(task_id: &str) -> Arc<AtomicBool> {
     let mut flags = scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    flags.entry(task_id.to_string()).or_insert_with(|| Arc::new(AtomicBool::new(false))).clone()
+    // Entrées orphelines (arrêt demandé alors que la tâche était déjà terminée : personne ne les retire) : supprimées après 10 minutes.
+    flags.retain(|_, entry| Arc::strong_count(&entry.flag) > 1 || entry.created.elapsed() < Duration::from_secs(600));
+    flags.entry(task_id.to_string()).or_insert_with(|| CancelEntry { flag: Arc::new(AtomicBool::new(false)), created: Instant::now() }).flag.clone()
 }
 
 /// Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargement
 /// des modèles) : chacune garde un clone de son drapeau d'arrêt. Une entrée orpheline (arrêt demandé après la fin d'une tâche) n'en a pas.
 fn running_tasks() -> usize {
-    scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).values().filter(|flag| Arc::strong_count(flag) > 1).count()
+    scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).values().filter(|entry| Arc::strong_count(&entry.flag) > 1).count()
 }
 
 fn release_scan_cancel_flag(task_id: &str) {
@@ -643,15 +658,6 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
     let scanner = tokio::task::spawn_blocking(move || {
         // Vrai quand l'écriture s'est arrêtée (son récepteur est fermé) : le parcours cesse au lieu de lire des fichiers qui ne seront pas enregistrés.
         let writer_gone = AtomicBool::new(false);
-        // Rajout de format depuis la liste SUPPORTED_EXTENSIONS de libary_sync.rs
-        //let entries: Vec<_> = WalkDir::new(scan_path)
-        //    .into_iter()
-        //    .filter_map(|e| e.ok())
-        //    .filter(|e| {
-        //        let p = e.path().to_string_lossy().to_lowercase();
-        //        p.ends_with(".jpg") || p.ends_with(".jpeg") || p.ends_with(".png") || p.ends_with(".raw")
-        //    })
-        //    .collect();
         // Progression : `fraction` (0 à 1) est celle du dossier ; pour une relecture de plusieurs dossiers, elle est ramenée à l'ensemble.
         let publish = |fraction: f64| {
             let percent = match scan_mode {
@@ -687,34 +693,16 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             let Ok(metadata) = entry.metadata() else { return; };
             let file_size = metadata.len() as i64;
             let modified = library_sync::modified_millis(&metadata);
-            let filename = entry.file_name().to_string_lossy().to_string();
-            let exif_data = exif::read_exif(entry.path());
-
-            let photo = Photo {
-                id: 0,
-                path: path_str,
-                filename,
-                date_taken: exif_data.date_taken,
-                aperture: exif_data.aperture,
-                shutter_speed: exif_data.shutter_speed,
-                iso: exif_data.iso,
-                focal_length: exif_data.focal_length,
-                manufacturer: exif_data.manufacturer,
-                camera_model: exif_data.camera_model,
-                lens_model: exif_data.lens_model,
-                width: exif_data.width,
-                height: exif_data.height,
-                file_size,
-                rating: exif_data.rating,
-                color_flag: exif_data.color_flag,
-                pick_flag: exif_data.pick_flag,
-                keywords: exif_data.keywords,
-                title: exif_data.title,
-                caption: exif_data.caption,
-                modified,
+            // Même lecture que la synchronisation : un fichier illisible ou modifié pendant la lecture est sauté (repris à la synchronisation suivante),
+            // jamais enregistré avec des métadonnées vides.
+            let (photo, keyword_paths, photo_faces) = match library_sync::read_photo(&path_str, file_size, modified) {
+                Ok(read) => read,
+                Err(error) => {
+                    eprintln!("File skipped by the scan ({path_str}): {error}");
+                    return;
+                }
             };
-
-            if tx.blocking_send((photo, modified, exif_data.keyword_paths, exif_data.faces)).is_err() { writer_gone.store(true, Ordering::Relaxed); }
+            if tx.blocking_send((photo, modified, keyword_paths, photo_faces)).is_err() { writer_gone.store(true, Ordering::Relaxed); }
         });
     });
     let scanned = scanner.await;
@@ -751,7 +739,11 @@ async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, t
     if !cancel.load(Ordering::Relaxed) {
         let (thumbnails_dir, raw_previews_dir) = (state.thumbnails_dir(), state.raw_previews_dir());
         let purge_pool = pool.clone();
-        let _ = tokio::task::spawn_blocking(move || purge_orphan_cache(&purge_pool, &thumbnails_dir, &raw_previews_dir)).await;
+        match tokio::task::spawn_blocking(move || purge_orphan_cache(&purge_pool, &thumbnails_dir, &raw_previews_dir)).await {
+            Ok(Ok(_)) => {}
+            Ok(Err(error)) => eprintln!("Orphan cache purge skipped: {error}"),
+            Err(error) => eprintln!("Orphan cache purge failed: {error}"),
+        }
     }
     release_scan_cancel_flag(&task_id);
     Ok(())
@@ -1449,18 +1441,21 @@ async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncCh
         .map_err(|error| error.to_string())?
 }
 
-// Nom libre dans le dossier de destination : « photo.jpg », puis « photo (1).jpg », « photo (2).jpg »… (jamais d'écrasement).
-fn unique_destination(directory: &Path, file_name: &std::ffi::OsStr) -> PathBuf {
-    let candidate = directory.join(file_name);
-    if !candidate.exists() { return candidate; }
+// Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fichier vide :
+// la création est atomique (`create_new`), donc deux tâches ou un autre programme n'obtiennent jamais le même nom, et rien n'est jamais écrasé.
+// L'appelant remplace ensuite ce fichier vide (copie, renommage) et le supprime s'il échoue : il lui appartient.
+fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr) -> std::io::Result<PathBuf> {
     let name = Path::new(file_name);
     let stem = name.file_stem().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
     let extension = name.extension().map(|value| format!(".{}", value.to_string_lossy())).unwrap_or_default();
-    let mut index = 1u32;
+    let mut index = 0u32;
     loop {
-        let candidate = directory.join(format!("{stem} ({index}){extension}"));
-        if !candidate.exists() { return candidate; }
-        index += 1;
+        let candidate = if index == 0 { directory.join(file_name) } else { directory.join(format!("{stem} ({index}){extension}")) };
+        match fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
+            Ok(_) => return Ok(candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => index += 1,
+            Err(error) => return Err(error),
+        }
     }
 }
 
@@ -1645,8 +1640,15 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 failed.push(FileFailure { path: path.clone(), error: "Fichier introuvable".into() });
                 break 'file;
             }
-            let target = unique_destination(&destination_dir, file_name);
-        
+            // Destination réservée (fichier vide, voir reserve_destination) : move_file la remplace, ou la supprime s'il échoue.
+            let target = match reserve_destination(&destination_dir, file_name) {
+                Ok(target) => target,
+                Err(error) => {
+                    failed.push(FileFailure { path: path.clone(), error: format!("Destination impossible à créer : {error}") });
+                    break 'file;
+                }
+            };
+
             let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
             let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
 
@@ -1755,18 +1757,21 @@ fn copy_photos_with_progress(
                         Err(error) => failed.push(FileFailure { path: path.clone(), error: error.to_string() }),
                     }
                 } else {
-                    let target = unique_destination(destination, file_name);
-                    match fs::copy(source, &target) {
-                        Ok(_) => {
-                            if let Err(error) = copy_sidecar(source, &target, false) {
-                                failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
+                    // Destination réservée atomiquement : la copie ne peut écraser que ce fichier vide, créé par nous (supprimé si la copie échoue).
+                    match reserve_destination(destination, file_name) {
+                        Err(error) => failed.push(FileFailure { path: path.clone(), error: format!("Destination impossible à créer : {error}") }),
+                        Ok(target) => match fs::copy(source, &target) {
+                            Ok(_) => {
+                                if let Err(error) = copy_sidecar(source, &target, false) {
+                                    failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
+                                }
+                                copied += 1;
                             }
-                            copied += 1;
-                        }
-                        Err(error) => {
-                            let _ = fs::remove_file(&target);
-                            failed.push(FileFailure { path: path.clone(), error: error.to_string() });
-                        }
+                            Err(error) => {
+                                let _ = fs::remove_file(&target);
+                                failed.push(FileFailure { path: path.clone(), error: error.to_string() });
+                            }
+                        },
                     }
                 }
             }
