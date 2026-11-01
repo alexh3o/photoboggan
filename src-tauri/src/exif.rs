@@ -1338,6 +1338,8 @@ fn update_xmp_pick(xml: &str, pick: &str) -> String {
 
 /// Applique uniquement ce qui est demandé (voir XmpEdit).
 fn update_xmp_metadata(xml: &str, edit: XmpEdit) -> String {
+    // Rien à retirer d'un fichier sans XMP (note 0 comprise) : aucun paquet n'est créé, comme avec ExifTool (voir XmpEdit::adds_values).
+    if !xml.contains("rdf:Description") && !edit.adds_values() { return xml.to_string(); }
     let mut updated = xml.to_string();
     if let Some(rating) = edit.rating { updated = update_xmp_rating(&updated, rating); }
     if edit.label.is_some() || edit.pick.is_some() {

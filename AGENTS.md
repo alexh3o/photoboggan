@@ -151,7 +151,7 @@ src-tauri/
 - Backend Rust uniquement (pas de test du frontend ni des commandes IPC) : un module `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` en fin de fichier, le code de test dans `src-tauri/src/tests/`. Rien n'est compilé dans l'application.
 - Fichiers synthétiques dans un dossier `tempfile` (aides dans `test_support.rs`) : jamais une vraie photo, jamais de réseau ni de modèle de visages.
 - Tout correctif sur l'écriture de métadonnées, la base ou la synchronisation s'accompagne d'un test qui l'aurait attrapé. Les tests d'écriture interne appellent les fonctions internes (`write_jpeg_metadata`, `write_xmp_sidecar_with`…) : l'aiguillage `write_metadata` dépend du réglage global ExifTool.
-- Test lent ou dépendant d'un outil externe (ExifTool) : `#[ignore = "raison"]`, lancé par `cargo test <module>:: -- --ignored`. Un test ignoré qui échoue documente un écart connu (voir `rating_zero_on_a_file_without_xmp_creates_nothing`) : le dire, ne pas le « réparer » en affaiblissant l'assertion.
+- Test lent ou dépendant d'un outil externe (ExifTool) : `#[ignore = "raison"]`, lancé par `cargo test <module>:: -- --ignored`. Un test ignoré qui échoue documente un écart connu : le dire, ne pas le « réparer » en affaiblissant l'assertion.
 - État global (verrou de `sync_library`, réglages ExifTool) : un seul test par scénario, pas de modification du réglage dans un test rapide.
 
 ---

@@ -178,16 +178,23 @@ fn marking_removal_never_creates_a_packet() {
     assert_eq!(fs::read(&path).unwrap(), original);
 }
 
-/// Écart connu entre les deux chemins d'écriture : ExifTool ne crée rien pour une note 0 (XmpEdit::adds_values), le chemin interne crée un paquet
-/// XMP (note, pick et ACDSee à 0) dans un fichier qui n'en avait pas. À retirer de la liste des tests ignorés une fois le comportement tranché.
+/// Une note 0 n'est qu'un retrait : sur un fichier sans XMP, ni paquet (JPEG) ni sidecar ne sont créés, comme avec ExifTool.
 #[test]
-#[ignore = "écart connu : une note 0 crée un paquet XMP avec le chemin interne"]
 fn rating_zero_on_a_file_without_xmp_creates_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let original = jpeg_bytes(16, 16);
     let path = write_sample(dir.path(), "a.jpg", &original);
     mark_jpeg(&path, XmpEdit { rating: Some(0), ..Default::default() });
     assert!(fs::read(&path).unwrap() == original, "un paquet XMP a été créé pour une note 0");
+
+    let raw = write_sample(dir.path(), "b.cr2", b"raw");
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(0), ..Default::default() })).unwrap();
+    assert!(!dir.path().join("b.cr2.xmp").exists(), "un sidecar a été créé pour une note 0");
+
+    // Sur un fichier qui a déjà du XMP, la note 0 reste écrite explicitement.
+    mark_jpeg(&path, XmpEdit { rating: Some(3), ..Default::default() });
+    mark_jpeg(&path, XmpEdit { rating: Some(0), ..Default::default() });
+    assert_eq!(read_exif(&path).rating, 0);
 }
 
 #[test]
