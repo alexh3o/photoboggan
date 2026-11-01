@@ -4958,15 +4958,15 @@ document.getElementById('btn-toggle-faces').addEventListener('click', () => {
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
   getThumbnailUrl: thumbnailUrlFor,
-  // Clic sur des visages : leurs photos deviennent la sélection (panneau Info, Mots-clés…), la photo du dernier visage cliqué étant la principale.
+  // Sélection de visages : leurs photos deviennent exactement la sélection (panneaux Info, Mots-clés, Description), la photo du dernier visage
+  // sélectionné étant la principale. Photos absentes de la grille (mode « Visages en attente ») : non sélectionnées, jamais l'ancienne sélection
+  // à leur place (une modification de mots-clés irait sinon sur d'autres photos).
   selectPhotos: (photoIds, mainPhotoId) => {
     const wanted = new Set(photoIds);
-    const mainIndex = photos.findIndex(photo => photo.id === mainPhotoId);
-    if (mainIndex < 0) return;
     selectedIndices.clear();
     photos.forEach((photo, index) => { if (wanted.has(photo.id)) selectedIndices.add(index); });
-    selectedIndices.add(mainIndex);
-    lastSelectedIndex = mainIndex;
+    const mainIndex = photos.findIndex(photo => photo.id === mainPhotoId);
+    lastSelectedIndex = selectedIndices.has(mainIndex) ? mainIndex : selectedIndices.values().next().value ?? 0;
     updateUIOnSelection();
   },
   // Double-clic sur un visage : sa photo en plein écran (elle doit faire partie des photos affichées).

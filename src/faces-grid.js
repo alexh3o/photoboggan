@@ -5,11 +5,13 @@
 // - Actions : Valider (Entrée), Nommer… (ou taper directement le nom sur les visages sélectionnés), Inconnu, Ignorer, Ne plus ignorer,
 //   N'est pas un visage (fausse détection : comme Ignorer, jamais écrit ni reproposé au rescan) et C'est un visage.
 //   Après chaque action, les autres visages sont réattribués (sans ONNX).
-// La base seule change : l'écriture dans les fichiers viendra au lot 4.
+// - Les actions changent la base ; les visages modifiés attendent d'être écrits dans les fichiers (zones et mots-clés des personnes) :
+//   bouton « Écrire dans les fichiers » ou Ctrl + Entrée (metadata-writes.js), « Appliquer » du panneau de droite, ou fermeture de l'application.
+// - La sélection de visages devient la sélection des photos : les panneaux de droite (Mots-clés, Description) visent leurs photos.
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { orientRect, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
+import { faceCropStyle, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
 import { applyPending, isWriteLocked, onLockChange } from './metadata-writes.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
@@ -39,7 +41,7 @@ let shown = []; // visages retenus par le filtre, dans l'ordre d'affichage
 let layout = []; // { kind: 'separator' | 'face', x, y, label?, index? }
 let contentHeight = 0;
 let selected = new Set(); // identifiants de visages
-let anchorIndex = null; // dernier visage cliqué (sélection Maj + clic)
+let anchorId = null; // identifiant du dernier visage cliqué (sélection Maj + clic) : un indice changerait de visage à chaque reconstruction
 let selectionOrder = []; // identifiants dans l'ordre où ils ont été sélectionnés (le dernier sert à placer la barre d'actions verticale)
 let verticalBar = false; // plus de MAX_COLUMNS_BOTTOM_BAR vignettes en largeur : barre d'actions verticale à droite (voir rebuild)
 let faceRows = new Map(); // identifiant de visage -> ordonnée (px) de sa ligne dans la grille
@@ -107,7 +109,7 @@ async function toggleClusters() {
   clusterBusy = true;
   let groups;
   try {
-    groups = await invoke('cluster_unknown_faces', { photoIds: host.getDisplayedPhotoIds() });
+    groups = await invoke('cluster_unknown_faces', { photoIds: viewPhotoIds() });
   } catch (error) {
     host.showToast(String(error));
     return;
@@ -167,6 +169,8 @@ export function closeFacesView() {
   // Le regroupement vaut pour les photos affichées à ce moment : il n'est pas conservé d'une ouverture à l'autre.
   clusters = null;
   pendingMode = false;
+  // Miniatures relues à la prochaine ouverture : elles ont pu être régénérées (résolution du cache, fichier modifié) et la liste ne grossit pas.
+  thumbnailInfo.clear();
   document.getElementById('btn-faces-pending')?.classList.remove('active');
   view().hidden = true;
   host.setPhotoGridVisible(true);
@@ -181,7 +185,7 @@ export function toggleFacesView() {
 export async function reloadFacesView() {
   if (!open) return;
   const token = ++loadToken;
-  const photoIds = pendingMode ? getPendingFaceWritePhotoIds() : host.getDisplayedPhotoIds();
+  const photoIds = viewPhotoIds();
   let loaded;
   try {
     loaded = await invoke('get_faces_for_photos', { photoIds });
@@ -272,6 +276,13 @@ function rebuild() {
   verticalBar = columnsFor(fullWidth) > MAX_COLUMNS_BOTTOM_BAR;
   document.getElementById('faces-action-bar').classList.toggle('vertical', verticalBar);
   const columns = columnsFor(verticalBar ? fullWidth - BAR_RESERVE : fullWidth);
+  // Nombre de visages par groupe et par section (titres), comptés en une passe.
+  const groupCounts = new Map();
+  const sectionCounts = new Map();
+  for (const { group } of entries) {
+    groupCounts.set(group.key, (groupCounts.get(group.key) || 0) + 1);
+    if (group.section) sectionCounts.set(group.section, (sectionCounts.get(group.section) || 0) + 1);
+  }
   layout = [];
   faceRows = new Map();
   let y = 0;
@@ -290,7 +301,7 @@ function rebuild() {
     if (newSection) {
       // Titre de section (inconnus regroupés) : niveau 0 ; ses sous-groupes sont au niveau 1. Il se sélectionne et reste collant avec eux.
       currentSection = entry.group.section;
-      const count = entries.filter(other => other.group.section === currentSection).length;
+      const count = sectionCounts.get(currentSection);
       layout.push({ kind: 'separator', key: `s:${currentSection}`, x: SIDE_MARGIN, y, level: 0, label: t('Unknown faces'), count, section: currentSection, hasClusterButton: true });
       y += SEPARATOR_HEIGHT;
     } else if (!entry.group.section) {
@@ -298,7 +309,7 @@ function rebuild() {
     }
     if (newGroup || newSection) {
       currentGroup = entry.group.key;
-      const count = entries.filter(other => other.group.key === currentGroup).length;
+      const count = groupCounts.get(currentGroup);
       layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, level: entry.group.section ? 1 : 0, label: entry.group.label, count, group: currentGroup, hasClusterButton: !!entry.group.hasClusterButton });
       y += SEPARATOR_HEIGHT;
     }
@@ -316,6 +327,9 @@ function rebuild() {
   renderedNodes.clear();
   clearSticky(); // recréé par renderVisible avec le nouveau compteur
   renderVisible();
+  // Pastilles de statut et d'origine : leurs compteurs ne changent qu'avec les visages ou les filtres, pas avec la sélection.
+  renderStatusFilters();
+  renderOriginFilters();
   updateToolbar();
 }
 
@@ -428,11 +442,10 @@ function createSeparator(item) {
   node.addEventListener('click', event => {
     event.stopPropagation();
     const ids = shown.filter(face => (item.section ? sectionKeyOf.get(face.id) === item.section : groupKeyOf.get(face.id) === item.group)).map(face => face.id);
-    if (!(event.ctrlKey || event.metaKey)) { selected.clear(); selectionOrder = []; }
+    if (!(event.ctrlKey || event.metaKey)) clearSelection();
     for (const id of ids) selected.add(id);
     selectionOrder.push(...ids.slice().reverse()); // le premier visage du groupe compte comme le dernier sélectionné : la barre se place en haut du groupe
-    renderVisible();
-    updateToolbar();
+    selectionChanged();
   });
   const label = document.createElement('span');
   label.className = 'group-separator-label';
@@ -493,15 +506,10 @@ function loadCrop(element, face) {
   info.then(thumbnail => {
     if (!thumbnail || !element.isConnected || !(thumbnail.width > 0 && thumbnail.height > 0)) return;
     const { url, width, height } = thumbnail;
-    const rect = orientRect(face, face.orientation);
-    const faceWidth = rect.w * width;
-    const faceHeight = rect.h * height;
-    const side = Math.min(Math.max(faceWidth, faceHeight) * 1.3, width, height);
-    const left = Math.min(Math.max(rect.x * width + faceWidth / 2 - side / 2, 0), width - side);
-    const top = Math.min(Math.max(rect.y * height + faceHeight / 2 - side / 2, 0), height - side);
+    const crop = faceCropStyle(face, face.orientation, width, height, 1.3);
     element.style.backgroundImage = `url("${url}")`;
-    element.style.backgroundSize = `${(width / side) * 100}% ${(height / side) * 100}%`;
-    element.style.backgroundPosition = `${width > side ? (left / (width - side)) * 100 : 0}% ${height > side ? (top / (height - side)) * 100 : 0}%`;
+    element.style.backgroundSize = crop.size;
+    element.style.backgroundPosition = crop.position;
   });
 }
 
@@ -511,24 +519,42 @@ function loadCrop(element, face) {
 // Même comportement que la grille des photos : clic = ce visage seul ; Ctrl + clic = ajouté ou retiré ; Maj + clic = plage depuis le dernier
 // visage cliqué AJOUTÉE à la sélection existante (sélection discontinue possible), puis ce visage devient le point de départ.
 function onTileClick(face, event) {
-  const index = shown.indexOf(face);
-  if (event.shiftKey && anchorIndex !== null) {
+  const index = shown.findIndex(item => item.id === face.id);
+  const anchorIndex = anchorId === null ? -1 : shown.findIndex(item => item.id === anchorId);
+  if (event.shiftKey && anchorIndex >= 0 && index >= 0) {
     const [from, to] = anchorIndex < index ? [anchorIndex, index] : [index, anchorIndex];
     for (let position = from; position <= to; position++) selected.add(shown[position].id);
     selectionOrder.push(face.id);
-    anchorIndex = index;
   } else if (event.ctrlKey || event.metaKey) {
     if (selected.has(face.id)) selected.delete(face.id); else { selected.add(face.id); selectionOrder.push(face.id); }
-    anchorIndex = index;
   } else {
     selected = new Set([face.id]);
     selectionOrder = [face.id];
-    anchorIndex = index;
   }
+  anchorId = face.id;
+  selectionChanged();
+}
+
+// Dernier visage sélectionné dans le temps (encore sélectionné), sinon le premier affiché ; null sans sélection.
+function lastSelectedId() {
+  for (let index = selectionOrder.length - 1; index >= 0; index--) if (selected.has(selectionOrder[index])) return selectionOrder[index];
+  return shown.find(face => selected.has(face.id))?.id ?? null;
+}
+
+// Après tout changement de sélection (clic, Ctrl + A, titre de groupe, Échap, clic dans le vide) : vignettes, barre d'actions, et sélection des
+// photos, que suivent les panneaux de droite (Info, Mots-clés, Description) : leurs modifications visent exactement les photos de ces visages.
+function selectionChanged() {
   renderVisible();
   updateToolbar();
-  // Les panneaux de droite (Info, Mots-clés) suivent les photos des visages sélectionnés.
-  host.selectPhotos(selectedFaces().map(item => item.photo_id), face.photo_id);
+  const targets = selectedFaces();
+  const mainId = lastSelectedId();
+  host.selectPhotos(targets.map(face => face.photo_id), targets.find(face => face.id === mainId)?.photo_id ?? null);
+}
+
+function clearSelection() {
+  selected.clear();
+  selectionOrder = [];
+  anchorId = null;
 }
 
 // Barre d'actions verticale (à droite) : son haut est aligné avec la dernière vignette sélectionnée dans le temps ; elle suit donc la sélection et
@@ -537,9 +563,7 @@ function positionActionBar() {
   const bar = document.getElementById('faces-action-bar');
   if (!verticalBar || bar.hidden) { bar.style.removeProperty('top'); return; }
   const area = scroller();
-  let id = null;
-  for (let index = selectionOrder.length - 1; index >= 0 && id === null; index--) if (selected.has(selectionOrder[index])) id = selectionOrder[index];
-  if (id === null) id = shown.find(face => selected.has(face.id))?.id ?? null;
+  const id = lastSelectedId();
   const row = id === null ? undefined : faceRows.get(id);
   if (row === undefined) return;
   // Écart entre la barre de défilement et le bord droit de la vue : la barre se place à gauche de la barre de défilement.
@@ -573,7 +597,6 @@ function renderStatusFilters() {
     button.addEventListener('click', () => {
       if (visibleStatuses.has(status.id)) visibleStatuses.delete(status.id); else visibleStatuses.add(status.id);
       saveStatuses();
-      renderStatusFilters();
       rebuild();
     });
     return button;
@@ -581,8 +604,6 @@ function renderStatusFilters() {
 }
 
 function updateToolbar() {
-  renderStatusFilters();
-  renderOriginFilters();
   const targets = selectedFaces();
   document.getElementById('faces-count').textContent = tp('{count} face shown', shown.length);
   // Barre d'actions flottante : visible seulement quand des visages sont sélectionnés.
@@ -637,9 +658,12 @@ function setPendingMode(enabled) {
   const button = document.getElementById('btn-faces-pending');
   button.classList.toggle('active', enabled);
   button.setAttribute('aria-pressed', String(enabled));
-  selected.clear();
-  selectionOrder = [];
-  anchorIndex = null;
+  if (selected.size > 0) {
+    clearSelection();
+    selectionChanged(); // les panneaux de droite ne visent plus les photos des visages qui étaient sélectionnés
+  } else {
+    clearSelection();
+  }
   reloadFacesView();
 }
 
@@ -648,42 +672,65 @@ function writeFaces() {
   applyPending({ includeLibrary: true });
 }
 
-// Action de révision sur les visages sélectionnés, puis réattribution des autres visages des photos affichées et rechargement.
-async function runAction(command, extraArgs = {}) {
-  const targets = selectedFaces();
-  if (targets.length === 0) return null;
-  let result;
+// Photos de la vue : celles dont les visages sont à écrire (mode « Visages en attente »), sinon celles de la grille des photos.
+const viewPhotoIds = () => (pendingMode ? getPendingFaceWritePhotoIds() : host.getDisplayedPhotoIds());
+
+// Réattribution des autres visages des photos de la vue (après une action), puis rechargement de la section Personnes et de cette vue.
+// `photoIds` : relevés avant l'action (en mode attente, la liste change après elle).
+async function recognizeAndRefresh(photoIds) {
   try {
-    result = await invoke(command, { faceIds: targets.map(face => face.id), ...extraArgs });
-  } catch (error) {
-    host.showToast(faceNameErrorMessage(error));
-    return null;
-  }
-  try {
-    await invoke('recognize_faces', { photoIds: host.getDisplayedPhotoIds() });
+    await invoke('recognize_faces', { photoIds });
   } catch (error) {
     console.error('Réattribution impossible', error);
   }
   await refreshFaces(); // section Personnes, filtre, et cette vue (voir faces-panel.js)
-  return result;
+}
+
+// Une action de révision (ou une fenêtre « Nommer ») à la fois : sinon actions et réattributions s'entrelacent sur une sélection qui change.
+let actionBusy = false;
+
+// Action de révision sur les visages sélectionnés, puis réattribution des autres visages et rechargement.
+async function runAction(command, extraArgs = {}) {
+  const targets = selectedFaces();
+  if (targets.length === 0 || actionBusy) return null;
+  actionBusy = true;
+  try {
+    const photoIds = viewPhotoIds();
+    let result;
+    try {
+      result = await invoke(command, { faceIds: targets.map(face => face.id), ...extraArgs });
+    } catch (error) {
+      host.showToast(faceNameErrorMessage(error));
+      return null;
+    }
+    await recognizeAndRefresh(photoIds);
+    return result;
+  } finally {
+    actionBusy = false;
+  }
 }
 
 // Nommer les visages sélectionnés (fenêtre partagée avec le plein écran : faces-panel.js, promptPersonName). `typed` : premier caractère tapé
-// sur la vignette (saisie directe).
+// sur la vignette (saisie directe). Les frappes suivantes, avant l'apparition de la fenêtre, n'en ouvrent pas une autre.
 async function nameSelection(typed = null) {
   const targets = selectedFaces();
-  if (targets.length === 0) return;
-  await promptPersonName({
-    title: t('Name the faces'),
-    message: tp('Person shown on the {count} selected face (existing person, keyword path, or new name)', targets.length),
-    proposed: typed ?? targets.find(face => face.name)?.name ?? '',
-    selectValue: typed === null,
-    submit: async args => {
-      await invoke('assign_faces', { faceIds: targets.map(face => face.id), ...args });
-      try { await invoke('recognize_faces', { photoIds: host.getDisplayedPhotoIds() }); } catch { /* réattribution facultative */ }
-      await refreshFaces();
-    },
-  });
+  if (targets.length === 0 || actionBusy) return;
+  actionBusy = true;
+  try {
+    const photoIds = viewPhotoIds();
+    await promptPersonName({
+      title: t('Name the faces'),
+      message: tp('Person shown on the {count} selected face (existing person, keyword path, or new name)', targets.length),
+      proposed: typed ?? targets.find(face => face.name)?.name ?? '',
+      selectValue: typed === null,
+      submit: async args => {
+        await invoke('assign_faces', { faceIds: targets.map(face => face.id), ...args });
+        await recognizeAndRefresh(photoIds);
+      },
+    });
+  } finally {
+    actionBusy = false;
+  }
 }
 
 // ==========================================
@@ -715,11 +762,8 @@ export function initFacesGrid(hostApi) {
   scroller().addEventListener('click', event => {
     if (event.target instanceof Element && event.target.closest('.face-tile')) return;
     if (event.ctrlKey || event.metaKey || event.shiftKey || selected.size === 0) return;
-    selected.clear();
-    selectionOrder = [];
-    anchorIndex = null;
-    renderVisible();
-    updateToolbar();
+    clearSelection();
+    selectionChanged();
   });
   // Le bouton « Visages » de la barre du haut ouvre la vue Personnes (main.js) ; cette vue a son bouton de retour vers elle.
   document.getElementById('btn-faces-persons').addEventListener('click', () => host.openPersonsView());
@@ -751,7 +795,7 @@ export function initFacesGrid(hostApi) {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (!document.getElementById('btn-faces-confirm').disabled) runAction('confirm_faces');
+      if (!event.repeat && !document.getElementById('btn-faces-confirm').disabled) runAction('confirm_faces');
     } else if (['-', '/', 'Delete'].includes(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
       // - : Inconnu ; / : Ignorer ; Suppr : Pas un visage. Même effet que les boutons de la barre d'actions (et seulement s'ils sont actifs) ; ces
       // touches ne sont pas prises pour le début d'un nom. Inactives pendant la fenêtre « Nommer » (fenêtre modale : voir le garde plus haut).
@@ -766,14 +810,11 @@ export function initFacesGrid(hostApi) {
       event.preventDefault();
       selected = new Set(shown.map(face => face.id));
       selectionOrder = shown.map(face => face.id).reverse();
-      renderVisible();
-      updateToolbar();
+      selectionChanged();
     } else if (event.key === 'Escape' && selected.size > 0) {
       event.preventDefault();
-      selected.clear();
-      selectionOrder = [];
-      renderVisible();
-      updateToolbar();
+      clearSelection();
+      selectionChanged();
     }
   });
   onLanguageChange(() => { if (open) rebuild(); });

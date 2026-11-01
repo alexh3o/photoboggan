@@ -92,6 +92,21 @@ export function orientRect({ x, y, w, h }, orientation) {
   }
 }
 
+// Découpe carrée d'un visage dans une miniature de `width` × `height` px, par CSS : la zone (repère de l'image stockée, orientée ici comme la
+// miniature) est élargie de `zoom`, centrée et gardée dans l'image. Renvoie background-size et background-position (vignettes et avatars).
+export function faceCropStyle(face, orientation, width, height, zoom) {
+  const rect = orientRect(face, orientation);
+  const faceWidth = rect.w * width;
+  const faceHeight = rect.h * height;
+  const side = Math.min(Math.max(faceWidth, faceHeight) * zoom, width, height);
+  const left = Math.min(Math.max(rect.x * width + faceWidth / 2 - side / 2, 0), width - side);
+  const top = Math.min(Math.max(rect.y * height + faceHeight / 2 - side / 2, 0), height - side);
+  return {
+    size: `${(width / side) * 100}% ${(height / side) * 100}%`,
+    position: `${width > side ? (left / (width - side)) * 100 : 0}% ${height > side ? (top / (height - side)) * 100 : 0}%`,
+  };
+}
+
 // ==========================================
 // FILTRES PERSONNES (ET) ET STATUT DU SCAN : utilisés par applyPhotoFilters dans main.js
 // ==========================================
@@ -398,17 +413,7 @@ async function loadAvatar(element, cover) {
     const width = image.naturalWidth;
     const height = image.naturalHeight;
     if (!(width > 0 && height > 0)) return;
-    const rect = orientRect(cover, cover.orientation);
-    const faceWidth = rect.w * width;
-    const faceHeight = rect.h * height;
-    const side = Math.min(Math.max(faceWidth, faceHeight) * 1.4, width, height);
-    const left = Math.min(Math.max(rect.x * width + faceWidth / 2 - side / 2, 0), width - side);
-    const top = Math.min(Math.max(rect.y * height + faceHeight / 2 - side / 2, 0), height - side);
-    const style = {
-      image: `url("${url}")`,
-      size: `${(width / side) * 100}% ${(height / side) * 100}%`,
-      position: `${width > side ? (left / (width - side)) * 100 : 0}% ${height > side ? (top / (height - side)) * 100 : 0}%`,
-    };
+    const style = { image: `url("${url}")`, ...faceCropStyle(cover, cover.orientation, width, height, 1.4) };
     avatarStyles.set(key, style);
     // L'élément a pu être remplacé entre-temps (liste reconstruite) : le style est appliqué aux vignettes de cette couverture affichées.
     for (const avatar of document.querySelectorAll(`#persons-list .person-avatar[data-cover="${CSS.escape(key)}"]`)) applyAvatarStyle(avatar, style);
