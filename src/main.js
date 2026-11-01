@@ -14,7 +14,7 @@ import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
-import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView } from './faces-grid.js';
+import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
 // AJOUT BARRE TITRE
@@ -4871,10 +4871,13 @@ initMetadataWrites({
     photos.forEach((photo, index) => { if (wanted.has(photo.id)) indices.push(index); });
     return indices.length === wanted.size ? indices : null;
   },
+  // Sélection précédente rétablie (« Annuler » à la question des modifications en attente) : la vue Visages, si elle est ouverte, revient aussi
+  // aux visages de ces photos (sinon elle montrerait encore le visage cliqué, sur une autre photo).
   setSelectionIndices: indices => {
     selectedIndices = new Set(indices);
     lastSelectedIndex = indices[0] ?? 0;
     updateUIOnSelection();
+    restoreFaceSelection(indices.map(index => photos[index]?.id).filter(id => id !== undefined));
   },
   // La vue des miniatures ne montre plus que ces fichiers (pastille « Fichiers en échec » pour revenir à la liste complète).
   showFailedFiles: paths => {

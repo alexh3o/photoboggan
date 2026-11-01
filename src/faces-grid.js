@@ -541,6 +541,12 @@ function lastSelectedId() {
   return shown.find(face => selected.has(face.id))?.id ?? null;
 }
 
+// Dernières sélections de visages transmises, avec leurs photos : si un changement de sélection est annulé (question des modifications en
+// attente, metadata-writes.js), la sélection de visages qui correspondait aux photos rétablies est retrouvée (voir restoreFaceSelection).
+const MAX_SELECTION_HISTORY = 10;
+const selectionHistory = []; // [{ photoKey, selected, selectionOrder, anchorId }], la plus récente en dernier
+const photoKeyOf = photoIds => [...new Set(photoIds)].sort((a, b) => a - b).join(',');
+
 // Après tout changement de sélection (clic, Ctrl + A, titre de groupe, Échap, clic dans le vide) : vignettes, barre d'actions, et sélection des
 // photos, que suivent les panneaux de droite (Info, Mots-clés, Description) : leurs modifications visent exactement les photos de ces visages.
 function selectionChanged() {
@@ -548,7 +554,33 @@ function selectionChanged() {
   updateToolbar();
   const targets = selectedFaces();
   const mainId = lastSelectedId();
-  host.selectPhotos(targets.map(face => face.photo_id), targets.find(face => face.id === mainId)?.photo_id ?? null);
+  const photoIds = targets.map(face => face.photo_id);
+  selectionHistory.push({ photoKey: photoKeyOf(photoIds), selected: new Set(selected), selectionOrder: [...selectionOrder], anchorId });
+  if (selectionHistory.length > MAX_SELECTION_HISTORY) selectionHistory.shift();
+  host.selectPhotos(photoIds, targets.find(face => face.id === mainId)?.photo_id ?? null);
+}
+
+// La sélection de photos a été rétablie (« Annuler » à la question des modifications en attente) : la sélection de visages revient à la
+// dernière qui portait sur ces photos, sans renvoyer la sélection de photos (déjà en place). Sans correspondance (sélection faite hors de cette
+// vue), les visages de ces photos sont sélectionnés.
+export function restoreFaceSelection(photoIds) {
+  if (!open) return;
+  const key = photoKeyOf(photoIds);
+  const index = selectionHistory.findLastIndex(entry => entry.photoKey === key);
+  if (index >= 0) {
+    const entry = selectionHistory[index];
+    selectionHistory.splice(index + 1); // les sélections annulées sont oubliées
+    selected = new Set(entry.selected);
+    selectionOrder = [...entry.selectionOrder];
+    anchorId = entry.anchorId;
+  } else {
+    const wanted = new Set(photoIds);
+    selected = new Set(shown.filter(face => wanted.has(face.photo_id)).map(face => face.id));
+    selectionOrder = [...selected];
+    anchorId = null;
+  }
+  renderVisible();
+  updateToolbar();
 }
 
 function clearSelection() {
