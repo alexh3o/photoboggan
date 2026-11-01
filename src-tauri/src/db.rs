@@ -44,7 +44,7 @@ pub struct TrackedFolder {
 
 /// Ajoute une colonne à une table existante (mise à niveau d'un catalogue sans le perdre). « Colonne déjà présente » est le cas normal ;
 /// toute autre erreur arrête le démarrage avec un message clair, plutôt que de laisser des requêtes échouer plus tard.
-fn add_column(conn: &rusqlite::Connection, table: &str, definition: &str) {
+pub(crate) fn add_column(conn: &rusqlite::Connection, table: &str, definition: &str) {
     if let Err(error) = conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {definition}"), []) {
         if !error.to_string().contains("duplicate column name") {
             panic!("Database migration failed ({table}: {definition}): {error}");
@@ -116,7 +116,7 @@ pub fn init_db(db_path: &str) -> DbPool {
     // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
     crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
     // Visages et personnes : voir faces.rs.
-    crate::faces::init_schema(&conn);
+    crate::faces::init_schema(&conn).expect("Face tables could not be created");
 
     pool
 }

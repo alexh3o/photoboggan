@@ -315,8 +315,8 @@ fn list_items(scope: &str) -> Vec<&str> {
 
 /// Crée les tables à l'ouverture de la base (sans toucher aux données existantes). Appelée par `db::init_db`, après `photos` et les mots-clés.
 /// Les colonnes des lots suivants (détection, reconnaissance, écriture) sont déjà prévues pour éviter des migrations.
-pub fn init_schema(conn: &Connection) {
-    let _ = conn.execute_batch(
+pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS persons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -365,21 +365,21 @@ pub fn init_schema(conn: &Connection) {
         -- Photos retirées du catalogue : leurs visages ne servent plus (les identifiants ne sont jamais réutilisés).
         DELETE FROM faces WHERE photo_id NOT IN (SELECT id FROM photos);
         DELETE FROM photo_face_scans WHERE photo_id NOT IN (SELECT id FROM photos);",
-    );
+    )?;
     // 5 points de repère de YuNet (yeux, nez, coins de la bouche), 10 flottants normalisés, repère de l'image stockée : alignement avant SFace (lot 3).
-    let _ = conn.execute("ALTER TABLE faces ADD COLUMN landmarks BLOB", []);
+    crate::db::add_column(conn, "faces", "landmarks BLOB");
     // Personne que l'utilisateur a refusée pour ce visage (« Inconnu ») : l'attribution ne la lui propose plus (lot 3).
-    let _ = conn.execute("ALTER TABLE faces ADD COLUMN rejected_person_id INTEGER", []);
+    crate::db::add_column(conn, "faces", "rejected_person_id INTEGER");
     // « Inconnu » demandé par l'utilisateur : le visage reste inconnu, l'attribution automatique ne le propose plus à personne (elle ne le
     // reprendrait sinon qu'en excluant la dernière personne refusée, et le ferait revenir sur une autre, ou sur la précédente). Levé quand
     // l'utilisateur nomme le visage.
-    let _ = conn.execute("ALTER TABLE faces ADD COLUMN unknown_locked INTEGER NOT NULL DEFAULT 0", []);
+    crate::db::add_column(conn, "faces", "unknown_locked INTEGER NOT NULL DEFAULT 0");
     // Écriture dans les fichiers (lot 4) :
     // - face_keywords : mots-clés activés sur une photo par la reconnaissance (et non par l'utilisateur) : seuls ceux-là sont retirés quand le
     //   dernier visage de la personne quitte la photo (spec §6.3). Le nœud de l'arbre n'est jamais supprimé par ces opérations ;
     // - photo_face_writes : photos dont les zones sont à réécrire alors qu'aucun visage n'y est marqué (visage nommé supprimé, données effacées) ;
     // - personnes reliées à un mot-clé qui n'existe plus dans l'arbre : déliées.
-    let _ = conn.execute_batch(
+    conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS face_keywords (
             photo_id INTEGER NOT NULL,
             keyword_id INTEGER NOT NULL,
@@ -388,10 +388,10 @@ pub fn init_schema(conn: &Connection) {
         CREATE TABLE IF NOT EXISTS photo_face_writes (photo_id INTEGER PRIMARY KEY);
         DELETE FROM face_keywords WHERE photo_id NOT IN (SELECT id FROM photos);
         DELETE FROM photo_face_writes WHERE photo_id NOT IN (SELECT id FROM photos);",
-    );
+    )?;
     // Fusion de personnes (lot 5c, spec §9.5) : la personne absorbée est gardée dans le journal (nom, mot-clé lié, visage représentatif,
     // masquage) avec ses visages, pour pouvoir l'annuler. role : 'person' (visage attribué), 'suggested' (suggestion), 'rejected' (refus).
-    let _ = conn.execute_batch(
+    conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS person_merges (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             from_person_id INTEGER NOT NULL,
@@ -410,19 +410,20 @@ pub fn init_schema(conn: &Connection) {
             role TEXT NOT NULL,
             PRIMARY KEY (merge_id, face_id, role)
         );",
-    );
+    )?;
     // Alias d'une personne (affichage seulement : vue de gestion, vue Personnes, section Personnes) ; jamais écrit dans les fichiers, le filtre
     // Personnes garde le nom du mot-clé.
-    let _ = conn.execute("ALTER TABLE persons ADD COLUMN alias TEXT", []);
-    unlink_missing_keywords(conn);
+    crate::db::add_column(conn, "persons", "alias TEXT");
+    unlink_missing_keywords(conn)
 }
 
 /// Personnes reliées à un mot-clé supprimé de l'arbre : déliées (elles gardent leur nom et leurs visages).
-pub fn unlink_missing_keywords(conn: &Connection) {
-    let _ = conn.execute(
+pub fn unlink_missing_keywords(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute(
         "UPDATE persons SET keyword_node_id = NULL WHERE keyword_node_id IS NOT NULL AND keyword_node_id NOT IN (SELECT id FROM keyword_nodes)",
         [],
-    );
+    )?;
+    Ok(())
 }
 
 /// Personne désignée par un nom lu dans une zone de visage : celle reliée au mot-clé qui porte ce nom (le nom écrit est celui du mot-clé), à défaut
@@ -447,39 +448,47 @@ fn ensure_person(conn: &Connection, name: &str) -> rusqlite::Result<i64> {
 }
 
 /// Liaison automatique d'une personne non liée : au nœud de l'arbre qui porte son nom, s'il est le seul et n'est lié à aucune autre personne.
-fn auto_link_person(conn: &Connection, person_id: i64) {
-    let Ok((linked, key)) = conn.query_row(
-        "SELECT keyword_node_id IS NOT NULL, name_key FROM persons WHERE id = ?1",
-        params![person_id],
-        |row| Ok((row.get::<_, bool>(0)?, row.get::<_, String>(1)?)),
-    ) else { return; };
-    if linked { return; }
-    let Ok(mut statement) = conn.prepare_cached("SELECT id FROM keyword_nodes WHERE name_key = ?1") else { return; };
-    let nodes: Vec<i64> = statement.query_map(params![key], |row| row.get(0)).map(|rows| rows.flatten().collect()).unwrap_or_default();
-    let [node_id] = nodes[..] else { return; };
-    let taken: bool = conn
-        .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE keyword_node_id = ?1)", params![node_id], |row| row.get(0))
-        .unwrap_or(true);
+fn auto_link_person(conn: &Connection, person_id: i64) -> rusqlite::Result<()> {
+    let Some((linked, key)) = conn
+        .query_row(
+            "SELECT keyword_node_id IS NOT NULL, name_key FROM persons WHERE id = ?1",
+            params![person_id],
+            |row| Ok((row.get::<_, bool>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?
+    else { return Ok(()); };
+    if linked { return Ok(()); }
+    let nodes: Vec<i64> = conn
+        .prepare_cached("SELECT id FROM keyword_nodes WHERE name_key = ?1")?
+        .query_map(params![key], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let [node_id] = nodes[..] else { return Ok(()); };
+    let taken: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE keyword_node_id = ?1)", params![node_id], |row| row.get(0))?;
     if !taken {
-        let _ = conn.execute("UPDATE persons SET keyword_node_id = ?1 WHERE id = ?2", params![node_id, person_id]);
+        conn.execute("UPDATE persons SET keyword_node_id = ?1 WHERE id = ?2", params![node_id, person_id])?;
     }
+    Ok(())
 }
 
 /// Photo relue dont les proportions ont changé depuis son scan de visages (rotation des pixels, recadrage : spec §4.2) : marquée « à revérifier ».
 /// Une rotation par le seul tag Orientation ne change pas les dimensions stockées, un redimensionnement proportionnel non plus : rien à faire.
-fn mark_geometry_change(conn: &Connection, photo_id: i64, width: i64, height: i64) {
-    if width <= 0 || height <= 0 { return; }
-    let Ok((scan_width, scan_height)) = conn.query_row(
-        "SELECT width, height FROM photo_face_scans WHERE photo_id = ?1",
-        params![photo_id],
-        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
-    ) else { return; };
-    if scan_width <= 0 || scan_height <= 0 { return; }
+fn mark_geometry_change(conn: &Connection, photo_id: i64, width: i64, height: i64) -> rusqlite::Result<()> {
+    if width <= 0 || height <= 0 { return Ok(()); }
+    let Some((scan_width, scan_height)) = conn
+        .query_row(
+            "SELECT width, height FROM photo_face_scans WHERE photo_id = ?1",
+            params![photo_id],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()?
+    else { return Ok(()); };
+    if scan_width <= 0 || scan_height <= 0 { return Ok(()); }
     let before = scan_width as f64 / scan_height as f64;
     let now = width as f64 / height as f64;
     if ((before - now) / before).abs() > 0.01 {
-        let _ = conn.execute("UPDATE photo_face_scans SET needs_review = 1 WHERE photo_id = ?1", params![photo_id]);
+        conn.execute("UPDATE photo_face_scans SET needs_review = 1 WHERE photo_id = ?1", params![photo_id])?;
     }
+    Ok(())
 }
 
 /// Enregistre, pour chaque photo (identifiée par son chemin), ce que la lecture de ses fichiers a appris : orientation EXIF, changement de
@@ -514,7 +523,7 @@ fn store_photo_faces_in(conn: &Connection, items: &[(String, PhotoFaces)]) -> ru
             .optional()?
         else { continue; };
         conn.execute("UPDATE photos SET orientation = ?1 WHERE id = ?2", params![faces.orientation, photo_id])?;
-        mark_geometry_change(conn, photo_id, width, height);
+        mark_geometry_change(conn, photo_id, width, height)?;
         let Some(regions) = &faces.regions else { continue; };
         struct Existing { id: i64, rect: [f64; 4], state: String, origin: String, person_id: Option<i64>, dirty: bool }
         // Tous les visages de la photo : une zone relue peut être un visage détecté que photoboggan a lui-même écrit (lot 4), à ne pas dédoubler.
@@ -588,7 +597,7 @@ fn store_photo_faces_in(conn: &Connection, items: &[(String, PhotoFaces)]) -> ru
             conn.execute("DELETE FROM faces WHERE id = ?1", params![candidate.id])?;
         }
     }
-    for person_id in touched { auto_link_person(conn, person_id); }
+    for person_id in touched { auto_link_person(conn, person_id)?; }
     // Une personne qui n'a plus aucun visage est conservée : elle peut attendre une attribution. Le nettoyage se fera à la demande
     // (action prévue dans Paramètres > Visages).
     Ok(())
@@ -725,7 +734,8 @@ pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64) -> Result<Phot
     let conn = pool.get().map_err(|error| error.to_string())?;
     let orientation = conn
         .query_row("SELECT orientation FROM photos WHERE id = ?1", params![photo_id], |row| row.get::<_, Option<u32>>(0))
-        .ok()
+        .optional()
+        .map_err(|error| error.to_string())?
         .flatten()
         .unwrap_or(1);
     let mut statement = conn
@@ -907,17 +917,20 @@ fn resolve_person(conn: &Connection, person_id: Option<i64>, keyword_id: Option<
         return if exists { Ok(id) } else { Err("unknown_person".to_string()) };
     }
     let link_or_create = |node_id: i64, name: &str| -> Result<i64, String> {
-        if let Ok(id) = conn.query_row("SELECT id FROM persons WHERE keyword_node_id = ?1", params![node_id], |row| row.get::<_, i64>(0)) {
-            return Ok(id);
-        }
+        let linked = conn.query_row("SELECT id FROM persons WHERE keyword_node_id = ?1", params![node_id], |row| row.get::<_, i64>(0)).optional().map_err(|error| error.to_string())?;
+        if let Some(id) = linked { return Ok(id); }
         let key = crate::keywords::name_key(name);
-        match conn.query_row("SELECT id, keyword_node_id FROM persons WHERE name_key = ?1", params![key], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?))) {
-            Ok((id, None)) => {
+        let same_name = conn
+            .query_row("SELECT id, keyword_node_id FROM persons WHERE name_key = ?1", params![key], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<i64>>(1)?)))
+            .optional()
+            .map_err(|error| error.to_string())?;
+        match same_name {
+            Some((id, None)) => {
                 conn.execute("UPDATE persons SET keyword_node_id = ?1 WHERE id = ?2", params![node_id, id]).map_err(|error| error.to_string())?;
                 Ok(id)
             }
-            Ok(_) => Err("person_name_taken".to_string()),
-            Err(_) => {
+            Some(_) => Err("person_name_taken".to_string()),
+            None => {
                 conn.execute("INSERT INTO persons (name, name_key, keyword_node_id) VALUES (?1, ?2, ?3)", params![name.trim(), key, node_id])
                     .map_err(|error| error.to_string())?;
                 Ok(conn.last_insert_rowid())
@@ -931,9 +944,11 @@ fn resolve_person(conn: &Connection, person_id: Option<i64>, keyword_id: Option<
         return link_or_create(node_id, &node_name);
     }
     let name = name.and_then(valid_person_name).ok_or_else(|| "invalid_name".to_string())?;
-    if let Ok(id) = conn.query_row("SELECT id FROM persons WHERE name_key = ?1", params![crate::keywords::name_key(&name)], |row| row.get::<_, i64>(0)) {
-        return Ok(id);
-    }
+    let existing = conn
+        .query_row("SELECT id FROM persons WHERE name_key = ?1", params![crate::keywords::name_key(&name)], |row| row.get::<_, i64>(0))
+        .optional()
+        .map_err(|error| error.to_string())?;
+    if let Some(id) = existing { return Ok(id); }
     let mut parent_id = 0i64;
     for segment in root.split('/').map(str::trim).filter(|segment| !segment.is_empty()) {
         parent_id = crate::keywords::ensure_node(conn, parent_id, segment).map_err(|error| error.to_string())?;
@@ -1066,13 +1081,13 @@ pub struct FaceWritePlan {
 }
 
 /// La photo a des visages à écrire (visage modifié, ou zone à retirer).
-pub fn has_pending_face_write(conn: &Connection, photo_id: i64) -> bool {
+pub fn has_pending_face_write(conn: &Connection, photo_id: i64) -> Result<bool, String> {
     conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM faces WHERE photo_id = ?1 AND dirty = 1) OR EXISTS(SELECT 1 FROM photo_face_writes WHERE photo_id = ?1)",
         params![photo_id],
         |row| row.get(0),
     )
-    .unwrap_or(false)
+    .map_err(|error| error.to_string())
 }
 
 fn id_set(conn: &Connection, sql: &str, photo_id: i64) -> Result<HashSet<i64>, String> {
@@ -1269,10 +1284,13 @@ pub fn rename_person(state: State<'_, AppState>, person_id: i64, name: String) -
         .query_row("SELECT EXISTS(SELECT 1 FROM persons WHERE name_key = ?1 AND id <> ?2)", params![key, person_id], |row| row.get(0))
         .map_err(|error| error.to_string())?;
     if taken { return Err("person_name_taken".to_string()); }
-    conn.execute("UPDATE persons SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, person_id]).map_err(|error| error.to_string())?;
-    // Les zones écrites portent l'ancien nom : visages de la personne à réécrire.
-    let _ = conn.execute("UPDATE faces SET dirty = 1 WHERE person_id = ?1 AND state IN ('auto', 'confirmed')", params![person_id]);
-    Ok(())
+    // Une seule transaction : un nouveau nom sans ses visages à réécrire laisserait les fichiers avec l'ancien nom.
+    in_transaction(&conn, |conn| -> rusqlite::Result<()> {
+        conn.execute("UPDATE persons SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, person_id])?;
+        // Les zones écrites portent l'ancien nom : visages de la personne à réécrire.
+        conn.execute("UPDATE faces SET dirty = 1 WHERE person_id = ?1 AND state IN ('auto', 'confirmed')", params![person_id])?;
+        Ok(())
+    })
 }
 
 /// Alias d'une personne (None ou texte vide : retiré). Affichage seulement : les fichiers et le filtre Personnes gardent le nom du mot-clé.
@@ -1404,7 +1422,7 @@ fn undo_merge_rows(conn: &Connection, merge_id: i64, from_id: i64, to_id: i64, p
             "SELECT ?1 WHERE EXISTS(SELECT 1 FROM keyword_nodes WHERE id = ?1) AND NOT EXISTS(SELECT 1 FROM persons WHERE keyword_node_id = ?1)",
             params![node_id],
             |row| row.get::<_, i64>(0),
-        ).ok(),
+        ).optional()?,
         None => None,
     };
     conn.execute(
@@ -1612,14 +1630,17 @@ fn remove_person_covers(dir: &std::path::Path, person_id: i64, keep: Option<&std
 pub fn get_person_cover(state: State<'_, AppState>, person_id: i64) -> Result<Option<String>, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
-    let found = conn.query_row(
+    let found = conn
+        .query_row(
         "SELECT f.id, p.path, f.x, f.y, f.w, f.h, COALESCE(p.orientation, 1), COALESCE(p.width, 0), COALESCE(p.height, 0)
          FROM faces f JOIN photos p ON p.id = f.photo_id JOIN persons pr ON pr.id = f.person_id
          WHERE f.person_id = ?1 ORDER BY (f.id = pr.cover_face_id) DESC, f.w * f.h DESC LIMIT 1",
         params![person_id],
         |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, [row.get::<_, f64>(2)?, row.get(3)?, row.get(4)?, row.get(5)?], row.get::<_, u32>(6)?, row.get::<_, i64>(7)?, row.get::<_, i64>(8)?)),
-    );
-    let Ok((face_id, path, rect, orientation, width, height)) = found else { return Ok(None); };
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((face_id, path, rect, orientation, width, height)) = found else { return Ok(None); };
     drop(conn);
     let side = state.thumbnail_cache_size();
     let dir = person_covers_dir(&state);

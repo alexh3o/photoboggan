@@ -324,13 +324,14 @@ fn run_write(
     let mut face_plans: HashMap<i64, crate::faces::FaceWritePlan> = HashMap::new();
     let mut unplanned: HashSet<i64> = HashSet::new();
     for item in &valid {
-        if item.faces == Some(true) || crate::faces::has_pending_face_write(&conn, item.photo_id) {
-            match crate::faces::plan_face_write(&conn, item.photo_id, item.keyword_ids.as_deref()) {
-                Ok(plan) => { face_plans.insert(item.photo_id, plan); }
-                Err(error) => {
-                    unplanned.insert(item.photo_id);
-                    push_failure(&mut failed, item.photo_id, item.path.clone(), error);
-                }
+        let wanted = if item.faces == Some(true) { Ok(true) } else { crate::faces::has_pending_face_write(&conn, item.photo_id) };
+        let plan = wanted.and_then(|wanted| if wanted { crate::faces::plan_face_write(&conn, item.photo_id, item.keyword_ids.as_deref()).map(Some) } else { Ok(None) });
+        match plan {
+            Ok(Some(plan)) => { face_plans.insert(item.photo_id, plan); }
+            Ok(None) => {}
+            Err(error) => {
+                unplanned.insert(item.photo_id);
+                push_failure(&mut failed, item.photo_id, item.path.clone(), error);
             }
         }
     }
