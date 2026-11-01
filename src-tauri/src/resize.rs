@@ -302,36 +302,8 @@ fn decode_jpeg(bytes: &[u8], options: &ResizeOptions) -> Result<(Raster, (usize,
 }
 
 fn decode_png(bytes: &[u8]) -> Result<(Raster, Option<Vec<u8>>), String> {
-    let mut decoder = png::Decoder::new(Cursor::new(bytes));
-    // EXPAND : palettes, niveaux de gris < 8 bits et tRNS deviennent du RGB(A) 8 bits ; STRIP_16 : 16 bits -> 8 bits.
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    let mut reader = decoder.read_info().map_err(|error| format!("PNG illisible : {error}"))?;
-    let icc = reader.info().icc_profile.as_ref().map(|profile| profile.to_vec());
-    let mut buffer = vec![0u8; reader.output_buffer_size().ok_or("PNG trop grand")?];
-    let frame = reader.next_frame(&mut buffer).map_err(|error| format!("Décodage PNG impossible : {error}"))?;
-    let (width, height) = (frame.width as usize, frame.height as usize);
-    if frame.bit_depth != png::BitDepth::Eight { return Err("Profondeur de bits PNG non prise en charge".into()); }
-    let data = &buffer[..frame.buffer_size()];
-    let pixel_count = width * height;
-    let raster = match frame.color_type {
-        png::ColorType::Rgb => Raster { rgb: data.to_vec(), alpha: None, width, height },
-        png::ColorType::Rgba => {
-            let mut rgb = Vec::with_capacity(pixel_count * 3);
-            let mut alpha = Vec::with_capacity(pixel_count);
-            for pixel in data.chunks_exact(4) { rgb.extend_from_slice(&pixel[..3]); alpha.push(pixel[3]); }
-            Raster { rgb, alpha: Some(alpha), width, height }
-        }
-        png::ColorType::Grayscale => Raster { rgb: data.iter().flat_map(|&value| [value, value, value]).collect(), alpha: None, width, height },
-        png::ColorType::GrayscaleAlpha => {
-            let mut rgb = Vec::with_capacity(pixel_count * 3);
-            let mut alpha = Vec::with_capacity(pixel_count);
-            for pixel in data.chunks_exact(2) { rgb.extend_from_slice(&[pixel[0], pixel[0], pixel[0]]); alpha.push(pixel[1]); }
-            Raster { rgb, alpha: Some(alpha), width, height }
-        }
-        png::ColorType::Indexed => return Err("PNG indexé non pris en charge".into()),
-    };
-    if raster.rgb.len() != pixel_count * 3 { return Err("Dimensions PNG incohérentes".into()); }
-    Ok((raster, icc))
+    let png = thumbnails::decode_png(Cursor::new(bytes), true, false)?;
+    Ok((Raster { rgb: png.rgb, alpha: png.alpha, width: png.width, height: png.height }, png.icc))
 }
 
 fn resize_raster(raster: Raster, width: usize, height: usize) -> Raster {

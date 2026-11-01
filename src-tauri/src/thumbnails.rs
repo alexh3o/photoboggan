@@ -75,6 +75,66 @@ pub fn generate_video_preview(source: &Path, destination: &Path, max_side: usize
     write_jpeg(destination, &rgb, width, height)
 }
 
+/// Nombre maximal de pixels d'une image décodée en pleine résolution (PNG, WebP) : un en-tête abîmé ou hostile ne doit pas provoquer l'allocation
+/// de plusieurs gigaoctets (l'application avorterait au lieu de signaler le fichier).
+pub(crate) const MAX_DECODED_PIXELS: u64 = 250_000_000;
+
+pub(crate) fn check_pixel_count(width: u32, height: u32) -> Result<(), String> {
+    if width == 0 || height == 0 || u64::from(width) * u64::from(height) > MAX_DECODED_PIXELS {
+        return Err(format!("Dimensions d'image déraisonnables ({width} × {height})"));
+    }
+    Ok(())
+}
+
+/// PNG décodé en RGB 8 bits ; la transparence éventuelle est un plan à part (`alpha`).
+pub(crate) struct DecodedPng {
+    pub rgb: Vec<u8>,
+    pub alpha: Option<Vec<u8>>,
+    pub width: usize,
+    pub height: usize,
+    pub icc: Option<Vec<u8>>,
+}
+
+/// Décode un PNG (palettes, niveaux de gris et 16 bits ramenés au RGB(A) 8 bits). `want_pixels` faux : le fichier est entièrement décodé et contrôlé,
+/// mais les pixels ne sont pas convertis (RGB vide renvoyé). `verify_end` : lit aussi la suite du fichier jusqu'à la fin du flux, pour détecter un PNG
+/// tronqué après les données image (vérification d'intégrité). Les dimensions sont contrôlées avant toute allocation.
+pub(crate) fn decode_png<R: std::io::BufRead + Seek>(source: R, want_pixels: bool, verify_end: bool) -> Result<DecodedPng, String> {
+    let mut decoder = png::Decoder::new(source);
+    // EXPAND : palettes, niveaux de gris < 8 bits et tRNS deviennent du RGB(A) 8 bits ; STRIP_16 : 16 bits -> 8 bits.
+    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+    let mut reader = decoder.read_info().map_err(|error| format!("PNG illisible : {error}"))?;
+    check_pixel_count(reader.info().width, reader.info().height)?;
+    let icc = reader.info().icc_profile.as_ref().map(|profile| profile.to_vec());
+    let mut buffer = vec![0u8; reader.output_buffer_size().ok_or("PNG trop grand")?];
+    let frame = reader.next_frame(&mut buffer).map_err(|error| format!("Décodage PNG impossible : {error}"))?;
+    if verify_end { reader.finish().map_err(|error| format!("Fin de fichier PNG invalide : {error}"))?; }
+    let (width, height) = (frame.width as usize, frame.height as usize);
+    if width == 0 || height == 0 { return Err("Dimensions PNG incohérentes".into()); }
+    if frame.bit_depth != png::BitDepth::Eight { return Err("Profondeur de bits PNG non prise en charge".into()); }
+    if !want_pixels { return Ok(DecodedPng { rgb: Vec::new(), alpha: None, width, height, icc }); }
+    let data = &buffer[..frame.buffer_size()];
+    let pixel_count = width * height;
+    let (rgb, alpha) = match frame.color_type {
+        png::ColorType::Rgb => (data.to_vec(), None),
+        png::ColorType::Rgba => {
+            let mut rgb = Vec::with_capacity(pixel_count * 3);
+            let mut alpha = Vec::with_capacity(pixel_count);
+            for pixel in data.chunks_exact(4) { rgb.extend_from_slice(&pixel[..3]); alpha.push(pixel[3]); }
+            (rgb, Some(alpha))
+        }
+        png::ColorType::Grayscale => (data.iter().flat_map(|&value| [value, value, value]).collect(), None),
+        png::ColorType::GrayscaleAlpha => {
+            let mut rgb = Vec::with_capacity(pixel_count * 3);
+            let mut alpha = Vec::with_capacity(pixel_count);
+            for pixel in data.chunks_exact(2) { rgb.extend_from_slice(&[pixel[0], pixel[0], pixel[0]]); alpha.push(pixel[1]); }
+            (rgb, Some(alpha))
+        }
+        png::ColorType::Indexed => return Err("PNG indexé non pris en charge".into()),
+    };
+    if rgb.len() != pixel_count * 3 { return Err("Dimensions PNG incohérentes".into()); }
+    Ok(DecodedPng { rgb, alpha, width, height, icc })
+}
+
 /// Dimensions d'une miniature déjà présente dans le cache (lecture de l'en-tête uniquement).
 pub fn jpeg_size(path: &Path) -> Result<ThumbnailSize, String> {
     let file = File::open(path).map_err(|error| error.to_string())?;

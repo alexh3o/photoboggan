@@ -10,6 +10,9 @@
 //! Non vérifiés (comptés à part, jamais signalés comme corrompus) : vidéos (leur image fixe dépend du système ou de ffmpeg) et GIF, BMP, AVIF (pas de décodeur).
 //! Un décodeur qui panique sur un fichier malformé est traité comme un échec de décodage.
 //!
+//! Un fichier qui ne répond pas (lecture bloquée, partage réseau coupé) est abandonné après FILE_TIMEOUT et signalé suspect ; l'arrêt demandé par
+//! l'utilisateur est aussi observé pendant l'analyse d'un fichier. Les images PNG / WebP aux dimensions déraisonnables sont refusées avant toute allocation.
+//!
 //! Performances : nombre de threads proportionnel aux cœurs (moitié des cœurs, entre 2 et 6, pour laisser de la place à l'interface). Les formats lourds
 //! en mémoire et en temps (PNG, WebP, HEIC : décodage en pleine résolution) sont limités à 2 décodages simultanés, pour ne pas saturer la mémoire.
 //! Le rapport donne la durée totale, les extensions vérifiées / non vérifiées et la durée moyenne par fichier pour chaque extension ; il s'exporte en .txt.
@@ -20,8 +23,9 @@ use std::io::{BufReader, Read, Write};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Condvar, Mutex};
-use std::time::Instant;
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -31,6 +35,8 @@ use crate::{library_sync, thumbnails, video};
 
 /// Nombre maximal de décodages simultanés pour les formats lourds (PNG, WebP, HEIC).
 const HEAVY_DECODES: usize = 2;
+/// Durée maximale de l'analyse d'un fichier.
+const FILE_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Un fichier suspect du rapport.
 #[derive(Serialize, Deserialize, Clone)]
@@ -96,6 +102,7 @@ enum Outcome {
 enum Format {
     Png,
     WebP,
+    Heif,
     Other,
 }
 
@@ -105,27 +112,66 @@ struct Gate {
     released: Condvar,
 }
 
-struct GateGuard<'a>(&'a Gate);
+/// Créneau de décodage lourd d'un fichier : rendu une seule fois, soit par le décodage qui se termine, soit par l'analyse si elle abandonne le fichier
+/// après le délai (sans cela, un fichier bloqué garderait son créneau pour toujours et finirait par bloquer tous les décodages lourds).
+#[derive(Default)]
+struct SlotToken {
+    held: AtomicBool,
+    returned: AtomicBool,
+}
+
+struct GateGuard {
+    gate: Arc<Gate>,
+    token: Arc<SlotToken>,
+}
 
 impl Gate {
     fn new(slots: usize) -> Self {
         Gate { available: Mutex::new(slots), released: Condvar::new() }
     }
 
-    fn enter(&self) -> GateGuard<'_> {
-        let mut available = self.available.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        while *available == 0 {
-            available = self.released.wait(available).unwrap_or_else(|poisoned| poisoned.into_inner());
+    fn enter(gate: &Arc<Gate>, token: &Arc<SlotToken>) -> GateGuard {
+        {
+            let mut available = gate.available.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            while *available == 0 {
+                available = gate.released.wait(available).unwrap_or_else(|poisoned| poisoned.into_inner());
+            }
+            *available -= 1;
         }
-        *available -= 1;
-        GateGuard(self)
+        token.held.store(true, Ordering::SeqCst);
+        GateGuard { gate: gate.clone(), token: token.clone() }
+    }
+
+    fn release(&self) {
+        *self.available.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
+        self.released.notify_one();
+    }
+
+    /// Rend le créneau d'un fichier abandonné (sans effet s'il n'en tenait pas ou s'il l'a déjà rendu).
+    fn give_back(&self, token: &SlotToken) {
+        if token.held.load(Ordering::SeqCst) && !token.returned.swap(true, Ordering::SeqCst) { self.release(); }
     }
 }
 
-impl Drop for GateGuard<'_> {
+impl Drop for GateGuard {
     fn drop(&mut self) {
-        *self.0.available.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) += 1;
-        self.0.released.notify_one();
+        if !self.token.returned.swap(true, Ordering::SeqCst) { self.gate.release(); }
+    }
+}
+
+/// Exécute `work` dans un fil dédié. None si le délai est dépassé ou si l'arrêt est demandé : le fil, resté bloqué, est alors abandonné.
+fn run_bounded<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static, timeout: Duration, cancel: &AtomicBool) -> Option<T> {
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || { let _ = sender.send(work()); });
+    let started = Instant::now();
+    loop {
+        match receiver.recv_timeout(Duration::from_millis(200)) {
+            Ok(value) => return Some(value),
+            Err(RecvTimeoutError::Timeout) => {
+                if started.elapsed() > timeout || cancel.load(Ordering::Relaxed) { return None; }
+            }
+            Err(RecvTimeoutError::Disconnected) => return None,
+        }
     }
 }
 
@@ -139,6 +185,9 @@ fn extension_of(source: &Path) -> String {
         .unwrap_or_else(|| "sans extension".to_string())
 }
 
+/// Marques (« major brand » de la boîte `ftyp`) des fichiers HEIC / HEIF.
+const HEIF_BRANDS: [&[u8; 4]; 10] = [b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"hevm", b"hevs", b"mif1", b"msf1"];
+
 /// Format reconnu d'après le contenu du fichier (une extension trompeuse ne fait pas échouer un fichier sain).
 fn sniff(source: &Path) -> Format {
     let mut header = [0u8; 12];
@@ -147,6 +196,8 @@ fn sniff(source: &Path) -> Format {
         Format::Png
     } else if read >= 12 && &header[..4] == b"RIFF" && &header[8..12] == b"WEBP" {
         Format::WebP
+    } else if read >= 12 && &header[4..8] == b"ftyp" && HEIF_BRANDS.iter().any(|brand| &header[8..12] == &brand[..]) {
+        Format::Heif
     } else {
         Format::Other
     }
@@ -159,30 +210,16 @@ fn flatten(color: [u8; 3], alpha: u8) -> [u8; 3] {
 }
 
 /// Décode un PNG. `want_pixels` faux : le fichier est entièrement décodé et contrôlé, mais les pixels ne sont pas convertis en RGB (vecteur vide renvoyé).
+/// La transparence est aplatie sur fond blanc (le JPEG de la miniature n'en a pas).
 fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
     let file = File::open(source).map_err(|error| format!("Lecture impossible : {error}"))?;
-    let mut decoder = png::Decoder::new(BufReader::with_capacity(256 * 1024, file));
-    // EXPAND : palettes, niveaux de gris < 8 bits et tRNS deviennent du RGB(A) 8 bits ; STRIP_16 : 16 bits -> 8 bits.
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    let mut reader = decoder.read_info().map_err(|error| format!("PNG illisible : {error}"))?;
-    let mut buffer = vec![0u8; reader.output_buffer_size().ok_or("PNG trop grand")?];
-    let frame = reader.next_frame(&mut buffer).map_err(|error| format!("Décodage PNG impossible : {error}"))?;
-    // Lit la suite du fichier jusqu'à la fin du flux : un PNG tronqué après les données image est aussi détecté.
-    reader.finish().map_err(|error| format!("Fin de fichier PNG invalide : {error}"))?;
-    let (width, height) = (frame.width as usize, frame.height as usize);
-    if width == 0 || height == 0 { return Err("Dimensions PNG incohérentes".into()); }
-    if frame.bit_depth != png::BitDepth::Eight { return Err("Profondeur de bits PNG non prise en charge".into()); }
-    if !want_pixels { return Ok((Vec::new(), width, height)); }
-    let data = &buffer[..frame.buffer_size()];
-    let rgb: Vec<u8> = match frame.color_type {
-        png::ColorType::Rgb => data.to_vec(),
-        png::ColorType::Rgba => data.chunks_exact(4).flat_map(|pixel| flatten([pixel[0], pixel[1], pixel[2]], pixel[3])).collect(),
-        png::ColorType::Grayscale => data.iter().flat_map(|&value| [value, value, value]).collect(),
-        png::ColorType::GrayscaleAlpha => data.chunks_exact(2).flat_map(|pixel| flatten([pixel[0]; 3], pixel[1])).collect(),
-        png::ColorType::Indexed => return Err("PNG indexé non pris en charge".into()),
+    let png = thumbnails::decode_png(BufReader::with_capacity(256 * 1024, file), want_pixels, true)?;
+    if !want_pixels { return Ok((Vec::new(), png.width, png.height)); }
+    let rgb = match png.alpha {
+        Some(alpha) => png.rgb.chunks_exact(3).zip(&alpha).flat_map(|(pixel, &a)| flatten([pixel[0], pixel[1], pixel[2]], a)).collect(),
+        None => png.rgb,
     };
-    if rgb.len() != width * height * 3 { return Err("Dimensions PNG incohérentes".into()); }
-    Ok((rgb, width, height))
+    Ok((rgb, png.width, png.height))
 }
 
 /// Décode un WebP (première image s'il est animé). `want_pixels` faux : décodage complet, mais pas de conversion en RGB (vecteur vide renvoyé).
@@ -190,6 +227,7 @@ fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usiz
     let file = File::open(source).map_err(|error| format!("Lecture impossible : {error}"))?;
     let mut decoder = image_webp::WebPDecoder::new(BufReader::with_capacity(256 * 1024, file)).map_err(|error| format!("WebP illisible : {error}"))?;
     let (width, height) = decoder.dimensions();
+    thumbnails::check_pixel_count(width, height)?;
     let (width, height) = (width as usize, height as usize);
     let has_alpha = decoder.has_alpha();
     let mut buffer = vec![0u8; decoder.output_buffer_size().ok_or("WebP trop grand")?];
@@ -206,7 +244,7 @@ fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usiz
 }
 
 /// Analyse un fichier. `Err` = fichier suspect (message affiché dans le rapport).
-fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Gate) -> Result<Outcome, String> {
+fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc<Gate>, token: &Arc<SlotToken>) -> Result<Outcome, String> {
     let extension = source.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
     if video::is_video_path(source) || matches!(extension.as_str(), "gif" | "bmp" | "avif") {
         return Ok(Outcome::Unsupported);
@@ -215,14 +253,21 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Gat
     let destination = crate::thumbnail_cache_file(thumbnails_dir, &source.to_string_lossy()).map_err(|error| format!("Fichier illisible : {error}"))?;
     let thumbnail_missing = !destination.is_file();
 
-    let (rgb, width, height) = match sniff(source) {
+    let format = sniff(source);
+    let (rgb, width, height) = match format {
         Format::Png => {
-            let _slot = heavy.enter();
+            let _slot = Gate::enter(heavy, token);
             decode_png(source, thumbnail_missing)?
         }
         Format::WebP => {
-            let _slot = heavy.enter();
+            let _slot = Gate::enter(heavy, token);
             decode_webp(source, thumbnail_missing)?
+        }
+        // HEIC / HEIF reconnu d'après son contenu (même avec une extension .jpg ou .png) : décodage complet (lourd).
+        Format::Heif => {
+            let _slot = Gate::enter(heavy, token);
+            let decoded = crate::heif::decode(source)?;
+            (decoded.rgb, decoded.width, decoded.height)
         }
         Format::Other => {
             // Une extension PNG / WebP sans la bonne signature n'est acceptée que si c'est en réalité un JPEG.
@@ -232,7 +277,7 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Gat
                 if !is_jpeg { return Err(format!("Signature {} invalide ou fichier tronqué", extension.to_uppercase())); }
             }
             // HEIC / HEIF : décodage complet (lourd) ; JPEG et RAW (vignette JPEG intégrée) : décodage à échelle réduite.
-            let _slot = crate::heif::is_heif_path(source).then(|| heavy.enter());
+            let _slot = crate::heif::is_heif_path(source).then(|| Gate::enter(heavy, token));
             thumbnails::decode_scaled_rgb(source, max_side)?
         }
     };
@@ -240,7 +285,7 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Gat
 
     // Le fichier est sain : la miniature manquante est produite à partir de l'image déjà décodée. Un échec d'écriture n'est pas une corruption.
     let (rgb, width, height) = thumbnails::resize_to_fit(rgb, width, height, max_side);
-    let orientation = if crate::heif::is_heif_path(source) { 1 } else { thumbnails::read_orientation(source) };
+    let orientation = if matches!(format, Format::Heif) || crate::heif::is_heif_path(source) { 1 } else { thumbnails::read_orientation(source) };
     let (rgb, width, height) = thumbnails::apply_orientation(rgb, width, height, orientation);
     Ok(Outcome::Healthy(match thumbnails::write_jpeg(&destination, &rgb, width, height) {
         Ok(()) => Thumbnail::Created,
@@ -283,7 +328,7 @@ pub fn run(
     // Extension -> (fichiers analysés, durée cumulée en microsecondes) ; extension -> fichiers non vérifiés.
     let timings_by_extension: Mutex<HashMap<String, (usize, u64)>> = Mutex::new(HashMap::new());
     let unsupported_by_extension: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
-    let heavy = Gate::new(HEAVY_DECODES);
+    let heavy = Arc::new(Gate::new(HEAVY_DECODES));
 
     // Dossier en cours : annoncé seulement quand il change (les fichiers sont parcourus dossier par dossier).
     let root_name = folder.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| folder.to_string_lossy().into_owned());
@@ -311,8 +356,23 @@ pub fn run(
             if cancel.load(Ordering::Relaxed) { return; }
             announce_folder(path);
             let file_started = Instant::now();
-            let result = panic::catch_unwind(AssertUnwindSafe(|| check_file(path, thumbnails_dir, max_side, &heavy)))
-                .unwrap_or_else(|_| Err("Décodeur interrompu : fichier probablement corrompu".to_string()));
+            // Analyse dans un fil dédié : un fichier qui ne répond plus est abandonné après FILE_TIMEOUT (et l'arrêt demandé est vu sans attendre).
+            let token = Arc::new(SlotToken::default());
+            let work = {
+                let (path, thumbnails_dir, heavy, token) = (path.clone(), thumbnails_dir.to_path_buf(), heavy.clone(), token.clone());
+                move || {
+                    panic::catch_unwind(AssertUnwindSafe(|| check_file(&path, &thumbnails_dir, max_side, &heavy, &token)))
+                        .unwrap_or_else(|_| Err("Décodeur interrompu : fichier probablement corrompu".to_string()))
+                }
+            };
+            let result = match run_bounded(work, FILE_TIMEOUT, cancel) {
+                Some(result) => result,
+                None => {
+                    heavy.give_back(&token);
+                    if cancel.load(Ordering::Relaxed) { return; }
+                    Err(format!("Délai dépassé ({} s) : lecture ou décodage bloqué", FILE_TIMEOUT.as_secs()))
+                }
+            };
             let micros = file_started.elapsed().as_micros() as u64;
             let extension = extension_of(path);
             match result {
