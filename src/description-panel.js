@@ -111,6 +111,14 @@ const descriptionEditor = {
   photosMoved(destinations) {
     for (const target of targets.values()) target.path = destinations.get(target.path) ?? target.path;
   },
+  // Photos retirées du catalogue : elles sortent des photos ciblées (la saisie reste pour les autres).
+  photosRemoved(paths) {
+    let removed = false;
+    for (const [id, target] of targets) {
+      if (paths.has(target.path)) { targets.delete(id); removed = true; }
+    }
+    if (removed) render();
+  },
 };
 
 // ---------------------------------------------------------------------------

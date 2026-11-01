@@ -476,6 +476,19 @@ const keywordEditor = {
   photosMoved(destinations) {
     for (const photo of workingPhotos.values()) photo.path = destinations.get(photo.path) ?? photo.path;
   },
+  // Photos retirées du catalogue : elles sortent des photos ciblées, avec leurs modifications en attente.
+  photosRemoved(paths) {
+    const ids = [...workingPhotos.values()].filter(photo => paths.has(photo.path)).map(photo => photo.id);
+    if (!ids.length) return;
+    for (const id of ids) {
+      working.delete(id);
+      baseline.delete(id);
+      workingPhotos.delete(id);
+    }
+    recomputeCounts();
+    renderTree();
+    updateButtons();
+  },
 };
 
 // ---------------------------------------------------------------------------

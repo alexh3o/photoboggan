@@ -3,6 +3,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath } from './main.js';
+import { isWriteLocked } from './metadata-writes.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
 // suppression, copie des originaux et « Ouvrir avec ». main.js donne accès à l'état de la grille via initPhotoActions().
@@ -136,7 +137,8 @@ async function addProgramFromDialog() {
 // Fenêtre modale réutilisant les styles des Paramètres. Échap, clic sur le fond et × la ferment ;
 // les touches ne remontent pas à main.js (pas de navigation ou de notation involontaire derrière la fenêtre).
 // `focusSelector` : éléments parcourus par Tab (les boutons seulement par défaut ; les formulaires y ajoutent champs et listes).
-export function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])' }) {
+// `canClose()` : faux tant que la fenêtre ne doit pas se fermer (ex. opération en cours : la fermer ferait croire à une annulation).
+export function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])', canClose = () => true }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal';
   overlay.tabIndex = -1;
@@ -163,7 +165,7 @@ export function createModal({ title, cardClass = '', onClose = null, focusSelect
   document.body.append(overlay);
 
   const close = () => {
-    if (!overlay.isConnected) return;
+    if (!overlay.isConnected || !canClose()) return;
     overlay.remove();
     onClose?.();
   };
@@ -191,14 +193,26 @@ export function createModal({ title, cardClass = '', onClose = null, focusSelect
   return { overlay, card, body, close };
 }
 
+// Flèches dans une fenêtre : le focus passe d'un bouton de `buttons` à son voisin (gauche / haut = précédent, droite / bas = suivant).
+// Sans effet quand le focus n'est pas sur l'un d'eux (ex. case à cocher, qui garde ses flèches). Entrée valide le bouton ayant le focus.
+function arrowKeysBetween(overlay, buttons) {
+  overlay.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key) || !buttons.includes(document.activeElement)) return;
+    event.preventDefault();
+    const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
+    buttons[Math.min(buttons.length - 1, Math.max(0, buttons.indexOf(document.activeElement) + step))].focus();
+  });
+}
+
 // Confirmation Oui / Non
-// le focus est sur « Oui » (rouge) et les flèches du clavier passent de l'un à l'autre.
+// le focus est sur « Oui » (rouge), ou sur « Non » avec `focusCancel`, et les flèches du clavier passent de l'un à l'autre.
 // Renvoie true uniquement si « Oui » est activé.
 // `extraLabel` / `onExtra` (facultatifs) : bouton supplémentaire entre « Non » et « Oui » (ex. « Ouvrir » le dossier) qui ne ferme pas la fenêtre.
-export function confirmDialog({ title, message, confirmLabel, cancelLabel, extraLabel, onExtra }) {
+// `content` (facultatif) : élément affiché sous le message (ex. liste de fichiers) ; `cardClass` : classe de la fenêtre.
+export function confirmDialog({ title, message, confirmLabel, cancelLabel, extraLabel, onExtra, content = null, focusCancel = false, cardClass = 'confirm-card' }) {
   return new Promise(resolve => {
     let answer = false;
-    const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(answer) });
+    const modal = createModal({ title, cardClass, onClose: () => resolve(answer) });
     const text = document.createElement('p');
     text.className = 'confirm-message';
     text.textContent = message;
@@ -225,17 +239,9 @@ export function confirmDialog({ title, message, confirmLabel, cancelLabel, extra
       actions.append(extra);
     }
     actions.append(confirm);
-    modal.body.append(text, actions);
-    // Flèches : le choix suit la position des boutons (gauche / haut = précédent, droite / bas = suivant). Entrée valide le bouton ayant le focus.
-    modal.overlay.addEventListener('keydown', event => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
-      event.preventDefault();
-      const buttons = [...actions.querySelectorAll('button')];
-      const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-      const next = Math.min(buttons.length - 1, Math.max(0, buttons.indexOf(document.activeElement) + step));
-      buttons[next].focus();
-    });
-    confirm.focus();
+    modal.body.append(...[text, content, actions].filter(Boolean));
+    arrowKeysBetween(modal.overlay, [...actions.querySelectorAll('button')]);
+    (focusCancel ? cancel : confirm).focus();
   });
 }
 
@@ -248,7 +254,9 @@ const MAX_PROMPT_SUGGESTIONS = 12;
 export function promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, onSubmit, value = '', suggestions = [], selectValue = true }) {
   return new Promise(resolve => {
     let done = false;
-    const modal = createModal({ title, cardClass: 'confirm-card', onClose: () => resolve(done) });
+    let busy = false; // validation en cours : Échap, × et le fond ne ferment pas la fenêtre (l'opération aboutirait quand même)
+    // Tab parcourt aussi le champ de saisie (sinon, une fois quitté, il n'est plus atteignable au clavier).
+    const modal = createModal({ title, cardClass: 'confirm-card', focusSelector: FORM_FOCUSABLE, canClose: () => !busy, onClose: () => resolve(done) });
     const text = document.createElement('p');
     text.className = 'confirm-message';
     text.textContent = message;
@@ -319,14 +327,23 @@ export function promptDialog({ title, message, inputLabel, confirmLabel, cancelL
     confirm.type = 'button';
     confirm.className = 'btn-primary';
     confirm.textContent = confirmLabel;
-    let busy = false;
     const submit = async () => {
       if (busy) return;
       busy = true;
       confirm.disabled = true;
-      const problem = await onSubmit(input.value);
-      busy = false;
-      confirm.disabled = false;
+      cancel.disabled = true;
+      let problem;
+      try {
+        problem = await onSubmit(input.value);
+      } catch (failure) {
+        // Erreur inattendue : affichée dans la fenêtre, qui reste utilisable (jamais bloquée avec un bouton grisé).
+        console.error('Prompt submit failed', failure);
+        problem = String(failure);
+      } finally {
+        busy = false;
+        confirm.disabled = false;
+        cancel.disabled = false;
+      }
       if (problem) {
         error.textContent = problem;
         input.focus();
@@ -437,6 +454,11 @@ async function countPermanentDeletions(paths) {
 }
 
 export async function confirmAndDelete(targets) {
+  // Écriture de métadonnées en cours ou en file : elle vise ces fichiers (ExifTool pourrait recréer un fichier mis à la corbeille).
+  if (isWriteLocked()) {
+    api.showToast(t('Metadata writing in progress…'));
+    return;
+  }
   const count = targets.length;
   const permanent = await countPermanentDeletions(targets.map(photo => photo.path));
   const name = photoName(targets[0]);
@@ -487,7 +509,8 @@ function copyConflictDialog(conflict) {
     const applyRow = makeElement('div', 'resize-option');
     applyRow.append(labelled(applyAll, t('Apply my choice to the following files')));
     const actions = makeElement('div', 'confirm-actions');
-    const buttons = [['rename', t('Rename automatically'), 'btn-primary'], ['skip', t('Skip this file'), ''], ['replace', t('Overwrite the destination file'), 'btn-danger']].map(([action, label, className]) => {
+    // « Annuler la copie » : aucun fichier n'est copié (mauvais dossier choisi…), au lieu d'enchaîner les « Passer ».
+    const buttons = [['rename', t('Rename automatically'), 'btn-primary'], ['skip', t('Skip this file'), ''], ['replace', t('Overwrite the destination file'), 'btn-danger'], ['cancel', t('Cancel the copy'), '']].map(([action, label, className]) => {
       const button = makeElement('button', className, label);
       button.type = 'button';
       button.addEventListener('click', () => {
@@ -504,14 +527,7 @@ function copyConflictDialog(conflict) {
       applyRow,
       actions,
     );
-    // Flèches : passent d'un bouton à l'autre. Entrée valide le bouton ayant le focus.
-    modal.overlay.addEventListener('keydown', event => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if (document.activeElement === applyAll) return;
-      event.preventDefault();
-      const current = buttons.indexOf(document.activeElement);
-      buttons[event.key === 'ArrowLeft' ? Math.max(0, current - 1) : Math.min(buttons.length - 1, current + 1)].focus();
-    });
+    arrowKeysBetween(modal.overlay, buttons);
     buttons[0].focus();
   });
 }
@@ -519,6 +535,7 @@ function copyConflictDialog(conflict) {
 // Avant une copie : cherche les fichiers dont le nom existe déjà à destination (`command` : copy_conflicts ou tracked_copy_conflicts) et pose la question
 // pour chacun, l'un après l'autre. « Appliquer mon choix aux fichiers suivants » vaut pour les conflits restants de cette copie seulement.
 // Renvoie { chemin du fichier à copier: 'rename' | 'skip' | 'replace' } à passer à la commande de copie ; un fichier absent de la table est renommé.
+// Renvoie null si l'utilisateur annule la copie : rien ne doit être copié.
 export async function askCopyResolutions(command, paths, destination) {
   let conflicts = [];
   try {
@@ -534,6 +551,7 @@ export async function askCopyResolutions(command, paths, destination) {
       continue;
     }
     const choice = await copyConflictDialog(conflict);
+    if (choice.action === 'cancel') return null;
     resolutions[conflict.path] = choice.action;
     if (choice.applyAll) applied = choice.action;
   }
@@ -547,6 +565,7 @@ export async function copyPhotosTo(targets) {
   localStorage.setItem(LAST_COPY_FOLDER_KEY, destination);
   const paths = targets.map(photo => photo.path);
   const resolutions = await askCopyResolutions('copy_conflicts', paths, destination);
+  if (!resolutions) return; // copie annulée
   // Tâche de la file (progression, arrêt possible entre deux fichiers, voir copy_photos).
   api.enqueueFileTask({
     kind: 'copy',
@@ -839,15 +858,7 @@ function resizeConflictDialog(output) {
     });
     actions.append(...buttons);
     modal.body.append(text, applyRow, actions);
-    // Flèches : passent d'un bouton à l'autre. Entrée valide le bouton ayant le focus.
-    modal.overlay.addEventListener('keydown', event => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      if (document.activeElement === applyAll) return;
-      event.preventDefault();
-      const current = buttons.indexOf(document.activeElement);
-      const next = event.key === 'ArrowLeft' ? Math.max(0, current - 1) : Math.min(buttons.length - 1, current + 1);
-      buttons[current < 0 ? 1 : next].focus();
-    });
+    arrowKeysBetween(modal.overlay, buttons);
     buttons[1].focus();
   });
 }
@@ -947,7 +958,7 @@ export async function resizePhotos(targets) {
         return;
       }
       showResizeSummary(summary, ignoredVideosCount, stopped);
-      // Les nouveaux fichiers entrent dans le catalogue : la synchronisation attend la fin de la tâche (elle est suspendue tant que la file travaille).
+      // Les nouveaux fichiers entrent dans le catalogue : synchronisation demandée, faite dès que la file des tâches est vide (main.js).
       if (summary.written) setTimeout(() => api.syncLibrary?.(), 0);
     },
   });
@@ -1354,56 +1365,26 @@ function openThumbnailMenu(event, index, source = 'grid') {
   showContextMenu(menu, event);
 }
 
-// Seconde modale d'alerte à la suppressionde  dossier: affiche la liste des fichiers non catalogués détectés dans le dossier
+// Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
 function confirmUnrecognizedFilesDialog(folderName, files) {
-  return new Promise(resolve => {
-    let answer = false;
-    const count = files.length;
-    const modal = createModal({
-      title: t('Non-cataloged files detected'),
-      cardClass: 'unrecognized-files-card',
-      onClose: () => resolve(answer),
-    });
-    const text = document.createElement('p');
-    text.className = 'confirm-message';
-    text.textContent = tp(
-      'The folder “{folder}” contains {count} file not managed by photoboggan. These files will also be deleted:',
-      count,
-      { folder: folderName }
-    );
-    const listContainer = document.createElement('div');
-    listContainer.className = 'unrecognized-files-list';
-    const ul = document.createElement('ul');
-    for (const file of files) {
-      const li = document.createElement('li');
-      li.textContent = file;
-      li.title = file;
-      ul.appendChild(li);
-    }
-    listContainer.appendChild(ul);
-    const actions = document.createElement('div');
-    actions.className = 'confirm-actions';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.textContent = t('Cancel');
-    cancel.addEventListener('click', modal.close);
-    const confirm = document.createElement('button');
-    confirm.type = 'button';
-    confirm.className = 'btn-danger';
-    confirm.textContent = t('Delete anyway');
-    confirm.addEventListener('click', () => {
-      answer = true;
-      modal.close();
-    });
-    actions.append(cancel, confirm);
-    modal.body.append(text, listContainer, actions);
-    // Flèches pour naviguer entre Annuler et Supprimer quand même
-    modal.overlay.addEventListener('keydown', event => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
-      event.preventDefault();
-      (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? cancel : confirm).focus();
-    });
-    cancel.focus(); // Focus par sécurité sur "Annuler"
+  const listContainer = document.createElement('div');
+  listContainer.className = 'unrecognized-files-list';
+  const ul = document.createElement('ul');
+  for (const file of files) {
+    const li = document.createElement('li');
+    li.textContent = file;
+    li.title = file;
+    ul.appendChild(li);
+  }
+  listContainer.appendChild(ul);
+  return confirmDialog({
+    title: t('Non-cataloged files detected'),
+    message: tp('The folder “{folder}” contains {count} file not managed by photoboggan. These files will also be deleted:', files.length, { folder: folderName }),
+    confirmLabel: t('Delete anyway'),
+    cancelLabel: t('Cancel'),
+    content: listContainer,
+    focusCancel: true,
+    cardClass: 'unrecognized-files-card',
   });
 }
 
@@ -1427,15 +1408,19 @@ async function confirmAndDeleteFolder(path) {
     ...(empty ? {} : { extraLabel: t('Open'), onExtra: () => openFolderInFileManager(path) }),
   });
   if (!confirmed) return;
-  // Vérification de la présence de fichiers non gérés par photoboggan
+  // Vérification de la présence de fichiers non gérés par photoboggan. Si elle échoue, la suppression n'a pas lieu : ces fichiers (documents…)
+  // partiraient sans avoir été montrés à l'utilisateur.
+  let unrecognized;
   try {
-    const unrecognized = await invoke('get_folder_unrecognized_files', { path });
-    if (Array.isArray(unrecognized) && unrecognized.length > 0) {
-      const secondConfirm = await confirmUnrecognizedFilesDialog(name, unrecognized);
-      if (!secondConfirm) return;
-    }
-  } catch (err) {
-    console.error('Unrecognized files check failed:', err);
+    unrecognized = await invoke('get_folder_unrecognized_files', { path });
+  } catch (error) {
+    console.error('Unrecognized files check failed:', error);
+    api.showToast(t('Folder not deleted: its content could not be checked ({error})', { error: String(error) }));
+    return;
+  }
+  if (Array.isArray(unrecognized) && unrecognized.length > 0) {
+    const secondConfirm = await confirmUnrecognizedFilesDialog(name, unrecognized);
+    if (!secondConfirm) return;
   }
   await api.deleteFolder(path, { permanent });
 }

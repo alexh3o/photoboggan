@@ -50,7 +50,7 @@ export function initMetadataWrites(hostApi) {
 }
 
 // Inscrit un onglet éditeur : { isDirty(), targetIds(), pendingItems() -> [{ photo_id, path, keyword_ids? , title?, description?, faces? }],
-// afterWrite(result, items), discard(photoIds?), pendingKinds?(), photosMoved?(destinations), scope? }. `items` : les éléments que cet éditeur a fournis, tels quels (sans
+// afterWrite(result, items), discard(photoIds?), pendingKinds?(), photosMoved?(destinations), photosRemoved?(paths), scope? }. `items` : les éléments que cet éditeur a fournis, tels quels (sans
 // les retouches faites avant l'écriture). `discard(photoIds)` : abandon limité à ces photos (sans argument : tout). `pendingKinds()` : types en
 // attente, sans construire les éléments. `scope: 'library'` (visages, faces-panel.js) : modifications en attente dans toute la photothèque,
 // pas sur la sélection : pas de question au changement de sélection, et écrites seulement par une demande explicite (vue Visages) ou à la fermeture.
@@ -312,6 +312,12 @@ async function resolveFaceKeywordConflicts(items) {
 // chemin (le backend refuse une photo dont l'identifiant et le chemin ne correspondent plus).
 export function photosMoved(destinations) {
   for (const editor of editors) editor.photosMoved?.(destinations);
+}
+
+// Photos retirées du catalogue (supprimées, dossier supprimé, disparues du disque) : `paths` (Set). Leurs modifications en attente sont
+// abandonnées : il n'y a plus de fichier où les écrire.
+export function photosRemoved(paths) {
+  for (const editor of editors) editor.photosRemoved?.(paths);
 }
 
 // Valeurs relues dans les fichiers écrits (mots-clés à plat, titre, description) : reportées dans les listes de photos de main.js.

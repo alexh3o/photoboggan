@@ -9,7 +9,7 @@ import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, r
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved, photosRemoved } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
@@ -3575,6 +3575,8 @@ async function pumpScanQueue() {
   } finally {
     scanPumpActive = false;
   }
+  // File vide : synchronisation demandée pendant qu'elle travaillait (fichiers créés par l'application, voir syncLibrary).
+  if (syncAfterTasks && scanTasks.length === 0) runRequestedSync();
 }
 
 async function runScanTask(task) {
@@ -4451,6 +4453,7 @@ async function copyPhotosToFolder(targets, folderPath) {
   if (!targets.length) return;
   const paths = targets.map(photo => photo.path);
   const resolutions = await askCopyResolutions('tracked_copy_conflicts', paths, folderPath); // fichiers déjà présents à destination : l'utilisateur choisit
+  if (!resolutions) return; // copie annulée
   enqueueScanTask({
     kind: 'copy',
     path: null,
@@ -4775,6 +4778,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   const keptLastPath = !removed.has(photos[lastSelectedIndex]?.path) ? photos[lastSelectedIndex]?.path : null;
 
   for (const path of removed) thumbnailCacheLookups.delete(path);
+  photosRemoved(removed); // modifications en attente de ces photos (mots-clés, description) abandonnées : elles n'ont plus de fichier
   const treeSharesLibrary = folderTreePhotos === loadedPhotos;
   loadedPhotos = loadedPhotos.filter(photo => !removed.has(photo.path));
   folderTreePhotos = treeSharesLibrary ? loadedPhotos : folderTreePhotos.filter(photo => !removed.has(photo.path));
@@ -4834,7 +4838,7 @@ initPhotoActions({
   rescanFolder,
   checkFolderIntegrity,
   folderCreated: addCreatedFolder,
-  syncLibrary: () => { librarySyncNotBefore = 0; return syncLibraryWithDisk(); }, // nouveaux fichiers créés par l'application (redimensionnement)
+  syncLibrary: () => requestLibrarySync(), // nouveaux fichiers créés par l'application (redimensionnement)
   enqueueFileTask: task => enqueueScanTask(task), // copie vers un dossier choisi, redimensionnement : tâches de la file (voir enqueueScanTask)
   deleteFolder: deleteFolderToTrash,
   renamePhoto: renamePhotoOnDisk,
@@ -5052,6 +5056,21 @@ async function syncLibraryWithDisk() {
     librarySyncNotBefore = Date.now() + Math.max(LIBRARY_SYNC_MIN_INTERVAL_MS, (Date.now() - startedAt) * 10);
     librarySyncRunning = false;
   }
+  if (syncAfterTasks && scanTasks.length === 0 && !photoMoveRunning) runRequestedSync();
+}
+
+// Synchronisation demandée par l'application elle-même (fichiers qu'elle vient de créer) : sans délai minimal, et jamais perdue : si une tâche
+// tourne (ou une synchronisation, ou un déplacement), elle est faite dès que la file est vide (voir pumpScanQueue).
+let syncAfterTasks = false;
+function requestLibrarySync() {
+  syncAfterTasks = true;
+  if (!librarySyncRunning && scanTasks.length === 0 && !photoMoveRunning) return runRequestedSync();
+  return Promise.resolve();
+}
+function runRequestedSync() {
+  syncAfterTasks = false;
+  librarySyncNotBefore = 0;
+  return syncLibraryWithDisk();
 }
 
 // Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
