@@ -874,8 +874,26 @@ function renderOverlayFaces(overlay, info, interactive) {
     label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?` : (face.name || t('Unknown'));
     box.append(label);
     if (interactive) box.addEventListener('contextmenu', event => openZoneMenu(event, face));
+    else box.faceData = face; // aperçu : retrouvé par position au clic droit (voir openPreviewZoneMenu)
     return box;
   }));
+}
+
+// Clic droit dans une case de l'aperçu : les zones y laissent passer la souris (glisser, molette), donc la zone visée est retrouvée par sa
+// position ; la plus petite l'emporte quand elles se chevauchent. Même menu qu'en plein écran ; hors zone, le menu de la photo s'ouvre.
+function openPreviewZoneMenu(event) {
+  if (!readingEnabled || !host) return;
+  const overlay = host.getPreviewSlotAt(event)?.faceOverlay;
+  if (!overlay || overlay.hidden) return;
+  let target = null;
+  let targetArea = Infinity;
+  for (const box of overlay.querySelectorAll('.face-box')) {
+    if (!box.faceData) continue;
+    const r = box.getBoundingClientRect();
+    if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) continue;
+    if (r.width * r.height < targetArea) { target = box.faceData; targetArea = r.width * r.height; }
+  }
+  if (target) openZoneMenu(event, target);
 }
 
 // Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
@@ -1395,6 +1413,7 @@ export function initFacesPanel(hostApi) {
   // Plein écran : Maj + glisser dessine une zone de visage (phase de capture : avant le déplacement de l'image zoomée de main.js).
   document.getElementById('fullscreen-view').addEventListener('pointerdown', startZoneDrawing, true);
   document.getElementById('preview-stage').addEventListener('pointerdown', startZoneDrawing, true);
+  document.getElementById('preview-stage').addEventListener('contextmenu', openPreviewZoneMenu, true);
 
   document.getElementById('persons-sort').addEventListener('click', () => {
     sortMode = sortMode === 'name' ? 'count' : 'name';
