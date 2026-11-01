@@ -167,6 +167,8 @@ button.filter-tag.tag-person:hover { background: var(--tag-person-hover); }
 .preview-faces .face-box { pointer-events: none; }
 .face-overlay.hover-only .face-box { opacity: 0; transition: opacity 0.15s ease; pointer-events: auto; }
 .face-overlay.hover-only .face-box:hover { opacity: 1; }
+/* Rectangle en cours de dessin : toujours visible (même en mode « au survol ») et jamais sous la souris */
+.face-overlay .face-box.drawing { opacity: 1; pointer-events: none; }
 
 /* VUE PERSONNES (persons-view.js) : grosses vignettes, une par personne (taille réglable), nom et nombre de photos dessous */
 .faces-back { margin-right: 0.25rem; }

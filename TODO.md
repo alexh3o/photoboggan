@@ -14,6 +14,7 @@
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
+- [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces)
 - [x] *chore*: Add **Linux** release
   - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [x] *fix*: **Cannot move window** by title bar

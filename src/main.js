@@ -4924,6 +4924,7 @@ initFacesPanel({
   getThumbnailUrl: thumbnailUrlFor,
   onFilterChange: options => applyPhotoFilters(options),
   getFullscreenSlot: () => fullscreenSlot,
+  getPreviewSlotAt: event => previewSlotFromEvent(event),
   isFullscreen: () => isFullscreen,
   layoutPreview: () => previewSlots.forEach(layoutPreviewSlot),
   showToast: message => showWriteToast(message),

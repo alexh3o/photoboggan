@@ -899,15 +899,18 @@ const inverseOrientation = orientation => ({ 6: 8, 8: 6 }[orientation] ?? orient
 
 // Zone dessinée à la main (Maj + glisser sur la photo du plein écran) : les zones s'affichent si besoin, le rectangle suit la souris, puis la
 // fenêtre « Nommer » enregistre le visage (manuel, confirmé, à écrire). Annuler la fenêtre abandonne la zone.
+// Fonctionne aussi dans une case de l'aperçu (Maj + glisser) : le calque de la case est alors utilisé à la place de celui du plein écran.
 function startZoneDrawing(event) {
-  if (event.button !== 0 || !event.shiftKey || !readingEnabled || !host?.isFullscreen()) return;
-  const slot = host.getFullscreenSlot();
+  if (event.button !== 0 || !event.shiftKey || !readingEnabled || !host) return;
+  const fullscreen = host.isFullscreen();
+  const slot = fullscreen ? host.getFullscreenSlot() : host.getPreviewSlotAt(event);
   const photo = slot?.photo;
   if (!photo || !(slot.naturalWidth > 0)) return;
   event.preventDefault();
   event.stopImmediatePropagation(); // pas de déplacement de l'image zoomée (main.js)
-  if (overlayMode === 'hidden') setFaceRegionsMode('always');
-  const overlay = document.getElementById('fullscreen-faces');
+  if (effectiveOverlayMode(fullscreen) === 'hidden') setFaceRegionsMode('always');
+  const overlay = fullscreen ? document.getElementById('fullscreen-faces') : slot.faceOverlay;
+  if (!overlay) return;
   const bounds = overlay.getBoundingClientRect();
   if (!(bounds.width > 0 && bounds.height > 0)) return;
   const clamp = value => Math.min(1, Math.max(0, value));
@@ -920,6 +923,8 @@ function startZoneDrawing(event) {
   const view = event.currentTarget;
   view.setPointerCapture(event.pointerId);
   const move = pointer => {
+    // Le chargement (asynchrone) des visages vide le calque : le rectangle en cours est remis en place s'il a été retiré.
+    if (box.parentNode !== overlay) overlay.append(box);
     const current = point(pointer);
     rect = { x: Math.min(origin.x, current.x), y: Math.min(origin.y, current.y), w: Math.abs(current.x - origin.x), h: Math.abs(current.y - origin.y) };
     box.style.left = `${rect.x * 100}%`;
@@ -933,7 +938,8 @@ function startZoneDrawing(event) {
     view.removeEventListener('pointercancel', end);
     // Trop petite (simple clic) : rien à enregistrer.
     if (rect.w < 0.01 || rect.h < 0.01) { box.remove(); return; }
-    const stored = orientRect(rect, inverseOrientation(overlayStates.get(document.getElementById('fullscreen-faces'))?.faces?.orientation ?? photo.orientation ?? 1));
+    if (box.parentNode !== overlay) overlay.append(box);
+    const stored = orientRect(rect, inverseOrientation(overlayStates.get(overlay)?.faces?.orientation ?? photo.orientation ?? 1));
     await promptPersonName({
       title: t('Name the face'),
       message: t('Person shown in the drawn area (existing person, keyword path, or new name)'),
@@ -1346,6 +1352,7 @@ export function initFacesPanel(hostApi) {
   document.getElementById('btn-face-clean-persons').addEventListener('click', cleanPersonsWithoutFaces);
   // Plein écran : Maj + glisser dessine une zone de visage (phase de capture : avant le déplacement de l'image zoomée de main.js).
   document.getElementById('fullscreen-view').addEventListener('pointerdown', startZoneDrawing, true);
+  document.getElementById('preview-stage').addEventListener('pointerdown', startZoneDrawing, true);
 
   document.getElementById('persons-sort').addEventListener('click', () => {
     sortMode = sortMode === 'name' ? 'count' : 'name';
