@@ -109,6 +109,13 @@ fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>
     Ok(())
 }
 
+/// Mots-clés actifs d'une photo (identifiants triés), tels qu'enregistrés en base.
+fn photo_keyword_ids(conn: &Connection, photo_id: i64) -> rusqlite::Result<Vec<i64>> {
+    conn.prepare("SELECT keyword_id FROM photo_keywords WHERE photo_id = ?1 ORDER BY keyword_id")?
+        .query_map(params![photo_id], |row| row.get(0))?
+        .collect()
+}
+
 /// Lignes d'une requête, en erreur dès que l'une d'elles est illisible : jamais de résultat partiel présenté comme complet.
 pub(crate) fn collect_rows<T, F: FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<T>, String> {
     rows.collect::<rusqlite::Result<Vec<T>>>().map_err(|error| error.to_string())
@@ -210,6 +217,8 @@ pub struct KeywordWritten {
     pub photo_id: i64,
     /// Mots-clés à plat de la photo tels que relus dans le fichier (colonne `keywords` de la base).
     pub keywords: String,
+    /// Mots-clés actifs de la photo en base après relecture (les visages ont pu en ajouter ou en retirer) : l'état enregistré du panneau.
+    pub keyword_ids: Vec<i64>,
     /// Titre et description retenus à la relecture du fichier (colonnes `title` et `caption`).
     pub title: String,
     pub description: String,
@@ -435,11 +444,15 @@ fn run_write(
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
                 face_batches.push((item.path.clone(), meta.faces));
                 written_paths.insert(item.photo_id, item.path);
-                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, title: meta.title, description: meta.caption });
+                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption });
             }
         }
     }
-    let stored = match store_photo_keywords_in(&tx, &keyword_batches) {
+    let stored = store_photo_keywords_in(&tx, &keyword_batches).and_then(|_| {
+        for photo in written.iter_mut() { photo.keyword_ids = photo_keyword_ids(&tx, photo.photo_id)?; }
+        Ok(())
+    });
+    let stored = match stored {
         Ok(()) => tx.commit(),
         Err(error) => {
             drop(tx); // annule la transaction

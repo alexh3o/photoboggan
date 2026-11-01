@@ -33,7 +33,7 @@ let filterMode = localStorage.getItem(FILTER_MODE_STORAGE_KEY) === 'assigned' ? 
 // Arbre : nœuds par identifiant, et enfants triés par parent.
 let nodeById = new Map();
 let childrenOf = new Map();
-let treeVersion = 1; // incrémenté quand les fichiers ont pu changer l'arbre (relecture, synchronisation)
+let treeVersion = 1; // incrémenté quand les fichiers ont pu changer l'arbre ou les mots-clés des photos (relecture, synchronisation)
 let loadedTreeVersion = 0;
 let usageById = new Map(); // mot-clé -> nombre de photos de la photothèque qui le portent
 let usageDirty = true;
@@ -48,6 +48,8 @@ let workingCount = new Map(); // idem, état en cours d'édition
 const dirtyIds = new Set(); // photos dont les mots-clés en cours d'édition diffèrent de ceux enregistrés
 
 let reloadToken = 0;
+let writeEpoch = 0; // incrémenté à chaque écriture terminée : une lecture de la base commencée avant est à refaire
+let loadingSelection = false; // une nouvelle sélection est en cours de chargement : pas d'édition sur l'ancienne
 let refreshScheduled = false;
 let refreshAfterPrompt = false;
 
@@ -78,6 +80,16 @@ function setsEqual(a, b) {
   if (!a || !b || a.size !== b.size) return false;
   for (const value of a) if (!b.has(value)) return false;
   return true;
+}
+
+// Mots-clés `edited` d'une photo, modifiés par l'utilisateur à partir de `reference`, reportés sur un nouvel état enregistré `saved` : ses ajouts
+// et retraits sont rejoués sur `saved` ; sans modification, `saved` tel quel.
+function rebase(edited, reference, saved) {
+  const result = new Set(saved);
+  if (!edited || !reference || setsEqual(edited, reference)) return result;
+  for (const id of edited) if (!reference.has(id)) result.add(id);
+  for (const id of reference) if (!edited.has(id)) result.delete(id);
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -212,16 +224,19 @@ function checkState(keywordId) {
 }
 
 const hasPendingChange = keywordId => (baselineCount.get(keywordId) || 0) !== (workingCount.get(keywordId) || 0);
+const canEdit = () => working.size > 0 && !loadingSelection;
 
 function afterEdit() {
-  // Mode ExifTool : un processus est démarré dès la première modification, pour que « Appliquer » ne paie pas son démarrage (sans effet sinon).
-  invoke('exiftool_prewarm').catch(() => {});
+  const wasDirty = dirtyIds.size > 0;
   recomputeCounts();
+  // Mode ExifTool : un processus est démarré dès la première modification, pour que « Appliquer » ne paie pas son démarrage (sans effet sinon).
+  if (!wasDirty && dirtyIds.size > 0) invoke('exiftool_prewarm').catch(() => {});
   renderTree();
   updateButtons();
 }
 
 function setKeywordsOnAll(keywordIds, turnOn) {
+  if (!canEdit()) return;
   for (const set of working.values()) {
     for (const id of keywordIds) {
       if (turnOn) set.add(id); else set.delete(id);
@@ -233,7 +248,7 @@ function setKeywordsOnAll(keywordIds, turnOn) {
 // Clic sur une case : présent sur toutes les photos -> retiré de toutes ; sinon -> ajouté à toutes.
 // Avec Maj : l'activation active aussi tous les ascendants, la désactivation désactive aussi tous les descendants.
 function toggleKeyword(keywordId, withHierarchy) {
-  if (working.size === 0) return;
+  if (!canEdit()) return;
   const turnOn = checkState(keywordId) !== 'checked';
   const affected = [keywordId];
   if (withHierarchy) affected.push(...(turnOn ? ancestorIds(keywordId) : descendantIds(keywordId)));
@@ -241,21 +256,22 @@ function toggleKeyword(keywordId, withHierarchy) {
 }
 
 function activateKeyword(keywordId, withAncestors) {
-  if (working.size === 0) return;
   setKeywordsOnAll(withAncestors ? [keywordId, ...ancestorIds(keywordId)] : [keywordId], true);
 }
 
 // « Unifier » : tout mot-clé actif sur au moins une photo de la sélection est activé sur l'ensemble de la sélection (en attente, comme le reste).
 function unifySelection() {
+  if (!canEdit()) return;
   const union = new Set();
   for (const set of working.values()) for (const id of set) union.add(id);
   for (const set of working.values()) for (const id of union) set.add(id);
   afterEdit();
 }
 
-// « Réinitialiser » : les mots-clés de chaque photo reviennent à l'état enregistré ; les mots-clés créés ou supprimés dans l'arbre ne sont pas concernés.
-function resetChanges() {
-  working = new Map([...baseline].map(([id, set]) => [id, new Set(set)]));
+// « Réinitialiser » : les mots-clés de chaque photo (ou des seules `photoIds`) reviennent à l'état enregistré ; les mots-clés créés ou supprimés
+// dans l'arbre ne sont pas concernés.
+function resetChanges(photoIds = null) {
+  for (const [id, set] of baseline) if (!photoIds || photoIds.has(id)) working.set(id, new Set(set));
   afterEdit();
 }
 
@@ -270,7 +286,7 @@ function buildCheckbox(state, label, keywordId) {
   box.setAttribute('role', 'checkbox');
   box.setAttribute('aria-checked', state === 'checked' ? 'true' : state === 'partial' ? 'mixed' : 'false');
   box.setAttribute('aria-label', label);
-  box.disabled = working.size === 0;
+  box.disabled = !canEdit();
   box.addEventListener('click', event => toggleKeyword(keywordId, event.shiftKey));
   return box;
 }
@@ -383,7 +399,7 @@ function toggleFilterMode() {
 // ---------------------------------------------------------------------------
 
 function canUnify() {
-  if (working.size < 2) return false;
+  if (working.size < 2 || loadingSelection) return false;
   for (const count of workingCount.values()) if (count > 0 && count < working.size) return true;
   return false;
 }
@@ -394,11 +410,11 @@ function updateButtons() {
   // « Appliquer » écrit aussi le titre et la description en attente (onglet Description).
   applyButton.disabled = !hasPendingEdits() || locked;
   applyButton.title = locked ? t('Metadata writing in progress…') : t('Write the pending changes into the files (Ctrl+Enter)');
-  resetButton.disabled = dirtyIds.size === 0;
+  resetButton.disabled = dirtyIds.size === 0 || loadingSelection;
   resetButton.title = t('Put the keywords back to their state before the changes');
   unifyButton.disabled = !canUnify();
   unifyButton.title = t('Give every selected photo all the keywords that at least one of them has');
-  inputField.disabled = working.size === 0;
+  inputField.disabled = !canEdit();
   updateTabBadges();
   notifyPendingChange(); // l'onglet Description met à jour ses boutons
 }
@@ -421,31 +437,42 @@ function updateTabBadges() {
 
 const applyChanges = () => applyPending();
 
+// Photos réécrites (application des modifications, suppression d'un mot-clé) : les mots-clés relus dans le fichier deviennent l'état enregistré ;
+// les modifications faites par rapport à ce qui a été envoyé (`sent`, sinon l'ancien état enregistré) y sont reportées et restent en attente.
+function adoptWritten(written, sent = new Map()) {
+  writeEpoch += 1;
+  let unknownKeyword = false;
+  for (const { photo_id: photoId, keyword_ids: keywordIds } of written) {
+    if (!working.has(photoId)) continue;
+    const saved = new Set(keywordIds);
+    working.set(photoId, rebase(working.get(photoId), sent.get(photoId) || baseline.get(photoId), saved));
+    baseline.set(photoId, saved);
+    if (keywordIds.some(id => !nodeById.has(id))) unknownKeyword = true;
+  }
+  if (unknownKeyword) treeVersion += 1; // un mot-clé apparu à la relecture : l'arbre est à relire
+}
+
 // Onglet Mots-clés inscrit auprès de metadata-writes.js : modifications en attente et suivi de leur écriture.
 const keywordEditor = {
   isDirty: () => dirtyIds.size > 0,
   targetIds: () => [...working.keys()],
+  pendingKinds: () => ['keyword_ids'],
   // Photos dont les mots-clés ont changé uniquement : on envoie l'ensemble final des mots-clés actifs de chacune.
   pendingItems: () => [...dirtyIds].map(id => ({ photo_id: id, path: workingPhotos.get(id).path, keyword_ids: [...working.get(id)] })),
+  // `items` : ce que cet onglet a envoyé (avant un éventuel « Garder » du mot-clé d'une personne). Toute photo écrite, même sans mots-clés
+  // envoyés (titre, visages), prend pour état enregistré les mots-clés relus dans le fichier ; les modifications faites depuis l'envoi sont
+  // reportées dessus et restent en attente.
   afterWrite(result, items) {
     const sent = new Map(items.filter(item => item.keyword_ids).map(item => [item.photo_id, new Set(item.keyword_ids)]));
-    if (!sent.size) return;
-    for (const written of result.written) {
-      const sentSet = sent.get(written.photo_id);
-      if (sentSet && working.has(written.photo_id)) {
-        // Ce qui vient d'être écrit devient l'état enregistré ; les modifications faites depuis restent en attente.
-        const untouched = !dirtyIds.has(written.photo_id) || setsEqual(working.get(written.photo_id), sentSet);
-        baseline.set(written.photo_id, new Set(sentSet));
-        if (untouched) working.set(written.photo_id, new Set(sentSet));
-      }
-    }
+    adoptWritten(result.written, sent);
+    if (!result.written.length) return;
     usageDirty = true;
     recomputeCounts();
     renderTree();
     updateButtons();
-    refreshUsage();
+    if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
   },
-  discard: () => resetChanges(),
+  discard: photoIds => resetChanges(photoIds),
 };
 
 // ---------------------------------------------------------------------------
@@ -492,8 +519,10 @@ async function reloadFromDatabase() {
   try {
     let photos = currentTarget();
     if (sameAsWorking(photos)) {
-      // Même sélection : les modifications en attente sont conservées ; seuls l'arbre et les fréquences d'usage sont relus s'ils ont changé.
-      if (loadedTreeVersion !== treeVersion || usageDirty) await refreshTreeAndUsage();
+      // Même sélection. Fichiers relus entre-temps (synchronisation, relecture) : l'état enregistré est relu, les modifications en attente sont
+      // reportées dessus (sinon « Appliquer » effacerait ce qu'un autre logiciel a ajouté). Sinon, seules les fréquences d'usage sont relues.
+      if (loadedTreeVersion !== treeVersion) await loadState(photos, true);
+      else if (usageDirty) await refreshTreeAndUsage();
       renderTree();
       updateButtons();
       return;
@@ -511,37 +540,51 @@ async function reloadFromDatabase() {
   }
 }
 
-async function loadState(photos) {
+// Charge l'état enregistré des photos `photos` (et l'arbre s'il a changé). `keepEdits` : même sélection, les modifications en attente sont
+// reportées sur l'état relu ; sinon, nouvelle sélection, sans édition possible tant que le chargement dure.
+async function loadState(photos, keepEdits = false) {
   const token = ++reloadToken;
-  const versionAtStart = treeVersion;
-  const needTree = loadedTreeVersion !== versionAtStart;
-  const needUsage = needTree || usageDirty;
+  const epoch = writeEpoch;
   const ids = photos.map(photo => photo.id);
+  if (!keepEdits && !loadingSelection) {
+    loadingSelection = true;
+    renderTree();
+    updateButtons();
+  }
   try {
-    const [nodes, usage, pairs] = await Promise.all([
-      needTree ? invoke('get_keyword_tree') : null,
-      needUsage ? invoke('get_keyword_usage') : null,
+    const [, pairs] = await Promise.all([
+      refreshTreeAndUsage(),
       ids.length ? invoke('get_photo_keyword_ids', { photoIds: ids }) : [],
     ]);
     if (token !== reloadToken) return; // une mise à jour plus récente est en cours
-    if (nodes) {
-      buildTree(nodes);
-      loadedTreeVersion = versionAtStart;
+    // Une écriture s'est terminée pendant la lecture : la base a pu changer après coup, la lecture est refaite.
+    if (epoch !== writeEpoch) return loadState(photos, keepEdits);
+    const saved = new Map(ids.map(id => [id, new Set()]));
+    for (const [photoId, keywordId] of pairs) saved.get(photoId)?.add(keywordId);
+    if (keepEdits) {
+      working = new Map([...saved].map(([id, set]) => [id, rebase(working.get(id), baseline.get(id), set)]));
+    } else {
+      working = new Map([...saved].map(([id, set]) => [id, new Set(set)]));
+      workingPhotos = new Map(photos.map(photo => [photo.id, { id: photo.id, path: photo.path }]));
+      closeSuggestions();
     }
-    if (usage) {
-      usageById = new Map(usage);
-      usageDirty = false;
-    }
-    baseline = new Map(ids.map(id => [id, new Set()]));
-    for (const [photoId, keywordId] of pairs) baseline.get(photoId)?.add(keywordId);
-    working = new Map([...baseline].map(([id, set]) => [id, new Set(set)]));
-    workingPhotos = new Map(photos.map(photo => [photo.id, { id: photo.id, path: photo.path }]));
+    baseline = saved;
+    loadingSelection = false;
     recomputeCounts();
-    closeSuggestions();
     renderTree();
     updateButtons();
   } catch (error) {
     console.error('Lecture des mots-clés impossible', error);
+    if (token === reloadToken && loadingSelection) {
+      // Nouvelle sélection illisible : rien n'est éditable (l'ancienne, déjà écrite ou abandonnée, ne doit pas l'être à sa place).
+      baseline = new Map();
+      working = new Map();
+      workingPhotos = new Map();
+      loadingSelection = false;
+      recomputeCounts();
+      renderTree();
+      updateButtons();
+    }
   }
 }
 
@@ -554,21 +597,21 @@ function closeSuggestions() {
   if (suggestionList) suggestionList.hidden = true;
 }
 
-function renderSuggestions() {
-  suggestionList.hidden = false;
-  if (suggestions.length === 0) {
-    const empty = document.createElement('li');
-    empty.className = 'keyword-suggestion-empty';
-    empty.textContent = t('No matching keyword. Create it from the keyword tree (right-click).');
-    suggestionList.replaceChildren(empty);
-    return;
-  }
-  // Le plus fréquent est en bas, le plus près du champ de saisie, et en surbrillance.
-  const rows = suggestions.map((node, index) => {
+// Mots-clés dont le nom contient `text` (sans tenir compte des accents ni de la casse), du plus fréquent au moins fréquent.
+function findKeywordMatches(text, excludeId = null) {
+  const query = normalizeSearch(text.trim());
+  if (!query) return [];
+  return [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)).sort(compareByUsage).slice(0, MAX_SUGGESTIONS);
+}
+
+// Liste de correspondances au-dessus d'un champ (saisie rapide et fenêtre de nom) : chemin complet et fréquence de chaque mot-clé, le plus
+// fréquent en bas, le plus près du champ. `onPick(index, event)` au choix d'une ligne.
+function renderKeywordMatches(list, nodes, highlightedIndex, onPick) {
+  const rows = nodes.map((node, index) => {
     const row = document.createElement('li');
     row.className = 'keyword-suggestion';
     row.setAttribute('role', 'option');
-    if (index === highlighted) row.classList.add('highlighted');
+    if (index === highlightedIndex) row.classList.add('highlighted');
     const label = document.createElement('span');
     label.textContent = pathLabel(node);
     const count = document.createElement('span');
@@ -578,21 +621,30 @@ function renderSuggestions() {
     // mousedown plutôt que click : le champ garde le focus (sinon la liste se fermerait avant le clic).
     row.addEventListener('mousedown', event => {
       event.preventDefault();
-      validateSuggestion(index, event.shiftKey);
+      onPick(index, event);
     });
     return row;
   }).reverse();
-  suggestionList.replaceChildren(...rows);
-  suggestionList.querySelector('.highlighted')?.scrollIntoView({ block: 'nearest' });
+  list.replaceChildren(...rows);
+  list.querySelector('.highlighted')?.scrollIntoView({ block: 'nearest' });
+}
+
+function renderSuggestions() {
+  suggestionList.hidden = false;
+  if (suggestions.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'keyword-suggestion-empty';
+    empty.textContent = t('No matching keyword. Create it from the keyword tree (right-click).');
+    suggestionList.replaceChildren(empty);
+    return;
+  }
+  // Le plus fréquent est en surbrillance au départ.
+  renderKeywordMatches(suggestionList, suggestions, highlighted, (index, event) => validateSuggestion(index, event.shiftKey));
 }
 
 function updateSuggestions() {
-  const query = normalizeSearch(inputField.value.trim());
-  if (!query || working.size === 0) { closeSuggestions(); return; }
-  suggestions = [...nodeById.values()]
-    .filter(node => node.search.includes(query))
-    .sort((a, b) => (usageById.get(b.id) || 0) - (usageById.get(a.id) || 0) || nameCollator.compare(a.name, b.name))
-    .slice(0, MAX_SUGGESTIONS);
+  if (!inputField.value.trim() || !canEdit()) { closeSuggestions(); return; }
+  suggestions = findKeywordMatches(inputField.value);
   highlighted = 0;
   renderSuggestions();
   suggestionList.scrollTop = suggestionList.scrollHeight;
@@ -794,32 +846,10 @@ function nameDialog({ title, parentLabel, validate, initialValue = '', confirmLa
         return;
       }
       matchList.hidden = false;
-      const rows = matches.map((node, index) => {
-        const row = document.createElement('li');
-        row.className = 'keyword-suggestion';
-        row.setAttribute('role', 'option');
-        if (index === matchIndex) row.classList.add('highlighted');
-        const label = document.createElement('span');
-        label.textContent = pathLabel(node);
-        const count = document.createElement('span');
-        count.className = 'keyword-suggestion-count';
-        count.textContent = String(usageById.get(node.id) || 0);
-        row.append(label, count);
-        // mousedown plutôt que click : le champ garde le focus (sinon la liste se fermerait avant le clic).
-        row.addEventListener('mousedown', event => {
-          event.preventDefault();
-          pickMatch(node);
-        });
-        return row;
-      }).reverse();
-      matchList.replaceChildren(...rows);
-      matchList.querySelector('.highlighted')?.scrollIntoView({ block: 'nearest' });
+      renderKeywordMatches(matchList, matches, matchIndex, index => pickMatch(matches[index]));
     };
     const updateMatches = () => {
-      const query = normalizeSearch(input.value.trim());
-      matches = query
-        ? [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)).sort(compareByUsage).slice(0, MAX_SUGGESTIONS)
-        : [];
+      matches = findKeywordMatches(input.value, excludeId);
       matchIndex = -1;
       renderMatches();
       matchList.scrollTop = matchList.scrollHeight;
@@ -908,7 +938,7 @@ async function createKeywordFlow(parentId) {
     const node = await invoke('create_keyword', { parentId, name });
     registerNode(node);
     if (parentId !== ROOT_ID) expandedIds.add(parentId);
-    if (working.size > 0) activateKeyword(node.id, false);
+    if (canEdit()) activateKeyword(node.id, false);
     else renderTree();
   } catch (error) {
     host.showToast(t('Could not create the keyword: {error}', { error: describeKeywordError(error) }));
@@ -1023,13 +1053,10 @@ async function finishDelete(node, photoCount, ids, result, error) {
     return;
   }
   const removedIds = new Set(ids);
-  const writtenIds = new Set(result.written.map(written => written.photo_id));
-  for (const sets of [baseline, working]) {
-    for (const [photoId, set] of sets) {
-      if (result.deleted || writtenIds.has(photoId)) for (const id of removedIds) set.delete(id);
-    }
-  }
+  adoptWritten(result.written);
   if (result.deleted) {
+    // Plus aucun fichier ne le porte : il disparaît aussi des modifications en attente (un ajout en attente n'aurait plus de mot-clé à écrire).
+    for (const sets of [baseline, working]) for (const set of sets.values()) for (const id of removedIds) set.delete(id);
     buildTree([...nodeById.values()].filter(candidate => !removedIds.has(candidate.id)));
     for (const id of removedIds) expandedIds.delete(id);
   }
@@ -1038,7 +1065,7 @@ async function finishDelete(node, photoCount, ids, result, error) {
   renderTree();
   updateButtons();
   publishWritten(result.written);
-  refreshUsage();
+  if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
   if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount));
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword “{name}” deleted', { name: node.name }));
@@ -1080,7 +1107,7 @@ export function initKeywordsPanel(hostApi) {
   descriptionTabButton.addEventListener('click', () => { if (!descriptionTabButton.disabled) setTab('description'); });
   modeButton.addEventListener('click', toggleFilterMode);
   applyButton.addEventListener('click', applyChanges);
-  resetButton.addEventListener('click', resetChanges);
+  resetButton.addEventListener('click', () => resetChanges());
   unifyButton.addEventListener('click', unifySelection);
   inputField.addEventListener('input', updateSuggestions);
   inputField.addEventListener('focus', updateSuggestions);

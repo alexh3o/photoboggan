@@ -51,6 +51,26 @@ fn only_the_leaf_is_active_and_the_file_wins() {
 }
 
 #[test]
+fn written_keyword_ids_are_those_stored_after_reading() {
+    // Ce que run_write renvoie au panneau (KeywordWritten::keyword_ids) : les mots-clés actifs relus, pas ceux demandés.
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let photo = insert_photo(&conn, "C:/P/a.jpg");
+    insert_photo(&conn, "C:/P/b.jpg");
+    assert!(store_photo_keywords(&conn, &[
+        ("C:/P/a.jpg".into(), paths(&[&["Personnes", "Alice"], &["Lieux"]])),
+        ("C:/P/b.jpg".into(), paths(&[&["Autre"]])),
+    ]));
+    let alice = ensure_node(&conn, ensure_node(&conn, 0, "Personnes").unwrap(), "Alice").unwrap();
+    let lieux = ensure_node(&conn, 0, "Lieux").unwrap();
+    let mut expected = vec![alice, lieux];
+    expected.sort();
+    assert_eq!(photo_keyword_ids(&conn, photo).unwrap(), expected, "seuls les derniers niveaux, et seulement ceux de cette photo");
+    assert!(store_photo_keywords(&conn, &[("C:/P/a.jpg".into(), Vec::new())]));
+    assert!(photo_keyword_ids(&conn, photo).unwrap().is_empty());
+}
+
+#[test]
 fn unknown_photo_is_skipped_without_failing_the_batch() {
     let (_dir, pool) = temp_catalog();
     let conn = pool.get().unwrap();

@@ -50,7 +50,9 @@ export function initMetadataWrites(hostApi) {
 }
 
 // Inscrit un onglet éditeur : { isDirty(), targetIds(), pendingItems() -> [{ photo_id, path, keyword_ids? , title?, description?, faces? }],
-// afterWrite(result, items), discard(), scope? }. `scope: 'library'` (visages, faces-panel.js) : modifications en attente dans toute la photothèque,
+// afterWrite(result, items), discard(photoIds?), pendingKinds?(), scope? }. `items` : les éléments que cet éditeur a fournis, tels quels (sans
+// les retouches faites avant l'écriture). `discard(photoIds)` : abandon limité à ces photos (sans argument : tout). `pendingKinds()` : types en
+// attente, sans construire les éléments. `scope: 'library'` (visages, faces-panel.js) : modifications en attente dans toute la photothèque,
 // pas sur la sélection : pas de question au changement de sélection, et écrites seulement par une demande explicite (vue Visages) ou à la fermeture.
 export function registerEditor(editor) {
   editors.push(editor);
@@ -80,6 +82,10 @@ export function pendingKinds() {
   const kinds = new Set();
   for (const editor of editors) {
     if (!editor.isDirty()) continue;
+    if (editor.pendingKinds) {
+      for (const kind of editor.pendingKinds()) kinds.add(kind);
+      continue;
+    }
     for (const item of editor.pendingItems()) {
       for (const field of ['keyword_ids', 'title', 'description', 'faces']) if (item[field] !== undefined) kinds.add(field);
     }
@@ -177,6 +183,7 @@ export function choiceDialog({ title, message, buttons }) {
 // Lance une opération qui réécrit des fichiers (application des modifications, suppression ou renommage d'un mot-clé), verrou d'écriture pris
 // pendant sa durée. `count` photos ≥ QUEUE_THRESHOLD : tâche de la file, avec progression et arrêt possible (sauf `forceDirect`) ; sinon commande
 // directe. `finish(entry, resultat, erreur)` traite la fin ; `resultat` vaut null si la commande a échoué ou si la tâche a été retirée de la file.
+// Renvoie false si l'opération n'a pas pu être lancée (file indisponible).
 export async function runLocked(command, args, count, finish, { forceDirect = false } = {}) {
   const entry = { task: null, settled: false };
   const settle = async (result, error) => {
@@ -189,13 +196,13 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
     const task = host.enqueueKeywordTask(command, args, count, (result, stopped, error) => settle(result, error));
     if (!task) {
       host.showToast(t('Metadata writing could not be queued'));
-      return;
+      return false;
     }
     entry.task = task;
     queuedWrites.push(entry);
     watchLock();
     notifyLock();
-    return;
+    return true;
   }
   directWrites += 1;
   notifyLock();
@@ -209,27 +216,35 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
     directWrites -= 1;
     notifyLock();
   }
+  return true;
 }
 
 // Écrit tout ce qui attend dans les onglets éditeurs : les éléments d'une même photo sont réunis en une seule écriture. `includeLibrary` : aussi
 // les visages en attente dans toute la photothèque (sinon, seuls ceux des photos déjà réécrites le sont, par le backend).
+// Renvoie false si rien n'a été lancé alors que des modifications attendent (écriture déjà en cours, question annulée, file indisponible).
 export async function applyPending(options = {}) {
-  if (isWriteLocked()) return;
+  if (isWriteLocked()) return false;
   const merged = new Map();
+  const sentBy = new Map(); // éditeur -> ses propres éléments (les copies fusionnées peuvent être retouchées par resolveFaceKeywordConflicts)
   for (const editor of editors) {
     if (!editor.isDirty() || (!followsSelection(editor) && !options.includeLibrary)) continue;
-    for (const item of editor.pendingItems()) {
+    const own = editor.pendingItems();
+    sentBy.set(editor, own);
+    for (const item of own) {
       merged.set(item.photo_id, { ...merged.get(item.photo_id), ...item });
     }
   }
+  if (!merged.size) return true;
   const items = await resolveFaceKeywordConflicts([...merged.values()]);
-  if (items?.length) await runWrite(items, options);
+  if (!items) return false;
+  return runWrite(items, options, sentBy);
 }
 
 // Écrit directement des éléments déjà prêts (ex. « Effacer les données de visages ») : même circuit que « Appliquer ».
 export const writeMetadataItems = (items, options) => runWrite(items, options);
 
-const runWrite = (items, options) => runLocked('apply_metadata_changes', { items }, items.length, (result, error) => finishWrite(items, result, error), options);
+const runWrite = (items, options, sentBy = new Map()) =>
+  runLocked('apply_metadata_changes', { items }, items.length, (result, error) => finishWrite(items, sentBy, result, error), options);
 
 // Mot-clé d'une personne retiré à la main alors qu'un de ses visages reste sur la photo (spec §6.3) : Garder (le mot-clé reste) ou Passer le
 // visage en inconnu (le mot-clé part avec le nom du visage). Renvoie les éléments à écrire, ou null si l'utilisateur annule.
@@ -282,16 +297,18 @@ export function publishWritten(written) {
   if (written.length) host.updatePhotoMetadata(written);
 }
 
-async function finishWrite(items, result, error) {
+async function finishWrite(items, sentBy, result, error) {
   if (!result) {
     if (error) host.showToast(t('Metadata writing failed: {error}', { error: String(error) }));
     return;
   }
-  for (const editor of editors) editor.afterWrite(result, items);
+  for (const editor of editors) editor.afterWrite(result, sentBy.get(editor) || []);
   publishWritten(result.written);
   if (result.failed.length) {
     const failedIds = new Set(result.failed.map(failure => failure.photo_id));
-    await showFailureDialog(result, () => runWrite(items.filter(item => failedIds.has(item.photo_id))));
+    const isFailed = item => failedIds.has(item.photo_id);
+    const retrySentBy = new Map([...sentBy].map(([editor, own]) => [editor, own.filter(isFailed)]));
+    await showFailureDialog(result, () => runWrite(items.filter(isFailed), {}, retrySentBy));
   }
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else { lastWriteOk = true; host.showToast(tp('Metadata written in {count} file', result.written.length)); }
@@ -312,8 +329,12 @@ export async function showFailureDialog(result, retry) {
   if (choice === 'retry') {
     await retry();
   } else if (choice === 'show') {
-    // La vue des miniatures ne montre plus que les fichiers en échec ; les modifications en attente sont abandonnées (les fichiers n'ont pas changé).
-    for (const editor of editors) editor.discard();
+    // La vue des miniatures ne montre plus que les fichiers en échec ; leurs modifications en attente sont abandonnées (les fichiers n'ont pas
+    // changé). Celles d'autres photos (ex. la nouvelle sélection, pendant une écriture passée par la file) sont gardées.
+    const failedIds = new Set(result.failed.map(failure => failure.photo_id));
+    for (const editor of editors) {
+      if (editor.targetIds().some(id => failedIds.has(id))) editor.discard(failedIds);
+    }
     host.showFailedFiles(result.failed.map(failure => failure.path));
   }
 }
@@ -345,8 +366,15 @@ export function resolvePendingSelection(currentIds) {
       host.setSelectionIndices(previousIndices);
       return 'cancel';
     }
-    if (decision === 'apply') await applyPending();
-    else for (const editor of stale) editor.discard();
+    if (decision === 'apply') {
+      // Écriture non lancée (question des personnes annulée, file indisponible…) : les modifications sont gardées, comme pour « Annuler ».
+      if (!(await applyPending())) {
+        if (previousIndices) host.setSelectionIndices(previousIndices);
+        return 'cancel';
+      }
+    } else {
+      for (const editor of stale) editor.discard();
+    }
     return 'proceed';
   })();
   return pendingPrompt.finally(() => { pendingPrompt = null; });
