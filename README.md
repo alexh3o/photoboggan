@@ -28,7 +28,6 @@ My photo collection grew to the opposite of my patience to organize an always gr
 
 - **Windows**: tested, stable and used daily.
 - **Linux (.deb)**: tested a bit, seems functional, have a try and tell me!
-  - *Known issues*: no trash, cannot move window by title bar
 - **macOS & other Linux packages**: not provided yet, but builds can easily be made if testers are interested. Feel free to open an issue!
 
 Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/releases).
@@ -99,8 +98,6 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & Ge
 
 ![Fullscreen rating](/screenshots/fullscreen-rating.jpg "Fullscreen rating")
 *Fullscreen rating* (press R to toggle rating bar, D to toggle photo information)
-
-
 
 <table>
   <tr>

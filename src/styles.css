@@ -252,7 +252,7 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .task-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.75rem; row-gap: 4px; align-items: center; margin-bottom: 8px; padding: 8px 12px; border-radius: 4px; background: var(--row-bg); font-size: 0.8rem; }
 .task-item:last-child { margin-bottom: 0; }
 .task-item-name { grid-column: 1; min-width: 0; overflow: hidden; color: var(--text-strong); text-overflow: ellipsis; white-space: nowrap; }
-.task-item-status { grid-column: 1; color: var(--text-faint); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.task-item-status { grid-column: 1; color: var(--text-faint); font-size: 0.75rem; font-variant-numeric: tabular-nums; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-item-bar { grid-column: 1; height: 4px; overflow: hidden; border-radius: 2px; background: var(--control-border); }
 .task-item-bar > span { display: block; width: 0; height: 100%; background: var(--active-button); transition: width 0.2s ease; }
 .task-item-action { grid-column: 2; grid-row: 1 / span 3; white-space: nowrap; }
@@ -438,7 +438,6 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .fullscreen-info.hidden { display: none; }
 .fullscreen-info > * { position: absolute; padding: 0.3rem 0.6rem; } /* la marge laisse la place au halo de l'ombre (sinon rogné par overflow: hidden) */
 .fullscreen-info-name { top: 1rem; left: 50%; transform: translateX(-50%); max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-/*.fullscreen-info-name { top: 1rem; left: 50%; transform: translateX(-50%); max-width: 60%; overflow: hidden; font-size: 1.05rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }*/
 .fullscreen-info-rank { top: 1rem; right: 1.25rem; font-variant-numeric: tabular-nums; }
 .fullscreen-info-exif { bottom: 1rem; left: 1.25rem; max-width: 36%; padding: 0; }
 .fullscreen-info-exif > div { padding: 0.05rem 0.6rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -469,7 +468,7 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .group-separator-probe { position: absolute; width: 0; height: var(--group-separator-height); visibility: hidden; pointer-events: none; }
 
 /* Title Bar */
-.titlebar { font-weight: 400; font-family: 'Fredoka', 'Quicksand', sans-serif; font-weight: normal; flex: none; height: 2.2rem; background-color: var(--bg-secondary, #1e1e1e); color: var(--text-primary, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
+.titlebar { font-family: 'Fredoka', 'Quicksand', sans-serif; font-weight: normal; flex: none; height: 2.2rem; background-color: var(--bg-panel, #1e1e1e); color: var(--text-light, #ffffff); display: flex; justify-content: space-between; align-items: center; user-select: none; font-size: 1rem; }
 .titlebar-drag-region { flex: 1; display: flex; align-items: center; height: 100%; padding-left: 0.6rem; gap: 8px; -webkit-app-region: drag; }
 .titlebar-icon { width: 1.3rem; height: 1.3rem; }
 /* Linux (WebKitGTK) : -webkit-app-region est ignoré, le glisser repose sur data-tauri-drag-region, qui ne réagit que si le clic tombe sur la zone elle-même.
@@ -549,7 +548,6 @@ body.immersive .titlebar { display: none; }
 .integrity-row button { flex: 0 0 auto; padding: 0.35rem 0.75rem; }
 /* Dossier en cours d'analyse : seconde ligne du toast de la tâche, et fin de la ligne d'état dans la fenêtre des actions */
 .task-toast-detail { display: block; margin-top: 2px; overflow: hidden; color: var(--text-faint); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
-.task-item-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* MODALE PARAMETRES */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 10000; }
@@ -627,7 +625,7 @@ body.immersive .titlebar { display: none; }
 .about-version { color: var(--text-muted); font-size: 0.85rem; }
 .about-links { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; margin-top: 0.4rem; }
 .about-link { color: var(--accent-text); font-size: 0.8rem; text-decoration: underline; cursor: pointer; }
-.about-link:hover { filter: brightness(1.2); }.about-link:hover { filter: brightness(1.2); }
+.about-link:hover { filter: brightness(1.2); }
 .modal-body { padding: 1rem; max-height: 70vh; overflow-y: auto; }
 #settings-folder-list { list-style: none; }
 .settings-folder-item { display: flex; justify-content: space-between; align-items: center; background: var(--row-bg); padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75rem; }
@@ -726,6 +724,5 @@ body.immersive .titlebar { display: none; }
 /* Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la grille) */
 .marking-color-popover { position: absolute; bottom: calc(100% + 0.6rem); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100cqw - 2rem); z-index: 6; padding: 0.4rem; background: var(--card-bg); border: 1px solid var(--control-border); border-radius: 0.5rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); }
 .marking-color-popover[hidden] { display: none; }
-.marking-color-popover .marking-colors { gap: 4px; }
-.marking-color-popover .marking-colors { flex: 0 1 15.5rem; width: 15.5rem; max-width: 100%; min-width: 0; }
+.marking-color-popover .marking-colors { gap: 4px; flex: 0 1 15.5rem; width: 15.5rem; max-width: 100%; min-width: 0; }
 .marking-color-popover .color-square { flex: 0 1 1.5rem; width: auto; min-width: 0.9rem; height: auto; aspect-ratio: 1; }

@@ -15,10 +15,11 @@
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
+- [ ] *style*: `UI` make star rating filter in filters more visual
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
 - [x] *chore*: Add **Linux** release
-  - [ ] *fix*: **No trash** available (but it mentions deletion is definitive)
+  - [x] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [x] *fix*: **Cannot move window** by title bar
   - [ ] **Test** linux release (more)
 - [ ] *feat*: `Info` add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
@@ -49,3 +50,4 @@
 
 - [ ] Test Linux Release
 - [ ] Restoring data from data folder
+- [ ] Design critique of actions menus
