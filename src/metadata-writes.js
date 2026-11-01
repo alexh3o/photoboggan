@@ -14,12 +14,12 @@ const QUEUE_THRESHOLD = 20; // à partir de ce nombre de fichiers, l'écriture p
 let host = null; // services de main.js, voir initMetadataWrites
 const editors = [];
 let directWrites = 0; // écritures directes (moins de QUEUE_THRESHOLD fichiers) en cours
-const queuedWrites = []; // écritures passées par la file de tâches : { task, settled }
-let lockTimer = null;
+let queuedWrites = 0; // écritures passées par la file de tâches, pas encore terminées (ni retirées de la file)
 const lockListeners = new Set();
 let lastWriteOk = false; // la dernière écriture directe s'est terminée sans échec ni arrêt (utile à la fermeture de l'application)
 let pendingPrompt = null; // question en cours au changement de sélection (partagée par les deux onglets)
 let promptOpen = false;
+let closing = false; // fermeture de l'application en cours (question, puis écriture finale) : pas de seconde fermeture en parallèle
 
 export const isAutoApply = () => localStorage.getItem(AUTO_APPLY_STORAGE_KEY) === 'true';
 
@@ -35,8 +35,8 @@ function setAutoApply(enabled) {
 }
 const fileName = path => String(path).split(/[\\/]/).pop();
 
-// Services fournis par main.js : showToast, enqueueKeywordTask, isTaskQueued, updatePhotoMetadata, findIndicesByPhotoIds, setSelectionIndices,
-// showFailedFiles, faceReadingEnabled.
+// Services fournis par main.js : showToast, enqueueKeywordTask, updatePhotoMetadata, findIndicesByPhotoIds, setSelectionIndices,
+// showFailedFiles, faceReadingEnabled, refreshFaces.
 export function initMetadataWrites(hostApi) {
   host = hostApi;
   const autoApplyBox = document.getElementById('keywords-auto-apply');
@@ -94,15 +94,19 @@ export function pendingKinds() {
 }
 
 export const isPromptOpen = () => promptOpen;
+// Modifications en attente, visages de toute la photothèque compris (fermeture de l'application).
 export const hasPendingEdits = () => editors.some(editor => editor.isDirty());
+// Modifications en attente que « Appliquer » des onglets écrit : celles qui suivent la sélection (les visages s'écrivent depuis la vue Visages).
+export const hasSelectionEdits = () => editors.some(editor => followsSelection(editor) && editor.isDirty());
 
 // ---------------------------------------------------------------------------
 // Verrou d'écriture
 // ---------------------------------------------------------------------------
 
 // Tant qu'une écriture est en cours (directe, ou tâche en attente / en cours dans la file), « Appliquer » et Ctrl+Entrée sont inactifs.
+// Le verrou est libéré dès la fin de l'écriture, avant son compte rendu (fenêtre d'échec, « Retenter »).
 export function isWriteLocked() {
-  return directWrites > 0 || queuedWrites.some(entry => !entry.settled && host.isTaskQueued(entry.task));
+  return directWrites > 0 || queuedWrites > 0;
 }
 
 // `listener()` est appelé à chaque changement possible du verrou (les onglets mettent leurs boutons à jour).
@@ -114,22 +118,25 @@ function notifyLock() {
   for (const listener of lockListeners) listener();
 }
 
-// Surveille la file de tâches tant qu'une écriture est en attente : une tâche retirée de la file libère le verrou sans autre signal.
-function watchLock() {
-  if (lockTimer !== null) return;
-  lockTimer = setInterval(() => {
-    notifyLock();
-    if (!isWriteLocked()) {
-      clearInterval(lockTimer);
-      lockTimer = null;
-      queuedWrites.length = 0;
-    }
-  }, 400);
-}
-
 // ---------------------------------------------------------------------------
 // Fenêtre à choix multiples
 // ---------------------------------------------------------------------------
+
+// Tab dans une fenêtre modale : le focus reste dans `modal` (sinon Tab puis Entrée activerait un bouton de l'interface pendant que la question
+// attend). Seule la fenêtre du dessus réagit, quand plusieurs sont empilées. Renvoie true si la touche a été traitée.
+export function keepFocusInModal(modal, event) {
+  if (event.key !== 'Tab') return false;
+  const modals = document.querySelectorAll('.modal');
+  if (modals[modals.length - 1] !== modal) return false;
+  const focusable = [...modal.querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')];
+  const inside = modal.contains(document.activeElement);
+  const edge = event.shiftKey ? focusable[0] : focusable.at(-1);
+  if (!focusable.length || !inside || document.activeElement === edge) {
+    event.preventDefault();
+    (event.shiftKey ? focusable.at(-1) : focusable[0])?.focus();
+  }
+  return true;
+}
 
 // Fenêtre modale : `buttons` = [{ label, value, primary?, cancel? }]. Échap choisit le bouton marqué `cancel` (sans lui, Échap ne fait rien).
 export function choiceDialog({ title, message, buttons }) {
@@ -153,7 +160,7 @@ export function choiceDialog({ title, message, buttons }) {
       resolve(value);
     };
     const onKeyDown = event => {
-      if (event.key !== 'Escape') return;
+      if (keepFocusInModal(modal, event) || event.key !== 'Escape') return;
       const cancelButton = buttons.find(button => button.cancel);
       event.preventDefault();
       event.stopPropagation();
@@ -185,37 +192,40 @@ export function choiceDialog({ title, message, buttons }) {
 // directe. `finish(entry, resultat, erreur)` traite la fin ; `resultat` vaut null si la commande a échoué ou si la tâche a été retirée de la file.
 // Renvoie false si l'opération n'a pas pu être lancée (file indisponible).
 export async function runLocked(command, args, count, finish, { forceDirect = false } = {}) {
-  const entry = { task: null, settled: false };
-  const settle = async (result, error) => {
-    if (entry.settled) return;
-    entry.settled = true;
-    notifyLock();
-    await finish(result, error);
-  };
   if (!forceDirect && count >= QUEUE_THRESHOLD) {
+    let settled = false;
+    // Fin de la tâche (terminée, en échec, ou retirée de la file avant de démarrer : main.js appelle alors onResult avec un résultat null).
+    const settle = async (result, error) => {
+      if (settled) return;
+      settled = true;
+      queuedWrites -= 1;
+      notifyLock();
+      await finish(result, error);
+    };
+    queuedWrites += 1;
     const task = host.enqueueKeywordTask(command, args, count, (result, stopped, error) => settle(result, error));
     if (!task) {
+      queuedWrites -= 1;
       host.showToast(t('Metadata writing could not be queued'));
       return false;
     }
-    entry.task = task;
-    queuedWrites.push(entry);
-    watchLock();
     notifyLock();
     return true;
   }
   directWrites += 1;
   notifyLock();
   host.showToast(t('Writing metadata…'));
+  let result = null;
+  let failure = null;
   try {
-    const result = await invoke(command, args);
-    await settle(result, null);
+    result = await invoke(command, args);
   } catch (error) {
-    await settle(null, error);
+    failure = error;
   } finally {
     directWrites -= 1;
     notifyLock();
   }
+  await finish(result, failure);
   return true;
 }
 
@@ -234,7 +244,10 @@ export async function applyPending(options = {}) {
       merged.set(item.photo_id, { ...merged.get(item.photo_id), ...item });
     }
   }
-  if (!merged.size) return true;
+  if (!merged.size) {
+    lastWriteOk = true; // rien à écrire : rien n'empêche la fermeture
+    return true;
+  }
   const items = await resolveFaceKeywordConflicts([...merged.values()]);
   if (!items) return false;
   return runWrite(items, options, sentBy);
@@ -285,6 +298,9 @@ async function resolveFaceKeywordConflicts(items) {
     host.showToast(String(error));
     return null;
   }
+  // La base a changé tout de suite (le visage doit être inconnu avant l'écriture, qui en retire le nom) : section Personnes, calques et vue
+  // Visages relus sans attendre la fin de l'écriture, ni dépendre de son lancement.
+  host.refreshFaces?.();
   for (const conflict of conflicts) {
     const item = byPhoto.get(conflict.photo_id);
     if (item) item.faces = true;
@@ -302,7 +318,14 @@ async function finishWrite(items, sentBy, result, error) {
     if (error) host.showToast(t('Metadata writing failed: {error}', { error: String(error) }));
     return;
   }
-  for (const editor of editors) editor.afterWrite(result, sentBy.get(editor) || []);
+  // Une erreur dans un onglet ne doit pas empêcher le reste du compte rendu (listes de photos, fenêtre d'échec avec « Retenter », message).
+  for (const editor of editors) {
+    try {
+      editor.afterWrite(result, sentBy.get(editor) || []);
+    } catch (afterError) {
+      console.error('Mise à jour après écriture impossible', afterError);
+    }
+  }
   publishWritten(result.written);
   if (result.failed.length) {
     const failedIds = new Set(result.failed.map(failure => failure.photo_id));
@@ -343,7 +366,12 @@ export async function showFailureDialog(result, retry) {
 // Changement de sélection et fermeture de l'application
 // ---------------------------------------------------------------------------
 
-const sameIds = (ids, others) => ids.length === others.length && ids.every(id => others.includes(id));
+// Mêmes identifiants (dans n'importe quel ordre) ; Set : les sélections peuvent compter des milliers de photos.
+function sameIds(ids, others) {
+  if (ids.length !== others.length) return false;
+  const set = new Set(others);
+  return ids.every(id => set.has(id));
+}
 
 // Appelée par un onglet avant de se recharger pour la sélection `currentIds` : si des modifications en attente (d'un onglet ou de l'autre) visent
 // une autre sélection, demande Appliquer / Ignorer / Annuler (revenir à la sélection précédente). Renvoie « cancel » si la sélection précédente
@@ -353,7 +381,11 @@ export function resolvePendingSelection(currentIds) {
   const stale = editors.filter(editor => followsSelection(editor) && editor.isDirty() && !sameIds(editor.targetIds(), currentIds));
   if (!stale.length) return Promise.resolve('proceed');
   pendingPrompt = (async () => {
-    const previousIndices = host.findIndicesByPhotoIds(stale[0].targetIds());
+    // « Annuler » rétablit la sélection visée par les modifications en attente : seulement si tous les onglets concernés visent les mêmes
+    // photos (sinon l'un d'eux reposerait aussitôt la question, pour les siennes).
+    const targets = stale[0].targetIds();
+    const oneTarget = stale.every(editor => sameIds(editor.targetIds(), targets));
+    const previousIndices = oneTarget ? host.findIndicesByPhotoIds(targets) : null;
     const locked = isWriteLocked();
     promptOpen = true;
     let decision;
@@ -430,7 +462,7 @@ function pendingSummary() {
 // Appliquer / Quitter sans appliquer / Annuler ; une écriture en cours à une confirmation, car quitter l'interrompt.
 export async function confirmCloseWithPendingEdits() {
   if (!host) return true;
-  if (promptOpen) return false; // une question est déjà posée : on y répond d'abord
+  if (promptOpen || closing) return false; // une question est déjà posée, ou l'écriture finale est en cours : on la laisse finir
   const locked = isWriteLocked();
   const dirty = hasPendingEdits();
   if (!dirty && !locked) return true;
@@ -469,7 +501,13 @@ export async function confirmCloseWithPendingEdits() {
   if (decision === 'quit') return true;
   if (decision !== 'apply') return false;
   // Écriture directe (jamais par la file, qui serait interrompue par la fermeture) ; la fenêtre reste ouverte si elle ne réussit pas entièrement.
-  lastWriteOk = false;
-  await applyPending({ forceDirect: true, includeLibrary: true });
-  return lastWriteOk;
+  // Pendant ce temps (question des personnes, écriture, fenêtre d'échec), une nouvelle demande de fermeture est ignorée.
+  closing = true;
+  try {
+    lastWriteOk = false;
+    await applyPending({ forceDirect: true, includeLibrary: true });
+    return lastWriteOk;
+  } finally {
+    closing = false;
+  }
 }

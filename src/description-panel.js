@@ -10,7 +10,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
-import { registerEditor, onLockChange, onPendingChange, notifyPendingChange, isWriteLocked, applyPending, hasPendingEdits, resolvePendingSelection, isPromptOpen } from './metadata-writes.js';
+import { registerEditor, onLockChange, onPendingChange, notifyPendingChange, isWriteLocked, applyPending, hasSelectionEdits, resolvePendingSelection, isPromptOpen } from './metadata-writes.js';
 
 let host = null; // services de main.js, voir initDescriptionPanel
 let initialized = false;
@@ -115,7 +115,7 @@ function updateState() {
   descriptionField.classList.toggle('pending', values.some(descriptionChangedFor));
   const locked = isWriteLocked();
   // « Appliquer » écrit aussi les mots-clés en attente (onglet Mots-clés).
-  applyButton.disabled = !hasPendingEdits() || locked;
+  applyButton.disabled = !hasSelectionEdits() || locked;
   applyButton.title = locked ? t('Metadata writing in progress…') : t('Write the pending changes into the files (Ctrl+Enter)');
   resetButton.disabled = !isDirty();
   resetButton.title = t('Put the title and description back to their saved values');

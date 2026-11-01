@@ -11,8 +11,8 @@ import './keywords.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import {
-  registerEditor, runLocked, isWriteLocked, onLockChange, applyPending, choiceDialog, showFailureDialog, resolvePendingSelection,
-  isPromptOpen, publishWritten, hasPendingEdits, onPendingChange, notifyPendingChange, pendingKinds,
+  registerEditor, runLocked, isWriteLocked, onLockChange, applyPending, choiceDialog, keepFocusInModal, showFailureDialog, resolvePendingSelection,
+  isPromptOpen, publishWritten, hasSelectionEdits, onPendingChange, notifyPendingChange, pendingKinds,
 } from './metadata-writes.js';
 
 const TAB_STORAGE_KEY = 'sidePanelTab';
@@ -408,7 +408,7 @@ function updateButtons() {
   if (!initialized) return;
   const locked = isWriteLocked();
   // « Appliquer » écrit aussi le titre et la description en attente (onglet Description).
-  applyButton.disabled = !hasPendingEdits() || locked;
+  applyButton.disabled = !hasSelectionEdits() || locked;
   applyButton.title = locked ? t('Metadata writing in progress…') : t('Write the pending changes into the files (Ctrl+Enter)');
   resetButton.disabled = dirtyIds.size === 0 || loadingSelection;
   resetButton.title = t('Put the keywords back to their state before the changes');
@@ -883,7 +883,7 @@ function nameDialog({ title, parentLabel, validate, initialValue = '', confirmLa
       close(name);
     };
     const onKeyDown = event => {
-      if (event.key !== 'Escape') return;
+      if (keepFocusInModal(modal, event) || event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
       if (!matchList.hidden) {

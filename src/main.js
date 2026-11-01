@@ -3483,6 +3483,8 @@ function removeOrStopTask(task) {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
     syncTaskUI();
+    // Tâche qui traite elle-même son résultat (écriture de métadonnées…) : prévenue qu'elle ne s'exécutera pas (libère le verrou d'écriture).
+    task.onResult?.(null, true, null);
   } else if (!task.stopRequested) {
     task.stopRequested = true;
     syncTaskUI();
@@ -4847,7 +4849,6 @@ initMetadataWrites({
     task.onResult = onResult;
     return task;
   },
-  isTaskQueued: task => scanTasks.includes(task),
   // Valeurs relues dans les fichiers écrits (mots-clés à plat, titre, description) : mises à jour dans les listes de photos, le filtre de
   // mots-clés et le panneau Info.
   updatePhotoMetadata: written => {
@@ -4887,6 +4888,8 @@ initMetadataWrites({
   },
   // Lecture des visages activée : avant d'écrire des mots-clés, vérifier ceux des personnes encore présentes sur les photos (voir metadata-writes.js).
   faceReadingEnabled: () => document.getElementById('face-reading-toggle')?.checked === true,
+  // Visages modifiés en base (ex. passés en inconnu avant une écriture) : section Personnes, calques et vue Visages relus.
+  refreshFaces: () => refreshFaces(),
 });
 
 const getSelectedPhotos = () => [...selectedIndices].map(index => photos[index]).filter(Boolean);
