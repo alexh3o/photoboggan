@@ -3,17 +3,19 @@
 //! - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotations
 //!   et miroirs du conteneur (`irot` / `imir`) : l'orientation EXIF des HEIC ne doit donc PAS être réappliquée.
 //! - Lecture : dimensions, paquet XMP intégré au fichier, profil ICC, EXIF (l'EXIF est lu par `kamadak-exif` dans exif.rs).
-//! - Écriture : `xmp:Rating` / `xmp:Label` dans le paquet XMP du fichier (créé s'il n'existe pas), sans toucher aux pixels
-//!   ni à l'EXIF. Le fichier n'est remplacé qu'après une vérification complète du résultat (voir `verify`) ; si la structure
+//! - Écriture : le paquet XMP de l'image principale est remplacé par la version modifiée (note, couleur, mots-clés, titre, description, zones de
+//!   visage…), créé s'il n'existe pas, sans toucher aux pixels ni à l'EXIF. Le fichier n'est remplacé qu'après une vérification complète du résultat (voir `verify`) ; si la structure
 //!   du fichier sort de ce que l'on sait modifier sans risque, `Outcome::Unsupported` est renvoyé et l'appelant utilise un sidecar.
 
+use std::cell::RefCell;
 use std::fs;
-use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::SystemTime;
 
 pub const EXTENSIONS: [&str; 3] = ["heic", "heif", "hif"];
 const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
-/// Espace réservé à la fin d'un paquet XMP agrandi : les modifications suivantes (note, couleur) tiennent alors sur place.
+/// Espace réservé à la fin d'un paquet XMP agrandi : les modifications suivantes tiennent alors sur place.
 const XMP_PADDING: usize = 2048;
 const XMP_TYPES: [&str; 2] = ["application/rdf+xml", "application/xmp+xml"];
 const XMP_CONTENT_TYPE: &[u8] = b"application/rdf+xml\0";
@@ -22,9 +24,31 @@ pub fn is_heif_path(path: &Path) -> bool {
     path.extension().and_then(|e| e.to_str()).map(|e| EXTENSIONS.contains(&e.to_ascii_lowercase().as_str())).unwrap_or(false)
 }
 
-fn read_all(path: &Path) -> Option<Vec<u8>> {
-    if fs::metadata(path).ok()?.len() > MAX_FILE_BYTES { return None; }
-    fs::read(path).ok()
+/// Fichiers jusqu'à cette taille gardés en mémoire pour la lecture suivante du même fil (voir read_all).
+const CACHE_MAX_BYTES: u64 = 32 * 1024 * 1024;
+
+struct CachedFile { path: PathBuf, len: u64, modified: Option<SystemTime>, bytes: Arc<Vec<u8>> }
+
+thread_local! {
+    /// Dernier fichier lu par ce fil : un scan lit les dimensions, le XMP, l'EXIF puis les pixels d'une même photo l'un après l'autre.
+    static LAST_READ: RefCell<Option<CachedFile>> = const { RefCell::new(None) };
+}
+
+/// Contenu du fichier (limité à MAX_FILE_BYTES). Le dernier fichier lu par le fil est gardé s'il fait moins de CACHE_MAX_BYTES et reste valable
+/// tant que sa taille et sa date de modification ne changent pas : une photo n'est plus relue en entier à chaque lecture partielle.
+fn read_all(path: &Path) -> Option<Arc<Vec<u8>>> {
+    let metadata = fs::metadata(path).ok()?;
+    if metadata.len() > MAX_FILE_BYTES { return None; }
+    let modified = metadata.modified().ok();
+    let cached = LAST_READ.with(|last| {
+        last.borrow().as_ref().filter(|file| file.path == path && file.len == metadata.len() && file.modified == modified).map(|file| file.bytes.clone())
+    });
+    if cached.is_some() { return cached; }
+    let bytes = Arc::new(fs::read(path).ok()?);
+    if metadata.len() <= CACHE_MAX_BYTES && modified.is_some() {
+        LAST_READ.with(|last| *last.borrow_mut() = Some(CachedFile { path: path.to_path_buf(), len: metadata.len(), modified, bytes: bytes.clone() }));
+    }
+    Some(bytes)
 }
 
 // ---------------------------------------------------------------------------
@@ -62,7 +86,10 @@ pub fn preview_jpeg(path: &Path) -> Result<Vec<u8>, String> {
     if decoded.width > u16::MAX as usize || decoded.height > u16::MAX as usize { return Err("Image trop grande pour le JPEG".into()); }
     let mut output = Vec::new();
     let mut encoder = jpeg_encoder::Encoder::new(&mut output, 90);
-    if let Some(icc) = &decoded.icc { let _ = encoder.add_icc_profile(icc); }
+    if let Some(icc) = &decoded.icc {
+        // Un profil refusé n'empêche pas l'affichage : l'aperçu est servi sans lui (couleurs moins fidèles), l'échec est tracé.
+        if let Err(error) = encoder.add_icc_profile(icc) { eprintln!("HEIF preview of {} written without its colour profile: {error}", path.display()); }
+    }
     encoder.encode(&decoded.rgb, decoded.width as u16, decoded.height as u16, jpeg_encoder::ColorType::Rgb)
         .map_err(|e| format!("Encodage JPEG impossible : {e}"))?;
     Ok(output)
@@ -117,7 +144,7 @@ fn children(d: &[u8], from: usize, to: usize) -> Option<Vec<BoxRef>> {
         let kind: [u8; 4] = d.get(p + 4..p + 8)?.try_into().ok()?;
         let (header, end, open) = match size {
             0 => (8, to as u64, true),
-            1 => (16, p as u64 + be64(d, p + 8)?, true),
+            1 => (16, p as u64 + be64(d, p + 8)?, false), // taille sur 64 bits : la boîte a une taille connue
             s => (8, p as u64 + s, false),
         };
         let end = usize::try_from(end).ok()?;
@@ -303,8 +330,9 @@ fn add_u32(d: &mut [u8], p: usize, delta: usize) -> bool {
 
 /// Applique `update` (paquet actuel ou chaîne vide -> nouveau paquet, vide s'il n'y a rien à écrire) au XMP intégré au fichier.
 pub fn update_xmp(path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Result<Outcome> {
-    let data = fs::read(path)?;
     let unsupported = |why: &str| Ok(Outcome::Unsupported(why.to_string()));
+    if fs::metadata(path)?.len() > MAX_FILE_BYTES { return unsupported("fichier trop volumineux"); }
+    let data = fs::read(path)?; // lecture directe : jamais le cache de read_all, qui pourrait dater d'avant une écriture
     let Some(lay) = parse(&data) else { return unsupported("structure HEIF non reconnue"); };
     if lay.meta.header != 8 { return unsupported("boîte meta en taille étendue"); }
 
@@ -344,12 +372,7 @@ pub fn update_xmp(path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Resu
 
     if let Err(why) = verify(&data, &lay, &output, &expected, existing_id) { return Ok(Outcome::Unsupported(format!("vérification échouée : {why}"))); }
 
-    let temp = format!("{}.photoboggan-tmp", path.display());
-    let written = fs::File::create(&temp).and_then(|mut f| { f.write_all(&output)?; f.sync_all() });
-    if let Err(error) = written.and_then(|_| fs::rename(&temp, path)) {
-        let _ = fs::remove_file(&temp);
-        return Err(error);
-    }
+    crate::exif::write_file_atomically(path, &output)?;
     Ok(Outcome::Written)
 }
 
@@ -471,11 +494,11 @@ fn verify(old: &[u8], old_lay: &Layout, new: &[u8], expected: &str, replaced_id:
     let squash = |s: &str| s.split_whitespace().collect::<String>();
     if squash(&stored) != squash(expected) { return Err("XMP relu différent".into()); }
     if lay.primary != old_lay.primary { return Err("image principale changée".into()); }
-    if let Ok(before) = heic_rs::probe(old) {
-        let after = heic_rs::probe(new).map_err(|e| format!("décodeur : {e}"))?;
-        if (before.width, before.height, before.has_exif) != (after.width, after.height, after.has_exif) { return Err("propriétés de l'image changées".into()); }
-        let ctx = heic_rs::context::Context::open(new).map_err(|e| format!("décodeur : {e}"))?;
-        if ctx.xmp_item(ctx.meta.primary).is_none() { return Err("XMP non rattaché à l'image".into()); }
-    }
+    // L'original doit être lisible par le décodeur : sinon rien ne permet de contrôler le résultat, la réécriture est refusée (sidecar).
+    let before = heic_rs::probe(old).map_err(|e| format!("original illisible par le décodeur : {e}"))?;
+    let after = heic_rs::probe(new).map_err(|e| format!("décodeur : {e}"))?;
+    if (before.width, before.height, before.has_exif) != (after.width, after.height, after.has_exif) { return Err("propriétés de l'image changées".into()); }
+    let ctx = heic_rs::context::Context::open(new).map_err(|e| format!("décodeur : {e}"))?;
+    if ctx.xmp_item(ctx.meta.primary).is_none() { return Err("XMP non rattaché à l'image".into()); }
     Ok(())
 }

@@ -553,9 +553,9 @@ fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
     })
 }
 
-/// Verrous par « tranche » de chemin : deux écritures sur la même image (ou son sidecar) ne se font jamais en même temps (fichiers temporaires
-/// communs, sidecar créé deux fois), alors que des photos différentes restent écrites en parallèle (sauf rencontre de tranche, sans conséquence).
-fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
+/// Verrous par « tranche » de chemin, aussi pris par les écritures internes d'exif.rs (HEIC, JPEG, sidecars) : deux écritures sur la même image
+/// (ou son sidecar) ne se font jamais en même temps (lecture-modification-remplacement qui s'écraseraient, fichiers temporaires communs, sidecar créé deux fois), alors que des photos différentes restent écrites en parallèle (sauf rencontre de tranche, sans conséquence).
+pub(crate) fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
     #[allow(clippy::declare_interior_mutable_const)]
     const UNLOCKED: Mutex<()> = Mutex::new(());
     static LOCKS: [Mutex<()>; 16] = [UNLOCKED; 16];

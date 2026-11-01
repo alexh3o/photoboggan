@@ -1371,6 +1371,8 @@ fn update_xmp_metadata(xml: &str, edit: XmpEdit) -> String {
 pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()> {
     let path = Path::new(image_path);
     if crate::exiftool::is_enabled() { return crate::exiftool::write_marking(path, edit); }
+    // Écriture interne : jamais deux écritures en même temps sur la même image (le chemin ExifTool prend ce verrou lui-même, d'où le placement ici).
+    let _guard = crate::exiftool::path_lock(path);
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     let xmp_update = |xml: &str| update_xmp_metadata(xml, edit);
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
@@ -2040,7 +2042,7 @@ fn jpeg_replace_iptc(data: &[u8], changes: &IptcChanges) -> std::io::Result<Vec<
     })
 }
 
-fn write_file_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_file_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let temp_path = std::path::PathBuf::from(format!("{}.photoboggan-tmp", path.display()));
     // Écriture, synchronisation sur disque puis remplacement : au moindre échec, le fichier temporaire est supprimé.
     let result = (|| {
@@ -2105,6 +2107,7 @@ fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) ->
 pub fn write_metadata(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
     let path = Path::new(image_path);
     if crate::exiftool::is_enabled() { return crate::exiftool::write_metadata(path, update); }
+    let _guard = crate::exiftool::path_lock(path); // écriture interne : voir write_xmp_metadata
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     let xmp_update = |xml: &str| update_xmp_all(xml, update);
     if matches!(extension.as_str(), "heic" | "heif" | "hif") {
