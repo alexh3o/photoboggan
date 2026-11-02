@@ -1046,12 +1046,15 @@ function decodeHtmlEntities(text) {
 // ==========================================
 // ARBORESCENCE & FILTRES
 // ==========================================
-function renderFolderTree() {
+// `fromCounts` : redessin demandé par l'arrivée de nouveaux compteurs, qui ne doit pas en redemander.
+function renderFolderTree({ fromCounts = false } = {}) {
   folderTree.innerHTML = '';
-  
+  if (showFolderCounts && !fromCounts) scheduleFolderCounts(); // les photos ont pu changer (scan, déplacement, suppression…)
+
   const allItem = document.createElement('li');
   allItem.className = `folder-tree-item ${currentFolderFilter === null ? 'active' : ''}`;
-  allItem.innerHTML = `<span>📚</span> <span>${t('All photos')}</span>`;
+  allItem.innerHTML = `<span>📚</span> <span class="folder-tree-name">${t('All photos')}</span>`;
+  if (showFolderCounts) allItem.append(folderCountElement(folderCountsTotal, 'in this folder'));
   allItem.addEventListener('click', () => selectFolder(null));
   folderTree.appendChild(allItem);
   const roots = folders.map(folder => ({ path: folder.path.replace(/[\\/]+$/, ''), name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path, children: new Map() }));
@@ -1101,8 +1104,16 @@ function renderFolderTree() {
       renderFolderTree();
     });
     const icon = document.createElement('span'); icon.className = 'folder-tree-icon'; icon.textContent = '📁';
-    const label = document.createElement('span'); label.textContent = node.name; label.title = node.path;
+    const label = document.createElement('span'); label.className = 'folder-tree-name'; label.textContent = node.name; label.title = node.path;
     li.append(toggle, icon, label);
+    if (showFolderCounts) {
+      // Dossier replié avec « inclure les sous-dossiers » : le nombre résume ce qui est caché ; sinon, seulement le niveau du dossier
+      // (déplié, ses sous-dossiers affichent les leurs).
+      const summarizesChildren = hasChildren && !expanded && includeSubfolders;
+      li.append(summarizesChildren
+        ? folderCountElement(folderCountsTree.get(key) ?? 0, 'with its subfolders')
+        : folderCountElement(folderCountsOwn.get(key) ?? 0, 'in this folder'));
+    }
     li.addEventListener('click', () => selectFolder(node.path));
     parentElement.appendChild(li);
     if (expanded) for (const child of [...node.children.values()].sort((a, b) => a.name.localeCompare(b.name))) renderNode(child, parentElement, depth + 1);
@@ -1128,6 +1139,54 @@ function renderFolderTree() {
   }
 }
 
+// Compteurs de l'option « Montrer le nombre de photos des dossiers » : photos et vidéos du catalogue, sans filtre, calculées côté Rust.
+// Clés normalisées comme celles de l'arbre (« / », minuscules, sans « / » final) ; `Own` = niveau du dossier, `Tree` = avec ses sous-dossiers.
+let showFolderCounts = localStorage.getItem('showFolderCounts') === 'true';
+let folderCountsOwn = new Map();
+let folderCountsTree = new Map();
+let folderCountsTotal = 0;
+let folderCountsSignature = '';
+let folderCountsTimer = null;
+function folderCountElement(count, scope) {
+  const element = document.createElement('span');
+  element.className = 'folder-tree-count';
+  element.textContent = String(count);
+  const titleKey = scope === 'with its subfolders' ? '{count} photo or video with its subfolders' : '{count} photo or video in this folder';
+  element.title = tp(titleKey, count);
+  return element;
+}
+// Relit les compteurs (regroupés une fois par rafale de redessins) ; l'arbre n'est redessiné que si un nombre a changé.
+function scheduleFolderCounts() {
+  clearTimeout(folderCountsTimer);
+  folderCountsTimer = setTimeout(async () => {
+    if (!showFolderCounts) return;
+    let raw = {};
+    try {
+      raw = await invoke('get_folder_counts');
+    } catch (error) {
+      console.debug('Folder counts unavailable', error);
+    }
+    if (!showFolderCounts) return;
+    const signature = JSON.stringify(raw);
+    if (signature === folderCountsSignature) return;
+    folderCountsSignature = signature;
+    folderCountsOwn = new Map();
+    folderCountsTree = new Map();
+    folderCountsTotal = 0;
+    for (const [dir, count] of Object.entries(raw)) {
+      const key = dir.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+      folderCountsOwn.set(key, (folderCountsOwn.get(key) ?? 0) + count);
+      folderCountsTotal += count;
+      // Chaque dossier parent du chemin cumule aussi ce nombre (total du sous-arbre).
+      for (let cut = key.indexOf('/', 1); ; cut = key.indexOf('/', cut + 1)) {
+        const ancestor = cut === -1 ? key : key.slice(0, cut);
+        folderCountsTree.set(ancestor, (folderCountsTree.get(ancestor) ?? 0) + count);
+        if (cut === -1) break;
+      }
+    }
+    renderFolderTree({ fromCounts: true });
+  }, 150);
+}
 const folderTreeExpanded = new Set();
 const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
 let showEmptyFolders = localStorage.getItem('showEmptyFolders') === 'true';
@@ -3326,6 +3385,13 @@ document.getElementById('show-empty-folders-toggle').addEventListener('change', 
   refreshDiskFolders();
 });
 if (showEmptyFolders) refreshDiskFolders();
+document.getElementById('show-folder-counts-toggle').checked = showFolderCounts;
+document.getElementById('show-folder-counts-toggle').addEventListener('change', event => {
+  showFolderCounts = event.target.checked;
+  localStorage.setItem('showFolderCounts', String(showFolderCounts));
+  folderCountsSignature = ''; // force la relecture à la prochaine activation
+  renderFolderTree();
+});
 document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
   includeSubfolders = event.target.checked;

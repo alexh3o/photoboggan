@@ -240,6 +240,28 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
     photos.map_err(|e| e.to_string())
 }
 
+/// Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
+/// Les chemins sont normalisés en « / » sans « / » final : l'interface en tire les totaux de chaque sous-arbre.
+/// Le dossier est le chemin privé de son dernier segment (`rtrim(p, replace(p, '/', ''))` retire tout ce qui suit le dernier « / »).
+pub fn get_folder_counts(pool: &DbPool) -> Result<std::collections::HashMap<String, i64>, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT rtrim(p, replace(p, '/', '')) AS dir, COUNT(*)
+             FROM (SELECT replace(path, char(92), '/') AS p FROM photos) GROUP BY dir",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+        .map_err(|e| e.to_string())?;
+    let mut counts = std::collections::HashMap::new();
+    for row in rows {
+        let (dir, count) = row.map_err(|e| e.to_string())?;
+        counts.insert(dir.trim_end_matches('/').to_string(), count);
+    }
+    Ok(counts)
+}
+
 #[cfg(test)]
 #[path = "tests/db.rs"]
 mod tests;

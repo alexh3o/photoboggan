@@ -935,6 +935,16 @@ fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, fol
     })
 }
 
+// Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
+#[tauri::command(async)]
+fn get_folder_counts(state: State<'_, AppState>) -> std::collections::HashMap<String, i64> {
+    let pool = state.pool();
+    db::get_folder_counts(&pool).unwrap_or_else(|error| {
+        eprintln!("Folder counts unavailable: {error}");
+        Default::default()
+    })
+}
+
 /// Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
 #[derive(serde::Deserialize)]
 struct MarkingTarget {
@@ -2103,6 +2113,7 @@ fn main() {
             set_thumbnail_cache_size,
             get_folders,
             list_disk_folders,
+            get_folder_counts,
             add_folder,
             scan_folder,
             cancel_scan,

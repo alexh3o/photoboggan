@@ -74,6 +74,20 @@ fn folder_filter_respects_recursion_and_neighbour_names() {
 }
 
 #[test]
+fn folder_counts_are_direct_per_folder_and_normalised() {
+    let (_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        // Photos et vidéos comptées ensemble ; séparateurs Windows et POSIX regroupés ; « Photo2 » n'est pas un voisin à confondre avec « Photo ».
+        for path in ["C:/Photo/a.jpg", "C:\\Photo\\b.mp4", "C:/Photo/sub/c.jpg", "C:/Photo/sub/deep/d.jpg", "C:/Photo2/e.jpg"] { insert_photo(&conn, path); }
+    }
+    let counts = get_folder_counts(&pool).unwrap();
+    let get = |dir: &str| counts.get(dir).copied();
+    assert_eq!((get("C:/Photo"), get("C:/Photo/sub"), get("C:/Photo/sub/deep"), get("C:/Photo2")), (Some(2), Some(1), Some(1), Some(1)));
+    assert_eq!(counts.len(), 4);
+}
+
+#[test]
 fn removing_a_folder_keeps_photos_still_covered_and_neighbours() {
     let (_dir, pool) = temp_catalog();
     let outer = add_folder(&pool, "C:/Photo").unwrap();
