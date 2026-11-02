@@ -8,6 +8,7 @@
 // L'arbre, l'état enregistré et les fréquences d'usage viennent de la base (voir keywords.rs), qui reflète le contenu réel des fichiers.
 // main.js fournit la sélection et les services de l'application (initKeywordsPanel) et appelle refreshKeywordsPanel quand la sélection change.
 import './keywords.css';
+import { openContextMenuAt } from './photo-actions.js';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import {
@@ -701,76 +702,44 @@ function onInputKeyDown(event) {
 
 const FORBIDDEN_NAME_CHARS = ['/', '|', ',']; // séparateurs des formats hiérarchiques et du filtre de mots-clés
 
-let contextMenu = null;
-
-function closeContextMenu() {
-  if (!contextMenu) return;
-  contextMenu.remove();
-  contextMenu = null;
-  document.removeEventListener('mousedown', onMenuOutsideClick, true);
-  document.removeEventListener('keydown', onMenuKeyDown, true);
-  window.removeEventListener('blur', closeContextMenu);
-}
-
-function onMenuOutsideClick(event) {
-  if (contextMenu && !contextMenu.contains(event.target)) closeContextMenu();
-}
-
-function onMenuKeyDown(event) {
-  if (event.key !== 'Escape') return;
-  event.preventDefault();
-  event.stopPropagation();
-  closeContextMenu();
-}
-
-// Menu contextuel : `entries` = [{ label, action, disabled? }]. Se ferme au clic ailleurs, sur Échap ou quand la fenêtre perd le focus.
-function showContextMenu(x, y, entries) {
-  closeContextMenu();
-  const menu = document.createElement('div');
-  menu.className = 'keyword-context-menu';
-  menu.setAttribute('role', 'menu');
-  for (const entry of entries) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.setAttribute('role', 'menuitem');
-    item.textContent = entry.label;
-    item.disabled = Boolean(entry.disabled);
-    item.addEventListener('click', () => {
-      closeContextMenu();
-      entry.action();
-    });
-    menu.append(item);
-  }
-  document.body.append(menu);
-  const rect = menu.getBoundingClientRect();
-  menu.style.left = `${Math.max(0, Math.min(x, window.innerWidth - rect.width - 4))}px`;
-  menu.style.top = `${Math.max(0, Math.min(y, window.innerHeight - rect.height - 4))}px`;
-  contextMenu = menu;
-  document.addEventListener('mousedown', onMenuOutsideClick, true);
-  document.addEventListener('keydown', onMenuKeyDown, true);
-  window.addEventListener('blur', closeContextMenu);
-  menu.querySelector('button:not(:disabled)')?.focus();
-}
-
-// Clic droit : sur « Racine » (créer au premier niveau, tout replier, déplier jusqu'aux mots-clés actifs) ou sur un mot-clé (créer un enfant, supprimer).
+// Menu contextuel : celui des photos, dossiers et personnes (photo-actions.js), pour une même apparence et la navigation au clavier.
+// Clic droit sur « Racine » (créer au premier niveau, tout replier, déplier jusqu'aux mots-clés actifs) ou sur un mot-clé (créer un enfant, renommer,
+// supprimer). Renommer et supprimer écrivent dans les fichiers : grisés (avec leur raison) tant qu'une écriture est en cours.
 function onTreeContextMenu(event) {
   const row = event.target.closest('.keyword-row');
   if (!row) return;
   event.preventDefault();
   if (row.classList.contains('keyword-root')) {
-    showContextMenu(event.clientX, event.clientY, [
-      { label: t('Create a child keyword…'), action: () => createKeywordFlow(ROOT_ID) },
-      { label: t('Collapse all'), action: collapseAll },
-      { label: t('Expand to active keywords'), action: expandToActive },
+    openContextMenuAt(event, [
+      { header: t('Root') },
+      { label: t('Create a keyword…'), title: t('Create a keyword at the first level of the tree'), onSelect: () => createKeywordFlow(ROOT_ID) },
+      { separator: true },
+      { label: t('Collapse all'), title: t('Fold every level of the tree'), onSelect: collapseAll },
+      { label: t('Expand to active keywords'), title: t('Unfold the levels needed to see the keywords of the selected photos'), onSelect: expandToActive },
     ]);
     return;
   }
   const node = nodeById.get(Number(row.dataset.keywordId));
   if (!node) return;
-  showContextMenu(event.clientX, event.clientY, [
-    { label: t('Create a child keyword…'), action: () => createKeywordFlow(node.id) },
-    { label: t('Rename keyword…'), action: () => renameKeywordFlow(node), disabled: isWriteLocked() },
-    { label: t('Delete keyword…'), action: () => deleteKeywordFlow(node), disabled: isWriteLocked() },
+  const locked = isWriteLocked();
+  const lockedReason = t('A write to the files is in progress');
+  openContextMenuAt(event, [
+    { header: node.name },
+    { label: t('Create a child keyword…'), title: t('Create a keyword inside “{name}”', { name: node.name }), onSelect: () => createKeywordFlow(node.id) },
+    {
+      label: t('Rename keyword…'),
+      title: locked ? lockedReason : t('Rename this keyword in the keyword tree and in the files that carry it'),
+      disabled: locked,
+      onSelect: () => renameKeywordFlow(node),
+    },
+    { separator: true },
+    {
+      label: t('Delete keyword…'),
+      title: locked ? lockedReason : t('Delete this keyword, its sub-keywords and their presence in the files (after confirmation)'),
+      disabled: locked,
+      danger: true,
+      onSelect: () => deleteKeywordFlow(node),
+    },
   ]);
 }
 

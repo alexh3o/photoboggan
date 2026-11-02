@@ -15,7 +15,7 @@
 - [ ] *feat*: `faces` add faces display options in context menu
 - [ ] *feat*: `faces` option to display areas of ignored and not a face, in settings and context menu
 - [ ] *feat*: `UI` option to display files quantity in folder tree
-- [ ] *refactor*: `UI` design critique of keywords context menu
+- [x] *refactor*: `UI` design critique of keywords context menu
 
 ## 💡 Ideas / Longer term / On hold
 

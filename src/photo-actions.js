@@ -1591,7 +1591,7 @@ function openFolderMenu(event, folderItem) {
   showContextMenu(menu, event);
 }
 
-// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title }] ;
+// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled }] ;
 // un item peut porter `submenu` = [{ label, onSelect }] à la place de `onSelect` pour ouvrir un sous-niveau. { header: 'texte' } ajoute une ligne
 // d'en-tête (ce que le menu vise), { separator: true } un séparateur.
 export function openContextMenuAt(event, items) {
@@ -1604,7 +1604,7 @@ export function openContextMenuAt(event, items) {
     if (item.separator) return menuSeparator();
     return item.submenu
       ? buildSubmenuItem(item.label, item.submenu)
-      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title });
+      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title, disabled: Boolean(item.disabled) });
   }));
   showContextMenu(menu, event);
 }
@@ -1668,6 +1668,8 @@ function onContextMenu(event) {
   if (target?.closest('.context-menu')) return;
   // Section Personnes et vue Personnes : leur menu est ouvert par faces-panel.js (openContextMenuAt).
   if (target?.closest('.person-item, .person-tile')) return;
+  // Arborescence des mots-clés : son menu est ouvert par keywords-panel.js (openContextMenuAt).
+  if (target?.closest('#keyword-tree')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');
