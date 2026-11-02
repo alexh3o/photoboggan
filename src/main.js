@@ -1881,11 +1881,12 @@ function updatePickAction() {
   if (pickButton) pickButton.className = `marking-pick-button pick-square pick-${flag}`;
 }
 
-async function setSelectionColorFlag(flag) {
+// `explicitTargets` (menu contextuel) : photos précises à marquer, à la place de la sélection.
+async function setSelectionColorFlag(flag, explicitTargets = null) {
   if (!isColorEnabled()) return; // couleurs désactivées (Paramètres > Métadonnées) : jamais modifiées
-  const targets = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
+  const targets = explicitTargets ?? commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
   if (!targets.length) {
-    if (isCompareMultiple()) notifyNoCompareTarget();
+    if (!explicitTargets && isCompareMultiple()) notifyNoCompareTarget();
     return;
   }
   // Comme pour la note : si toutes les photos sélectionnées ont déjà cette couleur, on l'efface.
@@ -1904,11 +1905,12 @@ async function setSelectionColorFlag(flag) {
 // Fanion pick de la sélection. `toggle` (raccourcis Maj+P / Maj+X) : si toutes les photos visées ont déjà ce fanion, il est retiré ; sans `toggle`
 // (boutons, qui proposent « aucun »), le fanion choisi est posé tel quel. Les photos qui l'ont déjà ne sont pas réécrites.
 // Seul le fanion est envoyé : la note et la couleur de chaque fichier ne sont pas réécrites.
-async function setSelectionPickFlag(flag, { toggle = true } = {}) {
+// `photos` (menu contextuel) : photos précises à marquer, à la place de la sélection.
+async function setSelectionPickFlag(flag, { toggle = true, photos: explicitTargets = null } = {}) {
   if (!isPickEnabled()) return; // pick désactivé (Paramètres > Métadonnées) : jamais modifié
-  const selected = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
+  const selected = explicitTargets ?? commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
   if (!selected.length) {
-    if (isCompareMultiple()) notifyNoCompareTarget();
+    if (!explicitTargets && isCompareMultiple()) notifyNoCompareTarget();
     return;
   }
   const finalFlag = toggle && selected.every(photo => (photo.pick_flag || 'none') === flag) ? 'none' : flag;
@@ -1959,10 +1961,11 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
   return markingChain;
 }
 
-async function setSelectionRating(rating) {
-  const targets = commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
+// `explicitTargets` (menu contextuel) : photos précises à noter, à la place de la sélection.
+async function setSelectionRating(rating, explicitTargets = null) {
+  const targets = explicitTargets ?? commandTargetPhotos(); // en mode Comparer avec plusieurs photos : la sous-sélection uniquement
   if (!targets.length) {
-    if (isCompareMultiple()) notifyNoCompareTarget();
+    if (!explicitTargets && isCompareMultiple()) notifyNoCompareTarget();
     return;
   }
   // Si toutes les photos sélectionnées ont déjà exactement cette note, 
@@ -4860,6 +4863,14 @@ initPhotoActions({
   syncLibrary: () => requestLibrarySync(), // nouveaux fichiers créés par l'application (redimensionnement)
   enqueueFileTask: task => enqueueScanTask(task), // copie vers un dossier choisi, redimensionnement : tâches de la file (voir enqueueScanTask)
   deleteFolder: deleteFolderToTrash,
+  // Sous-menu « Marquage » du menu des photos : note, couleur et fanion pick posés sur les photos du clic droit (pas sur la sélection)
+  marking: {
+    colors: () => (isColorEnabled() ? COLOR_FLAGS : []),
+    picks: () => (isPickEnabled() ? (PICK_CHOICES[topPickFormat()] ?? PICK_CHOICES.digikam).map(key => PICK_FLAGS.find(flag => flag.key === key)) : []),
+    setRating: (photos, rating) => setSelectionRating(rating, photos),
+    setColor: (photos, flag) => setSelectionColorFlag(flag, photos),
+    setPick: (photos, flag) => setSelectionPickFlag(flag, { toggle: false, photos }),
+  },
   renamePhoto: renamePhotoOnDisk,
   renameFolder: renameFolderOnDisk,
   // Sous-menu « Visages » (voir faces-panel.js) : affiché quand la détection est activée, il ouvre la fenêtre de lancement d'un scan.

@@ -1199,12 +1199,22 @@ function onOutsidePointerDown(event) {
   if (contextMenu && !(event.target instanceof Node && contextMenu.contains(event.target))) closeContextMenu();
 }
 
-function menuButton(label, onSelect, { danger = false } = {}) {
+// `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
+function menuButton(label, onSelect, { danger = false, shortcut = null } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `context-menu-item${danger ? ' danger' : ''}`;
   button.setAttribute('role', 'menuitem');
-  button.textContent = label;
+  if (shortcut) {
+    const text = document.createElement('span');
+    text.textContent = label;
+    const keys = document.createElement('span');
+    keys.className = 'context-menu-shortcut';
+    keys.textContent = shortcut;
+    button.append(text, keys);
+  } else {
+    button.textContent = label;
+  }
   if (onSelect) {
     button.addEventListener('click', () => {
       closeContextMenu();
@@ -1228,7 +1238,61 @@ function setSubmenuExpanded(wrapper, expanded) {
   }
 }
 
-// Sous-menu simple : `items` = [{ label, onSelect }].
+function menuSeparator() {
+  const separator = document.createElement('div');
+  separator.className = 'context-menu-separator';
+  separator.setAttribute('role', 'separator');
+  return separator;
+}
+
+// Ligne d'en-tête (non cliquable) : ce que le menu vise (nom du fichier, ou nombre de photos).
+function menuHeader(text, title = '') {
+  const header = document.createElement('div');
+  header.className = 'context-menu-header';
+  header.setAttribute('role', 'presentation');
+  header.textContent = text;
+  if (title) header.title = title;
+  return header;
+}
+
+// Entrée de sous-menu décorée : `swatch` (classes d'une pastille de couleur), `glyph` + `glyphClass` (symbole coloré), `labelClass`, `ariaLabel`,
+// `checked` (valeur déjà posée sur toutes les photos visées : repère ✓). Les entrées sans décoration restent de simples boutons.
+function submenuEntry(item) {
+  if (item.separator) return menuSeparator();
+  const button = menuButton(item.label, item.onSelect);
+  if (!(item.swatch || item.glyph || item.labelClass || item.checked !== undefined)) return button;
+  button.classList.add('decorated');
+  button.textContent = '';
+  if (item.swatch) {
+    const swatch = document.createElement('span');
+    swatch.className = `context-menu-swatch ${item.swatch}`;
+    swatch.setAttribute('aria-hidden', 'true');
+    button.append(swatch);
+  }
+  if (item.glyph) {
+    const glyph = document.createElement('span');
+    glyph.className = `context-menu-glyph ${item.glyphClass || ''}`;
+    glyph.textContent = item.glyph;
+    glyph.setAttribute('aria-hidden', 'true');
+    button.append(glyph);
+  }
+  const text = document.createElement('span');
+  text.className = item.labelClass || '';
+  text.textContent = item.label;
+  button.append(text);
+  if (item.ariaLabel) {
+    button.setAttribute('aria-label', item.ariaLabel);
+    button.title = item.ariaLabel;
+  }
+  if (item.checked !== undefined) {
+    button.setAttribute('role', 'menuitemradio');
+    button.setAttribute('aria-checked', String(item.checked));
+    button.classList.toggle('checked', item.checked);
+  }
+  return button;
+}
+
+// Sous-menu : `items` = [{ label, onSelect, … }] (voir submenuEntry) ou { separator: true }.
 function buildSubmenuItem(label, items) {
   const wrapper = document.createElement('div');
   wrapper.className = 'context-menu-sub';
@@ -1239,12 +1303,57 @@ function buildSubmenuItem(label, items) {
   const submenu = document.createElement('div');
   submenu.className = 'context-submenu';
   submenu.setAttribute('role', 'menu');
-  submenu.append(...items.map(item => menuButton(item.label, item.onSelect)));
+  submenu.append(...items.map(submenuEntry));
   wrapper.append(trigger, submenu);
   trigger.addEventListener('click', () => setSubmenuExpanded(wrapper, !wrapper.classList.contains('open')));
   wrapper.addEventListener('mouseenter', () => setSubmenuExpanded(wrapper, true));
   wrapper.addEventListener('mouseleave', () => setSubmenuExpanded(wrapper, false));
   return wrapper;
+}
+
+// Sous-menu « Marquage » : note, couleur et fanion pick (ces deux derniers seulement s'ils sont activés dans les Paramètres) de `targets`,
+// la valeur déjà commune à toutes les photos visées étant cochée. Un clic sur la valeur cochée l'efface (comme les raccourcis).
+function buildMarkingItem(targets) {
+  const marking = api.marking;
+  if (!marking) return null;
+  const all = (read, value) => targets.every(photo => read(photo) === value);
+  const items = [{ label: t('No rating'), checked: all(photo => photo.rating || 0, 0), onSelect: () => marking.setRating(targets, 0) }];
+  for (let rating = 1; rating <= 5; rating++) {
+    items.push({
+      label: '★'.repeat(rating),
+      labelClass: 'context-menu-stars',
+      ariaLabel: rating === 1 ? t('Set 1 star') : t(`Set ${rating} stars`),
+      checked: all(photo => photo.rating || 0, rating),
+      onSelect: () => marking.setRating(targets, rating),
+    });
+  }
+  const colors = marking.colors();
+  if (colors.length) {
+    items.push({ separator: true });
+    items.push({ label: t('No color'), checked: all(photo => photo.color_flag || 'none', 'none'), onSelect: () => marking.setColor(targets, 'none') });
+    for (const color of colors) {
+      items.push({
+        label: t(color.label),
+        swatch: `flag-indicator flag-${color.key}`,
+        checked: all(photo => photo.color_flag || 'none', color.key),
+        onSelect: () => marking.setColor(targets, color.key),
+      });
+    }
+  }
+  const picks = marking.picks();
+  if (picks.length) {
+    items.push({ separator: true });
+    for (const pick of picks) {
+      items.push({
+        label: t(pick.label),
+        glyph: '⚑',
+        glyphClass: `pick-${pick.key}`,
+        checked: all(photo => photo.pick_flag || 'none', pick.key),
+        onSelect: () => marking.setPick(targets, pick.key),
+      });
+    }
+  }
+  return buildSubmenuItem(t('Labels'), items);
 }
 
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
@@ -1341,26 +1450,38 @@ function openThumbnailMenu(event, index, source = 'grid') {
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
+  // Quatre blocs séparés : en-tête et marquage, actions sur les fichiers, outils et ouvertures, puis la suppression (toujours en dernier).
   const menuItems = [
-    menuButton(t('Photo info'), () => showPhotoInfo(photo)),
-    menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true }),
-    menuButton(t('Copy'), () => copyPhotosToClipboard(targets)),
-    menuButton(t('Copy to…'), () => copyPhotosTo(targets)),
+    targets.length > 1
+      ? menuHeader(tp('{count} photo selected', targets.length))
+      : menuHeader(photoName(photo), photo.path),
   ];
+  const markingItem = buildMarkingItem(targets);
+  if (markingItem) menuItems.push(markingItem, menuSeparator());
+  menuItems.push(
+    menuButton(t('Show info'), () => showPhotoInfo(photo), { shortcut: 'I' }),
+    menuButton(t('Copy'), () => copyPhotosToClipboard(targets), { shortcut: 'Ctrl+C' }),
+    menuButton(t('Copy to…'), () => copyPhotosTo(targets), { shortcut: 'C' }),
+  );
   // Un renommage vise un seul fichier : absent d'une sélection multiple.
-  if (targets.length === 1) menuItems.push(menuButton(t('Rename…'), () => renamePhoto(photo)));
+  if (targets.length === 1) menuItems.push(menuButton(t('Rename…'), () => renamePhoto(photo), { shortcut: 'F2' }));
 
   // L'option « Redimensionner… » n'apparaît que pour les photos réelles
   if (hasResizablePhotos) {
-    menuItems.push(menuButton(t('Resize…'), () => resizePhotos(targets)));
+    menuItems.push(menuButton(t('Resize…'), () => resizePhotos(targets), { shortcut: 'S' }));
   }
   menuItems.push(
-    menuButton(t('Show in file explorer'), () => revealInFileManager(photo)),
+    menuSeparator(),
+    menuButton(t('Show in file explorer'), () => revealInFileManager(photo), { shortcut: 'E' }),
     buildOpenWithItem(targets),
   );
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }));
   }
+  menuItems.push(
+    menuSeparator(),
+    menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true, shortcut: t('Delete Key') }),
+  );
   menu.append(...menuItems);
   showContextMenu(menu, event);
 }

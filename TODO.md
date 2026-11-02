@@ -14,7 +14,6 @@
 
 ## 💡 Ideas / Longer term / On hold
 
-- [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *style*: `UI` make star rating filter in filters more visual
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
@@ -26,6 +25,7 @@
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution
+- [ ] *feat*: `UI` specific info panel display when multiple photos are selected*
 
 ## ⚖️ Undecided
 

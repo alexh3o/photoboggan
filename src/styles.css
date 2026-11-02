@@ -494,6 +494,15 @@ body.immersive .titlebar { display: none; }
 .context-menu-sub.open > .context-submenu { display: block; }
 .context-menu.submenu-left .context-submenu { left: auto; right: 100%; }
 .context-menu-separator { height: 1px; margin: 4px 2px; background: var(--separator); }
+/* En-tête du menu (nom du fichier ou nombre de photos) et raccourcis affichés à droite des actions */
+.context-menu-header { max-width: 18rem; padding: 4px 10px 6px; overflow: hidden; color: var(--text-dim); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.context-menu-shortcut { color: var(--text-dim); font-size: 0.75rem; }
+/* Sous-menu Marquage : entrées décorées (étoiles, pastille de couleur, fanion), valeur actuelle cochée */
+.context-submenu .context-menu-item.decorated { display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem; }
+.context-menu-stars { color: #ffd43b; letter-spacing: 1px; }
+.context-menu-swatch.flag-indicator { width: 0.8rem; height: 0.8rem; }
+.context-menu-glyph { color: var(--pick-color); text-shadow: 0 0 2px #000; }
+.context-menu-item.checked::after { content: '\2713'; margin-left: auto; padding-left: 1rem; color: var(--text-muted); }
 
 /* FENETRES INFOS ET CONFIRMATION */
 .info-card { width: min(47.5rem, calc(100vw - 2.5rem)); }
