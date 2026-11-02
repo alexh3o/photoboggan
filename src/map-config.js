@@ -37,8 +37,3 @@ export const MAP_SINGLE_PHOTO_ZOOM = 12;
 
 // Multi-sélection : nombre maximal de marqueurs affichés (au-delà, les premières photos géolocalisées de la sélection).
 export const MAP_MAX_POINTS = 500;
-
-// Lien « Ouvrir dans OpenStreetMap » (navigateur de l'utilisateur, jamais dans l'application).
-export function openStreetMapUrl(latitude, longitude, zoom = 16) {
-  return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=${zoom}/${latitude}/${longitude}`;
-}

@@ -908,7 +908,6 @@
   "Ignore the selected faces": "Ignorer les visages sélectionnés",
   "Mark the selected faces as not faces": "Marquer les visages sélectionnés comme « pas un visage »",
   "Location": "Lieu",
-  "Open in OpenStreetMap": "Ouvrir dans OpenStreetMap",
   "Show a map of the photo location": "Afficher une carte du lieu de la photo",
   "Show a map help": "Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne.",
   "Map disabled (Settings > General)": "Carte désactivée (Paramètres > Général)",
@@ -921,7 +920,6 @@
   "Private zones…": "Zones privées…",
   "Manage private zones and offline maps": "Gérer les zones privées et les cartes hors ligne",
   "Private zones and offline maps": "Zones privées et cartes hors ligne",
-  "Private place: local map only": "Lieu privé : carte locale uniquement",
   "Protect places?": "Protéger des lieux ?",
   "Private zones help": "Une zone privée est un lieu (votre domicile, la maison d'un proche…) dont la carte est enregistrée sur cet ordinateur. Les photos prises dans ce lieu s'affichent uniquement sur la carte locale : leur position n'est jamais envoyée au fournisseur de cartes.",
   "Private zones how": "Dessinez la zone sur la carte, puis téléchargez-la une fois. Ou importez un fichier de carte (MBTiles) obtenu ailleurs : rien n'est alors envoyé.",
@@ -946,7 +944,6 @@
   "Streets": "Rues",
   "Draw the zone on the map.": "Dessinez la zone sur la carte.",
   "≈ {tiles} tiles, ≈ {size}": "≈ {tiles} tuiles, ≈ {size}",
-  "Too large: {tiles} tiles (at most {max}). Draw a smaller zone or choose less detail.": "Trop grande : {tiles} tuiles (au plus {max}). Dessinez une zone plus petite ou choisissez moins de détail.",
   "Download the zone": "Télécharger la zone",
   "Download": "Télécharger",
   "Update": "Mettre à jour",
@@ -979,5 +976,13 @@
   "The zone is too large for this detail level.": "La zone est trop grande pour ce niveau de détail.",
   "This MBTiles file does not contain vector tiles.": "Ce fichier MBTiles ne contient pas de tuiles vectorielles.",
   "This MBTiles file does not give its area.": "Ce fichier MBTiles n'indique pas sa surface.",
-  "This file is not a valid MBTiles file.": "Ce fichier n'est pas un fichier MBTiles valide."
+  "This file is not a valid MBTiles file.": "Ce fichier n'est pas un fichier MBTiles valide.",
+  "Copy the coordinates ({coords}) to the clipboard": "Copier les coordonnées ({coords}) dans le presse-papiers",
+  "Coordinates copied: {coords}": "Coordonnées copiées : {coords}",
+  "The coordinates could not be copied.": "Les coordonnées n'ont pas pu être copiées.",
+  "Private place: local map only.": "Lieu privé : carte locale uniquement.",
+  "This place is not in a private zone.": "Ce lieu n'est dans aucune zone privée.",
+  "Click to manage the private zones.": "Cliquer pour gérer les zones privées.",
+  "Another zone already has this name.": "Une autre zone porte déjà ce nom.",
+  "Too large: ≈ {tiles} tiles, ≈ {size} (at most {max} tiles and 50 MB). Draw a smaller zone or choose less detail.": "Trop grande : ≈ {tiles} tuiles, ≈ {size} (au plus {max} tuiles et 50 Mo). Dessinez une zone plus petite ou choisissez moins de détail."
 }

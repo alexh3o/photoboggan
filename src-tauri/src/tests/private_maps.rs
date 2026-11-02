@@ -124,7 +124,7 @@ fn tile_rule_serves_private_tiles_from_disk_and_never_falls_back() {
     assert!(zones[0].shape.contains_location(48.8566, 2.3522));
 
     // Fichier présent : la tuile vient du disque ; une tuile manquante reste vide (aucun repli).
-    let conn = create_mbtiles(&zone_file(dir.path(), 7), "Maison", 14).unwrap();
+    let conn = create_mbtiles(&dir.path().join("maison.mbtiles"), "Maison", 14).unwrap();
     conn.execute("INSERT INTO tiles VALUES (14, ?1, ?2, x'0102')", (x, tms_row(14, y))).unwrap();
     drop(conn);
     assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), Some(vec![1, 2]));
@@ -163,4 +163,47 @@ fn resource_names_are_restricted() {
     assert!(safe_component("a/b").is_none());
     assert!(safe_component("a\\b").is_none());
     assert!(safe_component("").is_none());
+}
+
+#[test]
+fn zone_file_names_follow_the_zone_name() {
+    assert_eq!(zone_file_name("Maison").unwrap(), "maison.mbtiles");
+    assert_eq!(zone_file_name("  Chez  les Parents ").unwrap(), "chez__les_parents.mbtiles");
+    assert_eq!(zone_file_name("Été à Nice").unwrap(), "été_à_nice.mbtiles");
+    assert_eq!(zone_file_name("a/b:c*?").unwrap(), "abc.mbtiles");
+    assert_eq!(zone_file_name("fin. ").unwrap(), "fin.mbtiles");
+    assert!(zone_file_name("???").is_err());
+    assert!(zone_file_name("CON").is_err());
+}
+
+#[test]
+fn zone_names_must_give_distinct_files() {
+    let catalog = rusqlite::Connection::open_in_memory().unwrap();
+    init_schema(&catalog).unwrap();
+    let json = serde_json::to_string(&paris_circle(1000.0)).unwrap();
+    catalog.execute("INSERT INTO private_zones (id, name, geometry, max_zoom) VALUES (1, 'Ma Maison', ?1, 14)", [json]).unwrap();
+    assert_eq!(check_unique_name(&catalog, "ma maison", None).unwrap_err(), "zone_name_taken");
+    assert_eq!(check_unique_name(&catalog, "MA_MAISON", None).unwrap_err(), "zone_name_taken");
+    assert!(check_unique_name(&catalog, "Ma Maison", Some(1)).is_ok(), "la zone renommée peut garder son nom");
+    assert!(check_unique_name(&catalog, "Bureau", None).is_ok());
+}
+
+#[test]
+fn legacy_zone_files_are_renamed_after_their_zone() {
+    let dir = tempfile::tempdir().unwrap();
+    let catalog = rusqlite::Connection::open_in_memory().unwrap();
+    init_schema(&catalog).unwrap();
+    let json = serde_json::to_string(&paris_circle(1000.0)).unwrap();
+    catalog.execute("INSERT INTO private_zones (id, name, geometry, max_zoom) VALUES (3, 'Home', ?1, 14), (5, 'Work V', ?1, 14), (6, 'Déjà', ?1, 14)", [json]).unwrap();
+    fs::write(dir.path().join("zone_3.mbtiles"), b"home").unwrap();
+    fs::write(dir.path().join("zone_5.mbtiles"), b"work").unwrap();
+    // Cible déjà présente : l'ancien fichier n'écrase rien.
+    fs::write(dir.path().join("zone_6.mbtiles"), b"ancien").unwrap();
+    fs::write(dir.path().join("déjà.mbtiles"), b"nouveau").unwrap();
+    migrate_legacy_files(dir.path(), &catalog);
+    assert_eq!(fs::read(dir.path().join("home.mbtiles")).unwrap(), b"home");
+    assert_eq!(fs::read(dir.path().join("work_v.mbtiles")).unwrap(), b"work");
+    assert!(!dir.path().join("zone_3.mbtiles").exists());
+    assert_eq!(fs::read(dir.path().join("déjà.mbtiles")).unwrap(), b"nouveau");
+    assert!(dir.path().join("zone_6.mbtiles").exists());
 }

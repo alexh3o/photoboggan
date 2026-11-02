@@ -255,6 +255,8 @@ fn get_zone(conn: &rusqlite::Connection, id: i64) -> Result<PrivateZone, String>
 /// Zones chargées en mémoire pour la règle par tuile (relues à chaque changement) et connexions ouvertes sur leurs fichiers MBTiles.
 struct LoadedZone {
     id: i64,
+    /// Nom du fichier MBTiles de la zone (voir zone_file_name).
+    file: String,
     shape: ZoneShape,
 }
 
@@ -268,7 +270,10 @@ pub fn reload_zones(conn: &rusqlite::Connection) -> Result<(), String> {
 }
 
 fn load_zones(conn: &rusqlite::Connection) -> Result<Vec<LoadedZone>, String> {
-    Ok(list_zones(conn)?.into_iter().map(|zone| LoadedZone { id: zone.id, shape: ZoneShape::new(&zone.geometry) }).collect())
+    Ok(list_zones(conn)?
+        .into_iter()
+        .map(|zone| LoadedZone { id: zone.id, file: zone_file_name(&zone.name).unwrap_or_default(), shape: ZoneShape::new(&zone.geometry) })
+        .collect())
 }
 
 /// Ferme la connexion ouverte sur le fichier d'une zone (avant de le remplacer ou de le supprimer).
@@ -285,8 +290,58 @@ pub fn private_maps_dir(state: &AppState) -> PathBuf {
     state.base_dir().join("private_maps")
 }
 
-fn zone_file(dir: &Path, id: i64) -> PathBuf {
-    dir.join(format!("zone_{id}.mbtiles"))
+/// Noms réservés par Windows, refusés comme nom de fichier (même suivis d'une extension).
+const RESERVED_FILE_NAMES: [&str; 22] = [
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
+/// Nom du fichier MBTiles d'une zone, tiré de son nom : minuscules, espaces remplacés par « _ », caractères interdits dans un nom de fichier
+/// (Windows compris) retirés. Deux zones ne peuvent pas avoir le même nom de fichier (voir check_unique_name). Même règle dans
+/// src/private-zones.js (zoneFileName), pour signaler un doublon pendant la saisie.
+pub fn zone_file_name(name: &str) -> Result<String, String> {
+    let slug: String = name
+        .trim()
+        .to_lowercase()
+        .chars()
+        .filter_map(|c| if c.is_whitespace() { Some('_') } else if c.is_control() || "<>:\"/\\|?*".contains(c) { None } else { Some(c) })
+        .collect();
+    let slug = slug.trim_end_matches(['.', '_']).trim_start_matches('.').to_string();
+    if slug.is_empty() || RESERVED_FILE_NAMES.contains(&slug.as_str()) { return Err("invalid_zone_name".to_string()); }
+    Ok(format!("{slug}.mbtiles"))
+}
+
+fn zone_file(dir: &Path, name: &str) -> Result<PathBuf, String> {
+    Ok(dir.join(zone_file_name(name)?))
+}
+
+/// Fichiers des premières versions (`zone_<id>.mbtiles`) renommés d'après le nom de leur zone, au démarrage. Un fichier dont la cible existe
+/// déjà est laissé tel quel (signalé dans la console).
+pub fn migrate_legacy_files(dir: &Path, conn: &rusqlite::Connection) {
+    let Ok(zones) = list_zones(conn) else { return; };
+    for zone in zones {
+        let legacy = dir.join(format!("zone_{}.mbtiles", zone.id));
+        let Ok(target) = zone_file(dir, &zone.name) else { continue; };
+        if !legacy.is_file() || legacy == target { continue; }
+        if target.exists() {
+            eprintln!("Private zone file not renamed, target exists: {}", target.display());
+            continue;
+        }
+        close_tile_file(zone.id);
+        if let Err(error) = fs::rename(&legacy, &target) { eprintln!("Private zone file not renamed ({}): {error}", legacy.display()); }
+    }
+}
+
+/// Ferme toutes les connexions aux fichiers de tuiles (avant de déplacer le dossier de données).
+pub fn close_all_tile_files() {
+    *TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+}
+
+/// Nom libre : aucune autre zone (sauf `except_id`, la zone renommée) n'a le même nom de fichier.
+fn check_unique_name(conn: &rusqlite::Connection, name: &str, except_id: Option<i64>) -> Result<(), String> {
+    let file = zone_file_name(name)?;
+    let taken = list_zones(conn)?.iter().any(|zone| Some(zone.id) != except_id && zone_file_name(&zone.name).ok().as_deref() == Some(file.as_str()));
+    if taken { Err("zone_name_taken".to_string()) } else { Ok(()) }
 }
 
 fn now_millis() -> i64 {
@@ -336,11 +391,12 @@ pub fn private_tile(dir: &Path, z: u8, x: u32, y: u32) -> Option<Vec<u8>> {
 
 /// Règle par tuile sur une liste de zones et un cache de connexions donnés (séparés de l'état global pour les tests).
 fn private_tile_in(zones: &[LoadedZone], files: &mut HashMap<i64, rusqlite::Connection>, dir: &Path, z: u8, x: u32, y: u32) -> Option<Vec<u8>> {
-    let zone_ids: Vec<i64> = zones.iter().filter(|zone| zone.shape.intersects_tile(z, x, y)).map(|zone| zone.id).collect();
-    if zone_ids.is_empty() { return None; }
-    for id in zone_ids {
+    let touching: Vec<&LoadedZone> = zones.iter().filter(|zone| zone.shape.intersects_tile(z, x, y)).collect();
+    if touching.is_empty() { return None; }
+    for zone in touching {
+        let id = zone.id;
         if !files.contains_key(&id) {
-            let path = zone_file(dir, id);
+            let path = dir.join(&zone.file);
             if !path.is_file() { continue; }
             let Ok(conn) = rusqlite::Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else { continue; };
             files.insert(id, conn);
@@ -563,6 +619,7 @@ pub fn add_private_zone(state: State<'_, AppState>, name: String, geometry: Zone
     let name = clean_name(&name)?;
     if !estimate(&geometry, max_zoom).within_limits { return Err("zone_too_large".to_string()); }
     let conn = state.pool().get().map_err(|e| e.to_string())?;
+    check_unique_name(&conn, &name, None)?;
     let json = serde_json::to_string(&geometry).map_err(|e| e.to_string())?;
     conn.execute("INSERT INTO private_zones (name, geometry, max_zoom) VALUES (?1, ?2, ?3)", (&name, &json, max_zoom)).map_err(|e| e.to_string())?;
     let zone = get_zone(&conn, conn.last_insert_rowid())?;
@@ -591,8 +648,8 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
         download_style_resources(&dir.join("style"), &cancel)?;
         emit(2);
         let template = tile_url_template()?;
-        let target = zone_file(&dir, zone_id);
-        let partial = target.with_extension("part");
+        // Fichier temporaire nommé d'après l'identifiant : la zone peut être renommée pendant le téléchargement.
+        let partial = dir.join(format!("zone_{zone_id}.part"));
         let mut file = create_mbtiles(&partial, &zone.name, zone.max_zoom)?;
         let total = tiles.len().max(1);
         let mut last_percent = 0u32;
@@ -609,6 +666,8 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
             }
         };
         close_tile_file(zone_id);
+        // Nom relu à la fin : celui en vigueur maintenant (renommage pendant le téléchargement).
+        let target = zone_file(&dir, &get_zone(&conn, zone_id)?.name)?;
         fs::rename(&partial, &target).map_err(|error| {
             let _ = fs::remove_file(&partial);
             error.to_string()
@@ -634,11 +693,24 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
     outcome
 }
 
+/// Renomme la zone et son fichier de tuiles (le fichier suit le nom, voir zone_file_name).
 #[tauri::command(async)]
 pub fn rename_private_zone(state: State<'_, AppState>, zone_id: i64, name: String) -> Result<PrivateZone, String> {
     let name = clean_name(&name)?;
+    let dir = private_maps_dir(&state);
     let conn = state.pool().get().map_err(|e| e.to_string())?;
-    conn.execute("UPDATE private_zones SET name = ?1 WHERE id = ?2", (&name, zone_id)).map_err(|e| e.to_string())?;
+    check_unique_name(&conn, &name, Some(zone_id))?;
+    let old = zone_file(&dir, &get_zone(&conn, zone_id)?.name)?;
+    let new = zone_file(&dir, &name)?;
+    if old != new && old.is_file() {
+        close_tile_file(zone_id);
+        fs::rename(&old, &new).map_err(|e| e.to_string())?;
+    }
+    if let Err(error) = conn.execute("UPDATE private_zones SET name = ?1 WHERE id = ?2", (&name, zone_id)) {
+        if old != new && new.is_file() { let _ = fs::rename(&new, &old); }
+        return Err(error.to_string());
+    }
+    reload_zones(&conn)?;
     get_zone(&conn, zone_id)
 }
 
@@ -647,10 +719,11 @@ pub fn rename_private_zone(state: State<'_, AppState>, zone_id: i64, name: Strin
 pub fn delete_private_zone(state: State<'_, AppState>, zone_id: i64) -> Result<(), String> {
     let dir = private_maps_dir(&state);
     let conn = state.pool().get().map_err(|e| e.to_string())?;
+    let file = zone_file(&dir, &get_zone(&conn, zone_id)?.name);
     conn.execute("DELETE FROM private_zones WHERE id = ?1", [zone_id]).map_err(|e| e.to_string())?;
     reload_zones(&conn)?;
     close_tile_file(zone_id);
-    let _ = fs::remove_file(zone_file(&dir, zone_id));
+    if let Ok(file) = file { let _ = fs::remove_file(file); }
     if list_zones(&conn)?.is_empty() { let _ = fs::remove_dir_all(dir.join("style")); }
     Ok(())
 }
@@ -675,6 +748,7 @@ pub fn inspect_mbtiles(path: &Path) -> Result<(u8, Option<[f64; 4]>), String> {
 #[tauri::command(async)]
 pub fn import_private_zone(state: State<'_, AppState>, path: String, name: String, geometry: Option<ZoneGeometry>) -> Result<PrivateZone, String> {
     let name = clean_name(&name)?;
+    zone_file_name(&name)?;
     let source = PathBuf::from(&path);
     let (max_zoom, bounds) = inspect_mbtiles(&source)?;
     let geometry = match geometry {
@@ -688,6 +762,7 @@ pub fn import_private_zone(state: State<'_, AppState>, path: String, name: Strin
     let dir = private_maps_dir(&state);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let conn = state.pool().get().map_err(|e| e.to_string())?;
+    check_unique_name(&conn, &name, None)?;
     let json = serde_json::to_string(&geometry).map_err(|e| e.to_string())?;
     let size = fs::metadata(&source).map(|metadata| metadata.len() as i64).map_err(|e| e.to_string())?;
     let tile_count: i64 = rusqlite::Connection::open_with_flags(&source, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
@@ -699,8 +774,8 @@ pub fn import_private_zone(state: State<'_, AppState>, path: String, name: Strin
     )
     .map_err(|e| e.to_string())?;
     let id = conn.last_insert_rowid();
-    let target = zone_file(&dir, id);
-    let partial = target.with_extension("part");
+    let target = zone_file(&dir, &name)?;
+    let partial = dir.join(format!("zone_{id}.part"));
     if let Err(error) = fs::copy(&source, &partial).and_then(|_| fs::rename(&partial, &target)) {
         let _ = fs::remove_file(&partial);
         let _ = conn.execute("DELETE FROM private_zones WHERE id = ?1", [id]);

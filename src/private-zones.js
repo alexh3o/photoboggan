@@ -59,6 +59,26 @@ export async function locatePrivatePoints(points) {
   return invoke('locate_private_points', { points: points.map(point => [point.lat, point.lon]) });
 }
 
+/**
+ * Nom du fichier de tuiles d'une zone, tiré de son nom (même règle que private_maps::zone_file_name) : minuscules, espaces remplacés par
+ * « _ », caractères interdits retirés. Null si le nom ne donne aucun nom de fichier utilisable.
+ */
+export function zoneFileName(name) {
+  const slug = [...String(name).trim().toLowerCase()]
+    .map(c => (/\s/.test(c) ? '_' : /[\p{Cc}<>:"/\\|?*]/u.test(c) ? '' : c))
+    .join('')
+    .replace(/[._]+$/, '')
+    .replace(/^\.+/, '');
+  const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
+  return slug && !reserved.test(slug) ? `${slug}.mbtiles` : null;
+}
+
+/** Le nom donnerait le même fichier qu'une autre zone (sauf `exceptId`, la zone renommée). */
+export function isZoneNameTaken(name, exceptId = null) {
+  const file = zoneFileName(name);
+  return !!file && zones.some(zone => zone.id !== exceptId && zoneFileName(zone.name) === file);
+}
+
 /** Estimation avant téléchargement : { tiles, bytes, within_limits }. */
 export function estimateZone(geometry, maxZoom) {
   return invoke('estimate_private_zone', { geometry, maxZoom });

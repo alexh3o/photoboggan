@@ -720,19 +720,24 @@ body.immersive .titlebar { display: none; }
 /* Groupe Lieu (location-panel.js) : coordonnées et lien, message éventuel, puis carte de hauteur fixe sur toute la largeur du panneau */
 .location-panel[hidden], .location-map[hidden], .location-message[hidden] { display: none; }
 .location-coords { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; font-size: 0.8rem; }
-.location-coords a { color: var(--accent-text); font-size: 0.75rem; }
 .location-message { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--text-dim); }
 /* isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas */
 .location-map { isolation: isolate; height: 12rem; margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 0.4rem; overflow: hidden; background: var(--control-bg); }
 .location-map .maplibregl-ctrl-attrib { font-size: 0.65rem; }
-.location-header { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
-.location-header .location-title { flex: 1 1 auto; }
-.location-zones-btn { flex: 0 0 auto; padding: 2px 8px; font-size: 0.7rem; }
-.location-private { margin: 0 0 0.35rem; font-size: 0.75rem; color: var(--text-strong); }
-.location-private[hidden], .location-coords a[hidden] { display: none; }
+/* Titre et cadenas (lieu privé : fermé et accentué ; sinon ouvert et discret), qui ouvre la fenêtre des zones privées */
+.location-header { display: flex; align-items: center; gap: 0.35rem; margin: 1rem 0 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--border); }
+.exif-section .location-header .location-title { margin: 0; padding: 0; border: 0; }
+.location-lock { display: inline-flex; align-items: center; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: var(--text-faint); cursor: pointer; }
+.location-lock:hover, .location-lock:focus-visible { background: var(--control-hover); color: var(--text-strong); outline: none; }
+.location-lock .lock-shackle-closed, .location-lock.private .lock-shackle-open { display: none; }
+.location-lock.private .lock-shackle-closed { display: inline; }
+.location-lock.private { color: var(--accent-text); }
+/* Coordonnées : un clic les copie dans le presse-papiers */
+.location-copy { padding: 0; border: 0; background: transparent; color: var(--text-strong); font: inherit; text-align: left; cursor: copy; }
+.location-copy:hover, .location-copy:focus-visible { color: var(--accent-text); text-decoration: underline dotted; outline: none; }
 
 /* FENÊTRE DES ZONES PRIVÉES (private-zones-modal.js) : liste à gauche, détail ou création à droite (texte puis carte) */
-.private-zones-card { width: min(60rem, calc(100vw - 2.5rem)); height: min(40rem, calc(100vh - 4rem)); display: flex; flex-direction: column; }
+.private-zones-card { width: min(60rem, calc(100vw - 2.5rem)); height: 80vh; display: flex; flex-direction: column; }
 .private-zones-card .modal-body { flex: 1 1 auto; min-height: 0; }
 .pz-layout { display: flex; gap: 1rem; height: 100%; min-height: 0; }
 .pz-list-pane { flex: 0 0 15rem; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; }

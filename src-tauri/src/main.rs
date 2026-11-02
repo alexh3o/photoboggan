@@ -2016,6 +2016,17 @@ fn read_clipboard_text() -> Result<String, String> {
     Ok(clipboard.get_text().unwrap_or_default())
 }
 
+// Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
+#[tauri::command(async)]
+fn write_clipboard_text(text: String) -> Result<(), String> {
+    let mut guard = CLIPBOARD.lock().map_err(|_| "Presse-papiers indisponible".to_string())?;
+    if guard.is_none() {
+        *guard = Some(ClipboardContext::new().map_err(|error| format!("Presse-papiers indisponible : {error}"))?);
+    }
+    let clipboard = guard.as_ref().ok_or("Presse-papiers indisponible")?;
+    clipboard.set_text(text).map_err(|error| format!("Presse-papiers indisponible : {error}"))
+}
+
 // Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
 // des URI y seraient écrits comme de faux chemins et le collage ne ferait rien) ; ailleurs, des URI « file:/// ».
 #[cfg(windows)]
@@ -2053,6 +2064,7 @@ fn main() {
             exiftool::init(handle.path().resource_dir().ok());
             let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
+            if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
             let config = load_config_at_startup(handle);
             let cache_size = config.thumbnail_cache_size.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or(512);
 
@@ -2153,6 +2165,7 @@ fn main() {
             open_video_externally,
             copy_files_to_clipboard,
             read_clipboard_text,
+            write_clipboard_text,
             resize_photo,
             keywords::get_keyword_tree,
             keywords::get_keyword_counts,
@@ -2237,9 +2250,10 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// Fichiers et dossiers de données de l'application, dans le dossier de stockage. `models` : fichiers de la détection des visages
-/// (face_models.rs), conservés avec les données pour ne pas les retélécharger.
+/// (face_models.rs), conservés avec les données pour ne pas les retélécharger. `private_maps` : tuiles et style des zones privées de la carte
+/// (private_maps.rs).
 const STORAGE_FILES: [&str; 3] = ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"];
-const STORAGE_DIRS: [&str; 4] = ["thumbnails", "raw_previews", "models", "person_covers"];
+const STORAGE_DIRS: [&str; 5] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps"];
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
@@ -2354,6 +2368,8 @@ fn change_storage_location(
 
     // 1. Copie des données (la source n'est pas touchée : en cas d'échec, l'emplacement actuel reste valable).
     let current_pool = pool_guard.clone();
+    // Fichiers de tuiles des zones privées fermés : copiés puis supprimés de l'ancien emplacement sans connexion ouverte.
+    private_maps::close_all_tile_files();
     if let Err(error) = copy_storage(&current_pool, &current_base, &target_dir) {
         remove_storage(&target_dir);
         return Err(error);

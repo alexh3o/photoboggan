@@ -264,14 +264,13 @@
         </ul>
         <!-- Lieu : coordonnées GPS de la sélection, lien OpenStreetMap et carte (voir location-panel.js) ; masqué sans photo géolocalisée -->
         <section id="location-panel" class="location-panel" aria-labelledby="location-panel-title" hidden>
+          <!-- Titre suivi du cadenas : fermé pour un lieu privé, ouvert sinon ; un clic ouvre la fenêtre des zones privées (textes dans location-panel.js) -->
           <div class="location-header">
             <h4 id="location-panel-title" class="location-title" data-i18n="Location">Lieu</h4>
-            <button type="button" id="btn-location-private-zones" class="location-zones-btn" data-i18n="Private zones" data-i18n-title="Manage private zones and offline maps" title="Gérer les zones privées et les cartes hors ligne">Zones privées</button>
+            <button type="button" id="btn-location-lock" class="location-lock"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path class="lock-shackle-closed" d="M7 11V7a5 5 0 0 1 10 0v4"/><path class="lock-shackle-open" d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></button>
           </div>
-          <p id="location-private" class="location-private" hidden><span aria-hidden="true">🔒</span> <span data-i18n="Private place: local map only">Lieu privé : carte locale uniquement</span></p>
           <div class="location-coords">
-            <span id="location-coords"></span>
-            <a id="location-osm" href="https://www.openstreetmap.org/" data-i18n="Open in OpenStreetMap">Ouvrir dans OpenStreetMap</a>
+            <button type="button" id="location-coords" class="location-copy"></button>
           </div>
           <p id="location-message" class="location-message" hidden></p>
           <div id="location-map" class="location-map" hidden></div>

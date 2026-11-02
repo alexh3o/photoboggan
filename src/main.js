@@ -5064,7 +5064,7 @@ initPhotoActions({
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
-initLocationPanel();
+initLocationPanel({ showToast: message => showWriteToast(message) });
 // Zones privées de la carte : téléchargements dans la file des tâches (voir private-zones-modal.js).
 initPrivateZonesModal({ enqueueTask: task => enqueueScanTask(task), showToast: message => showWriteToast(message) });
 

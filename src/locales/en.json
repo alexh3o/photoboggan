@@ -908,7 +908,6 @@
   "Ignore the selected faces": "Ignore the selected faces",
   "Mark the selected faces as not faces": "Mark the selected faces as not faces",
   "Location": "Location",
-  "Open in OpenStreetMap": "Open in OpenStreetMap",
   "Show a map of the photo location": "Show a map of the photo location",
   "Show a map help": "Map of the shooting location in the Info panel. Tiles come from OpenFreeMap (OpenStreetMap data): the location of the displayed photos is therefore sent to it. No effect in offline mode.",
   "Map disabled (Settings > General)": "Map disabled (Settings > General)",
@@ -921,7 +920,6 @@
   "Private zones…": "Private zones…",
   "Manage private zones and offline maps": "Manage private zones and offline maps",
   "Private zones and offline maps": "Private zones and offline maps",
-  "Private place: local map only": "Private place: local map only",
   "Protect places?": "Protect places?",
   "Private zones help": "A private zone is a place (your home, a relative's house…) whose map is stored on this computer. Photos taken there are shown on a local map only: their location is never sent to the map provider.",
   "Private zones how": "Draw the zone on the map, then download it once. Or import a map file (MBTiles) obtained elsewhere: nothing is then sent.",
@@ -946,7 +944,6 @@
   "Streets": "Streets",
   "Draw the zone on the map.": "Draw the zone on the map.",
   "≈ {tiles} tiles, ≈ {size}": "≈ {tiles} tiles, ≈ {size}",
-  "Too large: {tiles} tiles (at most {max}). Draw a smaller zone or choose less detail.": "Too large: {tiles} tiles (at most {max}). Draw a smaller zone or choose less detail.",
   "Download the zone": "Download the zone",
   "Download": "Download",
   "Update": "Update",
@@ -979,5 +976,13 @@
   "The zone is too large for this detail level.": "The zone is too large for this detail level.",
   "This MBTiles file does not contain vector tiles.": "This MBTiles file does not contain vector tiles.",
   "This MBTiles file does not give its area.": "This MBTiles file does not give its area.",
-  "This file is not a valid MBTiles file.": "This file is not a valid MBTiles file."
+  "This file is not a valid MBTiles file.": "This file is not a valid MBTiles file.",
+  "Copy the coordinates ({coords}) to the clipboard": "Copy the coordinates ({coords}) to the clipboard",
+  "Coordinates copied: {coords}": "Coordinates copied: {coords}",
+  "The coordinates could not be copied.": "The coordinates could not be copied.",
+  "Private place: local map only.": "Private place: local map only.",
+  "This place is not in a private zone.": "This place is not in a private zone.",
+  "Click to manage the private zones.": "Click to manage the private zones.",
+  "Another zone already has this name.": "Another zone already has this name.",
+  "Too large: ≈ {tiles} tiles, ≈ {size} (at most {max} tiles and 50 MB). Draw a smaller zone or choose less detail.": "Too large: ≈ {tiles} tiles, ≈ {size} (at most {max} tiles and 50 MB). Draw a smaller zone or choose less detail."
 }

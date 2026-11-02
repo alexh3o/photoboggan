@@ -12,6 +12,7 @@ import { isMapNetworkAllowed } from './map-config.js';
 import { startZoneDrawing } from './zone-drawing.js';
 import {
   DETAIL_LEVELS, MAX_ZONE_TILES, reloadZones, ensureZonesLoaded, getZones, estimateZone, zonesFeatureCollection, zoneBounds,
+  zoneFileName, isZoneNameTaken,
 } from './private-zones.js';
 
 const WELCOME_DONE_KEY = 'privateZonesWelcomeDone';
@@ -42,6 +43,7 @@ const ERROR_KEYS = {
   zone_too_large: 'The zone is too large for this detail level.',
   invalid_zone_geometry: 'The zone is not valid.',
   invalid_zone_name: 'Enter a name for the zone.',
+  zone_name_taken: 'Another zone already has this name.',
   invalid_mbtiles: 'This file is not a valid MBTiles file.',
   mbtiles_not_vector: 'This MBTiles file does not contain vector tiles.',
   mbtiles_without_bounds: 'This MBTiles file does not give its area.',
@@ -237,6 +239,7 @@ export async function openPrivateZonesModal() {
       : !isMapNetworkAllowed() ? t('Downloading needs the map enabled and offline mode off (Settings > General).')
       : t('Update help');
     const rename = button(t('Rename'), '', () => renameZone(zone));
+    rename.disabled = downloading.has(zone.id);
     const remove = button(t('Delete'), 'btn-danger pz-delete', () => deleteZone(zone));
     remove.disabled = downloading.has(zone.id);
     actions.append(update, rename, remove);
@@ -278,12 +281,18 @@ export async function openPrivateZonesModal() {
     levelRow.setAttribute('role', 'radiogroup');
     levelRow.setAttribute('aria-label', t('Detail'));
     const estimateLine = element('p', 'pz-estimate');
+    // Nom : chaque zone a son fichier, nommé d'après elle (minuscules, « _ » à la place des espaces) ; un doublon est signalé à la saisie.
+    const nameProblem = element('p', 'prompt-error');
     const actions = element('div', 'pz-actions');
     const download = button(t('Download the zone'), 'btn-primary', () => createZone());
     actions.append(button(t('Cancel'), '', () => { leaveEditor(); render(); }), download);
 
+    const nameError = () => (!draft.name.trim() ? '' : !zoneFileName(draft.name) ? t(ERROR_KEYS.invalid_zone_name)
+      : isZoneNameTaken(draft.name) ? t(ERROR_KEYS.zone_name_taken) : '');
     const refreshButton = () => {
-      download.disabled = !online || !draft.geometry || !draft.name.trim() || !draft.estimate?.within_limits;
+      const problem = nameError();
+      nameProblem.textContent = problem;
+      download.disabled = !online || !draft.geometry || !draft.name.trim() || !!problem || !draft.estimate?.within_limits;
     };
     let estimateToken = 0;
     const refreshEstimate = async () => {
@@ -302,7 +311,9 @@ export async function openPrivateZonesModal() {
         const tiles = new Intl.NumberFormat(getLanguage()).format(estimate.tiles);
         estimateLine.textContent = estimate.within_limits
           ? t('≈ {tiles} tiles, ≈ {size}', { tiles, size: formatBytes(estimate.bytes) })
-          : t('Too large: {tiles} tiles (at most {max}). Draw a smaller zone or choose less detail.', { tiles, max: new Intl.NumberFormat(getLanguage()).format(MAX_ZONE_TILES) });
+          : t('Too large: ≈ {tiles} tiles, ≈ {size} (at most {max} tiles and 50 MB). Draw a smaller zone or choose less detail.', {
+            tiles, size: formatBytes(estimate.bytes), max: new Intl.NumberFormat(getLanguage()).format(MAX_ZONE_TILES),
+          });
         estimateLine.classList.toggle('pz-over', !estimate.within_limits);
       } catch (error) {
         draft.estimate = null;
@@ -326,7 +337,7 @@ export async function openPrivateZonesModal() {
 
     panel.append(
       element('span', 'pz-label', t('Shape')), modeRow, hint,
-      element('span', 'pz-label', t('Zone name')), nameInput,
+      element('span', 'pz-label', t('Zone name')), nameInput, nameProblem,
       element('span', 'pz-label', t('Detail')), levelRow,
       estimateLine, actions,
     );
@@ -386,6 +397,7 @@ export async function openPrivateZonesModal() {
       cancelLabel: t('Cancel'),
       value: suggested,
       onSubmit: async name => {
+        if (isZoneNameTaken(name)) return t(ERROR_KEYS.zone_name_taken);
         try {
           const zone = await invoke('import_private_zone', { path, name, geometry: null });
           leaveEditor();
@@ -410,6 +422,7 @@ export async function openPrivateZonesModal() {
       cancelLabel: t('Cancel'),
       value: zone.name,
       onSubmit: async name => {
+        if (isZoneNameTaken(name, zone.id)) return t(ERROR_KEYS.zone_name_taken);
         try {
           await invoke('rename_private_zone', { zoneId: zone.id, name });
           await reloadZones();

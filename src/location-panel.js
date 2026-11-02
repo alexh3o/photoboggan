@@ -1,13 +1,15 @@
-// Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées), lien OpenStreetMap et petite carte.
+// Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte.
+// Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones privées.
 // La carte n'est chargée que si l'option « Afficher une carte » est cochée (Paramètres > Général, décochée par défaut) :
 // - lieu ordinaire : il faut aussi que le mode hors ligne soit désactivé ;
 // - lieu privé (dans une zone privée, voir private-zones.js) : carte en mode strict, uniquement avec les tuiles enregistrées sur le disque
-//   (même hors ligne), sans lien OpenStreetMap.
+//   (même hors ligne).
 
+import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { createMapView } from './map-view.js';
-import { MAP_MAX_POINTS, MAP_MAX_ZOOM, openStreetMapUrl } from './map-config.js';
+import { MAP_MAX_POINTS, MAP_MAX_ZOOM } from './map-config.js';
 import { locatePrivatePoints, onZonesChange, getZones } from './private-zones.js';
 import { openPrivateZonesModal, offerPrivateZonesWelcome } from './private-zones-modal.js';
 
@@ -26,11 +28,12 @@ function isMapEnabled() {
   return readStorage(SHOW_MAP_STORAGE_KEY) === 'true';
 }
 
-let panel, coordsElement, osmLink, privateBadge, messageElement, mapElement, mapView;
+let panel, coordsElement, lockButton, messageElement, mapElement, mapView;
+let host = { showToast: () => {} };
 let points = []; // positions de la sélection affichées (MAP_MAX_POINTS au plus)
 let geolocatedCount = 0;
 let selectedCount = 0;
-let privacy = { strict: false, focusPrivate: false, maxZoom: MAP_MAX_ZOOM }; // lieux privés de la sélection affichée
+let privacy = { strict: false, maxZoom: MAP_MAX_ZOOM }; // lieux privés de la sélection affichée
 let mapStatus = 'ready'; // 'ready', 'tiles-failed' ou 'unavailable' (rapporté par map-view.js)
 let mapTimer = 0;
 let refreshToken = 0;
@@ -47,6 +50,23 @@ function hasGps(photo) {
 
 function formatCoordinate(value, positive, negative) {
   return `${Math.abs(value).toFixed(5)}° ${value >= 0 ? positive : negative}`;
+}
+
+// Coordonnées copiées : degrés décimaux signés (latitude, longitude), le format accepté par les sites et applications de cartes.
+function coordinatesText(point) {
+  return `${point.lat.toFixed(6)}, ${point.lon.toFixed(6)}`;
+}
+
+async function copyCoordinates() {
+  const focus = focusPoint();
+  if (!focus) return;
+  try {
+    await invoke('write_clipboard_text', { text: coordinatesText(focus) });
+    host.showToast(t('Coordinates copied: {coords}', { coords: coordinatesText(focus) }));
+  } catch (error) {
+    console.error('Clipboard unavailable', error);
+    host.showToast(t('The coordinates could not be copied.'));
+  }
 }
 
 function focusPoint() {
@@ -70,11 +90,11 @@ function renderText() {
   coordsElement.textContent = selectedCount > 1
     ? tp('{count} geolocated photos out of {total}', geolocatedCount, { total: selectedCount })
     : `${formatCoordinate(focus.lat, 'N', 'S')}, ${formatCoordinate(focus.lon, 'E', 'W')}`;
-  coordsElement.title = `${focus.lat}, ${focus.lon}`;
-  // Lieu privé : pas de lien vers OpenStreetMap (il enverrait la position au site).
-  osmLink.hidden = privacy.focusPrivate;
-  if (!privacy.focusPrivate) osmLink.href = openStreetMapUrl(focus.lat, focus.lon);
-  privateBadge.hidden = !privacy.strict;
+  coordsElement.title = t('Copy the coordinates ({coords}) to the clipboard', { coords: coordinatesText(focus) });
+  lockButton.classList.toggle('private', privacy.strict);
+  const lockHelp = privacy.strict ? t('Private place: local map only.') : t('This place is not in a private zone.');
+  lockButton.title = `${lockHelp} ${t('Click to manage the private zones.')}`;
+  lockButton.setAttribute('aria-label', lockButton.title);
   renderMessage();
 }
 
@@ -124,7 +144,6 @@ export async function refreshLocation(selection, focusPhoto) {
   const privateIds = zoneIds.filter(id => id !== null);
   privacy = {
     strict: privateIds.length > 0,
-    focusPrivate: zoneIds[nextPoints.findIndex(point => point.focus)] !== null,
     maxZoom: privateIds.length ? Math.min(...privateIds.map(zoomOf)) : MAP_MAX_ZOOM,
   };
   points = nextPoints;
@@ -143,11 +162,12 @@ export function onMapAccessChanged() {
   updateMap();
 }
 
-export function initLocationPanel() {
+/** `showToast` vient de main.js (message après la copie des coordonnées). */
+export function initLocationPanel(options = {}) {
+  host = { ...host, ...options };
   panel = document.getElementById('location-panel');
   coordsElement = document.getElementById('location-coords');
-  osmLink = document.getElementById('location-osm');
-  privateBadge = document.getElementById('location-private');
+  lockButton = document.getElementById('btn-location-lock');
   messageElement = document.getElementById('location-message');
   mapElement = document.getElementById('location-map');
   mapView = createMapView(mapElement, {
@@ -159,7 +179,7 @@ export function initLocationPanel() {
     },
   });
 
-  // Lien OpenStreetMap et liens d'attribution de la carte : ouverts dans le navigateur de l'utilisateur, jamais dans la fenêtre de l'application.
+  // Liens d'attribution de la carte : ouverts dans le navigateur de l'utilisateur, jamais dans la fenêtre de l'application.
   panel.addEventListener('click', async event => {
     const link = event.target instanceof Element ? event.target.closest('a[href^="http"]') : null;
     if (!link) return;
@@ -171,8 +191,10 @@ export function initLocationPanel() {
     }
   });
 
-  // Zones privées : bouton du groupe Lieu et de Paramètres > Général ; à la première activation de la carte, accueil si aucune zone.
-  document.getElementById('btn-location-private-zones').addEventListener('click', () => openPrivateZonesModal());
+  coordsElement.addEventListener('click', copyCoordinates);
+
+  // Zones privées : cadenas du groupe Lieu et bouton de Paramètres > Général ; à la première activation de la carte, accueil si aucune zone.
+  lockButton.addEventListener('click', () => openPrivateZonesModal());
   document.getElementById('btn-settings-private-zones').addEventListener('click', () => openPrivateZonesModal());
   const toggle = document.getElementById('show-map-toggle');
   toggle.checked = isMapEnabled();
