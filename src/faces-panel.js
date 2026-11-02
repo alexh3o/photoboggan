@@ -922,8 +922,28 @@ function openZoneMenu(event, face) {
     }
     await reloadOverlayFaces();
   };
-  const items = [{
+  // Trois groupes séparés : identifier (valider, nommer, inconnu), écarter (ignorer, pas un visage), supprimer la zone. Chaque ligne a une infobulle.
+  // L'en-tête dit quel visage est visé (nom et statut) : en aperçu, la plus petite zone sous le curseur est choisie.
+  const stateLabels = {
+    suggested: 'Face suggestion',
+    auto: 'Face recognized automatically',
+    confirmed: 'Face confirmed',
+    ignored: 'Face ignored',
+    not_face: 'Not a face',
+  };
+  const name = face.name || t('Unknown');
+  const items = [{ header: stateLabels[face.state] ? `${name} · ${t(stateLabels[face.state])}` : name }];
+  // Valider en premier quand une suggestion ou une reconnaissance automatique attend : c'est l'action la plus probable.
+  if (face.state === 'suggested' || face.state === 'auto') {
+    items.push({
+      label: face.name ? t('Confirm “{name}”', { name: face.name }) : t('Confirm'),
+      title: t('Accept the proposed name for this area'),
+      onSelect: () => run('confirm_faces'),
+    });
+  }
+  items.push({
     label: face.person_id != null ? t('Rename…') : t('Name…'),
+    title: face.person_id != null ? t('Give this area another name') : t('Give this area the name of a person (existing person, keyword path, or new name)'),
     onSelect: () => promptPersonName({
       title: t('Name the face'),
       message: t('Person shown in this area (existing person, keyword path, or new name)'),
@@ -933,13 +953,16 @@ function openZoneMenu(event, face) {
         await reloadOverlayFaces();
       },
     }),
-  }];
-  if (face.state === 'suggested' || face.state === 'auto') items.push({ label: t('Confirm'), onSelect: () => run('confirm_faces') });
-  if (face.person_id != null || face.state === 'suggested') items.push({ label: t('Unknown'), onSelect: () => run('set_faces_unknown') });
+  });
+  if (face.person_id != null || face.state === 'suggested') {
+    items.push({ label: t('Mark as unknown'), title: t('Keep this area without a person: it stays unknown and is not proposed to anyone else'), onSelect: () => run('set_faces_unknown') });
+  }
   // Ignorer (vrai visage sans intérêt) et « Pas un visage » (fausse détection) : proposés quel que soit le statut actuel
-  if (face.state !== 'ignored') items.push({ label: t('Ignore'), onSelect: () => run('ignore_faces') });
-  if (face.state !== 'not_face') items.push({ label: t('Not a face'), onSelect: () => run('mark_faces_not_a_face') });
-  items.push({ label: t('Delete this area'), onSelect: () => run('delete_faces'), danger: true });
+  const dismissals = [];
+  if (face.state !== 'ignored') dismissals.push({ label: t('Ignore'), title: t('A real face you do not want to name (passer-by, background): it leaves the review lists'), onSelect: () => run('ignore_faces') });
+  if (face.state !== 'not_face') dismissals.push({ label: t('Not a face'), title: t('False detection: this area is not a face. It is hidden but kept in the Faces view'), onSelect: () => run('mark_faces_not_a_face') });
+  if (dismissals.length) items.push({ separator: true }, ...dismissals);
+  items.push({ separator: true }, { label: t('Delete this area'), title: t('Remove this area (useful for an area drawn by mistake)'), onSelect: () => run('delete_faces'), danger: true });
   openContextMenuAt(event, items);
 }
 

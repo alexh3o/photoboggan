@@ -4863,6 +4863,15 @@ initPhotoActions({
   syncLibrary: () => requestLibrarySync(), // nouveaux fichiers créés par l'application (redimensionnement)
   enqueueFileTask: task => enqueueScanTask(task), // copie vers un dossier choisi, redimensionnement : tâches de la file (voir enqueueScanTask)
   deleteFolder: deleteFolderToTrash,
+  // En-tête du menu d'un dossier : nombre de photos (sous-dossiers compris si l'option est cochée)
+  folderPhotoCount: path => {
+    const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    const folder = normalize(path);
+    return folderTreePhotos.filter(photo => {
+      const photoPath = normalize(photo.path);
+      return includeSubfolders ? photoPath.startsWith(`${folder}/`) : photoPath.slice(0, photoPath.lastIndexOf('/')) === folder;
+    }).length;
+  },
   // Sous-menu « Marquage » du menu des photos : note, couleur et fanion pick posés sur les photos du clic droit (pas sur la sélection)
   marking: {
     colors: () => (isColorEnabled() ? COLOR_FLAGS : []),

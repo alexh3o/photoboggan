@@ -1200,11 +1200,17 @@ function onOutsidePointerDown(event) {
 }
 
 // `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
-function menuButton(label, onSelect, { danger = false, shortcut = null } = {}) {
+// `title` : infobulle expliquant l'action. `disabled` : ligne grisée (l'infobulle dit pourquoi).
+function menuButton(label, onSelect, { danger = false, shortcut = null, title = '', disabled = false } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `context-menu-item${danger ? ' danger' : ''}`;
   button.setAttribute('role', 'menuitem');
+  if (title) button.title = title;
+  if (disabled) {
+    button.disabled = true;
+    button.setAttribute('aria-disabled', 'true');
+  }
   if (shortcut) {
     const text = document.createElement('span');
     text.textContent = label;
@@ -1359,8 +1365,8 @@ function buildMarkingItem(targets) {
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
 function buildFacesItem(scope) {
   const items = [
-    { label: t('Detect faces (unscanned photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: true }) },
-    { label: t('Detect faces (all photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: false }) },
+    { label: t('Recognize (all photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: false }) },
+    { label: t('Recognize (unscanned photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: true }) },
   ];
   // Sélection : effacer ses données de visages (base et fichiers), après confirmation.
   if (scope.photoIds) items.push({ label: t('Erase face data…'), onSelect: () => api.eraseFaces(scope.photoIds) });
@@ -1554,35 +1560,52 @@ function openFolderMenu(event, folderItem) {
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
-  const separator = document.createElement('div');
-  separator.className = 'context-menu-separator';
-  separator.setAttribute('role', 'separator');
+  // Un dossier suivi (racine de l'arborescence, ajouté dans les Paramètres) ne se renomme ni ne se supprime depuis ce menu : seuls ses sous-dossiers.
+  // Ces deux lignes restent affichées, grisées, avec une infobulle qui renvoie aux Paramètres.
+  const isRoot = folderItem.dataset.folderRoot === '1';
+  const count = api.folderPhotoCount?.(path);
+  // Trois groupes : gestes courants (ouvrir, créer, renommer), maintenance (relire, intégrité, visages), suppression.
   menu.append(
-    menuButton(t('Rescan folder data'), () => api.rescanFolder(path)),
-    menuButton(t('Integrity check'), () => api.checkFolderIntegrity(path)),
-    menuButton(t('New subfolder…'), () => createSubfolder(path)),
-    menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path)),
+    menuHeader(count === undefined ? baseName(path) : `${baseName(path)} · ${tp('{count} photo', count)}`, path),
+    menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path), { title: t('Show this folder in the file explorer') }),
+    menuButton(t('New subfolder…'), () => createSubfolder(path), { title: t('Create a folder inside this one') }),
+    menuButton(t('Rename folder…'), () => renameFolder(path), {
+      disabled: isRoot,
+      title: isRoot ? t('Tracked folder: change it in Settings > Library') : t('Rename this folder on disk'),
+    }),
+    menuSeparator(),
+    menuButton(t('Rescan folder data'), () => api.rescanFolder(path), { title: t('Read the files of this folder again to update the list and the metadata') }),
+    menuButton(t('Integrity check'), () => api.checkFolderIntegrity(path), { title: t('Check that the files of this folder can be read (detects corrupted files)') }),
   );
   if (api.faceDetectionEnabled?.()) menu.append(buildFacesItem({ folder: path }));
-  // Un dossier suivi (racine de l'arborescence, ajouté dans les Paramètres) ne se supprime pas depuis ce menu : seuls ses sous-dossiers.
-  if (folderItem.dataset.folderRoot !== '1') {
-    menu.append(separator, menuButton(t('Rename folder…'), () => renameFolder(path)), menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), { danger: true }));
-  }
+  menu.append(
+    menuSeparator(),
+    menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), {
+      danger: true,
+      disabled: isRoot,
+      title: isRoot ? t('Tracked folder: remove it in Settings > Library') : t('Delete this folder and everything it contains (after confirmation)'),
+    }),
+  );
   contextTarget = folderItem;
   folderItem.classList.add('context-target');
   showContextMenu(menu, event);
 }
 
-// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger }] ;
-// un item peut porter `submenu` = [{ label, onSelect }] à la place de `onSelect` pour ouvrir un sous-niveau.
+// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title }] ;
+// un item peut porter `submenu` = [{ label, onSelect }] à la place de `onSelect` pour ouvrir un sous-niveau. { header: 'texte' } ajoute une ligne
+// d'en-tête (ce que le menu vise), { separator: true } un séparateur.
 export function openContextMenuAt(event, items) {
   closeContextMenu();
   const menu = document.createElement('div');
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
-  menu.append(...items.map(item => item.submenu
-    ? buildSubmenuItem(item.label, item.submenu)
-    : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger) })));
+  menu.append(...items.map(item => {
+    if (item.header) return menuHeader(item.header, item.title);
+    if (item.separator) return menuSeparator();
+    return item.submenu
+      ? buildSubmenuItem(item.label, item.submenu)
+      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title });
+  }));
   showContextMenu(menu, event);
 }
 
