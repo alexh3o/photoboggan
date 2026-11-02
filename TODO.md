@@ -12,8 +12,10 @@
 - [x] *feat*: `faces` more action on various views for faces
 - [ ] *docs*: technical documentation
 - [ ] *feat*: `faces` add "add a face" context menu, with a toast indicating to start drawing a rectangle
-- [ ] *feat*: `UI` add display options ion context menu
-- [ ] *feat*: `faces` option to display areas of ignored and not a face, in settings and menu
+- [ ] *feat*: `faces` add faces display options in context menu
+- [ ] *feat*: `faces` option to display areas of ignored and not a face, in settings and context menu
+- [ ] *feat*: `UI` option to display files quantity in folder tree
+- [ ] *refactor*: `UI` design critique of keywords context menu
 
 ## 💡 Ideas / Longer term / On hold
 

@@ -427,21 +427,39 @@ export async function openPersonMenu(event, person) {
   event.preventDefault();
   let merges = [];
   try { merges = await invoke('get_person_merges', { personId: person.id }); } catch (error) { console.error('Fusions illisibles', error); }
+  // Quatre groupes séparés : consulter, identité (nom, alias, mot-clé), regroupement et affichage (fusion, masquer), suppression. L'en-tête rappelle
+  // la personne visée ; chaque ligne a une infobulle.
+  const linked = person.keyword_id != null;
+  const header = `${personLabel(person)} · ${tp('{count} photo', person.photo_count)}${person.hidden ? ` · ${t('hidden')}` : ''}`;
   const items = [
+    { header },
     // Vue de gestion sur les visages de ses photos (grille filtrée sur elle).
-    { label: t('Manage their faces'), onSelect: () => showPersonFaces(person.id) },
-    { label: t('Rename…'), onSelect: () => renamePerson(person) },
-    { label: t('Alias…'), onSelect: () => editPersonAlias(person) },
-    { label: t('Link to a keyword…'), onSelect: () => linkPersonToKeyword(person) },
+    { label: t('Manage their faces'), title: t('Open the Faces view on this person to review their faces'), onSelect: () => showPersonFaces(person.id) },
+    { separator: true },
+    {
+      label: t('Rename…'),
+      title: linked ? t('Rename this person. The linked keyword is renamed too, in the keyword tree and in the files that carry it') : t('Change the name of this person'),
+      onSelect: () => renamePerson(person),
+    },
+    { label: t('Set an alias…'), title: t('Name shown instead of the name in the Faces and People views (never written to the files)'), onSelect: () => editPersonAlias(person) },
+    { label: t('Link to a keyword…'), title: t('Choose the keyword of the keyword tree that matches this person'), onSelect: () => linkPersonToKeyword(person) },
   ];
-  if (person.keyword_id != null) items.push({ label: t('Unlink keyword'), onSelect: () => unlinkPerson(person) });
-  items.push({ label: t('Merge into…'), onSelect: () => mergePerson(person) });
+  if (linked) items.push({ label: t('Unlink keyword'), title: t('Remove the link between this person and their keyword'), onSelect: () => unlinkPerson(person) });
+  items.push(
+    { separator: true },
+    { label: t('Merge into…'), title: t('Give the faces of this person to another person, then delete this one. The merge can be undone from the menu of the person kept'), onSelect: () => mergePerson(person) },
+  );
   // Une seule fusion reçue : entrée directe ; à partir de deux, elles sont regroupées dans un sous-menu « Annuler la fusion de ».
-  if (merges.length === 1) items.push({ label: t('Undo the merge of {name}', { name: merges[0].name }), onSelect: () => undoMerge(merges[0]) });
+  if (merges.length === 1) items.push({ label: t('Undo the merge of {name}', { name: merges[0].name }), title: t('Bring {name} back as a separate person', { name: merges[0].name }), onSelect: () => undoMerge(merges[0]) });
   else if (merges.length > 1) items.push({ label: t('Undo the merge of…'), submenu: merges.map(merge => ({ label: merge.name, onSelect: () => undoMerge(merge) })) });
   items.push(
-    { label: person.hidden ? t('Show this person') : t('Hide this person'), onSelect: () => setPersonHidden(person, !person.hidden) },
-    { label: t('Delete this person…'), onSelect: () => confirmDeletePerson(person), danger: true },
+    {
+      label: person.hidden ? t('Show this person') : t('Hide this person'),
+      title: person.hidden ? t('Put this person back in the list') : t('Remove this person from the list (hidden people can be shown again)'),
+      onSelect: () => setPersonHidden(person, !person.hidden),
+    },
+    { separator: true },
+    { label: t('Delete this person…'), title: t('Delete this person: their faces become unknown (after confirmation)'), onSelect: () => confirmDeletePerson(person), danger: true },
   );
   openContextMenuAt(event, items);
 }
