@@ -49,7 +49,8 @@ export function onZonesChange(listener) {
 }
 
 /**
- * Zone privée de chaque position (identifiant ou null), décidée par le backend.
+ * Pour chaque position : null si elle n'est dans aucune zone privée, sinon le zoom maximal disponible à cet endroit (le plus fin des zones qui
+ * la contiennent), décidé par le backend.
  * @param {{lat: number, lon: number}[]} points
  */
 export async function locatePrivatePoints(points) {

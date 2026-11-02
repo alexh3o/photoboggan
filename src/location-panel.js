@@ -10,7 +10,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { createMapView } from './map-view.js';
 import { MAP_MAX_POINTS, MAP_MAX_ZOOM } from './map-config.js';
-import { locatePrivatePoints, onZonesChange, getZones } from './private-zones.js';
+import { locatePrivatePoints, onZonesChange } from './private-zones.js';
 import { openPrivateZonesModal, offerPrivateZonesWelcome } from './private-zones-modal.js';
 
 const SHOW_MAP_STORAGE_KEY = 'showMap';
@@ -132,19 +132,20 @@ export async function refreshLocation(selection, focusPhoto) {
     return; // la carte reste créée (cachée) pour la prochaine photo géolocalisée
   }
   // Lieux privés décidés par le backend, avant tout affichage de la carte : en attendant, la carte précédente ne bouge pas.
-  let zoneIds;
+  let privateZooms;
   try {
-    zoneIds = await locatePrivatePoints(nextPoints);
+    privateZooms = await locatePrivatePoints(nextPoints);
   } catch (error) {
     console.error('Private zones check failed', error);
-    zoneIds = nextPoints.map(() => -1); // doute : traité comme privé (carte locale uniquement)
+    privateZooms = nextPoints.map(() => MAP_MAX_ZOOM); // doute : traité comme privé (carte locale uniquement)
   }
   if (token !== refreshToken) return; // sélection changée entre-temps
-  const zoomOf = id => getZones().find(zone => zone.id === id)?.max_zoom ?? MAP_MAX_ZOOM;
-  const privateIds = zoneIds.filter(id => id !== null);
+  // Plafond : le zoom le plus fin disponible aux lieux privés montrés (zones qui se recoupent, ou de détails différents). Plus près, les parties
+  // couvertes seulement par une zone moins détaillée restent vides : jamais de requête distante.
+  const zooms = privateZooms.filter(zoom => zoom !== null);
   privacy = {
-    strict: privateIds.length > 0,
-    maxZoom: privateIds.length ? Math.min(...privateIds.map(zoomOf)) : MAP_MAX_ZOOM,
+    strict: zooms.length > 0,
+    maxZoom: zooms.length ? Math.max(...zooms) : MAP_MAX_ZOOM,
   };
   points = nextPoints;
   selectedCount = selection.length;

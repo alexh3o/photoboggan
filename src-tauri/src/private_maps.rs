@@ -257,6 +257,8 @@ struct LoadedZone {
     id: i64,
     /// Nom du fichier MBTiles de la zone (voir zone_file_name).
     file: String,
+    /// Zoom maximal téléchargé (niveau de détail).
+    max_zoom: u8,
     shape: ZoneShape,
 }
 
@@ -272,7 +274,12 @@ pub fn reload_zones(conn: &rusqlite::Connection) -> Result<(), String> {
 fn load_zones(conn: &rusqlite::Connection) -> Result<Vec<LoadedZone>, String> {
     Ok(list_zones(conn)?
         .into_iter()
-        .map(|zone| LoadedZone { id: zone.id, file: zone_file_name(&zone.name).unwrap_or_default(), shape: ZoneShape::new(&zone.geometry) })
+        .map(|zone| LoadedZone {
+            id: zone.id,
+            file: zone_file_name(&zone.name).unwrap_or_default(),
+            max_zoom: zone.max_zoom,
+            shape: ZoneShape::new(&zone.geometry),
+        })
         .collect())
 }
 
@@ -281,9 +288,10 @@ fn close_tile_file(id: i64) {
     if let Some(files) = TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).as_mut() { files.remove(&id); }
 }
 
-/// Zone privée qui contient le point, s'il y en a une.
-pub fn zone_at(lat: f64, lon: f64) -> Option<i64> {
-    ZONES.read().unwrap_or_else(|poisoned| poisoned.into_inner()).iter().find(|zone| zone.shape.contains_location(lat, lon)).map(|zone| zone.id)
+/// Lieu privé : zoom maximal disponible au point, le plus fin des zones qui le contiennent (zones qui se recoupent : le détail présent sur le
+/// disque à cet endroit) ; None si le point n'est dans aucune zone.
+fn private_zoom_in(zones: &[LoadedZone], lat: f64, lon: f64) -> Option<u8> {
+    zones.iter().filter(|zone| zone.shape.contains_location(lat, lon)).map(|zone| zone.max_zoom).max()
 }
 
 pub fn private_maps_dir(state: &AppState) -> PathBuf {
@@ -812,10 +820,12 @@ pub fn get_private_resource(state: State<'_, AppState>, path: String) -> tauri::
     tauri::ipc::Response::new(file.and_then(|file| fs::read(file).ok()).unwrap_or_default())
 }
 
-/// Zone privée de chaque position ([latitude, longitude]) : identifiant de la zone, ou None.
+/// Pour chaque position ([latitude, longitude]) : None si elle n'est dans aucune zone privée, sinon le zoom maximal disponible à cet endroit
+/// (voir private_zoom_in), qui plafonne la carte en mode strict.
 #[tauri::command(async)]
-pub fn locate_private_points(points: Vec<[f64; 2]>) -> Vec<Option<i64>> {
-    points.iter().map(|point| zone_at(point[0], point[1])).collect()
+pub fn locate_private_points(points: Vec<[f64; 2]>) -> Vec<Option<u8>> {
+    let zones = ZONES.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    points.iter().map(|point| private_zoom_in(&zones, point[0], point[1])).collect()
 }
 
 #[cfg(test)]

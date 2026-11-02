@@ -207,3 +207,17 @@ fn legacy_zone_files_are_renamed_after_their_zone() {
     assert_eq!(fs::read(dir.path().join("déjà.mbtiles")).unwrap(), b"nouveau");
     assert!(dir.path().join("zone_6.mbtiles").exists());
 }
+
+#[test]
+fn overlapping_zones_give_the_finest_available_zoom() {
+    let zone = |id, max_zoom, geometry: ZoneGeometry| LoadedZone { id, file: String::new(), max_zoom, shape: ZoneShape::new(&geometry) };
+    // « Appart » (Ville, zoom 12) et « Maison » (Rues, zoom 14) se recoupent autour du centre de Paris.
+    let zones = vec![zone(1, 12, paris_circle(3000.0)), zone(2, 14, ZoneGeometry::Circle { lat: 48.8566, lon: 2.37, radius: 2000.0 })];
+    assert_eq!(private_zoom_in(&zones, 48.8566, 2.3522), Some(14), "intersection : le détail le plus fin");
+    assert_eq!(private_zoom_in(&zones, 48.8566, 2.33), Some(12), "seulement dans la zone moins détaillée");
+    assert_eq!(private_zoom_in(&zones, 48.8566, 2.39), Some(14));
+    assert_eq!(private_zoom_in(&zones, 43.3, 5.4), None);
+    // L'ordre des zones ne change rien.
+    let reversed: Vec<LoadedZone> = zones.into_iter().rev().collect();
+    assert_eq!(private_zoom_in(&reversed, 48.8566, 2.3522), Some(14));
+}
