@@ -377,9 +377,11 @@ pub const RATING_SOURCE_IDS: [&str; 5] = ["xmp", "microsoft", "acdsee", "exif", 
 pub const COLOR_SOURCE_IDS: [&str; 3] = ["xmp-label", "digikam", "urgency"];
 /// Sources du fanion pick, ordre par défaut : digiKam:PickLabel, xmpDM:pick (Lightroom), xmpDM:good.
 pub const PICK_SOURCE_IDS: [&str; 3] = ["digikam", "xmpdm-pick", "xmpdm-good"];
-/// Sources des coordonnées GPS, ordre par défaut : EXIF (GPSLatitude / GPSLongitude), XMP exif:GPSLatitude / exif:GPSLongitude (intégré, puis sidecar).
+/// Sources des coordonnées GPS (les identifiants ne donnent pas l'ordre de priorité) : EXIF (GPSLatitude / GPSLongitude), XMP exif:GPSLatitude /
+/// exif:GPSLongitude (intégré, puis sidecar). Ordre par défaut : XMP avant EXIF, seul le XMP étant écrit par tous les chemins d'écriture
+/// (mode Carte) ; une position écrite en XMP est ainsi toujours relue, même si l'EXIF du fichier en contient une autre.
 pub const GPS_SOURCE_IDS: [&str; 2] = ["exif", "xmp"];
-static GPS_PRIORITY: std::sync::RwLock<[usize; 2]> = std::sync::RwLock::new([0, 1]);
+static GPS_PRIORITY: std::sync::RwLock<[usize; 2]> = std::sync::RwLock::new([1, 0]);
 static RATING_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
 static COLOR_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);
 static PICK_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);

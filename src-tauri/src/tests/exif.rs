@@ -486,12 +486,14 @@ fn gps_read_order_decides_between_exif_and_xmp() {
     let path = write_sample(dir.path(), "a.jpg", &both);
     let order = |ids: &[&str]| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
 
-    assert_gps(read_exif(&path).gps, (48.0, 2.0));
-    set_read_priority("gps", &order(&["xmp", "exif"])).unwrap();
-    let xmp_first = read_exif(&path);
+    // Par défaut le XMP l'emporte (la position écrite par le mode Carte est relue même si l'EXIF en contient une autre).
+    assert_gps(read_exif(&path).gps, (45.0, 4.0));
     set_read_priority("gps", &order(&["exif", "xmp"])).unwrap();
-    assert_gps(xmp_first.gps, (45.0, 4.0));
-    assert_gps(xmp_first.gps_sources[0], (48.0, 2.0));
+    let exif_first = read_exif(&path);
+    set_read_priority("gps", &order(&["xmp", "exif"])).unwrap();
+    assert_gps(exif_first.gps, (48.0, 2.0));
+    assert_gps(exif_first.gps_sources[0], (48.0, 2.0));
+    assert_gps(exif_first.gps_sources[1], (45.0, 4.0));
     assert!(set_read_priority("gps", &order(&["exif"])).is_err());
 }
 
@@ -529,4 +531,27 @@ fn xmp_gps_coordinate_format() {
     assert_eq!(xmp_gps_coordinate(45.5, 'N', 'S'), "45,30.000000N");
     assert_eq!(xmp_gps_coordinate(-4.25, 'E', 'W'), "4,15.000000W");
     assert_eq!(parse_xmp_gps_coordinate(&xmp_gps_coordinate(-31.920330, 'N', 'S')).map(|value| (value * 1e6).round()), Some(-31920330.0));
+}
+
+/// Mode Carte, écriture interne : une nouvelle position remplace l'ancienne (XMP intégré), altitude et direction comprises ; relue en premier
+/// (XMP avant EXIF par défaut) même quand l'EXIF du fichier contient une autre position. Pixels et autres métadonnées conservés.
+#[test]
+fn a_new_xmp_position_replaces_the_previous_one_and_wins_over_the_exif() {
+    let dir = tempfile::tempdir().unwrap();
+    let packet = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description \
+        xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" exif:GPSLatitude=\"45,30.0N\" exif:GPSLongitude=\"4,30.0W\" exif:GPSImgDirection=\"90/1\">\
+        <exif:GPSAltitude>120/1</exif:GPSAltitude><dc:title>garde</dc:title></rdf:Description></rdf:RDF></x:xmpmeta>";
+    let exif_segment = exif_gps_segment([(48, 1), (51, 1), (0, 1)], b'N', [(2, 1), (21, 1), (0, 1)], b'E');
+    let original = with_xmp(&with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_segment), packet);
+    let path = write_sample(dir.path(), "a.jpg", &original);
+    assert_gps(read_exif(&path).gps, (45.5, -4.5));
+
+    write_jpeg_metadata(&path, &MetadataUpdate { gps: Some(Some((-31.920330, 115.797278))), ..Default::default() }).unwrap();
+    let written = fs::read(&path).unwrap();
+    let meta = read_exif(&path);
+    assert_gps(meta.gps, (-31.920330, 115.797278));
+    assert_gps(meta.gps_sources[0], (48.85, 2.35)); // l'EXIF n'est pas modifié par l'écriture interne
+    assert!(!contains(&written, b"GPSAltitude") && !contains(&written, b"GPSImgDirection"), "altitude et direction retirées");
+    assert!(contains(&written, b"garde"));
+    assert_eq!(decoded_pixels(&written), decoded_pixels(&original));
 }

@@ -48,3 +48,12 @@ fn exif_gps_is_refused_when_it_cannot_be_erased() {
     assert_eq!(erase_refusal(raw, true, true), Some("gps_in_exif_sidecar_format"));
     assert_eq!(erase_refusal(Path::new("C:/Photos/a.png"), true, true), Some("gps_in_exif_sidecar_format"));
 }
+
+#[test]
+fn written_coordinates_must_be_read_back_from_the_file() {
+    let paris = (48.8566, 2.3522);
+    assert_eq!(gps_mismatch(paris, Some((48.856601, 2.352199))), None, "arrondis des formats tolérés");
+    assert!(gps_mismatch(paris, Some((48.9, 2.3522))).is_some());
+    assert!(gps_mismatch(paris, Some((48.8566, 2.4))).is_some());
+    assert!(gps_mismatch(paris, None).is_some());
+}

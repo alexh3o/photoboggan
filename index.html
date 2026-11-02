@@ -23,6 +23,8 @@
         <button type="button" id="btn-toggle-sidebar" class="active" title="Open library panel" data-i18n-title="Open library panel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left-dashed preview-icon"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 14v1"/><path d="M9 19v2"/><path d="M9 3v2"/><path d="M9 9v1"/></svg> <span data-i18n="Library">Bibliothèque</span></button>
         <!-- Vue Visages (faces-grid.js) : visible quand la détection des visages est activée -->
         <button id="btn-toggle-faces" type="button" hidden title="Personnes" data-i18n-title="People view: the people of the photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-face preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg> <span data-i18n="People">Personnes</span></button>
+        <!-- Mode Carte (map-mode.js) : carte des photos et géolocalisation de la sélection -->
+        <button id="btn-toggle-map" type="button" title="Carte" data-i18n-title="Map view: where the photos are, and set the location of the selection"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg> <span data-i18n="Map">Carte</span></button>
       </div>
       <div class="actions">
         <button type="button" id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -246,6 +248,33 @@
       <!-- Prévisualisation -->
       <section id="preview-panel" class="preview-section">
         <div id="preview-stage" class="preview-stage"></div>
+        <!-- Mode Carte (map-mode.js) : partage la hauteur avec l'aperçu -->
+        <div id="map-panel" class="map-panel" hidden>
+          <div class="map-toolbar">
+            <div class="map-toolbar-row">
+              <div class="map-filter" role="group" aria-label="Photos affichées dans la grille" data-i18n-aria-label="Photos shown in the grid">
+                <button type="button" data-filter="all" aria-pressed="true" data-i18n="All photos" data-i18n-title="Show all the photos of the selected folders and filters in the grid" title="Afficher dans la grille toutes les photos des dossiers et filtres choisis">Toutes les photos</button>
+                <button type="button" data-filter="visible" aria-pressed="false" data-i18n="Visible zone only" data-i18n-title="Show in the grid only the geolocated photos inside the visible map area" title="Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte">Zone visible seulement</button>
+              </div>
+              <form id="map-search" class="map-search" role="search" hidden>
+                <input id="map-search-input" type="search" autocomplete="off" spellcheck="false" placeholder="Rechercher un lieu…" data-i18n-placeholder="Search a place…" aria-label="Rechercher un lieu" data-i18n-aria-label="Search a place" />
+                <ul id="map-search-results" class="map-search-results" hidden></ul>
+              </form>
+              <button id="btn-map-zones" type="button" class="btn-primary" data-i18n="Private and offline zones" data-i18n-title="Manage the private and offline map zones" title="Gérer les zones privées et hors ligne">Zones privées et hors ligne</button>
+            </div>
+            <div class="map-toolbar-row">
+              <span class="map-help" data-i18n="Hold SHIFT and drag onto map to set location">Maintenir MAJ et glisser sur la carte pour définir la position</span>
+              <span id="map-pending" class="map-pending"></span>
+              <button id="btn-map-revert" type="button" data-i18n="Discard the changes" disabled>Abandonner les modifications</button>
+              <button id="btn-map-write" type="button" class="btn-primary" data-i18n="Write to files" data-i18n-title="Write the locations to the files" title="Écrire les positions dans les fichiers" disabled>Écrire dans les fichiers</button>
+            </div>
+          </div>
+          <div class="map-body">
+            <div id="map-canvas" class="map-canvas"></div>
+            <p id="map-message" class="map-message" hidden></p>
+            <span id="map-drop-hint" class="map-drop-hint" hidden></span>
+          </div>
+        </div>
       </section>
 
       <!-- EXIF -->

@@ -84,12 +84,12 @@ const READ_ORDERS = {
       { id: 'acdsee', label: 'ACDSee', property: 'acdsee-rs:Regions' },
     ],
   },
-  // Coordonnées GPS : lues seulement, jamais écrites (voir exif::GPS_SOURCE_IDS).
+  // Coordonnées GPS (voir exif::GPS_SOURCE_IDS) : XMP avant EXIF par défaut, pour que la position écrite par le mode Carte soit relue.
   gps: {
     storageKey: 'gpsFormatOrder',
     formats: [
-      { id: 'exif', label: 'EXIF', property: 'GPSLatitude / GPSLongitude' },
       { id: 'xmp', label: 'XMP', property: 'exif:GPSLatitude / exif:GPSLongitude' },
+      { id: 'exif', label: 'EXIF', property: 'GPSLatitude / GPSLongitude' },
     ],
   },
 };

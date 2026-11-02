@@ -14,6 +14,14 @@ const BLOCKED_URL = 'data:application/json,{}';
 const SOURCE_ID = 'photo-locations';
 const ZONES_SOURCE_ID = 'private-zones';
 const TILE_SOURCE_ID = 'openmaptiles';
+const BACKDROP_SOURCE_ID = 'photo-backdrop'; // toutes les photos affichées (mode Carte), discrètes, sous la sélection
+// Couleurs des zones (mode Carte) : pointillés verts pour une zone privée, noirs pour une autre zone hors ligne ; un liseré clair dessous les garde
+// lisibles sur le thème sombre.
+const PRIVATE_ZONE_COLOR = '#2e9e4f';
+const OFFLINE_ZONE_COLOR = '#000000';
+const OTHER_SELECTED_COLOR = '#4da3ff'; // photos sélectionnées autres que la photo active (la photo active a la couleur de sélection)
+const PENDING_COLOR = '#f59e0b'; // position en attente d'écriture
+const BACKDROP_COLOR = '#8a94a6';
 
 // Bibliothèque chargée une seule fois, à la première carte réellement affichée.
 let libraryPromise = null;
@@ -64,6 +72,10 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   let tilesFailed = false;
   let strict = false;
   let strictMaxZoom = MAP_MAX_ZOOM;
+  let sizedWidth = 0;
+  let sizedHeight = 0;
+  let frameOnApply = true; // le mode Carte règle lui-même le cadrage (frameTo) : show() ne recadre alors pas
+  let backdropPoints = [];
   let tileGeneration = 0;
   const tileContext = createTileContext();
   const readyCallbacks = [];
@@ -75,7 +87,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
       type: 'FeatureCollection',
       features: points.map(point => ({
         type: 'Feature',
-        properties: { focus: !!point.focus },
+        properties: { focus: !!point.focus, other: !!point.other, pending: !!point.pending },
         geometry: { type: 'Point', coordinates: [point.lon, point.lat] },
       })),
     };
@@ -86,16 +98,34 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   function addOverlayLayers() {
     const styles = getComputedStyle(document.documentElement);
     const accent = styles.getPropertyValue('--selected-border').trim() || '#1e72ad';
-    const zoneColor = styles.getPropertyValue('--accent-text').trim() || '#4aa3df';
+    const zoneColor = ['case', ['==', ['get', 'private'], false], OFFLINE_ZONE_COLOR, PRIVATE_ZONE_COLOR];
     if (!map.getSource(ZONES_SOURCE_ID)) {
       map.addSource(ZONES_SOURCE_ID, { type: 'geojson', data: zoneOutlines || { type: 'FeatureCollection', features: [] } });
       map.addLayer({
         id: `${ZONES_SOURCE_ID}-fill`, type: 'fill', source: ZONES_SOURCE_ID,
-        paint: { 'fill-color': zoneColor, 'fill-opacity': ['case', ['get', 'selected'], 0.22, 0.1] },
+        paint: { 'fill-color': zoneColor, 'fill-opacity': ['case', ['get', 'selected'], 0.22, 0.08] },
+      });
+      map.addLayer({
+        id: `${ZONES_SOURCE_ID}-casing`, type: 'line', source: ZONES_SOURCE_ID,
+        paint: { 'line-color': 'rgba(255, 255, 255, 0.85)', 'line-width': ['case', ['get', 'selected'], 5, 4] },
       });
       map.addLayer({
         id: `${ZONES_SOURCE_ID}-line`, type: 'line', source: ZONES_SOURCE_ID,
         paint: { 'line-color': zoneColor, 'line-width': ['case', ['get', 'selected'], 2.5, 1.5], 'line-dasharray': [2, 1.5] },
+      });
+    }
+    if (!map.getSource(BACKDROP_SOURCE_ID)) {
+      map.addSource(BACKDROP_SOURCE_ID, { type: 'geojson', data: featureCollection(backdropPoints) });
+      map.addLayer({
+        id: BACKDROP_SOURCE_ID, type: 'circle', source: BACKDROP_SOURCE_ID,
+        paint: {
+          'circle-radius': 3.5,
+          'circle-color': ['case', ['get', 'pending'], PENDING_COLOR, BACKDROP_COLOR],
+          'circle-opacity': 0.75,
+          'circle-stroke-color': '#fff',
+          'circle-stroke-width': 0.75,
+          'circle-stroke-opacity': 0.6,
+        },
       });
     }
     if (!map.getSource(SOURCE_ID)) {
@@ -107,8 +137,8 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
         layout: { 'circle-sort-key': ['case', ['get', 'focus'], 1, 0] },
         paint: {
           'circle-radius': ['case', ['get', 'focus'], 7, 5],
-          'circle-color': accent,
-          'circle-stroke-color': '#fff',
+          'circle-color': ['case', ['get', 'focus'], accent, ['get', 'other'], OTHER_SELECTED_COLOR, accent],
+          'circle-stroke-color': ['case', ['get', 'pending'], PENDING_COLOR, '#fff'],
           'circle-stroke-width': 2,
         },
       });
@@ -136,10 +166,16 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
 
   function apply() {
     if (!map || !mapReady || !isVisible()) return;
-    map.resize();
+    // resize() déclenche des événements de mouvement (movestart / moveend) : seulement si la taille a changé, sinon chaque mise à jour des points
+    // relancerait ceux qui l'ont provoquée (filtre « Zone visible seulement » du mode Carte).
+    if (container.clientWidth !== sizedWidth || container.clientHeight !== sizedHeight) {
+      sizedWidth = container.clientWidth;
+      sizedHeight = container.clientHeight;
+      map.resize();
+    }
     if (pendingPoints) {
       map.getSource(SOURCE_ID)?.setData(featureCollection(pendingPoints));
-      frame(pendingPoints);
+      if (frameOnApply) frame(pendingPoints);
     }
     if (pendingFrame) {
       map.fitBounds(pendingFrame, { padding: 24, maxZoom: MAP_MAX_ZOOM, duration: 0 });
@@ -206,7 +242,11 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
         onStatus('ready');
       }
     });
-    map.getCanvas().addEventListener('webglcontextlost', () => {
+    // Contexte perdu pour de bon (pilote, mémoire). Une destruction voulue (destroy) le perd aussi : elle n'est pas une panne, la carte a déjà été
+    // retirée (et remplacée, ou non) à ce moment-là.
+    const createdMap = map;
+    createdMap.getCanvas().addEventListener('webglcontextlost', () => {
+      if (map !== createdMap) return;
       destroy();
       onStatus('unavailable');
     });
@@ -215,10 +255,13 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   function destroy() {
     creating = null;
     mapReady = false;
+    sizedWidth = 0;
+    sizedHeight = 0;
     tilesFailed = false;
     if (map) {
-      map.remove(); // annule les requêtes en cours et libère le contexte WebGL
-      map = null;
+      const removed = map;
+      map = null; // avant remove() : l'événement de perte de contexte qu'il provoque ne doit pas passer pour une panne
+      removed.remove(); // annule les requêtes en cours et libère le contexte WebGL
     }
   }
 
@@ -274,12 +317,34 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
    * @param {{lat: number, lon: number, focus?: boolean}[]} points
    * @param {{ strict?: boolean, maxZoom?: number }} [privacy] mode strict décidé par l'appelant (positions dans une zone privée)
    */
-  function show(points, privacy = {}) {
+  function show(points, privacy = {}, { frame: reframe = true } = {}) {
+    frameOnApply = reframe;
     // Le mode strict passe en premier : aucun recadrage vers un lieu privé avec une carte encore autorisée à contacter le fournisseur.
     setStrict(!!privacy.strict, privacy.maxZoom ?? MAP_MAX_ZOOM);
     pendingPoints = points;
     if (!ensureCreated()) return;
     apply();
+  }
+
+  /** Toutes les photos affichées (mode Carte) : points discrets sous la sélection ; `pending` : position en attente d'écriture. */
+  function setBackdrop(points) {
+    backdropPoints = points;
+    map?.getSource(BACKDROP_SOURCE_ID)?.setData(featureCollection(points));
+  }
+
+  /**
+   * Cadrage sur ces positions (mode Carte), sans animation. `onlyIfOutside` : seulement si l'une d'elles est hors de la zone visible, ce qui
+   * évite de déplacer la carte sous l'utilisateur qui la parcourt.
+   */
+  function frameTo(points, { onlyIfOutside = false } = {}) {
+    whenReady(() => {
+      if (!isVisible() || points.length === 0) return;
+      if (onlyIfOutside) {
+        const bounds = map.getBounds();
+        if (points.every(point => bounds.contains([point.lon, point.lat]))) return;
+      }
+      frame(points);
+    });
   }
 
   /** Contours de zones à afficher (GeoJSON, voir private-zones.js) ; `frameBounds` : rectangle à cadrer. */
@@ -300,6 +365,8 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   return {
     show,
     showZones,
+    setBackdrop,
+    frameTo,
     setStrict,
     reloadTiles,
     reloadStyle,

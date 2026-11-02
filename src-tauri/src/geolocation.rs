@@ -82,6 +82,18 @@ fn now_millis() -> i64 {
 
 const SAME_PLACE: f64 = 1e-5; // ≈ 1 m : écart toléré entre les coordonnées écrites et relues (arrondis des formats)
 
+/// Message d'erreur si les coordonnées relues dans le fichier ne sont pas celles écrites (aussi utilisé par l'écriture du mode Carte, keywords.rs).
+/// Avec l'ordre de lecture par défaut (XMP avant EXIF) une écriture XMP seule est relue ; l'écart apparaît si l'utilisateur a mis l'EXIF en premier.
+pub(crate) fn gps_mismatch(written: (f64, f64), read: Option<(f64, f64)>) -> Option<String> {
+    match read {
+        None => Some("Les coordonnées relues dans le fichier sont absentes".to_string()),
+        Some((lat, lon)) if (written.0 - lat).abs() > SAME_PLACE || (written.1 - lon).abs() > SAME_PLACE => {
+            Some("Les coordonnées relues dans le fichier diffèrent de celles écrites".to_string())
+        }
+        Some(_) => None,
+    }
+}
+
 /// Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
 fn write_one(conn: &rusqlite::Connection, cache_dirs: &crate::ImageCacheDirs, photo_id: i64, path: &str, restore: Option<(f64, f64)>) -> Result<GeoPhoto, String> {
     let update = crate::exif::MetadataUpdate { gps: Some(restore), ..Default::default() };

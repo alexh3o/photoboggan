@@ -210,6 +210,9 @@ pub struct KeywordWriteItem {
     /// d'être écrits les écrit de toute façon, puisqu'elle est réécrite.
     #[serde(default)]
     pub faces: Option<bool>,
+    /// Mode Carte : coordonnées (latitude, longitude) à écrire, qui remplacent les anciennes (altitude et direction comprises).
+    #[serde(default)]
+    pub gps: Option<(f64, f64)>,
 }
 
 #[derive(Serialize)]
@@ -222,6 +225,9 @@ pub struct KeywordWritten {
     /// Titre et description retenus à la relecture du fichier (colonnes `title` et `caption`).
     pub title: String,
     pub description: String,
+    /// Coordonnées retenues à la relecture du fichier (colonnes `gps_lat` et `gps_lon`).
+    pub gps_lat: Option<f64>,
+    pub gps_lon: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -322,6 +328,7 @@ fn run_write(
                 if item.title.is_some() { kept.title = item.title; }
                 if item.description.is_some() { kept.description = item.description; }
                 if item.faces == Some(true) { kept.faces = Some(true); }
+                if item.gps.is_some() { kept.gps = item.gps; }
             }
             None => {
                 position.insert(item.photo_id, valid.len());
@@ -382,7 +389,7 @@ fn run_write(
                     title: item.title.clone(),
                     description: item.description.clone(),
                     regions: plan.map(|plan| plan.regions.clone()),
-                    gps: None,
+                    gps: item.gps.map(Some),
                 };
                 // Métadonnées seules : la miniature et l'aperçu en cache sont renommés pour suivre le fichier, pas régénérés.
                 let result = crate::keep_cached_images(&cache_dirs, &item.path, || {
@@ -419,7 +426,8 @@ fn run_write(
                     }
                     _ => crate::exif::text_mismatch(Path::new(&item.path), &update, &meta),
                 }
-                .or_else(|| update.regions.as_ref().and_then(|regions| regions_mismatch(Path::new(&item.path), regions)));
+                .or_else(|| update.regions.as_ref().and_then(|regions| regions_mismatch(Path::new(&item.path), regions)))
+                .or_else(|| item.gps.and_then(|written| crate::geolocation::gps_mismatch(written, meta.gps)));
                 if let Some(error) = mismatch {
                     push_failure(&mut failed, item.photo_id, item.path, error);
                     continue;
@@ -434,6 +442,11 @@ fn run_write(
                         params![meta.keywords, meta.title, meta.caption, item.photo_id],
                     ),
                 };
+                // Coordonnées écrites : la base reflète la relecture (le déclencheur de geolocation.rs retire la sauvegarde d'un GPS effacé).
+                let stored = stored.and_then(|_| {
+                    if item.gps.is_none() { return Ok(0); }
+                    tx.execute("UPDATE photos SET gps_lat = ?1, gps_lon = ?2 WHERE id = ?3", params![meta.gps.map(|gps| gps.0), meta.gps.map(|gps| gps.1), item.photo_id])
+                });
                 // Fichier écrit mais base non mise à jour : jamais présenté comme un succès (la synchronisation relira le fichier).
                 if let Err(error) = stored {
                     push_failure(&mut failed, item.photo_id, item.path, format!("Base de données non mise à jour : {error}"));
@@ -450,7 +463,7 @@ fn run_write(
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
                 face_batches.push((item.path.clone(), meta.faces));
                 written_paths.insert(item.photo_id, item.path);
-                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption });
+                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption, gps_lat: meta.gps.map(|gps| gps.0), gps_lon: meta.gps.map(|gps| gps.1) });
             }
         }
     }
@@ -596,7 +609,7 @@ fn photos_carrying(conn: &Connection, ids: &[i64], dropped: &HashSet<i64>) -> Re
         let index = match index_of.get(&photo_id) {
             Some(index) => *index,
             None => {
-                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, faces: None });
+                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, faces: None, gps: None });
                 index_of.insert(photo_id, items.len() - 1);
                 items.len() - 1
             }

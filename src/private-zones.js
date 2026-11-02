@@ -120,13 +120,13 @@ export function zoneBounds(geometry) {
   return [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]];
 }
 
-/** Contours des zones en GeoJSON (une entité par zone, propriété `selected`), pour une couche de carte. */
+/** Contours des zones en GeoJSON (une entité par zone, propriétés `selected` et `private`), pour une couche de carte. */
 export function zonesFeatureCollection(list, selectedId = null) {
   return {
     type: 'FeatureCollection',
     features: list.map(zone => ({
       type: 'Feature',
-      properties: { id: zone.id, selected: zone.id === selectedId },
+      properties: { id: zone.id, selected: zone.id === selectedId, private: zone.private !== false },
       geometry: { type: 'Polygon', coordinates: [zoneRing(zone.geometry)] },
     })),
   };

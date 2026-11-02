@@ -14,6 +14,7 @@ import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
+import { initMapMode, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
@@ -715,6 +716,7 @@ function updateFilteredPhotosCount() {
   updateGridEmptyState();
 }
 
+let mapCandidatePhotos = [];
 function applyPhotoFilters({ keepState = false } = {}) {
   // keepState : mise à jour en arrière-plan (synchronisation), la sélection et le défilement sont conservés.
   const keptPaths = keepState ? [...selectedIndices].map(index => photos[index]?.path).filter(Boolean) : [];
@@ -722,7 +724,8 @@ function applyPhotoFilters({ keepState = false } = {}) {
   const keptScrollTop = gridContainer.scrollTop;
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
-  photos = loadedPhotos.filter(photo => matchesRatingFilter(photo)
+  // Photos avant le filtre « Zone visible seulement » du mode Carte : la carte garde tous leurs points, même hors de la zone visible.
+  mapCandidatePhotos = loadedPhotos.filter(photo => matchesRatingFilter(photo)
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
     && personFilterMatches(photo)
     && matchesFilenameFilters(photo)
@@ -731,6 +734,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
     && matchesDateFilter(photo)
     && matchesLocationFilter(photo));
+  photos = mapCandidatePhotos.filter(passesMapFilter);
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
   renderFilterSummaries();
   selectedIndices.clear();
@@ -757,6 +761,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   }
   updateFilteredPhotosCount();
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
+  refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
 }
 
 // Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
@@ -1453,6 +1458,9 @@ function renderVisibleItems() {
     if (div._pick.className !== pickClass) div._pick.className = pickClass;
     const located = hasGps(photo);
     if (div._located !== located) { div.classList.toggle('has-gps', located); div._located = located; }
+    // Position choisie dans le mode Carte, pas encore écrite dans le fichier : pastille orange.
+    const waitingLocation = hasPendingPosition(photo);
+    if (div._geoPending !== waitingLocation) { div.classList.toggle('gps-pending', waitingLocation); div._geoPending = waitingLocation; }
   }
   renderVisibleSeparators(top, bottom);
   for (const [index, node] of renderedThumbnailNodes) {
@@ -1864,6 +1872,7 @@ function updateUIOnSelection() {
   }
   // Groupe Lieu : positions de toute la sélection, la photo active mise en avant (voir location-panel.js).
   refreshLocation([...selectedIndices].map(index => photos[index]).filter(Boolean), photos[lastSelectedIndex]);
+  refreshMapMode(); // mode Carte ouvert : sélection mise en évidence sur la carte
   refreshInfoRows();
 }
 
@@ -3093,7 +3102,7 @@ if (thumbnailCacheSelect) {
   });
 }
 previewResizer.addEventListener('pointerdown', event => {
-  if (mainContent.classList.contains('preview-hidden')) return;
+  if (mainContent.classList.contains('preview-hidden') && !mainContent.classList.contains('map-mode')) return; // la carte garde son panneau sans aperçu
   previewResizer.setPointerCapture(event.pointerId);
   previewResizer.classList.add('dragging');
   let resizeFrame = null;
@@ -3163,7 +3172,7 @@ document.getElementById('btn-toggle-exif').addEventListener('click', event => {
 });
 
 // REDIMENSIONNEMENT DU PANNEAU DE DROITE (Info / Mots-clés) : poignée à sa gauche, largeur mémorisée localement.
-const EXIF_PANEL_MIN_WIDTH = 200;
+const EXIF_PANEL_MIN_WIDTH = 220;
 const exifPanelElement = document.getElementById('exif-panel');
 const exifResizer = document.getElementById('exif-resizer');
 const storedExifPanelWidth = Number(localStorage.getItem('exifPanelWidth'));
@@ -4506,7 +4515,8 @@ function clearPhotoDragVisuals(drag) {
   drag.ghost = null;
   drag.dropItem?.classList.remove('drop-target');
   drag.dropItem = null;
-  document.body.classList.remove('dragging-photos');
+  document.body.classList.remove('dragging-photos', 'over-map');
+  dragLeaveMap();
 }
 
 gridContainer.addEventListener('pointermove', event => {
@@ -4516,7 +4526,11 @@ gridContainer.addEventListener('pointermove', event => {
     if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < PHOTO_DRAG_THRESHOLD) return;
     if (!startPhotoDrag(drag)) { photoDrag = null; return; }
   }
-  drag.ghost.style.transform = `translate(${event.clientX + 12}px, ${event.clientY + 12}px)`;
+  // Au-dessus de la carte (Maj + glisser seulement) : réticule, coordonnées visées, et image décalée pour ne pas masquer le point de dépôt.
+  const overMap = drag.mode === 'move' && dragOverMap(event.clientX, event.clientY);
+  document.body.classList.toggle('over-map', overMap);
+  const ghostOffset = overMap ? 30 : 12;
+  drag.ghost.style.transform = `translate(${event.clientX + ghostOffset}px, ${event.clientY + ghostOffset}px)`;
   const item = folderItemAt(event.clientX, event.clientY);
   if (item !== drag.dropItem) {
     drag.dropItem?.classList.remove('drop-target');
@@ -4535,6 +4549,7 @@ function endPhotoDrag(event, released) {
   suppressGridClick = true;
   setTimeout(() => { suppressGridClick = false; }, 0);
   if (!released || drag.cancelled) return;
+  if (drag.mode === 'move' && dropOnMap(event.clientX, event.clientY, drag.targets)) return; // déposées sur la carte : position choisie
   const folderPath = folderItemAt(event.clientX, event.clientY)?.dataset.folderPath;
   if (!folderPath) return;
   if (drag.mode === 'copy') copyPhotosToFolder(drag.targets, folderPath);
@@ -5182,6 +5197,7 @@ initMetadataWrites({
         photo.keywords = entry.keywords;
         photo.title = entry.title;
         photo.caption = entry.description;
+        if (Number.isFinite(entry.gps_lat) && Number.isFinite(entry.gps_lon)) { photo.gps_lat = entry.gps_lat; photo.gps_lon = entry.gps_lon; } // position écrite (mode Carte)
         rewritten.add(photo.path);
       }
     }
@@ -5274,17 +5290,33 @@ initFacesPanel({
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
 initPersonsView({
   setPhotoGridVisible,
-  closeFacesView: () => closeFacesView(),
+  closeFacesView: () => { closeFacesView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue : une seule vue à la fois
   openFacesManagement: () => { closePersonsView(); openFacesView(); },
 });
 // Bouton « Visages » : ouvre la vue Personnes, ou ferme la vue (Personnes ou gestion) ouverte.
-document.getElementById('btn-toggle-faces').addEventListener('click', () => {
+document.getElementById('btn-toggle-faces').addEventListener('click', async () => {
+  if (isMapModeOpen() && !(await requestCloseMapMode())) return; // une seule vue à la fois ; positions en attente : question d'abord
   if (isPersonsViewOpen() || isFacesViewOpen()) { closePersonsView(); closeFacesView(); return; }
   clearPersonSelection(); // vue ouverte par la barre d'outils : aucune personne choisie
   openPersonsView();
 });
 
 // Vue Visages (voir faces-grid.js) : visages des photos affichées, à la place de la grille des photos.
+// Mode Carte (voir map-mode.js) : carte des photos affichées, positions de la sélection.
+initMapMode({
+  getPhotos: () => photos,
+  getMapPhotos: () => mapCandidatePhotos,
+  getSelection: () => ({ selection: [...selectedIndices].map(index => photos[index]).filter(Boolean), focus: photos[lastSelectedIndex] }),
+  applyPhotoFilters: options => applyPhotoFilters(options),
+  refreshThumbnails: () => renderVisibleItems(),
+  showToast: message => showWriteToast(message),
+  closePersonsView: () => closePersonsView(),
+  closeFacesView: () => closeFacesView(),
+  setMapLayout: open => { mainContent.classList.toggle('map-mode', open); requestAnimationFrame(updateVirtualScroller); },
+  layoutPreview: () => requestAnimationFrame(() => previewSlots.forEach(layoutPreviewSlot)),
+});
+document.getElementById('show-map-toggle').addEventListener('change', onMapModeAccessChanged);
+
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
   getThumbnailUrl: thumbnailUrlFor,
@@ -5307,7 +5339,7 @@ initFacesGrid({
   },
   setPhotoGridVisible,
   openPersonsView: () => openPersonsView(),
-  closePersonsView: () => closePersonsView(),
+  closePersonsView: () => { closePersonsView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue de gestion : une seule vue à la fois
   showToast: message => showWriteToast(message),
   getPersonRoot,
   isFullscreen: () => isFullscreen,
@@ -5466,6 +5498,7 @@ offlineModeToggle.addEventListener('change', () => {
   sendInternetAllowed();
   onOfflineModeChanged();
   onMapAccessChanged();
+  onMapModeAccessChanged();
 });
 
 // Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, choix mémorisé et transmis au backend.

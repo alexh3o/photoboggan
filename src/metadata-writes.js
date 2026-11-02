@@ -77,7 +77,7 @@ export function notifyPendingChange() {
   }
 }
 
-// Types de métadonnées en attente d'écriture, parmi 'keyword_ids', 'title', 'description' et 'faces' (une pastille par onglet concerné).
+// Types de métadonnées en attente d'écriture, parmi 'keyword_ids', 'title', 'description', 'faces' et 'gps' (une pastille par onglet concerné).
 export function pendingKinds() {
   const kinds = new Set();
   for (const editor of editors) {
@@ -87,7 +87,7 @@ export function pendingKinds() {
       continue;
     }
     for (const item of editor.pendingItems()) {
-      for (const field of ['keyword_ids', 'title', 'description', 'faces']) if (item[field] !== undefined) kinds.add(field);
+      for (const field of ['keyword_ids', 'title', 'description', 'faces', 'gps']) if (item[field] !== undefined) kinds.add(field);
     }
   }
   return kinds;
@@ -460,6 +460,7 @@ function pendingSummary() {
     { field: 'title', label: 'titles' },
     { field: 'description', label: 'descriptions' },
     { field: 'faces', label: 'faces' },
+    { field: 'gps', label: 'locations' },
   ];
   const photos = new Map(kinds.map(kind => [kind.field, new Set()]));
   for (const editor of editors) {

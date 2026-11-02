@@ -41,7 +41,14 @@ let lastSelection = { selection: [], focusPhoto: undefined };
 
 // Carte permise : option cochée, et Internet permis sauf pour un lieu privé (tuiles locales uniquement).
 function isMapAllowed() {
-  return isMapEnabled() && (!isOffline() || privacy.strict);
+  return isMapEnabled() && !suppressed && (!isOffline() || privacy.strict);
+}
+
+// Mode Carte ouvert (map-mode.js) : sa carte remplace celle du panneau Info, pour ne pas avoir deux contextes WebGL.
+let suppressed = false;
+export function setMapSuppressed(value) {
+  suppressed = value;
+  onMapAccessChanged();
 }
 
 function hasGps(photo) {

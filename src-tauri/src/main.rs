@@ -5,6 +5,7 @@ mod exif;
 mod exiftool;
 mod face_detect;
 mod face_models;
+mod place_search;
 mod private_maps;
 mod geolocation;
 mod face_recognize;
@@ -2221,6 +2222,7 @@ fn main() {
             geolocation::get_erased_location_ids,
             geolocation::erase_geolocation,
             geolocation::restore_geolocation,
+            place_search::search_places,
             set_verify_cross_drive_moves,
             face_detect::set_face_settings,
             face_detect::apply_face_thresholds,
