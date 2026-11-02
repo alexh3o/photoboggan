@@ -103,6 +103,11 @@ pub fn set_internet_allowed(allowed: bool) {
     INTERNET_ALLOWED.store(allowed, Ordering::Relaxed);
 }
 
+/// Accès à Internet autorisé : vérifié aussi par les téléchargements des zones privées (private_maps.rs).
+pub fn internet_allowed() -> bool {
+    INTERNET_ALLOWED.load(Ordering::Relaxed)
+}
+
 fn manifest() -> &'static Manifest {
     static MANIFEST: OnceLock<Manifest> = OnceLock::new();
     MANIFEST.get_or_init(|| serde_json::from_str(include_str!("../face_models.json")).expect("face_models.json invalide"))

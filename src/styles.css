@@ -725,6 +725,52 @@ body.immersive .titlebar { display: none; }
 /* isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas */
 .location-map { isolation: isolate; height: 12rem; margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 0.4rem; overflow: hidden; background: var(--control-bg); }
 .location-map .maplibregl-ctrl-attrib { font-size: 0.65rem; }
+.location-header { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.location-header .location-title { flex: 1 1 auto; }
+.location-zones-btn { flex: 0 0 auto; padding: 2px 8px; font-size: 0.7rem; }
+.location-private { margin: 0 0 0.35rem; font-size: 0.75rem; color: var(--text-strong); }
+.location-private[hidden], .location-coords a[hidden] { display: none; }
+
+/* FENÊTRE DES ZONES PRIVÉES (private-zones-modal.js) : liste à gauche, détail ou création à droite (texte puis carte) */
+.private-zones-card { width: min(60rem, calc(100vw - 2.5rem)); height: min(40rem, calc(100vh - 4rem)); display: flex; flex-direction: column; }
+.private-zones-card .modal-body { flex: 1 1 auto; min-height: 0; }
+.pz-layout { display: flex; gap: 1rem; height: 100%; min-height: 0; }
+.pz-list-pane { flex: 0 0 15rem; display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; }
+.pz-list { flex: 1 1 auto; overflow-y: auto; list-style: none; border: 1px solid var(--control-border); border-radius: 4px; background: var(--row-bg); }
+.pz-list[hidden] { display: none; }
+.pz-item-button { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.5rem 0.65rem; border: 0; border-radius: 0; background: transparent; text-align: left; }
+.pz-item + .pz-item .pz-item-button { border-top: 1px solid var(--separator); }
+.pz-item-button:hover { background: var(--control-hover); }
+.pz-item[aria-selected="true"] .pz-item-button { background: var(--control-bg); box-shadow: inset 3px 0 0 var(--active-button); }
+.pz-item-name { color: var(--text-strong); font-size: 0.85rem; font-weight: 600; overflow-wrap: anywhere; }
+.pz-list-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+.pz-detail { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; min-height: 0; overflow-y: auto; }
+.pz-panel { display: flex; flex-direction: column; gap: 0.4rem; }
+.pz-title { color: var(--text-strong); font-size: 1rem; }
+.pz-text { color: var(--text-strong); font-size: 0.85rem; line-height: 1.45; }
+.pz-muted { color: var(--text-dim); font-size: 0.8rem; }
+.pz-warning { padding: 0.5rem 0.65rem; border-left: 3px solid #e6a23c; background: var(--row-bg); color: var(--text-strong); font-size: 0.8rem; line-height: 1.4; }
+.pz-label { margin-top: 0.35rem; color: var(--text-dim); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+.pz-state { font-size: 0.75rem; color: var(--text-muted); }
+.pz-state-ok { color: #3cb371; }
+.pz-state-warn { color: #e6a23c; }
+.pz-state-error { color: var(--danger-text); }
+.pz-state-busy { color: var(--accent-text); }
+.pz-info { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; margin: 0.35rem 0; font-size: 0.8rem; }
+.pz-info dt { color: var(--text-dim); }
+.pz-info dd { color: var(--text-strong); }
+.pz-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.pz-actions .pz-delete { margin-left: auto; }
+.pz-segmented { display: inline-flex; align-self: flex-start; border: 1px solid var(--control-border); border-radius: 4px; overflow: hidden; }
+.pz-segment { border: 0; border-radius: 0; padding: 4px 12px; background: var(--control-bg); font-size: 0.8rem; }
+.pz-segment + .pz-segment { border-left: 1px solid var(--control-border); }
+.pz-segment[aria-checked="true"] { background: var(--active-button); color: var(--active-button-text); }
+.pz-estimate { color: var(--text-strong); font-size: 0.8rem; }
+.pz-estimate.pz-over { color: var(--danger-text); }
+.pz-map { isolation: isolate; flex: 1 0 14rem; min-height: 14rem; border: 1px solid var(--border); border-radius: 0.4rem; overflow: hidden; background: var(--control-bg); }
+.pz-map[hidden] { display: none; }
+.pz-editing .pz-map { order: -1; flex: 0 0 18rem; }
+.pz-map .maplibregl-ctrl-attrib { font-size: 0.65rem; }
 /* Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans hauteur, calée sur le bord bas de la zone visible) */
 .marking-float-anchor { position: sticky; top: 100%; z-index: 5; height: 0; pointer-events: none; }
 .marking-bar { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem); padding: 0.3rem 0.5rem 0.3rem 0.9rem; background: color-mix(in srgb, var(--card-bg) 80%, transparent); backdrop-filter: blur(6px); transition: background-color 0.15s; border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); pointer-events: auto; }

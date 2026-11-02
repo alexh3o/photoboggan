@@ -125,6 +125,9 @@ pub fn init_db(db_path: &str) -> DbPool {
     crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
     // Visages et personnes : voir faces.rs.
     crate::faces::init_schema(&conn).expect("Face tables could not be created");
+    // Zones privées de la carte : voir private_maps.rs (chargées en mémoire dès l'ouverture, pour la règle par tuile).
+    crate::private_maps::init_schema(&conn).expect("Private zone table could not be created");
+    if let Err(error) = crate::private_maps::reload_zones(&conn) { eprintln!("Private zones unavailable: {error}"); }
 
     pool
 }

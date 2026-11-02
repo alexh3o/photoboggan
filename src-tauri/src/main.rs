@@ -5,6 +5,7 @@ mod exif;
 mod exiftool;
 mod face_detect;
 mod face_models;
+mod private_maps;
 mod face_recognize;
 mod faces;
 mod heif;
@@ -2192,6 +2193,16 @@ fn main() {
             face_models::download_face_models,
             face_models::import_face_models,
             face_models::set_internet_allowed,
+            private_maps::list_private_zones,
+            private_maps::estimate_private_zone,
+            private_maps::add_private_zone,
+            private_maps::download_private_zone,
+            private_maps::rename_private_zone,
+            private_maps::delete_private_zone,
+            private_maps::import_private_zone,
+            private_maps::get_private_tile,
+            private_maps::get_private_resource,
+            private_maps::locate_private_points,
             set_verify_cross_drive_moves,
             face_detect::set_face_settings,
             face_detect::apply_face_thresholds,

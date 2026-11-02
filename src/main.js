@@ -14,6 +14,7 @@ import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
+import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -3736,9 +3737,11 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   // « faces » ; d'une sélection : « faces-selection », jamais refusée comme doublon), téléchargement des modèles de visages (« face-models »).
   const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords'
     : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models'
+    // Téléchargement d'une zone privée de la carte : une tâche par zone, jamais refusée comme doublon.
+    : taskKind === 'private-map' ? 'private-map'
     : FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan');
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' || kind === 'faces-selection' || FILE_TASK_KINDS.includes(kind) ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
@@ -5062,6 +5065,8 @@ initPhotoActions({
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
 initLocationPanel();
+// Zones privées de la carte : téléchargements dans la file des tâches (voir private-zones-modal.js).
+initPrivateZonesModal({ enqueueTask: task => enqueueScanTask(task), showToast: message => showWriteToast(message) });
 
 // Paramètres, onglet Métadonnées : utilisation des couleurs et des fanions pick (voir marking-settings.js). Une fonction désactivée voit ses filtres
 // vidés (sinon ils masqueraient des photos sans qu'on puisse les voir) ; le CSS masque ses contrôles et indicateurs.

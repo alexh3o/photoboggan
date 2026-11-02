@@ -264,7 +264,11 @@
         </ul>
         <!-- Lieu : coordonnées GPS de la sélection, lien OpenStreetMap et carte (voir location-panel.js) ; masqué sans photo géolocalisée -->
         <section id="location-panel" class="location-panel" aria-labelledby="location-panel-title" hidden>
-          <h4 id="location-panel-title" class="location-title" data-i18n="Location">Lieu</h4>
+          <div class="location-header">
+            <h4 id="location-panel-title" class="location-title" data-i18n="Location">Lieu</h4>
+            <button type="button" id="btn-location-private-zones" class="location-zones-btn" data-i18n="Private zones" data-i18n-title="Manage private zones and offline maps" title="Gérer les zones privées et les cartes hors ligne">Zones privées</button>
+          </div>
+          <p id="location-private" class="location-private" hidden><span aria-hidden="true">🔒</span> <span data-i18n="Private place: local map only">Lieu privé : carte locale uniquement</span></p>
           <div class="location-coords">
             <span id="location-coords"></span>
             <a id="location-osm" href="https://www.openstreetmap.org/" data-i18n="Open in OpenStreetMap">Ouvrir dans OpenStreetMap</a>
@@ -369,6 +373,9 @@
               <h4>Internet</h4>
               <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages) et la carte n'est pas affichée." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
               <label class="settings-row settings-check" title="Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne." data-i18n-title="Show a map help"><input id="show-map-toggle" type="checkbox" /><span data-i18n="Show a map of the photo location">Afficher une carte du lieu de la photo</span></label>
+              <div class="settings-button-row">
+                <button type="button" id="btn-settings-private-zones" data-i18n="Private zones…" data-i18n-title="Manage private zones and offline maps" title="Gérer les zones privées et les cartes hors ligne">Zones privées…</button>
+              </div>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Library">Bibliothèque</h4>
