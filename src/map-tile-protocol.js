@@ -3,10 +3,12 @@
 //
 // Règles, pour chaque tuile :
 //   1. la tuile touche une zone privée → lue sur le disque par le backend (get_private_tile) ; manquante → tuile vide. Jamais de repli distant ;
-//   2. sinon, carte en mode strict (elle montre un lieu privé) → tuile vide ;
-//   3. sinon, accès au fournisseur permis (option carte cochée, mode hors ligne désactivé) → demandée au fournisseur ;
-//   4. sinon → tuile vide.
-// Style, icônes et polices : copie locale (téléchargée avec la première zone) si elle existe, sinon fournisseur selon les règles 2 à 4.
+//   2. la tuile ne touche que des cartes hors ligne (zones non privées) et l'une l'a sur le disque → lue sur le disque ;
+//   3. sinon, carte en mode strict (elle montre un lieu privé) → tuile vide ;
+//   4. sinon, accès au fournisseur permis (option carte cochée, mode hors ligne désactivé) → demandée au fournisseur (tuile hors zone, ou
+//      manquante / plus détaillée dans une carte hors ligne) ;
+//   5. sinon → tuile vide.
+// Style, icônes et polices : copie locale (téléchargée avec la première zone) si elle existe, sinon fournisseur selon les règles 3 à 5.
 // Chaque carte a son contexte (identifiant dans l'adresse) : passer en mode strict annule ses requêtes distantes en cours.
 
 import { invoke } from '@tauri-apps/api/core';
@@ -132,7 +134,8 @@ async function loadTile(context, path, abortController) {
   // `#n` en fin d'adresse : génération des tuiles (voir reloadTiles dans map-view.js), sans effet sur la tuile demandée.
   const [z, x, y] = path.split('#')[0].split('/').map(Number);
   const answer = new Uint8Array(await invoke('get_private_tile', { z, x, y }));
-  if (answer[0] === 1) return gunzipIfNeeded(answer.slice(1).buffer); // tuile privée : disque uniquement
+  // 1 : tuile privée (disque uniquement) ; 2 : tuile d'une carte hors ligne présente sur le disque ; 0 et 3 : le fournisseur peut être sollicité.
+  if (answer[0] === 1 || answer[0] === 2) return gunzipIfNeeded(answer.slice(1).buffer);
   if (!remoteAllowed(context)) return new ArrayBuffer(0);
   tileTemplate ??= remoteFetch(context, PROVIDER_TILEJSON_URL, new AbortController())
     .then(buffer => JSON.parse(new TextDecoder().decode(buffer)).tiles[0])

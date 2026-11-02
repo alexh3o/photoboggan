@@ -138,6 +138,21 @@
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
             </div>
           </div>
+          <!-- Filtre Lieu : photos géolocalisées ou non (champs gps_lat / gps_lon de la liste chargée, voir « FILTRE LIEU » dans main.js) -->
+          <div class="filter-group" data-filter-group="location">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-location">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Location">Lieu</span></span>
+              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Location">Lieu</span><span id="location-summary" class="filter-summary"></span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-location" class="filter-group-body" hidden>
+              <div id="location-filter" class="location-filter" role="radiogroup" aria-label="Lieu" data-i18n-aria-label="Location">
+                <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
+                <button type="button" class="location-filter-option" data-value="geolocated" role="radio" data-i18n="Geolocated">Géolocalisées</button>
+                <button type="button" class="location-filter-option" data-value="not-geolocated" role="radio" data-i18n="Not geolocated">Non géolocalisées</button>
+              </div>
+            </div>
+          </div>
           </div>
         </section>
       </aside>
@@ -372,8 +387,11 @@
               <h4>Internet</h4>
               <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages) et la carte n'est pas affichée." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
               <label class="settings-row settings-check" title="Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne." data-i18n-title="Show a map help"><input id="show-map-toggle" type="checkbox" /><span data-i18n="Show a map of the photo location">Afficher une carte du lieu de la photo</span></label>
+              <label class="settings-row" for="map-default-zoom"><span data-i18n="Default map zoom level" data-i18n-title="Default map zoom help" title="Niveau de zoom de la carte pour une photo (7 : région, 14 : rues). Dans une zone privée, le niveau disponible le plus proche.">Niveau de zoom de la carte par défaut</span>
+                <select id="map-default-zoom"><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option></select>
+              </label>
               <div class="settings-button-row">
-                <button type="button" id="btn-settings-private-zones" data-i18n="Private zones…" data-i18n-title="Manage private zones and offline maps" title="Gérer les zones privées et les cartes hors ligne">Zones privées…</button>
+                <button type="button" id="btn-settings-private-zones" data-i18n="Offline / private zones…" data-i18n-title="Manage the offline / private zones" title="Gérer les zones hors ligne / privées">Zones hors ligne / privées…</button>
               </div>
             </section>
             <section class="settings-section">
@@ -530,6 +548,7 @@
             <label class="settings-row" for="thumbnail-spacing" data-i18n="Thumbnail spacing">Espacement des miniatures
               <select id="thumbnail-spacing"><option value="none" data-i18n="Spacing none">Aucun</option><option value="small" data-i18n="Spacing small">Petit</option><option value="normal" data-i18n="Spacing normal">Normal</option></select>
             </label>
+            <label class="settings-row settings-check"><input id="show-geo-badges-toggle" type="checkbox" /><p data-i18n="Badge for geolocated photos">Pastille des photos géolocalisées</p></label>
             <label class="thumbnail-size-control" for="thumbnail-size"><div data-i18n="Size">Taille</div>
               <input id="thumbnail-size" type="range" min="96" max="1024" step="16" value="160" aria-label="Taille des miniatures" data-i18n-aria-label="Thumbnail size" />
               <span id="thumbnail-size-value">160 px</span>

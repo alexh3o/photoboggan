@@ -275,7 +275,7 @@ fn normalized_paths(paths: &[Vec<String>]) -> HashSet<String> {
 
 /// Un seul lot d'écritures à la fois : deux commandes de mots-clés (application, renommage, suppression) ne modifient jamais le même fichier
 /// en même temps (temporaires communs, écritures qui s'écraseraient).
-static WRITE_LOCK: Mutex<()> = Mutex::new(());
+pub(crate) static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
 fn push_failure(failed: &mut Vec<KeywordFailure>, photo_id: i64, path: String, error: String) {
@@ -382,6 +382,7 @@ fn run_write(
                     title: item.title.clone(),
                     description: item.description.clone(),
                     regions: plan.map(|plan| plan.regions.clone()),
+                    gps: None,
                 };
                 // Métadonnées seules : la miniature et l'aperçu en cache sont renommés pour suivre le fichier, pas régénérés.
                 let result = crate::keep_cached_images(&cache_dirs, &item.path, || {

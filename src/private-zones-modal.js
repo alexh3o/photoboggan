@@ -90,6 +90,19 @@ function button(label, className = '', onClick = null) {
   return node;
 }
 
+// Case « Privée » (création et détail d'une zone) avec son explication.
+function privacyCheckbox(checked, onChange) {
+  const label = element('label', 'pz-privacy');
+  const input = element('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  input.addEventListener('change', () => onChange(input.checked));
+  const text = element('span');
+  text.append(element('strong', '', t('Private')), element('span', 'pz-muted', ` — ${t('Private zone setting help')}`));
+  label.append(input, text);
+  return label;
+}
+
 /** Télécharge (ou met à jour) une zone : tâche de la file. */
 function enqueueDownload(zone) {
   downloading.add(zone.id);
@@ -121,7 +134,7 @@ export async function openPrivateZonesModal() {
   let draft = null; // { geometry, name, zoom, estimate }
 
   const modal = createModal({
-    title: t('Private zones and offline maps'),
+    title: t('Offline / private zones'),
     cardClass: 'private-zones-card',
     focusSelector: FOCUSABLE,
     // Échap pendant une création : annule la création au lieu de fermer la fenêtre.
@@ -142,7 +155,7 @@ export async function openPrivateZonesModal() {
   const listPane = element('aside', 'pz-list-pane');
   const list = element('ul', 'pz-list');
   list.setAttribute('role', 'listbox');
-  list.setAttribute('aria-label', t('Private zones'));
+  list.setAttribute('aria-label', t('Offline / private zones'));
   const listActions = element('div', 'pz-list-actions');
   listActions.append(
     button(t('New zone'), 'btn-primary', () => startEditor()),
@@ -173,7 +186,12 @@ export async function openPrivateZonesModal() {
       item.setAttribute('role', 'option');
       item.setAttribute('aria-selected', String(view === 'detail' && zone.id === selectedId));
       const entry = button('', 'pz-item-button');
-      entry.append(element('span', 'pz-item-name', zone.name), element('span', `pz-state pz-state-${state.kind}`, `${state.icon} ${state.text}`));
+      // Icône du type de zone : cadenas (privée) ou nuage barré (simple carte hors ligne).
+      const kindIcon = element('span', 'pz-kind', zone.private ? '🔒' : '☁');
+      kindIcon.title = zone.private ? t('Private zone') : t('Offline map (not private)');
+      const nameRow = element('span', 'pz-item-name');
+      nameRow.append(kindIcon, document.createTextNode(` ${zone.name}`));
+      entry.append(nameRow, element('span', `pz-state pz-state-${state.kind}`, `${state.icon} ${state.text}`));
       entry.addEventListener('click', () => {
         leaveEditor();
         selectedId = zone.id;
@@ -229,6 +247,18 @@ export async function openPrivateZonesModal() {
     add(t('Last update'), zone.updated_at ? formatRelativeDate(zone.updated_at) : '-', zone.updated_at ? new Date(zone.updated_at).toLocaleString(getLanguage()) : '');
     add(t('Source'), zone.source === 'import' ? t('Imported file') : 'OpenFreeMap');
     panel.append(table);
+    // Zone privée ou simple carte hors ligne, modifiable à tout moment.
+    const privacy = privacyCheckbox(zone.private, async checked => {
+      try {
+        await invoke('set_private_zone_privacy', { zoneId: zone.id, private: checked });
+        await reloadZones();
+        render();
+      } catch (error) {
+        host.showToast(errorMessage(error));
+        render();
+      }
+    });
+    panel.append(privacy);
     const actions = element('div', 'pz-actions');
     const update = button(zone.updated_at ? t('Update') : t('Download'), 'btn-primary', () => {
       enqueueDownload(zone);
@@ -339,6 +369,7 @@ export async function openPrivateZonesModal() {
       element('span', 'pz-label', t('Shape')), modeRow, hint,
       element('span', 'pz-label', t('Zone name')), nameInput, nameProblem,
       element('span', 'pz-label', t('Detail')), levelRow,
+      privacyCheckbox(draft.private, checked => { draft.private = checked; }),
       estimateLine, actions,
     );
     mapElement.hidden = !online;
@@ -366,14 +397,14 @@ export async function openPrivateZonesModal() {
   function startEditor() {
     leaveEditor();
     view = 'new';
-    draft = { mode: 'circle', geometry: null, name: '', zoom: 14, estimate: null };
+    draft = { mode: 'circle', geometry: null, name: '', zoom: 14, private: true, estimate: null };
     render();
   }
 
   async function createZone() {
     if (!draft?.geometry) return;
     try {
-      const zone = await invoke('add_private_zone', { name: draft.name, geometry: draft.geometry, maxZoom: draft.zoom });
+      const zone = await invoke('add_private_zone', { name: draft.name, geometry: draft.geometry, maxZoom: draft.zoom, private: draft.private });
       leaveEditor();
       await reloadZones();
       selectedId = zone.id;
@@ -459,7 +490,7 @@ export async function openPrivateZonesModal() {
     // Création : la carte (outil de dessin) passe avant le formulaire.
     detailPane.classList.toggle('pz-editing', view === 'new');
     if (view === 'new') {
-      if (!draft) draft = { mode: 'circle', geometry: null, name: '', zoom: 14, estimate: null };
+      if (!draft) draft = { mode: 'circle', geometry: null, name: '', zoom: 14, private: true, estimate: null };
       renderEditor();
     } else if (view === 'detail' && getZones().length) renderDetail();
     else { view = 'welcome'; renderWelcome(); }

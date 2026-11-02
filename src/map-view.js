@@ -5,7 +5,7 @@
 // (map-tile-protocol.js), qui applique la règle par tuile des zones privées et le mode strict ; `transformRequest` détourne toute autre adresse
 // vers une adresse locale vide. Rien n'est importé tant que `isAllowed()` est faux. `destroy()` libère le contexte WebGL.
 
-import { MAP_PROVIDER, MAP_MAX_ZOOM, MAP_SINGLE_PHOTO_ZOOM } from './map-config.js';
+import { MAP_PROVIDER, MAP_MAX_ZOOM, defaultMapZoom } from './map-config.js';
 import { registerMapProtocol, createTileContext, MAP_PROTOCOL } from './map-tile-protocol.js';
 // Adresse du script du worker MapLibre (fichier copié tel quel par Vite) : une simple chaîne, rien n'est chargé à l'import.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
@@ -123,7 +123,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
     const sameSpot = points.every(point => point.lat === first.lat && point.lon === first.lon);
     if (sameSpot) {
       const focus = points.find(point => point.focus) || first;
-      map.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(points.length === 1 ? MAP_SINGLE_PHOTO_ZOOM : MAP_MAX_ZOOM, maxZoom) });
+      map.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(points.length === 1 ? defaultMapZoom() : MAP_MAX_ZOOM, maxZoom) });
       return;
     }
     let [west, south, east, north] = [first.lon, first.lat, first.lon, first.lat];
@@ -171,7 +171,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
       container,
       style: tileContext.styleUrl(styleName),
       center: focus ? [focus.lon, focus.lat] : [2.35, 48.85],
-      zoom: focus ? MAP_SINGLE_PHOTO_ZOOM : 4,
+      zoom: focus ? Math.min(defaultMapZoom(), strict ? strictMaxZoom : MAP_MAX_ZOOM) : 4,
       maxZoom: strict ? strictMaxZoom : MAP_MAX_ZOOM,
       attributionControl: { compact: true },
       interactive,

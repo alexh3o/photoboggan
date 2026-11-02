@@ -203,6 +203,9 @@ pub struct PrivateZone {
     pub updated_at: i64,
     /// « pending » (pas encore téléchargée), « ready », « incomplete » ou « failed ».
     pub status: String,
+    /// Zone privée (par défaut) : jamais de requête au fournisseur pour elle, mode strict pour ses photos. Sinon simple carte hors ligne : ses
+    /// tuiles sont lues sur le disque quand elles y sont, le reste (tuile manquante, zoom plus fin) peut être demandé au fournisseur.
+    pub private: bool,
 }
 
 pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
@@ -219,7 +222,10 @@ pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
             updated_at INTEGER NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'pending'
         )",
-    )
+    )?;
+    // Zone privée ou simple carte hors ligne : les zones créées avant ce réglage restent privées.
+    crate::db::add_column(conn, "private_zones", "private INTEGER NOT NULL DEFAULT 1");
+    Ok(())
 }
 
 fn zone_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PrivateZone> {
@@ -237,10 +243,11 @@ fn zone_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PrivateZone> {
         size_bytes: row.get(7)?,
         updated_at: row.get(8)?,
         status: row.get(9)?,
+        private: row.get(10)?,
     })
 }
 
-const ZONE_COLUMNS: &str = "id, name, geometry, max_zoom, source, tile_count, missing_count, size_bytes, updated_at, status";
+const ZONE_COLUMNS: &str = "id, name, geometry, max_zoom, source, tile_count, missing_count, size_bytes, updated_at, status, private";
 
 pub fn list_zones(conn: &rusqlite::Connection) -> Result<Vec<PrivateZone>, String> {
     let mut stmt = conn.prepare(&format!("SELECT {ZONE_COLUMNS} FROM private_zones ORDER BY name COLLATE NOCASE, id")).map_err(|e| e.to_string())?;
@@ -259,6 +266,8 @@ struct LoadedZone {
     file: String,
     /// Zoom maximal téléchargé (niveau de détail).
     max_zoom: u8,
+    /// Zone privée (sinon simple carte hors ligne).
+    private: bool,
     shape: ZoneShape,
 }
 
@@ -278,6 +287,7 @@ fn load_zones(conn: &rusqlite::Connection) -> Result<Vec<LoadedZone>, String> {
             id: zone.id,
             file: zone_file_name(&zone.name).unwrap_or_default(),
             max_zoom: zone.max_zoom,
+            private: zone.private,
             shape: ZoneShape::new(&zone.geometry),
         })
         .collect())
@@ -288,10 +298,10 @@ fn close_tile_file(id: i64) {
     if let Some(files) = TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).as_mut() { files.remove(&id); }
 }
 
-/// Lieu privé : zoom maximal disponible au point, le plus fin des zones qui le contiennent (zones qui se recoupent : le détail présent sur le
-/// disque à cet endroit) ; None si le point n'est dans aucune zone.
+/// Lieu privé : zoom maximal disponible au point, le plus fin des zones privées qui le contiennent (zones qui se recoupent : le détail présent
+/// sur le disque à cet endroit) ; None si le point n'est dans aucune zone privée (les cartes hors ligne non privées ne comptent pas).
 fn private_zoom_in(zones: &[LoadedZone], lat: f64, lon: f64) -> Option<u8> {
-    zones.iter().filter(|zone| zone.shape.contains_location(lat, lon)).map(|zone| zone.max_zoom).max()
+    zones.iter().filter(|zone| zone.private && zone.shape.contains_location(lat, lon)).map(|zone| zone.max_zoom).max()
 }
 
 pub fn private_maps_dir(state: &AppState) -> PathBuf {
@@ -389,19 +399,33 @@ fn read_tile(conn: &rusqlite::Connection, z: u8, x: u32, y: u32) -> Option<Vec<u
     .ok()
 }
 
-/// Résultat de la règle par tuile : `None` si la tuile ne touche aucune zone (l'interface peut la demander au fournisseur), sinon la tuile lue
-/// sur le disque (vide si aucune zone ne l'a).
-pub fn private_tile(dir: &Path, z: u8, x: u32, y: u32) -> Option<Vec<u8>> {
+/// Résultat de la règle par tuile.
+#[derive(Debug, PartialEq)]
+pub enum TileAnswer {
+    /// La tuile ne touche aucune zone : l'interface peut la demander au fournisseur (selon ses propres règles).
+    Outside,
+    /// La tuile touche une zone privée : lue sur le disque, vide si aucune zone ne l'a. Jamais demandée au fournisseur.
+    Private(Vec<u8>),
+    /// La tuile ne touche que des cartes hors ligne non privées : lue sur le disque si une zone l'a (Some, éventuellement vide : tuile connue
+    /// sans contenu) ; None si elle manque, et l'interface peut alors la demander au fournisseur.
+    Offline(Option<Vec<u8>>),
+}
+
+pub fn private_tile(dir: &Path, z: u8, x: u32, y: u32) -> TileAnswer {
     let zones = ZONES.read().unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut files = TILE_FILES.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     private_tile_in(&zones, files.get_or_insert_with(HashMap::new), dir, z, x, y)
 }
 
 /// Règle par tuile sur une liste de zones et un cache de connexions donnés (séparés de l'état global pour les tests).
-fn private_tile_in(zones: &[LoadedZone], files: &mut HashMap<i64, rusqlite::Connection>, dir: &Path, z: u8, x: u32, y: u32) -> Option<Vec<u8>> {
+/// Une zone privée qui touche la tuile l'emporte sur les cartes hors ligne : la tuile est alors lue dans n'importe quel fichier de zone qui l'a
+/// (privée ou non), jamais ailleurs.
+fn private_tile_in(zones: &[LoadedZone], files: &mut HashMap<i64, rusqlite::Connection>, dir: &Path, z: u8, x: u32, y: u32) -> TileAnswer {
     let touching: Vec<&LoadedZone> = zones.iter().filter(|zone| zone.shape.intersects_tile(z, x, y)).collect();
-    if touching.is_empty() { return None; }
-    for zone in touching {
+    if touching.is_empty() { return TileAnswer::Outside; }
+    let mut known_empty = false;
+    let mut found = None;
+    for zone in &touching {
         let id = zone.id;
         if !files.contains_key(&id) {
             let path = dir.join(&zone.file);
@@ -409,11 +433,14 @@ fn private_tile_in(zones: &[LoadedZone], files: &mut HashMap<i64, rusqlite::Conn
             let Ok(conn) = rusqlite::Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else { continue; };
             files.insert(id, conn);
         }
-        if let Some(tile) = files.get(&id).and_then(|conn| read_tile(conn, z, x, y)) {
-            if !tile.is_empty() { return Some(tile); }
+        match files.get(&id).and_then(|conn| read_tile(conn, z, x, y)) {
+            Some(tile) if !tile.is_empty() => { found = Some(tile); break; }
+            Some(_) => known_empty = true,
+            None => {}
         }
     }
-    Some(Vec::new())
+    if touching.iter().any(|zone| zone.private) { return TileAnswer::Private(found.unwrap_or_default()); }
+    TileAnswer::Offline(found.or(known_empty.then(Vec::new)))
 }
 
 // ---------------------------------------------------------------------------
@@ -621,7 +648,7 @@ fn clean_name(name: &str) -> Result<String, String> {
 /// Enregistre une zone à télécharger (statut « pending ») ; le téléchargement est une tâche à part (`download_private_zone`). Elle protège
 /// déjà la carte : ses tuiles sont considérées comme locales (vides tant qu'elles ne sont pas téléchargées).
 #[tauri::command(async)]
-pub fn add_private_zone(state: State<'_, AppState>, name: String, geometry: ZoneGeometry, max_zoom: u8) -> Result<PrivateZone, String> {
+pub fn add_private_zone(state: State<'_, AppState>, name: String, geometry: ZoneGeometry, max_zoom: u8, private: bool) -> Result<PrivateZone, String> {
     geometry.validate()?;
     check_detail(max_zoom)?;
     let name = clean_name(&name)?;
@@ -629,7 +656,8 @@ pub fn add_private_zone(state: State<'_, AppState>, name: String, geometry: Zone
     let conn = state.pool().get().map_err(|e| e.to_string())?;
     check_unique_name(&conn, &name, None)?;
     let json = serde_json::to_string(&geometry).map_err(|e| e.to_string())?;
-    conn.execute("INSERT INTO private_zones (name, geometry, max_zoom) VALUES (?1, ?2, ?3)", (&name, &json, max_zoom)).map_err(|e| e.to_string())?;
+    conn.execute("INSERT INTO private_zones (name, geometry, max_zoom, private) VALUES (?1, ?2, ?3, ?4)", (&name, &json, max_zoom, private))
+        .map_err(|e| e.to_string())?;
     let zone = get_zone(&conn, conn.last_insert_rowid())?;
     reload_zones(&conn)?;
     Ok(zone)
@@ -793,21 +821,36 @@ pub fn import_private_zone(state: State<'_, AppState>, path: String, name: Strin
     get_zone(&conn, id)
 }
 
-/// Tuile pour la carte (règle par tuile) : premier octet 1 si la tuile touche une zone privée, suivi de la tuile lue sur le disque (rien si
-/// elle manque) ; 0 seul si elle ne touche aucune zone (l'interface peut alors la demander au fournisseur, selon ses propres règles).
+/// Tuile pour la carte (règle par tuile, voir TileAnswer), premier octet :
+/// 0 : aucune zone (l'interface peut la demander au fournisseur, selon ses propres règles) ;
+/// 1 + tuile : zone privée, tuile lue sur le disque (rien si elle manque), jamais demandée au fournisseur ;
+/// 2 + tuile : carte hors ligne, tuile lue sur le disque ;
+/// 3 : carte hors ligne, tuile absente du disque (l'interface peut la demander au fournisseur, selon ses propres règles).
 #[tauri::command(async)]
 pub fn get_private_tile(state: State<'_, AppState>, z: u8, x: u32, y: u32) -> tauri::ipc::Response {
     if z > 22 || x >= (1u32 << z) || y >= (1u32 << z) { return tauri::ipc::Response::new(vec![1]); }
+    let with_tile = |flag: u8, tile: Vec<u8>| {
+        let mut body = Vec::with_capacity(tile.len() + 1);
+        body.push(flag);
+        body.extend(tile);
+        body
+    };
     let body = match private_tile(&private_maps_dir(&state), z, x, y) {
-        None => vec![0],
-        Some(tile) => {
-            let mut body = Vec::with_capacity(tile.len() + 1);
-            body.push(1);
-            body.extend(tile);
-            body
-        }
+        TileAnswer::Outside => vec![0],
+        TileAnswer::Private(tile) => with_tile(1, tile),
+        TileAnswer::Offline(Some(tile)) => with_tile(2, tile),
+        TileAnswer::Offline(None) => vec![3],
     };
     tauri::ipc::Response::new(body)
+}
+
+/// Zone privée ou simple carte hors ligne (case « Privée » de la fenêtre des zones).
+#[tauri::command(async)]
+pub fn set_private_zone_privacy(state: State<'_, AppState>, zone_id: i64, private: bool) -> Result<PrivateZone, String> {
+    let conn = state.pool().get().map_err(|e| e.to_string())?;
+    conn.execute("UPDATE private_zones SET private = ?1 WHERE id = ?2", (private, zone_id)).map_err(|e| e.to_string())?;
+    reload_zones(&conn)?;
+    get_zone(&conn, zone_id)
 }
 
 /// Ressource du style privé (`styles/<nom>.json`, `sprites/sprite[@2x].json|png`, `fonts/<police>/<plage>.pbf`) ; vide si absente.

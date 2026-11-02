@@ -695,7 +695,32 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
         }
     }
     if iptc_values.iter().any(|value| !value.is_ascii()) { args.push("-IPTC:CodedCharacterSet=UTF8".to_string()); }
+    // Coordonnées GPS (geolocation.rs) : XMP exif:GPS… et, quand le fichier lui-même est écrit (JPEG, HEIC), le bloc GPS de l'EXIF.
+    if let Some(gps) = update.gps {
+        let in_file = !matches!(target_of(image_path), Target::Sidecar);
+        match gps {
+            None => {
+                args.push("-XMP-exif:GPS*=".to_string());
+                if in_file { args.push("-GPS:All=".to_string()); }
+            }
+            Some((latitude, longitude)) => {
+                args.push(assign("XMP-exif:GPSLatitude", &format!("{latitude:.7}")));
+                args.push(assign("XMP-exif:GPSLongitude", &format!("{longitude:.7}")));
+                if in_file {
+                    args.push(assign("GPS:GPSLatitude", &format!("{:.7}", latitude.abs())));
+                    args.push(assign("GPS:GPSLatitudeRef", if latitude < 0.0 { "S" } else { "N" }));
+                    args.push(assign("GPS:GPSLongitude", &format!("{:.7}", longitude.abs())));
+                    args.push(assign("GPS:GPSLongitudeRef", if longitude < 0.0 { "W" } else { "E" }));
+                }
+            }
+        }
+    }
     args
+}
+
+/// Le fichier lui-même est écrit (JPEG, HEIC), et pas un sidecar XMP : seul ce cas permet d'effacer le GPS de l'EXIF.
+pub fn writes_in_file(image_path: &Path) -> bool {
+    !matches!(target_of(image_path), Target::Sidecar)
 }
 
 /// Note (`xmp:Rating`, `acdsee:rating`, `MicrosoftPhoto:Rating` ; dans les JPEG, aussi EXIF `Rating` et `RatingPercent` de Windows) et/ou

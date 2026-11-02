@@ -1513,6 +1513,13 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
+  // Géolocalisation (geo-tools.js) : restaurer les coordonnées sauvegardées, effacer celles des photos géolocalisées (danger).
+  const withCount = (label, list) => (targets.length > 1 ? `${label} (${list.length})` : label);
+  const erased = targets.filter(target => api.hasErasedLocation?.(target));
+  const located = targets.filter(target => Number.isFinite(target.gps_lat) && Number.isFinite(target.gps_lon));
+  if (erased.length || located.length) menuItems.push(menuSeparator());
+  if (erased.length) menuItems.push(menuButton(withCount(t('Restore geolocation'), erased), () => api.restoreGeolocation(erased)));
+  if (located.length) menuItems.push(menuButton(withCount(t('Erase geolocation…'), located), () => api.eraseGeolocation(located), { danger: true }));
   menuItems.push(
     menuSeparator(),
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true, shortcut: t('Delete Key') }),

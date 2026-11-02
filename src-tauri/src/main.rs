@@ -6,6 +6,7 @@ mod exiftool;
 mod face_detect;
 mod face_models;
 mod private_maps;
+mod geolocation;
 mod face_recognize;
 mod faces;
 mod heif;
@@ -2216,6 +2217,10 @@ fn main() {
             private_maps::get_private_tile,
             private_maps::get_private_resource,
             private_maps::locate_private_points,
+            private_maps::set_private_zone_privacy,
+            geolocation::get_erased_location_ids,
+            geolocation::erase_geolocation,
+            geolocation::restore_geolocation,
             set_verify_cross_drive_moves,
             face_detect::set_face_settings,
             face_detect::apply_face_thresholds,

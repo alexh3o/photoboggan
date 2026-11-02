@@ -118,23 +118,23 @@ fn tile_rule_serves_private_tiles_from_disk_and_never_falls_back() {
     let (far_x, far_y) = tile_of(43.3, 5.4, 14);
 
     // Zone sans fichier (pas encore téléchargée) : la tuile est déjà privée, et vide.
-    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), Some(Vec::new()));
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), TileAnswer::Private(Vec::new()));
     // Tuile hors zone : None, l'interface peut la demander au fournisseur.
-    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, far_x, far_y), None);
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, far_x, far_y), TileAnswer::Outside);
     assert!(zones[0].shape.contains_location(48.8566, 2.3522));
 
     // Fichier présent : la tuile vient du disque ; une tuile manquante reste vide (aucun repli).
     let conn = create_mbtiles(&dir.path().join("maison.mbtiles"), "Maison", 14).unwrap();
     conn.execute("INSERT INTO tiles VALUES (14, ?1, ?2, x'0102')", (x, tms_row(14, y))).unwrap();
     drop(conn);
-    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), Some(vec![1, 2]));
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), TileAnswer::Private(vec![1, 2]));
     let neighbour = shape_neighbour(x, y);
-    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, neighbour.0, neighbour.1), Some(Vec::new()));
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, neighbour.0, neighbour.1), TileAnswer::Private(Vec::new()));
 
     // Zone supprimée : plus aucune tuile privée.
     catalog.execute("DELETE FROM private_zones", []).unwrap();
     let zones = load_zones(&catalog).unwrap();
-    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), None);
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), TileAnswer::Outside);
 }
 
 /// Tuile voisine encore dans la zone de 1 km (au zoom 14, une tuile fait ≈ 1,6 km à Paris : la zone en couvre au moins deux).
@@ -210,7 +210,7 @@ fn legacy_zone_files_are_renamed_after_their_zone() {
 
 #[test]
 fn overlapping_zones_give_the_finest_available_zoom() {
-    let zone = |id, max_zoom, geometry: ZoneGeometry| LoadedZone { id, file: String::new(), max_zoom, shape: ZoneShape::new(&geometry) };
+    let zone = |id, max_zoom, geometry: ZoneGeometry| LoadedZone { id, file: String::new(), max_zoom, private: true, shape: ZoneShape::new(&geometry) };
     // « Appart » (Ville, zoom 12) et « Maison » (Rues, zoom 14) se recoupent autour du centre de Paris.
     let zones = vec![zone(1, 12, paris_circle(3000.0)), zone(2, 14, ZoneGeometry::Circle { lat: 48.8566, lon: 2.37, radius: 2000.0 })];
     assert_eq!(private_zoom_in(&zones, 48.8566, 2.3522), Some(14), "intersection : le détail le plus fin");
@@ -220,4 +220,37 @@ fn overlapping_zones_give_the_finest_available_zoom() {
     // L'ordre des zones ne change rien.
     let reversed: Vec<LoadedZone> = zones.into_iter().rev().collect();
     assert_eq!(private_zoom_in(&reversed, 48.8566, 2.3522), Some(14));
+}
+
+#[test]
+fn offline_zones_serve_their_tiles_and_let_missing_ones_be_fetched() {
+    let dir = tempfile::tempdir().unwrap();
+    let catalog = rusqlite::Connection::open_in_memory().unwrap();
+    init_schema(&catalog).unwrap();
+    let paris = serde_json::to_string(&paris_circle(1000.0)).unwrap();
+    let wide = serde_json::to_string(&paris_circle(20_000.0)).unwrap();
+    // Zones existantes sans réglage : privées par défaut.
+    catalog.execute("INSERT INTO private_zones (id, name, geometry, max_zoom) VALUES (1, 'Carte', ?1, 12)", [&wide]).unwrap();
+    assert!(load_zones(&catalog).unwrap()[0].private);
+    catalog.execute("UPDATE private_zones SET private = 0", []).unwrap();
+    let (x, y) = tile_of(48.8566, 2.3522, 14);
+    let (x12, y12) = tile_of(48.8566, 2.3522, 12);
+    let conn = create_mbtiles(&dir.path().join("carte.mbtiles"), "Carte", 12).unwrap();
+    conn.execute("INSERT INTO tiles VALUES (12, ?1, ?2, x'0303')", (x12, tms_row(12, y12))).unwrap();
+    drop(conn);
+    let mut files = HashMap::new();
+
+    // Carte hors ligne seule : tuile du disque si présente ; au-delà du niveau téléchargé, manquante (l'interface peut la demander).
+    let zones = load_zones(&catalog).unwrap();
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 12, x12, y12), TileAnswer::Offline(Some(vec![3, 3])));
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), TileAnswer::Offline(None));
+    // Un lieu dans une carte hors ligne n'est pas privé.
+    assert_eq!(private_zoom_in(&zones, 48.8566, 2.3522), None);
+
+    // Zone privée qui recoupe la carte hors ligne : elle l'emporte (jamais de demande au fournisseur), la tuile reste lue sur le disque.
+    catalog.execute("INSERT INTO private_zones (id, name, geometry, max_zoom) VALUES (2, 'Maison', ?1, 14)", [&paris]).unwrap();
+    let zones = load_zones(&catalog).unwrap();
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 12, x12, y12), TileAnswer::Private(vec![3, 3]));
+    assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), TileAnswer::Private(Vec::new()));
+    assert_eq!(private_zoom_in(&zones, 48.8566, 2.3522), Some(14));
 }

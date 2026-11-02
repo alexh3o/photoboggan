@@ -15,6 +15,7 @@ import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleS
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
+import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -681,7 +682,7 @@ function hasActiveFilters() {
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters();
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all';
 }
 
 // Grille vide : message centré selon la cause. Dossier sans photo ; photos présentes mais toutes écartées par les filtres ; sinon un message neutre.
@@ -728,7 +729,8 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (pathFilter === null || pathFilter.has(photo.path))
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
-    && matchesDateFilter(photo));
+    && matchesDateFilter(photo)
+    && matchesLocationFilter(photo));
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
   renderFilterSummaries();
   selectedIndices.clear();
@@ -822,6 +824,9 @@ function clearAllFilters() {
   dateFilter = null;
   updateDateFilterUI('');
   closeDatePicker();
+
+  // Réinitialise le lieu
+  setLocationFilter('all', { apply: false });
 
   // Réapplique la liste sans aucun filtre
   applyPhotoFilters();
@@ -1027,6 +1032,12 @@ function renderFilterSummaries() {
   }) : [];
   document.getElementById('date-summary').replaceChildren(...dateNodes);
 
+  const locationNodes = locationFilter === 'all' ? [] : [Object.assign(document.createElement('span'), {
+    className: 'filter-tag tag-location',
+    textContent: t(locationFilter === 'geolocated' ? 'Geolocated' : 'Not geolocated'),
+  })];
+  document.getElementById('location-summary').replaceChildren(...locationNodes);
+
   renderFilterTags();
   renderActiveFilterBadges();
 }
@@ -1044,6 +1055,7 @@ function renderActiveFilterBadges() {
     [filenameFilters.length > 0, 'filename', 'Filename'],
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
+    [locationFilter !== 'all', 'location', 'Location'],
     [pathFilter !== null, 'failed', 'Failed files'],
   ];
   container.replaceChildren(...kinds.filter(([active]) => active).map(([, kind, label]) => {
@@ -1158,6 +1170,16 @@ function renderFolderTree({ fromCounts = false } = {}) {
 // Compteurs de l'option « Montrer le nombre de photos des dossiers » : photos et vidéos du catalogue, sans filtre, calculées côté Rust.
 // Clés normalisées comme celles de l'arbre (« / », minuscules, sans « / » final) ; `Own` = niveau du dossier, `Tree` = avec ses sous-dossiers.
 let showFolderCounts = localStorage.getItem('showFolderCounts') === 'true';
+
+// Pastille des photos géolocalisées sur les miniatures (Options d'affichage, désactivée par défaut) : simple classe sur <body>.
+const GEO_BADGE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
+const showGeoBadgesToggle = document.getElementById('show-geo-badges-toggle');
+showGeoBadgesToggle.checked = localStorage.getItem('showGeoBadges') === 'true';
+document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
+showGeoBadgesToggle.addEventListener('change', () => {
+  localStorage.setItem('showGeoBadges', String(showGeoBadgesToggle.checked));
+  document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
+});
 let folderCountsOwn = new Map();
 let folderCountsTree = new Map();
 let folderCountsTotal = 0;
@@ -1398,6 +1420,9 @@ function renderVisibleItems() {
       const flags = document.createElement('span'); flags.className = 'meta-flags'; flags.append(pick, flag);
       overlay.append(stars, flags); inner.append(thumbnailImage, overlay); div.appendChild(inner);
       if (isVideoPath(photo.path)) { div.classList.add('is-video'); inner.append(createVideoPlayBadge()); }
+      // Pastille des photos géolocalisées (option d'affichage, visible par la classe show-geo-badges sur <body>).
+      const geoBadge = document.createElement('span'); geoBadge.className = 'geo-badge'; geoBadge.innerHTML = GEO_BADGE_ICON;
+      inner.append(geoBadge);
       div._ratingLabel = stars; div._flag = flag; div._pick = pick; div._thumbnailImage = thumbnailImage;
       div._selected = false; div._transform = '';
       div.addEventListener('click', event => handleSelection(Number(div.dataset.index), event));
@@ -1426,6 +1451,8 @@ function renderVisibleItems() {
     if (div._flag.className !== flagClass) div._flag.className = flagClass;
     const pickClass = `pick-indicator pick-${photo.pick_flag || 'none'}`;
     if (div._pick.className !== pickClass) div._pick.className = pickClass;
+    const located = hasGps(photo);
+    if (div._located !== located) { div.classList.toggle('has-gps', located); div._located = located; }
   }
   renderVisibleSeparators(top, bottom);
   for (const [index, node] of renderedThumbnailNodes) {
@@ -4701,6 +4728,26 @@ async function applyMovedPhotos(moved) {
 // ==========================================
 // FILTRE DE DATE (date de prise de vue EXIF)
 // ==========================================
+// ==========================================
+// FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres
+// ==========================================
+let locationFilter = 'all'; // 'all', 'geolocated' ou 'not-geolocated'
+const locationFilterOptions = [...document.querySelectorAll('#location-filter .location-filter-option')];
+
+function matchesLocationFilter(photo) {
+  if (locationFilter === 'all') return true;
+  const located = Number.isFinite(photo.gps_lat) && Number.isFinite(photo.gps_lon);
+  return locationFilter === 'geolocated' ? located : !located;
+}
+
+function setLocationFilter(value, { apply = true } = {}) {
+  locationFilter = ['geolocated', 'not-geolocated'].includes(value) ? value : 'all';
+  for (const option of locationFilterOptions) option.setAttribute('aria-checked', String(option.dataset.value === locationFilter));
+  if (apply) applyPhotoFilters();
+}
+for (const option of locationFilterOptions) option.addEventListener('click', () => setLocationFilter(option.dataset.value));
+setLocationFilter('all', { apply: false });
+
 let dateFilter = null; // { from, to } au format AAAAMMJJHHmmss (nombres), ou null = aucun filtre
 const dateFilterInput = document.getElementById('date-filter-input');
 const dateFilterClear = document.getElementById('date-filter-clear');
@@ -5060,11 +5107,28 @@ initPhotoActions({
   faceDetectionEnabled: isFaceDetectionEnabled,
   openFaceScan: scope => openFaceScanDialog(scope),
   eraseFaces: photoIds => eraseFaceData(photoIds),
+  // Géolocalisation : effacer (danger) ou restaurer les coordonnées sauvegardées (voir geo-tools.js).
+  eraseGeolocation: targets => eraseGeolocation(targets),
+  restoreGeolocation: targets => restoreGeolocation(targets),
+  hasErasedLocation,
 });
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
 initLocationPanel({ showToast: message => showWriteToast(message) });
+// Effacement / restauration de la géolocalisation : les coordonnées relues sont reportées sur les photos chargées (pastille, filtre Lieu, carte).
+initGeoTools({
+  showToast: message => showWriteToast(message),
+  onPhotosUpdated: updates => {
+    const byId = new Map(updates.map(update => [update.photo_id, update]));
+    for (const photo of loadedPhotos) {
+      const update = byId.get(photo.id);
+      if (update) Object.assign(photo, { gps_lat: update.gps_lat, gps_lon: update.gps_lon });
+    }
+    if (locationFilter !== 'all') applyPhotoFilters({ keepState: true });
+    else { renderVisibleItems(); updateUIOnSelection(); }
+  },
+});
 // Zones privées de la carte : téléchargements dans la file des tâches (voir private-zones-modal.js).
 initPrivateZonesModal({ enqueueTask: task => enqueueScanTask(task), showToast: message => showWriteToast(message) });
 

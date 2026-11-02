@@ -9,7 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { createMapView } from './map-view.js';
-import { MAP_MAX_POINTS, MAP_MAX_ZOOM } from './map-config.js';
+import { MAP_MAX_POINTS, MAP_MAX_ZOOM, defaultMapZoom } from './map-config.js';
 import { locatePrivatePoints, onZonesChange } from './private-zones.js';
 import { openPrivateZonesModal, offerPrivateZonesWelcome } from './private-zones-modal.js';
 
@@ -197,6 +197,14 @@ export function initLocationPanel(options = {}) {
   // Zones privées : cadenas du groupe Lieu et bouton de Paramètres > Général ; à la première activation de la carte, accueil si aucune zone.
   lockButton.addEventListener('click', () => openPrivateZonesModal());
   document.getElementById('btn-settings-private-zones').addEventListener('click', () => openPrivateZonesModal());
+  // Zoom par défaut (Paramètres > Général) : la carte affichée est recadrée tout de suite.
+  const zoomSelect = document.getElementById('map-default-zoom');
+  zoomSelect.value = String(defaultMapZoom());
+  zoomSelect.addEventListener('change', () => {
+    try { localStorage.setItem('mapDefaultZoom', zoomSelect.value); } catch { /* réglage non mémorisé */ }
+    onMapAccessChanged();
+  });
+
   const toggle = document.getElementById('show-map-toggle');
   toggle.checked = isMapEnabled();
   toggle.addEventListener('change', () => {

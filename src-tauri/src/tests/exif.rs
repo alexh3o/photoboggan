@@ -494,3 +494,39 @@ fn gps_read_order_decides_between_exif_and_xmp() {
     assert_gps(xmp_first.gps_sources[0], (48.0, 2.0));
     assert!(set_read_priority("gps", &order(&["exif"])).is_err());
 }
+
+#[test]
+fn xmp_gps_is_erased_and_restored_by_the_internal_writer() {
+    let dir = tempfile::tempdir().unwrap();
+    // JPEG : paquet XMP intégré avec position, altitude et version (toutes les propriétés exif:GPS… sont retirées).
+    let packet = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description \
+        xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" exif:GPSLatitude=\"45,30.0N\" exif:GPSLongitude=\"4,30.0W\" exif:GPSVersionID=\"2.2.0.0\">\
+        <exif:GPSAltitude>120/1</exif:GPSAltitude><dc:title>garde</dc:title></rdf:Description></rdf:RDF></x:xmpmeta>";
+    let original = with_xmp(&jpeg_bytes(16, 16), packet);
+    let path = write_sample(dir.path(), "a.jpg", &original);
+    assert_gps(read_exif(&path).gps, (45.5, -4.5));
+    write_jpeg_metadata(&path, &MetadataUpdate { gps: Some(None), ..Default::default() }).unwrap();
+    let erased = fs::read(&path).unwrap();
+    assert_eq!(read_exif(&path).gps, None);
+    assert!(!contains(&erased, b"exif:GPS"), "aucune propriété GPS ne doit rester");
+    assert!(contains(&erased, b"garde"), "les autres métadonnées sont conservées");
+    assert_eq!(decoded_pixels(&erased), decoded_pixels(&original));
+    // Restauration : coordonnées réécrites au format XMP de la norme EXIF, relues à l'identique (à l'arrondi près).
+    write_jpeg_metadata(&path, &MetadataUpdate { gps: Some(Some((-31.920330, 115.797278))), ..Default::default() }).unwrap();
+    assert_gps(read_exif(&path).gps, (-31.920330, 115.797278));
+
+    // RAW : sidecar seulement ; un fichier sans XMP à effacer ne crée rien.
+    let raw = write_sample(dir.path(), "b.cr2", b"II*\0 faux raw");
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_all(xml, &MetadataUpdate { gps: Some(None), ..Default::default() })).unwrap();
+    assert!(!dir.path().join("b.cr2.xmp").exists());
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_all(xml, &MetadataUpdate { gps: Some(Some((43.295, 5.37))), ..Default::default() })).unwrap();
+    assert_gps(read_exif(&raw).gps, (43.295, 5.37));
+    assert_eq!(fs::read(&raw).unwrap(), b"II*\0 faux raw", "le RAW n'est jamais modifié");
+}
+
+#[test]
+fn xmp_gps_coordinate_format() {
+    assert_eq!(xmp_gps_coordinate(45.5, 'N', 'S'), "45,30.000000N");
+    assert_eq!(xmp_gps_coordinate(-4.25, 'E', 'W'), "4,15.000000W");
+    assert_eq!(parse_xmp_gps_coordinate(&xmp_gps_coordinate(-31.920330, 'N', 'S')).map(|value| (value * 1e6).round()), Some(-31920330.0));
+}

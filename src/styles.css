@@ -206,6 +206,15 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-tag.tag-filename { background: var(--tag-filename-bg); border-color: var(--tag-filename-border); }
 .filter-tag.tag-more { background: var(--tag-more-bg); border-color: var(--tag-more-border); }
 .filter-tag.tag-date { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
+/* Pastille des photos géolocalisées (option d'affichage) : coin haut droit de la miniature */
+.geo-badge { display: none; position: absolute; top: 6px; right: 6px; z-index: 2; padding: 3px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; pointer-events: none; }
+body.show-geo-badges .thumbnail.has-gps .geo-badge { display: inline-flex; }
+.filter-tag.tag-location { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
+/* Filtre Lieu : trois choix exclusifs, même aspect que les choix segmentés de la fenêtre des zones */
+.location-filter { display: inline-flex; border: 1px solid var(--control-border); border-radius: 4px; overflow: hidden; }
+.location-filter-option { border: 0; border-radius: 0; padding: 4px 10px; background: var(--control-bg); font-size: 0.78rem; }
+.location-filter-option + .location-filter-option { border-left: 1px solid var(--control-border); }
+.location-filter-option[aria-checked="true"] { background: var(--active-button); color: var(--active-button-text); }
 .filter-tag.tag-color { background: var(--tag-color-bg); border-color: var(--tag-color-border); }
 .filter-tag.tag-pick { background: var(--tag-color-bg); border-color: var(--tag-color-border); }
 .filter-tag.tag-rating { background: var(--tag-rating-bg); border-color: var(--tag-rating-border); color: var(--tag-rating-text); }
@@ -749,6 +758,9 @@ body.immersive .titlebar { display: none; }
 .pz-item[aria-selected="true"] .pz-item-button { background: var(--control-bg); box-shadow: inset 3px 0 0 var(--active-button); }
 .pz-item-name { color: var(--text-strong); font-size: 0.85rem; font-weight: 600; overflow-wrap: anywhere; }
 .pz-list-actions { display: flex; flex-direction: column; gap: 0.4rem; }
+.pz-kind { font-size: 0.75rem; }
+.pz-privacy { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-strong); cursor: pointer; }
+.pz-privacy input { margin-top: 0.15rem; }
 .pz-detail { flex: 1 1 auto; display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; min-height: 0; overflow-y: auto; }
 .pz-panel { display: flex; flex-direction: column; gap: 0.4rem; }
 .pz-title { color: var(--text-strong); font-size: 1rem; }

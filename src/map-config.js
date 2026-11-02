@@ -35,5 +35,14 @@ export function isMapNetworkAllowed() {
 export const MAP_MAX_ZOOM = 14;
 export const MAP_SINGLE_PHOTO_ZOOM = 12;
 
+// Zoom d'une photo seule choisi dans Paramètres > Général (7 à 14, 12 par défaut). Dans une zone privée, la carte est plafonnée au niveau de la
+// zone : le niveau disponible le plus proche est alors utilisé (voir frame dans map-view.js).
+export const MAP_MIN_DEFAULT_ZOOM = 7;
+export function defaultMapZoom() {
+  let stored = NaN;
+  try { stored = Number(localStorage.getItem('mapDefaultZoom')); } catch { /* réglage illisible : valeur par défaut */ }
+  return Number.isInteger(stored) && stored >= MAP_MIN_DEFAULT_ZOOM && stored <= MAP_MAX_ZOOM ? stored : MAP_SINGLE_PHOTO_ZOOM;
+}
+
 // Multi-sélection : nombre maximal de marqueurs affichés (au-delà, les premières photos géolocalisées de la sélection).
 export const MAP_MAX_POINTS = 500;

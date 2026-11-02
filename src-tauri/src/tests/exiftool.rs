@@ -194,3 +194,23 @@ fn marking_writes_file_then_catalog_and_keeps_other_values() {
     assert_eq!(std::fs::read_dir(&dirs.thumbnails).unwrap().count(), 1, "aucune miniature orpheline");
     assert!(leftovers(dir.path()).is_empty());
 }
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn gps_is_erased_from_exif_and_xmp_then_restored() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(16, 16);
+    let path = dir.path().join("a.jpg");
+    std::fs::write(&path, &original).unwrap();
+    // Restauration sur un JPEG sans GPS : EXIF et XMP écrits.
+    write_metadata(&path, &MetadataUpdate { gps: Some(Some((-31.92033, 115.797278))), ..Default::default() }).unwrap();
+    let meta = read_exif(&path);
+    let (exif, xmp) = (meta.gps_sources[0].expect("GPS EXIF écrit"), meta.gps_sources[1].expect("GPS XMP écrit"));
+    for (lat, lon) in [exif, xmp] { assert!((lat + 31.92033).abs() < 1e-5 && (lon - 115.797278).abs() < 1e-5, "{lat} {lon}"); }
+    // Effacement : plus aucune source, pixels intacts.
+    write_metadata(&path, &MetadataUpdate { gps: Some(None), ..Default::default() }).unwrap();
+    assert_eq!(read_exif(&path).gps_sources, [None, None]);
+    assert_eq!(decoded_pixels(&std::fs::read(&path).unwrap()), decoded_pixels(&original));
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}

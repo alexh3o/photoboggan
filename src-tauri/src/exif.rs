@@ -1611,6 +1611,8 @@ pub struct MetadataUpdate {
     pub description: Option<String>,
     /// Zones de visage (lot 4) : remplacent les zones MWG et Microsoft du fichier ; liste vide = zones retirées.
     pub regions: Option<RegionsUpdate>,
+    /// Coordonnées GPS (geolocation.rs) : `Some(None)` les efface, `Some(Some((latitude, longitude)))` les écrit (restauration).
+    pub gps: Option<Option<(f64, f64)>>,
 }
 
 /// Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
@@ -1648,6 +1650,7 @@ impl MetadataUpdate {
             || self.clean_title().is_some_and(|title| !title.is_empty())
             || self.clean_description().is_some_and(|description| !description.is_empty())
             || self.regions.as_ref().is_some_and(|update| !update.regions.is_empty())
+            || matches!(self.gps, Some(Some(_)))
     }
 }
 
@@ -1752,17 +1755,56 @@ fn update_xmp_texts(xml: &str, update: &MetadataUpdate) -> String {
     insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
 }
 
-/// Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description).
+/// Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, zones de visage, GPS).
 fn update_xmp_all(xml: &str, update: &MetadataUpdate) -> String {
     let with_keywords = match &update.keywords {
         Some(paths) => update_xmp_keywords(xml, paths),
         None => xml.to_string(),
     };
     let with_texts = update_xmp_texts(&with_keywords, update);
-    match &update.regions {
+    let with_regions = match &update.regions {
         Some(regions) => update_xmp_regions(&with_texts, regions),
         None => with_texts,
+    };
+    match update.gps {
+        Some(gps) => update_xmp_gps(&with_regions, gps),
+        None => with_regions,
     }
+}
+
+/// Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.
+pub(crate) fn xmp_gps_coordinate(value: f64, positive: char, negative: char) -> String {
+    let absolute = value.abs();
+    let degrees = absolute.trunc();
+    format!("{},{:.6}{}", degrees as u32, (absolute - degrees) * 60.0, if value < 0.0 { negative } else { positive })
+}
+
+/// Coordonnées GPS du paquet XMP : toutes les propriétés `exif:GPS…` (position, altitude, heure, version…) sont retirées, puis, pour une
+/// restauration, latitude et longitude sont écrites. Rien n'est créé dans un fichier sans XMP quand il n'y a rien à écrire.
+pub(crate) fn update_xmp_gps(xml: &str, gps: Option<(f64, f64)>) -> String {
+    let mut updated = xml.to_string();
+    if !updated.contains("rdf:Description") {
+        if gps.is_none() { return updated; }
+        updated = EMPTY_XMP_PACKET.to_string();
+    }
+    let mut names: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(relative) = updated[from..].find("exif:GPS") {
+        let start = from + relative;
+        let end = updated[start + 5..].find(|c: char| !c.is_ascii_alphanumeric()).map_or(updated.len(), |offset| start + 5 + offset);
+        let name = updated[start..end].to_string();
+        if !names.contains(&name) { names.push(name); }
+        from = end;
+    }
+    for name in &names {
+        updated = remove_xmp_attribute(&updated, name);
+        updated = remove_xmp_element(&updated, name);
+    }
+    if let Some((latitude, longitude)) = gps {
+        updated = set_description_attribute(&updated, &["exif:GPSLatitude"], ("exif", EXIF_NS), Some(&xmp_gps_coordinate(latitude, 'N', 'S')));
+        updated = set_description_attribute(&updated, &["exif:GPSLongitude"], ("exif", EXIF_NS), Some(&xmp_gps_coordinate(longitude, 'E', 'W')));
+    }
+    updated
 }
 
 // ---------------------------------------------------------------------------
