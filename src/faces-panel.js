@@ -37,6 +37,12 @@ let overlayMode = (() => {
   const stored = readStorage(OVERLAY_STORAGE_KEY);
   return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : 'hidden';
 })();
+// Zones écartées (ignorées, « pas un visage ») affichées aussi sur la photo : réglages du sous-menu Visages (aperçu et plein écran).
+const IGNORED_SHOWN_STORAGE_KEY = 'faceIgnoredShown';
+const NOT_FACE_SHOWN_STORAGE_KEY = 'faceNotFaceShown';
+let ignoredShown = readStorage(IGNORED_SHOWN_STORAGE_KEY) === 'true';
+let notFaceShown = readStorage(NOT_FACE_SHOWN_STORAGE_KEY) === 'true';
+let drawArmed = false; // « Ajouter un visage » (menu ou Alt+V) : le prochain glisser sur la photo dessine une zone, sans Maj
 let sortMode = readStorage(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
 let persons = []; // [{ id, name, keyword_id, photo_count, cover }]
 let faceIndex = new Map(); // identifiant de photo -> Set des identifiants de personnes
@@ -859,7 +865,7 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
     state.faces = null;
     overlay.replaceChildren();
     const token = ++state.token;
-    invoke('get_photo_faces', { photoId: photo.id })
+    fetchPhotoFaces(photo.id)
       .then(info => {
         if (token !== state.token) return;
         state.faces = info;
@@ -878,6 +884,9 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
   overlay.hidden = false;
 }
 
+// Visages d'une photo pour les calques : les zones ignorées et « pas un visage » y sont incluses si l'utilisateur les a choisies.
+const fetchPhotoFaces = photoId => invoke('get_photo_faces', { photoId, includeIgnored: ignoredShown, includeNotFace: notFaceShown });
+
 function renderOverlayFaces(overlay, info, interactive) {
   overlay.replaceChildren(...info.faces.map(face => {
     const rect = orientRect(face, info.orientation);
@@ -889,7 +898,10 @@ function renderOverlayFaces(overlay, info, interactive) {
     box.style.height = `${rect.h * 100}%`;
     const label = document.createElement('span');
     label.className = 'face-label';
-    label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?` : (face.name || t('Unknown'));
+    label.textContent = face.state === 'suggested' ? `${face.name ?? '?'} ?`
+      : face.state === 'ignored' ? t('Face ignored')
+      : face.state === 'not_face' ? t('Not a face')
+      : (face.name || t('Unknown'));
     box.append(label);
     if (interactive) box.addEventListener('contextmenu', event => openZoneMenu(event, face));
     else box.faceData = face; // aperçu : retrouvé par position au clic droit (voir openPreviewZoneMenu)
@@ -974,6 +986,9 @@ function openZoneMenu(event, face) {
   });
   if (face.person_id != null || face.state === 'suggested') {
     items.push({ label: t('Mark as unknown'), title: t('Keep this area without a person: it stays unknown and is not proposed to anyone else'), onSelect: () => run('set_faces_unknown') });
+  } else if (face.state === 'ignored' || face.state === 'not_face') {
+    // Zone écartée affichée sur la photo (sous-menu Visages) : elle peut redevenir un visage inconnu.
+    items.push({ label: t('Mark as unknown'), title: t('Bring this area back as an unknown face, not proposed to anyone'), onSelect: () => run('set_faces_unknown') });
   }
   // Ignorer (vrai visage sans intérêt) et « Pas un visage » (fausse détection) : proposés quel que soit le statut actuel
   const dismissals = [];
@@ -992,13 +1007,14 @@ const inverseOrientation = orientation => ({ 6: 8, 8: 6 }[orientation] ?? orient
 // fenêtre « Nommer » enregistre le visage (manuel, confirmé, à écrire). Annuler la fenêtre abandonne la zone.
 // Fonctionne aussi dans une case de l'aperçu (Maj + glisser) : le calque de la case est alors utilisé à la place de celui du plein écran.
 function startZoneDrawing(event) {
-  if (event.button !== 0 || !event.shiftKey || !readingEnabled || !host) return;
+  if (event.button !== 0 || !(event.shiftKey || drawArmed) || !readingEnabled || !host) return;
   const fullscreen = host.isFullscreen();
   const slot = fullscreen ? host.getFullscreenSlot() : host.getPreviewSlotAt(event);
   const photo = slot?.photo;
   if (!photo || !(slot.naturalWidth > 0)) return;
   event.preventDefault();
   event.stopImmediatePropagation(); // pas de déplacement de l'image zoomée (main.js)
+  disarmFaceDrawing(); // un seul tracé par « Ajouter un visage »
   if (effectiveOverlayMode(fullscreen) === 'hidden') setFaceRegionsMode('always');
   const overlay = fullscreen ? document.getElementById('fullscreen-faces') : slot.faceOverlay;
   if (!overlay) return;
@@ -1035,7 +1051,7 @@ function startZoneDrawing(event) {
     let orientation = overlayStates.get(overlay)?.faces?.orientation;
     if (orientation === undefined) {
       try {
-        orientation = (await invoke('get_photo_faces', { photoId: photo.id })).orientation;
+        orientation = (await fetchPhotoFaces(photo.id)).orientation;
       } catch (error) {
         box.remove();
         host.showToast(String(error));
@@ -1061,6 +1077,48 @@ function setFaceRegionsMode(mode) {
   writeStorage(OVERLAY_STORAGE_KEY, mode);
   layoutFullscreenFaces(host.getFullscreenSlot());
   host.layoutPreview?.();
+}
+
+// Réglages d'affichage des zones, pour le sous-menu Visages de la photo (aperçu et plein écran).
+export const getFaceDisplay = () => ({ mode: overlayMode, ignored: ignoredShown, notFace: notFaceShown });
+
+export function setFaceDisplayMode(mode) {
+  if (OVERLAY_MODES.includes(mode)) setFaceRegionsMode(mode);
+}
+
+// kind : 'ignored' ou 'notFace'. Les calques rechargent leurs visages avec la nouvelle option.
+export function setFaceDisplayExtra(kind, shown) {
+  if (kind === 'ignored') {
+    ignoredShown = shown;
+    writeStorage(IGNORED_SHOWN_STORAGE_KEY, String(shown));
+  } else if (kind === 'notFace') {
+    notFaceShown = shown;
+    writeStorage(NOT_FACE_SHOWN_STORAGE_KEY, String(shown));
+  } else {
+    return;
+  }
+  relayoutOverlays();
+}
+
+// « Ajouter un visage » (menu Visages, Alt+V) : le prochain glisser sur la photo du plein écran ou d'une case de l'aperçu trace une zone, comme
+// Maj + glisser (startZoneDrawing). Échap ou un nouvel appel annule. Renvoie false si rien ne peut être dessiné (lecture des visages désactivée).
+export function armFaceDrawing() {
+  if (!readingEnabled || !host) return false;
+  if (drawArmed) {
+    disarmFaceDrawing();
+    host.showToast(t('Face drawing cancelled'));
+    return true;
+  }
+  if (host.isFullscreen() && !host.getFullscreenSlot()?.photo) return false;
+  drawArmed = true;
+  document.body.classList.add('face-drawing');
+  host.showToast(t('Draw a frame around the face on the photo (Esc to cancel)'));
+  return true;
+}
+
+function disarmFaceDrawing() {
+  drawArmed = false;
+  document.body.classList.remove('face-drawing');
 }
 
 // Touche V : survol seulement > toujours > masquées. Un toast annonce le nouveau mode. Renvoie false si la lecture des visages est désactivée.
@@ -1456,6 +1514,12 @@ export function initFacesPanel(hostApi) {
   document.getElementById('btn-face-clean-persons').addEventListener('click', cleanPersonsWithoutFaces);
   // Plein écran : Maj + glisser dessine une zone de visage (phase de capture : avant le déplacement de l'image zoomée de main.js).
   document.getElementById('fullscreen-view').addEventListener('pointerdown', startZoneDrawing, true);
+  // Échap annule le tracé armé, sans quitter le plein écran ni vider la sélection
+  window.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || !drawArmed) return;
+    disarmFaceDrawing();
+    event.stopImmediatePropagation();
+  }, true);
   document.getElementById('preview-stage').addEventListener('pointerdown', startZoneDrawing, true);
   document.getElementById('preview-stage').addEventListener('contextmenu', openPreviewZoneMenu, true);
 

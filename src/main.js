@@ -13,7 +13,7 @@ import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLoc
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
@@ -2015,6 +2015,17 @@ async function setSelectionRating(rating, explicitTargets = null) {
 // X      : Compare mode
 // F11    : Immersive mode
 // Del    : Delete
+// Alt+V : « Ajouter un visage » (le prochain glisser sur la photo trace une zone, sans Maj). Gestionnaire à part, avant celui des raccourcis des photos :
+// celui-ci s'arrête quand la vue Visages ou la vue Personnes est ouverte, alors que leur aperçu permet aussi de dessiner une zone.
+// (e.code : indépendant de la disposition du clavier ; e.repeat : une touche maintenue n'arme et ne désarme pas en boucle)
+window.addEventListener('keydown', e => {
+  if (!e.altKey || e.ctrlKey || e.metaKey || !(e.key.toLowerCase() === 'v' || e.code === 'KeyV')) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+  if (document.querySelector('.modal:not(.hidden)')) return;
+  e.preventDefault();
+  if (!e.repeat) armFaceDrawing();
+});
+
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   // Vue Visages ouverte (hors plein écran) : les raccourcis des photos (suppression, note, copie…) ne s'appliquent pas à la grille masquée ;
@@ -4874,6 +4885,8 @@ initPhotoActions({
       return includeSubfolders ? photoPath.startsWith(`${folder}/`) : photoPath.slice(0, photoPath.lastIndexOf('/')) === folder;
     }).length;
   },
+  // Sous-menu « Visages » d'une photo affichée (aperçu, plein écran) : ajouter un visage, modes des zones, zones écartées
+  faces: { getDisplay: getFaceDisplay, setMode: setFaceDisplayMode, setExtra: setFaceDisplayExtra, startDrawing: armFaceDrawing },
   // Sous-menu « Marquage » du menu des photos : note, couleur et fanion pick posés sur les photos du clic droit (pas sur la sélection)
   marking: {
     colors: () => (isColorEnabled() ? COLOR_FLAGS : []),

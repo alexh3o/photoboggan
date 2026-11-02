@@ -63,6 +63,7 @@ const GROUPS = [
   { title: 'Faces', rows: [
     { a: 'Face regions: hover, always, hidden', d: 'Preview and fullscreen', k: [['V']] },
     { a: 'Draw a face region', d: 'Right-click a region to name or delete it', tag: 'Fullscreen', k: [['Shift', 'Drag']] },
+    { a: 'Add a face region', d: 'Then draw it with the mouse, without holding Shift', tag: 'Preview and fullscreen', k: [['Alt', 'V']] },
     { a: 'Confirm the selected faces', tag: 'Faces view', k: [['Enter']] },
     { a: 'Name the selected faces', d: 'Type the first letter of the name', tag: 'Faces view', k: [['A letter']] },
     { a: 'Set the selected faces as unknown', tag: 'Faces view', k: [['-']] },

@@ -1217,6 +1217,7 @@ function menuButton(label, onSelect, { danger = false, shortcut = null, title = 
     const keys = document.createElement('span');
     keys.className = 'context-menu-shortcut';
     keys.textContent = shortcut;
+    button.classList.add('with-shortcut');
     button.append(text, keys);
   } else {
     button.textContent = label;
@@ -1265,7 +1266,14 @@ function menuHeader(text, title = '') {
 // `checked` (valeur déjà posée sur toutes les photos visées : repère ✓). Les entrées sans décoration restent de simples boutons.
 function submenuEntry(item) {
   if (item.separator) return menuSeparator();
-  const button = menuButton(item.label, item.onSelect);
+  if (item.heading) {
+    const heading = document.createElement('div');
+    heading.className = 'context-menu-heading';
+    heading.setAttribute('role', 'presentation');
+    heading.textContent = item.heading;
+    return heading;
+  }
+  const button = menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), shortcut: item.shortcut, disabled: Boolean(item.disabled) });
   if (!(item.swatch || item.glyph || item.labelClass || item.checked !== undefined)) return button;
   button.classList.add('decorated');
   button.textContent = '';
@@ -1363,13 +1371,34 @@ function buildMarkingItem(targets) {
 }
 
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
-function buildFacesItem(scope) {
-  const items = [
+// `source` : 'preview' ou 'fullscreen' pour le menu d'une photo affichée (où existent les zones : ajouter un visage, modes et zones écartées) ;
+// sans, dans la grille et pour un dossier, le sous-menu ne propose que la reconnaissance (et l'effacement pour des photos).
+function buildFacesItem(scope, { source } = {}) {
+  const items = [];
+  const faces = api.faces;
+  if (faces && (source === 'preview' || source === 'fullscreen')) {
+    const display = faces.getDisplay();
+    const hidden = display.mode === 'hidden';
+    items.push(
+      { label: t('Add a new face'), shortcut: 'Alt+V', onSelect: () => faces.startDrawing() },
+      { separator: true },
+      { heading: t('Areas') },
+      ...[['always', 'Always'], ['hover', 'On hover'], ['hidden', 'Hidden']].map(([mode, label]) => ({
+        label: t(label), checked: display.mode === mode, onSelect: () => faces.setMode(mode),
+      })),
+      { separator: true },
+      { heading: t('Also show') },
+      { label: t('Ignored areas'), checked: display.ignored, disabled: hidden, onSelect: () => faces.setExtra('ignored', !display.ignored) },
+      { label: t('Not a face areas'), checked: display.notFace, disabled: hidden, onSelect: () => faces.setExtra('notFace', !display.notFace) },
+      { separator: true },
+    );
+  }
+  items.push(
     { label: t('Recognize (all photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: false }) },
     { label: t('Recognize (unscanned photos)'), onSelect: () => api.openFaceScan({ ...scope, onlyUnscanned: true }) },
-  ];
+  );
   // Sélection : effacer ses données de visages (base et fichiers), après confirmation.
-  if (scope.photoIds) items.push({ label: t('Erase face data…'), onSelect: () => api.eraseFaces(scope.photoIds) });
+  if (scope.photoIds) items.push({ separator: true }, { label: t('Erase face data…'), danger: true, onSelect: () => api.eraseFaces(scope.photoIds) });
   return buildSubmenuItem(t('Faces'), items);
 }
 
@@ -1482,7 +1511,7 @@ function openThumbnailMenu(event, index, source = 'grid') {
     buildOpenWithItem(targets),
   );
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
-    menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }));
+    menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
   menuItems.push(
     menuSeparator(),

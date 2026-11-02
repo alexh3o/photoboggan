@@ -499,6 +499,9 @@ body.immersive .titlebar { display: none; }
 /* En-tête du menu (nom du fichier ou nombre de photos) et raccourcis affichés à droite des actions */
 .context-menu-header { max-width: 18rem; padding: 4px 10px 6px; overflow: hidden; color: var(--text-dim); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
 .context-menu-shortcut { color: var(--text-dim); font-size: 0.75rem; }
+.context-submenu .context-menu-item.with-shortcut { display: flex; justify-content: space-between; gap: 1.5rem; }
+/* Titre de groupe d'un sous-menu (non cliquable) */
+.context-menu-heading { padding: 6px 10px 2px; color: var(--text-dim); font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; }
 /* Sous-menu Marquage : entrées décorées (étoiles, pastille de couleur, fanion), valeur actuelle cochée */
 .context-submenu .context-menu-item.decorated { display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem; }
 .context-menu-stars { color: #ffd43b; letter-spacing: 1px; }

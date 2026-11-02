@@ -11,9 +11,9 @@
 - [x] *feat*: `files` rename file
 - [x] *feat*: `faces` more action on various views for faces
 - [ ] *docs*: technical documentation
-- [ ] *feat*: `faces` add "add a face" context menu, with a toast indicating to start drawing a rectangle
-- [ ] *feat*: `faces` add faces display options in context menu
-- [ ] *feat*: `faces` option to display areas of ignored and not a face, in settings and context menu
+- [x] *feat*: `faces` add "add a face" context menu, with a toast indicating to start drawing a rectangle
+- [x] *feat*: `faces` add faces display options in context menu
+- [x] *feat*: `faces` option to display areas of ignored and not a face, in context menu
 - [ ] *feat*: `UI` option to display files quantity in folder tree
 - [x] *refactor*: `UI` design critique of keywords context menu
 
@@ -38,6 +38,7 @@
 - [ ] *feat*: `internet` add a **map widget** in info panel
 - [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
+- [ ] *feat*: `faces` resize / move face area
 
 ## ❄️ Cold storage
 

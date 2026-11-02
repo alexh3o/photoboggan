@@ -727,9 +727,10 @@ pub struct PhotoFacesInfo {
     pub faces: Vec<FaceInfo>,
 }
 
-/// Visages d'une photo (repère de l'image stockée) et son orientation EXIF.
+/// Visages d'une photo (repère de l'image stockée) et son orientation EXIF. Les visages « filtrés » ne sont jamais renvoyés ; les « ignorés » et
+/// les « pas un visage » seulement sur demande (`include_ignored`, `include_not_face` : zones affichées aussi sur la photo, voir faces-panel.js).
 #[tauri::command(async)]
-pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64) -> Result<PhotoFacesInfo, String> {
+pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64, include_ignored: Option<bool>, include_not_face: Option<bool>) -> Result<PhotoFacesInfo, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let orientation = conn
@@ -738,14 +739,22 @@ pub fn get_photo_faces(state: State<'_, AppState>, photo_id: i64) -> Result<Phot
         .map_err(|error| error.to_string())?
         .flatten()
         .unwrap_or(1);
-    let mut statement = conn
-        .prepare(
-            "SELECT f.id, f.x, f.y, f.w, f.h, f.person_id, COALESCE(k.name, pr.name, ks.name, ps.name), f.state
-             FROM faces f LEFT JOIN persons pr ON pr.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id
-             LEFT JOIN persons ps ON ps.id = f.suggested_person_id LEFT JOIN keyword_nodes ks ON ks.id = ps.keyword_node_id
-             WHERE f.photo_id = ?1 AND f.state NOT IN ('filtered', 'ignored', 'not_face') ORDER BY f.x",
-        )
-        .map_err(|error| error.to_string())?;
+    // États écartés de la liste (valeurs fixes : pas d'entrée utilisateur dans la requête).
+    let mut hidden_states = vec!["'filtered'"];
+    if !include_ignored.unwrap_or(false) {
+        hidden_states.push("'ignored'");
+    }
+    if !include_not_face.unwrap_or(false) {
+        hidden_states.push("'not_face'");
+    }
+    let query = format!(
+        "SELECT f.id, f.x, f.y, f.w, f.h, f.person_id, COALESCE(k.name, pr.name, ks.name, ps.name), f.state
+         FROM faces f LEFT JOIN persons pr ON pr.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = pr.keyword_node_id
+         LEFT JOIN persons ps ON ps.id = f.suggested_person_id LEFT JOIN keyword_nodes ks ON ks.id = ps.keyword_node_id
+         WHERE f.photo_id = ?1 AND f.state NOT IN ({}) ORDER BY f.x",
+        hidden_states.join(", ")
+    );
+    let mut statement = conn.prepare(&query).map_err(|error| error.to_string())?;
     let rows = statement
         .query_map(params![photo_id], |row| {
             Ok(FaceInfo {

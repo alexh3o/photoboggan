@@ -161,6 +161,12 @@ button.filter-tag.tag-person:hover { background: var(--tag-person-hover); }
 .face-box.unknown { border-color: #f1c40f; border-style: dashed; }
 .face-box.state-suggested { border-color: #e67e22; border-style: dashed; }
 .face-box.state-auto { border-color: #3498db; }
+/* Zones écartées, affichées à la demande (sous-menu Visages) : pointillés fins, à part des vraies zones */
+.face-box.state-ignored { border-color: var(--face-color-ignored); border-style: dotted; }
+.face-box.state-not_face { border-color: var(--face-color-not-face); border-style: dotted; }
+/* « Ajouter un visage » armé : curseur en croix sur la photo et ses zones */
+/* (!important et « * » : les images, cases et zones ont leur propre curseur, qui l'emporterait sur celui de leur conteneur) */
+body.face-drawing #fullscreen-view, body.face-drawing #fullscreen-view *, body.face-drawing #preview-stage, body.face-drawing #preview-stage * { cursor: crosshair !important; }
 .face-label { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; padding: 1px 6px; border-radius: 3px; background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 0.8rem; white-space: nowrap; }
 /* Zones dans une case de l'aperçu : décoratives (la case reçoit glisser et molette) ; au survol seulement, chaque zone n'apparaît sous la souris */
 .face-overlay.preview-faces { z-index: 1; }
