@@ -576,7 +576,7 @@
   "Offline mode is on (Settings > General)": "Le mode hors ligne est activé (Paramètres > Général)",
   "Offline mode: download the files listed below ({size}) on another computer, then install them from a folder. They are stored in {folder}.": "Mode hors ligne : téléchargez les fichiers ci-dessous ({size}) sur un autre ordinateur, puis installez-les depuis un dossier. Ils sont rangés dans {folder}.",
   "Offline mode (never connect to the Internet)": "Mode hors ligne (ne jamais se connecter à Internet)",
-  "Offline mode help": "Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages).",
+  "Offline mode help": "Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages) et la carte n'est pas affichée.",
   "Face model installed": "Modèle de visages installé",
   "Folder containing the face model files": "Dossier contenant les fichiers du modèle de visages",
   "Detect faces": "Détecter et reconnaître les visages",
@@ -906,5 +906,15 @@
   "Restore": "Rétablir",
   "Set the selected faces as unknown": "Passer les visages sélectionnés en inconnus",
   "Ignore the selected faces": "Ignorer les visages sélectionnés",
-  "Mark the selected faces as not faces": "Marquer les visages sélectionnés comme « pas un visage »"
+  "Mark the selected faces as not faces": "Marquer les visages sélectionnés comme « pas un visage »",
+  "Location": "Lieu",
+  "Open in OpenStreetMap": "Ouvrir dans OpenStreetMap",
+  "Show a map of the photo location": "Afficher une carte du lieu de la photo",
+  "Show a map help": "Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne.",
+  "Map disabled (Settings > General)": "Carte désactivée (Paramètres > Général)",
+  "The map cannot be displayed on this computer (WebGL unavailable).": "La carte ne peut pas s'afficher sur cet ordinateur (WebGL indisponible).",
+  "The map could not be loaded (no connection?).": "La carte n'a pas pu être chargée (pas de connexion ?).",
+  "Only the first {count} locations are shown.": "Seuls les {count} premiers lieux sont affichés.",
+  "{count} geolocated photos out of {total}": "{count} photo géolocalisée sur {total}",
+  "{count} geolocated photos out of {total}|other": "{count} photos géolocalisées sur {total}"
 }

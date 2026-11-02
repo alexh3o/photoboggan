@@ -45,6 +45,26 @@ fn read_photo_refuses_unreadable_or_changing_files() {
     assert!(read_photo(&dir.path().join("absente.jpg").to_string_lossy(), 0, 0).is_err());
 }
 
+/// Coordonnées GPS : lues avec la photo, enregistrées en base, et effacées à la relecture d'un fichier qui n'en a plus.
+#[test]
+fn gps_is_stored_and_cleared_by_a_re_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let (_catalog_dir, pool) = temp_catalog();
+    let path = dir.path().join("a.jpg");
+    let read_and_store = |bytes: &[u8]| {
+        fs::write(&path, bytes).unwrap();
+        let metadata = fs::metadata(&path).unwrap();
+        let (photo, _, _) = read_photo(&path.to_string_lossy(), metadata.len() as i64, modified_millis(&metadata)).unwrap();
+        crate::insert_batch(&pool.get().unwrap(), &[photo]).unwrap();
+        let photos = crate::db::get_photos(&pool, 0, 10, None, true).unwrap();
+        (photos[0].gps_lat, photos[0].gps_lon)
+    };
+    let mut xmp = b"http://ns.adobe.com/xap/1.0/\0".to_vec();
+    xmp.extend(b"<x:xmpmeta><rdf:RDF><rdf:Description exif:GPSLatitude=\"45,30.0N\" exif:GPSLongitude=\"4,30.0W\"/></rdf:RDF></x:xmpmeta>");
+    assert_eq!(read_and_store(&with_segment(&jpeg_bytes(16, 16), 0xe1, &xmp)), (Some(45.5), Some(-4.5)));
+    assert_eq!(read_and_store(&jpeg_bytes(16, 16)), (None, None));
+}
+
 /// Un seul scénario : `sync_library` n'accepte qu'un passage à la fois (verrou global), des tests parallèles s'annuleraient mutuellement.
 #[test]
 fn sync_detects_added_modified_removed_and_never_trusts_a_missing_disk() {

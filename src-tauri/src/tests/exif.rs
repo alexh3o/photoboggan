@@ -372,3 +372,125 @@ fn acdsee_categories_round_trip() {
     let xml = format!("<x:xmpmeta><rdf:RDF><rdf:Description acdsee:categories=\"{}\"/></rdf:RDF></x:xmpmeta>", xml_escape_text(&value).replace('"', "&quot;"));
     assert_eq!(sorted(acdsee_category_paths(&xml)), sorted(wanted));
 }
+
+// --- Coordonnées GPS (lecture seule) ---
+
+/// Segment APP1 EXIF minimal (TIFF petit-boutiste) : IFD0 avec un pointeur vers un IFD GPS qui porte latitude et longitude en degrés,
+/// minutes, secondes (rationnels) et leurs références.
+fn exif_gps_segment(latitude: [(u32, u32); 3], latitude_ref: u8, longitude: [(u32, u32); 3], longitude_ref: u8) -> Vec<u8> {
+    fn entry(out: &mut Vec<u8>, tag: u16, kind: u16, count: u32, value: [u8; 4]) {
+        out.extend(tag.to_le_bytes());
+        out.extend(kind.to_le_bytes());
+        out.extend(count.to_le_bytes());
+        out.extend(value);
+    }
+    // Disposition : en-tête (8 octets), IFD0 en 8 (1 entrée, fin en 26), IFD GPS en 26 (4 entrées, fin en 80), rationnels en 80 et 104.
+    let mut tiff = b"II*\0".to_vec();
+    tiff.extend(8u32.to_le_bytes());
+    tiff.extend(1u16.to_le_bytes());
+    entry(&mut tiff, 0x8825, 4, 1, 26u32.to_le_bytes());
+    tiff.extend(0u32.to_le_bytes());
+    tiff.extend(4u16.to_le_bytes());
+    entry(&mut tiff, 1, 2, 2, [latitude_ref, 0, 0, 0]);
+    entry(&mut tiff, 2, 5, 3, 80u32.to_le_bytes());
+    entry(&mut tiff, 3, 2, 2, [longitude_ref, 0, 0, 0]);
+    entry(&mut tiff, 4, 5, 3, 104u32.to_le_bytes());
+    tiff.extend(0u32.to_le_bytes());
+    for (numerator, denominator) in latitude.into_iter().chain(longitude) {
+        tiff.extend(numerator.to_le_bytes());
+        tiff.extend(denominator.to_le_bytes());
+    }
+    let mut segment = b"Exif\0\0".to_vec();
+    segment.extend(tiff);
+    segment
+}
+
+fn xmp_gps_packet(latitude: &str, longitude: &str) -> String {
+    format!("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF><rdf:Description exif:GPSLatitude=\"{latitude}\" exif:GPSLongitude=\"{longitude}\"/></rdf:RDF></x:xmpmeta>")
+}
+
+fn with_xmp(jpeg: &[u8], xml: &str) -> Vec<u8> {
+    let mut payload = JPEG_XMP_HEADER.to_vec();
+    payload.extend(xml.as_bytes());
+    with_segment(jpeg, 0xe1, &payload)
+}
+
+fn assert_gps(actual: Option<(f64, f64)>, expected: (f64, f64)) {
+    let (latitude, longitude) = actual.expect("coordonnées attendues");
+    assert!((latitude - expected.0).abs() < 1e-6 && (longitude - expected.1).abs() < 1e-6, "{actual:?} au lieu de {expected:?}");
+}
+
+// Paris (48°51'29.6"N 2°17'40.2"E) et Rio de Janeiro (22°54'30"S 43°11'47"W) : les références S et W donnent des valeurs négatives.
+#[test]
+fn exif_gps_is_converted_to_signed_decimal_degrees() {
+    let dir = tempfile::tempdir().unwrap();
+    let paris = with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_gps_segment([(48, 1), (51, 1), (296, 10)], b'N', [(2, 1), (17, 1), (402, 10)], b'E'));
+    let rio = with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_gps_segment([(22, 1), (54, 1), (30, 1)], b'S', [(43, 1), (11, 1), (47, 1)], b'W'));
+    assert_gps(read_exif(&write_sample(dir.path(), "paris.jpg", &paris)).gps, (48.858222, 2.294500));
+    assert_gps(read_exif(&write_sample(dir.path(), "rio.jpg", &rio)).gps, (-22.908333, -43.196389));
+    assert_eq!(read_exif(&write_sample(dir.path(), "none.jpg", &jpeg_bytes(16, 16))).gps, None);
+}
+
+#[test]
+fn invalid_exif_gps_is_ignored() {
+    let dir = tempfile::tempdir().unwrap();
+    // Dénominateur nul, latitude hors bornes, position (0, 0) des appareils sans signal.
+    let zero_denominator = exif_gps_segment([(48, 0), (0, 1), (0, 1)], b'N', [(2, 1), (0, 1), (0, 1)], b'E');
+    let out_of_range = exif_gps_segment([(95, 1), (0, 1), (0, 1)], b'N', [(2, 1), (0, 1), (0, 1)], b'E');
+    let null_island = exif_gps_segment([(0, 1), (0, 1), (0, 1)], b'N', [(0, 1), (0, 1), (0, 1)], b'E');
+    for (name, segment) in [("a.jpg", zero_denominator), ("b.jpg", out_of_range), ("c.jpg", null_island)] {
+        let path = write_sample(dir.path(), name, &with_segment(&jpeg_bytes(16, 16), 0xe1, &segment));
+        assert_eq!(read_exif(&path).gps, None, "{name}");
+    }
+}
+
+#[test]
+fn xmp_gps_coordinate_forms() {
+    assert_eq!(parse_xmp_gps_coordinate("48,30.5N"), Some(48.508333333333333));
+    assert_eq!(parse_xmp_gps_coordinate("48,30,30S"), Some(-48.508333333333333));
+    assert_eq!(parse_xmp_gps_coordinate(" 2,15.0w "), Some(-2.25));
+    assert_eq!(parse_xmp_gps_coordinate("-12.5"), Some(-12.5));
+    assert_eq!(parse_xmp_gps_coordinate("48,-30N"), None);
+    assert_eq!(parse_xmp_gps_coordinate("48,30,0,0N"), None);
+    assert_eq!(parse_xmp_gps_coordinate("N"), None);
+    assert_eq!(parse_xmp_gps_coordinate(""), None);
+    assert_eq!(valid_gps(91.0, 0.0), None);
+    assert_eq!(valid_gps(10.0, 181.0), None);
+    assert_eq!(valid_gps(f64::NAN, 0.0), None);
+    assert_eq!(valid_gps(0.0, 0.0), None);
+}
+
+#[test]
+fn xmp_gps_is_read_from_the_embedded_packet_then_the_sidecar() {
+    let dir = tempfile::tempdir().unwrap();
+    // Paquet intégré : forme attribut.
+    let embedded = write_sample(dir.path(), "a.jpg", &with_xmp(&jpeg_bytes(16, 16), &xmp_gps_packet("45,45.0N", "4,51.0E")));
+    assert_gps(read_exif(&embedded).gps, (45.75, 4.85));
+    // RAW : sidecar seul, forme élément.
+    let raw = write_sample(dir.path(), "b.cr2", b"II*\0 faux raw");
+    fs::write(dir.path().join("b.cr2.xmp"), "<x:xmpmeta><rdf:RDF><rdf:Description><exif:GPSLatitude>43,17.7N</exif:GPSLatitude>\
+        <exif:GPSLongitude>5,22.2E</exif:GPSLongitude></rdf:Description></rdf:RDF></x:xmpmeta>").unwrap();
+    assert_gps(read_exif(&raw).gps, (43.295, 5.37));
+    // Vidéo : seul le sidecar est lu.
+    let video = write_sample(dir.path(), "c.mp4", b"\0\0\0\x18ftypmp42 fausse video");
+    fs::write(dir.path().join("c.mp4.xmp"), xmp_gps_packet("64,8.8N", "21,56.4W")).unwrap();
+    assert_gps(read_exif(&video).gps, (64.146667, -21.94));
+}
+
+/// Seul test qui change l'ordre de lecture GPS (réglage global) : il le remet par défaut en fin de test.
+#[test]
+fn gps_read_order_decides_between_exif_and_xmp() {
+    let dir = tempfile::tempdir().unwrap();
+    let exif_segment = exif_gps_segment([(48, 1), (0, 1), (0, 1)], b'N', [(2, 1), (0, 1), (0, 1)], b'E');
+    let both = with_xmp(&with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_segment), &xmp_gps_packet("45,0N", "4,0E"));
+    let path = write_sample(dir.path(), "a.jpg", &both);
+    let order = |ids: &[&str]| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+
+    assert_gps(read_exif(&path).gps, (48.0, 2.0));
+    set_read_priority("gps", &order(&["xmp", "exif"])).unwrap();
+    let xmp_first = read_exif(&path);
+    set_read_priority("gps", &order(&["exif", "xmp"])).unwrap();
+    assert_gps(xmp_first.gps, (45.0, 4.0));
+    assert_gps(xmp_first.gps_sources[0], (48.0, 2.0));
+    assert!(set_read_priority("gps", &order(&["exif"])).is_err());
+}

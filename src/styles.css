@@ -698,7 +698,7 @@ body.immersive .titlebar { display: none; }
 .folder-tree-empty p { margin: 0 0 0.6rem; }
 
 /* Onglet Info : titres de groupe */
-.exif-section li.exif-group-title, .exif-section .marking-title { margin: 1rem 0 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--border); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: var(--text-dim); }
+.exif-section li.exif-group-title, .exif-section .marking-title, .exif-section .location-title { margin: 1rem 0 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--border); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: var(--text-dim); }
 /* Zones de clic d'au moins 1,5 rem pour les boutons d'icône */
 .close-x, .titlebar-btn, .btn-clear-filters, .marking-clear { min-width: 1.5rem; min-height: 1.5rem; }
 
@@ -717,6 +717,14 @@ body.immersive .titlebar { display: none; }
 .marking-panel[hidden] { display: none; }
 .exif-section .marking-title { margin-top: 0.5rem; }
 .marking-panel .marking-count { margin-bottom: 0.5rem; }
+/* Groupe Lieu (location-panel.js) : coordonnées et lien, message éventuel, puis carte de hauteur fixe sur toute la largeur du panneau */
+.location-panel[hidden], .location-map[hidden], .location-message[hidden] { display: none; }
+.location-coords { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; font-size: 0.8rem; }
+.location-coords a { color: var(--accent-text); font-size: 0.75rem; }
+.location-message { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--text-dim); }
+/* isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas */
+.location-map { isolation: isolate; height: 12rem; margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 0.4rem; overflow: hidden; background: var(--control-bg); }
+.location-map .maplibregl-ctrl-attrib { font-size: 0.65rem; }
 /* Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans hauteur, calée sur le bord bas de la zone visible) */
 .marking-float-anchor { position: sticky; top: 100%; z-index: 5; height: 0; pointer-events: none; }
 .marking-bar { position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem); padding: 0.3rem 0.5rem 0.3rem 0.9rem; background: color-mix(in srgb, var(--card-bg) 80%, transparent); backdrop-filter: blur(6px); transition: background-color 0.15s; border: 1px solid var(--control-border); border-radius: 0.75rem; box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45); pointer-events: auto; }

@@ -34,6 +34,11 @@ pub struct ExifMetadata {
     pub pick_flag: String,
     /// Fanion pick de chaque source, dans l'ordre de PICK_SOURCE_IDS (None : propriété absente ; « none » : valeur explicite « aucun fanion »).
     pub pick_sources: [Option<&'static str>; 3],
+    /// Coordonnées GPS retenues (latitude, longitude en degrés décimaux) : la première source valide dans l'ordre de priorité réglé
+    /// (voir GPS_SOURCE_IDS). Lues seulement : l'application ne les écrit jamais.
+    pub gps: Option<(f64, f64)>,
+    /// Coordonnées de chaque source, dans l'ordre de GPS_SOURCE_IDS.
+    pub gps_sources: [Option<(f64, f64)>; 2],
     /// Orientation EXIF et zones de visage (voir faces.rs).
     pub faces: crate::faces::PhotoFaces,
 }
@@ -236,6 +241,8 @@ struct ParsedXmp {
     titles: [Option<String>; 2],
     /// Sources XMP de la description, dans l'ordre de DESCRIPTION_SOURCE_IDS (les quatre premières).
     descriptions: [Option<String>; 4],
+    /// Coordonnées GPS XMP (exif:GPSLatitude / exif:GPSLongitude).
+    gps: Option<(f64, f64)>,
     /// Zones de visage (None : lecture des visages désactivée).
     face_regions: Option<Vec<crate::faces::FaceRegion>>,
 }
@@ -250,6 +257,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     let mut picks: [Option<&'static str>; 3] = Default::default();
     let mut titles: [Option<String>; 2] = Default::default();
     let mut descriptions: [Option<String>; 4] = Default::default();
+    let mut gps: Option<(f64, f64)> = None;
     // Zones de visage : celles du paquet intégré, sinon celles du sidecar (pas de mélange des deux).
     let read_faces = crate::faces::reading_enabled();
     let mut face_regions: Vec<crate::faces::FaceRegion> = Vec::new();
@@ -270,6 +278,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         for (slot, name) in descriptions.iter_mut().zip(XMP_DESCRIPTION_PROPERTIES) {
             if slot.is_none() { *slot = xmp_text(xml, name); }
         }
+        if gps.is_none() { gps = xmp_gps(xml); }
     };
     // Le fichier image fait foi quand il contient un paquet XMP.
     if let Some(embedded) = read_embedded_xmp(path) {
@@ -294,8 +303,60 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         keyword_paths: hierarchical,
         titles,
         descriptions,
+        gps,
         face_regions: read_faces.then_some(face_regions),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Coordonnées GPS : lues dans l'EXIF et dans le XMP (exif:GPSLatitude / exif:GPSLongitude), la première source valide dans l'ordre de
+// priorité réglé l'emporte. Jamais écrites.
+// ---------------------------------------------------------------------------
+
+/// Coordonnées utilisables : nombres finis dans les bornes, et pas exactement (0, 0), valeur écrite par des appareils sans position.
+pub(crate) fn valid_gps(latitude: f64, longitude: f64) -> Option<(f64, f64)> {
+    let in_range = latitude.is_finite() && longitude.is_finite() && latitude.abs() <= 90.0 && longitude.abs() <= 180.0;
+    (in_range && !(latitude == 0.0 && longitude == 0.0)).then_some((latitude, longitude))
+}
+
+/// Coordonnée EXIF : degrés, minutes, secondes (trois rationnels) et référence (N/S ou E/W), en degrés décimaux signés.
+fn exif_gps_coordinate(exif: &exif::Exif, value_tag: Tag, ref_tag: Tag, negative_ref: u8) -> Option<f64> {
+    let Value::Rational(ref parts) = exif.get_field(value_tag, In::PRIMARY)?.value else { return None; };
+    if parts.is_empty() || parts.iter().any(|part| part.denom == 0) { return None; }
+    let degrees = parts.iter().take(3).zip([1.0, 60.0, 3600.0]).map(|(part, divisor)| part.to_f64() / divisor).sum::<f64>();
+    // Référence absente : la valeur est prise telle quelle (positive : nord ou est).
+    let negative = match exif.get_field(ref_tag, In::PRIMARY).map(|field| &field.value) {
+        Some(Value::Ascii(texts)) => texts.first().and_then(|text| text.first()).is_some_and(|letter| letter.to_ascii_uppercase() == negative_ref),
+        _ => false,
+    };
+    Some(if negative { -degrees } else { degrees })
+}
+
+fn exif_gps(exif: &exif::Exif) -> Option<(f64, f64)> {
+    let latitude = exif_gps_coordinate(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, b'S')?;
+    let longitude = exif_gps_coordinate(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, b'W')?;
+    valid_gps(latitude, longitude)
+}
+
+/// Coordonnée XMP : « DDD,MM,SSk » ou « DDD,MM.mmk » (k = N, S, E ou W, forme de la norme XMP), ou nombre décimal signé (écrit par certains outils).
+pub(crate) fn parse_xmp_gps_coordinate(text: &str) -> Option<f64> {
+    let text = text.trim();
+    let last = text.chars().last()?;
+    let (body, sign) = match last.to_ascii_uppercase() {
+        'N' | 'E' => (&text[..text.len() - 1], 1.0),
+        'S' | 'W' => (&text[..text.len() - 1], -1.0),
+        _ => return text.parse::<f64>().ok(),
+    };
+    let parts: Vec<f64> = body.split(',').map(|part| part.trim().parse::<f64>()).collect::<Result<_, _>>().ok()?;
+    if parts.is_empty() || parts.len() > 3 || parts.iter().any(|part| *part < 0.0) { return None; }
+    let degrees = parts.iter().zip([1.0, 60.0, 3600.0]).map(|(part, divisor)| part / divisor).sum::<f64>();
+    Some(sign * degrees)
+}
+
+fn xmp_gps(xml: &str) -> Option<(f64, f64)> {
+    let latitude = parse_xmp_gps_coordinate(&xmp_value(xml, &["exif:GPSLatitude"])?)?;
+    let longitude = parse_xmp_gps_coordinate(&xmp_value(xml, &["exif:GPSLongitude"])?)?;
+    valid_gps(latitude, longitude)
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +377,9 @@ pub const RATING_SOURCE_IDS: [&str; 5] = ["xmp", "microsoft", "acdsee", "exif", 
 pub const COLOR_SOURCE_IDS: [&str; 3] = ["xmp-label", "digikam", "urgency"];
 /// Sources du fanion pick, ordre par défaut : digiKam:PickLabel, xmpDM:pick (Lightroom), xmpDM:good.
 pub const PICK_SOURCE_IDS: [&str; 3] = ["digikam", "xmpdm-pick", "xmpdm-good"];
+/// Sources des coordonnées GPS, ordre par défaut : EXIF (GPSLatitude / GPSLongitude), XMP exif:GPSLatitude / exif:GPSLongitude (intégré, puis sidecar).
+pub const GPS_SOURCE_IDS: [&str; 2] = ["exif", "xmp"];
+static GPS_PRIORITY: std::sync::RwLock<[usize; 2]> = std::sync::RwLock::new([0, 1]);
 static RATING_PRIORITY: std::sync::RwLock<[usize; 5]> = std::sync::RwLock::new([0, 1, 2, 3, 4]);
 static COLOR_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);
 static PICK_PRIORITY: std::sync::RwLock<[usize; 3]> = std::sync::RwLock::new([0, 1, 2]);
@@ -342,8 +406,8 @@ pub(crate) fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -
 }
 
 /// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »,
-/// « pick » ou « faces ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
-/// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// « pick », « gps » ou « faces ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
+/// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS, GPS_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
 pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
     fn store<T>(lock: &std::sync::RwLock<T>, value: T) {
         *lock.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = value;
@@ -355,6 +419,7 @@ pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
         "rating" => store(&RATING_PRIORITY, order_indices(&RATING_SOURCE_IDS, order)?),
         "color" => store(&COLOR_PRIORITY, order_indices(&COLOR_SOURCE_IDS, order)?),
         "pick" => store(&PICK_PRIORITY, order_indices(&PICK_SOURCE_IDS, order)?),
+        "gps" => store(&GPS_PRIORITY, order_indices(&GPS_SOURCE_IDS, order)?),
         "faces" => store(&crate::faces::REGION_PRIORITY, order_indices(&crate::faces::REGION_SOURCE_IDS, order)?),
         _ => return Err("invalid_kind".to_string()),
     }
@@ -863,10 +928,11 @@ fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
     meta.keyword_paths = parsed.keyword_paths;
     meta.text_sources.title[..2].clone_from_slice(&parsed.titles);
     meta.text_sources.description[..4].clone_from_slice(&parsed.descriptions);
+    meta.gps_sources[1] = parsed.gps;
     meta.faces.regions = parsed.face_regions;
 }
 
-/// Note, couleur, titre et description retenus : la première source présente dans l'ordre de priorité réglé.
+/// Note, couleur, fanion, titre, description et coordonnées GPS retenus : la première source présente dans l'ordre de priorité réglé.
 fn resolve_values(meta: &mut ExifMetadata) {
     let rating_priority = *lock_read(&RATING_PRIORITY);
     let color_priority = *lock_read(&COLOR_PRIORITY);
@@ -878,6 +944,8 @@ fn resolve_values(meta: &mut ExifMetadata) {
     meta.pick_flag = pick_priority.iter().find_map(|index| meta.pick_sources[*index]).unwrap_or("none").to_string();
     meta.title = resolve_text(&meta.text_sources.title, &title_priority);
     meta.caption = resolve_text(&meta.text_sources.description, &description_priority);
+    let gps_priority = *lock_read(&GPS_PRIORITY);
+    meta.gps = gps_priority.iter().find_map(|index| meta.gps_sources[*index]);
 }
 
 fn lock_read<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
@@ -976,6 +1044,7 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             .and_then(|field| field.value.get_uint(0))
             .filter(|value| (1..=8).contains(value))
             .unwrap_or(1);
+        meta.gps_sources[0] = exif_gps(&exif);
     }
     // XPKeywords : ajoutés aux mots-clés à plat, sans doublon ; puis noms des mots-clés hiérarchiques actifs.
     if !xp_keywords.is_empty() {

@@ -13,7 +13,8 @@ const EXIFTOOL_PATH_STORAGE_KEY = 'exiftoolPath'; // exécutable choisi par l'ut
 const ORDER_KIND_STORAGE_KEY = 'metadataOrderKind'; // type de métadonnée affiché dans le tableau des priorités
 
 // Formats lus pour chaque type de métadonnée, dans l'ordre de lecture par défaut. Le premier qui contient une valeur l'emporte ; tous sont écrits.
-// Identifiants : ceux de exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS).
+// Identifiants : ceux de exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS,
+// GPS_SOURCE_IDS).
 const READ_ORDERS = {
   keywords: {
     storageKey: 'keywordFormatOrder',
@@ -81,6 +82,14 @@ const READ_ORDERS = {
       { id: 'mwg', label: 'MWG (digiKam, Lightroom)', property: 'mwg-rs:Regions' },
       { id: 'microsoft', label: 'Microsoft Photo', property: 'MP:RegionInfo' },
       { id: 'acdsee', label: 'ACDSee', property: 'acdsee-rs:Regions' },
+    ],
+  },
+  // Coordonnées GPS : lues seulement, jamais écrites (voir exif::GPS_SOURCE_IDS).
+  gps: {
+    storageKey: 'gpsFormatOrder',
+    formats: [
+      { id: 'exif', label: 'EXIF', property: 'GPSLatitude / GPSLongitude' },
+      { id: 'xmp', label: 'XMP', property: 'exif:GPSLatitude / exif:GPSLongitude' },
     ],
   },
 };

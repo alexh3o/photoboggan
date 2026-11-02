@@ -576,7 +576,7 @@
   "Offline mode is on (Settings > General)": "Offline mode is on (Settings > General)",
   "Offline mode: download the files listed below ({size}) on another computer, then install them from a folder. They are stored in {folder}.": "Offline mode: download the files listed below ({size}) on another computer, then install them from a folder. They are stored in {folder}.",
   "Offline mode (never connect to the Internet)": "Offline mode (never connect to the Internet)",
-  "Offline mode help": "No Internet connection: the face model is installed manually from a folder (Settings > Faces).",
+  "Offline mode help": "No Internet connection: the face model is installed manually from a folder (Settings > Faces) and the map is not displayed.",
   "Face model installed": "Face model installed",
   "Folder containing the face model files": "Folder containing the face model files",
   "Detect faces": "Detect and recognize faces",
@@ -906,5 +906,15 @@
   "Restore": "Restore",
   "Set the selected faces as unknown": "Set the selected faces as unknown",
   "Ignore the selected faces": "Ignore the selected faces",
-  "Mark the selected faces as not faces": "Mark the selected faces as not faces"
+  "Mark the selected faces as not faces": "Mark the selected faces as not faces",
+  "Location": "Location",
+  "Open in OpenStreetMap": "Open in OpenStreetMap",
+  "Show a map of the photo location": "Show a map of the photo location",
+  "Show a map help": "Map of the shooting location in the Info panel. Tiles come from OpenFreeMap (OpenStreetMap data): the location of the displayed photos is therefore sent to it. No effect in offline mode.",
+  "Map disabled (Settings > General)": "Map disabled (Settings > General)",
+  "The map cannot be displayed on this computer (WebGL unavailable).": "The map cannot be displayed on this computer (WebGL unavailable).",
+  "The map could not be loaded (no connection?).": "The map could not be loaded (no connection?).",
+  "Only the first {count} locations are shown.": "Only the first {count} locations are shown.",
+  "{count} geolocated photos out of {total}": "{count} geolocated photo out of {total}",
+  "{count} geolocated photos out of {total}|other": "{count} geolocated photos out of {total}"
 }

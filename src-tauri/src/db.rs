@@ -30,6 +30,11 @@ pub struct Photo {
     pub title: String,
     /// Description retenue à la lecture (voir exif::DESCRIPTION_SOURCE_IDS).
     pub caption: String,
+    /// Coordonnées GPS retenues à la lecture (voir exif::GPS_SOURCE_IDS), en degrés décimaux ; None : photo non géolocalisée.
+    #[serde(default)]
+    pub gps_lat: Option<f64>,
+    #[serde(default)]
+    pub gps_lon: Option<f64>,
     // Date de modification du fichier (ms depuis 1970) lue en base : sert au tri par date de modification.
     // Elle n'est pas écrite par les insertions (voir library_sync::store_modified), d'où la valeur 0 des constructions hors lecture.
     #[serde(default)]
@@ -107,6 +112,9 @@ pub fn init_db(db_path: &str) -> DbPool {
     add_column(&conn, "photos", "orientation INTEGER NOT NULL DEFAULT 1");
     // Fanion « pick » (none, pending, picked, rejected) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
     add_column(&conn, "photos", "pick_flag TEXT NOT NULL DEFAULT 'none'");
+    // Coordonnées GPS (NULL : pas de position) : remplies à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
+    add_column(&conn, "photos", "gps_lat REAL");
+    add_column(&conn, "photos", "gps_lon REAL");
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
@@ -175,7 +183,7 @@ pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), St
 
 /// Colonnes lues par `photo_from_row`, dans cet ordre.
 const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
-     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag";
+     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon";
 
 /// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
 /// jamais écartée de la liste parce qu'une de ses colonnes est vide.
@@ -208,6 +216,8 @@ fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo> {
         modified: row.get::<_, Option<i64>>(18)?.unwrap_or_default(),
         title: text(row, 19)?,
         pick_flag: flag(row, 20)?,
+        gps_lat: row.get(21)?,
+        gps_lon: row.get(22)?,
     })
 }
 

@@ -262,6 +262,16 @@
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Title">Titre</strong> <span id="exif-title">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Description">Description</strong> <span id="exif-caption">-</span></li>
         </ul>
+        <!-- Lieu : coordonnées GPS de la sélection, lien OpenStreetMap et carte (voir location-panel.js) ; masqué sans photo géolocalisée -->
+        <section id="location-panel" class="location-panel" aria-labelledby="location-panel-title" hidden>
+          <h4 id="location-panel-title" class="location-title" data-i18n="Location">Lieu</h4>
+          <div class="location-coords">
+            <span id="location-coords"></span>
+            <a id="location-osm" href="https://www.openstreetmap.org/" data-i18n="Open in OpenStreetMap">Ouvrir dans OpenStreetMap</a>
+          </div>
+          <p id="location-message" class="location-message" hidden></p>
+          <div id="location-map" class="location-map" hidden></div>
+        </section>
         <!-- Marquage (note et couleur de la sélection), en bas du panneau Info ; contrôles créés par main.js (voir « MARQUAGE ») -->
         <section id="marking-panel" class="marking-panel" aria-labelledby="marking-panel-title" hidden>
           <h4 id="marking-panel-title" class="marking-title" data-i18n="Labels">Marquage</h4>
@@ -357,7 +367,8 @@
             </section>
             <section class="settings-section">
               <h4>Internet</h4>
-              <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages)." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
+              <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages) et la carte n'est pas affichée." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
+              <label class="settings-row settings-check" title="Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne." data-i18n-title="Show a map help"><input id="show-map-toggle" type="checkbox" /><span data-i18n="Show a map of the photo location">Afficher une carte du lieu de la photo</span></label>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Library">Bibliothèque</h4>
@@ -446,6 +457,7 @@
                   <option value="color" data-i18n="Color">Couleur</option>
                   <option value="pick" data-i18n="Pick">Pick</option>
                   <option value="faces" data-i18n="Face regions">Zones de visage</option>
+                  <option value="gps" data-i18n="Location">Lieu</option>
                 </select>
               </label>
               <ol id="metadata-order-list" class="keyword-format-order"></ol>

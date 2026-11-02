@@ -13,6 +13,7 @@ import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLoc
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
+import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -1833,6 +1834,8 @@ function updateUIOnSelection() {
     document.getElementById('exif-title').textContent = photo.title || '-';
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
   }
+  // Groupe Lieu : positions de toute la sélection, la photo active mise en avant (voir location-panel.js).
+  refreshLocation([...selectedIndices].map(index => photos[index]).filter(Boolean), photos[lastSelectedIndex]);
   refreshInfoRows();
 }
 
@@ -5058,6 +5061,7 @@ initPhotoActions({
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
+initLocationPanel();
 
 // Paramètres, onglet Métadonnées : utilisation des couleurs et des fanions pick (voir marking-settings.js). Une fonction désactivée voit ses filtres
 // vidés (sinon ils masqueraient des photos sans qu'on puisse les voir) ; le CSS masque ses contrôles et indicateurs.
@@ -5392,6 +5396,7 @@ offlineModeToggle.addEventListener('change', () => {
   localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
   sendInternetAllowed();
   onOfflineModeChanged();
+  onMapAccessChanged();
 });
 
 // Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, choix mémorisé et transmis au backend.

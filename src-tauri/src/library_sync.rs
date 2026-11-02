@@ -149,6 +149,8 @@ pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(P
         keywords: exif_data.keywords,
         title: exif_data.title,
         caption: exif_data.caption,
+        gps_lat: exif_data.gps.map(|(latitude, _)| latitude),
+        gps_lon: exif_data.gps.map(|(_, longitude)| longitude),
         modified: 0, // non utilisé : la date est enregistrée séparément par store_read_batch
     };
     Ok((photo, exif_data.keyword_paths, exif_data.faces))
