@@ -1591,7 +1591,7 @@ function openFolderMenu(event, folderItem) {
   showContextMenu(menu, event);
 }
 
-// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled }] ;
+// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, shortcut }] ;
 // un item peut porter `submenu` = [{ label, onSelect }] à la place de `onSelect` pour ouvrir un sous-niveau. { header: 'texte' } ajoute une ligne
 // d'en-tête (ce que le menu vise), { separator: true } un séparateur.
 export function openContextMenuAt(event, items) {
@@ -1604,7 +1604,7 @@ export function openContextMenuAt(event, items) {
     if (item.separator) return menuSeparator();
     return item.submenu
       ? buildSubmenuItem(item.label, item.submenu)
-      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title, disabled: Boolean(item.disabled) });
+      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title, disabled: Boolean(item.disabled), shortcut: item.shortcut });
   }));
   showContextMenu(menu, event);
 }
@@ -1659,11 +1659,89 @@ function findTargetPhoto(target) {
   return null;
 }
 
+// ==========================================
+// MENU DES CHAMPS DE SAISIE
+// ==========================================
+const NATIVE_MENU_FIELDS = '#description-title, #description-text'; // gardent le menu du navigateur (orthographe)
+const isTextField = field => field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && (field.type === 'text' || field.type === 'search'));
+
+// Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
+function fieldExtraItems(field) {
+  const clickButton = id => () => document.getElementById(id)?.click();
+  if (field.id === 'date-filter-input') {
+    return [
+      { label: t('Pick in calendar'), onSelect: clickButton('date-filter-calendar') },
+      { label: t('Clear date filter'), onSelect: clickButton('date-filter-clear') },
+    ];
+  }
+  if (['keyword-filter-input', 'filename-filter-input', 'person-filter-input'].includes(field.id)) {
+    return [{
+      label: t('Clear the field'),
+      disabled: field.value === '',
+      onSelect: () => {
+        field.value = '';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.focus();
+      },
+    }];
+  }
+  return [];
+}
+
+// Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
+async function pasteIntoField(field) {
+  let text = '';
+  try {
+    text = await invoke('read_clipboard_text');
+  } catch {
+    try { text = await navigator.clipboard.readText(); } catch { return; }
+  }
+  if (!text) return;
+  field.focus();
+  document.execCommand('insertText', false, text);
+}
+
+// Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
+function openTextFieldMenu(event, field) {
+  const start = field.selectionStart ?? 0;
+  const end = field.selectionEnd ?? 0;
+  const hasSelection = end > start;
+  const editable = !field.readOnly && !field.disabled;
+  const act = run => () => {
+    field.focus();
+    field.setSelectionRange(start, end);
+    run();
+  };
+  const items = [
+    { label: t('Undo'), shortcut: 'Ctrl+Z', disabled: !editable, onSelect: act(() => document.execCommand('undo')) },
+    { separator: true },
+    { label: t('Cut'), shortcut: 'Ctrl+X', disabled: !editable || !hasSelection, onSelect: act(() => document.execCommand('cut')) },
+    { label: t('Copy'), shortcut: 'Ctrl+C', disabled: !hasSelection, onSelect: act(() => document.execCommand('copy')) },
+    { label: t('Paste'), shortcut: 'Ctrl+V', disabled: !editable, onSelect: act(() => pasteIntoField(field)) },
+    { separator: true },
+    { label: t('Select all'), shortcut: 'Ctrl+A', disabled: field.value === '', onSelect: act(() => field.select()) },
+  ];
+  const extras = fieldExtraItems(field);
+  if (extras.length) items.push({ separator: true }, ...extras);
+  // Menu ouvert au clavier (touche Menu, Maj+F10) : pas de position de souris, il s'ouvre sous le champ.
+  const rect = field.getBoundingClientRect();
+  const position = event.clientX === 0 && event.clientY === 0 ? { clientX: rect.left, clientY: rect.bottom } : event;
+  openContextMenuAt(position, items);
+}
+
 // Remplace le menu contextuel du navigateur
 // Menu d'actions sur miniatures, aperçu et plein écran.
 function onContextMenu(event) {
   const target = event.target instanceof Element ? event.target : null;
-  if (target?.closest('input[type="text"], input:not([type]), textarea')) return;
+  // Champs de saisie : menu Annuler / Couper / Copier / Coller / Tout sélectionner (openTextFieldMenu). Titre et Description gardent le menu du
+  // navigateur : il propose les corrections orthographiques, que le code ne peut pas obtenir.
+  const field = target?.closest('input, textarea');
+  if (field && isTextField(field)) {
+    if (field.matches(NATIVE_MENU_FIELDS)) return;
+    event.preventDefault();
+    openTextFieldMenu(event, field);
+    return;
+  }
   event.preventDefault();
   if (target?.closest('.context-menu')) return;
   // Section Personnes et vue Personnes : leur menu est ouvert par faces-panel.js (openContextMenuAt).

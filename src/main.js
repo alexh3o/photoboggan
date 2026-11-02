@@ -882,11 +882,13 @@ for (const group of filterGroups) {
   });
 }
 
-// Le calendrier est placé dans <body> : il fait partie de la zone des filtres pour ce test.
+// Le calendrier est placé dans <body> : il fait partie de la zone des filtres pour ce test. Il en va de même du menu contextuel d'un champ de filtre
+// (voir openTextFieldMenu, photo-actions.js) : cliquer sur l'une de ses lignes ne doit pas replier le groupe, sinon le champ disparaît avant l'action
+// (coller, effacer) et le calendrier s'ouvrirait en haut de la fenêtre, son bouton n'étant plus affiché.
 document.addEventListener('pointerdown', event => {
   if (!filterGroups.some(group => group.classList.contains('expanded'))) return;
   const target = event.target;
-  if (target instanceof Element && (target.closest('.photo-filters') || target.closest('.date-picker'))) return;
+  if (target instanceof Element && (target.closest('.photo-filters') || target.closest('.date-picker') || target.closest('.context-menu'))) return;
   setExpandedFilterGroup(null);
 }, true);
 

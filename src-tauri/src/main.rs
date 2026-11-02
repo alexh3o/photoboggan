@@ -1993,6 +1993,18 @@ fn copy_files_to_clipboard(paths: Vec<String>) -> Result<usize, String> {
     Ok(existing.len())
 }
 
+// Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire).
+// Chaîne vide quand le presse-papiers ne contient pas de texte.
+#[tauri::command(async)]
+fn read_clipboard_text() -> Result<String, String> {
+    let mut guard = CLIPBOARD.lock().map_err(|_| "Presse-papiers indisponible".to_string())?;
+    if guard.is_none() {
+        *guard = Some(ClipboardContext::new().map_err(|error| format!("Presse-papiers indisponible : {error}"))?);
+    }
+    let clipboard = guard.as_ref().ok_or("Presse-papiers indisponible")?;
+    Ok(clipboard.get_text().unwrap_or_default())
+}
+
 // Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
 // des URI y seraient écrits comme de faux chemins et le collage ne ferait rien) ; ailleurs, des URI « file:/// ».
 #[cfg(windows)]
@@ -2128,6 +2140,7 @@ fn main() {
             reveal_in_file_manager,
             open_video_externally,
             copy_files_to_clipboard,
+            read_clipboard_text,
             resize_photo,
             keywords::get_keyword_tree,
             keywords::get_keyword_counts,
