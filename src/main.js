@@ -142,6 +142,8 @@ let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écritu
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let pickFilters = new Set(); // fanions pick cochés dans le filtre (vide = pas de filtre)
+// Filtre de note : étoiles (0 = aucune), mode « au moins » (gte) ou « exactement » (eq), ou photos non notées (exclusif avec les étoiles). Actif si stars > 0 ou unrated.
+const ratingFilter = { stars: 0, mode: 'gte', unrated: false };
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
 let isFullscreen = false; // Etat d'affichage plein écran de photos
@@ -659,9 +661,20 @@ async function loadPhotos() {
   refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
 }
 
+function isRatingFilterActive() {
+  return ratingFilter.stars > 0 || ratingFilter.unrated;
+}
+
+// Une photo passe si elle est non notée (pastille cochée) ou si sa note correspond aux étoiles choisies (au moins N ou exactement N).
+function matchesRatingFilter(photo) {
+  if (!isRatingFilterActive()) return true;
+  const rating = photo.rating || 0;
+  if (ratingFilter.unrated) return rating === 0;
+  return ratingFilter.mode === 'eq' ? rating === ratingFilter.stars : rating >= ratingFilter.stars;
+}
+
 function hasActiveFilters() {
-  const ratingThreshold = Number(document.getElementById('rating-filter')?.value ?? -1);
-  const hasRating = ratingThreshold >= 0;
+  const hasRating = isRatingFilterActive();
   const hasColor = colorFilters.size > 0 || pickFilters.size > 0;
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
@@ -700,14 +713,13 @@ function updateFilteredPhotosCount() {
 }
 
 function applyPhotoFilters({ keepState = false } = {}) {
-  const ratingThreshold = Number(document.getElementById('rating-filter').value);
   // keepState : mise à jour en arrière-plan (synchronisation), la sélection et le défilement sont conservés.
   const keptPaths = keepState ? [...selectedIndices].map(index => photos[index]?.path).filter(Boolean) : [];
   const keptLastPath = keepState ? photos[lastSelectedIndex]?.path : null;
   const keptScrollTop = gridContainer.scrollTop;
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
-  photos = loadedPhotos.filter(photo => (ratingThreshold < 0 || photo.rating > ratingThreshold)
+  photos = loadedPhotos.filter(photo => matchesRatingFilter(photo)
     && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
     && personFilterMatches(photo)
     && matchesFilenameFilters(photo)
@@ -776,8 +788,8 @@ function renderInfoKeywords(photo) {
 
 function clearAllFilters() {
   // Réinitialise la note
-  const ratingSelect = document.getElementById('rating-filter');
-  if (ratingSelect) ratingSelect.value = '-1';
+  Object.assign(ratingFilter, { stars: 0, unrated: false }); // le mode (≥ / =) reste celui choisi par l'utilisateur
+  updateRatingFilterControls();
 
   // Réinitialise les couleurs
   colorFilters.clear();
@@ -976,14 +988,16 @@ function formatDateFilterBound(key, isEnd) {
 
 // Résumés affichés sur les lignes repliées : note (badge) et couleurs (pastilles), dates de début et de fin, étiquettes.
 function renderFilterSummaries() {
-  const ratingSelect = document.getElementById('rating-filter');
-  const threshold = Number(ratingSelect.value);
+  updateRatingFilterControls();
   const ratingColorNodes = [];
-  if (threshold >= 0) {
+  if (isRatingFilterActive()) {
     const badge = document.createElement('span');
     badge.className = 'filter-tag tag-rating';
-    badge.textContent = threshold === 4 ? '5 ★' : `≥ ${threshold + 1} ★`;
-    badge.title = ratingSelect.selectedOptions[0]?.textContent ?? '';
+    const parts = [];
+    if (ratingFilter.unrated) parts.push('∅');
+    if (ratingFilter.stars > 0) parts.push(`${ratingFilter.mode === 'eq' ? '=' : '≥'} ${ratingFilter.stars} ★`);
+    badge.textContent = parts.join(' + ');
+    badge.title = ratingFilterDescription();
     ratingColorNodes.push(badge);
   }
   for (const key of colorFilters) {
@@ -1021,7 +1035,7 @@ function renderActiveFilterBadges() {
   const container = document.getElementById('active-filter-badges');
   if (!container) return;
   const kinds = [
-    [Number(document.getElementById('rating-filter')?.value ?? -1) >= 0, 'rating', 'Rating'],
+    [isRatingFilterActive(), 'rating', 'Rating'],
     [colorFilters.size > 0, 'color', 'Color'],
     [pickFilters.size > 0, 'pick', 'Pick'],
     [keywordFilters.length > 0, 'keyword', 'Keywords'],
@@ -2038,7 +2052,7 @@ async function setSelectionRating(rating, explicitTargets = null) {
     startMessage: finalRating === 0 ? t('Removing rating') : tp('Writing {count} file (rating: {rating})…', targets.length, { rating: finalRating }),
     doneMessage: count => (finalRating === 0 ? tp('Rating removed for {count} file', count) : tp('{count} file modified', count)),
     apply: photo => { photo.rating = finalRating; anyWritten = true; },
-    refilter: () => Number(document.getElementById('rating-filter')?.value ?? -1) >= 0,
+    refilter: isRatingFilterActive,
   });
   if (isFullscreen && anyWritten) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
@@ -3168,7 +3182,80 @@ exifResizer?.addEventListener('keydown', event => {
   updateVirtualScroller();
 });
 
-document.getElementById('rating-filter').addEventListener('change', applyPhotoFilters);
+// Filtre de note : cinq étoiles (un clic sur l'étoile active l'efface), pastille « non notées » et bascule ≥ / =.
+const ratingStarsBar = document.getElementById('rating-stars');
+const ratingUnratedButton = document.getElementById('rating-unrated');
+const ratingModeButton = document.getElementById('rating-mode');
+ratingStarsBar.replaceChildren(...[1, 2, 3, 4, 5].map(stars => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'rating-star';
+  button.dataset.stars = String(stars);
+  button.textContent = '★';
+  return button;
+}));
+
+// Texte lisible du filtre courant (infobulle du badge) ; ratingStarLabel décrit l'effet d'un clic sur l'étoile N.
+function ratingStarLabel(stars) {
+  return tp(ratingFilter.mode === 'eq' ? '= {count} star' : '≥ {count} star', stars);
+}
+function ratingFilterDescription() {
+  const parts = [];
+  if (ratingFilter.unrated) parts.push(t('Unrated'));
+  if (ratingFilter.stars > 0) parts.push(ratingStarLabel(ratingFilter.stars));
+  return parts.join(' + ');
+}
+
+// Reflète l'état du filtre sur les contrôles : étoiles remplies jusqu'à N (« au moins ») ou N seule (« exactement »), libellés accessibles.
+function updateRatingFilterControls() {
+  const exact = ratingFilter.mode === 'eq';
+  ratingStarsBar.querySelectorAll('.rating-star').forEach(button => {
+    const stars = Number(button.dataset.stars);
+    const active = exact ? stars === ratingFilter.stars : stars <= ratingFilter.stars;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(stars === ratingFilter.stars));
+    button.title = ratingStarLabel(stars);
+    button.setAttribute('aria-label', button.title);
+  });
+  ratingUnratedButton.classList.toggle('active', ratingFilter.unrated);
+  ratingUnratedButton.setAttribute('aria-pressed', String(ratingFilter.unrated));
+  ratingModeButton.textContent = exact ? '=' : '≥';
+  ratingModeButton.title = t(exact ? 'Exactly this rating (click for at least)' : 'At least this rating (click for exactly)');
+  ratingModeButton.setAttribute('aria-label', ratingModeButton.title);
+  ratingModeButton.disabled = ratingFilter.stars === 0; // sans étoile choisie, le mode n'a pas d'effet
+}
+
+ratingStarsBar.addEventListener('click', event => {
+  const button = event.target instanceof Element ? event.target.closest('.rating-star') : null;
+  if (!button) return;
+  const stars = Number(button.dataset.stars);
+  ratingFilter.stars = ratingFilter.stars === stars ? 0 : stars;
+  ratingFilter.unrated = false; // « non notées » et une note choisie s'excluent
+  applyPhotoFilters();
+});
+// Aperçu au survol : remplit les étoiles comme le ferait le clic (classe `preview`, retirée à la sortie).
+ratingStarsBar.addEventListener('mouseover', event => {
+  const button = event.target instanceof Element ? event.target.closest('.rating-star') : null;
+  if (!button) return;
+  const hovered = Number(button.dataset.stars);
+  ratingStarsBar.querySelectorAll('.rating-star').forEach(star => {
+    const stars = Number(star.dataset.stars);
+    star.classList.toggle('preview', ratingFilter.mode === 'eq' ? stars === hovered : stars <= hovered);
+  });
+});
+ratingStarsBar.addEventListener('mouseleave', () => {
+  ratingStarsBar.querySelectorAll('.rating-star.preview').forEach(star => star.classList.remove('preview'));
+});
+ratingUnratedButton.addEventListener('click', () => {
+  ratingFilter.unrated = !ratingFilter.unrated;
+  if (ratingFilter.unrated) ratingFilter.stars = 0; // exclusif avec les étoiles
+  applyPhotoFilters();
+});
+ratingModeButton.addEventListener('click', () => {
+  ratingFilter.mode = ratingFilter.mode === 'eq' ? 'gte' : 'eq';
+  applyPhotoFilters();
+});
+updateRatingFilterControls();
 
 // Carré de fanion pick cliquable (filtre : quatre états ; marquage : retenu et rejeté), même présentation que les carrés de couleur.
 function createPickSquare(flag) {

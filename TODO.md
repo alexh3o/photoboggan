@@ -14,19 +14,18 @@
 - [x] *feat*: `faces` add "add a face" context menu, with a toast indicating to start drawing a rectangle
 - [x] *feat*: `faces` add faces display options in context menu
 - [x] *feat*: `faces` option to display areas of ignored and not a face, in context menu
-- [ ] *feat*: `UI` option to display files quantity in folder tree
+- [x] *feat*: `UI` option to display files quantity in folder tree
 - [x] *refactor*: `UI` design critique of keywords context menu
 
 ## 💡 Ideas / Longer term / On hold
 
-- [ ] *style*: `UI` make star rating filter in filters more visual
+- [x] *style*: `UI` make star rating filter in filters more visual
 - [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
 - [x] *chore*: Add **Linux** release
   - [x] *fix*: **No trash** available (but it mentions deletion is definitive)
   - [x] *fix*: **Cannot move window** by title bar
   - [ ] **Test** linux release (more)
-- [ ] *feat*: `Info` add **total photo quantity** as well as quantity per root folder and drive" in "About" screen
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution

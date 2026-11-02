@@ -72,11 +72,12 @@
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </button>
             <div id="filter-body-rating-color" class="filter-group-body" hidden>
-              <select id="rating-filter" aria-label="Note" data-i18n-aria-label="Rating">
-                <option value="-1" data-i18n="All ratings">Toutes les notes</option><option value="0" data-i18n="≥ 1 star">≥ 1 étoile</option><option value="1" data-i18n="≥ 2 stars">≥ 2 étoiles</option>
-                <option value="2" data-i18n="≥ 3 stars">≥ 3 étoiles</option><option value="3" data-i18n="≥ 4 stars">≥ 4 étoiles</option>
-                <option value="4" data-i18n="= 5 stars">= 5 étoiles</option>
-              </select>
+              <!-- Filtre de note : pastille « non notées », cinq étoiles (générées par main.js) et bascule ≥ / = -->
+              <div id="rating-filter-bar" class="rating-filter-bar" role="group" aria-label="Note" data-i18n-aria-label="Rating">
+                <button type="button" id="rating-unrated" class="rating-chip" aria-pressed="false" title="Non notées" aria-label="Non notées" data-i18n-title="Unrated" data-i18n-aria-label="Unrated">∅</button>
+                <span id="rating-stars" class="rating-stars"></span>
+                <button type="button" id="rating-mode" class="rating-chip" aria-label="Au moins cette note">≥</button>
+              </div>
               <div id="color-filter-bar" class="color-bar" role="group" aria-label="Couleur" data-i18n-aria-label="Color"></div>
               <div id="pick-filter-bar" class="pick-bar pick-control" role="group" aria-label="Pick" data-i18n-aria-label="Pick"></div>
             </div>

@@ -194,7 +194,7 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-collapsed-line .filter-group-title { flex: 0 0 auto; max-width: 100%; margin-right: 2px; }
 .filter-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
 .filter-group-body { padding: 6px 4px 2px; }
-.filter-group-body #rating-filter { margin-bottom: 8px; }
+.filter-group-body .rating-filter-bar { margin-bottom: 8px; }
 .filter-two-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
 .filter-two-columns input { min-width: 0; }
 .filter-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
@@ -223,7 +223,15 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .btn-clear-filters:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); color: var(--text-strong); }
 /* Masqué, le bouton garde sa place : l'en-tête ne change pas de hauteur quand le premier filtre apparaît */
 .btn-clear-filters.hidden { visibility: hidden; pointer-events: none; }
-#rating-filter { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 6px; }
+/* Filtre de note : pastille « non notées », étoiles (remplies jusqu'à la note choisie), bascule ≥ / = ; mêmes gabarit et bordures que les carrés de couleur. */
+.rating-filter-bar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+.rating-stars { display: flex; flex: 1 1 auto; min-width: 0; gap: 0; }
+.rating-star { flex: 1 1 0; min-width: 0; background: transparent; border: 0; padding: 0; font-size: 1.75rem; line-height: 2rem; height: 2rem; color: var(--text-dim); cursor: pointer; }
+.rating-star:hover, .rating-star.preview { color: #ffd43b; opacity: 0.7; }
+.rating-star.active { color: #ffd43b; opacity: 1; }
+.rating-chip { flex: 0 0 auto; min-width: 1.75rem; height: 1.75rem; padding: 0 4px; border: 1px solid var(--control-border); border-radius: 3px; background: var(--control-bg); color: var(--text-strong); font-size: 1rem; line-height: 1; cursor: pointer; }
+.rating-chip.active { outline: 2px solid var(--btn-text); outline-offset: 1px; }
+.rating-chip:disabled { opacity: 0.4; cursor: default; }
 #keyword-filter-input, #filename-filter-input { width: 100%; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.45rem; }
 .color-bar { display: flex; flex-wrap: nowrap; gap: 2px; }
 .color-square { position: relative; width: 1.25rem; height: 1.25rem; padding: 0; border: 1px solid var(--control-border); border-radius: 3px; background: var(--flag-color); }

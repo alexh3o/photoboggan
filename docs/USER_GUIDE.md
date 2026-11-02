@@ -96,7 +96,7 @@ Filters are in the left panel and **combine with each other**. The grid shows th
 
 | Filter               | How it works                                                                                                                                        |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ratings & Colors** | Minimum rating (*≥ 1 star* … *= 5 stars*), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
+| **Ratings & Colors** | Five clickable stars (click the active star again to clear), a *∅* chip for unrated photos, a *≥ / =* toggle (at least / exactly N stars), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
 | **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter.                                |
 | **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                                                    |
 | **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                                                            |
