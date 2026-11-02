@@ -16,6 +16,14 @@
 - [x] *feat*: `faces` option to display areas of ignored and not a face, in context menu
 - [x] *feat*: `UI` option to display files quantity in folder tree
 - [x] *refactor*: `UI` design critique of keywords context menu
+- [x] *feat*: `maps` choose privacy or not on downloaded maps. No further zoom if private
+- [ ] *feat*: `maps` additional "get missing maps online" setting if zone is not private
+- [ ] *feat*: `maps` UI to edit photos location
+- [x] *feat*: `maps` add filter with/without geolocation
+- [ ] *fix*: `map` map widget becomes unreadable on small info panel width, if there are many keywords for instance
+- [ ] *refactor*: `maps` offer to write faces when leaving review faces screen
+- [ ] *fix*: `maps` "la carte ne peut pas s'afficher sur cet ordinateur (webgl indisponible)" (when coming from non offline cached or non geolocated photo to offline available zoned photo, solved by F5)
+- [ ] *chore*: `dev` unlink dev and build settings
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -30,14 +38,17 @@
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected*
+- [ ] *fix*: vulnerability npm audit detected by claude
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `internet` **Map screen**
-- [ ] *feat*: `internet` add a **map widget** in info panel
+- [x] *feat*: `internet` add a **map widget** in info panel
 - [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `faces` resize / move face area
+- [ ] *feat*: `maps` add world map download with user chosen level, host on github
+- [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected (do not use as private meanwhile)
 
 ## ❄️ Cold storage
 
@@ -55,4 +66,4 @@
 
 - [ ] Test Linux Release
 - [ ] Restoring data from data folder
-- [ ] Design critique of actions menus
+- [ ] `maps` handling of photos in 2 zones, eventually with different level
