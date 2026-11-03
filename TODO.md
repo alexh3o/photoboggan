@@ -3,16 +3,10 @@
 ## 🚀 Next in line
 
 - [ ] *docs*: technical documentation
-- [x] *feat*: `maps` choose privacy or not on downloaded maps. No further zoom if private
 - [ ] *feat*: `maps` additional "get missing maps online" setting if zone is not private
-- [x] *feat*: `maps` UI to edit photos location
-- [x] *feat*: `maps` add filter with/without geolocation
-- [x] *fix*: `map` map widget becomes unreadable on small info panel width, if there are many keywords for instance
-- [ ] *refactor*: `maps` offer to write faces when leaving review faces screen
-- [x] *fix*: `maps` "la carte ne peut pas s'afficher sur cet ordinateur (webgl indisponible)" (when coming from non offline cached or non geolocated photo to offline available zoned photo, solved by F5)
+- [ ] *refactor*: `faces` offer to write faces when leaving review faces screen
 - [ ] *chore*: `dev` unlink dev and build settings
-- [ ] *feat*: virtual albums
-- [ ] *feat*: filter albums
+- [ ] *feat*: add option to remove star ratings when copying or resizing, enabled by default
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -29,8 +23,6 @@
 
 ## ⚖️ Undecided
 
-- [x] *feat*: `internet` **Map screen**
-- [x] *feat*: `internet` add a **map widget** in info panel
 - [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `faces` resize / move face area
@@ -40,7 +32,7 @@
 - [ ] *feat*: slideshow
 - [ ] *feat*: stats
 - [ ] *feat*: histogram
-- [ ] *feat*: cancellations verywhere
+- [ ] *feat*: cancellations everywhere
 
 ## ❄️ Cold storage
 
@@ -59,3 +51,4 @@
 - [ ] Test Linux Release
 - [ ] Restoring data from data folder
 - [ ] `maps` handling of photos in 2 zones, eventually with different level
+- [ ] Check effect of 50000 max photos in the grid: is it visible in usage ?
