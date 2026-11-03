@@ -1520,6 +1520,11 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (erased.length || located.length) menuItems.push(menuSeparator());
   if (erased.length) menuItems.push(menuButton(withCount(t('Restore geolocation'), erased), () => api.restoreGeolocation(erased)));
   if (located.length) menuItems.push(menuButton(withCount(t('Erase geolocation…'), located), () => api.eraseGeolocation(located), { danger: true }));
+  // Album manuel affiché : retrait de l'album (les fichiers restent où ils sont), distinct de la suppression qui suit.
+  const manualAlbum = api.getCurrentManualAlbum?.();
+  if (manualAlbum) {
+    menuItems.push(menuSeparator(), menuButton(withCount(t('Remove from album "{name}"', { name: manualAlbum.name }), targets), () => api.removeFromAlbum(targets)));
+  }
   menuItems.push(
     menuSeparator(),
     menuButton(targets.length > 1 ? `${t('Delete')} (${targets.length})` : t('Delete'), () => confirmAndDelete(targets), { danger: true, shortcut: t('Delete Key') }),
@@ -1784,6 +1789,8 @@ function onContextMenu(event) {
   if (target?.closest('.person-item, .person-tile')) return;
   // Arborescence des mots-clés : son menu est ouvert par keywords-panel.js (openContextMenuAt).
   if (target?.closest('#keyword-tree')) return;
+  // Section Albums : son menu est ouvert par albums-panel.js (openContextMenuAt).
+  if (target?.closest('#albums-section')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');

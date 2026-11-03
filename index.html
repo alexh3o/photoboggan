@@ -46,6 +46,11 @@
         <!-- Sections repliables Dossiers et Personnes (état mémorisé : faces-panel.js) -->
         <h3 class="sidebar-block-title"><button type="button" id="folders-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="folder-tree"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Folders">Dossiers</span></button></h3>
         <ul id="folder-tree"></ul>
+        <!-- Albums virtuels (dossiers virtuels, albums manuels et intelligents) : albums-panel.js ; n'existent que dans la base -->
+        <section id="albums-section" class="albums-section" aria-labelledby="albums-title">
+          <h3 id="albums-title" class="sidebar-block-title"><button type="button" id="albums-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="albums-list"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Albums">Albums</span></button></h3>
+          <ul id="albums-list" class="albums-list"></ul>
+        </section>
         <!-- Personnes lues dans les zones de visage des fichiers (faces-panel.js) ; masquée tant que la lecture des visages est désactivée -->
         <section id="persons-section" class="persons-section" aria-labelledby="persons-title" hidden>
           <div class="sidebar-block-header">
@@ -65,6 +70,8 @@
           </div>
           <span id="filtered-photos-count" class="selection-count"></span>
           <div id="active-filter-badges" class="filter-badges" aria-live="polite"></div>
+          <!-- Album intelligent ouvert : filtres hérités du parent (grisés) et critères propres sans contrôle (dossier, zone de carte) : main.js -->
+          <div id="album-filter-info" class="album-filter-info" hidden></div>
           <div id="filters-body">
           <!-- Accordéon : un seul groupe déplié à la fois (voir « ACCORDÉON DES FILTRES » dans main.js). Déplié : titre(s) et contrôles ; replié : titre + résumé sur une ligne compacte. -->
           <div class="filter-group" data-filter-group="rating-color">

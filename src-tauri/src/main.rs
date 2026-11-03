@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod albums;
 mod db;
 mod exif;
 mod exiftool;
@@ -2208,6 +2209,18 @@ fn main() {
             face_models::download_face_models,
             face_models::import_face_models,
             face_models::set_internet_allowed,
+            albums::get_album_tree,
+            albums::create_album_node,
+            albums::rename_album_node,
+            albums::delete_album_node,
+            albums::move_album_node,
+            albums::copy_album_node,
+            albums::set_album_filters,
+            albums::get_album_photos,
+            albums::get_album_memberships,
+            albums::add_photos_to_album,
+            albums::remove_photos_from_album,
+            albums::replace_album_photos,
             private_maps::list_private_zones,
             private_maps::estimate_private_zone,
             private_maps::add_private_zone,

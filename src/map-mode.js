@@ -48,6 +48,15 @@ export function positionOf(photo) {
 export const hasPendingPosition = photo => pending.has(photo?.id);
 export const isMapModeOpen = () => open;
 
+/** Zone visible de la carte quand le filtre « Zone visible seulement » est actif (enregistrée dans un album intelligent), sinon null. */
+export function getVisibleZone() {
+  if (!open || filterMode !== 'visible') return null;
+  const map = mapView?.getMap();
+  if (!map) return null;
+  const bounds = map.getBounds();
+  return { south: bounds.getSouth(), north: bounds.getNorth(), west: bounds.getWest(), east: bounds.getEast() };
+}
+
 /** Filtre « Zone visible seulement » : vrai si la photo reste affichée dans la grille. */
 export function passesMapFilter(photo) {
   if (!open || filterMode !== 'visible') return true;

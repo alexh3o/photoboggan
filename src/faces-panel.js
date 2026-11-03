@@ -132,6 +132,20 @@ export function personFilterMatches(photo) {
   return Boolean(photoPersons) && personFilters.every(id => photoPersons.has(id));
 }
 
+// Albums intelligents (albums-panel.js, main.js) : personnes du filtre enregistrées dans un album, rétablies à son ouverture (sans relancer le
+// filtrage : l'appelant le fait), et test d'une photo contre une liste de personnes (ET) qui n'est pas le filtre en cours.
+export function setPersonFilterIds(ids) {
+  personFilters = Array.isArray(ids) ? ids.filter(id => Number.isFinite(id)) : [];
+  renderPersonFilterTags();
+  renderPersons();
+}
+
+export function photoMatchesPersonIds(photo, ids) {
+  if (!ids?.length) return true;
+  const photoPersons = faceIndex.get(photo.id);
+  return Boolean(photoPersons) && ids.every(id => photoPersons.has(id));
+}
+
 // Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
 export function clearPersonFilters() {
   personFilters = [];

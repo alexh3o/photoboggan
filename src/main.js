@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, confirmDialog, showIntegrityReport } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -14,12 +14,13 @@ import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
-import { initMapMode, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
+import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
-import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
+import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
+import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
 // AJOUT BARRE TITRE
 window.addEventListener('DOMContentLoaded', () => {
@@ -54,6 +55,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés, titres ou descriptions non écrits ou une écriture en cours
   // demandent confirmation (voir metadata-writes.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
   appWindow.onCloseRequested(async event => {
+    if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) { event.preventDefault(); return; } // filtres d'un album intelligent non enregistrés
     if (!(await confirmCloseWithPendingEdits())) event.preventDefault();
   }).catch(err => console.error("Close-request handler failed:", err));
 
@@ -650,19 +652,28 @@ async function loadFolders() {
 }
 
 async function loadPhotos() {
-  loadedPhotos = await invoke('get_photos_paginated', { 
-    offset: 0, 
-    limit: 50000, 
-    folderFilter: currentFolderFilter,
-    recursive: includeSubfolders,
-  });
+  // Album virtuel affiché : un album manuel montre son contenu ; un album intelligent part de toute la photothèque (ses filtres viennent ensuite).
+  // Dans les deux cas le dossier du disque n'intervient plus.
+  const album = getSelectedAlbum();
+  const baseAlbumId = album?.kind === 'manual' ? album.id : album?.kind === 'smart' ? getAlbumContext(album.id).baseManualId : 0;
+  if (baseAlbumId) {
+    loadedPhotos = await invoke('get_album_photos', { albumId: baseAlbumId });
+  } else {
+    loadedPhotos = await invoke('get_photos_paginated', {
+      offset: 0,
+      limit: 50000,
+      folderFilter: album ? null : currentFolderFilter,
+      recursive: includeSubfolders,
+    });
+  }
   photosLoadedOnce = true;
-  if (currentFolderFilter === null) folderTreePhotos = loadedPhotos;
+  if (!album && currentFolderFilter === null) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
   applyPhotoFilters();
   refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
+  scheduleAlbumCounts(); // les photos ont pu changer : compteurs des albums
 }
 
 function isRatingFilterActive() {
@@ -670,11 +681,11 @@ function isRatingFilterActive() {
 }
 
 // Une photo passe si elle est non notée (pastille cochée) ou si sa note correspond aux étoiles choisies (au moins N ou exactement N).
-function matchesRatingFilter(photo) {
-  if (!isRatingFilterActive()) return true;
+function matchesRatingFilter(photo, filter = ratingFilter) {
+  if (!(filter.stars > 0 || filter.unrated)) return true;
   const rating = photo.rating || 0;
-  if (ratingFilter.unrated) return rating === 0;
-  return ratingFilter.mode === 'eq' ? rating === ratingFilter.stars : rating >= ratingFilter.stars;
+  if (filter.unrated) return rating === 0;
+  return filter.mode === 'eq' ? rating === filter.stars : rating >= filter.stars;
 }
 
 function hasActiveFilters() {
@@ -683,7 +694,8 @@ function hasActiveFilters() {
   const hasKeywords = keywordFilters.length > 0;
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all';
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all'
+    || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
 
 // Grille vide : message centré selon la cause. Dossier sans photo ; photos présentes mais toutes écartées par les filtres ; sinon un message neutre.
@@ -733,8 +745,15 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (colorFilters.size === 0 || colorFilters.has(photo.color_flag || 'none'))
     && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
     && matchesDateFilter(photo)
-    && matchesLocationFilter(photo));
+    && matchesLocationFilter(photo)
+    && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
+  if (activeSmartAlbumId) {
+    const dirty = filterStateSignature() !== albumSavedSignature;
+    setAlbumDirty(dirty); // disquette de l'album intelligent ouvert
+    // Album ouvert et à jour : la grille donne son compteur sans calcul (on évite aussi qu'il reste périmé après une écriture de métadonnées).
+    if (!dirty && pathFilter === null) setAlbumCount(activeSmartAlbumId, mapCandidatePhotos.length);
+  }
   photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
   renderFilterSummaries();
   selectedIndices.clear();
@@ -795,7 +814,10 @@ function renderInfoKeywords(photo) {
   }));
 }
 
-function clearAllFilters() {
+// Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent restent.
+function resetAllFilters() {
+  albumFolder = null;
+  albumMapZone = null;
   // Réinitialise la note
   Object.assign(ratingFilter, { stars: 0, unrated: false }); // le mode (≥ / =) reste celui choisi par l'utilisateur
   updateRatingFilterControls();
@@ -833,11 +855,290 @@ function clearAllFilters() {
   // Réinitialise le lieu
   setLocationFilter('all', { apply: false });
 
+}
+
+function clearAllFilters() {
+  resetAllFilters();
   // Réapplique la liste sans aucun filtre
   applyPhotoFilters();
 }
 
 document.getElementById('btn-clear-all-filters')?.addEventListener('click', clearAllFilters);
+
+// ==========================================
+// ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js)
+// ==========================================
+// Un album intelligent enregistre ses PROPRES critères (jamais d'identifiants de photos) : note, couleurs, pick, mots-clés, noms de fichier, date,
+// personnes, lieu, dossier du disque et zone de carte. Les critères des albums intelligents parents s'y ajoutent sans pouvoir être modifiés ici.
+let albumInherited = []; // [{ name, state }] critères des albums intelligents parents, du plus éloigné au plus proche
+let albumFolder = null; // { path, recursive } : dossier du disque enregistré dans l'album ouvert (critère propre, retirable)
+let albumMapZone = null; // { south, north, west, east } : zone de carte enregistrée dans l'album ouvert
+let activeSmartAlbumId = 0; // album intelligent dont les filtres sont chargés dans l'interface (0 : aucun)
+let albumSavedSignature = ''; // état enregistré de cet album : l'écart avec l'état courant allume la disquette
+
+const normalizeFilterPath = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+const lastPathSegment = path => path.split(/[\\/]/).filter(Boolean).pop() || path;
+
+// Critères propres affichés par les contrôles de filtrage, plus le dossier et la zone de carte déjà enregistrés dans l'album ouvert.
+function captureFilterState() {
+  const state = {};
+  if (isRatingFilterActive()) state.rating = { stars: ratingFilter.stars, mode: ratingFilter.mode, unrated: ratingFilter.unrated };
+  if (colorFilters.size) state.colors = [...colorFilters].sort();
+  if (pickFilters.size) state.picks = [...pickFilters].sort();
+  if (keywordFilters.length) state.keywords = [...keywordFilters];
+  if (filenameFilters.length) state.filenames = [...filenameFilters];
+  const dateText = dateFilterInput.value.trim();
+  if (dateFilter && dateText) state.date = dateText;
+  const persons = getPersonFilterIds();
+  if (persons.length) state.persons = persons;
+  if (locationFilter !== 'all') state.location = locationFilter;
+  if (albumFolder) state.folder = albumFolder;
+  if (albumMapZone) state.mapZone = albumMapZone;
+  return state;
+}
+
+const filterStateSignature = () => JSON.stringify(captureFilterState());
+
+// « Vue actuelle » à enregistrer dans un album : hors album, le dossier affiché et la zone visible de la carte en font partie.
+function captureCurrentView() {
+  const state = captureFilterState();
+  if (!getSelectedAlbum()) {
+    if (currentFolderFilter !== null) state.folder = { path: currentFolderFilter, recursive: includeSubfolders };
+    const zone = getVisibleZone();
+    if (zone) state.mapZone = zone;
+  }
+  return state;
+}
+
+// Une photo satisfait-elle tous les critères d'un état enregistré ? (même sens que les filtres de la barre latérale)
+function matchesFilterState(photo, state) {
+  if (state.rating && !matchesRatingFilter(photo, state.rating)) return false;
+  if (state.colors && !state.colors.includes(photo.color_flag || 'none')) return false;
+  if (state.picks && !state.picks.includes(photo.pick_flag || 'none')) return false;
+  if (state.keywords && !state.keywords.every(keyword => (photo.keywords || '').split(', ').includes(keyword))) return false;
+  if (state.filenames) {
+    const name = (photo.filename || photo.path.split(/[\\/]/).pop() || '').toLowerCase();
+    if (!state.filenames.every(text => name.includes(text.toLowerCase()))) return false;
+  }
+  if (state.date) {
+    const range = parseDateFilter(state.date).filter;
+    const key = photoTimeKey(photo);
+    if (range && (key === null || key < range.from || key > range.to)) return false;
+  }
+  if (state.persons && !photoMatchesPersonIds(photo, state.persons)) return false;
+  if (state.location) {
+    const located = Number.isFinite(photo.gps_lat) && Number.isFinite(photo.gps_lon);
+    if ((state.location === 'geolocated') !== located) return false;
+  }
+  if (state.folder?.path) {
+    const folder = normalizeFilterPath(state.folder.path);
+    const path = photo.path.replace(/\\/g, '/').toLowerCase();
+    const directory = path.slice(0, path.lastIndexOf('/'));
+    if (!(state.folder.recursive ? directory === folder || directory.startsWith(`${folder}/`) : directory === folder)) return false;
+  }
+  if (state.mapZone) {
+    const { south, north, west, east } = state.mapZone;
+    if (!Number.isFinite(photo.gps_lat) || !Number.isFinite(photo.gps_lon)) return false;
+    const inLatitude = photo.gps_lat >= south && photo.gps_lat <= north;
+    const inLongitude = west <= east ? photo.gps_lon >= west && photo.gps_lon <= east : photo.gps_lon >= west || photo.gps_lon <= east;
+    if (!inLatitude || !inLongitude) return false;
+  }
+  return true;
+}
+
+// Critères d'album qui s'ajoutent aux filtres de la barre latérale : ceux des parents et les critères propres sans contrôle (dossier, zone de carte).
+function matchesAlbumCriteria(photo) {
+  if (albumInherited.length && !albumInherited.every(({ state }) => matchesFilterState(photo, state))) return false;
+  return (!albumFolder && !albumMapZone) || matchesFilterState(photo, { folder: albumFolder ?? undefined, mapZone: albumMapZone ?? undefined });
+}
+
+// Charge un état enregistré dans les contrôles (ils ont été remis à zéro avant) sans relancer le filtrage.
+function applyFilterState(state) {
+  if (state.rating) Object.assign(ratingFilter, { stars: state.rating.stars || 0, mode: state.rating.mode === 'eq' ? 'eq' : 'gte', unrated: Boolean(state.rating.unrated) });
+  updateRatingFilterControls();
+  for (const key of state.colors ?? []) colorFilters.add(key);
+  document.querySelectorAll('#color-filter-bar .color-square').forEach(button => setColorSquareChecked(button, colorFilters.has(button.dataset.flag)));
+  for (const key of state.picks ?? []) pickFilters.add(key);
+  document.querySelectorAll('#pick-filter-bar .pick-square').forEach(button => setColorSquareChecked(button, pickFilters.has(button.dataset.pick)));
+  keywordFilters = [...(state.keywords ?? [])];
+  renderKeywordFilters();
+  filenameFilters = [...(state.filenames ?? [])];
+  renderFilenameFilters();
+  if (state.date) {
+    dateFilterInput.value = state.date;
+    dateFilter = parseDateFilter(state.date).filter ?? null;
+    updateDateFilterUI('');
+  }
+  setPersonFilterIds(state.persons ?? []);
+  setLocationFilter(state.location ?? 'all', { apply: false });
+  albumFolder = state.folder ?? null;
+  albumMapZone = state.mapZone ?? null;
+}
+
+// Appelée quand l'album affiché change : entre dans un album intelligent (ses filtres remplacent tout filtre précédent) ou en sort (filtres remis à zéro).
+function syncSmartAlbumWithSelection() {
+  const album = getSelectedAlbum();
+  const smartId = album?.kind === 'smart' ? album.id : 0;
+  if (smartId === activeSmartAlbumId) return;
+  resetAllFilters();
+  albumInherited = [];
+  activeSmartAlbumId = smartId;
+  if (smartId) {
+    const context = getAlbumContext(smartId);
+    albumInherited = context.inherited;
+    applyFilterState(context.own);
+  }
+  albumSavedSignature = filterStateSignature();
+  setAlbumDirty(false);
+}
+
+// Disquette : enregistre les modifications de l'album ouvert (critères propres seulement). Renvoie vrai si c'est enregistré.
+async function saveActiveSmartAlbum() {
+  if (!activeSmartAlbumId) return true;
+  try {
+    await invoke('set_album_filters', { id: activeSmartAlbumId, filters: JSON.stringify(captureFilterState()) });
+  } catch (error) {
+    showWriteToast(t(String(error?.message ?? error)));
+    return false;
+  }
+  albumSavedSignature = filterStateSignature();
+  setAlbumDirty(false);
+  await refreshAlbums();
+  return true;
+}
+
+// « Enregistrer la vue actuelle dans cet album » : écrase les critères d'un album intelligent par ceux de la vue affichée.
+async function saveCurrentViewInto(albumId) {
+  const state = captureCurrentView();
+  try {
+    await invoke('set_album_filters', { id: albumId, filters: JSON.stringify(state) });
+  } catch (error) {
+    showWriteToast(t(String(error?.message ?? error)));
+    return;
+  }
+  await refreshAlbums();
+  if (albumId === activeSmartAlbumId) {
+    // L'album ouvert prend la vue enregistrée : plus rien n'est en attente.
+    resetAllFilters();
+    applyFilterState(state);
+    albumSavedSignature = filterStateSignature();
+    setAlbumDirty(false);
+    applyPhotoFilters();
+  }
+}
+
+// Compteurs des albums intelligents et des dossiers virtuels. Un album intelligent compte les photos de toute la photothèque (ou du contenu de son
+// parent manuel ou intelligent) qui satisfont ses critères enregistrés ; un dossier virtuel compte les photos DISTINCTES de tout ce qu'il contient.
+// Le calcul relit la liste complète des photos : il est différé et regroupé (une seule exécution à la fois), et inutile sans album.
+let albumCountsTimer = null;
+let albumCountsRunning = false;
+let albumCountsAgain = false;
+
+function scheduleAlbumCounts() {
+  clearTimeout(albumCountsTimer);
+  albumCountsTimer = setTimeout(computeAlbumCounts, 500);
+}
+
+async function computeAlbumCounts() {
+  const nodes = getAlbumNodes();
+  if (!nodes.some(node => node.kind !== 'manual')) return; // les albums manuels viennent déjà avec leur compteur
+  if (!isAlbumsSectionExpanded()) return; // bloc replié : rien à afficher, le calcul se fait à la prochaine ouverture
+  if (albumCountsRunning) { albumCountsAgain = true; return; }
+  albumCountsRunning = true;
+  try {
+    const [everything, pairs] = await Promise.all([
+      invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: null, recursive: true }),
+      invoke('get_album_memberships'),
+    ]);
+    const byId = new Map(everything.map(photo => [photo.id, photo]));
+    const members = new Map();
+    for (const [albumId, photoId] of pairs) {
+      if (!byId.has(photoId)) continue;
+      if (!members.has(albumId)) members.set(albumId, new Set());
+      members.get(albumId).add(photoId);
+    }
+    const children = new Map();
+    for (const node of nodes) children.set(node.parent_id, [...(children.get(node.parent_id) ?? []), node]);
+    const sets = new Map();
+    const setOf = node => {
+      if (sets.has(node.id)) return sets.get(node.id);
+      const result = new Set();
+      if (node.kind === 'manual') {
+        for (const id of members.get(node.id) ?? []) result.add(id);
+      } else if (node.kind === 'smart') {
+        // Point de départ : le contenu du parent (manuel ou intelligent, qui a déjà ses propres critères), sinon toute la photothèque.
+        const parent = nodes.find(candidate => candidate.id === node.parent_id);
+        const start = parent && parent.kind !== 'folder' ? setOf(parent) : byId.keys();
+        let own = {};
+        try { own = JSON.parse(node.filters) || {}; } catch { /* critères illisibles : album sans filtre */ }
+        for (const id of start) if (matchesFilterState(byId.get(id), own)) result.add(id);
+      } else {
+        for (const child of children.get(node.id) ?? []) for (const id of setOf(child)) result.add(id);
+      }
+      sets.set(node.id, result);
+      return result;
+    };
+    setAlbumCounts(new Map(nodes.map(node => [node.id, setOf(node).size])));
+  } catch (error) {
+    console.error('Album counts unavailable:', error);
+  } finally {
+    albumCountsRunning = false;
+    if (albumCountsAgain) { albumCountsAgain = false; scheduleAlbumCounts(); }
+  }
+}
+
+// Libellés courts des critères d'un état, pour les étiquettes grisées des filtres hérités.
+function describeFilterState(state) {
+  const labels = [];
+  if (state.rating) labels.push([state.rating.unrated ? '∅' : '', state.rating.stars > 0 ? `${state.rating.mode === 'eq' ? '=' : '≥'} ${state.rating.stars} ★` : ''].filter(Boolean).join(' + '));
+  for (const key of state.colors ?? []) labels.push(colorFlagLabels.get(key) ?? key);
+  for (const key of state.picks ?? []) labels.push(t(PICK_FLAGS.find(flag => flag.key === key)?.label ?? key));
+  labels.push(...(state.keywords ?? []), ...(state.filenames ?? []));
+  if (state.date) labels.push(state.date);
+  if (state.persons?.length) labels.push(`${t('People')} (${state.persons.length})`);
+  if (state.location) labels.push(t(state.location === 'geolocated' ? 'Geolocated' : 'Not geolocated'));
+  if (state.folder?.path) labels.push(t('Folder: {name}', { name: lastPathSegment(state.folder.path) }));
+  if (state.mapZone) labels.push(t('Map area'));
+  return labels;
+}
+
+// Bloc sous les badges des filtres : critères hérités des parents (grisés, non modifiables) et critères propres sans contrôle (dossier, zone de carte).
+function renderAlbumFilterInfo() {
+  const container = document.getElementById('album-filter-info');
+  if (!container) return;
+  const rows = [];
+  for (const { name, state } of albumInherited) {
+    const labels = describeFilterState(state);
+    if (!labels.length) continue;
+    const row = document.createElement('div');
+    row.className = 'album-filter-row inherited';
+    row.title = t('Inherited from "{name}": these filters cannot be changed here', { name });
+    const title = document.createElement('span');
+    title.className = 'album-filter-title';
+    title.textContent = t('Inherited from "{name}"', { name });
+    row.append(title, ...labels.map(text => Object.assign(document.createElement('span'), { className: 'filter-tag tag-muted', textContent: text })));
+    rows.push(row);
+  }
+  const own = [];
+  if (albumFolder) own.push([() => { albumFolder = null; }, t('Folder: {name}', { name: lastPathSegment(albumFolder.path) }), albumFolder.path]);
+  if (albumMapZone) own.push([() => { albumMapZone = null; }, t('Map area'), t('Map area saved in this album')]);
+  if (own.length) {
+    const row = document.createElement('div');
+    row.className = 'album-filter-row';
+    for (const [clear, text, title] of own) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'filter-tag tag-location';
+      button.textContent = `${text} ×`;
+      button.title = title;
+      button.addEventListener('click', () => { clear(); applyPhotoFilters(); });
+      row.append(button);
+    }
+    rows.push(row);
+  }
+  container.replaceChildren(...rows);
+  container.hidden = rows.length === 0;
+}
 
 function renderKeywordFilters() {
   const keywords = new Set();
@@ -1045,6 +1346,7 @@ function renderFilterSummaries() {
 
   renderFilterTags();
   renderActiveFilterBadges();
+  renderAlbumFilterInfo();
 }
 
 // Badges du bloc Filtres replié : un par type de filtre actif (note, couleur, mots-clés, nom de fichier, personnes, date, fichiers en échec),
@@ -1085,7 +1387,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
   if (showFolderCounts && !fromCounts) scheduleFolderCounts(); // les photos ont pu changer (scan, déplacement, suppression…)
 
   const allItem = document.createElement('li');
-  allItem.className = `folder-tree-item ${currentFolderFilter === null ? 'active' : ''}`;
+  allItem.className = `folder-tree-item ${currentFolderFilter === null && !getSelectedAlbum() ? 'active' : ''}`;
   allItem.innerHTML = `<span>📚</span> <span class="folder-tree-name">${t('All photos')}</span>`;
   if (showFolderCounts) allItem.append(folderCountElement(folderCountsTotal, 'in this folder'));
   allItem.addEventListener('click', () => selectFolder(null));
@@ -1119,7 +1421,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
   if (showEmptyFolders) for (const folderPath of diskFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''), true);
   const renderNode = (node, parentElement, depth, isRoot = false) => {
     const li = document.createElement('li');
-    li.className = `folder-tree-item ${currentFolderFilter && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
+    li.className = `folder-tree-item ${currentFolderFilter && !getSelectedAlbum() && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
     li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
     if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
     li.style.paddingLeft = `${10 + depth * 16}px`;
@@ -1257,6 +1559,13 @@ function rememberCurrentFolder() {
   else localStorage.setItem('lastFolderFilter', currentFolderFilter);
 }
 function selectFolder(path) {
+  // Album intelligent modifié : Enregistrer / Abandonner / Annuler avant de le quitter.
+  if (isSelectedAlbumDirty()) {
+    confirmLeaveAlbum().then(proceed => { if (proceed) selectFolder(path); });
+    return;
+  }
+  clearAlbumSelection(); // une seule entrée active dans la barre latérale
+  syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
   currentFolderFilter = path;
   rememberCurrentFolder();
   renderFolderTree();
@@ -4418,7 +4727,7 @@ gridContainer.addEventListener('pointerdown', event => {
   // (le glissement simple fait défiler la grille).
   const pressedThumbnail = (event.shiftKey || event.ctrlKey) && event.target instanceof Element ? event.target.closest('.thumbnail') : null;
   if (pressedThumbnail) {
-    photoDrag = { pointerId: event.pointerId, mode: event.shiftKey ? 'move' : 'copy', startX: event.clientX, startY: event.clientY, index: Number(pressedThumbnail.dataset.index), active: false, cancelled: false, targets: [], ghost: null, dropItem: null };
+    photoDrag = { pointerId: event.pointerId, mode: dragModeFrom(event), overAlbum: false, overMap: false, lastX: 0, lastY: 0, startX: event.clientX, startY: event.clientY, index: Number(pressedThumbnail.dataset.index), active: false, cancelled: false, targets: [], ghost: null, dropItem: null };
     return;
   }
   gridDrag = { pointerId: event.pointerId, startY: event.clientY, startScrollTop: gridContainer.scrollTop, active: false, stoppedInertia, samples: [] };
@@ -4480,6 +4789,53 @@ function folderItemAt(x, y) {
   return element instanceof Element ? element.closest('#folder-tree .folder-tree-item[data-folder-path]') : null;
 }
 
+// Mode du glissement d'après les touches tenues À CET INSTANT (Maj : déplacer, Ctrl : copier ; Maj l'emporte), null si aucune. Les touches peuvent
+// changer pendant le glissement : le mode et le badge suivent.
+const dragModeFrom = modifiers => (modifiers.shiftKey ? 'move' : modifiers.ctrlKey ? 'copy' : null);
+
+// Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun sans modificateur. Au-dessus
+// d'un album, toujours le « + » vert : déposer sur un album ajoute les photos à l'album (rien n'est déplacé), quelle que soit la touche tenue.
+// Au-dessus de la carte (Maj tenue), une épingle rouge : les photos y seront géolocalisées.
+function paintPhotoDragBadge(drag) {
+  if (!drag.ghost) return;
+  drag.ghost.classList.toggle('pin', drag.overMap);
+  drag.ghost.classList.toggle('copy', !drag.overMap && (drag.overAlbum || drag.mode === 'copy'));
+  drag.ghost.classList.toggle('move', !drag.overMap && !drag.overAlbum && drag.mode === 'move');
+}
+
+// Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule de la carte.
+// Appelée à chaque mouvement de la souris et à chaque appui ou relâchement de Maj / Ctrl.
+function updatePhotoDragState(drag, x, y, modifiers) {
+  drag.mode = dragModeFrom(modifiers);
+  drag.lastX = x;
+  drag.lastY = y;
+  drag.overAlbum = Boolean(albumItemAt(x, y));
+  // Au-dessus de la carte (avec ou sans Maj / Ctrl) : réticule, coordonnées visées, et image décalée pour ne pas masquer le point de dépôt.
+  drag.overMap = dragOverMap(x, y); // quelle que soit la touche tenue
+  document.body.classList.toggle('over-map', drag.overMap);
+  paintPhotoDragBadge(drag);
+  const ghostOffset = drag.overMap ? 30 : 12;
+  drag.ghost.style.transform = `translate(${x + ghostOffset}px, ${y + ghostOffset}px)`;
+}
+
+// Photos lâchées sur un dossier du disque sans Maj ni Ctrl : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
+function askCopyOrMoveToFolder(event, targets, folderPath) {
+  const header = targets.length === 1 ? (targets[0].filename || targets[0].path.split(/[\\/]/).pop()) : tp('{count} photo selected', targets.length);
+  openContextMenuAt(event, [
+    { header },
+    { separator: true },
+    { label: t('Copy'), onSelect: () => copyPhotosToFolder(targets, folderPath) },
+    { label: t('Move'), onSelect: () => movePhotosToFolder(targets, folderPath) },
+    { label: t('Cancel'), onSelect: () => {} },
+  ]);
+}
+
+// Album manuel de la section Albums sous le curseur (cible d'ajout de photos).
+function albumItemAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  return element instanceof Element ? element.closest('#albums-list .album-item.album-manual') : null;
+}
+
 // Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
 function startPhotoDrag(drag) {
   if (!selectedIndices.has(drag.index)) {
@@ -4526,12 +4882,8 @@ gridContainer.addEventListener('pointermove', event => {
     if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < PHOTO_DRAG_THRESHOLD) return;
     if (!startPhotoDrag(drag)) { photoDrag = null; return; }
   }
-  // Au-dessus de la carte (Maj + glisser seulement) : réticule, coordonnées visées, et image décalée pour ne pas masquer le point de dépôt.
-  const overMap = drag.mode === 'move' && dragOverMap(event.clientX, event.clientY);
-  document.body.classList.toggle('over-map', overMap);
-  const ghostOffset = overMap ? 30 : 12;
-  drag.ghost.style.transform = `translate(${event.clientX + ghostOffset}px, ${event.clientY + ghostOffset}px)`;
-  const item = folderItemAt(event.clientX, event.clientY);
+  updatePhotoDragState(drag, event.clientX, event.clientY, event);
+  const item = folderItemAt(event.clientX, event.clientY) ?? albumItemAt(event.clientX, event.clientY);
   if (item !== drag.dropItem) {
     drag.dropItem?.classList.remove('drop-target');
     item?.classList.add('drop-target');
@@ -4549,14 +4901,31 @@ function endPhotoDrag(event, released) {
   suppressGridClick = true;
   setTimeout(() => { suppressGridClick = false; }, 0);
   if (!released || drag.cancelled) return;
-  if (drag.mode === 'move' && dropOnMap(event.clientX, event.clientY, drag.targets)) return; // déposées sur la carte : position choisie
+  drag.mode = dragModeFrom(event); // touches au moment du relâchement
+  if (dropOnMap(event.clientX, event.clientY, drag.targets)) return; // déposées sur la carte : position choisie
+  // Déposées sur un album manuel : elles y sont ajoutées (aucun fichier n'est déplacé ni copié, quel que soit Maj ou Ctrl).
+  const albumItem = albumItemAt(event.clientX, event.clientY);
+  if (albumItem) {
+    addPhotosToAlbum(Number(albumItem.dataset.albumId), drag.targets.map(photo => photo.id).filter(id => Number.isFinite(id)));
+    return;
+  }
   const folderPath = folderItemAt(event.clientX, event.clientY)?.dataset.folderPath;
   if (!folderPath) return;
+  if (!drag.mode) { askCopyOrMoveToFolder(event, drag.targets, folderPath); return; } // sans Maj ni Ctrl au relâchement : on demande
   if (drag.mode === 'copy') copyPhotosToFolder(drag.targets, folderPath);
   else movePhotosToFolder(drag.targets, folderPath);
 }
 gridContainer.addEventListener('pointerup', event => endPhotoDrag(event, true));
 gridContainer.addEventListener('pointercancel', event => endPhotoDrag(event, false));
+// Maj ou Ctrl pressé ou relâché pendant le glissement (souris immobile) : mode et badge changent aussitôt.
+function onPhotoDragModifierKey(event) {
+  const drag = photoDrag;
+  if (!drag?.active || drag.cancelled || (event.key !== 'Shift' && event.key !== 'Control')) return;
+  updatePhotoDragState(drag, drag.lastX, drag.lastY, event);
+}
+window.addEventListener('keydown', onPhotoDragModifierKey);
+window.addEventListener('keyup', onPhotoDragModifierKey);
+
 // Échap pendant le glissement : annule le déplacement (le relâché du bouton ne fait alors plus rien).
 window.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || !photoDrag?.active || photoDrag.cancelled) return;
@@ -5080,6 +5449,9 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
 }
 
 initPhotoActions({
+  // Album manuel affiché (nom pour le menu) et retrait de photos de cet album (albums-panel.js).
+  getCurrentManualAlbum: () => { const album = getSelectedAlbum(); return album?.kind === 'manual' ? album : null; },
+  removeFromAlbum: targets => removePhotosFromSelectedAlbum(targets.map(photo => photo.id)),
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
   getActiveIndex: () => lastSelectedIndex,
@@ -5131,6 +5503,19 @@ initPhotoActions({
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
 initLocationPanel({ showToast: message => showWriteToast(message) });
+// Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
+initAlbumsPanel({
+  showToast: message => showWriteToast(message),
+  // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
+  onSelectionChange: () => { syncSmartAlbumWithSelection(); loadPhotos(); },
+  // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
+  onTreeChanged: () => scheduleAlbumCounts(),
+  // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».
+  saveActiveAlbum: () => saveActiveSmartAlbum(),
+  saveCurrentViewInto: albumId => saveCurrentViewInto(albumId),
+  // Identifiants (catalogue) des photos sélectionnées dans la grille, pour « Ajouter la sélection à cet album ».
+  getSelectedPhotoIds: () => [...selectedIndices].map(index => photos[index]?.id).filter(id => Number.isFinite(id)),
+});
 // Effacement / restauration de la géolocalisation : les coordonnées relues sont reportées sur les photos chargées (pastille, filtre Lieu, carte).
 initGeoTools({
   showToast: message => showWriteToast(message),

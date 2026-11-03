@@ -123,6 +123,8 @@ pub fn init_db(db_path: &str) -> DbPool {
 
     // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
     crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
+    // Albums virtuels (dossiers, albums manuels et intelligents) : voir albums.rs.
+    crate::albums::init_schema(&conn).expect("Album tables could not be created");
     // Visages et personnes : voir faces.rs.
     crate::faces::init_schema(&conn).expect("Face tables could not be created");
     // Coordonnées GPS effacées (sauvegarde pour « Restaurer la géolocalisation ») : voir geolocation.rs.
@@ -187,12 +189,12 @@ pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), St
 }
 
 /// Colonnes lues par `photo_from_row`, dans cet ordre.
-const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
+pub(crate) const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
      file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon";
 
 /// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
 /// jamais écartée de la liste parce qu'une de ses colonnes est vide.
-fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo> {
+pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo> {
     fn text(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<String> {
         Ok(row.get::<_, Option<String>>(index)?.unwrap_or_default())
     }
