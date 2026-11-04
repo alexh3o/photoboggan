@@ -35,7 +35,6 @@
 - [x] *feat*: histogram
 - [ ] *feat*: cancellations everywhere
 - [ ] *feat*: internal metadata writer activated => no exif reading
-- [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected (do not use as private meanwhile)
 - [ ] *refactor*: `UI` improve toasts placement / visibility
 
 ## ❄️ Cold storage
@@ -44,6 +43,7 @@
 - [ ] *feat*: `Controls` **keyboard shortcuts** customizing
 - [ ] *feat*: `Controls` Add **mouse settings** screen
 - [ ] *feat*: `formats` live photos
+- [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected => precision improved but not 100% fixed,  do not use as private meanwhile
 
 ## ❌ Ruled out
 

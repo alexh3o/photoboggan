@@ -253,6 +253,8 @@ pub fn add_photos_listed(conn: &Connection, album_id: i64, photo_ids: &[i64]) ->
 }
 
 /// Comme `add_photos_listed`, mais ne renvoie que le nombre de photos ajoutées.
+/// Réservée aux tests : l'application utilise `add_photos_listed`.
+#[cfg(test)]
 pub fn add_photos(conn: &Connection, album_id: i64, photo_ids: &[i64]) -> Result<usize, String> {
     add_photos_listed(conn, album_id, photo_ids).map(|added| added.len())
 }
