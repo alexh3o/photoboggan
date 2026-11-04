@@ -454,7 +454,7 @@ body.no-pick-labels .pick-control, body.no-pick-labels .pick-indicator { display
 html[lang="en"] .exif-label::after { content: ":"; }
 .exif-section li { margin-bottom: 0.6rem; font-size: 0.75rem; color: var(--text-faint); }
 .exif-section li span { color: var(--text-strong); display: block; margin-top: 3px; font-size: 0.8rem; overflow-wrap: anywhere; }
-.exif-section li span#exif-manufacturer, .exif-section li span#exif-model,  
+.exif-section li span#exif-camera,
   .exif-section li span#exif-size, .exif-section li span#exif-shutter,
   .exif-section li span#exif-aperture, .exif-section li span#exif-focal, .exif-section li span#exif-iso {display: inline;}
 

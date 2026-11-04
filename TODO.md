@@ -3,19 +3,13 @@
 ## 🚀 Next in line
 
 - [ ] *docs*: technical documentation
-- [x] *refactor*: `faces` offer to write faces when leaving review faces screen
 - [ ] *chore*: `dev` unlink dev and build settings
-- [x] *feat*: add option to remove star ratings when copying or resizing, enabled by default (exiftools only)
-- [x] *fix*: map doesn't load, photo locations still placed
-- [x] *feat*: `maps` embed default map style
-- [x] *refactor*: `maps` rearrange settings modal with new maps tab
-- [x] *fix*: `UI` mask uncomplete display (text only flash before UI loads)
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: Find RAW with datetime and camera model
-- [ ] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
-- [x] *feat*: `Controls` "**Open with**" keyboard shortcuts
+- [ ] *feat*: find duplicates
+- [x] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
 - [x] *chore*: Add **Linux** release
   - [ ] **Test** linux release (more)
@@ -29,10 +23,7 @@
 - [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `faces` resize / move face area
-- [ ] *feat*: find duplicates
-- [x] *feat*: slideshow
 - [ ] *feat*: stats
-- [x] *feat*: histogram
 - [ ] *feat*: cancellations everywhere
 - [ ] *feat*: internal metadata writer activated => no exif reading
 - [ ] *refactor*: `UI` improve toasts placement / visibility

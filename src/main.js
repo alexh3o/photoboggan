@@ -2189,8 +2189,9 @@ function updateUIOnSelection() {
 
     document.getElementById('exif-filename').textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '-';
     document.getElementById('exif-date').textContent = photo.date_taken || '-';
-    document.getElementById('exif-manufacturer').textContent = photo.manufacturer || '-';
-    document.getElementById('exif-model').textContent = photo.camera_model || '-';
+    // Fabricant et modèle regroupés en un seul champ « Camera », séparés par une espace.
+    document.getElementById('exif-camera').textContent =
+      [photo.manufacturer, photo.camera_model].map(v => (v || '').trim()).filter(Boolean).join(' ') || '-';
     document.getElementById('exif-lens').textContent = photo.lens_model || '-';
     document.getElementById('exif-focal').textContent = photo.focal_length || '-';
     document.getElementById('exif-aperture').textContent = formatAperture(photo.aperture);
