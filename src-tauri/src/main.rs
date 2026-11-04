@@ -2065,6 +2065,7 @@ fn main() {
         .setup(|app| {
             let handle = app.handle();
             exiftool::init(handle.path().resource_dir().ok());
+            private_maps::init_bundled_style(handle.path().resource_dir().ok());
             let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
@@ -2231,6 +2232,8 @@ fn main() {
             private_maps::import_private_zone,
             private_maps::get_private_tile,
             private_maps::get_private_resource,
+            private_maps::has_downloaded_map_style,
+            private_maps::reset_map_style,
             private_maps::locate_private_points,
             private_maps::set_private_zone_privacy,
             geolocation::get_erased_location_ids,

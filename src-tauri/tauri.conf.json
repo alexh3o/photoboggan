@@ -62,7 +62,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "vendor/exiftool/": "exiftool/"
+      "vendor/exiftool/": "exiftool/",
+      "resources/map-style/": "map-style/"
     },
     "linux": {
       "deb": { "depends": ["perl"] },

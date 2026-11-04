@@ -6,7 +6,8 @@
 - [x] *refactor*: `faces` offer to write faces when leaving review faces screen
 - [ ] *chore*: `dev` unlink dev and build settings
 - [x] *feat*: add option to remove star ratings when copying or resizing, enabled by default (exiftools only)
-- [ ] *fix*: map doesn't load, photo locations still placed
+- [x] *fix*: map doesn't load, photo locations still placed
+- [ ] *fox*: `UI` mask uncomplete display (text only flash before UI loads)
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -19,7 +20,6 @@
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *fix*: vulnerability npm audit detected by claude
 
 ## ⚖️ Undecided
 
@@ -46,6 +46,7 @@
 
 - [ ] *feat*: `faces` **better resolution for faces** view thumbnails : can be demanding on storage with big collections, goes against staying light principle
 - [ ] *feat*: **Image editing**, cropping : not a goal of the app
+- [ ] *fix*: vulnerability npm audit detected by claude: dev problem only
 
 ## 🧪 To be tested & potential bugs to be confirmed
 

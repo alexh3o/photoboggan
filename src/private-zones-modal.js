@@ -9,6 +9,7 @@ import { t, tp, getLanguage } from './i18n.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
 import { createMapView } from './map-view.js';
 import { isMapNetworkAllowed } from './map-config.js';
+import { isMapStyleRefreshEnabled } from './maps-settings.js';
 import { startZoneDrawing } from './zone-drawing.js';
 import {
   DETAIL_LEVELS, MAX_ZONE_TILES, reloadZones, ensureZonesLoaded, getZones, estimateZone, zonesFeatureCollection, zoneBounds,
@@ -110,7 +111,7 @@ function enqueueDownload(zone) {
     kind: 'private-map',
     path: null,
     command: 'download_private_zone',
-    args: { zoneId: zone.id },
+    args: { zoneId: zone.id, refreshStyle: isMapStyleRefreshEnabled() }, // style : celui de l'application, sauf si Paramètres > Cartes demande de le télécharger
     labelKey: 'Private zone download: {name}',
     labelParams: { name: zone.name },
     onResult: async (_result, stopped, error) => {

@@ -254,3 +254,25 @@ fn offline_zones_serve_their_tiles_and_let_missing_ones_be_fetched() {
     assert_eq!(private_tile_in(&zones, &mut files, dir.path(), 14, x, y), TileAnswer::Private(Vec::new()));
     assert_eq!(private_zoom_in(&zones, 48.8566, 2.3522), Some(14));
 }
+
+#[test]
+fn style_resources_prefer_the_downloaded_copy_over_the_bundled_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let (downloaded, bundled) = (dir.path().join("downloaded"), dir.path().join("bundled"));
+    for (root, text) in [(&downloaded, "telecharge"), (&bundled, "embarque")] {
+        std::fs::create_dir_all(root.join("styles")).unwrap();
+        std::fs::write(root.join("styles").join("dark.json"), text).unwrap();
+    }
+    std::fs::write(bundled.join("styles").join("liberty.json"), "embarque seul").unwrap();
+    let parts = |text: &[&str]| text.iter().map(|part| part.to_string()).collect::<Vec<_>>();
+
+    // Copie téléchargée présente : elle l'emporte ; absente d'un fichier : le style embarqué le fournit.
+    assert_eq!(style_resource(&downloaded, Some(&bundled), &parts(&["styles", "dark.json"])).unwrap(), b"telecharge");
+    assert_eq!(style_resource(&downloaded, Some(&bundled), &parts(&["styles", "liberty.json"])).unwrap(), b"embarque seul");
+    // Copie supprimée (« Revenir au style d'origine ») : le style embarqué.
+    std::fs::remove_dir_all(&downloaded).unwrap();
+    assert_eq!(style_resource(&downloaded, Some(&bundled), &parts(&["styles", "dark.json"])).unwrap(), b"embarque");
+    // Rien nulle part : absent.
+    assert_eq!(style_resource(&downloaded, Some(&bundled), &parts(&["styles", "inconnu.json"])), None);
+    assert_eq!(style_resource(&downloaded, None, &parts(&["styles", "dark.json"])), None);
+}

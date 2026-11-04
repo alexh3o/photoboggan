@@ -12,7 +12,7 @@
 // Chaque carte a son contexte (identifiant dans l'adresse) : passer en mode strict annule ses requêtes distantes en cours.
 
 import { invoke } from '@tauri-apps/api/core';
-import { PROVIDER_STYLE_URL, PROVIDER_TILEJSON_URL, PROVIDER_FONT_URL, MAP_ATTRIBUTION, isMapNetworkAllowed } from './map-config.js';
+import { PROVIDER_STYLE_URL, PROVIDER_TILEJSON_URL, PROVIDER_FONT_URL, MAP_ATTRIBUTION, OFFLINE_PLACEHOLDER, isMapNetworkAllowed } from './map-config.js';
 
 export const MAP_PROTOCOL = 'pbmap';
 const URL_PATTERN = /^pbmap:\/\/(\d+)\/(style|tiles|sprite|fonts)\/(.+)$/;
@@ -30,6 +30,25 @@ const emptyStyle = () => ({
   sources: {},
   layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#8a8a8a' } }],
 });
+
+// Tuile vectorielle (protobuf MVT) d'une seule couche et d'un seul polygone : le carré qui couvre toute la tuile. Rien d'autre n'est dessiné
+// dessus que le motif du style (voir OFFLINE_PLACEHOLDER) : c'est le filigrane des tuiles non chargées.
+const PLACEHOLDER_TILE = (() => {
+  const text = new TextEncoder().encode(OFFLINE_PLACEHOLDER.layer);
+  // Géométrie : MoveTo (0, 0), LineTo (4096, 0) (0, 4096) (-4096, 0), ClosePath (valeurs en zigzag).
+  const geometry = [9, 0, 0, 26, 0x80, 0x40, 0, 0, 0x80, 0x40, 0xff, 0x3f, 0, 15];
+  const feature = [0x18, 3, 0x22, geometry.length, ...geometry]; // type 3 = polygone
+  const layer = [0x78, 2, 0x0a, text.length, ...text, 0x12, feature.length, ...feature, 0x28, 0x80, 0x20]; // version 2, nom, entité, étendue 4096
+  return new Uint8Array([0x1a, layer.length, ...layer]).buffer;
+})();
+
+// Couche du style qui remplit cette tuile de l'image-motif.
+const placeholderLayer = () => ({
+  id: 'offline-placeholder', type: 'fill', source: 'openmaptiles', 'source-layer': OFFLINE_PLACEHOLDER.layer,
+  paint: { 'fill-pattern': OFFLINE_PLACEHOLDER.image },
+});
+
+const isOffline = () => { try { return localStorage.getItem('offlineMode') === 'true'; } catch { return false; } };
 
 /** Enregistre le protocole auprès de MapLibre (une seule fois). */
 export function registerMapProtocol(library) {
@@ -125,6 +144,7 @@ async function loadStyle(context, id, name, abortController) {
       attribution: MAP_ATTRIBUTION,
     },
   };
+  style.layers.push(placeholderLayer());
   style.sprite = `${MAP_PROTOCOL}://${id}/sprite/sprite`;
   style.glyphs = `${MAP_PROTOCOL}://${id}/fonts/{fontstack}/{range}.pbf`;
   return style;
@@ -136,7 +156,7 @@ async function loadTile(context, path, abortController) {
   const answer = new Uint8Array(await invoke('get_private_tile', { z, x, y }));
   // 1 : tuile privée (disque uniquement) ; 2 : tuile d'une carte hors ligne présente sur le disque ; 0 et 3 : le fournisseur peut être sollicité.
   if (answer[0] === 1 || answer[0] === 2) return gunzipIfNeeded(answer.slice(1).buffer);
-  if (!remoteAllowed(context)) return new ArrayBuffer(0);
+  if (!remoteAllowed(context)) return !context.strict && isOffline() ? PLACEHOLDER_TILE.slice(0) : new ArrayBuffer(0); // hors ligne : filigrane (lieu privé : vide)
   tileTemplate ??= remoteFetch(context, PROVIDER_TILEJSON_URL, new AbortController())
     .then(buffer => JSON.parse(new TextDecoder().decode(buffer)).tiles[0])
     .catch(error => { tileTemplate = null; throw error; });

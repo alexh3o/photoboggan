@@ -1108,5 +1108,17 @@
   "A manual album can only contain smart albums": "Un album manuel ne peut contenir que des albums intelligents",
   "A smart album can only contain smart albums": "Un album intelligent ne peut contenir que des albums intelligents",
   "Photos can only be added to a manual album": "Les photos ne peuvent être ajoutées qu'à un album manuel",
-  "Confirm before replacing the filters of a smart album": "Confirmer avant d'écraser les filtres d'un album intelligent"
+  "Confirm before replacing the filters of a smart album": "Confirmer avant d'écraser les filtres d'un album intelligent",
+  "Offline mode": "Mode hors ligne",
+  "Turn it off to load the map": "Désactivez-le pour charger la carte",
+  "Maps": "Cartes",
+  "Internet required": "Internet nécessaire",
+  "Map style": "Style de la carte",
+  "Map style help": "La carte utilise le style fourni avec l'application, qui fonctionne sans Internet. Un style plus récent peut être téléchargé avec les zones.",
+  "Refresh the map style help": "Télécharge le style (couleurs, icônes, polices) chez le fournisseur à chaque téléchargement d'une zone. Il remplace alors le style fourni avec l'application. Refusé en mode hors ligne.",
+  "Download the map style with each zone download": "Télécharger le style à chaque téléchargement de zone",
+  "Back to the original style": "Revenir au style d'origine",
+  "Delete the downloaded copy of the map style and use the style provided with the application": "Supprimer la copie téléchargée du style et utiliser celui fourni avec l'application",
+  "Original map style restored": "Style d'origine rétabli",
+  "The map style could not be reset: {error}": "Impossible de rétablir le style : {error}"
 }

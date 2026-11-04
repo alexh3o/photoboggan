@@ -1108,5 +1108,17 @@
   "A manual album can only contain smart albums": "A manual album can only contain smart albums",
   "A smart album can only contain smart albums": "A smart album can only contain smart albums",
   "Photos can only be added to a manual album": "Photos can only be added to a manual album",
-  "Confirm before replacing the filters of a smart album": "Confirm before replacing the filters of a smart album"
+  "Confirm before replacing the filters of a smart album": "Confirm before replacing the filters of a smart album",
+  "Offline mode": "Offline mode",
+  "Turn it off to load the map": "Turn it off to load the map",
+  "Maps": "Maps",
+  "Internet required": "Internet required",
+  "Map style": "Map style",
+  "Map style help": "The map uses the style provided with the application, which works without the Internet. A newer style can be downloaded with the zones.",
+  "Refresh the map style help": "Downloads the style (colours, icons, fonts) from the provider with each zone download. It then replaces the style provided with the application. Refused in offline mode.",
+  "Download the map style with each zone download": "Download the style with each zone download",
+  "Back to the original style": "Back to the original style",
+  "Delete the downloaded copy of the map style and use the style provided with the application": "Delete the downloaded copy of the map style and use the style provided with the application",
+  "Original map style restored": "Original map style restored",
+  "The map style could not be reset: {error}": "The map style could not be reset: {error}"
 }

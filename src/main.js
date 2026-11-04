@@ -14,6 +14,8 @@ import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
+import { reloadAllMaps } from './map-view.js';
+import { initMapsSettings } from './maps-settings.js';
 import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
@@ -5764,6 +5766,7 @@ initMapMode({
   layoutPreview: () => requestAnimationFrame(() => previewSlots.forEach(layoutPreviewSlot)),
 });
 document.getElementById('show-map-toggle').addEventListener('change', onMapModeAccessChanged);
+initMapsSettings({ showToast: message => showWriteToast(message) }); // Paramètres > Cartes : style de la carte
 
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
@@ -5951,6 +5954,7 @@ offlineModeToggle.addEventListener('change', () => {
   onOfflineModeChanged();
   onMapAccessChanged();
   onMapModeAccessChanged();
+  reloadAllMaps(); // tuiles déjà demandées (vides ou en filigrane) redemandées maintenant que l'accès change
 });
 
 // Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, choix mémorisé et transmis au backend.

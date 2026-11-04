@@ -46,3 +46,8 @@ export function defaultMapZoom() {
 
 // Multi-sélection : nombre maximal de marqueurs affichés (au-delà, les premières photos géolocalisées de la sélection).
 export const MAP_MAX_POINTS = 500;
+
+// Tuiles absentes parce que le mode hors ligne est actif (zone non enregistrée sur le disque) : le protocole de tuiles renvoie une tuile
+// vectorielle qui ne contient qu'un carré couvrant la tuile (couche OFFLINE_PLACEHOLDER.layer), que le style remplit avec l'image-motif
+// OFFLINE_PLACEHOLDER.image (filigrane dessiné par map-view.js). Un motif suit la grille des tuiles : le texte se répète sur chacune.
+export const OFFLINE_PLACEHOLDER = { layer: 'offline_placeholder', image: 'offline-watermark' };

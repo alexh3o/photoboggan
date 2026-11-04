@@ -5,7 +5,8 @@
 // (map-tile-protocol.js), qui applique la règle par tuile des zones privées et le mode strict ; `transformRequest` détourne toute autre adresse
 // vers une adresse locale vide. Rien n'est importé tant que `isAllowed()` est faux. `destroy()` libère le contexte WebGL.
 
-import { MAP_PROVIDER, MAP_MAX_ZOOM, defaultMapZoom } from './map-config.js';
+import { MAP_PROVIDER, MAP_MAX_ZOOM, OFFLINE_PLACEHOLDER, defaultMapZoom } from './map-config.js';
+import { t } from './i18n.js';
 import { registerMapProtocol, createTileContext, MAP_PROTOCOL } from './map-tile-protocol.js';
 // Adresse du script du worker MapLibre (fichier copié tel quel par Vite) : une simple chaîne, rien n'est chargé à l'import.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
@@ -36,6 +37,26 @@ export function loadMapLibrary() {
 
 const isLocalUrl = url => url.startsWith(`${MAP_PROTOCOL}://`) || url.startsWith('data:') || url.startsWith('blob:');
 
+// Filigrane des tuiles non chargées (mode hors ligne) : image-motif transparente, texte incliné, clair sur le style sombre et foncé sur le clair.
+// Dessinée à la demande du style (styleimagemissing), donc refaite à chaque changement de style (thème, langue au prochain chargement).
+function watermarkImage() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  const dark = document.documentElement.dataset.theme !== 'light';
+  context.translate(size / 2, size / 2);
+  context.rotate(-Math.PI / 6);
+  context.textAlign = 'center';
+  context.fillStyle = dark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
+  context.font = 'bold 14px sans-serif';
+  context.fillText(t('Offline mode'), 0, -4);
+  context.font = '12px sans-serif';
+  context.fillText(t('Turn it off to load the map'), 0, 14);
+  return context.getImageData(0, 0, size, size);
+}
+
 function currentStyleName() {
   return document.documentElement.dataset.theme === 'light' ? MAP_PROVIDER.styles.light : MAP_PROVIDER.styles.dark;
 }
@@ -61,6 +82,14 @@ export function isWebglSupported() {
  * @param {HTMLElement} container élément qui reçoit la carte
  * @param {{ isAllowed: () => boolean, onStatus?: (status: 'ready' | 'tiles-failed' | 'unavailable') => void, interactive?: boolean }} options
  */
+// Cartes existantes : le changement du mode hors ligne les concerne toutes (voir reloadAllMaps).
+const mapViews = new Set();
+
+/** Style et tuiles redemandés pour toutes les cartes : à appeler quand le mode hors ligne ou l'option « Afficher une carte » change. */
+export function reloadAllMaps() {
+  for (const view of mapViews) view.reloadStyle();
+}
+
 export function createMapView(container, { isAllowed, onStatus = () => {}, interactive = true }) {
   let map = null;
   let mapReady = false;
@@ -218,6 +247,9 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
       // Seul le protocole pbmap:// est servi : toute autre adresse (fournisseur compris) est détournée vers une adresse locale vide.
       transformRequest: url => (isLocalUrl(url) ? { url } : { url: BLOCKED_URL }),
     });
+    map.on('styleimagemissing', event => {
+      if (event.id === OFFLINE_PLACEHOLDER.image && !map.hasImage(event.id)) map.addImage(event.id, watermarkImage(), { pixelRatio: 1 });
+    });
     map.touchZoomRotate.disableRotation();
     map.keyboard.disableRotation();
     map.doubleClickZoom.disable(); // double-clic réservé au dessin des zones (fenêtre des zones privées)
@@ -362,7 +394,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
     else readyCallbacks.push(callback);
   }
 
-  return {
+  const view = {
     show,
     showZones,
     setBackdrop,
@@ -374,8 +406,11 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
     getMap: () => map,
     destroy,
     dispose() {
+      mapViews.delete(view);
       destroy();
       tileContext.dispose();
     },
   };
+  mapViews.add(view);
+  return view;
 }

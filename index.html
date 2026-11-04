@@ -407,6 +407,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="data" data-i18n="Storage">Stockage</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Applications">Applications</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="maps" data-i18n="Maps">Cartes</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
         </div>
 
@@ -430,13 +431,6 @@
             <section class="settings-section">
               <h4>Internet</h4>
               <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages) et la carte n'est pas affichée." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
-              <label class="settings-row settings-check" title="Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne." data-i18n-title="Show a map help"><input id="show-map-toggle" type="checkbox" /><span data-i18n="Show a map of the photo location">Afficher une carte du lieu de la photo</span></label>
-              <label class="settings-row" for="map-default-zoom"><span data-i18n="Default map zoom level" data-i18n-title="Default map zoom help" title="Niveau de zoom de la carte pour une photo (7 : région, 14 : rues). Dans une zone privée, le niveau disponible le plus proche.">Niveau de zoom de la carte par défaut</span>
-                <select id="map-default-zoom"><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option></select>
-              </label>
-              <div class="settings-button-row">
-                <button type="button" id="btn-settings-private-zones" data-i18n="Offline / private zones…" data-i18n-title="Manage the offline / private zones" title="Gérer les zones hors ligne / privées">Zones hors ligne / privées…</button>
-              </div>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Library">Bibliothèque</h4>
@@ -532,6 +526,29 @@
             </section>
           </div>
           <!-- Onglet Visages (faces-panel.js) -->
+          <!-- Onglet Cartes (maps-settings.js) -->
+          <div id="settings-tab-maps" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Maps">Cartes</h4>
+              <label class="settings-row settings-check" title="Carte du lieu de prise de vue dans le panneau Info. Les tuiles viennent d'OpenFreeMap (données OpenStreetMap) : la position des photos affichées lui est donc transmise. Sans effet en mode hors ligne." data-i18n-title="Show a map help"><input id="show-map-toggle" type="checkbox" /><span data-i18n="Show a map of the photo location">Afficher une carte du lieu de la photo</span></label>
+              <p id="show-map-offline-hint" class="sort-note" data-i18n="Internet required" hidden>Internet nécessaire</p>
+              <label class="settings-row" for="map-default-zoom"><span data-i18n="Default map zoom level" data-i18n-title="Default map zoom help" title="Niveau de zoom de la carte pour une photo (7 : région, 14 : rues). Dans une zone privée, le niveau disponible le plus proche.">Niveau de zoom de la carte par défaut</span>
+                <select id="map-default-zoom"><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option></select>
+              </label>
+              <div class="settings-button-row">
+                <button type="button" id="btn-settings-private-zones" data-i18n="Offline / private zones…" data-i18n-title="Manage the offline / private zones" title="Gérer les zones hors ligne / privées">Zones hors ligne / privées…</button>
+              </div>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Map style">Style de la carte</h4>
+              <p class="sort-note" data-i18n="Map style help">La carte utilise le style fourni avec l'application, qui fonctionne sans Internet. Un style plus récent peut être téléchargé avec les zones.</p>
+              <label class="settings-row settings-check" title="Télécharge le style (couleurs, icônes, polices) chez le fournisseur à chaque téléchargement d'une zone. Il remplace alors le style fourni avec l'application. Refusé en mode hors ligne." data-i18n-title="Refresh the map style help"><input id="map-style-refresh-toggle" type="checkbox" /><span data-i18n="Download the map style with each zone download">Télécharger le style à chaque téléchargement de zone</span></label>
+              <div class="settings-button-row">
+                <button type="button" id="btn-map-style-reset" data-i18n="Back to the original style" data-i18n-title="Delete the downloaded copy of the map style and use the style provided with the application" title="Supprimer la copie téléchargée du style et utiliser celui fourni avec l'application" disabled>Revenir au style d'origine</button>
+              </div>
+            </section>
+          </div>
+
           <div id="settings-tab-faces" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Faces">Visages</h4>

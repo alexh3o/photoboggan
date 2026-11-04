@@ -663,10 +663,10 @@ pub fn add_private_zone(state: State<'_, AppState>, name: String, geometry: Zone
     Ok(zone)
 }
 
-/// Télécharge (ou met à jour) les tuiles d'une zone, et les ressources du style s'il le faut. Tâche de la file : progression par
+/// Télécharge (ou met à jour) les tuiles d'une zone, et les ressources du style si `refresh_style`. Tâche de la file : progression par
 /// « scan-progress », arrêt par cancel_scan. L'ancien fichier n'est remplacé qu'à la fin ; un arrêt le laisse intact.
 #[tauri::command]
-pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppState>, zone_id: i64, task_id: String) -> Result<PrivateZone, String> {
+pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppState>, zone_id: i64, task_id: String, refresh_style: bool) -> Result<PrivateZone, String> {
     let dir = private_maps_dir(&state);
     let pool = state.pool();
     let cancel = crate::scan_cancel_flag(&task_id);
@@ -680,8 +680,9 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
         if tiles.len() > MAX_TILES { return Err("zone_too_large".to_string()); }
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let emit = |percent: u32| { let _ = app.emit("scan-progress", crate::ScanProgress { task_id: worker_task_id.clone(), percent }); };
-        // Ressources du style : téléchargées avec la première zone, renouvelées à chaque mise à jour.
-        download_style_resources(&dir.join("style"), &cancel)?;
+        // Ressources du style : seulement si l'utilisateur le demande (Paramètres > Cartes). Sinon le style embarqué, ou la copie déjà téléchargée,
+        // est utilisé.
+        if refresh_style { download_style_resources(&dir.join("style"), &cancel)?; }
         emit(2);
         let template = tile_url_template()?;
         // Fichier temporaire nommé d'après l'identifiant : la zone peut être renommée pendant le téléchargement.
@@ -853,14 +854,46 @@ pub fn set_private_zone_privacy(state: State<'_, AppState>, zone_id: i64, privat
     get_zone(&conn, zone_id)
 }
 
-/// Ressource du style privé (`styles/<nom>.json`, `sprites/sprite[@2x].json|png`, `fonts/<police>/<plage>.pbf`) ; vide si absente.
+/// Dossier du style embarqué dans l'application (`<ressources>/map-style`, voir scripts/fetch-map-style.mjs), fixé au démarrage.
+static BUNDLED_STYLE_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// À appeler au démarrage avec le dossier des ressources de l'application.
+pub fn init_bundled_style(resource_dir: Option<PathBuf>) {
+    if let Some(dir) = resource_dir {
+        let _ = BUNDLED_STYLE_DIR.set(dir.join("map-style"));
+    }
+}
+
+/// Fichier d'une ressource du style : la copie téléchargée (`downloaded`) si elle existe, sinon celle embarquée (`bundled`).
+fn style_resource(downloaded: &Path, bundled: Option<&Path>, parts: &[String]) -> Option<Vec<u8>> {
+    let read = |dir: &Path| fs::read(parts.iter().fold(dir.to_path_buf(), |dir, part| dir.join(part))).ok();
+    read(downloaded).or_else(|| bundled.and_then(read))
+}
+
+/// Ressource du style (`styles/<nom>.json`, `sprites/sprite[@2x].json|png`, `fonts/<police>/<plage>.pbf`) : la copie téléchargée par l'utilisateur
+/// (Paramètres > Cartes), sinon le style embarqué ; vide si absente.
 #[tauri::command(async)]
 pub fn get_private_resource(state: State<'_, AppState>, path: String) -> tauri::ipc::Response {
     let parts: Option<Vec<String>> = path.split('/').map(safe_component).collect();
-    let file = parts.filter(|parts| (2..=3).contains(&parts.len())).map(|parts| {
-        parts.iter().fold(private_maps_dir(&state).join("style"), |dir, part| dir.join(part))
-    });
-    tauri::ipc::Response::new(file.and_then(|file| fs::read(file).ok()).unwrap_or_default())
+    let bytes = parts
+        .filter(|parts| (2..=3).contains(&parts.len()))
+        .and_then(|parts| style_resource(&private_maps_dir(&state).join("style"), BUNDLED_STYLE_DIR.get().map(PathBuf::as_path), &parts));
+    tauri::ipc::Response::new(bytes.unwrap_or_default())
+}
+
+/// Une copie du style a été téléchargée (elle prend le pas sur le style embarqué).
+#[tauri::command(async)]
+pub fn has_downloaded_map_style(state: State<'_, AppState>) -> bool {
+    private_maps_dir(&state).join("style").is_dir()
+}
+
+/// Supprime la copie téléchargée du style : le style embarqué est de nouveau utilisé. Les zones et leurs tuiles ne sont pas touchées.
+#[tauri::command(async)]
+pub fn reset_map_style(state: State<'_, AppState>) -> Result<(), String> {
+    match fs::remove_dir_all(private_maps_dir(&state).join("style")) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error.to_string()),
+        _ => Ok(()),
+    }
 }
 
 /// Pour chaque position ([latitude, longitude]) : None si elle n'est dans aucune zone privée, sinon le zoom maximal disponible à cet endroit
