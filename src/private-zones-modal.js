@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage } from './i18n.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
-import { createMapView } from './map-view.js';
+import { createMapView, reloadAllMaps } from './map-view.js';
 import { isMapNetworkAllowed } from './map-config.js';
 import { isMapStyleRefreshEnabled } from './maps-settings.js';
 import { startZoneDrawing } from './zone-drawing.js';
@@ -208,7 +208,7 @@ export async function openPrivateZonesModal() {
   // Aperçu local (mode strict : aucune requête) de toutes les zones, celle choisie mise en avant et cadrée.
   function showZonesOnMap(zone) {
     mapView.show([], { strict: true, maxZoom: zone?.max_zoom ?? 14 });
-    mapView.showZones(zonesFeatureCollection(getZones(), zone?.id ?? null), zone ? zoneBounds(zone.geometry) : null);
+    mapView.showZones(zonesFeatureCollection(getZones(), zone?.id ?? null), zone ? zoneBounds(zone) : null);
   }
 
   function renderWelcome() {
@@ -273,7 +273,14 @@ export async function openPrivateZonesModal() {
     rename.disabled = downloading.has(zone.id);
     const remove = button(t('Delete'), 'btn-danger pz-delete', () => deleteZone(zone));
     remove.disabled = downloading.has(zone.id);
-    actions.append(update, rename, remove);
+    actions.append(update, rename);
+    // Zone importée : forme relue d'après les tuiles du fichier (utile pour une zone importée avant que la forme réelle soit lue).
+    if (zone.source === 'import') {
+      const reshape = button(t('Recompute the shape'), '', () => recomputeShape(zone));
+      reshape.title = t('Recompute the shape help');
+      actions.append(reshape);
+    }
+    actions.append(remove);
     panel.append(actions);
     mapElement.hidden = false;
     showZonesOnMap(zone);
@@ -465,6 +472,18 @@ export async function openPrivateZonesModal() {
         }
       },
     });
+  }
+
+  async function recomputeShape(zone) {
+    try {
+      await invoke('recompute_private_zone_shape', { zoneId: zone.id });
+      await reloadZones();
+      reloadAllMaps(); // tuiles redemandées selon la nouvelle forme
+      render();
+      host.showToast(t('The shape of the zone was recomputed'));
+    } catch (error) {
+      host.showToast(errorMessage(error));
+    }
   }
 
   async function deleteZone(zone) {

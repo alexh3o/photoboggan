@@ -33,6 +33,12 @@ export function isMapNetworkAllowed() {
 
 // Zoom : plafond strict (les tuiles OpenFreeMap s'arrêtent au niveau 14, au-delà elles seraient seulement agrandies) et zoom d'une photo seule.
 export const MAP_MAX_ZOOM = 14;
+// Zoom vectoriel : au-delà du dernier niveau de tuiles (14 chez le fournisseur, jusqu'à 15 pour un fichier importé), la carte agrandit les
+// tuiles déjà chargées (aucune requête) sur au plus MAP_OVERZOOM_LEVELS niveaux, sans dépasser MAP_VECTOR_MAX_ZOOM.
+export const MAP_OVERZOOM_LEVELS = 4;
+export const MAP_VECTOR_MAX_ZOOM = 18;
+/** Zoom maximal de la carte pour un dernier niveau de tuiles donné. */
+export const mapMaxZoom = tileMaxZoom => Math.min(MAP_VECTOR_MAX_ZOOM, tileMaxZoom + MAP_OVERZOOM_LEVELS);
 export const MAP_SINGLE_PHOTO_ZOOM = 12;
 
 // Zoom d'une photo seule choisi dans Paramètres > Général (7 à 14, 12 par défaut). Dans une zone privée, la carte est plafonnée au niveau de la

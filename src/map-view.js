@@ -5,7 +5,7 @@
 // (map-tile-protocol.js), qui applique la règle par tuile des zones privées et le mode strict ; `transformRequest` détourne toute autre adresse
 // vers une adresse locale vide. Rien n'est importé tant que `isAllowed()` est faux. `destroy()` libère le contexte WebGL.
 
-import { MAP_PROVIDER, MAP_MAX_ZOOM, OFFLINE_PLACEHOLDER, defaultMapZoom } from './map-config.js';
+import { MAP_PROVIDER, MAP_MAX_ZOOM, OFFLINE_PLACEHOLDER, defaultMapZoom, mapMaxZoom } from './map-config.js';
 import { t } from './i18n.js';
 import { registerMapProtocol, createTileContext, MAP_PROTOCOL } from './map-tile-protocol.js';
 // Adresse du script du worker MapLibre (fichier copié tel quel par Vite) : une simple chaîne, rien n'est chargé à l'import.
@@ -101,6 +101,8 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   let tilesFailed = false;
   let strict = false;
   let strictMaxZoom = MAP_MAX_ZOOM;
+  // Dernier niveau de tuiles : celui du fournisseur, ou le détail de la zone privée affichée (un fichier importé peut aller jusqu'à 15).
+  const tileMax = () => (strict ? strictMaxZoom : MAP_MAX_ZOOM);
   let sizedWidth = 0;
   let sizedHeight = 0;
   let frameOnApply = true; // le mode Carte règle lui-même le cadrage (frameTo) : show() ne recadre alors pas
@@ -177,12 +179,12 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   // Cadrage sans animation (jumpTo / fitBounds sans durée) : aucune tuile intermédiaire chargée pendant la navigation entre photos.
   function frame(points) {
     if (points.length === 0) return;
-    const maxZoom = Math.min(MAP_MAX_ZOOM, strict ? strictMaxZoom : MAP_MAX_ZOOM);
+    const maxZoom = tileMax();
     const first = points[0];
     const sameSpot = points.every(point => point.lat === first.lat && point.lon === first.lon);
     if (sameSpot) {
       const focus = points.find(point => point.focus) || first;
-      map.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(points.length === 1 ? defaultMapZoom() : MAP_MAX_ZOOM, maxZoom) });
+      map.jumpTo({ center: [focus.lon, focus.lat], zoom: Math.min(points.length === 1 ? defaultMapZoom() : tileMax(), maxZoom) });
       return;
     }
     let [west, south, east, north] = [first.lon, first.lat, first.lon, first.lat];
@@ -207,7 +209,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
       if (frameOnApply) frame(pendingPoints);
     }
     if (pendingFrame) {
-      map.fitBounds(pendingFrame, { padding: 24, maxZoom: MAP_MAX_ZOOM, duration: 0 });
+      map.fitBounds(pendingFrame, { padding: 24, maxZoom: tileMax(), duration: 0 });
       pendingFrame = null;
     }
   }
@@ -236,8 +238,8 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
       container,
       style: tileContext.styleUrl(styleName),
       center: focus ? [focus.lon, focus.lat] : [2.35, 48.85],
-      zoom: focus ? Math.min(defaultMapZoom(), strict ? strictMaxZoom : MAP_MAX_ZOOM) : 4,
-      maxZoom: strict ? strictMaxZoom : MAP_MAX_ZOOM,
+      zoom: focus ? Math.min(defaultMapZoom(), tileMax()) : 4,
+      maxZoom: mapMaxZoom(tileMax()),
       attributionControl: { compact: true },
       interactive,
       dragRotate: false,
@@ -338,9 +340,13 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
     strict = value;
     strictMaxZoom = maxZoom;
     tileContext.setStrict(value);
+    // Le dernier niveau de tuiles est celui de la source du style : s'il change, le style est rechargé (les tuiles repartent de zéro).
+    const tileLevelChanged = tileContext.getTileMaxZoom() !== tileMax();
+    tileContext.setTileMaxZoom(tileMax());
     if (map) {
-      map.setMaxZoom(value ? maxZoom : MAP_MAX_ZOOM);
-      if (leaving) reloadTiles();
+      map.setMaxZoom(mapMaxZoom(tileMax()));
+      if (tileLevelChanged) reloadStyle();
+      else if (leaving) reloadTiles();
     }
   }
 
@@ -365,12 +371,17 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
   }
 
   /**
-   * Cadrage sur ces positions (mode Carte), sans animation. `onlyIfOutside` : seulement si l'une d'elles est hors de la zone visible, ce qui
+   * Cadrage sur ces positions (mode Carte), sans animation. `zoom` : centre sur la première à ce niveau. `onlyIfOutside` : seulement si l'une d'elles est hors de la zone visible, ce qui
    * évite de déplacer la carte sous l'utilisateur qui la parcourt.
    */
-  function frameTo(points, { onlyIfOutside = false } = {}) {
+  function frameTo(points, { onlyIfOutside = false, zoom = null } = {}) {
     whenReady(() => {
       if (!isVisible() || points.length === 0) return;
+      // Zoom imposé (recherche d'un lieu) : centré sur le premier point à ce niveau, quel que soit le réglage de zoom par défaut.
+      if (zoom !== null) {
+        map.jumpTo({ center: [points[0].lon, points[0].lat], zoom: Math.min(zoom, map.getMaxZoom()) });
+        return;
+      }
       if (onlyIfOutside) {
         const bounds = map.getBounds();
         if (points.every(point => bounds.contains([point.lon, point.lat]))) return;

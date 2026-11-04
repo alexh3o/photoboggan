@@ -1166,5 +1166,8 @@
   "Slideshow playing": "Slideshow playing",
   "Start or stop the slideshow": "Start or stop the slideshow",
   "Fullscreen or grid; on the selection if it holds several photos": "Fullscreen or grid; on the selection if it holds several photos",
-  "Pause / resume the slideshow": "Pause / resume the slideshow"
+  "Pause / resume the slideshow": "Pause / resume the slideshow",
+  "Recompute the shape": "Recompute the shape",
+  "Recompute the shape help": "Read the tiles of the imported file again to give the zone its real shape instead of a rectangle.",
+  "The shape of the zone was recomputed": "The shape of the zone was recomputed"
 }

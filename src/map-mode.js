@@ -19,7 +19,8 @@ import { initPlaceSearch, updatePlaceSearchAvailability } from './place-search.j
 import './map-mode.css';
 
 const SELECTION_DELAY_MS = 120; // navigation rapide au clavier : seule la dernière sélection est montrée
-const FILTER_DELAY_MS = 500; // la grille suit la carte 500 ms après la fin du déplacement ou du dernier cran de molette
+const FILTER_DELAY_MS = 500;
+const PLACE_SEARCH_ZOOM = 17; // niveau de la carte sur un lieu trouvé par la recherche // la grille suit la carte 500 ms après la fin du déplacement ou du dernier cran de molette
 const SAME_PLACE = 1e-4; // écart toléré entre la position en attente et celle relue dans le fichier (arrondis des formats)
 
 let host = null; // services de main.js, voir initMapMode
@@ -472,7 +473,7 @@ export function initMapMode(hostApi) {
   writeButton.addEventListener('click', () => { writeNow(); });
   revertButton.addEventListener('click', revertAll);
   initPlaceSearch({
-    goTo: place => { mapView.frameTo([{ lat: place.lat, lon: place.lon, focus: true }]); },
+    goTo: place => { mapView.frameTo([{ lat: place.lat, lon: place.lon, focus: true }], { zoom: PLACE_SEARCH_ZOOM }); },
     showToast: message => host.showToast(message),
   });
 

@@ -100,9 +100,10 @@ fn import_validation_refuses_non_vector_files() {
     let conn = create_mbtiles(&empty, "Vide", 14).unwrap();
     conn.execute("INSERT INTO metadata VALUES ('bounds', '2.2,48.8,2.4,48.9')", []).unwrap();
     assert!(inspect_mbtiles(&empty).is_err());
+    // Un fichier plus fin que le zoom 15 est plafonné à 15 (plus fin que les niveaux gérés).
     conn.execute("INSERT INTO tiles VALUES (16, 0, 0, x'00')", []).unwrap();
     drop(conn);
-    assert_eq!(inspect_mbtiles(&empty).unwrap(), (14, Some([2.2, 48.8, 2.4, 48.9])));
+    assert_eq!(inspect_mbtiles(&empty).unwrap(), (15, Some([2.2, 48.8, 2.4, 48.9])));
 }
 
 #[test]
@@ -275,4 +276,82 @@ fn style_resources_prefer_the_downloaded_copy_over_the_bundled_one() {
     // Rien nulle part : absent.
     assert_eq!(style_resource(&downloaded, Some(&bundled), &parts(&["styles", "inconnu.json"])), None);
     assert_eq!(style_resource(&downloaded, None, &parts(&["styles", "dark.json"])), None);
+}
+
+/// Fichier MBTiles de test : une tuile vide par (zoom, x, y) donné.
+fn mbtiles_with(path: &Path, max_zoom: u8, tiles: &[(u8, u32, u32)]) {
+    let conn = create_mbtiles(path, "Forme", max_zoom).unwrap();
+    for (z, x, y) in tiles {
+        conn.execute("INSERT INTO tiles VALUES (?1, ?2, ?3, X'00')", (z, x, tms_row(*z, *y))).unwrap();
+    }
+}
+
+#[test]
+fn imported_file_shape_follows_its_tiles() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("iles.mbtiles");
+    // Un L de trois tuiles et une île lointaine, au zoom 5 ; une tuile du zoom 0 pour tout le monde.
+    mbtiles_with(&path, 5, &[(0, 0, 0), (5, 2, 2), (5, 3, 2), (5, 2, 3), (5, 20, 25)]);
+    let shape = mbtiles_footprint(&path, 5).unwrap();
+    assert_eq!(shape, ZoneGeometry::Tiles { zoom: 5, rows: vec![[2, 2, 3], [3, 2, 2], [25, 20, 20]] });
+
+    let zone = ZoneShape::new(&shape);
+    assert!(zone.intersects_tile(5, 3, 2));
+    assert!(!zone.intersects_tile(5, 3, 3), "le coin manquant du L n'est pas dans la zone");
+    assert!(zone.intersects_tile(7, 12, 8), "tuile plus fine : jugée par son ancêtre");
+    assert!(zone.intersects_tile(3, 0, 0), "tuile plus large : elle contient des tuiles de la zone");
+    assert!(!zone.intersects_tile(3, 7, 7));
+    // Le centre de la tuile (5, 20, 25) est dans la zone, un point du rectangle englobant entre les deux îles non.
+    let (lat, lon) = (0.0, 0.0);
+    assert!(!zone.contains_location(lat, lon));
+
+    // Deux contours, sans arête entre tuiles voisines : le L a 6 sommets (7 points, anneau fermé), l'île 4 (5 points).
+    let outline = shape.outline().unwrap();
+    assert_eq!(outline.len(), 2);
+    let mut sizes: Vec<usize> = outline.iter().map(|polygon| polygon[0].len()).collect();
+    sizes.sort_unstable();
+    assert_eq!(sizes, vec![5, 7]);
+}
+
+#[test]
+fn imported_file_shape_keeps_holes_and_survives_serialization() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("anneau.mbtiles");
+    let ring: Vec<(u8, u32, u32)> = (4..7).flat_map(|x| (4..7).map(move |y| (4u8, x, y))).filter(|&(_, x, y)| (x, y) != (5, 5)).collect();
+    mbtiles_with(&path, 4, &ring);
+    let shape = mbtiles_footprint(&path, 4).unwrap();
+    let outline = shape.outline().unwrap();
+    assert_eq!(outline.len(), 1);
+    assert_eq!(outline[0].len(), 2, "un contour extérieur et un trou");
+
+    let zone = ZoneShape::new(&shape);
+    assert!(!zone.intersects_tile(4, 5, 5), "le trou n'est pas dans la zone");
+    assert!(zone.intersects_tile(4, 4, 4));
+    let again: ZoneGeometry = serde_json::from_str(&serde_json::to_string(&shape).unwrap()).unwrap();
+    assert_eq!(again, shape);
+}
+
+#[test]
+fn imported_file_without_usable_tiles_has_no_shape() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("vide.mbtiles");
+    mbtiles_with(&path, 5, &[]);
+    assert!(mbtiles_footprint(&path, 5).is_none());
+    assert!(ZoneGeometry::Tiles { zoom: 5, rows: vec![[40, 0, 0]] }.validate().is_err(), "rangée hors de la grille");
+}
+
+#[test]
+fn a_large_tile_shape_stays_cheap_to_build() {
+    // ≈ 150 000 tuiles au zoom 14 en escalier (coupe de côte) : forme, couverture et contour doivent rester rapides.
+    let rows: Vec<[u32; 3]> = (0..400u32).map(|i| [6000 + i, 8000 + i / 2, 8000 + i / 2 + 380]).collect();
+    let shape = ZoneGeometry::Tiles { zoom: 14, rows };
+    assert!(shape.validate().is_ok());
+    let started = std::time::Instant::now();
+    let zone = ZoneShape::new(&shape);
+    let outline = shape.outline().unwrap();
+    assert!(started.elapsed() < std::time::Duration::from_secs(3), "forme trop lente : {:?}", started.elapsed());
+    assert_eq!(outline.len(), 1);
+    assert!(zone.intersects_tile(14, 8100, 6100));
+    assert!(!zone.intersects_tile(14, 100, 100));
+    eprintln!("forme de 150 000 tuiles : {:?}", started.elapsed());
 }

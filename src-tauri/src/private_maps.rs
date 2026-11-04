@@ -9,7 +9,7 @@
 //!   « scan-progress », arrêt par cancel_scan) ; le fichier n'est remplacé qu'une fois le téléchargement terminé.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -33,6 +33,9 @@ pub const MAX_BYTES: u64 = 50 * 1024 * 1024;
 const PARALLEL_REQUESTS: usize = 4;
 /// Niveaux de détail proposés (zoom maximal téléchargé) : Ville, Quartier, Rues.
 pub const DETAIL_ZOOMS: [u8; 3] = [12, 13, 14];
+/// Zoom maximal d'un fichier MBTiles importé. Le fournisseur n'a rien au-delà du niveau 14 (tuiles vides) : seuls les fichiers importés peuvent
+/// aller au niveau 15 ; la carte agrandit ensuite les tuiles sans en charger (voir src/map-config.js, mapMaxZoom).
+const MAX_IMPORT_ZOOM: u8 = 15;
 /// Estimation de la taille avant téléchargement (la vraie taille est mesurée après), d'après une zone urbaine téléchargée : les tuiles des
 /// zooms 0 à 3 (une par niveau, le monde entier) pèsent ensemble ≈ 2,1 Mo ; au-delà, ≈ 60 à 100 Ko par tuile en ville, moins à la campagne.
 const ESTIMATED_LOW_ZOOM_BYTES: u64 = 2200 * 1024;
@@ -49,13 +52,20 @@ fn user_agent() -> String {
 // Géométrie : coordonnées Web Mercator normalisées (x et y de 0 à 1, y vers le sud), celles du découpage en tuiles.
 // ---------------------------------------------------------------------------
 
-/// Forme d'une zone : cercle (centre et rayon en mètres) ou polygone (sommets [latitude, longitude], sans répéter le premier).
+/// Forme d'une zone : cercle (centre et rayon en mètres), polygone (sommets [latitude, longitude], sans répéter le premier) ou ensemble de
+/// tuiles (forme réelle d'un fichier MBTiles importé : à `zoom`, plages `[y, x0, x1]` de tuiles présentes, bornes comprises).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ZoneGeometry {
     Circle { lat: f64, lon: f64, radius: f64 },
     Polygon { points: Vec<[f64; 2]> },
+    Tiles { zoom: u8, rows: Vec<[u32; 3]> },
 }
+
+/// Limites d'une forme en tuiles : zoom, nombre de plages et de tuiles (l'ensemble est gardé en mémoire).
+const TILES_SHAPE_MAX_ZOOM: u8 = 14;
+const TILES_SHAPE_MAX_ROWS: usize = 100_000;
+const TILES_SHAPE_MAX_CELLS: u64 = 200_000;
 
 const MAX_LATITUDE: f64 = 85.051_128_78;
 const EARTH_RADIUS: f64 = 6_371_008.8;
@@ -86,6 +96,14 @@ impl ZoneGeometry {
         let ok = match self {
             ZoneGeometry::Circle { lat, lon, radius } => valid_point(*lat, *lon) && (50.0..=200_000.0).contains(radius),
             ZoneGeometry::Polygon { points } => points.len() >= 3 && points.len() <= 1000 && points.iter().all(|p| valid_point(p[0], p[1])),
+            ZoneGeometry::Tiles { zoom, rows } => {
+                let side = 1u64 << (*zoom).min(31);
+                (1..=TILES_SHAPE_MAX_ZOOM).contains(zoom)
+                    && !rows.is_empty()
+                    && rows.len() <= TILES_SHAPE_MAX_ROWS
+                    && rows.iter().all(|r| r[1] <= r[2] && u64::from(r[2]) < side && u64::from(r[0]) < side)
+                    && rows.iter().map(|r| u64::from(r[2] - r[1]) + 1).sum::<u64>() <= TILES_SHAPE_MAX_CELLS
+            }
         };
         if ok { Ok(()) } else { Err("invalid_zone_geometry".to_string()) }
     }
@@ -103,8 +121,155 @@ impl ZoneGeometry {
                     .collect()
             }
             ZoneGeometry::Polygon { points } => points.iter().map(|p| mercator(p[0], p[1])).collect(),
+            // Rectangle englobant des tuiles (le test fin passe par TileCover).
+            ZoneGeometry::Tiles { zoom, rows } => {
+                let side = f64::from(1u32 << (*zoom).min(30));
+                let min_y = rows.iter().map(|r| r[0]).min().unwrap_or(0);
+                let max_y = rows.iter().map(|r| r[0]).max().unwrap_or(0);
+                let min_x = rows.iter().map(|r| r[1]).min().unwrap_or(0);
+                let max_x = rows.iter().map(|r| r[2]).max().unwrap_or(0);
+                let (x0, x1, y0, y1) = (f64::from(min_x) / side, f64::from(max_x + 1) / side, f64::from(min_y) / side, f64::from(max_y + 1) / side);
+                vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+            }
         }
     }
+
+    /// Contour affiché d'une forme en tuiles : multipolygone GeoJSON ([polygone][anneau][longitude, latitude], anneaux fermés), sans les
+    /// arêtes entre tuiles voisines. None pour les autres formes (dessinées d'après leurs sommets).
+    pub fn outline(&self) -> Option<Vec<Vec<Vec<[f64; 2]>>>> {
+        match self {
+            ZoneGeometry::Tiles { zoom, rows } => Some(tiles_outline(*zoom, rows)),
+            _ => None,
+        }
+    }
+}
+
+/// Ensemble de tuiles d'une forme, avec leurs ancêtres à chaque zoom inférieur : tout test (tuile de n'importe quel zoom, point) est une recherche.
+#[derive(Clone, Debug)]
+struct TileCover {
+    zoom: u8,
+    levels: Vec<HashSet<(u32, u32)>>,
+}
+
+impl TileCover {
+    fn new(zoom: u8, rows: &[[u32; 3]]) -> Self {
+        let mut levels = vec![HashSet::new(); usize::from(zoom) + 1];
+        for [y, x0, x1] in rows {
+            for x in *x0..=*x1 { levels[usize::from(zoom)].insert((x, *y)); }
+        }
+        for z in (0..usize::from(zoom)).rev() {
+            let parents: HashSet<(u32, u32)> = levels[z + 1].iter().map(|&(x, y)| (x >> 1, y >> 1)).collect();
+            levels[z] = parents;
+        }
+        TileCover { zoom, levels }
+    }
+
+    fn intersects_tile(&self, z: u8, x: u32, y: u32) -> bool {
+        if z <= self.zoom {
+            self.levels[usize::from(z)].contains(&(x, y))
+        } else {
+            let shift = z - self.zoom;
+            self.levels[usize::from(self.zoom)].contains(&(x >> shift, y >> shift))
+        }
+    }
+
+    fn contains(&self, point: (f64, f64)) -> bool {
+        let count = f64::from(1u32 << self.zoom);
+        let cell = |value: f64| ((value * count).floor() as i64).clamp(0, (1i64 << self.zoom) - 1) as u32;
+        self.levels[usize::from(self.zoom)].contains(&(cell(point.0), cell(point.1)))
+    }
+}
+
+/// Longitude / latitude d'un sommet de grille (colonne, rangée) au zoom donné.
+fn grid_to_lonlat(zoom: u8, vx: u32, vy: u32) -> [f64; 2] {
+    let side = f64::from(1u32 << zoom);
+    let lon = f64::from(vx) / side * 360.0 - 180.0;
+    let lat = (std::f64::consts::PI * (1.0 - 2.0 * f64::from(vy) / side)).sinh().atan().to_degrees();
+    [lon, lat]
+}
+
+/// Anneaux de bord de l'ensemble de tuiles : arêtes sans voisine, chaînées en boucles ; les boucles extérieures et les trous sont rattachés.
+fn tiles_outline(zoom: u8, rows: &[[u32; 3]]) -> Vec<Vec<Vec<[f64; 2]>>> {
+    let mut cells: HashSet<(u32, u32)> = HashSet::new();
+    for [y, x0, x1] in rows {
+        for x in *x0..=*x1 { cells.insert((x, *y)); }
+    }
+    // Arêtes orientées (sens horaire autour de chaque tuile) : seules celles dont le voisin manque subsistent.
+    let mut next: HashMap<(u32, u32), Vec<(u32, u32)>> = HashMap::new();
+    let mut push = |from: (u32, u32), to: (u32, u32)| next.entry(from).or_default().push(to);
+    for &(x, y) in &cells {
+        if y == 0 || !cells.contains(&(x, y - 1)) { push((x, y), (x + 1, y)); }
+        if !cells.contains(&(x + 1, y)) { push((x + 1, y), (x + 1, y + 1)); }
+        if !cells.contains(&(x, y + 1)) { push((x + 1, y + 1), (x, y + 1)); }
+        if x == 0 || !cells.contains(&(x - 1, y)) { push((x, y + 1), (x, y)); }
+    }
+    let starts: Vec<(u32, u32)> = next.keys().copied().collect();
+    let mut rings: Vec<Vec<(u32, u32)>> = Vec::new();
+    for start in starts {
+        while next.get(&start).is_some_and(|edges| !edges.is_empty()) {
+            let mut ring = vec![start];
+            let mut current = start;
+            loop {
+                let Some(to) = next.get_mut(&current).and_then(|edges| edges.pop()) else { break; };
+                if to == start { break; }
+                ring.push(to);
+                current = to;
+            }
+            rings.push(simplify_ring(ring));
+        }
+    }
+    let area = |ring: &[(u32, u32)]| -> i64 {
+        (0..ring.len())
+            .map(|i| {
+                let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+                i64::from(a.0) * i64::from(b.1) - i64::from(b.0) * i64::from(a.1)
+            })
+            .sum()
+    };
+    // Sens horaire à l'écran (y vers le bas) : aire positive pour un contour extérieur, négative pour un trou.
+    let (outers, holes): (Vec<_>, Vec<_>) = rings.into_iter().filter(|ring| ring.len() >= 3).partition(|ring| area(ring) > 0);
+    let inside = |ring: &[(u32, u32)], px: f64, py: f64| -> bool {
+        let mut result = false;
+        for i in 0..ring.len() {
+            let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+            let (a, b) = ((f64::from(a.0), f64::from(a.1)), (f64::from(b.0), f64::from(b.1)));
+            if (a.1 > py) != (b.1 > py) && px < (b.0 - a.0) * (py - a.1) / (b.1 - a.1) + a.0 { result = !result; }
+        }
+        result
+    };
+    let to_geojson = |ring: &[(u32, u32)]| -> Vec<[f64; 2]> {
+        let mut points: Vec<[f64; 2]> = ring.iter().map(|&(vx, vy)| grid_to_lonlat(zoom, vx, vy)).collect();
+        points.push(points[0]);
+        points
+    };
+    let mut polygons: Vec<(i64, Vec<Vec<[f64; 2]>>)> = outers.iter().map(|ring| (area(ring), vec![to_geojson(ring)])).collect();
+    for hole in &holes {
+        // Un point juste à côté du milieu de la première arête du trou : l'anneau extérieur le plus petit qui le contient est son parent.
+        let (a, b) = (hole[0], hole[1]);
+        let (px, py) = ((f64::from(a.0) + f64::from(b.0)) / 2.0, (f64::from(a.1) + f64::from(b.1)) / 2.0 + 0.001);
+        let parent = outers
+            .iter()
+            .enumerate()
+            .filter(|(_, ring)| inside(ring, px, py))
+            .min_by_key(|(index, _)| polygons[*index].0)
+            .map(|(index, _)| index);
+        if let Some(index) = parent { polygons[index].1.push(to_geojson(hole)); }
+    }
+    polygons.into_iter().map(|(_, rings)| rings).collect()
+}
+
+/// Retire les sommets alignés avec leurs voisins (une arête par côté droit, pas une par tuile).
+fn simplify_ring(ring: Vec<(u32, u32)>) -> Vec<(u32, u32)> {
+    let count = ring.len();
+    if count < 4 { return ring; }
+    (0..count)
+        .filter(|&i| {
+            let (p, c, n) = (ring[(i + count - 1) % count], ring[i], ring[(i + 1) % count]);
+            let cross = (i64::from(c.0) - i64::from(p.0)) * (i64::from(n.1) - i64::from(c.1)) - (i64::from(c.1) - i64::from(p.1)) * (i64::from(n.0) - i64::from(c.0));
+            cross != 0
+        })
+        .map(|i| ring[i])
+        .collect()
 }
 
 /// Contour d'une zone prêt pour les tests de géométrie (rectangle englobant précalculé).
@@ -113,6 +278,8 @@ pub struct ZoneShape {
     ring: Vec<(f64, f64)>,
     min: (f64, f64),
     max: (f64, f64),
+    /// Forme en tuiles (zone importée) : sa précision remplace celle du rectangle englobant.
+    cover: Option<TileCover>,
 }
 
 impl ZoneShape {
@@ -120,7 +287,11 @@ impl ZoneShape {
         let ring = geometry.ring();
         let min = ring.iter().fold((f64::MAX, f64::MAX), |acc, p| (acc.0.min(p.0), acc.1.min(p.1)));
         let max = ring.iter().fold((f64::MIN, f64::MIN), |acc, p| (acc.0.max(p.0), acc.1.max(p.1)));
-        ZoneShape { ring, min, max }
+        let cover = match geometry {
+            ZoneGeometry::Tiles { zoom, rows } => Some(TileCover::new(*zoom, rows)),
+            _ => None,
+        };
+        ZoneShape { ring, min, max, cover }
     }
 
     /// Point (Mercator normalisé) dans le contour : règle du rayon (nombre de croisements impair).
@@ -138,6 +309,7 @@ impl ZoneShape {
     }
 
     pub fn contains_location(&self, lat: f64, lon: f64) -> bool {
+        if let Some(cover) = &self.cover { return cover.contains(mercator(lat, lon)); }
         self.contains(mercator(lat, lon))
     }
 
@@ -156,6 +328,7 @@ impl ZoneShape {
     }
 
     pub fn intersects_tile(&self, z: u8, x: u32, y: u32) -> bool {
+        if let Some(cover) = &self.cover { return cover.intersects_tile(z, x, y); }
         let size = 1.0 / f64::from(1u32 << z);
         self.intersects_rect((f64::from(x) * size, f64::from(y) * size), (f64::from(x + 1) * size, f64::from(y + 1) * size))
     }
@@ -192,6 +365,8 @@ pub struct PrivateZone {
     pub id: i64,
     pub name: String,
     pub geometry: ZoneGeometry,
+    /// Contour d'une forme en tuiles (multipolygone GeoJSON), prêt à dessiner ; absent pour un cercle ou un polygone.
+    pub outline: Option<Vec<Vec<Vec<[f64; 2]>>>>,
     pub max_zoom: u8,
     /// « download » (téléchargée depuis le fournisseur) ou « import » (fichier MBTiles importé).
     pub source: String,
@@ -230,11 +405,13 @@ pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
 
 fn zone_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PrivateZone> {
     let geometry: String = row.get(2)?;
-    let geometry = serde_json::from_str(&geometry)
+    let geometry_json = geometry;
+    let geometry: ZoneGeometry = serde_json::from_str(&geometry_json)
         .map_err(|error| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(error)))?;
     Ok(PrivateZone {
         id: row.get(0)?,
         name: row.get(1)?,
+        outline: cached_outline(&geometry_json, &geometry),
         geometry,
         max_zoom: row.get(3)?,
         source: row.get(4)?,
@@ -245,6 +422,20 @@ fn zone_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PrivateZone> {
         status: row.get(9)?,
         private: row.get(10)?,
     })
+}
+
+/// Contours déjà calculés, par forme (texte JSON de la base) : le calcul est coûteux pour une grande forme et les zones sont relues souvent.
+static OUTLINES: Mutex<Option<HashMap<String, Option<Vec<Vec<Vec<[f64; 2]>>>>>>> = Mutex::new(None);
+
+fn cached_outline(json: &str, geometry: &ZoneGeometry) -> Option<Vec<Vec<Vec<[f64; 2]>>>> {
+    if !matches!(geometry, ZoneGeometry::Tiles { .. }) { return None; }
+    let mut cache = OUTLINES.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let cache = cache.get_or_insert_with(HashMap::new);
+    if let Some(found) = cache.get(json) { return found.clone(); }
+    if cache.len() >= 16 { cache.clear(); }
+    let outline = geometry.outline();
+    cache.insert(json.to_string(), outline.clone());
+    outline
 }
 
 const ZONE_COLUMNS: &str = "id, name, geometry, max_zoom, source, tile_count, missing_count, size_bytes, updated_at, status, private";
@@ -772,12 +963,63 @@ pub fn inspect_mbtiles(path: &Path) -> Result<(u8, Option<[f64; 4]>), String> {
     let metadata = |key: &str| conn.query_row("SELECT value FROM metadata WHERE name = ?1", [key], |row| row.get::<_, String>(0)).ok();
     if metadata("format").as_deref() != Some("pbf") { return Err("mbtiles_not_vector".to_string()); }
     let max_zoom: Option<u8> = conn.query_row("SELECT MAX(zoom_level) FROM tiles", [], |row| row.get(0)).map_err(|_| "invalid_mbtiles".to_string())?;
-    let max_zoom = max_zoom.ok_or("invalid_mbtiles")?.min(14);
+    let max_zoom = max_zoom.ok_or("invalid_mbtiles")?.min(MAX_IMPORT_ZOOM);
     let bounds = metadata("bounds").and_then(|text| {
         let values: Vec<f64> = text.split(',').filter_map(|part| part.trim().parse().ok()).collect();
         (values.len() == 4).then(|| [values[0], values[1], values[2], values[3]])
     });
     Ok((max_zoom, bounds))
+}
+
+/// Plus fin zoom (jusqu'à FOOTPRINT_MAX_ZOOM) dont le fichier a des tuiles sans en avoir plus de FOOTPRINT_MAX_CELLS : ses tuiles forment la forme
+/// de la zone. Le plus fin possible : aux zooms larges, un fichier dont le détail est partiel (bords d'un pays) a des tuiles bien au-delà de
+/// la zone réellement couverte. Requêtes sur l'index (zoom, colonne, rangée) seulement : les blobs de tuiles ne sont pas lus.
+const FOOTPRINT_MAX_ZOOM: u8 = 14;
+const FOOTPRINT_MAX_CELLS: i64 = 150_000;
+
+pub fn mbtiles_footprint(path: &Path, max_zoom: u8) -> Option<ZoneGeometry> {
+    let conn = rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+    for zoom in (1..=max_zoom.min(FOOTPRINT_MAX_ZOOM)).rev() {
+        // Compte plafonné : s'arrête dès que le niveau est trop fourni.
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM (SELECT 1 FROM tiles WHERE zoom_level = ?1 LIMIT ?2)", (zoom, FOOTPRINT_MAX_CELLS + 1), |row| row.get(0))
+            .ok()?;
+        if count == 0 || count > FOOTPRINT_MAX_CELLS { continue; }
+        let mut stmt = conn.prepare("SELECT tile_column, tile_row FROM tiles WHERE zoom_level = ?1").ok()?;
+        let top = (1u32 << zoom) - 1;
+        let mut cells: Vec<(u32, u32)> = stmt
+            .query_map([zoom], |row| Ok((row.get::<_, u32>(1)?, row.get::<_, u32>(0)?)))
+            .ok()?
+            .filter_map(Result::ok)
+            .filter(|(tms_row, column)| *tms_row <= top && *column <= top)
+            .map(|(tms_row, column)| (top - tms_row, column))
+            .collect();
+        cells.sort_unstable();
+        let mut rows: Vec<[u32; 3]> = Vec::new();
+        for (y, x) in cells {
+            match rows.last_mut() {
+                Some(last) if last[0] == y && last[2] + 1 >= x => last[2] = last[2].max(x),
+                _ => rows.push([y, x, x]),
+            }
+        }
+        let shape = ZoneGeometry::Tiles { zoom, rows };
+        return shape.validate().ok().map(|_| shape);
+    }
+    None
+}
+
+/// Recalcule la forme d'une zone importée d'après les tuiles de son fichier (zones importées avant que la forme réelle soit lue : rectangle).
+#[tauri::command(async)]
+pub fn recompute_private_zone_shape(state: State<'_, AppState>, zone_id: i64) -> Result<PrivateZone, String> {
+    let conn = state.pool().get().map_err(|e| e.to_string())?;
+    let zone = get_zone(&conn, zone_id)?;
+    if zone.source != "import" { return Err("imported_zone".to_string()); }
+    let file = zone_file(&private_maps_dir(&state), &zone.name)?;
+    let shape = mbtiles_footprint(&file, zone.max_zoom).ok_or("invalid_mbtiles")?;
+    let json = serde_json::to_string(&shape).map_err(|e| e.to_string())?;
+    conn.execute("UPDATE private_zones SET geometry = ?1 WHERE id = ?2", (&json, zone_id)).map_err(|e| e.to_string())?;
+    reload_zones(&conn)?;
+    get_zone(&conn, zone_id)
 }
 
 /// Importe un fichier MBTiles obtenu ailleurs (aucune requête réseau) : copié dans le dossier des zones. Sans `geometry`, la zone est le
@@ -790,10 +1032,14 @@ pub fn import_private_zone(state: State<'_, AppState>, path: String, name: Strin
     let (max_zoom, bounds) = inspect_mbtiles(&source)?;
     let geometry = match geometry {
         Some(geometry) => geometry,
-        None => {
-            let [west, south, east, north] = bounds.ok_or("mbtiles_without_bounds")?;
-            ZoneGeometry::Polygon { points: vec![[south, west], [south, east], [north, east], [north, west]] }
-        }
+        // Forme réelle du fichier (tuiles présentes) ; à défaut, le rectangle de ses bornes.
+        None => match mbtiles_footprint(&source, max_zoom) {
+            Some(shape) => shape,
+            None => {
+                let [west, south, east, north] = bounds.ok_or("mbtiles_without_bounds")?;
+                ZoneGeometry::Polygon { points: vec![[south, west], [south, east], [north, east], [north, west]] }
+            }
+        },
     };
     geometry.validate()?;
     let dir = private_maps_dir(&state);

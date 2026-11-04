@@ -112,9 +112,14 @@ export function zoneRing(geometry) {
   return ring.length ? [...ring, ring[0]] : ring;
 }
 
-/** Rectangle englobant [[ouest, sud], [est, nord]] d'une zone. */
-export function zoneBounds(geometry) {
-  const ring = zoneRing(geometry);
+/** Anneaux de contour d'une zone ([longitude, latitude]) : ceux de sa forme réelle (zone importée, `outline`), sinon son tracé. */
+function zoneRings(zone) {
+  return zone.outline ? zone.outline.flat() : [zoneRing(zone.geometry)];
+}
+
+/** Rectangle englobant [[ouest, sud], [est, nord]] d'une zone (objet complet, ou tracé seul pour une zone en cours de dessin). */
+export function zoneBounds(zone) {
+  const ring = (zone.geometry ? zoneRings(zone) : [zoneRing(zone)]).flat();
   const lons = ring.map(point => point[0]);
   const lats = ring.map(point => point[1]);
   return [[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]];
@@ -127,7 +132,7 @@ export function zonesFeatureCollection(list, selectedId = null) {
     features: list.map(zone => ({
       type: 'Feature',
       properties: { id: zone.id, selected: zone.id === selectedId, private: zone.private !== false },
-      geometry: { type: 'Polygon', coordinates: [zoneRing(zone.geometry)] },
+      geometry: zone.outline ? { type: 'MultiPolygon', coordinates: zone.outline } : { type: 'Polygon', coordinates: [zoneRing(zone.geometry)] },
     })),
   };
 }

@@ -63,7 +63,7 @@ export function registerMapProtocol(library) {
  */
 export function createTileContext() {
   const id = nextContextId++;
-  const context = { strict: false, inflight: new Set() };
+  const context = { strict: false, tileMaxZoom: 14, inflight: new Set() };
   contexts.set(id, context);
   return {
     id,
@@ -76,6 +76,9 @@ export function createTileContext() {
       }
     },
     isStrict: () => context.strict,
+    /** Dernier niveau de tuiles de la source (au-delà, MapLibre agrandit celles du dernier niveau) ; le style doit être rechargé pour en tenir compte. */
+    setTileMaxZoom(zoom) { context.tileMaxZoom = zoom; },
+    getTileMaxZoom: () => context.tileMaxZoom,
     dispose() {
       for (const controller of context.inflight) controller.abort();
       contexts.delete(id);
@@ -140,7 +143,7 @@ async function loadStyle(context, id, name, abortController) {
       type: 'vector',
       tiles: [`${MAP_PROTOCOL}://${id}/tiles/{z}/{x}/{y}`],
       minzoom: 0,
-      maxzoom: 14,
+      maxzoom: context.tileMaxZoom,
       attribution: MAP_ATTRIBUTION,
     },
   };

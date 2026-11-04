@@ -1166,5 +1166,8 @@
   "Slideshow playing": "Diaporama en lecture",
   "Start or stop the slideshow": "Lancer ou arrêter le diaporama",
   "Fullscreen or grid; on the selection if it holds several photos": "Plein écran ou grille ; sur la sélection si elle compte plusieurs photos",
-  "Pause / resume the slideshow": "Pause / reprise du diaporama"
+  "Pause / resume the slideshow": "Pause / reprise du diaporama",
+  "Recompute the shape": "Recalculer la forme",
+  "Recompute the shape help": "Relit les tuiles du fichier importé pour donner à la zone sa forme réelle plutôt qu'un rectangle.",
+  "The shape of the zone was recomputed": "La forme de la zone a été recalculée"
 }

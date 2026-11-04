@@ -2244,6 +2244,7 @@ fn main() {
             private_maps::get_private_resource,
             private_maps::has_downloaded_map_style,
             private_maps::reset_map_style,
+            private_maps::recompute_private_zone_shape,
             private_maps::locate_private_points,
             private_maps::set_private_zone_privacy,
             geolocation::get_erased_location_ids,
