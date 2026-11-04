@@ -142,7 +142,7 @@ export function isFacesViewOpen() {
   return open;
 }
 
-// Des visages sont sélectionnés : une lettre tapée commence un nom (la touche H n'ouvre alors pas le guide, voir main.js).
+// Des visages sont sélectionnés : une lettre tapée commence un nom (la touche G n'ouvre alors pas le guide, voir main.js).
 export function hasFaceSelection() {
   return open && selected.size > 0;
 }

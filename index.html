@@ -376,6 +376,8 @@
     <!-- Vue Plein Écran -->
     <div id="fullscreen-view" class="hidden">
       <img id="fullscreen-image" src="" alt="" />
+      <!-- Écrêtage des ombres / hautes lumières (histogram.js), calé sur l'image comme elle -->
+      <canvas id="fullscreen-clipping" class="clipping-overlay" aria-hidden="true" hidden></canvas>
       <!-- Zones de visage sur la photo (touche V), calées sur l'image affichée : faces-panel.js -->
       <div id="fullscreen-faces" class="face-overlay" aria-hidden="true" hidden></div>
       <div id="fullscreen-zoom-badge" class="preview-zoom-badge"></div>
@@ -652,6 +654,20 @@
               </label>
             <label class="settings-row settings-check" title="Affiche ou masque la petite carte du groupe Lieu du panneau Info. Sans effet sur le mode Carte, ni sur le réglage « Afficher une carte du lieu de la photo » des Paramètres." data-i18n-title="Info map widget help"><input id="info-map-widget-toggle" type="checkbox" /><span data-i18n="Show the map widget in the Info panel">Afficher le widget carte dans le panneau Info</span></label>
           </section>
+          <!-- Histogramme et écrêtage (histogram.js) : deux réglages par ligne -->
+          <section class="settings-section">
+            <h4 data-i18n="Histogram">Histogramme</h4>
+            <div class="histogram-options">
+              <label class="settings-row settings-check" title="Affiche l'histogramme de la photo courante, en bas à droite de la grille, de l'aperçu ou du plein écran. Touche H." data-i18n-title="Show histogram help"><input id="show-histogram-toggle" type="checkbox" /><span data-i18n="Show histogram">Afficher l'histogramme</span></label>
+              <label class="settings-row settings-check" title="Colore sur l'image (aperçu et plein écran) les ombres et les hautes lumières écrêtées." data-i18n-title="Display clippings help"><input id="show-clippings-toggle" type="checkbox" /><span data-i18n="Display clippings on image">Afficher l'écrêtage sur l'image</span></label>
+              <label class="settings-row" for="clipping-display-select"><span data-i18n="Clippings display">Affichage de l'écrêtage</span>
+                <select id="clipping-display-select"><option value="colors" data-i18n="Red / blue">Rouge / bleu</option><option value="bw" data-i18n="Black / white (pulsing)">Noir / blanc (pulsant)</option></select>
+              </label>
+              <label class="settings-row" for="clipping-range-input" title="0 à 20. Écart, sur 255, avec le noir (ombres) ou le blanc (hautes lumières) en deçà duquel les trois canaux RVB d'un pixel le font compter comme écrêté. 0 : noir ou blanc pur seulement." data-i18n-title="Clipping range help"><span data-i18n="Clipping range">Plage d'écrêtage</span>
+                <input id="clipping-range-input" class="histogram-range" type="number" min="0" max="20" step="1" />
+              </label>
+            </div>
+          </section>
           <section class="settings-section">
             <h4 data-i18n="Appearance">Apparence</h4>
             <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
@@ -771,6 +787,15 @@
 
   </div>
   
+  <!-- Histogramme (histogram.js) : placé en dernier pour passer au-dessus du plein écran ; position et visibilité gérées par le script -->
+  <button id="histogram-widget" class="histogram-widget hidden" type="button" aria-label="Histogramme" data-i18n-aria-label="Histogram">
+    <canvas id="histogram-canvas"></canvas>
+    <span id="histogram-stats" class="histogram-stats"></span>
+    <span id="histogram-warning" class="histogram-warning" title="Calculé d'après l'aperçu JPEG intégré au RAW, pas d'après le développement final de l'image." data-i18n-title="Histogram RAW warning" hidden>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    </span>
+  </button>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

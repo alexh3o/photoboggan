@@ -23,6 +23,7 @@ import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, cl
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
+import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
 // à DOMContentLoaded, on attend deux images (premier rendu stylé peint) avant de l'afficher. Un filet de sécurité existe côté Rust (main.rs).
@@ -362,7 +363,7 @@ const previewStage = document.getElementById('preview-stage');
 const fullscreenView = document.getElementById('fullscreen-view');
 const fullscreenImg = document.getElementById('fullscreen-image');
 // Zoom du plein écran : même structure qu'une case de l'aperçu (voir layoutPreviewSlot), la vue entière occupe toute la fenêtre (marge 1).
-const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
+const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, clip: document.getElementById('fullscreen-clipping'), naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
 fullscreenSlot.zoomBadge = document.getElementById('fullscreen-zoom-badge');
 fullscreenSlot.zoomTimeout = null;let fullscreenLoadToken = 0;
 let fullscreenDrag = null;
@@ -1859,10 +1860,12 @@ function openFullscreen(index) {
   layoutFullscreenSlot();
   preloadFullscreenImages(index);
   updateFullscreenInfo();
+  syncHistogram();
 }
 
 function closeFullscreen() {
   isFullscreen = false;
+  syncHistogram();
   fullscreenDrag = null;
   fullscreenView.classList.remove('dragging');
   fullscreenView.classList.add('hidden');
@@ -1897,7 +1900,7 @@ function loadFullscreenPhoto(photo) {
 
 function showFullscreenPhoto(photo, url) {
   fullscreenSlot.photo = photo;
-  if (fullscreenSlot.url === url) { updateFullscreenInfo(); return; } // même image (ex. changement de note) : la photo associée a pu changer
+  if (fullscreenSlot.url === url) { updateFullscreenInfo(); syncHistogram(); return; } // même image (ex. changement de note) : la photo associée a pu changer
   fullscreenSlot.url = url;
   const token = ++fullscreenLoadToken;
   const apply = loaded => {
@@ -1911,6 +1914,7 @@ function showFullscreenPhoto(photo, url) {
     updateFullscreenInfo(); // les informations changent en même temps que l'image affichée
     fullscreenImg.src = url;
     layoutFullscreenSlot();
+    syncHistogram(); // surcouche d'écrêtage de l'image qui vient d'être affichée
   };
   const probe = new Image();
   probe.onload = () => apply(probe);
@@ -2193,6 +2197,7 @@ function updateUIOnSelection() {
   refreshLocation([...selectedIndices].map(index => photos[index]).filter(Boolean), photos[lastSelectedIndex]);
   refreshMapMode(); // mode Carte ouvert : sélection mise en évidence sur la carte
   refreshInfoRows();
+  syncHistogram(); // histogramme de la photo courante
 }
 
 // Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
@@ -2446,7 +2451,8 @@ async function setSelectionRating(rating, explicitTargets = null) {
 // Ctrl+D : Debug to console
 // E      : Show in explorer
 // F      : Fullscreen toggle
-// H      : Shortcut guide
+// G      : Shortcut guide
+// H      : Histogram: off / displayed / displayed with clippings
 // I      : Info sheet
 // J      : Info panel
 // K      : Keywords panel
@@ -2473,10 +2479,10 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   // Vue Visages ouverte (hors plein écran) : les raccourcis des photos (suppression, note, copie…) ne s'appliquent pas à la grille masquée ;
-  // seul le guide (H) reste disponible, et seulement sans visage sélectionné (une lettre tapée commence alors un nom). Les touches de la vue
+  // seul le guide (G) reste disponible, et seulement sans visage sélectionné (une lettre tapée commence alors un nom). Les touches de la vue
   // sont gérées par faces-grid.js.
-  if (isFacesViewOpen() && !isFullscreen && (e.key.toLowerCase() !== 'h' || hasFaceSelection())) return;
-  if (isPersonsViewOpen() && !isFullscreen && e.key.toLowerCase() !== 'h') return; // vue Personnes : idem
+  if (isFacesViewOpen() && !isFullscreen && (e.key.toLowerCase() !== 'g' || hasFaceSelection())) return;
+  if (isPersonsViewOpen() && !isFullscreen && e.key.toLowerCase() !== 'g') return; // vue Personnes : idem
   // Ctrl+C : copie les photos sélectionnées dans le presse-papiers de l'OS. Traité avant le raccourci « C » seul (Copier vers…),
   // qui ne doit pas s'ouvrir sur Ctrl+C. Ignoré quand une fenêtre (Paramètres, Guide, Tri…) est ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
@@ -2519,10 +2525,16 @@ window.addEventListener('keydown', (e) => {
     else fullscreenRating.classList.add('hidden');
     return;
   }
-  // H : affiche / masque le guide des raccourcis (la modale ouverte aussi depuis les Paramètres) ; il se ferme avec H même s'il est ouvert par-dessus les Paramètres.
-  if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
+  // G : affiche / masque le guide des raccourcis (la modale ouverte aussi depuis les Paramètres) ; il se ferme avec G même s'il est ouvert par-dessus les Paramètres.
+  if (e.key.toLowerCase() === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
     if (!guideModal.classList.contains('hidden')) { e.preventDefault(); closeGuide(); return; }
     if (!document.querySelector('.modal:not(.hidden)')) { e.preventDefault(); openGuide(); return; }
+  }
+  // H : histogramme désactivé -> affiché -> affiché avec écrêtage (réglages des Options d'affichage), avec un toast. Pas derrière une fenêtre ouverte.
+  if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat && !document.querySelector('.modal:not(.hidden)')) {
+    e.preventDefault();
+    cycleHistogramState();
+    return;
   }
   // Informations sur la photo (nom, date, EXIF, rang) en plein écran
   if (e.key.toLowerCase() === 'd' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
@@ -4366,6 +4378,11 @@ function layoutPreviewSlot(slot) {
   slot.displayWidth = width;
   slot.displayHeight = height;
   slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})`;
+  if (slot.clip) { // surcouche d'écrêtage (histogram.js) : mêmes dimensions et même transformation que l'image
+    slot.clip.style.width = slot.img.style.width;
+    slot.clip.style.height = slot.img.style.height;
+    slot.clip.style.transform = slot.img.style.transform;
+  }
   positionPreviewMarks(slot, cellWidth, cellHeight);
   if (slot !== fullscreenSlot) layoutPreviewFaces(slot); // zones de visage (touche V)
 }
@@ -4424,7 +4441,13 @@ function createPreviewSlot(photo) {
   flags.className = 'meta-flags';
   flags.append(slot.pickMark, slot.flagDot);
   meta.append(slot.ratingLabel, flags);
-  cell.append(img, check, meta, zoomBadge);
+  // Surcouche d'écrêtage (masquée tant que histogram.js n'y peint rien).
+  const clip = document.createElement('canvas');
+  clip.className = 'clipping-overlay';
+  clip.hidden = true;
+  clip.setAttribute('aria-hidden', 'true');
+  slot.clip = clip;
+  cell.append(img, clip, check, meta, zoomBadge);
   if (isVideoPath(photo.path)) cell.append(createVideoPlayBadge());
   slot.check = check;
   slot.meta = meta;
@@ -5705,6 +5728,33 @@ initKeywordsPanel({
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
 initDescriptionPanel({ getSelectedPhotos });
+
+// Histogramme de la photo courante et écrêtage (voir histogram.js). Affiché en bas à droite du plein écran, sinon de l'aperçu (s'il est visible) ou de la grille ;
+// jamais en mode Comparer, ni dans les vues Carte, Personnes et Visages. La surcouche d'écrêtage ne se pose que sur l'image de l'aperçu et du plein écran.
+const mapPanelElement = document.getElementById('map-panel');
+const personsViewElement = document.getElementById('persons-view');
+const facesViewElement = document.getElementById('faces-view');
+initHistogram({
+  // Éléments dont un redimensionnement ou un changement de classe / d'attribut hidden déplace ou masque l'histogramme.
+  watch: [mainContent, gridContainer, previewStage, mapPanelElement, personsViewElement, facesViewElement, fullscreenView, document.getElementById('exif-panel')],
+  getView: () => {
+    const photo = selectedIndices.size > 0 ? photos[lastSelectedIndex] ?? null : null;
+    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
+    const previewShown = !mainContent.classList.contains('preview-hidden');
+    const hidden = !isFullscreen && (compareMode || otherViewOpen);
+    let overlays = [];
+    if (isFullscreen) overlays = fullscreenSlot.photo === photo ? [fullscreenSlot.clip] : []; // image du plein écran = photo courante
+    else if (!hidden && previewShown) overlays = previewSlots.filter(slot => slot.photo === photo).map(slot => slot.clip);
+    return {
+      photo, hidden, fullscreen: isFullscreen, overlays,
+      anchor: isFullscreen ? null : previewShown ? previewStage : gridContainer,
+      isRaw: Boolean(photo) && isRawPath(photo.path), // calcul sur l'aperçu JPEG intégré : avertissement dans l'encadré
+    };
+  },
+  getThumbnailUrl: photo => thumbnailUrlFor(photo.path),
+  getFallbackUrl: photo => getPhotoDisplayUrl(photo), // format dont le backend ne fait pas de miniature
+  showToast: message => showWriteToast(message),
+});
 
 // Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
 function setPhotoGridVisible(visible) {

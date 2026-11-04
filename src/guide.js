@@ -1,4 +1,4 @@
-// Guide des raccourcis (modale ouverte par la touche H, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche.
+// Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche.
 //
 // Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail éventuel en gris sur une seconde ligne, étiquette de contexte
 // quand la même touche a un autre sens ailleurs). Les textes sont des clés de traduction (src/locales). Les mots des touches (Clic, Maj, Glisser…)
@@ -77,7 +77,8 @@ const GROUPS = [
   { title: 'Window', rows: [
     { a: 'Close fullscreen or the open window', k: [['Esc']] },
     { a: 'Immersive mode', d: 'Hides the title bar and the taskbar', k: [['F11']] },
-    { a: 'Shortcuts guide', k: [['H']] },
+    { a: 'Shortcuts guide', k: [['G']] },
+    { a: 'Histogram: off, displayed, with clippings', k: [['H']] },
   ] },
 ];
 

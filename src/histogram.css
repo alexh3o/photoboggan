@@ -1,0 +1,72 @@
+/* Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. */
+:root {
+  /* Encadré de l'histogramme : fond translucide sombre quel que soit le thème, pour que les courbes claires restent lisibles. */
+  --histogram-width: 13rem;
+  --histogram-height: 6rem;
+  --histogram-bg: rgba(0, 0, 0, 0.55);
+  --histogram-border: rgba(255, 255, 255, 0.18);
+  --histogram-text: #f2f2f2;
+  --histogram-grid-color: rgba(255, 255, 255, 0.14);
+  --histogram-offset: 1.25rem;               /* distance au coin bas droit de la zone (grille, aperçu ou plein écran) */
+  /* Courbes (luminance, puis rouge / vert / bleu en mélange additif). */
+  --histogram-luma-color: rgba(240, 240, 240, 0.85);
+  --histogram-red-color: rgba(255, 50, 50, 0.8);
+  --histogram-green-color: rgba(40, 220, 70, 0.8);
+  --histogram-blue-color: rgba(70, 120, 255, 0.8);
+  /* Écrêtage sur l'image : hautes lumières puis ombres, en couleurs fixes ou en noir / blanc pulsant. */
+  --clipping-highlight-color: rgba(255, 0, 0, 0.9);
+  --clipping-shadow-color: rgba(0, 90, 255, 0.9);
+  --clipping-bw-highlight-color: rgba(0, 0, 0, 0.9);
+  --clipping-bw-shadow-color: rgba(255, 255, 255, 0.9);
+  --clipping-pulse-duration: 3s;             /* durée d'un cycle de pulsation (mode noir / blanc) */
+  --clipping-pulse-min-opacity: 0.1;
+  --clipping-pulse-max-opacity: 0.7;         /* opacité au sommet de la pulsation (1 = plein) */
+  --clipping-bw-blur: 2px;                   /* flou des bords en mode noir / blanc (0 = bords nets) ; en pixels de l'image affichée à 100 % */
+}
+
+.histogram-widget {
+  position: fixed;
+  right: calc(var(--histogram-anchor-right, 0px) + var(--histogram-offset));
+  bottom: calc(var(--histogram-anchor-bottom, 0px) + var(--histogram-offset));
+  z-index: 20;
+  width: var(--histogram-width);
+  margin: 0;
+  padding: 0.4rem 0.5rem 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  color: var(--histogram-text);
+  background: var(--histogram-bg);
+  border: 1px solid var(--histogram-border);
+  border-radius: 6px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: blur(2px);
+}
+.histogram-widget.hidden { display: none; }
+.histogram-widget.in-fullscreen { z-index: 9999; } /* après #fullscreen-view dans le DOM : au-dessus, mais sous les fenêtres (10000) */
+.histogram-widget canvas { display: block; width: 100%; height: var(--histogram-height); }
+.histogram-stats { font-size: 0.68rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.histogram-warning { position: absolute; top: 0.3rem; right: 0.4rem; display: inline-flex; color: #ffcc33; filter: drop-shadow(0 0 2px #000); cursor: help; }
+.histogram-warning[hidden] { display: none; }
+
+/* Surcouche d'écrêtage : même position et même zoom que l'image (transform posé par main.js, layoutPreviewSlot). */
+.clipping-overlay { position: absolute; top: 0; left: 0; max-width: none; transform-origin: 0 0; pointer-events: none; will-change: transform; }
+.clipping-overlay[hidden] { display: none; }
+/* Mode noir / blanc : bords adoucis (flou) et pulsation entre une opacité minimale et une opacité maximale < 1 (reste translucide). */
+.clipping-overlay.clipping-pulse {
+  filter: blur(var(--clipping-bw-blur));
+  animation: clipping-pulse var(--clipping-pulse-duration) ease-in-out infinite;
+}
+@keyframes clipping-pulse {
+  0%, 100% { opacity: var(--clipping-pulse-min-opacity); }
+  50% { opacity: var(--clipping-pulse-max-opacity); }
+}
+
+/* Options d'affichage > Histogramme : deux réglages par ligne. */
+.histogram-options { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1rem; align-items: start; }
+.histogram-options .settings-row { min-width: 0; }
+.histogram-options .histogram-range { width: 4.5rem; padding: 0.4rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; }
+.histogram-options .settings-row:has(:disabled) { opacity: 0.5; }
