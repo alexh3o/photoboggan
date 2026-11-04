@@ -5,7 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -175,7 +175,7 @@ function photoUrl(photo) {
 
 // Ajout extracteur RAW
 const RAW_EXTENSIONS = new Set(['arw', 'cr2', 'cr3', 'nef', 'nrw', 'dng', 'raf', 'orf', 'rw2', 'raw']);
-function isRawPath(path) {
+export function isRawPath(path) {
   const ext = (path || '').split('.').pop()?.toLowerCase();
   return RAW_EXTENSIONS.has(ext);
 }
@@ -2266,7 +2266,7 @@ function updateRatingAction() {
 let writeToastTimeout = null;
 
 // `action` (facultatif) : { label, onClick } ajoute un bouton au toast (ex. « Annuler ») et le garde plus longtemps à l'écran.
-function showWriteToast(message, isWriting = false, action = null) {
+function showWriteToast(message, isWriting = false, action = null, duration = null) {
   const toast = document.getElementById('write-toast');
   if (!toast) return;
   clearTimeout(writeToastTimeout);
@@ -2284,7 +2284,7 @@ function showWriteToast(message, isWriting = false, action = null) {
   }
   toast.classList.remove('hidden');
   toast.classList.toggle('writing', isWriting);
-  if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), action ? 8000 : 3500);
+  if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), duration ?? (action ? 8000 : 3500));
 }
 
 // Carré de couleur cliquable, utilisé par la barre de filtre et par la barre d'écriture.
@@ -2549,6 +2549,15 @@ window.addEventListener('keydown', (e) => {
       revealInFileManager(photos[lastSelectedIndex]);
       return;
     }
+  }
+  // O : ouvre la sélection avec le premier programme « Ouvrir avec » du type de fichier (Paramètres > Ouvrir avec)
+  if (e.key.toLowerCase() === 'o' && plainKey && !e.shiftKey && selectedIndices.size > 0) {
+    e.preventDefault();
+    if (e.repeat) return;
+    const selectedPhotos = commandTargetPhotos();
+    if (selectedPhotos.length > 0) openWithFirstProgram(selectedPhotos);
+    else if (isCompareMultiple()) notifyNoCompareTarget();
+    return;
   }
   // Copie vers
   if (e.key.toLowerCase() === 'c' && plainKey) {

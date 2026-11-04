@@ -15,7 +15,7 @@
 
 - [ ] *feat*: Find RAW with datetime and camera model
 - [ ] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
-- [ ] *feat*: `Controls` "**Open with**" keyboard shortcuts
+- [x] *feat*: `Controls` "**Open with**" keyboard shortcuts
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
 - [x] *chore*: Add **Linux** release
   - [ ] **Test** linux release (more)
@@ -36,6 +36,7 @@
 - [ ] *feat*: cancellations everywhere
 - [ ] *feat*: internal metadata writer activated => no exif reading
 - [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected (do not use as private meanwhile)
+- [ ] *refactor*: `UI` improve toasts placement / visibility
 
 ## ❄️ Cold storage
 

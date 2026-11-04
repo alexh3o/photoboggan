@@ -145,7 +145,7 @@ Right-click a photo or selection for the context menu:
 | **Copy to…** (`C`)              | Copies to a folder you choose.                                  |
 | **Resize…** (`S`)               | Batch resize into new files (see below).                        |
 | **Show in file explorer** (`E`) |                                                                 |
-| **Open with**                   | Your programs from **Settings > Applications**, or **Choose…**. |
+| **Open with** (`O`)             | Programs of **Settings > Open with** for the file type (rendered images, RAW, videos), in your order, or **Choose…**. `O` uses the first one. |
 
 You can also **drag** photos onto a folder in the tree: `Shift`+drag to **move**, `Ctrl`+drag to **copy**. When photos are copied or moved, their `.xmp` sidecar file goes with them.
 

@@ -2,14 +2,18 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
-import { getIsFullscreen, isVideoPath } from './main.js';
+import { getIsFullscreen, isVideoPath, isRawPath } from './main.js';
 import { isWriteLocked } from './metadata-writes.js';
 import { getWriterMode } from './metadata-settings.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
 // suppression, copie des originaux et « Ouvrir avec ». main.js donne accès à l'état de la grille via initPhotoActions().
 
-const PROGRAMS_STORAGE_KEY = 'openWithPrograms';
+const PROGRAMS_STORAGE_KEY = 'openWithProgramsBySection';
+const LEGACY_PROGRAMS_STORAGE_KEY = 'openWithPrograms'; // ancienne liste unique : recopiée dans chaque section tant que rien n'est enregistré
+const PROGRAM_SECTION_STORAGE_KEY = 'openWithSection'; // section affichée dans les Paramètres
+// Sections « Ouvrir avec » : chacune a sa liste ordonnée ; le premier programme est celui du raccourci O.
+const PROGRAM_SECTIONS = ['images', 'raw', 'videos'];
 const LAST_COPY_FOLDER_KEY = 'lastCopyFolder';
 let api = null;
 let contextMenu = null;
@@ -21,21 +25,38 @@ const defaultProgramName = path => baseName(path).replace(/\.[^.\\/]+$/, '');
 // ==========================================
 // PROGRAMMES « OUVRIR AVEC » (liste dans les Paramètres, mémorisée localement)
 // ==========================================
-function loadPrograms() {
+function cleanPrograms(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter(program => program && typeof program.path === 'string' && program.path)
+    .map(program => ({ name: String(program.name || '').trim() || defaultProgramName(program.path), path: program.path }));
+}
+
+// Section d'un fichier : vidéos, RAW, sinon images rendues (JPEG, PNG, HEIC…).
+function programSection(path) {
+  if (isVideoPath(path)) return 'videos';
+  return isRawPath(path) ? 'raw' : 'images';
+}
+
+function loadAllPrograms() {
   try {
-    const stored = JSON.parse(localStorage.getItem(PROGRAMS_STORAGE_KEY) || '[]');
-    if (!Array.isArray(stored)) return [];
-    return stored
-      .filter(program => program && typeof program.path === 'string' && program.path)
-      .map(program => ({ name: String(program.name || '').trim() || defaultProgramName(program.path), path: program.path }));
+    const stored = JSON.parse(localStorage.getItem(PROGRAMS_STORAGE_KEY));
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      return Object.fromEntries(PROGRAM_SECTIONS.map(section => [section, cleanPrograms(stored[section])]));
+    }
+    // Première utilisation après la mise à jour : l'ancienne liste unique sert à toutes les sections.
+    const legacy = cleanPrograms(JSON.parse(localStorage.getItem(LEGACY_PROGRAMS_STORAGE_KEY) || '[]'));
+    return Object.fromEntries(PROGRAM_SECTIONS.map(section => [section, legacy.map(program => ({ ...program }))]));
   } catch (error) {
     console.debug('Programs list unreadable', error);
-    return [];
+    return Object.fromEntries(PROGRAM_SECTIONS.map(section => [section, []]));
   }
 }
 
-function savePrograms(programs) {
-  localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify(programs));
+const loadPrograms = section => loadAllPrograms()[section] || [];
+
+function savePrograms(section, programs) {
+  localStorage.setItem(PROGRAMS_STORAGE_KEY, JSON.stringify({ ...loadAllPrograms(), [section]: programs }));
 }
 
 // Boîte de dialogue de l'OS pour choisir un dossier de destination ; null si l'utilisateur annule ou si la boîte ne s'ouvre pas.
@@ -70,10 +91,44 @@ async function pickProgram() {
   }
 }
 
+function shownProgramSection() {
+  const select = document.getElementById('open-with-section');
+  return select && PROGRAM_SECTIONS.includes(select.value) ? select.value : PROGRAM_SECTIONS[0];
+}
+
+// Glisser la poignée : la ligne change de place dès que le pointeur passe le milieu d'une voisine ; l'ordre est enregistré au relâchement
+// (même principe que order-list.js : évènements pointeur plutôt que glisser-déposer HTML5).
+function startProgramDrag(event, item, handle, list, section) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  handle.setPointerCapture(event.pointerId);
+  item.classList.add('dragging');
+  const onMove = moveEvent => {
+    const previous = item.previousElementSibling;
+    const next = item.nextElementSibling;
+    if (previous && moveEvent.clientY < previous.getBoundingClientRect().top + previous.offsetHeight / 2) list.insertBefore(item, previous);
+    if (next && moveEvent.clientY > next.getBoundingClientRect().top + next.offsetHeight / 2) list.insertBefore(next, item);
+  };
+  const onEnd = () => {
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onEnd);
+    handle.removeEventListener('pointercancel', onEnd);
+    item.classList.remove('dragging');
+    const programs = loadPrograms(section);
+    const order = [...list.children].map(child => child.dataset.path);
+    savePrograms(section, order.map(path => programs.find(program => program.path === path)).filter(Boolean));
+    renderProgramList();
+  };
+  handle.addEventListener('pointermove', onMove);
+  handle.addEventListener('pointerup', onEnd);
+  handle.addEventListener('pointercancel', onEnd);
+}
+
 function renderProgramList() {
   const list = document.getElementById('settings-program-list');
   if (!list) return;
-  const programs = loadPrograms();
+  const section = shownProgramSection();
+  const programs = loadPrograms(section);
   if (!programs.length) {
     const empty = document.createElement('li');
     empty.className = 'settings-program-empty';
@@ -81,9 +136,35 @@ function renderProgramList() {
     list.replaceChildren(empty);
     return;
   }
-  list.replaceChildren(...programs.map(program => {
+  const moveButton = (symbol, label, disabled, action) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'keyword-format-move';
+    button.textContent = symbol;
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.disabled = disabled;
+    button.addEventListener('click', action);
+    return button;
+  };
+  const move = (index, delta) => {
+    const reordered = [...programs];
+    [reordered[index], reordered[index + delta]] = [reordered[index + delta], reordered[index]];
+    savePrograms(section, reordered);
+    renderProgramList();
+  };
+  list.replaceChildren(...programs.map((program, index) => {
     const item = document.createElement('li');
     item.className = 'settings-program-item';
+    item.dataset.path = program.path;
+    const handle = document.createElement('span');
+    handle.className = 'keyword-format-handle';
+    handle.textContent = '⠿';
+    handle.title = t('Drag to reorder');
+    handle.addEventListener('pointerdown', event => startProgramDrag(event, item, handle, list, section));
+    const rank = document.createElement('span');
+    rank.className = 'keyword-format-rank';
+    rank.textContent = `${index + 1}.`;
     const details = document.createElement('div');
     details.className = 'settings-program-details';
     const name = document.createElement('input');
@@ -95,7 +176,7 @@ function renderProgramList() {
     name.setAttribute('aria-label', t('Program name'));
     name.addEventListener('change', () => {
       const nextName = name.value.trim() || defaultProgramName(program.path);
-      savePrograms(loadPrograms().map(candidate => candidate.path === program.path ? { ...candidate, name: nextName } : candidate));
+      savePrograms(section, loadPrograms(section).map(candidate => candidate.path === program.path ? { ...candidate, name: nextName } : candidate));
       name.value = nextName;
     });
     name.addEventListener('keydown', event => { if (event.key === 'Enter') name.blur(); });
@@ -109,10 +190,17 @@ function renderProgramList() {
     remove.className = 'btn-delete-folder';
     remove.textContent = t('Delete');
     remove.addEventListener('click', () => {
-      savePrograms(loadPrograms().filter(candidate => candidate.path !== program.path));
+      savePrograms(section, loadPrograms(section).filter(candidate => candidate.path !== program.path));
       renderProgramList();
     });
-    item.append(details, remove);
+    item.append(
+      handle,
+      rank,
+      details,
+      moveButton('↑', t('Move up'), index === 0, () => move(index, -1)),
+      moveButton('↓', t('Move down'), index === programs.length - 1, () => move(index, 1)),
+      remove,
+    );
     return item;
   }));
 }
@@ -120,7 +208,8 @@ function renderProgramList() {
 async function addProgramFromDialog() {
   const path = await pickProgram();
   if (!path) return;
-  const programs = loadPrograms();
+  const section = shownProgramSection();
+  const programs = loadPrograms(section);
   const existing = programs.findIndex(program => program.path.toLowerCase() === path.toLowerCase());
   if (existing >= 0) {
     // Déjà dans la liste : on place simplement le curseur sur son nom.
@@ -128,7 +217,7 @@ async function addProgramFromDialog() {
     return;
   }
   programs.push({ name: defaultProgramName(path), path });
-  savePrograms(programs);
+  savePrograms(section, programs);
   renderProgramList();
 }
 
@@ -988,8 +1077,21 @@ async function invokeOpen(command, args) {
   }
 }
 
-function openWith(program, targets) {
+// `name` : nom du programme affiché dans le message « Ouverture avec … » (5 secondes).
+function openWith(program, targets, name = defaultProgramName(program)) {
+  api.showToast(t('Opening with {program}', { program: name }), false, null, 5000);
   return invokeOpen('open_with', { program, paths: targets.map(photo => photo.path) });
+}
+
+// Raccourci O : ouvre les photos avec le premier programme de la section de la première photo ; message si cette section est vide.
+export async function openWithFirstProgram(targets) {
+  if (!targets.length) return;
+  const [program] = loadPrograms(programSection(targets[0].path));
+  if (!program) {
+    api.showToast(t('No program configured for this file type'));
+    return;
+  }
+  await openWith(program.path, targets, program.name);
 }
 
 async function chooseProgramAndOpen(targets) {
@@ -1417,8 +1519,8 @@ function buildFacesItem(scope, { source } = {}) {
   return buildSubmenuItem(t('Faces'), items);
 }
 
-// « Ouvrir avec » : programmes des Paramètres, puis toujours « Choisir… » en fin de liste.
-function buildOpenWithItem(targets) {
+// « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
+function buildOpenWithItem(targets, section) {
   const wrapper = document.createElement('div');
   wrapper.className = 'context-menu-sub';
   const trigger = menuButton(t('Open with'), null);
@@ -1428,8 +1530,8 @@ function buildOpenWithItem(targets) {
   const submenu = document.createElement('div');
   submenu.className = 'context-submenu';
   submenu.setAttribute('role', 'menu');
-  const programs = loadPrograms();
-  for (const program of programs) submenu.append(menuButton(program.name, () => openWith(program.path, targets)));
+  const programs = loadPrograms(section);
+  for (const program of programs) submenu.append(menuButton(program.name, () => openWith(program.path, targets, program.name)));
   if (programs.length) {
     const separator = document.createElement('div');
     separator.className = 'context-menu-separator';
@@ -1523,7 +1625,7 @@ function openThumbnailMenu(event, index, source = 'grid') {
   menuItems.push(
     menuSeparator(),
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo), { shortcut: 'E' }),
-    buildOpenWithItem(targets),
+    buildOpenWithItem(targets, programSection(photo.path)),
   );
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
@@ -1831,6 +1933,15 @@ export function initPhotoActions(options) {
   api = options;
   document.addEventListener('contextmenu', onContextMenu);
   document.getElementById('btn-add-program')?.addEventListener('click', addProgramFromDialog);
+  const sectionSelect = document.getElementById('open-with-section');
+  if (sectionSelect) {
+    const stored = localStorage.getItem(PROGRAM_SECTION_STORAGE_KEY);
+    if (PROGRAM_SECTIONS.includes(stored)) sectionSelect.value = stored;
+    sectionSelect.addEventListener('change', () => {
+      localStorage.setItem(PROGRAM_SECTION_STORAGE_KEY, sectionSelect.value);
+      renderProgramList();
+    });
+  }
   renderProgramList();
   onLanguageChange(renderProgramList);
 }

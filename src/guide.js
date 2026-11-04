@@ -26,6 +26,7 @@ const GROUPS = [
     { a: 'Copy to clipboard', k: [['Ctrl', 'C']] },
     { a: 'Resize…', k: [['S']] },
     { a: 'Show in file explorer', k: [['E']] },
+    { a: 'Open with the first program', d: 'Settings > Open with', k: [['O']] },
     { a: 'Information Sheet', k: [['I']] },
   ] },
   { title: 'Mouse', rows: [

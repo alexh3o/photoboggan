@@ -482,6 +482,15 @@
           <div id="settings-tab-open-with" class="settings-tab-pane" role="tabpanel" hidden>
             <section class="settings-section">
               <h4 data-i18n="Open with">Ouvrir avec</h4>
+              <p class="sort-note" data-i18n="Open with help">Chaque type de fichier a sa liste : le menu contextuel la propose dans cet ordre, et la touche O ouvre la sélection avec le premier programme. Glissez les lignes pour réordonner.</p>
+              <label class="settings-row" for="open-with-section">
+                <span data-i18n="File type">Type de fichier</span>
+                <select id="open-with-section">
+                  <option value="images" data-i18n="Rendered images">Images rendues</option>
+                  <option value="raw" data-i18n="RAW images">Images RAW</option>
+                  <option value="videos" data-i18n="Videos">Vidéos</option>
+                </select>
+              </label>
               <button type="button" id="btn-add-program" class="btn-highlight" data-i18n="Add program">Ajouter un programme</button>
               <ul id="settings-program-list"></ul>
             </section>
