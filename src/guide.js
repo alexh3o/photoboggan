@@ -7,7 +7,7 @@
 import { t, onLanguageChange, normalizeSearch } from './i18n.js';
 
 // Mots de touche traduits (clé de traduction) ; toute autre touche s'affiche telle quelle.
-const KEY_WORDS = new Set(['Click', 'Double-click', 'Right-click', 'Shift', 'Drag', 'Mouse wheel', 'Delete Key', 'Enter', 'Esc', 'A letter']);
+const KEY_WORDS = new Set(['Click', 'Double-click', 'Right-click', 'Shift', 'Drag', 'Mouse wheel', 'Delete Key', 'Enter', 'Esc', 'A letter', 'Space Key']);
 
 // `k` : alternatives de touches, chacune étant une combinaison (touches jointes par « + »). `sep` : séparateur entre alternatives
 // (« ou » par défaut, 'slash' pour « / », 'space' pour une simple liste). `tag` : contexte où la ligne s'applique.
@@ -60,6 +60,8 @@ const GROUPS = [
     { a: 'Enter / leave fullscreen', k: [['F']] },
     { a: 'Photo information', tag: 'Fullscreen', k: [['D']] },
     { a: 'Rating bar', tag: 'Fullscreen', k: [['R']] },
+    { a: 'Start or stop the slideshow', d: 'Fullscreen or grid; on the selection if it holds several photos', k: [['F10']] },
+    { a: 'Pause / resume the slideshow', tag: 'Fullscreen', k: [['Space Key']] },
   ] },
   { title: 'Faces', rows: [
     { a: 'Face regions: hover, always, hidden', d: 'Preview and fullscreen', k: [['V']] },

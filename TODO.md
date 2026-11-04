@@ -30,9 +30,9 @@
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `faces` resize / move face area
 - [ ] *feat*: find duplicates
-- [ ] *feat*: slideshow
+- [x] *feat*: slideshow
 - [ ] *feat*: stats
-- [ ] *feat*: histogram
+- [x] *feat*: histogram
 - [ ] *feat*: cancellations everywhere
 - [ ] *feat*: internal metadata writer activated => no exif reading
 - [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected (do not use as private meanwhile)

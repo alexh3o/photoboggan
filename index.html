@@ -381,6 +381,8 @@
       <!-- Zones de visage sur la photo (touche V), calées sur l'image affichée : faces-panel.js -->
       <div id="fullscreen-faces" class="face-overlay" aria-hidden="true" hidden></div>
       <div id="fullscreen-zoom-badge" class="preview-zoom-badge"></div>
+      <!-- Diaporama (slideshow.js) : ▶ un instant au lancement, ⏸ tant qu'il est en pause ; coin haut gauche -->
+      <div id="slideshow-indicator" class="slideshow-indicator" aria-hidden="true" hidden></div>
       <!-- Informations sur la photo (touche D) : voir updateFullscreenInfo dans main.js -->
       <div id="fullscreen-info" class="fullscreen-info hidden" aria-hidden="true">
         <div id="fullscreen-info-name" class="fullscreen-info-name"></div>
@@ -417,6 +419,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="maps" data-i18n="Maps">Cartes</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="misc" data-i18n="Misc">Divers</button>
         </div>
 
         <div class="modal-body">
@@ -605,6 +608,17 @@
                 <h4 data-i18n="People">Personnes</h4>
                 <div class="settings-row" title="Supprime, après confirmation, les personnes qui n'ont plus aucun visage attribué. Elles ne sont jamais supprimées automatiquement (une personne peut être créée en attente d'attribution). Les mots-clés de l'arbre restent." data-i18n-title="Clean persons hint"><span data-i18n="People without faces">Personnes sans visage</span><button id="btn-face-clean-persons" type="button" data-i18n="Clean up…">Nettoyer…</button></div>
               </div>
+            </section>
+          </div>
+
+          <!-- Onglet Divers -->
+          <div id="settings-tab-misc" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Slideshow">Diaporama</h4>
+              <label class="settings-row" for="slideshow-delay"><span data-i18n="Delay between photos (seconds)">Durée entre les photos (secondes)</span>
+                <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
+              <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
+              <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
             </section>
           </div>
         </div>

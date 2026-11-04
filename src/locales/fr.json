@@ -1149,5 +1149,22 @@
   "Histogram: off": "Histogramme : désactivé",
   "Histogram: displayed": "Histogramme : affiché",
   "Histogram and clippings: displayed": "Histogramme et écrêtage : affichés",
-  "Histogram: off, displayed, with clippings": "Histogramme : désactivé, affiché, avec écrêtage"
+  "Histogram: off, displayed, with clippings": "Histogramme : désactivé, affiché, avec écrêtage",
+  "Slideshow": "Diaporama",
+  "Misc": "Divers",
+  "Resume": "Reprendre",
+  "Pause": "Pause",
+  "Loop": "Boucler",
+  "Random order": "Ordre aléatoire",
+  "Delay: {seconds} s": "Durée : {seconds} s",
+  "Delay between photos (seconds)": "Durée entre les photos (secondes)",
+  "Space Key": "Espace",
+  "End of the slideshow": "Fin du diaporama",
+  "The slideshow needs at least 2 photos": "Le diaporama demande au moins 2 photos",
+  "Slideshow paused": "Diaporama en pause",
+  "Slideshow stopped": "Diaporama arrêté",
+  "Slideshow playing": "Diaporama en lecture",
+  "Start or stop the slideshow": "Lancer ou arrêter le diaporama",
+  "Fullscreen or grid; on the selection if it holds several photos": "Plein écran ou grille ; sur la sélection si elle compte plusieurs photos",
+  "Pause / resume the slideshow": "Pause / reprise du diaporama"
 }

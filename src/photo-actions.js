@@ -5,6 +5,7 @@ import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath, isRawPath } from './main.js';
 import { isWriteLocked } from './metadata-writes.js';
 import { getWriterMode } from './metadata-settings.js';
+import { SLIDESHOW_DELAYS, getSlideshowSettings, setSlideshowOption, isSlideshowActive, isSlideshowPaused, startSlideshow, stopSlideshow, toggleSlideshowPause } from './slideshow.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
 // suppression, copie des originaux et « Ouvrir avec ». main.js donne accès à l'état de la grille via initPhotoActions().
@@ -1442,6 +1443,27 @@ function buildSubmenuItem(label, items) {
   return wrapper;
 }
 
+// Sous-menu « Diaporama » (plein écran) : lancer / arrêter, boucle, ordre aléatoire et durée entre les photos. Les mêmes réglages sont dans
+// Paramètres > Général. Pendant la lecture, une ligne Pause / Reprendre s'ajoute.
+function buildSlideshowItem() {
+  const settings = getSlideshowSettings();
+  const active = isSlideshowActive();
+  const items = [
+    active
+      ? { label: t('Stop'), onSelect: () => stopSlideshow() }
+      : { label: t('Start'), shortcut: 'F10', onSelect: startSlideshow },
+  ];
+  if (active) items.push({ label: isSlideshowPaused() ? t('Resume') : t('Pause'), shortcut: t('Space Key'), onSelect: toggleSlideshowPause });
+  items.push(
+    { separator: true },
+    { label: t('Loop'), checked: settings.loop, onSelect: () => setSlideshowOption('loop', !settings.loop) },
+    { label: t('Random order'), checked: settings.random, onSelect: () => setSlideshowOption('random', !settings.random) },
+    { separator: true },
+    ...SLIDESHOW_DELAYS.map(seconds => ({ label: t('Delay: {seconds} s', { seconds }), checked: settings.delay === seconds, onSelect: () => setSlideshowOption('delay', seconds) })),
+  );
+  return buildSubmenuItem(t('Slideshow'), items);
+}
+
 // Sous-menu « Marquage » : note, couleur et fanion pick (ces deux derniers seulement s'ils sont activés dans les Paramètres) de `targets`,
 // la valeur déjà commune à toutes les photos visées étant cochée. Un clic sur la valeur cochée l'efface (comme les raccourcis).
 function buildMarkingItem(targets) {
@@ -1603,11 +1625,14 @@ function openThumbnailMenu(event, index, source = 'grid') {
   menu.className = 'context-menu';
   menu.setAttribute('role', 'menu');
   // Quatre blocs séparés : en-tête et marquage, actions sur les fichiers, outils et ouvertures, puis la suppression (toujours en dernier).
-  const menuItems = [
+  const menuItems = [];
+  // Plein écran : « Diaporama » en tête du menu (le lancement depuis la grille se fait par F10).
+  if (source === 'fullscreen') menuItems.push(buildSlideshowItem(), menuSeparator());
+  menuItems.push(
     targets.length > 1
       ? menuHeader(tp('{count} photo selected', targets.length))
       : menuHeader(photoName(photo), photo.path),
-  ];
+  );
   const markingItem = buildMarkingItem(targets);
   if (markingItem) menuItems.push(markingItem, menuSeparator());
   menuItems.push(

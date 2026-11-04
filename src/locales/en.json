@@ -1149,5 +1149,22 @@
   "Histogram: off": "Histogram: off",
   "Histogram: displayed": "Histogram: displayed",
   "Histogram and clippings: displayed": "Histogram and clippings: displayed",
-  "Histogram: off, displayed, with clippings": "Histogram: off, displayed, with clippings"
+  "Histogram: off, displayed, with clippings": "Histogram: off, displayed, with clippings",
+  "Slideshow": "Slideshow",
+  "Misc": "Misc",
+  "Resume": "Resume",
+  "Pause": "Pause",
+  "Loop": "Loop",
+  "Random order": "Random order",
+  "Delay: {seconds} s": "Delay: {seconds} s",
+  "Delay between photos (seconds)": "Delay between photos (seconds)",
+  "Space Key": "Space",
+  "End of the slideshow": "End of the slideshow",
+  "The slideshow needs at least 2 photos": "The slideshow needs at least 2 photos",
+  "Slideshow paused": "Slideshow paused",
+  "Slideshow stopped": "Slideshow stopped",
+  "Slideshow playing": "Slideshow playing",
+  "Start or stop the slideshow": "Start or stop the slideshow",
+  "Fullscreen or grid; on the selection if it holds several photos": "Fullscreen or grid; on the selection if it holds several photos",
+  "Pause / resume the slideshow": "Pause / resume the slideshow"
 }

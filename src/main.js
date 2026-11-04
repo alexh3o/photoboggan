@@ -24,6 +24,7 @@ import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeF
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
+import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
 // à DOMContentLoaded, on attend deux images (premier rendu stylé peint) avant de l'afficher. Un filet de sécurité existe côté Rust (main.rs).
@@ -1864,6 +1865,7 @@ function openFullscreen(index) {
 }
 
 function closeFullscreen() {
+  stopSlideshow({ silent: true }); // Échap, F ou double-clic : quitter le plein écran arrête aussi le diaporama
   isFullscreen = false;
   syncHistogram();
   fullscreenDrag = null;
@@ -1900,7 +1902,7 @@ function loadFullscreenPhoto(photo) {
 
 function showFullscreenPhoto(photo, url) {
   fullscreenSlot.photo = photo;
-  if (fullscreenSlot.url === url) { updateFullscreenInfo(); syncHistogram(); return; } // même image (ex. changement de note) : la photo associée a pu changer
+  if (fullscreenSlot.url === url) { updateFullscreenInfo(); syncHistogram(); notifySlideshowPhotoShown(photo); return; } // même image (ex. changement de note) : la photo associée a pu changer
   fullscreenSlot.url = url;
   const token = ++fullscreenLoadToken;
   const apply = loaded => {
@@ -1915,6 +1917,7 @@ function showFullscreenPhoto(photo, url) {
     fullscreenImg.src = url;
     layoutFullscreenSlot();
     syncHistogram(); // surcouche d'écrêtage de l'image qui vient d'être affichée
+    notifySlideshowPhotoShown(photo); // diaporama : le délai avant la photo suivante court à partir de l'affichage
   };
   const probe = new Image();
   probe.onload = () => apply(probe);
@@ -1926,6 +1929,7 @@ function showFullscreenPhoto(photo, url) {
     fullscreenSlot.naturalHeight = 0;
     fullscreenSlot.zoom = null;
     fullscreenImg.src = url;
+    notifySlideshowPhotoShown(photo); // image illisible : le diaporama passe quand même à la suivante après le délai
   };
   probe.src = url;
   if (probe.complete && probe.naturalWidth > 0) { // déjà en mémoire (aperçu, préchargement) : pas d'attente
@@ -2037,7 +2041,12 @@ function toggleFullscreenInfo() {
 
 function preloadFullscreenImages(index) {
   const keep = new Set();
-  for (let i = Math.max(0, index - 2); i <= Math.min(photos.length - 1, index + 2); i++) {
+  const wanted = [];
+  for (let i = Math.max(0, index - 2); i <= Math.min(photos.length - 1, index + 2); i++) wanted.push(i);
+  // Diaporama : la photo suivante n'est pas forcément voisine (ordre aléatoire), elle est préchargée aussi.
+  const nextSlideshowIndex = isSlideshowActive() ? photos.indexOf(peekNextSlideshowPhoto()) : -1;
+  if (nextSlideshowIndex >= 0) wanted.push(nextSlideshowIndex);
+  for (const i of wanted) {
     keep.add(i);
     if (!fullscreenImageCache.has(i)) {
       const image = new Image();
@@ -2523,6 +2532,22 @@ window.addEventListener('keydown', (e) => {
     clearTimeout(fullscreenRatingTimeout);
     if (fullscreenRatingPinned) fullscreenRating.classList.remove('hidden');
     else fullscreenRating.classList.add('hidden');
+    return;
+  }
+  // F10 : lance le diaporama, ou l'arrête s'il est en cours (plein écran, ou grille : sur la sélection si elle compte 2 photos ou plus, sinon sur toute la vue).
+  // Toujours intercepté pour que la touche ne recharge pas la page.
+  if (e.key === 'F10' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+    e.preventDefault();
+    if (!e.repeat && !document.querySelector('.modal:not(.hidden)')) {
+      if (isSlideshowActive()) stopSlideshow(); // diaporama en cours : F10 l'arrête, la photo reste affichée en plein écran
+      else if (photos.length > 0) startSlideshow();
+    }
+    return;
+  }
+  // Espace : pause / lecture du diaporama (sans effet quand il n'est pas lancé, ou derrière une fenêtre ouverte)
+  if (e.key === ' ' && isSlideshowActive() && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
+    e.preventDefault();
+    if (!e.repeat) toggleSlideshowPause();
     return;
   }
   // G : affiche / masque le guide des raccourcis (la modale ouverte aussi depuis les Paramètres) ; il se ferme avec G même s'il est ouvert par-dessus les Paramètres.
@@ -5734,6 +5759,18 @@ initDescriptionPanel({ getSelectedPhotos });
 const mapPanelElement = document.getElementById('map-panel');
 const personsViewElement = document.getElementById('persons-view');
 const facesViewElement = document.getElementById('faces-view');
+// Diaporama (slideshow.js) : le plein écran passe de photo en photo à intervalle réglé.
+initSlideshow({
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  getCurrentIndex: () => lastSelectedIndex,
+  isVideo: photo => isVideoPath(photo.path),
+  isZoomed: () => fullscreenSlot.zoom !== null,
+  isFullscreen: () => isFullscreen,
+  openFullscreen,
+  goToIndex: navigateToPhotoIndex,
+  showToast: message => showWriteToast(message),
+});
 initHistogram({
   // Éléments dont un redimensionnement ou un changement de classe / d'attribut hidden déplace ou masque l'histogramme.
   watch: [mainContent, gridContainer, previewStage, mapPanelElement, personsViewElement, facesViewElement, fullscreenView, document.getElementById('exif-panel')],
