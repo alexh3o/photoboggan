@@ -76,12 +76,12 @@
   "Move to a folder": "Déplacer vers un dossier de l'arborescence",
   "Copy to a folder": "Copier vers un dossier de l'arborescence",
   "Drag": "Glisser",
-  "Thumbnails grid":"Disposition des miniatures",
+  "Thumbnails grid":"Disposition",
   "Square":"Carré",
   "Framed":"Encadrées",
   "Justified":"Justifiées",
   "Waterfall":"Cascade",
-  "Thumbnail spacing":"Espacement des miniatures",
+  "Thumbnail spacing":"Espacement",
   "Spacing none":"Aucun",
   "Spacing small":"Petit",
   "Spacing normal":"Normal",
@@ -832,7 +832,7 @@
   "Nothing to show here": "Il n'y a rien à voir ici",
   "A little too selective! Try adjusting your filters": "La sélection est un peu sévère ! Modifiez vos filtres.",
   "Hmm, no photos here...": "Hmm, pas de photo ici...",
-  "Display grid": "Grille",
+  "Display grid": "Grille de miniatures",
   "Interface": "Interface",
   "Appearance": "Apparence",
   "Labels": "Marquage",
@@ -1120,5 +1120,7 @@
   "Back to the original style": "Revenir au style d'origine",
   "Delete the downloaded copy of the map style and use the style provided with the application": "Supprimer la copie téléchargée du style et utiliser celui fourni avec l'application",
   "Original map style restored": "Style d'origine rétabli",
-  "The map style could not be reset: {error}": "Impossible de rétablir le style : {error}"
+  "The map style could not be reset: {error}": "Impossible de rétablir le style : {error}",
+  "Show the map widget in the Info panel": "Afficher le widget carte dans le panneau Info",
+  "Info map widget help": "Affiche ou masque la petite carte du groupe Lieu du panneau Info. Sans effet sur le mode Carte, ni sur le réglage « Afficher une carte du lieu de la photo » des Paramètres."
 }

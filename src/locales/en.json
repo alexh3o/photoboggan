@@ -76,12 +76,12 @@
   "Move to a folder": "Move to a folder of the tree",
   "Copy to a folder": "Copy to a folder of the tree",
   "Drag": "Drag",
-  "Thumbnails grid":"Thumbnails grid",
+  "Thumbnails grid":"Layout",
   "Square":"Square",
   "Framed":"Framed",
   "Justified":"Justified",
   "Waterfall":"Waterfall",
-  "Thumbnail spacing":"Thumbnail spacing",
+  "Thumbnail spacing":"Spacing",
   "Spacing none":"None",
   "Spacing small":"Small",
   "Spacing normal":"Normal",
@@ -832,7 +832,7 @@
   "Nothing to show here": "Nothing to show here",
   "A little too selective! Try adjusting your filters": "A little too selective! Try adjusting your filters",
   "Hmm, no photos here...": "Hmm, no photos here...",
-  "Display grid": "Grid",
+  "Display grid": "Thumbnails Grid",
   "Interface": "Interface",
   "Appearance": "Appearance",
   "Labels": "Labels",
@@ -1120,5 +1120,7 @@
   "Back to the original style": "Back to the original style",
   "Delete the downloaded copy of the map style and use the style provided with the application": "Delete the downloaded copy of the map style and use the style provided with the application",
   "Original map style restored": "Original map style restored",
-  "The map style could not be reset: {error}": "The map style could not be reset: {error}"
+  "The map style could not be reset: {error}": "The map style could not be reset: {error}",
+  "Show the map widget in the Info panel": "Show the map widget in the Info panel",
+  "Info map widget help": "Shows or hides the small map of the Location group in the Info panel. No effect on the Map view, nor on the \"Show a map of the photo location\" setting."
 }

@@ -28,6 +28,13 @@ function isMapEnabled() {
   return readStorage(SHOW_MAP_STORAGE_KEY) === 'true';
 }
 
+// Widget carte du panneau Info (Options d'affichage > Interface, affiché par défaut) : sans effet sur le mode Carte, qui ne dépend que de
+// l'option « Afficher une carte du lieu de la photo » des Paramètres.
+const WIDGET_STORAGE_KEY = 'showInfoMapWidget';
+function isWidgetEnabled() {
+  return readStorage(WIDGET_STORAGE_KEY) !== 'false';
+}
+
 let panel, coordsElement, lockButton, messageElement, mapElement, mapView;
 let host = { showToast: () => {} };
 let points = []; // positions de la sélection affichées (MAP_MAX_POINTS au plus)
@@ -41,7 +48,7 @@ let lastSelection = { selection: [], focusPhoto: undefined };
 
 // Carte permise : option cochée, et Internet permis sauf pour un lieu privé (tuiles locales uniquement).
 function isMapAllowed() {
-  return isMapEnabled() && !suppressed && (!isOffline() || privacy.strict);
+  return isWidgetEnabled() && isMapEnabled() && !suppressed && (!isOffline() || privacy.strict);
 }
 
 // Mode Carte ouvert (map-mode.js) : sa carte remplace celle du panneau Info, pour ne pas avoir deux contextes WebGL.
@@ -82,7 +89,8 @@ function focusPoint() {
 
 function renderMessage() {
   let message = '';
-  if (!isMapEnabled()) message = t('Map disabled (Settings > General)');
+  if (!isWidgetEnabled()) message = ''; // widget masqué par l'utilisateur : aucun message sur la carte
+  else if (!isMapEnabled()) message = t('Map disabled (Settings > General)');
   else if (isOffline() && !privacy.strict) message = t('Offline mode is on (Settings > General)');
   else if (mapStatus === 'unavailable') message = t('The map cannot be displayed on this computer (WebGL unavailable).');
   else if (mapStatus === 'tiles-failed' && !privacy.strict) message = t('The map could not be loaded (no connection?).');
@@ -209,6 +217,13 @@ export function initLocationPanel(options = {}) {
   zoomSelect.value = String(defaultMapZoom());
   zoomSelect.addEventListener('change', () => {
     try { localStorage.setItem('mapDefaultZoom', zoomSelect.value); } catch { /* réglage non mémorisé */ }
+    onMapAccessChanged();
+  });
+
+  const widgetToggle = document.getElementById('info-map-widget-toggle');
+  widgetToggle.checked = isWidgetEnabled();
+  widgetToggle.addEventListener('change', () => {
+    try { localStorage.setItem(WIDGET_STORAGE_KEY, String(widgetToggle.checked)); } catch { /* réglage non mémorisé */ }
     onMapAccessChanged();
   });
 
