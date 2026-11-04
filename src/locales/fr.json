@@ -1028,8 +1028,6 @@
   "Search a place": "Rechercher un lieu",
   "No place found": "Aucun lieu trouvé",
   "Place search failed: {error}": "Recherche du lieu impossible : {error}",
-  "Private and offline zones": "Zones privées et hors ligne",
-  "Manage the private and offline map zones": "Gérer les zones privées et hors ligne",
   "Hold SHIFT and drag onto map to set location": "Maintenir MAJ et glisser sur la carte pour définir la position",
   "Discard the changes": "Abandonner les modifications",
   "Write the locations to the files": "Écrire les positions dans les fichiers",

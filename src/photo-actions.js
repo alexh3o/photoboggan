@@ -1806,6 +1806,8 @@ function onContextMenu(event) {
   if (target?.closest('#keyword-tree')) return;
   // Section Albums : son menu est ouvert par albums-panel.js (openContextMenuAt).
   if (target?.closest('#albums-section')) return;
+  // Panneau carte (mode Carte) : son menu propre est ouvert par map-mode.js, pas celui de la sélection.
+  if (target?.closest('#map-panel')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');

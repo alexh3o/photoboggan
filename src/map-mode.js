@@ -213,7 +213,16 @@ function openMapMenu(x, y, lngLat) {
   item.textContent = tp('Place the selection here ({count} photo)', selection.length);
   item.disabled = selection.length === 0;
   item.addEventListener('click', () => { closeMenu(); assignLocation(selection, point); });
-  menu.append(item);
+  // Gestion des zones hors ligne / privées, après un séparateur.
+  const separator = document.createElement('div');
+  separator.className = 'context-menu-separator';
+  const zones = document.createElement('button');
+  zones.type = 'button';
+  zones.className = 'context-menu-item';
+  zones.setAttribute('role', 'menuitem');
+  zones.textContent = t('Offline / private zones…');
+  zones.addEventListener('click', () => { closeMenu(); openPrivateZonesModal(); });
+  menu.append(item, separator, zones);
   document.body.append(menu);
   const bounds = menu.getBoundingClientRect();
   menu.style.left = `${Math.max(0, Math.min(x, window.innerWidth - bounds.width))}px`;
@@ -461,7 +470,6 @@ export function initMapMode(hostApi) {
   for (const button of panel.querySelectorAll('.map-filter button')) button.addEventListener('click', () => setFilter(button.dataset.filter));
   writeButton.addEventListener('click', () => { writeNow(); });
   revertButton.addEventListener('click', revertAll);
-  document.getElementById('btn-map-zones').addEventListener('click', () => openPrivateZonesModal());
   initPlaceSearch({
     goTo: place => { mapView.frameTo([{ lat: place.lat, lon: place.lon, focus: true }]); },
     showToast: message => host.showToast(message),

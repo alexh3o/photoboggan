@@ -1028,8 +1028,6 @@
   "Search a place": "Search a place",
   "No place found": "No place found",
   "Place search failed: {error}": "Place search failed: {error}",
-  "Private and offline zones": "Private and offline zones",
-  "Manage the private and offline map zones": "Manage the private and offline map zones",
   "Hold SHIFT and drag onto map to set location": "Hold SHIFT and drag onto map to set location",
   "Discard the changes": "Discard the changes",
   "Write the locations to the files": "Write the locations to the files",
