@@ -1108,8 +1108,5 @@
   "A manual album can only contain smart albums": "Un album manuel ne peut contenir que des albums intelligents",
   "A smart album can only contain smart albums": "Un album intelligent ne peut contenir que des albums intelligents",
   "Photos can only be added to a manual album": "Les photos ne peuvent être ajoutées qu'à un album manuel",
-  "Confirmation before replacing the filters of a smart album": "Confirmation avant d'écraser les filtres d'un album intelligent",
-  "Show again": "Réafficher",
-  "The confirmation will be shown again": "La confirmation sera de nouveau demandée",
-  "The confirmation is already shown": "La confirmation est déjà active"
+  "Confirm before replacing the filters of a smart album": "Confirmer avant d'écraser les filtres d'un album intelligent"
 }

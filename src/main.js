@@ -4805,19 +4805,21 @@ function folderItemAt(x, y) {
 // changer pendant le glissement : le mode et le badge suivent.
 const dragModeFrom = modifiers => (modifiers.shiftKey ? 'move' : modifiers.ctrlKey ? 'copy' : null);
 
-// Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine) ou null (à demander).
+// Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine), null (à demander) ou 'none'
+// (l'album d'origine lui-même : rien à faire).
 // Des photos venant d'un dossier du disque ne sont jamais déplacées dans un album : toujours un ajout, quelle que soit la touche tenue.
 // Des photos venant d'un autre album manuel suivent les touches, comme sur un dossier : Maj déplace, Ctrl copie, sans touche on demande.
 function albumDropAction(drag) {
-  const fromAnotherAlbum = drag.sourceAlbumId && drag.overAlbumId !== drag.sourceAlbumId;
-  return fromAnotherAlbum ? drag.mode : 'copy';
+  if (drag.sourceAlbumId && drag.overAlbumId === drag.sourceAlbumId) return 'none';
+  return drag.sourceAlbumId ? drag.mode : 'copy';
 }
 
 // Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt demandera
 // quoi faire. Au-dessus de la carte, quelle que soit la touche : une épingle rouge, les photos y seront géolocalisées.
 function paintPhotoDragBadge(drag) {
   if (!drag.ghost) return;
-  const action = drag.overAlbum ? albumDropAction(drag) : drag.mode;
+  // Aucun badge quand le dépôt est refusé (album intelligent, dossier virtuel) ou sans effet (album d'origine).
+  const action = drag.refusal ? 'none' : drag.overAlbum ? albumDropAction(drag) : drag.mode;
   drag.ghost.classList.toggle('pin', drag.overMap);
   drag.ghost.classList.toggle('copy', !drag.overMap && action === 'copy');
   drag.ghost.classList.toggle('move', !drag.overMap && action === 'move');
@@ -4958,6 +4960,7 @@ function endPhotoDrag(event, released) {
     const copy = () => addPhotosToAlbum(drag.overAlbumId, ids);
     const move = () => movePhotosToAlbum(drag.sourceAlbumId, drag.overAlbumId, ids);
     const action = albumDropAction(drag);
+    if (action === 'none') return;
     if (action === 'move') move();
     else if (action === 'copy') copy();
     else askCopyOrMove(event, drag.targets, copy, move);

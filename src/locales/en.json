@@ -1108,8 +1108,5 @@
   "A manual album can only contain smart albums": "A manual album can only contain smart albums",
   "A smart album can only contain smart albums": "A smart album can only contain smart albums",
   "Photos can only be added to a manual album": "Photos can only be added to a manual album",
-  "Confirmation before replacing the filters of a smart album": "Confirmation before replacing the filters of a smart album",
-  "Show again": "Show again",
-  "The confirmation will be shown again": "The confirmation will be shown again",
-  "The confirmation is already shown": "The confirmation is already shown"
+  "Confirm before replacing the filters of a smart album": "Confirm before replacing the filters of a smart album"
 }

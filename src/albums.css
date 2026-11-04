@@ -38,6 +38,7 @@
 /* En-tête de la section : bouton « + » (même menu de création que le clic droit dans le vide) */
 .albums-section .sidebar-block-header { margin-bottom: 0.25rem; }
 .albums-add { width: 1.5rem; min-height: 1.5rem; padding: 0; border: 1px solid var(--separator); border-radius: 4px; background: transparent; color: var(--text-dim); font-size: 1rem; line-height: 1; cursor: pointer; }
+.albums-add[hidden] { display: none; }
 .albums-add:hover, .albums-add:focus-visible { background: var(--control-bg); color: var(--text-strong); outline: none; }
 
 /* Raison d'un refus de dépôt, sous l'image glissée d'un album */

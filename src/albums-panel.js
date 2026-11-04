@@ -18,8 +18,8 @@ const ICONS = {
   [KIND_FOLDER]: '<path d="m20 13.7-2.1-2.1a2 2 0 0 0-2.8 0L9.7 17"/><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/><circle cx="10" cy="8" r="2"/>',
   [KIND_MANUAL]: '<path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18"/><circle cx="12" cy="8" r="2"/><rect width="16" height="16" x="6" y="2" rx="2"/>',
 };
-// Album intelligent : l'icône d'album réduite, avec un entonnoir (Lucide « funnel », filtres enregistrés) en bas à droite.
-ICONS[KIND_SMART] = `<g transform="translate(0.3 0.3) scale(0.68)">${ICONS[KIND_MANUAL]}</g>`
+// Album intelligent : l'icône « image » (Lucide) réduite, avec un entonnoir (Lucide « funnel », filtres enregistrés) en bas à droite.
+ICONS[KIND_SMART] = '<g transform="translate(0.3 0.3) scale(0.9)"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></g>'
   + '<g transform="translate(11.6 11.6) scale(0.5)" fill="currentColor" stroke-width="3.2"><path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/></g>';
 // Disquette (Lucide « save ») de l'enregistrement des filtres d'un album intelligent.
 const SAVE_ICON = '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>';
@@ -695,6 +695,7 @@ function applyCollapsed() {
   toggle.setAttribute('aria-expanded', String(!collapsed));
   toggle.querySelector('.sidebar-block-chevron').textContent = collapsed ? '▸' : '▾';
   document.getElementById('albums-list').hidden = collapsed;
+  document.getElementById('albums-add').hidden = collapsed; // le bouton « + » n'a de sens que bloc ouvert
   document.getElementById('albums-section').classList.toggle('collapsed', collapsed);
 }
 
@@ -702,15 +703,19 @@ function applyCollapsed() {
 export function initAlbumsPanel(options) {
   host = options;
   document.getElementById('albums-add').addEventListener('click', openAddMenu);
-  // Paramètres : réafficher la confirmation avant d'écraser les filtres d'un album intelligent (désactivée par « Ne plus afficher »).
-  document.getElementById('btn-reset-album-warning').addEventListener('click', () => {
-    let wasHidden = false;
+  // Paramètres : confirmation avant d'écraser les filtres d'un album intelligent. La case reflète le réglage, que « Ne plus afficher » (dans la
+  // confirmation) peut avoir changé depuis : elle est relue à l'ouverture des Paramètres.
+  const warningToggle = document.getElementById('album-overwrite-warning-toggle');
+  const syncWarningToggle = () => {
+    try { warningToggle.checked = localStorage.getItem(OVERWRITE_WARNING_KEY) !== 'false'; } catch { warningToggle.checked = true; }
+  };
+  warningToggle.addEventListener('change', () => {
     try {
-      wasHidden = localStorage.getItem(OVERWRITE_WARNING_KEY) === 'false';
-      localStorage.removeItem(OVERWRITE_WARNING_KEY);
+      if (warningToggle.checked) localStorage.removeItem(OVERWRITE_WARNING_KEY); else localStorage.setItem(OVERWRITE_WARNING_KEY, 'false');
     } catch { /* facultatif */ }
-    host?.showToast(t(wasHidden ? 'The confirmation will be shown again' : 'The confirmation is already shown'));
   });
+  document.getElementById('btn-open-settings')?.addEventListener('click', syncWarningToggle);
+  syncWarningToggle();
   document.getElementById('albums-toggle').addEventListener('click', () => {
     const collapsed = document.getElementById('albums-list').hidden;
     try { localStorage.setItem(COLLAPSED_STORAGE_KEY, String(!collapsed)); } catch { /* sans mémorisation */ }

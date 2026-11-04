@@ -20,6 +20,7 @@ dist-ssr
 dev_tools/*
 Files_4_AI/*
 .claude/*
+Powershell.lnk
 
 # Editor directories and files
 .vscode/*

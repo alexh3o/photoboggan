@@ -6,6 +6,7 @@
 - [x] *refactor*: `faces` offer to write faces when leaving review faces screen
 - [ ] *chore*: `dev` unlink dev and build settings
 - [x] *feat*: add option to remove star ratings when copying or resizing, enabled by default (exiftools only)
+- [ ] *fix*: map doesn't load, photo locations still placed
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -52,3 +53,4 @@
 - [ ] Restoring data from data folder
 - [ ] `maps` handling of photos in 2 zones, eventually with different level
 - [ ] Check effect of 50000 max photos in the grid: is it visible in usage ?
+- [ ] Retest albums latest modifications
