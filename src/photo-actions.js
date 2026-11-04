@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath } from './main.js';
 import { isWriteLocked } from './metadata-writes.js';
+import { getWriterMode } from './metadata-settings.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
 // suppression, copie des originaux et « Ouvrir avec ». main.js donne accès à l'état de la grille via initPhotoActions().
@@ -652,6 +653,7 @@ function loadResizeSettings() {
     jpegQuality: integer(stored.jpegQuality, 1, 100, 85),
     pngCompression: ['fast', 'balanced', 'best'].includes(stored.pngCompression) ? stored.pngCompression : 'balanced',
     keepMetadata: stored.keepMetadata !== false,
+    keepMarks: stored.keepMarks === true, // désactivé par défaut
     suffix: typeof stored.suffix === 'string' ? stored.suffix : '_s',
   };
 }
@@ -662,6 +664,9 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     const saved = loadResizeSettings();
     let destination = null; // null = dossier d'origine de chaque photo
     let keepMetadata = saved.keepMetadata;
+    let keepMarks = saved.keepMarks;
+    // L'option n'existe que sur le chemin d'écriture ExifTool ; en écriture interne, les marquages sont recopiés tels quels.
+    const exiftoolWriter = getWriterMode() === 'exiftool';
     let result = null;
     const modal = createModal({
       title: `${t('Resize')} · ${tp('{count} photo selected', count)}`,
@@ -697,6 +702,9 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     const qualityRow = optionRow(makeElement('span', 'resize-label', t('JPEG quality')), qualityRange, qualityValue);
     const compressionRow = optionRow(makeElement('span', 'resize-label', t('PNG compression')), compressionSelect);
     const metadataRow = optionRow(labelled(metadataCheck, t('Keep metadata (EXIF, XMP, IPTC)')));
+    const marksCheck = makeInput('checkbox');
+    const marksRow = optionRow(labelled(marksCheck, t('Keep marks (rating, color, flags)')));
+    marksRow.hidden = !exiftoolWriter;
     const formatSection = makeElement('section', 'settings-section');
     formatSection.append(
       makeElement('h4', '', t('Output format')),
@@ -704,6 +712,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
       qualityRow,
       compressionRow,
       metadataRow,
+      marksRow,
     );
 
     // Destination
@@ -751,6 +760,9 @@ function resizeOptionsDialog(count, firstPhotoPath) {
       metadataCheck.disabled = !jpeg;
       metadataCheck.checked = jpeg && keepMetadata;
       metadataRow.title = jpeg ? '' : t('Metadata can only be kept in JPEG files');
+      marksCheck.disabled = !jpeg || !keepMetadata; // sans métadonnées recopiées, il n'y a pas de marquages à conserver
+      marksCheck.checked = keepMarks;
+      marksRow.title = marksCheck.disabled ? t('Marks are only copied with the metadata') : '';
       pathLabel.textContent = destination ?? t('Original folder of each photo');
       pathLabel.title = destination ?? '';
       resetButton.hidden = destination === null;
@@ -784,6 +796,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
         jpegQuality: Number(qualityRange.value),
         pngCompression: compressionSelect.value,
         keepMetadata,
+        keepMarks,
         suffix: suffixInput.value,
       }));
       result = {
@@ -793,6 +806,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
         jpegQuality: Number(qualityRange.value),
         pngCompression: compressionSelect.value,
         keepMetadata: jpeg && keepMetadata,
+        clearMarks: exiftoolWriter && !keepMarks,
         destination,
         suffix: suffixInput.value,
       };
@@ -804,7 +818,8 @@ function resizeOptionsDialog(count, firstPhotoPath) {
       control.addEventListener('change', refresh);
     }
     maxSideInput.addEventListener('input', () => { error.textContent = ''; });
-    metadataCheck.addEventListener('change', () => { keepMetadata = metadataCheck.checked; });
+    metadataCheck.addEventListener('change', () => { keepMetadata = metadataCheck.checked; refresh(); });
+    marksCheck.addEventListener('change', () => { keepMarks = marksCheck.checked; });
     for (const field of [maxSideInput, suffixInput]) {
       field.addEventListener('keydown', event => {
         if (event.key !== 'Enter') return;

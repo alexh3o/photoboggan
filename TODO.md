@@ -3,9 +3,9 @@
 ## 🚀 Next in line
 
 - [ ] *docs*: technical documentation
-- [ ] *refactor*: `faces` offer to write faces when leaving review faces screen
+- [x] *refactor*: `faces` offer to write faces when leaving review faces screen
 - [ ] *chore*: `dev` unlink dev and build settings
-- [ ] *feat*: add option to remove star ratings when copying or resizing, enabled by default
+- [x] *feat*: add option to remove star ratings when copying or resizing, enabled by default (exiftools only)
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -32,6 +32,7 @@
 - [ ] *feat*: stats
 - [ ] *feat*: histogram
 - [ ] *feat*: cancellations everywhere
+- [ ] *feat*: internal metadata writer activated => no exif reading
 
 ## ❄️ Cold storage
 

@@ -308,6 +308,8 @@
   "Maximum": "Maximale",
   "Keep metadata (EXIF, XMP, IPTC)": "Conserver les métadonnées (EXIF, XMP, IPTC)",
   "Metadata can only be kept in JPEG files": "Les métadonnées ne peuvent être conservées qu'en JPEG",
+  "Keep marks (rating, color, flags)": "Conserver les marquages (note, couleur, fanions)",
+  "Marks are only copied with the metadata": "Les marquages ne sont recopiés qu'avec les métadonnées",
   "Destination folder": "Dossier de destination",
   "Original folder": "Dossier d'origine",
   "Original folder of each photo": "Dossier d'origine de chaque photo",

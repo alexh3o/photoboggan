@@ -1373,6 +1373,21 @@ fn remove_xmp_element(xml: &str, name: &str) -> String {
     updated
 }
 
+/// Retire d'un paquet XMP tous les marquages (note, couleur, fanions pick / rejet), quelle que soit la forme (attribut ou élément) :
+/// utilisé par le redimensionnement quand l'utilisateur ne veut pas les conserver dans la copie.
+pub(crate) fn strip_xmp_marks(xml: &str) -> String {
+    const MARKS: [&str; 11] = [
+        "xmp:Rating", "acdsee:rating", "MicrosoftPhoto:Rating", "xmp:Label", "photoshop:Urgency",
+        "digiKam:ColorLabel", "digikam:ColorLabel", "digiKam:PickLabel", "digikam:PickLabel", "xmpDM:pick", "xmpDM:good",
+    ];
+    let mut updated = xml.to_string();
+    for name in MARKS {
+        updated = remove_xmp_attribute(&updated, name);
+        updated = remove_xmp_element(&updated, name);
+    }
+    updated
+}
+
 /// Remplace une propriété XMP par un attribut du premier rdf:Description (la propriété existante, en attribut ou en élément, est retirée avant).
 /// `names` : toutes les graphies possibles du préfixe (ex. digiKam / digikam) ; `value` `None` retire simplement la propriété.
 fn set_description_attribute(xml: &str, names: &[&str], namespace: (&str, &str), value: Option<&str>) -> String {

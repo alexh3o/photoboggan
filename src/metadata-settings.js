@@ -106,6 +106,10 @@ export function topPickFormat() {
 }
 
 let writerMode = localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';
+/** Chemin d'écriture actif : « exiftool » ou « internal ». */
+export function getWriterMode() {
+  return writerMode;
+}
 let customPath = localStorage.getItem(EXIFTOOL_PATH_STORAGE_KEY) || '';
 let lastStatus = null; // dernier état renvoyé par get_exiftool_status
 let statusToken = 0;

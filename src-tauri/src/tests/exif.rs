@@ -570,3 +570,13 @@ fn microsoft_namespace_has_trailing_slash_and_old_packets_are_fixed() {
     let titled = update_xmp_all(old, &update);
     assert!(titled.contains("photo/1.0/\"") && !titled.contains("photo/1.0\""), "{titled}");
 }
+
+#[test]
+fn strip_xmp_marks_removes_rating_color_and_pick_but_keeps_the_rest() {
+    let xml = r#"<x:xmpmeta><rdf:RDF><rdf:Description xmp:Rating="4" xmp:Label="Red" digiKam:PickLabel="3" xmpDM:pick="1" dc:creator="moi"><xmpDM:good>True</xmpDM:good><acdsee:rating>4</acdsee:rating></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+    let stripped = strip_xmp_marks(xml);
+    for mark in ["xmp:Rating", "xmp:Label", "PickLabel", "xmpDM:pick", "xmpDM:good", "acdsee:rating"] {
+        assert!(!stripped.contains(mark), "{mark} devrait être retiré : {stripped}");
+    }
+    assert!(stripped.contains(r#"dc:creator="moi""#));
+}

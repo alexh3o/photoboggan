@@ -68,6 +68,10 @@ pub struct ResizeOptions {
     pub jpeg_quality: u8,
     pub png_compression: PngCompression,
     pub keep_metadata: bool,
+    /// Vrai : les marquages (note, couleur, fanions) de la source ne sont pas recopiés avec les métadonnées. L'interface ne l'envoie que si
+    /// le chemin d'écriture ExifTool est actif et que l'utilisateur n'a pas coché « conserver les marquages » ; absent = marquages recopiés.
+    #[serde(default)]
+    pub clear_marks: bool,
     /// Dossier de destination ; absent ou vide = dossier de la photo source.
     pub destination: Option<String>,
     pub suffix: String,
@@ -365,10 +369,13 @@ fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetada
         if let Some(exif) = &metadata.exif {
             let mut exif = exif.clone();
             patch_exif(&mut exif, raster.width as u32, raster.height as u32, orientation);
+            if options.clear_marks { clear_exif_rating(&mut exif); }
             encoder.add_app_segment(1, &exif).map_err(|error| refused("EXIF", error))?;
         }
         if let Some(xmp) = &metadata.xmp {
-            encoder.add_app_segment(1, &patch_xmp(xmp, pixel_orientation, raster.width, raster.height)).map_err(|error| refused("XMP", error))?;
+            let mut xmp = patch_xmp(xmp, pixel_orientation, raster.width, raster.height);
+            if options.clear_marks { xmp = clear_xmp_marks(&xmp); }
+            encoder.add_app_segment(1, &xmp).map_err(|error| refused("XMP", error))?;
         }
         if let Some(iptc) = &metadata.iptc { encoder.add_app_segment(13, iptc).map_err(|error| refused("IPTC", error))?; }
     }
@@ -484,6 +491,28 @@ fn patch_exif(segment: &mut [u8], width: u32, height: u32, original_orientation:
             _ => {}
         }
     }
+}
+
+/// Note Windows de l'EXIF (Rating 0x4746, RatingPercent 0x4749, IFD0) remise à 0 en place : la structure du segment ne change pas.
+fn clear_exif_rating(segment: &mut [u8]) {
+    let tiff = EXIF_HEADER.len();
+    let little = match segment.get(tiff..tiff + 2) { Some(b"II") => true, Some(b"MM") => false, _ => return };
+    let Some(ifd0) = read_u32(segment, tiff + 4, little) else { return };
+    let ifd0 = tiff + ifd0 as usize;
+    let Some(count) = read_u16(segment, ifd0, little) else { return };
+    for index in 0..count as usize {
+        let entry = ifd0 + 2 + index * 12;
+        if matches!(read_u16(segment, entry, little), Some(0x4746 | 0x4749)) && read_u16(segment, entry + 2, little) == Some(3) {
+            write_u16(segment, entry + 8, 0, little);
+        }
+    }
+}
+
+/// Retire du paquet XMP (précédé de son en-tête `http://ns.adobe.com/xap/1.0/\0`) les marquages : note, couleur, fanions.
+fn clear_xmp_marks(segment: &[u8]) -> Vec<u8> {
+    let Some(packet) = segment.strip_prefix(XMP_HEADER) else { return segment.to_vec() };
+    let Ok(text) = std::str::from_utf8(packet) else { return segment.to_vec() };
+    [XMP_HEADER, crate::exif::strip_xmp_marks(text).as_bytes()].concat()
 }
 
 /// XMP recopié : orientation remise à 1 et, si les pixels ont été tournés, zones de visage (MWG, Microsoft) tournées de la même façon, avec les
