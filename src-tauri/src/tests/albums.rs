@@ -188,3 +188,17 @@ fn memberships_list_every_manual_album_pair() {
     pairs.sort();
     assert_eq!(pairs, vec![(one, a), (one, b), (two, b)]);
 }
+
+// L'annulation d'un ajout ne doit retirer que les photos réellement ajoutées, pas celles qui étaient déjà dans l'album.
+#[test]
+fn adding_photos_reports_only_the_ones_actually_added() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let a = insert_photo(&conn, "C:/P/a.jpg");
+    let b = insert_photo(&conn, "C:/P/b.jpg");
+    let album = create_node(&conn, 0, KIND_MANUAL, "Un").unwrap();
+
+    assert_eq!(add_photos_listed(&conn, album, &[a]).unwrap(), vec![a]);
+    assert_eq!(add_photos_listed(&conn, album, &[a, b, 9999]).unwrap(), vec![b], "déjà présente et inconnue absentes de la liste");
+    assert!(add_photos_listed(&conn, album, &[a, b]).unwrap().is_empty());
+}

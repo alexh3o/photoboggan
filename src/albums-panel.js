@@ -18,7 +18,9 @@ const ICONS = {
   [KIND_FOLDER]: '<path d="m20 13.7-2.1-2.1a2 2 0 0 0-2.8 0L9.7 17"/><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/><circle cx="10" cy="8" r="2"/>',
   [KIND_MANUAL]: '<path d="M18 22H4a2 2 0 0 1-2-2V6"/><path d="m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18"/><circle cx="12" cy="8" r="2"/><rect width="16" height="16" x="6" y="2" rx="2"/>',
 };
-ICONS[KIND_SMART] = ICONS[KIND_MANUAL];
+// Album intelligent : l'icône d'album réduite, avec un entonnoir (Lucide « funnel », filtres enregistrés) en bas à droite.
+ICONS[KIND_SMART] = `<g transform="translate(0.3 0.3) scale(0.68)">${ICONS[KIND_MANUAL]}</g>`
+  + '<g transform="translate(11.6 11.6) scale(0.5)" fill="currentColor" stroke-width="3.2"><path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/></g>';
 // Disquette (Lucide « save ») de l'enregistrement des filtres d'un album intelligent.
 const SAVE_ICON = '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>';
 const OVERWRITE_WARNING_KEY = 'albumOverwriteWarning'; // « false » : ne plus demander confirmation avant d'écraser un album intelligent
@@ -59,10 +61,12 @@ function isSelfOrDescendant(id, candidateId) {
   }
   return false;
 }
-// Cette cible (nœud ou racine = 0) peut-elle recevoir ce nœud ?
-function canDrop(node, targetId) {
-  if (isSelfOrDescendant(node.id, targetId)) return false;
-  return canContain(nodeById(targetId), node.kind);
+// Pourquoi cette cible (nœud ou racine = 0) ne peut pas recevoir ce nœud : clé de traduction, ou null si elle le peut.
+function dropRefusal(node, targetId) {
+  if (isSelfOrDescendant(node.id, targetId)) return 'An item cannot be dropped into itself or into what it contains';
+  const target = nodeById(targetId);
+  if (canContain(target, node.kind)) return null;
+  return target.kind === KIND_MANUAL ? 'A manual album can only contain smart albums' : 'A smart album can only contain smart albums';
 }
 
 // ==========================================
@@ -311,26 +315,70 @@ async function saveViewInto(album) {
 // ==========================================
 // CONTENU DES ALBUMS MANUELS (enregistré immédiatement, sans bouton)
 // ==========================================
-// Après un changement : compteurs à jour, et grille rechargée si l'album modifié est celui qu'elle affiche.
-async function contentChanged(albumId) {
+// Après un changement : compteurs à jour, et grille rechargée si l'album affiché est l'un de ceux modifiés.
+async function contentChanged(...albumIds) {
   await refreshAlbums();
-  if (albumId === selectedId) host?.onSelectionChange?.();
+  if (albumIds.includes(selectedId)) host?.onSelectionChange?.();
 }
 
-// Ajoute des photos (ids du catalogue) à un album manuel et l'annonce en toast.
+// Toast avec bouton « Annuler » : `undo` défait l'opération (ajout, retrait ou déplacement), sans fichier touché.
+function toastWithUndo(message, undo) {
+  host?.showToast(message, {
+    label: t('Undo'),
+    onClick: async () => {
+      try {
+        await undo();
+      } catch (error) {
+        host?.showToast(errorText(error));
+      }
+    },
+  });
+}
+
+const addToAlbum = (albumId, photoIds) => invoke('add_photos_to_album', { albumId, photoIds }); // renvoie les ids réellement ajoutés
+const removeFromAlbum = (albumId, photoIds) => invoke('remove_photos_from_album', { albumId, photoIds });
+
+// Ajoute des photos (ids du catalogue) à un album manuel et l'annonce en toast, avec « Annuler » (qui ne retire que ce qui vient d'être ajouté).
 export async function addPhotosToAlbum(albumId, photoIds) {
   const album = nodeById(albumId);
   if (!album || !photoIds.length) return;
   try {
-    const added = await invoke('add_photos_to_album', { albumId, photoIds });
-    const skipped = photoIds.length - added;
-    host?.showToast(skipped > 0
-      ? t('{added} added to "{name}" ({skipped} already there)', { added, name: album.name, skipped })
-      : t('{added} added to "{name}"', { added, name: album.name }));
+    const addedIds = await addToAlbum(albumId, photoIds);
+    const skipped = photoIds.length - addedIds.length;
+    const message = skipped > 0
+      ? t('{added} added to "{name}" ({skipped} already there)', { added: addedIds.length, name: album.name, skipped })
+      : t('{added} added to "{name}"', { added: addedIds.length, name: album.name });
+    if (addedIds.length) {
+      toastWithUndo(message, async () => {
+        await removeFromAlbum(albumId, addedIds);
+        await contentChanged(albumId);
+      });
+    } else {
+      host?.showToast(message);
+    }
   } catch (error) {
     host?.showToast(errorText(error));
   }
   await contentChanged(albumId);
+}
+
+// Déplace des photos d'un album manuel vers un autre : ajout à la cible, puis retrait de la source (le toast propose d'annuler les deux).
+export async function movePhotosToAlbum(fromId, toId, photoIds) {
+  const from = nodeById(fromId);
+  const to = nodeById(toId);
+  if (!from || !to || fromId === toId || !photoIds.length) return;
+  try {
+    const addedIds = await addToAlbum(toId, photoIds);
+    await removeFromAlbum(fromId, photoIds);
+    toastWithUndo(t('{count} moved from "{from}" to "{to}"', { count: photoIds.length, from: from.name, to: to.name }), async () => {
+      await removeFromAlbum(toId, addedIds); // seulement ce que le déplacement avait ajouté
+      await addToAlbum(fromId, photoIds);
+      await contentChanged(fromId, toId);
+    });
+  } catch (error) {
+    host?.showToast(errorText(error));
+  }
+  await contentChanged(fromId, toId);
 }
 
 async function replaceAlbumContent(album, photoIds) {
@@ -355,7 +403,11 @@ export async function removePhotosFromSelectedAlbum(photoIds) {
   const album = getSelectedAlbum();
   if (!album || album.kind !== KIND_MANUAL || !photoIds.length) return;
   try {
-    await invoke('remove_photos_from_album', { albumId: album.id, photoIds });
+    await removeFromAlbum(album.id, photoIds);
+    toastWithUndo(t('{count} removed from "{name}"', { count: photoIds.length, name: album.name }), async () => {
+      await addToAlbum(album.id, photoIds);
+      await contentChanged(album.id);
+    });
   } catch (error) {
     host?.showToast(errorText(error));
   }
@@ -511,6 +563,13 @@ function openBackgroundMenu(event) {
   openContextMenuAt(event, [{ header: t('Albums') }, ...createItems(null)]);
 }
 
+// Bouton « + » de l'en-tête : le même menu de création, à la racine, sous le bouton.
+function openAddMenu(event) {
+  event.stopPropagation();
+  const box = event.currentTarget.getBoundingClientRect();
+  openContextMenuAt({ clientX: box.left, clientY: box.bottom, preventDefault() {}, stopPropagation() {} }, [{ header: t('Albums') }, ...createItems(null)]);
+}
+
 // ==========================================
 // GLISSER-DÉPOSER (déplacement et copie dans l'arbre)
 // ==========================================
@@ -544,6 +603,8 @@ function onDragMove(event) {
     drag.ghost = document.createElement('div');
     drag.ghost.className = 'album-drag-ghost';
     drag.ghost.append(iconElement(drag.node.kind), Object.assign(document.createElement('span'), { textContent: drag.node.name }));
+    drag.reason = Object.assign(document.createElement('div'), { className: 'album-drag-reason', hidden: true });
+    drag.ghost.append(drag.reason);
     document.body.append(drag.ghost);
     document.body.classList.add('dragging-photos');
   }
@@ -552,8 +613,12 @@ function onDragMove(event) {
   document.querySelectorAll('#albums-section .drop-target, #albums-section .drop-refused').forEach(element => element.classList.remove('drop-target', 'drop-refused'));
   const target = targetUnder(event);
   drag.targetId = target?.id ?? null;
-  drag.valid = Boolean(target) && canDrop(drag.node, target.id);
+  const refusal = target ? dropRefusal(drag.node, target.id) : null;
+  drag.valid = Boolean(target) && !refusal;
   if (target) target.element.classList.add(drag.valid ? 'drop-target' : 'drop-refused');
+  // Le curseur « interdit » ne dit pas pourquoi : la raison s'affiche sous l'image glissée.
+  drag.reason.hidden = !refusal;
+  drag.reason.textContent = refusal ? t(refusal) : '';
 }
 
 async function onDragEnd(event) {
@@ -636,6 +701,16 @@ function applyCollapsed() {
 // `options` : showToast(message), onSelectAlbum(node | null).
 export function initAlbumsPanel(options) {
   host = options;
+  document.getElementById('albums-add').addEventListener('click', openAddMenu);
+  // Paramètres : réafficher la confirmation avant d'écraser les filtres d'un album intelligent (désactivée par « Ne plus afficher »).
+  document.getElementById('btn-reset-album-warning').addEventListener('click', () => {
+    let wasHidden = false;
+    try {
+      wasHidden = localStorage.getItem(OVERWRITE_WARNING_KEY) === 'false';
+      localStorage.removeItem(OVERWRITE_WARNING_KEY);
+    } catch { /* facultatif */ }
+    host?.showToast(t(wasHidden ? 'The confirmation will be shown again' : 'The confirmation is already shown'));
+  });
   document.getElementById('albums-toggle').addEventListener('click', () => {
     const collapsed = document.getElementById('albums-list').hidden;
     try { localStorage.setItem(COLLAPSED_STORAGE_KEY, String(!collapsed)); } catch { /* sans mémorisation */ }

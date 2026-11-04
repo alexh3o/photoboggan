@@ -19,7 +19,7 @@ import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
-import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
+import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
 // AJOUT BARRE TITRE
@@ -2255,14 +2255,26 @@ function updateRatingAction() {
 
 let writeToastTimeout = null;
 
-function showWriteToast(message, isWriting = false) {
+// `action` (facultatif) : { label, onClick } ajoute un bouton au toast (ex. « Annuler ») et le garde plus longtemps à l'écran.
+function showWriteToast(message, isWriting = false, action = null) {
   const toast = document.getElementById('write-toast');
   if (!toast) return;
   clearTimeout(writeToastTimeout);
   toast.textContent = message;
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'toast-action';
+    button.textContent = action.label;
+    button.addEventListener('click', () => {
+      toast.classList.add('hidden');
+      action.onClick();
+    });
+    toast.append(button);
+  }
   toast.classList.remove('hidden');
   toast.classList.toggle('writing', isWriting);
-  if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), 3500);
+  if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), action ? 8000 : 3500);
 }
 
 // Carré de couleur cliquable, utilisé par la barre de filtre et par la barre d'écriture.
@@ -4793,14 +4805,25 @@ function folderItemAt(x, y) {
 // changer pendant le glissement : le mode et le badge suivent.
 const dragModeFrom = modifiers => (modifiers.shiftKey ? 'move' : modifiers.ctrlKey ? 'copy' : null);
 
-// Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun sans modificateur. Au-dessus
-// d'un album, toujours le « + » vert : déposer sur un album ajoute les photos à l'album (rien n'est déplacé), quelle que soit la touche tenue.
-// Au-dessus de la carte (Maj tenue), une épingle rouge : les photos y seront géolocalisées.
+// Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine) ou null (à demander).
+// Des photos venant d'un dossier du disque ne sont jamais déplacées dans un album : toujours un ajout, quelle que soit la touche tenue.
+// Des photos venant d'un autre album manuel suivent les touches, comme sur un dossier : Maj déplace, Ctrl copie, sans touche on demande.
+function albumDropAction(drag) {
+  const fromAnotherAlbum = drag.sourceAlbumId && drag.overAlbumId !== drag.sourceAlbumId;
+  return fromAnotherAlbum ? drag.mode : 'copy';
+}
+
+// Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt demandera
+// quoi faire. Au-dessus de la carte, quelle que soit la touche : une épingle rouge, les photos y seront géolocalisées.
 function paintPhotoDragBadge(drag) {
   if (!drag.ghost) return;
+  const action = drag.overAlbum ? albumDropAction(drag) : drag.mode;
   drag.ghost.classList.toggle('pin', drag.overMap);
-  drag.ghost.classList.toggle('copy', !drag.overMap && (drag.overAlbum || drag.mode === 'copy'));
-  drag.ghost.classList.toggle('move', !drag.overMap && !drag.overAlbum && drag.mode === 'move');
+  drag.ghost.classList.toggle('copy', !drag.overMap && action === 'copy');
+  drag.ghost.classList.toggle('move', !drag.overMap && action === 'move');
+  // Cible refusée (album intelligent, dossier virtuel) : la raison s'affiche sous l'image.
+  const reason = drag.overMap ? null : drag.refusal;
+  if (drag.reason) { drag.reason.hidden = !reason; drag.reason.textContent = reason ? t(reason) : ''; }
 }
 
 // Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule de la carte.
@@ -4809,7 +4832,11 @@ function updatePhotoDragState(drag, x, y, modifiers) {
   drag.mode = dragModeFrom(modifiers);
   drag.lastX = x;
   drag.lastY = y;
-  drag.overAlbum = Boolean(albumItemAt(x, y));
+  const albumItem = albumItemAt(x, y);
+  drag.overAlbum = Boolean(albumItem);
+  drag.overAlbumId = albumItem ? Number(albumItem.dataset.albumId) : 0;
+  // Un album qui n'est pas manuel (intelligent, dossier virtuel) ne reçoit pas de photos : on le dit au lieu d'ignorer le dépôt.
+  drag.refusal = !albumItem && albumNodeAt(x, y) ? 'Photos can only be added to a manual album' : null;
   // Au-dessus de la carte (avec ou sans Maj / Ctrl) : réticule, coordonnées visées, et image décalée pour ne pas masquer le point de dépôt.
   drag.overMap = dragOverMap(x, y); // quelle que soit la touche tenue
   document.body.classList.toggle('over-map', drag.overMap);
@@ -4818,14 +4845,14 @@ function updatePhotoDragState(drag, x, y, modifiers) {
   drag.ghost.style.transform = `translate(${x + ghostOffset}px, ${y + ghostOffset}px)`;
 }
 
-// Photos lâchées sur un dossier du disque sans Maj ni Ctrl : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
-function askCopyOrMoveToFolder(event, targets, folderPath) {
+// Photos lâchées sans Maj ni Ctrl sur un dossier du disque ou un album : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
+function askCopyOrMove(event, targets, onCopy, onMove) {
   const header = targets.length === 1 ? (targets[0].filename || targets[0].path.split(/[\\/]/).pop()) : tp('{count} photo selected', targets.length);
   openContextMenuAt(event, [
     { header },
     { separator: true },
-    { label: t('Copy'), onSelect: () => copyPhotosToFolder(targets, folderPath) },
-    { label: t('Move'), onSelect: () => movePhotosToFolder(targets, folderPath) },
+    { label: t('Copy'), onSelect: onCopy },
+    { label: t('Move'), onSelect: onMove },
     { label: t('Cancel'), onSelect: () => {} },
   ]);
 }
@@ -4834,6 +4861,12 @@ function askCopyOrMoveToFolder(event, targets, folderPath) {
 function albumItemAt(x, y) {
   const element = document.elementFromPoint(x, y);
   return element instanceof Element ? element.closest('#albums-list .album-item.album-manual') : null;
+}
+
+// N'importe quelle ligne de la section Albums sous le curseur (pour expliquer pourquoi un album intelligent ou un dossier virtuel refuse les photos).
+function albumNodeAt(x, y) {
+  const element = document.elementFromPoint(x, y);
+  return element instanceof Element ? element.closest('#albums-list .album-item') : null;
 }
 
 // Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
@@ -4847,6 +4880,9 @@ function startPhotoDrag(drag) {
   drag.targets = [...selectedIndices].sort((a, b) => a - b).map(index => photos[index]).filter(Boolean);
   if (!drag.targets.length) return false;
   drag.active = true;
+  // Photos affichées depuis un album manuel : elles peuvent en être déplacées vers un autre (voir albumDropAction).
+  const sourceAlbum = getSelectedAlbum();
+  drag.sourceAlbumId = sourceAlbum?.kind === 'manual' ? sourceAlbum.id : 0;
   gridContainer.setPointerCapture(drag.pointerId); // les événements continuent d'arriver au-dessus de l'arborescence
   const ghost = document.createElement('div');
   ghost.className = drag.mode === 'copy' ? 'drag-ghost copy' : 'drag-ghost';
@@ -4860,6 +4896,8 @@ function startPhotoDrag(drag) {
   const badge = document.createElement('span');
   badge.textContent = String(drag.targets.length);
   ghost.append(badge);
+  drag.reason = Object.assign(document.createElement('div'), { className: 'drag-reason', hidden: true });
+  ghost.append(drag.reason);
   document.body.append(ghost);
   drag.ghost = ghost;
   document.body.classList.add('dragging-photos');
@@ -4871,6 +4909,8 @@ function clearPhotoDragVisuals(drag) {
   drag.ghost = null;
   drag.dropItem?.classList.remove('drop-target');
   drag.dropItem = null;
+  drag.refusedItem?.classList.remove('drop-refused');
+  drag.refusedItem = null;
   document.body.classList.remove('dragging-photos', 'over-map');
   dragLeaveMap();
 }
@@ -4889,6 +4929,12 @@ gridContainer.addEventListener('pointermove', event => {
     item?.classList.add('drop-target');
     drag.dropItem = item;
   }
+  const refused = drag.refusal && !drag.overMap ? albumNodeAt(event.clientX, event.clientY) : null;
+  if (refused !== drag.refusedItem) {
+    drag.refusedItem?.classList.remove('drop-refused');
+    refused?.classList.add('drop-refused');
+    drag.refusedItem = refused;
+  }
 });
 
 function endPhotoDrag(event, released) {
@@ -4903,15 +4949,23 @@ function endPhotoDrag(event, released) {
   if (!released || drag.cancelled) return;
   drag.mode = dragModeFrom(event); // touches au moment du relâchement
   if (dropOnMap(event.clientX, event.clientY, drag.targets)) return; // déposées sur la carte : position choisie
-  // Déposées sur un album manuel : elles y sont ajoutées (aucun fichier n'est déplacé ni copié, quel que soit Maj ou Ctrl).
+  // Déposées sur un album manuel : aucun fichier n'est déplacé ni copié. Venant d'un dossier du disque, les photos sont ajoutées ; venant d'un autre
+  // album manuel, Maj les en retire en plus (déplacement), Ctrl les ajoute seulement, sans touche on demande.
   const albumItem = albumItemAt(event.clientX, event.clientY);
   if (albumItem) {
-    addPhotosToAlbum(Number(albumItem.dataset.albumId), drag.targets.map(photo => photo.id).filter(id => Number.isFinite(id)));
+    drag.overAlbumId = Number(albumItem.dataset.albumId);
+    const ids = drag.targets.map(photo => photo.id).filter(id => Number.isFinite(id));
+    const copy = () => addPhotosToAlbum(drag.overAlbumId, ids);
+    const move = () => movePhotosToAlbum(drag.sourceAlbumId, drag.overAlbumId, ids);
+    const action = albumDropAction(drag);
+    if (action === 'move') move();
+    else if (action === 'copy') copy();
+    else askCopyOrMove(event, drag.targets, copy, move);
     return;
   }
   const folderPath = folderItemAt(event.clientX, event.clientY)?.dataset.folderPath;
   if (!folderPath) return;
-  if (!drag.mode) { askCopyOrMoveToFolder(event, drag.targets, folderPath); return; } // sans Maj ni Ctrl au relâchement : on demande
+  if (!drag.mode) { askCopyOrMove(event, drag.targets, () => copyPhotosToFolder(drag.targets, folderPath), () => movePhotosToFolder(drag.targets, folderPath)); return; } // sans Maj ni Ctrl au relâchement : on demande
   if (drag.mode === 'copy') copyPhotosToFolder(drag.targets, folderPath);
   else movePhotosToFolder(drag.targets, folderPath);
 }
@@ -5505,7 +5559,7 @@ initMetadataSettings();
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
 initAlbumsPanel({
-  showToast: message => showWriteToast(message),
+  showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
   onSelectionChange: () => { syncSmartAlbumWithSelection(); loadPhotos(); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.

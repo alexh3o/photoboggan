@@ -235,19 +235,26 @@ fn require_manual(conn: &Connection, album_id: i64) -> Result<(), String> {
     if get_node(conn, album_id)?.kind == KIND_MANUAL { Ok(()) } else { Err("Only manual albums have a chosen content".into()) }
 }
 
-/// Ajoute des photos à un album manuel ; renvoie le nombre de photos réellement ajoutées (celles déjà présentes ou absentes du catalogue sont ignorées).
-pub fn add_photos(conn: &Connection, album_id: i64, photo_ids: &[i64]) -> Result<usize, String> {
+/// Ajoute des photos à un album manuel ; renvoie les identifiants réellement ajoutés (ceux déjà présents ou absents du catalogue sont ignorés).
+/// Cette liste permet d'annuler l'ajout sans retirer ce qui était déjà dans l'album.
+pub fn add_photos_listed(conn: &Connection, album_id: i64, photo_ids: &[i64]) -> Result<Vec<i64>, String> {
     require_manual(conn, album_id)?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    let mut added = 0;
+    let mut added = Vec::new();
     for photo_id in photo_ids {
-        added += tx.execute(
+        let inserted = tx.execute(
             "INSERT OR IGNORE INTO album_photos (album_id, photo_id) SELECT ?1, id FROM photos WHERE id = ?2",
             params![album_id, photo_id],
         ).map_err(|e| e.to_string())?;
+        if inserted > 0 { added.push(*photo_id); }
     }
     tx.commit().map_err(|e| e.to_string())?;
     Ok(added)
+}
+
+/// Comme `add_photos_listed`, mais ne renvoie que le nombre de photos ajoutées.
+pub fn add_photos(conn: &Connection, album_id: i64, photo_ids: &[i64]) -> Result<usize, String> {
+    add_photos_listed(conn, album_id, photo_ids).map(|added| added.len())
 }
 
 /// Retire des photos d'un album manuel (les fichiers et le catalogue ne sont pas touchés) ; renvoie le nombre de photos retirées.
@@ -361,9 +368,9 @@ pub fn get_album_photos(state: State<'_, AppState>, album_id: i64) -> Result<Vec
 }
 
 #[tauri::command(async)]
-pub fn add_photos_to_album(state: State<'_, AppState>, album_id: i64, photo_ids: Vec<i64>) -> Result<usize, String> {
+pub fn add_photos_to_album(state: State<'_, AppState>, album_id: i64, photo_ids: Vec<i64>) -> Result<Vec<i64>, String> {
     let conn = state.pool().get().map_err(|e| e.to_string())?;
-    add_photos(&conn, album_id, &photo_ids)
+    add_photos_listed(&conn, album_id, &photo_ids)
 }
 
 #[tauri::command(async)]

@@ -48,7 +48,11 @@
         <ul id="folder-tree"></ul>
         <!-- Albums virtuels (dossiers virtuels, albums manuels et intelligents) : albums-panel.js ; n'existent que dans la base -->
         <section id="albums-section" class="albums-section" aria-labelledby="albums-title">
-          <h3 id="albums-title" class="sidebar-block-title"><button type="button" id="albums-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="albums-list"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Albums">Albums</span></button></h3>
+          <div class="sidebar-block-header">
+            <h3 id="albums-title" class="sidebar-block-title"><button type="button" id="albums-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="albums-list"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Albums">Albums</span></button></h3>
+            <!-- Même menu de création que le clic droit dans le vide de la section -->
+            <button type="button" id="albums-add" class="albums-add" title="Nouveau…" aria-label="Nouveau…" data-i18n-title="New…" data-i18n-aria-label="New…">+</button>
+          </div>
           <ul id="albums-list" class="albums-list"></ul>
         </section>
         <!-- Personnes lues dans les zones de visage des fichiers (faces-panel.js) ; masquée tant que la lecture des visages est désactivée -->
@@ -418,6 +422,12 @@
               <h4 id="startup-view-title" data-i18n="At startup, show">Au démarrage, afficher</h4>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="last" /><span data-i18n="The last opened location">Le dernier emplacement ouvert</span></label>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="all" /><span data-i18n="All photos">Toutes les photos</span></label>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Albums">Albums</h4>
+              <div class="settings-row"><span data-i18n="Confirmation before replacing the filters of a smart album">Confirmation avant d'écraser les filtres d'un album intelligent</span>
+                <button type="button" id="btn-reset-album-warning" data-i18n="Show again">Réafficher</button>
+              </div>
             </section>
             <section class="settings-section">
               <h4>Internet</h4>

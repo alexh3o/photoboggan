@@ -1100,5 +1100,16 @@
   "Inherited from \"{name}\": these filters cannot be changed here": "Hérité de « {name} » : ces filtres ne peuvent pas être modifiés ici",
   "Folder: {name}": "Dossier : {name}",
   "Map area": "Zone de carte",
-  "Map area saved in this album": "Zone de carte enregistrée dans cet album"
+  "Map area saved in this album": "Zone de carte enregistrée dans cet album",
+  "New…": "Nouveau…",
+  "{count} removed from \"{name}\"": "{count} retirée(s) de « {name} »",
+  "{count} moved from \"{from}\" to \"{to}\"": "{count} déplacée(s) de « {from} » vers « {to} »",
+  "An item cannot be dropped into itself or into what it contains": "Un élément ne peut pas être déposé dans lui-même ni dans ce qu'il contient",
+  "A manual album can only contain smart albums": "Un album manuel ne peut contenir que des albums intelligents",
+  "A smart album can only contain smart albums": "Un album intelligent ne peut contenir que des albums intelligents",
+  "Photos can only be added to a manual album": "Les photos ne peuvent être ajoutées qu'à un album manuel",
+  "Confirmation before replacing the filters of a smart album": "Confirmation avant d'écraser les filtres d'un album intelligent",
+  "Show again": "Réafficher",
+  "The confirmation will be shown again": "La confirmation sera de nouveau demandée",
+  "The confirmation is already shown": "La confirmation est déjà active"
 }

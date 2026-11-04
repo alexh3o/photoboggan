@@ -1100,5 +1100,16 @@
   "Inherited from \"{name}\": these filters cannot be changed here": "Inherited from \"{name}\": these filters cannot be changed here",
   "Folder: {name}": "Folder: {name}",
   "Map area": "Map area",
-  "Map area saved in this album": "Map area saved in this album"
+  "Map area saved in this album": "Map area saved in this album",
+  "New…": "New…",
+  "{count} removed from \"{name}\"": "{count} removed from \"{name}\"",
+  "{count} moved from \"{from}\" to \"{to}\"": "{count} moved from \"{from}\" to \"{to}\"",
+  "An item cannot be dropped into itself or into what it contains": "An item cannot be dropped into itself or into what it contains",
+  "A manual album can only contain smart albums": "A manual album can only contain smart albums",
+  "A smart album can only contain smart albums": "A smart album can only contain smart albums",
+  "Photos can only be added to a manual album": "Photos can only be added to a manual album",
+  "Confirmation before replacing the filters of a smart album": "Confirmation before replacing the filters of a smart album",
+  "Show again": "Show again",
+  "The confirmation will be shown again": "The confirmation will be shown again",
+  "The confirmation is already shown": "The confirmation is already shown"
 }

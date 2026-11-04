@@ -34,3 +34,12 @@
 
 /* Case « ne plus afficher » d'une fenêtre de confirmation */
 .confirm-check { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 0.75rem; font-size: 0.8rem; color: var(--text-muted); cursor: pointer; }
+
+/* En-tête de la section : bouton « + » (même menu de création que le clic droit dans le vide) */
+.albums-section .sidebar-block-header { margin-bottom: 0.25rem; }
+.albums-add { width: 1.5rem; min-height: 1.5rem; padding: 0; border: 1px solid var(--separator); border-radius: 4px; background: transparent; color: var(--text-dim); font-size: 1rem; line-height: 1; cursor: pointer; }
+.albums-add:hover, .albums-add:focus-visible { background: var(--control-bg); color: var(--text-strong); outline: none; }
+
+/* Raison d'un refus de dépôt, sous l'image glissée d'un album */
+.album-drag-ghost .album-drag-reason { position: absolute; top: calc(100% + 0.4rem); left: 0; width: max-content; max-width: 14rem; padding: 0.25rem 0.5rem; border-radius: 4px; background: var(--danger-text); color: #fff; font-size: 0.75rem; line-height: 1.3; white-space: normal; }
+.album-drag-ghost .album-drag-reason[hidden] { display: none; }
