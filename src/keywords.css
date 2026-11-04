@@ -84,6 +84,13 @@
 .keyword-dialog h3 { font-size: 0.95rem; }
 .keyword-dialog p { margin: 0.5rem 0 0; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }
 .keyword-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+/* Boutons colorés des questions d'écriture : écrire (bleu), écrire plus tard (orange), abandonner / quitter sans écrire (rouge) */
+.keyword-dialog-actions button.tone-blue { background: var(--accent); border-color: var(--accent); color: #fff; }
+.keyword-dialog-actions button.tone-orange { background: #e67e22; border-color: #e67e22; color: #fff; }
+.keyword-dialog-actions button.tone-red { background: #c0392b; border-color: #c0392b; color: #fff; }
+.keyword-dialog-actions button.tone-blue:hover { filter: brightness(1.1); }
+.keyword-dialog-actions button.tone-orange:hover { filter: brightness(1.1); }
+.keyword-dialog-actions button.tone-red:hover { filter: brightness(1.15); }
 
 /* Pastille du filtre « fichiers en échec » */
 .filter-tag.tag-failed { border-color: var(--tag-failed-border); }

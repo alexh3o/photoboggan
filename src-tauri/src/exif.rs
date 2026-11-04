@@ -1126,7 +1126,7 @@ fn update_xmp_rating(xml: &str, rating: i32) -> String {
                 let namespace = match name {
                     "xmp:Rating" if !updated.contains("xmlns:xmp=") => " xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"",
                     "acdsee:rating" if !updated.contains("xmlns:acdsee=") => " xmlns:acdsee=\"http://ns.acdsee.com/iptc/1.0/\"",
-                    "MicrosoftPhoto:Rating" if !updated.contains("xmlns:MicrosoftPhoto=") => " xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0\"",
+                    "MicrosoftPhoto:Rating" if !updated.contains("xmlns:MicrosoftPhoto=") => " xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\"",
                     _ => "",
                 };
                 updated.insert_str(insert_at, &format!("{namespace} {name}=\"{value}\""));
@@ -1134,8 +1134,8 @@ fn update_xmp_rating(xml: &str, rating: i32) -> String {
         }
     }
     if updated.is_empty() || !updated.contains("rdf:Description") {
-        format!("<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:acdsee=\"http://ns.acdsee.com/iptc/1.0/\" xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0\" xmp:Rating=\"{rating}\" acdsee:rating=\"{rating}\" MicrosoftPhoto:Rating=\"{microsoft_rating}\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>")
-    } else { updated }
+        format!("<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:acdsee=\"http://ns.acdsee.com/iptc/1.0/\" xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\" xmp:Rating=\"{rating}\" acdsee:rating=\"{rating}\" MicrosoftPhoto:Rating=\"{microsoft_rating}\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>")
+    } else { fix_microsoft_namespace(updated) }
 }
 
 const EMPTY_XMP_PACKET: &str = "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>";
@@ -1476,7 +1476,14 @@ const DC_NS: &str = "http://purl.org/dc/elements/1.1/";
 const DIGIKAM_NS: &str = "http://www.digikam.org/ns/1.0/";
 const LIGHTROOM_NS: &str = "http://ns.adobe.com/lightroom/1.0/";
 const MEDIAPRO_NS: &str = "http://ns.iview-multimedia.com/mediapro/1.0/";
-const MICROSOFT_NS: &str = "http://ns.microsoft.com/photo/1.0";
+// Avec le « / » final : sans lui, ExifTool signale « Fixed incorrect URI for xmlns:MicrosoftPhoto » à chaque lecture ou écriture du fichier.
+const MICROSOFT_NS: &str = "http://ns.microsoft.com/photo/1.0/";
+
+/// Paquet XMP dont la déclaration du namespace MicrosoftPhoto est corrigée : les versions précédentes l'écrivaient sans le « / » final.
+fn fix_microsoft_namespace(xml: String) -> String {
+    xml.replace("xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0\"", "xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\"")
+        .replace("xmlns:MicrosoftPhoto='http://ns.microsoft.com/photo/1.0'", "xmlns:MicrosoftPhoto='http://ns.microsoft.com/photo/1.0/'")
+}
 const ACDSEE_NS: &str = "http://ns.acdsee.com/iptc/1.0/";
 
 fn xml_escape_text(text: &str) -> String {
@@ -1768,10 +1775,10 @@ fn update_xmp_all(xml: &str, update: &MetadataUpdate) -> String {
         Some(regions) => update_xmp_regions(&with_texts, regions),
         None => with_texts,
     };
-    match update.gps {
+    fix_microsoft_namespace(match update.gps {
         Some(gps) => update_xmp_gps(&with_regions, gps),
         None => with_regions,
-    }
+    })
 }
 
 /// Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.

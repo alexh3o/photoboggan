@@ -18,7 +18,7 @@ import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeM
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
-import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
+import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 
@@ -5681,7 +5681,12 @@ initPersonsView({
 // Bouton « Visages » : ouvre la vue Personnes, ou ferme la vue (Personnes ou gestion) ouverte.
 document.getElementById('btn-toggle-faces').addEventListener('click', async () => {
   if (isMapModeOpen() && !(await requestCloseMapMode())) return; // une seule vue à la fois ; positions en attente : question d'abord
-  if (isPersonsViewOpen() || isFacesViewOpen()) { closePersonsView(); closeFacesView(); return; }
+  if (isPersonsViewOpen() || isFacesViewOpen()) {
+    if (isFacesViewOpen() && !(await requestCloseFacesView())) return; // visages en attente d'écriture : question d'abord
+    closePersonsView();
+    closeFacesView();
+    return;
+  }
   clearPersonSelection(); // vue ouverte par la barre d'outils : aucune personne choisie
   openPersonsView();
 });
@@ -5697,6 +5702,7 @@ initMapMode({
   showToast: message => showWriteToast(message),
   closePersonsView: () => closePersonsView(),
   closeFacesView: () => closeFacesView(),
+  requestCloseFacesView: () => requestCloseFacesView(),
   setMapLayout: open => { mainContent.classList.toggle('map-mode', open); requestAnimationFrame(updateVirtualScroller); },
   layoutPreview: () => requestAnimationFrame(() => previewSlots.forEach(layoutPreviewSlot)),
 });
@@ -5723,7 +5729,11 @@ initFacesGrid({
     else openFullscreen(index);
   },
   setPhotoGridVisible,
-  openPersonsView: () => openPersonsView(),
+  // Bouton « Personnes » de la vue de gestion : visages en attente d'écriture, question d'abord (voir requestCloseFacesView).
+  openPersonsView: async () => {
+    if (!(await requestCloseFacesView())) return;
+    openPersonsView();
+  },
   closePersonsView: () => { closePersonsView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue de gestion : une seule vue à la fois
   showToast: message => showWriteToast(message),
   getPersonRoot,

@@ -555,3 +555,18 @@ fn a_new_xmp_position_replaces_the_previous_one_and_wins_over_the_exif() {
     assert!(contains(&written, b"garde"));
     assert_eq!(decoded_pixels(&written), decoded_pixels(&original));
 }
+
+#[test]
+fn microsoft_namespace_has_trailing_slash_and_old_packets_are_fixed() {
+    // Nouveau paquet : l'URI porte le « / » final (sinon ExifTool signale « Fixed incorrect URI for xmlns:MicrosoftPhoto »).
+    let created = update_xmp_rating("", 3);
+    assert!(created.contains("xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\""), "{created}");
+    // Paquet écrit par une ancienne version (sans « / ») : corrigé à la prochaine écriture, par le chemin des mots-clés comme par celui de la note.
+    let old = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0\" MicrosoftPhoto:Rating=\"1\"/></rdf:RDF></x:xmpmeta>";
+    let rated = update_xmp_rating(old, 5);
+    assert!(rated.contains("photo/1.0/\""), "{rated}");
+    assert!(!rated.contains("photo/1.0\""), "{rated}");
+    let update = MetadataUpdate { title: Some("t".to_string()), ..Default::default() };
+    let titled = update_xmp_all(old, &update);
+    assert!(titled.contains("photo/1.0/\"") && !titled.contains("photo/1.0\""), "{titled}");
+}

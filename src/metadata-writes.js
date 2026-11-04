@@ -141,7 +141,8 @@ export function keepFocusInModal(modal, event) {
   return true;
 }
 
-// Fenêtre modale : `buttons` = [{ label, value, primary?, cancel? }]. Échap choisit le bouton marqué `cancel` (sans lui, Échap ne fait rien).
+// Fenêtre modale : `buttons` = [{ label, value, primary?, cancel?, tone? }]. Échap choisit le bouton marqué `cancel` (sans lui, Échap ne fait rien).
+// `tone` : couleur du bouton, « blue » (écrire), « orange » (plus tard) ou « red » (abandonner) ; sans `tone`, couleur du thème (voir keywords.css).
 export function choiceDialog({ title, message, buttons }) {
   return new Promise(resolve => {
     const modal = document.createElement('div');
@@ -175,6 +176,7 @@ export function choiceDialog({ title, message, buttons }) {
       element.type = 'button';
       element.textContent = button.label;
       if (button.primary) { element.classList.add('active'); primaryElement = element; }
+      if (button.tone) element.classList.add(`tone-${button.tone}`);
       element.addEventListener('click', () => close(button.value));
       actions.append(element);
     }
@@ -475,7 +477,7 @@ function pendingSummary() {
 }
 
 // Fermeture de l'application (appelée par main.js) : renvoie true si elle peut se poursuivre. Des modifications non écrites donnent lieu à
-// Appliquer / Quitter sans appliquer / Annuler ; une écriture en cours à une confirmation, car quitter l'interrompt.
+// Écrire dans les fichiers / Abandonner les modifications / Annuler ; une écriture en cours à une confirmation, car quitter l'interrompt.
 export async function confirmCloseWithPendingEdits() {
   if (!host) return true;
   if (promptOpen || closing) return false; // une question est déjà posée, ou l'écriture finale est en cours : on la laisse finir
@@ -500,8 +502,8 @@ export async function confirmCloseWithPendingEdits() {
       decision = 'apply';
     } else {
       const buttons = [];
-      if (!locked) buttons.push({ label: t('Write to files'), value: 'apply', primary: true });
-      buttons.push({ label: t('Quit without applying'), value: 'quit', primary: locked });
+      if (!locked) buttons.push({ label: t('Write to files'), value: 'apply', primary: true, tone: 'blue' });
+      buttons.push({ label: t('Discard changes'), value: 'quit', primary: locked, tone: 'red' });
       buttons.push({ label: t('Cancel'), value: 'cancel', cancel: true });
       decision = await choiceDialog({
         title: t('Pending changes'),
@@ -514,7 +516,21 @@ export async function confirmCloseWithPendingEdits() {
   } finally {
     promptOpen = false;
   }
-  if (decision === 'quit') return true;
+  if (decision === 'quit') {
+    // Abandon : les mots-clés, titres et descriptions en attente sont simplement perdus ; les visages retrouvent ceux de leurs fichiers (comme en
+    // quittant la vue Visages). Pas pendant une écriture en cours : elle s'occupe déjà de ces visages.
+    if (locked) return true;
+    closing = true;
+    try {
+      await invoke('discard_pending_face_writes');
+      return true;
+    } catch (error) {
+      host.showToast(String(error)); // la fenêtre reste ouverte : l'abandon peut être retenté
+      return false;
+    } finally {
+      closing = false;
+    }
+  }
   if (decision !== 'apply') return false;
   // Écriture directe (jamais par la file, qui serait interrompue par la fermeture) ; la fenêtre reste ouverte si elle ne réussit pas entièrement.
   // Pendant ce temps (question des personnes, écriture, fenêtre d'échec), une nouvelle demande de fermeture est ignorée.

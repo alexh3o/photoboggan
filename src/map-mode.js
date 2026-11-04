@@ -436,7 +436,7 @@ export async function requestCloseMapMode() {
 
 /**
  * @param {object} hostApi services de main.js : getPhotos(), getMapPhotos(), getSelection() ({ selection, focus }), applyPhotoFilters(options), refreshThumbnails(),
- *   showToast(message), closePersonsView(), closeFacesView(), setMapLayout(open), layoutPreview(), setPhotoGridVisible?
+ *   showToast(message), closePersonsView(), closeFacesView(), requestCloseFacesView() (vrai si la vue Visages est fermée), setMapLayout(open), layoutPreview(), setPhotoGridVisible?
  */
 export function initMapMode(hostApi) {
   host = hostApi;
@@ -454,9 +454,9 @@ export function initMapMode(hostApi) {
     onStatus: status => { mapStatus = status; if (open) renderMessage(); },
   });
 
-  toggleButton.addEventListener('click', () => {
+  toggleButton.addEventListener('click', async () => {
     if (open) requestCloseMapMode();
-    else openMapMode();
+    else if (await host.requestCloseFacesView()) openMapMode(); // la vue Visages ouverte se ferme d'abord (visages en attente : question)
   });
   for (const button of panel.querySelectorAll('.map-filter button')) button.addEventListener('click', () => setFilter(button.dataset.filter));
   writeButton.addEventListener('click', () => { writeNow(); });

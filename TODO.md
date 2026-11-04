@@ -3,7 +3,6 @@
 ## 🚀 Next in line
 
 - [ ] *docs*: technical documentation
-- [ ] *feat*: `maps` additional "get missing maps online" setting if zone is not private
 - [ ] *refactor*: `faces` offer to write faces when leaving review faces screen
 - [ ] *chore*: `dev` unlink dev and build settings
 - [ ] *feat*: add option to remove star ratings when copying or resizing, enabled by default

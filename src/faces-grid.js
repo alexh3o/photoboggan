@@ -12,7 +12,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { faceCropStyle, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
-import { applyPending, isWriteLocked, onLockChange } from './metadata-writes.js';
+import { applyPending, isWriteLocked, onLockChange, choiceDialog } from './metadata-writes.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
 // Statuts dans l'ordre d'affichage des groupes, avec la clé de traduction de leur nom.
@@ -178,7 +178,42 @@ export function closeFacesView() {
 }
 
 export function toggleFacesView() {
-  if (open) closeFacesView(); else openFacesView();
+  if (open) requestCloseFacesView(); else openFacesView();
+}
+
+// Quitte la vue en demandant quoi faire des visages en attente d'écriture (comme à la fermeture de l'application) : les écrire, les laisser en
+// attente, les abandonner (chaque photo retrouve les visages de son fichier) ou rester dans la vue. Renvoie vrai si la vue est fermée.
+export async function requestCloseFacesView() {
+  if (!open) return true;
+  const pending = getPendingFaceWriteCount();
+  // Une écriture est déjà en cours : elle s'occupe de ces visages, on ne pose pas de question.
+  if (pending > 0 && !isWriteLocked()) {
+    const choice = await choiceDialog({
+      title: t('Pending changes'),
+      message: tp('{count} photo has pending writes of faces. Write them now?', pending),
+      buttons: [
+        { label: t('Write to files'), value: 'write', primary: true, tone: 'blue' },
+        { label: t('Write later'), value: 'later', tone: 'orange' },
+        { label: t('Discard changes'), value: 'discard', tone: 'red' },
+        { label: t('Cancel'), value: 'cancel', cancel: true },
+      ],
+    });
+    if (choice === 'cancel') return false;
+    if (choice === 'write') {
+      // Écriture non lancée (question des personnes annulée, file indisponible…) : on reste dans la vue, les visages restent en attente.
+      if (!(await applyPending({ includeLibrary: true }))) return false;
+    } else if (choice === 'discard') {
+      try {
+        await invoke('discard_pending_face_writes');
+      } catch (error) {
+        host.showToast(String(error));
+        return false;
+      }
+      await refreshFaces(); // section Personnes, filtre, compteur « N photos »
+    }
+  }
+  closeFacesView();
+  return true;
 }
 
 // Recharge les visages des photos affichées (changement de dossier ou de filtre, scan terminé, action de révision). Défilement conservé.

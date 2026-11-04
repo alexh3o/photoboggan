@@ -1167,6 +1167,54 @@ pub fn mark_photo_for_write(conn: &Connection, photo_id: i64) -> rusqlite::Resul
 pub fn get_pending_face_writes(state: State<'_, AppState>) -> Result<Vec<(i64, String)>, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
+    pending_face_writes(&conn)
+}
+
+/// Abandonner les visages en attente d'écriture : chaque photo concernée retrouve les visages que son fichier contient. Les modifications
+/// non écrites (personne attribuée ou retirée, confirmation, « ignoré »…) sont perdues ; une zone supprimée de la base mais encore dans le
+/// fichier est de nouveau importée. Un visage détecté dont le fichier ne dit rien redevient « inconnu » (la prochaine attribution peut le
+/// reconnaître de nouveau). Renvoie le nombre de photos remises dans l'état de leur fichier.
+#[tauri::command(async)]
+pub fn discard_pending_face_writes(state: State<'_, AppState>) -> Result<usize, String> {
+    use rayon::prelude::*;
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let pending = pending_face_writes(&conn)?;
+    // Lecture des fichiers en parallèle (c'est le plus long) ; une photo illisible garde ses modifications en attente.
+    let read: Vec<(i64, String, PhotoFaces)> = pending
+        .par_iter()
+        .filter(|(_, path)| std::path::Path::new(path).is_file())
+        .map(|(photo_id, path)| (*photo_id, path.clone(), crate::exif::read_exif(std::path::Path::new(path)).faces))
+        .filter(|(_, _, faces)| faces.regions.is_some())
+        .collect();
+    let count = read.len();
+    let photo_ids: Vec<i64> = read.iter().map(|(photo_id, _, _)| *photo_id).collect();
+    in_transaction(&conn, |conn| {
+        for (photo_id, _, _) in &read {
+            // Les zones importées modifiées reviennent du fichier ; les visages détectés modifiés repartent de « inconnu », puis le fichier
+            // leur redonne leur personne s'il en nomme une à cet endroit (voir store_photo_faces_in, qui ne touche pas aux visages en attente).
+            conn.execute("DELETE FROM faces WHERE photo_id = ?1 AND dirty = 1 AND origin = 'imported'", params![photo_id])?;
+            conn.execute(
+                "UPDATE faces SET state = 'unknown', person_id = NULL, suggested_person_id = NULL, rejected_person_id = NULL, unknown_locked = 0, dirty = 0
+                 WHERE photo_id = ?1 AND dirty = 1",
+                params![photo_id],
+            )?;
+            conn.execute("DELETE FROM photo_face_writes WHERE photo_id = ?1", params![photo_id])?;
+        }
+        let items: Vec<(String, PhotoFaces)> = read.into_iter().map(|(_, path, faces)| (path, faces)).collect();
+        store_photo_faces_in(conn, &items)
+    })
+    .map_err(|error| error.to_string())?;
+    // Les visages remis à « inconnu » sont réattribués tout de suite (« À valider », automatique) d'après les personnes confirmées restantes :
+    // la proposition n'est pas dans le fichier, elle ne reviendrait sinon qu'à la prochaine action de révision.
+    if let Err(error) = crate::face_recognize::attribute_faces(&conn, Some(&photo_ids), crate::face_detect::settings().thresholds()) {
+        eprintln!("Faces not re-attributed after discarding: {error}");
+    }
+    Ok(count)
+}
+
+/// Photos dont les visages attendent d'être écrits : (identifiant, chemin).
+fn pending_face_writes(conn: &Connection) -> Result<Vec<(i64, String)>, String> {
     let mut statement = conn
         .prepare(
             "SELECT p.id, p.path FROM photos p
