@@ -1120,5 +1120,7 @@
   "Original map style restored": "Original map style restored",
   "The map style could not be reset: {error}": "The map style could not be reset: {error}",
   "Show the map widget in the Info panel": "Show the map widget in the Info panel",
-  "Info map widget help": "Shows or hides the small map of the Location group in the Info panel. No effect on the Map view, nor on the \"Show a map of the photo location\" setting."
+  "Info map widget help": "Shows or hides the small map of the Location group in the Info panel. No effect on the Map view, nor on the \"Show a map of the photo location\" setting.",
+  "This zone": "This zone",
+  "Photos": "Photos"
 }

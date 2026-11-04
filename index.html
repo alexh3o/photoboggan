@@ -263,9 +263,12 @@
         <div id="map-panel" class="map-panel" hidden>
           <div class="map-toolbar">
             <div class="map-toolbar-row">
-              <div class="map-filter" role="group" aria-label="Photos affichées dans la grille" data-i18n-aria-label="Photos shown in the grid">
-                <button type="button" data-filter="all" aria-pressed="true" data-i18n="All photos" data-i18n-title="Show all the photos of the selected folders and filters in the grid" title="Afficher dans la grille toutes les photos des dossiers et filtres choisis">Toutes les photos</button>
-                <button type="button" data-filter="visible" aria-pressed="false" data-i18n="Visible zone only" data-i18n-title="Show in the grid only the geolocated photos inside the visible map area" title="Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte">Zone visible seulement</button>
+              <div class="map-group">
+                <span class="map-group-label" data-i18n="Photos">Photos</span>
+                <div class="map-filter" role="group" aria-label="Photos affichées dans la grille" data-i18n-aria-label="Photos shown in the grid">
+                  <button type="button" data-filter="all" aria-pressed="true" data-i18n="All" data-i18n-title="Show all the photos of the selected folders and filters in the grid" title="Afficher dans la grille toutes les photos des dossiers et filtres choisis">Toutes</button>
+                  <button type="button" data-filter="visible" aria-pressed="false" data-i18n="This zone" data-i18n-title="Show in the grid only the geolocated photos inside the visible map area" title="Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte">Cette zone</button>
+                </div>
               </div>
               <form id="map-search" class="map-search" role="search" hidden>
                 <input id="map-search-input" type="search" autocomplete="off" spellcheck="false" placeholder="Rechercher un lieu…" data-i18n-placeholder="Search a place…" aria-label="Rechercher un lieu" data-i18n-aria-label="Search a place" />
@@ -274,9 +277,13 @@
             </div>
             <div class="map-toolbar-row">
               <span class="map-help" data-i18n="Hold SHIFT and drag onto map to set location">Maintenir MAJ et glisser sur la carte pour définir la position</span>
-              <span id="map-pending" class="map-pending"></span>
-              <button id="btn-map-revert" type="button" data-i18n="Discard the changes" disabled>Abandonner les modifications</button>
-              <button id="btn-map-write" type="button" class="btn-primary" data-i18n="Write to files" data-i18n-title="Write the locations to the files" title="Écrire les positions dans les fichiers" disabled>Écrire dans les fichiers</button>
+              <div id="map-changes" class="map-group" hidden>
+                <span id="map-pending" class="map-pending"></span>
+                <div class="map-buttons">
+                  <button id="btn-map-write" type="button" class="btn-primary" data-i18n="Write to files" data-i18n-title="Write the locations to the files" title="Écrire les positions dans les fichiers" disabled>Écrire dans les fichiers</button>
+                  <button id="btn-map-revert" type="button" class="btn-danger" data-i18n="Discard" data-i18n-title="Discard the changes" title="Abandonner les modifications" disabled>Abandonner</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="map-body">

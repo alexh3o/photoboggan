@@ -16,6 +16,12 @@
 .map-pending { font-size: 0.78rem; color: #f59e0b; }
 .map-toolbar button { padding: 0.25rem 0.6rem; white-space: nowrap; }
 
+/* Groupe « libellé + boutons » : insécable, sans cadre. */
+.map-group { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 0.4rem; white-space: nowrap; }
+.map-group[hidden] { display: none; }
+.map-group-label { font-size: 0.78rem; color: #9a9a9a; }
+.map-buttons { display: inline-flex; gap: 0.3rem; }
+
 /* Les deux boutons du filtre de la grille s'excluent : celui qui est enfoncé est mis en évidence. */
 .map-filter { display: inline-flex; border-radius: 4px; overflow: hidden; }
 .map-filter button { border-radius: 0; margin: 0; }

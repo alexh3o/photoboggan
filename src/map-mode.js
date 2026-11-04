@@ -279,6 +279,7 @@ function updateControls() {
   writeButton.classList.toggle('pending', count > 0);
   revertButton.disabled = count === 0 || isWriteLocked();
   pendingLabel.textContent = count ? tp('{count} photo with a location to write', count) : '';
+  document.getElementById('map-changes').hidden = count === 0; // « Modifications » : seulement si des positions attendent
   for (const button of panel.querySelectorAll('.map-filter button')) button.setAttribute('aria-pressed', String(button.dataset.filter === filterMode));
   renderMessage();
 }

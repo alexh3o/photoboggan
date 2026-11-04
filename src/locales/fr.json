@@ -1120,5 +1120,7 @@
   "Original map style restored": "Style d'origine rétabli",
   "The map style could not be reset: {error}": "Impossible de rétablir le style : {error}",
   "Show the map widget in the Info panel": "Afficher le widget carte dans le panneau Info",
-  "Info map widget help": "Affiche ou masque la petite carte du groupe Lieu du panneau Info. Sans effet sur le mode Carte, ni sur le réglage « Afficher une carte du lieu de la photo » des Paramètres."
+  "Info map widget help": "Affiche ou masque la petite carte du groupe Lieu du panneau Info. Sans effet sur le mode Carte, ni sur le réglage « Afficher une carte du lieu de la photo » des Paramètres.",
+  "This zone": "Cette zone",
+  "Photos": "Photos"
 }
