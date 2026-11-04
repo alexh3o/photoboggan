@@ -2076,6 +2076,16 @@ fn main() {
             let main_window = app.get_webview_window("main").ok_or("Fenêtre principale introuvable")?;
             let window_tracker = restore_window_state(&main_window, &config);
 
+            // La fenêtre est créée masquée (tauri.conf.json) : le frontend l'affiche une fois l'interface mise en forme (main.js).
+            // Filet de sécurité : si le frontend ne l'a pas fait après 10 s (erreur de chargement…), on l'affiche ici pour ne jamais la laisser invisible.
+            let fallback_window = main_window.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(10));
+                if let Ok(false) = fallback_window.is_visible() {
+                    let _ = fallback_window.show();
+                }
+            });
+
             app.manage(AppState {
                 db_pool: RwLock::new(db_pool),
                 paths: RwLock::new(paths),

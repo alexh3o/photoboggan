@@ -16,6 +16,7 @@
         "title": "photoboggan",
         "width": 1024,
         "height": 768,
+        "visible": false,
         "decorations": false,
         "transparent": false
       }

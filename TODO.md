@@ -9,7 +9,7 @@
 - [x] *fix*: map doesn't load, photo locations still placed
 - [x] *feat*: `maps` embed default map style
 - [x] *refactor*: `maps` rearrange settings modal with new maps tab
-- [ ] *fix*: `UI` mask uncomplete display (text only flash before UI loads)
+- [x] *fix*: `UI` mask uncomplete display (text only flash before UI loads)
 
 ## 💡 Ideas / Longer term / On hold
 
