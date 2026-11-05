@@ -1170,5 +1170,19 @@
   "Pause / resume the slideshow": "Pause / resume the slideshow",
   "Recompute the shape": "Recompute the shape",
   "Recompute the shape help": "Read the tiles of the imported file again to give the zone its real shape instead of a rectangle.",
-  "The shape of the zone was recomputed": "The shape of the zone was recomputed"
+  "The shape of the zone was recomputed": "The shape of the zone was recomputed",
+  "Shooting": "Shooting",
+  "Camera...": "Camera...",
+  "Lens...": "Lens...",
+  "Gear filter help": "Pick from the list, or type some text then press Enter to find what contains it",
+  "Range filter help": "Value, range (24-70), minimum (>200) or maximum (<50)",
+  "Shutter filter help": "1/x below one second, x above; value, range (1/500-1/60), minimum (>2) or maximum (<1/1000)",
+  "Focal length": "Focal length",
+  "Shutter speed": "Shutter speed",
+  "Any flash": "Any",
+  "With flash": "With flash",
+  "Without flash": "Without flash",
+  "Flash": "Flash",
+  "No flash": "No flash",
+  "Invalid value": "Invalid value"
 }

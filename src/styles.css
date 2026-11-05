@@ -232,7 +232,7 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filters-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}
 /* Bloc Filtres replié : taille minimale de 5 rem ; reste visible le bouton « tout effacer », le nombre de photos et un badge par type de filtre actif */
-.photo-filters.collapsed { min-height: 5rem; }
+.photo-filters.collapsed { min-height: 4rem; }
 .filter-badges { display: none; }
 .photo-filters.collapsed .filter-badges:not(:empty) { display: flex; flex-wrap: wrap; gap: 5px; }
 #filters-body[hidden] { display: none; }

@@ -39,6 +39,8 @@ pub struct ExifMetadata {
     pub gps: Option<(f64, f64)>,
     /// Coordonnées de chaque source, dans l'ordre de GPS_SOURCE_IDS.
     pub gps_sources: [Option<(f64, f64)>; 2],
+    /// Flash déclenché (Some(true)), non déclenché (Some(false)) ou information absente (None) : tag EXIF Flash (bit 0), sinon XMP exif:Fired.
+    pub flash: Option<bool>,
     /// Orientation EXIF et zones de visage (voir faces.rs).
     pub faces: crate::faces::PhotoFaces,
 }
@@ -243,6 +245,8 @@ struct ParsedXmp {
     descriptions: [Option<String>; 4],
     /// Coordonnées GPS XMP (exif:GPSLatitude / exif:GPSLongitude).
     gps: Option<(f64, f64)>,
+    /// Flash XMP (exif:Fired), utilisé quand le tag EXIF Flash est absent.
+    flash: Option<bool>,
     /// Zones de visage (None : lecture des visages désactivée).
     face_regions: Option<Vec<crate::faces::FaceRegion>>,
 }
@@ -258,6 +262,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     let mut titles: [Option<String>; 2] = Default::default();
     let mut descriptions: [Option<String>; 4] = Default::default();
     let mut gps: Option<(f64, f64)> = None;
+    let mut flash: Option<bool> = None;
     // Zones de visage : celles du paquet intégré, sinon celles du sidecar (pas de mélange des deux).
     let read_faces = crate::faces::reading_enabled();
     let mut face_regions: Vec<crate::faces::FaceRegion> = Vec::new();
@@ -279,6 +284,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
             if slot.is_none() { *slot = xmp_text(xml, name); }
         }
         if gps.is_none() { gps = xmp_gps(xml); }
+        if flash.is_none() { flash = xmp_flash_fired(xml); }
     };
     // Le fichier image fait foi quand il contient un paquet XMP.
     if let Some(embedded) = read_embedded_xmp(path) {
@@ -304,6 +310,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         titles,
         descriptions,
         gps,
+        flash,
         face_regions: read_faces.then_some(face_regions),
     }
 }
@@ -317,6 +324,26 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
 pub(crate) fn valid_gps(latitude: f64, longitude: f64) -> Option<(f64, f64)> {
     let in_range = latitude.is_finite() && longitude.is_finite() && latitude.abs() <= 90.0 && longitude.abs() <= 180.0;
     (in_range && !(latitude == 0.0 && longitude == 0.0)).then_some((latitude, longitude))
+}
+
+// ---------------------------------------------------------------------------
+// Flash : tag EXIF Flash (0x9209), entier 16 bits dont le bit 0 indique que le flash s'est déclenché (les autres bits décrivent le retour de
+// lumière, le mode, l'absence de flash et les yeux rouges). Lu seulement ; XMP exif:Fired en repli.
+// ---------------------------------------------------------------------------
+
+/// Le flash s'est-il déclenché ? (bit 0 du tag Flash : 0x19, 0x05, 0x01… oui ; 0x00, 0x10, 0x18, 0x20… non)
+pub(crate) fn flash_fired(value: u32) -> bool {
+    value & 1 == 1
+}
+
+/// Valeur XMP exif:Fired (« True » / « False », attribut ou élément de la structure exif:Flash).
+fn xmp_flash_fired(xml: &str) -> Option<bool> {
+    let value = xmp_value(xml, &["exif:Fired"])?;
+    match value.trim().to_ascii_lowercase().as_str() {
+        "true" | "1" => Some(true),
+        "false" | "0" => Some(false),
+        _ => None,
+    }
 }
 
 /// Coordonnée EXIF : degrés, minutes, secondes (trois rationnels) et référence (N/S ou E/W), en degrés décimaux signés.
@@ -931,6 +958,7 @@ fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
     meta.text_sources.title[..2].clone_from_slice(&parsed.titles);
     meta.text_sources.description[..4].clone_from_slice(&parsed.descriptions);
     meta.gps_sources[1] = parsed.gps;
+    meta.flash = parsed.flash;
     meta.faces.regions = parsed.face_regions;
 }
 
@@ -1047,6 +1075,10 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             .filter(|value| (1..=8).contains(value))
             .unwrap_or(1);
         meta.gps_sources[0] = exif_gps(&exif);
+        // Le tag EXIF fait foi sur le XMP quand il est présent.
+        if let Some(flash) = exif.get_field(Tag::Flash, In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(flash_fired) {
+            meta.flash = Some(flash);
+        }
     }
     // XPKeywords : ajoutés aux mots-clés à plat, sans doublon ; puis noms des mots-clés hiérarchiques actifs.
     if !xp_keywords.is_empty() {

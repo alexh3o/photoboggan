@@ -1170,5 +1170,19 @@
   "Pause / resume the slideshow": "Pause / reprise du diaporama",
   "Recompute the shape": "Recalculer la forme",
   "Recompute the shape help": "Relit les tuiles du fichier importé pour donner à la zone sa forme réelle plutôt qu'un rectangle.",
-  "The shape of the zone was recomputed": "La forme de la zone a été recalculée"
+  "The shape of the zone was recomputed": "La forme de la zone a été recalculée",
+  "Shooting": "Prise de vue",
+  "Camera...": "Appareil photo…",
+  "Lens...": "Objectif…",
+  "Gear filter help": "Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient",
+  "Range filter help": "Valeur, plage (24-70), minimum (>200) ou maximum (<50)",
+  "Shutter filter help": "1/x sous la seconde, x au-dessus ; valeur, plage (1/500-1/60), minimum (>2) ou maximum (<1/1000)",
+  "Focal length": "Focale",
+  "Shutter speed": "Vitesse",
+  "Any flash": "Tous",
+  "With flash": "Avec flash",
+  "Without flash": "Sans flash",
+  "Flash": "Flash",
+  "No flash": "Sans flash",
+  "Invalid value": "Valeur invalide"
 }

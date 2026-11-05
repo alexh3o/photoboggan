@@ -3,7 +3,8 @@
 ## 🚀 Next in line
 
 - [ ] *docs*: technical documentation
-- [ ] *chore*: `dev` unlink dev and build settings
+- [x] *chore*: `dev` unlink dev and build settings
+- [ ] *chore*: `installer` customize images and text
 
 ## 💡 Ideas / Longer term / On hold
 

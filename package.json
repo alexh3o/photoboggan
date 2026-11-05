@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

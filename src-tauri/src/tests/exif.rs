@@ -580,3 +580,54 @@ fn strip_xmp_marks_removes_rating_color_and_pick_but_keeps_the_rest() {
     }
     assert!(stripped.contains(r#"dc:creator="moi""#));
 }
+
+// --- Flash ---
+
+/// APP1 Exif minimal (petit-boutien) dont l'IFD Exif ne contient que le tag Flash (0x9209).
+fn exif_segment_with_flash(value: u16) -> Vec<u8> {
+    let mut tiff = vec![b'I', b'I', 0x2a, 0x00, 8, 0, 0, 0];
+    // IFD0 : un seul tag, le pointeur vers l'IFD Exif (0x8769), placé juste après (offset 26).
+    tiff.extend_from_slice(&[1, 0, 0x69, 0x87, 4, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0]);
+    // IFD Exif : Flash, type SHORT.
+    tiff.extend_from_slice(&[1, 0, 0x09, 0x92, 3, 0, 1, 0, 0, 0]);
+    tiff.extend_from_slice(&value.to_le_bytes());
+    tiff.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
+    let mut payload = b"Exif\0\0".to_vec();
+    payload.extend_from_slice(&tiff);
+    payload
+}
+
+#[test]
+fn flash_bit_zero_decides_whether_the_flash_fired() {
+    for fired in [0x01, 0x05, 0x09, 0x19, 0x41, 0x59] { assert!(flash_fired(fired), "{fired:#x} : flash déclenché"); }
+    for silent in [0x00, 0x10, 0x18, 0x20, 0x30] { assert!(!flash_fired(silent), "{silent:#x} : flash non déclenché"); }
+}
+
+#[test]
+fn flash_is_read_from_the_exif_tag() {
+    let dir = tempfile::tempdir().unwrap();
+    for (value, expected) in [(0x19u16, Some(true)), (0x10, Some(false)), (0x20, Some(false))] {
+        let jpeg = with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_segment_with_flash(value));
+        let path = write_sample(dir.path(), &format!("flash-{value}.jpg"), &jpeg);
+        assert_eq!(read_exif(&path).flash, expected, "tag Flash {value:#x}");
+    }
+}
+
+#[test]
+fn flash_is_unknown_without_exif_tag_and_falls_back_on_xmp() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_sample(dir.path(), "plain.jpg", &jpeg_bytes(16, 16));
+    assert_eq!(read_exif(&path).flash, None, "aucune information : inconnu, pas « sans flash »");
+
+    // XMP sidecar : exif:Fired en élément, puis en attribut.
+    fs::write(dir.path().join("plain.jpg.xmp"), "<x:xmpmeta><rdf:Description><exif:Flash rdf:parseType=\"Resource\"><exif:Fired>True</exif:Fired></exif:Flash></rdf:Description></x:xmpmeta>").unwrap();
+    assert_eq!(read_exif(&path).flash, Some(true));
+    fs::write(dir.path().join("plain.jpg.xmp"), "<x:xmpmeta><rdf:Description><exif:Flash exif:Fired=\"False\"/></rdf:Description></x:xmpmeta>").unwrap();
+    assert_eq!(read_exif(&path).flash, Some(false));
+
+    // Le tag EXIF fait foi sur le XMP.
+    let jpeg = with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_segment_with_flash(0x01));
+    let with_tag = write_sample(dir.path(), "tagged.jpg", &jpeg);
+    fs::write(dir.path().join("tagged.jpg.xmp"), "<x:xmpmeta><rdf:Description><exif:Fired>False</exif:Fired></rdf:Description></x:xmpmeta>").unwrap();
+    assert_eq!(read_exif(&with_tag).flash, Some(true));
+}

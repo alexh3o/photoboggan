@@ -151,6 +151,55 @@
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
             </div>
           </div>
+          <!-- Filtre Matériel : appareil photo et objectif (listes classées par fréquence, voir shooting-filters.js) -->
+          <div class="filter-group" data-filter-group="gear">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-gear">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Gear">Matériel</span></span>
+              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Gear">Matériel</span><span id="gear-summary" class="filter-summary"></span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-gear" class="filter-group-body" hidden>
+              <div class="gear-filters">
+                <input id="camera-filter-input" type="text" list="camera-options" placeholder="Appareil photo…" data-i18n-placeholder="Camera..." aria-label="Appareil photo" data-i18n-aria-label="Camera" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
+                <input id="lens-filter-input" type="text" list="lens-options" placeholder="Objectif…" data-i18n-placeholder="Lens..." aria-label="Objectif" data-i18n-aria-label="Lens" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
+              </div>
+              <datalist id="camera-options"></datalist>
+              <datalist id="lens-options"></datalist>
+              <div id="gear-tags" class="filter-tags" aria-live="polite"></div>
+            </div>
+          </div>
+          <!-- Filtre Prise de vue : focale, vitesse, ouverture, ISO (« xxx », « xxx-yyy », « >xxx », « <xxx ») et flash -->
+          <div class="filter-group" data-filter-group="shooting">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-shooting">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Shooting">Prise de vue</span></span>
+              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Shooting">Prise de vue</span><span id="shot-summary" class="filter-summary"></span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-shooting" class="filter-group-body" hidden>
+              <div class="shot-filters">
+                <label class="shot-label" for="shot-focal-input" data-i18n="Focal length">Focale</label>
+                <span class="shot-field"><input id="shot-focal-input" type="text" placeholder="35 · 24-70 · >200" autocomplete="off" spellcheck="false" title="Valeur, plage (24-70), minimum (>200) ou maximum (<50), en mm" data-i18n-title="Range filter help" /><span class="shot-unit">mm</span></span>
+                <div id="shot-focal-error" class="shot-error" role="alert"></div>
+                <label class="shot-label" for="shot-shutter-input" data-i18n="Shutter speed">Vitesse</label>
+                <span class="shot-field"><input id="shot-shutter-input" type="text" placeholder="1/250 · 1/500-1/60 · >2" autocomplete="off" spellcheck="false" title="1/x sous la seconde, x au-dessus ; valeur, plage (1/500-1/60), minimum (>2) ou maximum (<1/1000)" data-i18n-title="Shutter filter help" /></span>
+                <div id="shot-shutter-error" class="shot-error" role="alert"></div>
+                <label class="shot-label" for="shot-aperture-input" data-i18n="Aperture">Ouverture</label>
+                <span class="shot-field"><span class="shot-unit">f/</span><input id="shot-aperture-input" type="text" placeholder="2.8 · 2.8-4 · &lt;2" autocomplete="off" spellcheck="false" title="Valeur, plage (2.8-4), minimum (>4) ou maximum (<2)" data-i18n-title="Range filter help" /></span>
+                <div id="shot-aperture-error" class="shot-error" role="alert"></div>
+                <label class="shot-label" for="shot-iso-input">ISO</label>
+                <span class="shot-field"><input id="shot-iso-input" type="text" placeholder="400 · 100-3200 · >6400" autocomplete="off" spellcheck="false" title="Valeur entière, plage (100-3200), minimum (>6400) ou maximum (<200)" data-i18n-title="Range filter help" /></span>
+                <div id="shot-iso-error" class="shot-error" role="alert"></div>
+                <label class="shot-label" for="shot-flash-select">Flash</label>
+                <span class="shot-field">
+                  <select id="shot-flash-select">
+                    <option value="all" data-i18n="Any flash">Tous</option>
+                    <option value="with" data-i18n="With flash">Avec flash</option>
+                    <option value="without" data-i18n="Without flash">Sans flash</option>
+                  </select>
+                </span>
+              </div>
+            </div>
+          </div>
           <!-- Filtre Lieu : photos géolocalisées ou non (champs gps_lat / gps_lon de la liste chargée, voir « FILTRE LIEU » dans main.js) -->
           <div class="filter-group" data-filter-group="location">
             <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-location">

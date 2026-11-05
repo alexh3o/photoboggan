@@ -24,7 +24,8 @@ import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeF
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
-import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
+import { initShootingFilters, matchesShootingState } from './shooting-filters.js';
+import { initSlideshow,startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
 // à DOMContentLoaded, on attend deux images (premier rendu stylé peint) avant de l'afficher. Un filet de sécurité existe côté Rust (main.rs).
@@ -151,6 +152,8 @@ let photos = [];
 let loadedPhotos = [];
 let folders = [];
 let folderTreePhotos = [];
+// Filtres Matériel (appareil, objectif) et Prise de vue (focale, vitesse, ouverture, ISO, flash) : voir shooting-filters.js.
+const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
@@ -707,6 +710,7 @@ function hasActiveFilters() {
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
   return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all'
+    || shootingFilters.hasGear() || shootingFilters.hasShot()
     || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
 
@@ -758,6 +762,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
     && matchesDateFilter(photo)
     && matchesLocationFilter(photo)
+    && shootingFilters.matches(photo)
     && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
   if (activeSmartAlbumId) {
@@ -867,6 +872,8 @@ function resetAllFilters() {
   // Réinitialise le lieu
   setLocationFilter('all', { apply: false });
 
+  // Réinitialise le matériel et la prise de vue
+  shootingFilters.reset();
 }
 
 function clearAllFilters() {
@@ -904,6 +911,7 @@ function captureFilterState() {
   const persons = getPersonFilterIds();
   if (persons.length) state.persons = persons;
   if (locationFilter !== 'all') state.location = locationFilter;
+  Object.assign(state, shootingFilters.capture()); // gear (appareil, objectif) et shot (focale, vitesse, ouverture, ISO, flash)
   if (albumFolder) state.folder = albumFolder;
   if (albumMapZone) state.mapZone = albumMapZone;
   return state;
@@ -942,6 +950,7 @@ function matchesFilterState(photo, state) {
     const located = Number.isFinite(photo.gps_lat) && Number.isFinite(photo.gps_lon);
     if ((state.location === 'geolocated') !== located) return false;
   }
+  if (!matchesShootingState(photo, state)) return false;
   if (state.folder?.path) {
     const folder = normalizeFilterPath(state.folder.path);
     const path = photo.path.replace(/\\/g, '/').toLowerCase();
@@ -983,6 +992,7 @@ function applyFilterState(state) {
   }
   setPersonFilterIds(state.persons ?? []);
   setLocationFilter(state.location ?? 'all', { apply: false });
+  shootingFilters.apply(state);
   albumFolder = state.folder ?? null;
   albumMapZone = state.mapZone ?? null;
 }
@@ -1160,6 +1170,7 @@ function renderKeywordFilters() {
     const option = document.createElement('option'); option.value = keyword; return option;
   }));
   renderFilterTags();
+  shootingFilters.refreshOptions(); // listes des appareils et objectifs : la collection a pu changer
 }
 
 function addKeywordFilter(value) {
@@ -1356,6 +1367,7 @@ function renderFilterSummaries() {
   })];
   document.getElementById('location-summary').replaceChildren(...locationNodes);
 
+  shootingFilters.renderSummaries();
   renderFilterTags();
   renderActiveFilterBadges();
   renderAlbumFilterInfo();
@@ -1375,6 +1387,8 @@ function renderActiveFilterBadges() {
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
     [locationFilter !== 'all', 'location', 'Location'],
+    [shootingFilters.hasGear(), 'gear', 'Gear'],
+    [shootingFilters.hasShot(), 'shot', 'Shooting'],
     [pathFilter !== null, 'failed', 'Failed files'],
   ];
   container.replaceChildren(...kinds.filter(([active]) => active).map(([, kind, label]) => {

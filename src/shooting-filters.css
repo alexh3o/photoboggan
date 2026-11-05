@@ -1,0 +1,21 @@
+/* Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. */
+:root {
+  --tag-gear-bg: #1f5a55; --tag-gear-border: #2f8a82; --tag-gear-hover: #2a736d;
+  --tag-shot-bg: #6a3f2a; --tag-shot-border: #9a5f42;
+}
+.filter-tag.tag-gear { background: var(--tag-gear-bg); border-color: var(--tag-gear-border); }
+button.filter-tag.tag-gear:hover { background: var(--tag-gear-hover); }
+.filter-tag.tag-shot { background: var(--tag-shot-bg); border-color: var(--tag-shot-border); }
+
+.gear-filters { display: flex; flex-direction: column; gap: 0.4rem; }
+.gear-filters input { min-width: 0; }
+
+/* Une ligne par critère : libellé fixe, champ qui occupe le reste ; le message d'erreur se place sous le champ. */
+.shot-filters { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.5rem; row-gap: 0.4rem; align-items: center; }
+.shot-label { font-size: var(--side-row-size); color: var(--text-muted); white-space: nowrap; }
+.shot-field { display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
+.shot-field input, .shot-field select { flex: 1 1 auto; min-width: 0; background: var(--control-bg); color: var(--text-strong); border: 1px solid var(--control-border); border-radius: 4px; padding: 0.4rem; }
+.shot-field input.invalid { border-color: #e74c3c; }
+.shot-unit { flex: 0 0 auto; color: var(--text-muted); font-size: var(--side-meta-size); }
+.shot-error { grid-column: 2; margin-top: -0.2rem; color: var(--danger-text); font-size: 0.7rem; }
+.shot-error:empty { display: none; }
