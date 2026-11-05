@@ -414,6 +414,15 @@ export async function removePhotosFromSelectedAlbum(photoIds) {
   await contentChanged(album.id);
 }
 
+// Rouvre un album quitté un instant (retour de « Trouver le RAW ») : sélection seule, sans confirmation ni rechargement de la grille,
+// main.js recharge ensuite lui-même. Sans effet si l'album a disparu.
+export function restoreAlbumSelection(id) {
+  if (!nodeById(id) || id === selectedId) return;
+  selectedId = id;
+  selectedDirty = false;
+  render();
+}
+
 // Appelée par main.js quand l'utilisateur revient à un dossier du disque.
 export function clearAlbumSelection() {
   if (!selectedId) return;

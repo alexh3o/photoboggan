@@ -1,0 +1,14 @@
+/* Paramètres > Divers > RAW (raw-settings.js) */
+
+/* Motif du nom : deux lignes « libellé | champ », le résultat du test sous le second champ. */
+.raw-pattern-grid { display: grid; grid-template-columns: auto minmax(8rem, 1fr); column-gap: 0.5rem; row-gap: 0.3rem; align-items: center; margin-bottom: 0.65rem; color: var(--text-muted); font-size: 0.8rem; }
+.raw-pattern-grid input[type="text"] { min-width: 0; box-sizing: border-box; padding: 0.35rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; }
+.raw-pattern-grid input[type="text"].invalid { border-color: #e74c3c; }
+.raw-pattern-grid input[type="text"]:disabled { opacity: 0.5; }
+.raw-pattern-result { grid-column: 2; margin: 0; font-size: 0.72rem; }
+.raw-pattern-result:empty { display: none; }
+.raw-pattern-result.raw-pattern-error { color: var(--danger-text); }
+
+/* Dossier de départ : « Chercher à partir du dossier [Parent][Courant][Enfants] », le bloc de boutons garde sa largeur. */
+.raw-scope-row { justify-content: flex-start; }
+.raw-scope-row .location-filter { flex: 0 0 auto; }

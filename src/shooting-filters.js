@@ -130,10 +130,24 @@ const GEAR_FIELDS = {
   lenses: { label: lensLabel, tag: 'Lens' },
 };
 
+// Comparaison souple (entrée `loose`, utilisée par « Trouver le RAW ») : un même objectif s'écrit différemment selon le logiciel
+// (« Sony FE 28mm F2 (SEL28F20) » dans un JPEG développé, « FE 28mm F2 » dans le RAW). On compare la « clé » des deux noms : minuscules, sans code entre
+// parenthèses, sans marque connue, sans espace ni ponctuation ; l'un doit contenir l'autre.
+const GEAR_BRANDS = /\b(sony|canon|nikon|nikkor|sigma|tamron|tokina|zeiss|carl|fujifilm|fujinon|olympus|zuiko|panasonic|lumix|leica|samyang|rokinon|voigtlander|voigtländer)\b/g;
+// Les zéros décimaux inutiles tombent aussi (« 24.0-70.0 mm » = « 24-70mm »), sans toucher à « f/2.8 ».
+const looseGearKey = text => text.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/(\d)\.0+(?!\d)/g, '$1').replace(GEAR_BRANDS, ' ').replace(/[^\p{L}\p{N}]/gu, '');
+
 function matchesGearEntries(label, entries) {
   if (!label) return false;
   const lower = label.toLowerCase();
-  return entries.some(({ text, exact }) => (exact ? label === text : lower.includes(text.toLowerCase())));
+  return entries.some(({ text, exact, loose }) => {
+    if (loose) {
+      const a = looseGearKey(label);
+      const b = looseGearKey(text);
+      return a !== '' && b !== '' && (a.includes(b) || b.includes(a));
+    }
+    return exact ? label === text : lower.includes(text.toLowerCase());
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +172,30 @@ function compile(state) {
   }
   compiledStates.set(state, compiled);
   return compiled;
+}
+
+// Critères « Trouver le RAW » : l'état (gear et/ou shot) qui retrouve les photos prises avec le même appareil et objectif (`gear`) et les mêmes
+// vitesse, ISO et ouverture (`shooting`) que cette photo. Une donnée absente de la photo n'ajoute aucun critère.
+export function shootingStateFromPhoto(photo, { gear = false, shooting = false } = {}) {
+  const state = {};
+  if (gear) {
+    const camera = cameraLabel(photo);
+    const lens = lensLabel(photo);
+    const entries = {};
+    if (camera) entries.cameras = [{ text: camera, exact: true }];
+    if (lens) entries.lenses = [{ text: lens, exact: false, loose: true }]; // comparaison souple : voir looseGearKey
+    if (Object.keys(entries).length) state.gear = entries;
+  }
+  if (shooting) {
+    const shot = {};
+    // Même lecture que le filtrage : la valeur est écrite telle que stockée (« 1/250 », « f/2.8 »), le filtre sait la relire.
+    for (const key of ['shutter', 'aperture']) {
+      if (RANGE_FIELDS[key].photoValue(photo) !== null) shot[key] = String(photo[key === 'shutter' ? 'shutter_speed' : 'aperture']).replace(/\s+/g, '');
+    }
+    if (RANGE_FIELDS.iso.photoValue(photo) !== null) shot.iso = String(photo.iso);
+    if (Object.keys(shot).length) state.shot = shot;
+  }
+  return state;
 }
 
 export function matchesShootingState(photo, state) {
@@ -283,7 +321,9 @@ export function initShootingFilters({ getPhotos, onChange }) {
 
   // Charge un état enregistré dans les contrôles sans relancer le filtrage.
   function apply(state = {}) {
-    for (const key of Object.keys(gear)) gear[key] = (state.gear?.[key] ?? []).map(entry => ({ text: String(entry.text), exact: Boolean(entry.exact) }));
+    for (const key of Object.keys(gear)) {
+      gear[key] = (state.gear?.[key] ?? []).map(entry => ({ text: String(entry.text), exact: Boolean(entry.exact), ...(entry.loose ? { loose: true } : {}) }));
+    }
     for (const key of RANGE_KEYS) {
       applied[key] = String(state.shot?.[key] ?? '');
       shotInputs[key].value = applied[key];

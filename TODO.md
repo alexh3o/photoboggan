@@ -10,7 +10,7 @@
 
 ## 💡 Ideas / Longer term / On hold
 
-- [ ] *feat*: Find RAW with datetime and camera model
+- [x] *feat*: Find RAW with datetime and camera model
 - [ ] *feat*: find duplicates
 - [x] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)

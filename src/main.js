@@ -8,6 +8,8 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
+import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria } from './raw-settings.js';
+import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal } from './metadata-writes.js';
 import { initGuide } from './guide.js';
@@ -21,7 +23,7 @@ import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
-import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
+import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 import { initShootingFilters, matchesShootingState } from './shooting-filters.js';
@@ -158,6 +160,8 @@ const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos,
 // Filtre Format (type, marque de RAW, extension) : voir format-filters.js, qui porte aussi les listes d'extensions.
 const formatFilters = initFormatFilters({ onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
+// Mode « Trouver le RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
+let rawSearch = null;
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
@@ -766,6 +770,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && matchesLocationFilter(photo)
     && shootingFilters.matches(photo)
     && formatFilters.matches(photo)
+    && matchesRawSearchScope(photo)
     && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
   if (activeSmartAlbumId) {
@@ -799,6 +804,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     refreshInfoRows();
   }
   updateFilteredPhotosCount();
+  renderRawSearchBanner(); // mode « Trouver le RAW » : le nombre de résultats suit les filtres
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
 }
@@ -1601,12 +1607,166 @@ function selectFolder(path) {
     confirmLeaveAlbum().then(proceed => { if (proceed) selectFolder(path); });
     return;
   }
+  abandonRawSearch(); // naviguer à la main termine « Trouver le RAW » : les filtres d'avant la recherche reviennent
   clearAlbumSelection(); // une seule entrée active dans la barre latérale
   syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
   currentFolderFilter = path;
   rememberCurrentFolder();
   renderFolderTree();
   loadPhotos();
+}
+
+// ==========================================
+// TROUVER LE RAW
+// ==========================================
+// Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Divers > RAW (raw-settings.js) deviennent les filtres
+// ordinaires de la barre latérale (nom, date, appareil, objectif, vitesse / ISO / ouverture, plus « RAW uniquement »), la grille s'ouvre sur le
+// dossier de départ choisi avec tous ses sous-dossiers, et une bannière propose de revenir à la vue d'avant (instantané : dossier ou album, filtres,
+// option sous-dossiers, défilement, sélection). Naviguer à la main (dossier, album, option sous-dossiers) termine le mode sans retour.
+document.getElementById('raw-search-back')?.addEventListener('click', () => exitRawSearch());
+
+// Ce que les filtres ne savent pas exprimer : « Sous-dossiers » (les photos du dossier de l'image lui-même ne comptent pas, le dossier de départ
+// les contient) et la comparaison tolérante des noms (voir rawNameMatches).
+function matchesRawSearchScope(photo) {
+  if (!rawSearch) return true;
+  if (rawSearch.excludeDir && normalizeFilterPath(folderOf(photo.path)) === rawSearch.excludeDir) return false;
+  return rawNameMatches(photo, rawSearch.nameStem);
+}
+
+function renderRawSearchBanner() {
+  // Éléments lus à chaque appel : la fonction peut être appelée avant que cette section du module ait été exécutée.
+  const banner = document.getElementById('raw-search-banner');
+  if (!banner) return;
+  banner.hidden = !rawSearch;
+  if (!rawSearch) return;
+  const text = document.getElementById('raw-search-text');
+  text.textContent = tp('RAW of {name}: {count} result', photos.length, { name: rawSearch.name });
+  text.title = rawSearch.nameStem ? t('Names compared in both directions: {name}', { name: rawSearch.nameStem }) : '';
+}
+
+// L'option « Inclure les sous-dossiers » change de valeur sans être mémorisée : c'est un réglage du mode, pas un choix de l'utilisateur.
+function setIncludeSubfoldersTemporarily(value) {
+  includeSubfolders = value;
+  document.getElementById('recursive-folder-toggle').checked = value;
+}
+
+// Termine le mode sans rouvrir la vue d'avant : remet l'option sous-dossiers et les filtres d'avant la recherche (sauf ceux d'un album intelligent,
+// que le retour à l'album recharge lui-même). L'appelant s'occupe du dossier ou de l'album affiché ensuite.
+function abandonRawSearch() {
+  if (!rawSearch) return;
+  const { snapshot } = rawSearch;
+  rawSearch = null;
+  setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
+  resetAllFilters();
+  if (snapshot.albumKind !== 'smart') applyFilterState(snapshot.filterState);
+  renderRawSearchBanner();
+}
+
+// Bouton « Revenir à la vue précédente » et Échap.
+async function exitRawSearch() {
+  if (!rawSearch) return;
+  const { snapshot } = rawSearch;
+  abandonRawSearch();
+  if (snapshot.albumId) {
+    restoreAlbumSelection(snapshot.albumId);
+    syncSmartAlbumWithSelection(); // album intelligent : ses filtres reviennent
+  } else {
+    currentFolderFilter = snapshot.folder;
+  }
+  await loadPhotos();
+  const indexByPath = new Map(photos.map((photo, index) => [photo.path, index]));
+  selectedIndices.clear();
+  for (const path of snapshot.selectedPaths) if (indexByPath.has(path)) selectedIndices.add(indexByPath.get(path));
+  lastSelectedIndex = indexByPath.get(snapshot.lastPath) ?? selectedIndices.values().next().value ?? 0;
+  if (selectedIndices.size === 0 && photos.length > 0) selectedIndices.add(0);
+  gridContainer.scrollTop = snapshot.scrollTop;
+  renderVisibleItems();
+  if (photos.length > 0) updateUIOnSelection();
+}
+
+// « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossier du
+// fichier dans l'arbre, sans aucun filtre, avec le fichier sélectionné et visible dans la grille.
+async function showPhotoInItsFolder(photo) {
+  if (!photo || !rawSearch) return;
+  if (isFullscreen) closeFullscreen();
+  abandonRawSearch(); // option sous-dossiers d'avant la recherche
+  resetAllFilters(); // aucun filtre dans le dossier du fichier, pas même ceux d'avant la recherche
+  clearAlbumSelection();
+  syncSmartAlbumWithSelection();
+  const folder = folderOf(photo.path);
+  currentFolderFilter = folder;
+  rememberCurrentFolder();
+  // Dossiers parents dépliés pour que le dossier soit visible dans l'arbre (comme à la reprise du dernier dossier au démarrage).
+  const segments = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase().split('/');
+  for (let n = 1; n < segments.length; n++) folderTreeExpanded.add(segments.slice(0, n).join('/'));
+  renderFolderTree();
+  await loadPhotos();
+  const index = photos.findIndex(candidate => candidate.path === photo.path);
+  if (index >= 0) {
+    selectedIndices.clear();
+    selectedIndices.add(index);
+    lastSelectedIndex = index;
+    scrollToPhotoIndex(index);
+    renderVisibleItems();
+    updateUIOnSelection();
+  }
+  document.querySelector('#folder-tree .folder-tree-item.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+const RAW_CRITERION_LABELS ={ name: 'Filename', date: 'Date', gear: 'Gear', shooting: 'Shooting' };
+
+async function findRawFor(photo) {
+  if (!photo) return;
+  if (!hasRawSearchCriteria()) {
+    showWriteToast(t('Tick at least one criterion in Settings > Misc > RAW'));
+    return;
+  }
+  const settings = getRawSearchSettings();
+  const name = photo.path.split(/[\\/]/).pop();
+  const { state, nameStem, used, missing } = buildRawSearchState(photo, settings, photoTimeKey(photo));
+  if (used.length === 0) {
+    showWriteToast(t('This image has none of the data needed to find its RAW'));
+    return;
+  }
+  // Même garde que pour un changement de dossier : un album intelligent modifié se quitte après Enregistrer / Abandonner / Annuler.
+  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return;
+
+  // Contrôle avant de quitter la vue : sans RAW trouvé, on reste où on est (mêmes critères que les filtres, voir matchesFilterState).
+  const { folder, excludeDir } = searchScope(photo.path, settings.scope);
+  const excluded = excludeDir ? normalizeFilterPath(excludeDir) : null;
+  const candidates = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: folder, recursive: true });
+  const found = candidates.filter(candidate => matchesFilterState(candidate, state)
+    && (!excluded || normalizeFilterPath(folderOf(candidate.path)) !== excluded)
+    && rawNameMatches(candidate, nameStem));
+  if (found.length === 0) {
+    showWriteToast(t('No RAW found for {name}', { name }));
+    return;
+  }
+
+  if (isFullscreen) closeFullscreen();
+  const album = getSelectedAlbum();
+  const snapshot = rawSearch?.snapshot ?? {
+    folder: currentFolderFilter,
+    includeSubfolders,
+    albumId: album?.id ?? 0,
+    albumKind: album?.kind ?? null,
+    filterState: captureFilterState(),
+    scrollTop: gridContainer.scrollTop,
+    selectedPaths: [...selectedIndices].map(index => photos[index]?.path).filter(Boolean),
+    lastPath: photos[lastSelectedIndex]?.path,
+  };
+  clearAlbumSelection();
+  syncSmartAlbumWithSelection();
+  resetAllFilters();
+  applyFilterState(state);
+  setIncludeSubfoldersTemporarily(true);
+  currentFolderFilter = folder;
+  rawSearch = { name, excludeDir: excluded, nameStem, snapshot };
+  renderFolderTree();
+  await loadPhotos();
+  if (missing.length) {
+    showWriteToast(t('Not used (no data in this image): {list}', { list: missing.map(key => t(RAW_CRITERION_LABELS[key])).join(', ') }));
+  }
 }
 
 // ==========================================
@@ -2759,6 +2919,7 @@ window.addEventListener('keydown', (e) => {
     navigatePhoto(-1);
   } else if (e.key === 'Escape') {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
+    else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (isFullscreen) closeFullscreen();
@@ -3924,7 +4085,10 @@ document.getElementById('show-folder-counts-toggle').addEventListener('change', 
 });
 document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
-  includeSubfolders = event.target.checked;
+  const wanted = event.target.checked;
+  abandonRawSearch(); // la recherche du RAW impose les sous-dossiers : changer l'option la termine
+  includeSubfolders = wanted;
+  event.target.checked = wanted;
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
   loadPhotos();
 });
@@ -5386,7 +5550,7 @@ function isValidDateKey(key) {
   return year >= 1000 && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
-// Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH ou AAAAMMJJHHmm : renvoie le premier et le dernier instant
+// Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss : renvoie le premier et le dernier instant
 // (AAAAMMJJHHmmss) de la période. Les parties absentes valent le début (01, 00) ou la fin (12, 31, 23, 59, 59).
 function parseDateToken(token) {
   const year = Number(token.slice(0, 4));
@@ -5394,23 +5558,25 @@ function parseDateToken(token) {
   const day = token.length >= 8 ? Number(token.slice(6, 8)) : null;
   const hour = token.length >= 10 ? Number(token.slice(8, 10)) : null;
   const minute = token.length >= 12 ? Number(token.slice(10, 12)) : null;
+  const second = token.length >= 14 ? Number(token.slice(12, 14)) : null;
   if (year < 1000) return null;
   if (month !== null && (month < 1 || month > 12)) return null;
   if (day !== null && !isValidDateKey(year * 10000 + month * 100 + day)) return null;
   if (hour !== null && hour > 23) return null;
   if (minute !== null && minute > 59) return null;
+  if (second !== null && second > 59) return null;
   const pad = value => String(value).padStart(2, '0');
   const build = (m, d, h, mi, s) => Number(`${year}${pad(m)}${pad(d)}${pad(h)}${pad(mi)}${pad(s)}`);
   return {
-    start: build(month ?? 1, day ?? 1, hour ?? 0, minute ?? 0, 0),
-    end: build(month ?? 12, day ?? 31, hour ?? 23, minute ?? 59, 59),
+    start: build(month ?? 1, day ?? 1, hour ?? 0, minute ?? 0, second ?? 0),
+    end: build(month ?? 12, day ?? 31, hour ?? 23, minute ?? 59, second ?? 59),
   };
 }
 
 function parseDateFilter(text) {
   const compact = text.replace(/\s+/g, '');
   if (!compact) return { filter: null };
-  const token = '(\\d{4}|\\d{6}|\\d{8}|\\d{10}|\\d{12})';
+  const token = '(\\d{4}|\\d{6}|\\d{8}|\\d{10}|\\d{12}|\\d{14})';
   const match = new RegExp(`^${token}(?:-${token})?$`).exec(compact);
   if (!match) return { error: t('Date format error') };
   const first = parseDateToken(match[1]);
@@ -5665,6 +5831,11 @@ initPhotoActions({
   // Album manuel affiché (nom pour le menu) et retrait de photos de cet album (albums-panel.js).
   getCurrentManualAlbum: () => { const album = getSelectedAlbum(); return album?.kind === 'manual' ? album : null; },
   removeFromAlbum: targets => removePhotosFromSelectedAlbum(targets.map(photo => photo.id)),
+  // « Trouver le RAW » (voir la section du même nom) : disponible tant qu'au moins un critère est coché dans les Paramètres.
+  findRaw: findRawFor,
+  canFindRaw: hasRawSearchCriteria,
+  isRawSearchActive: () => rawSearch !== null,
+  showInItsFolder: showPhotoInItsFolder,
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
   getActiveIndex: () => lastSelectedIndex,
@@ -5715,12 +5886,13 @@ initPhotoActions({
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
+initRawSettings(); // Paramètres > Divers > RAW : critères de « Trouver le RAW »
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
-  onSelectionChange: () => { syncSmartAlbumWithSelection(); loadPhotos(); },
+  onSelectionChange: () => { abandonRawSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
   onTreeChanged: () => scheduleAlbumCounts(),
   // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».

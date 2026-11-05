@@ -1652,6 +1652,18 @@ function openThumbnailMenu(event, index, source = 'grid') {
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo), { shortcut: 'E' }),
     buildOpenWithItem(targets, programSection(photo.path)),
   );
+  // « Trouver le RAW » : une image raster à la fois ; grisé tant qu'aucun critère n'est coché (Paramètres > Divers > RAW).
+  // Grille de résultats de « Trouver le RAW » : sortir de la recherche et ouvrir le dossier du fichier, sans filtre.
+  if (api.showInItsFolder && api.isRawSearchActive() && targets.length === 1) {
+    menuItems.push(menuButton(t('Show in its folder'), () => api.showInItsFolder(photo), { title: t('Leave the search and show this file in its folder, without any filter') }));
+  }
+  if (api.findRaw && targets.length === 1 && !isRawPath(photo.path) && !isVideoPath(photo.path)) {
+    const available = api.canFindRaw();
+    menuItems.push(menuButton(t('Find the RAW'), () => api.findRaw(photo), {
+      disabled: !available,
+      title: available ? t('Find the RAW file of this image with the criteria set in Settings > Misc > RAW') : t('Tick at least one criterion in Settings > Misc > RAW'),
+    }));
+  }
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
