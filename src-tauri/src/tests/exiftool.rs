@@ -176,7 +176,9 @@ fn marking_writes_file_then_catalog_and_keeps_other_values() {
     let dirs = crate::ImageCacheDirs { thumbnails: dir.path().join("thumbnails"), raw_previews: dir.path().join("raw_previews") };
     std::fs::create_dir_all(&dirs.thumbnails).unwrap();
     std::fs::create_dir_all(&dirs.raw_previews).unwrap();
-    std::fs::write(crate::thumbnail_cache_file(&dirs.thumbnails, &path_text).unwrap(), b"miniature").unwrap();
+    let initial_thumbnail = crate::thumbnail_cache_file(&dirs.thumbnails, &path_text).unwrap();
+    std::fs::create_dir_all(initial_thumbnail.parent().unwrap()).unwrap();
+    std::fs::write(initial_thumbnail, b"miniature").unwrap();
 
     crate::write_photo_marking(&pool, &dirs, id, &path_text, None, Some(Some("Green")), Some("picked"), Some("green")).unwrap();
     crate::write_photo_marking(&pool, &dirs, id, &path_text, Some(4), None, None, None).unwrap();
@@ -191,7 +193,7 @@ fn marking_writes_file_then_catalog_and_keeps_other_values() {
     // Le fichier a changé de taille : sa miniature en cache a suivi (pas de régénération au prochain démarrage).
     let thumbnail = crate::thumbnail_cache_file(&dirs.thumbnails, &path_text).unwrap();
     assert_eq!(std::fs::read(&thumbnail).unwrap(), b"miniature");
-    assert_eq!(std::fs::read_dir(&dirs.thumbnails).unwrap().count(), 1, "aucune miniature orpheline");
+    assert_eq!(crate::cache_files(&dirs.thumbnails).len(), 1, "aucune miniature orpheline");
     assert!(leftovers(dir.path()).is_empty());
 }
 

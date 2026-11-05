@@ -99,6 +99,7 @@ src-tauri/
 
 - **Taille d'affichage** réglable de 96 à 1024 px (curseur de la modale « Options d'affichage »), mémorisée localement.
 - **Résolution du cache** de miniatures réglable dans les Paramètres (512, 768 ou 1024 px max ; 512 minimum car la détection des visages lit ces miniatures). Le cache conserve les proportions ; une miniature n'est pas affichée plus grande que sa taille réelle (sinon elle devient floue) : le plafond d'affichage se compte sur le plus grand côté.
+- **Répartition du cache** (`thumbnails/` et `raw_previews/`) : `<2 premiers caractères du hash>/<hash>.jpg`, soit 256 sous-dossiers sur un seul niveau, pour éviter les dossiers de centaines de milliers de fichiers (lenteur NTFS / antivirus, limite FAT32). Toujours obtenir le chemin par `thumbnail_cache_file` / `raw_preview_cache_file` ; pour lister le cache, utiliser `cache_files` (jamais `read_dir` à plat) ; avant d'écrire ou de renommer un fichier de cache, créer son dossier parent. Pas de migration d'un ancien cache à plat : le supprimer.
 - **Dispositions** : Carrées, Justifiées, Cascade (masonry).
 - **Vue justifiée** : photos jamais recadrées, ratio largeur/hauteur conservé, lignes remplissant la largeur, aucune marge entre photos ; la dernière ligne n'est pas étirée.
 - **Dimensions EXIF absentes en base** : le frontend apprend le ratio réel depuis l'image chargée et recalcule la disposition.

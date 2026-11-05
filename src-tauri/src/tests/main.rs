@@ -11,6 +11,46 @@ fn cache_dirs(root: &Path) -> ImageCacheDirs {
     dirs
 }
 
+// Écrit un fichier de cache de test : le sous-dossier de répartition est créé comme le fait l'application à l'écriture.
+fn put(file: &Path, bytes: &[u8]) {
+    fs::create_dir_all(file.parent().unwrap()).unwrap();
+    fs::write(file, bytes).unwrap();
+}
+
+#[test]
+fn cache_files_are_spread_over_subfolders_and_listed_recursively() {
+    let dir = tempfile::tempdir().unwrap();
+    let dirs = cache_dirs(dir.path());
+    let mut subfolders = std::collections::HashSet::new();
+    for index in 0..40 {
+        let photo = dir.path().join(format!("p{index}.jpg"));
+        fs::write(&photo, jpeg_bytes(16, 16 + index)).unwrap();
+        let cache = thumbnail_cache_file(&dirs.thumbnails, &photo.to_string_lossy()).unwrap();
+        assert_eq!(cache.parent().unwrap().parent().unwrap(), dirs.thumbnails, "un seul niveau de sous-dossier");
+        let folder = cache.parent().unwrap().file_name().unwrap().to_string_lossy().into_owned();
+        assert_eq!(folder.len(), 2);
+        assert!(cache.file_name().unwrap().to_string_lossy().starts_with(&folder), "le sous-dossier est le préfixe du nom");
+        subfolders.insert(folder);
+        put(&cache, b"miniature");
+    }
+    assert!(subfolders.len() > 5, "la répartition utilise plusieurs sous-dossiers");
+    assert_eq!(cache_files(&dirs.thumbnails).len(), 40);
+}
+
+#[test]
+fn clearing_the_cache_removes_files_in_subfolders() {
+    let dir = tempfile::tempdir().unwrap();
+    let dirs = cache_dirs(dir.path());
+    let photo = dir.path().join("a.jpg");
+    fs::write(&photo, jpeg_bytes(16, 16)).unwrap();
+    let cache = thumbnail_cache_file(&dirs.thumbnails, &photo.to_string_lossy()).unwrap();
+    put(&cache, b"miniature");
+    for path in cache_files(&dirs.thumbnails) { fs::remove_file(path).unwrap(); }
+    remove_empty_cache_subdirs(&dirs.thumbnails);
+    assert!(cache_files(&dirs.thumbnails).is_empty());
+    assert_eq!(fs::read_dir(&dirs.thumbnails).unwrap().count(), 0, "sous-dossiers vides retirés");
+}
+
 #[test]
 fn cached_images_follow_a_rewritten_file() {
     let dir = tempfile::tempdir().unwrap();
@@ -20,8 +60,8 @@ fn cached_images_follow_a_rewritten_file() {
     let path = photo.to_string_lossy().to_string();
     let old_thumbnail = thumbnail_cache_file(&dirs.thumbnails, &path).unwrap();
     let old_preview = raw_preview_cache_file(&dirs.raw_previews, &path).unwrap();
-    fs::write(&old_thumbnail, b"miniature").unwrap();
-    fs::write(&old_preview, b"apercu").unwrap();
+    put(&old_thumbnail, b"miniature");
+    put(&old_preview, b"apercu");
 
     // Écriture de métadonnées simulée : le fichier change de taille (et de date), donc de nom de cache.
     keep_cached_images(&dirs, &path, || fs::write(&photo, [jpeg_bytes(16, 16), b"xmp".to_vec()].concat()).map_err(|e| e.to_string())).unwrap();
@@ -42,7 +82,7 @@ fn cached_images_are_kept_when_the_file_does_not_change_or_the_write_fails() {
     fs::write(&photo, b"II*\0 faux raw").unwrap();
     let path = photo.to_string_lossy().to_string();
     let thumbnail = thumbnail_cache_file(&dirs.thumbnails, &path).unwrap();
-    fs::write(&thumbnail, b"miniature").unwrap();
+    put(&thumbnail, b"miniature");
 
     // RAW : seul le sidecar est écrit, le fichier ne change pas : la miniature ne doit surtout pas être supprimée.
     keep_cached_images(&dirs, &path, || fs::write(dir.path().join("b.cr2.xmp"), b"<x/>").map_err(|e| e.to_string())).unwrap();

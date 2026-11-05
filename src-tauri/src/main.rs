@@ -326,7 +326,27 @@ fn thumbnail_cache_file(thumbnails_dir: &Path, source_path: &str) -> Result<Path
         hash ^= *byte as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }
-    Ok(thumbnails_dir.join(format!("{hash:016x}.jpg")))
+    // Le cache est réparti en 256 sous-dossiers selon les 2 premiers caractères du nom (octet de poids fort du hash, bien réparti) : un dossier unique
+    // de plusieurs centaines de milliers de fichiers ralentit l'énumération (NTFS, antivirus, Explorateur) et dépasse les limites de FAT32 / exFAT.
+    // L'accès à une miniature reste direct (le nom est calculé), seuls les parcours du cache doivent descendre dans les sous-dossiers (`cache_files`).
+    let name = format!("{hash:016x}");
+    Ok(thumbnails_dir.join(&name[..2]).join(format!("{name}.jpg")))
+}
+
+/// Tous les fichiers d'un dossier de cache (miniatures ou aperçus) : ceux des sous-dossiers de répartition, et d'éventuels fichiers à la racine.
+fn cache_files(dir: &Path) -> Vec<PathBuf> {
+    WalkDir::new(dir).min_depth(1).max_depth(2).into_iter().flatten()
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| entry.into_path())
+        .collect()
+}
+
+/// Supprime les sous-dossiers de répartition devenus vides (les non vides sont conservés : `remove_dir` échoue, c'est voulu).
+fn remove_empty_cache_subdirs(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        if entry.path().is_dir() { let _ = fs::remove_dir(entry.path()); }
+    }
 }
 
 fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
@@ -489,10 +509,10 @@ fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
     // Les fichiers qui ne peuvent pas être supprimés (utilisés par un autre programme) sont comptés : le vidage n'est jamais annoncé réussi à tort.
     let mut failed = 0usize;
     if dir.is_dir() {
-        for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
-            let path = entry.map_err(|e| e.to_string())?.path();
-            if path.is_file() && fs::remove_file(&path).is_err() { failed += 1; }
+        for path in cache_files(&dir) {
+            if fs::remove_file(&path).is_err() { failed += 1; }
         }
+        remove_empty_cache_subdirs(&dir);
     }
     if failed > 0 { return Err(format!("{failed} miniature(s) n'ont pas pu être supprimées (fichier utilisé par un autre programme ?)")); }
     Ok(())
@@ -531,9 +551,7 @@ fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &P
     if unreadable > 0 { return Err(format!("{unreadable} fichier(s) du catalogue illisibles : nettoyage des miniatures reporté")); }
     let mut removed = 0;
     for dir in [thumbnails_dir, raw_previews_dir] {
-        let Ok(entries) = fs::read_dir(dir) else { continue };
-        for entry in entries.flatten() {
-            let path = entry.path();
+        for path in cache_files(dir) {
             let is_cache_jpg = path.extension().map_or(false, |extension| extension == "jpg");
             if is_cache_jpg && !expected.contains(&path) && fs::remove_file(&path).is_ok() { removed += 1; }
         }
@@ -1716,7 +1734,8 @@ fn carry_cache_file(old: Option<PathBuf>, new: Option<PathBuf>) {
     let Some(old) = old else { return };
     if !old.is_file() { return; }
     match new {
-        Some(new) if new != old && fs::rename(&old, &new).is_ok() => {}
+        // Le nouveau nom peut tomber dans un autre sous-dossier de répartition, éventuellement pas encore créé.
+        Some(new) if new != old && new.parent().map_or(true, |parent| fs::create_dir_all(parent).is_ok()) && fs::rename(&old, &new).is_ok() => {}
         _ => { let _ = fs::remove_file(&old); }
     }
 }

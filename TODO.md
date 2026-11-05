@@ -7,8 +7,7 @@
 - [ ] *chore*: `installer` customize images and text
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
 - [ ] *feat*: `filters` add erase button per filter category
-- [ ] *feat*: add go to data folder in settings
-- [ ] *check*: how many thumbnails in a folder before windows hates it
+- [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -22,6 +21,7 @@
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
+- [ ] *feat*: Close toats that are in current tasks when opening task modal
 
 ## ⚖️ Undecided
 
@@ -52,5 +52,5 @@
 
 - [ ] Test Linux Release
 - [ ] Restoring data from data folder
-- [ ] `maps` handling of photos in 2 zones, eventually with different level
+- [x] `maps` handling of photos in 2 zones, eventually with different level
 - [ ] Check effect of 50000 max photos in the grid: is it visible in usage ?
