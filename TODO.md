@@ -7,6 +7,8 @@
 - [ ] *chore*: `installer` customize images and text
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
 - [ ] *feat*: `filters` add erase button per filter category
+- [ ] *feat*: add go to data folder in settings
+- [ ] *check*: how many thumbnails in a folder before windows hates it
 
 ## 💡 Ideas / Longer term / On hold
 

@@ -725,6 +725,14 @@ body.immersive .titlebar { display: none; }
 .thumbnail:hover .video-play-badge { opacity: var(--video-badge-hover-opacity); }
 .preview-cell .video-play-badge { width: min(var(--video-badge-size-preview), 30%); opacity: 10%; } /* opacité mettre à 0% pour désactiver le logo en apercu */
 .thumbnail.is-video .thumbnail-inner > img { filter: var(--video-thumb-filter); }
+/* RAW sans JPEG intégré (ex. Panasonic / Leica .RAW) : (::before, car ::after sert au coin de sélection) les lettres de l'extension (data-format) remplacent l'image de la miniature et de l'aperçu, en gros et en gras, police du logo.
+   La taille suit celle de la case (unités cqw). */
+.thumbnail.format-placeholder .thumbnail-inner, .preview-cell.format-placeholder { container-type: inline-size; }
+.thumbnail.format-placeholder .thumbnail-inner::before, .preview-cell.format-placeholder::before {
+  content: attr(data-format); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: 'Fredoka', 'Quicksand', sans-serif; font-weight: 400; font-size: 20cqw; letter-spacing: -0.02em; color: var(--text-faint); pointer-events: none;
+}
+.preview-cell.format-placeholder::before { font-size: min(10cqw, 4rem); }
 /* Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier */
 .folder-tree-empty { padding: 0.75rem 0.65rem; font-size: 0.8rem; color: var(--text-muted); white-space: normal; }
 .folder-tree-empty p { margin: 0 0 0.6rem; }

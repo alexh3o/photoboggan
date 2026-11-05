@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use std::io::{Read, Write};
-use exif::{Context, In, Reader, Tag, Value};
+use exif::{Context, In, Tag, Value};
 
 #[derive(Default)]
 pub struct ExifMetadata {
@@ -994,6 +994,11 @@ fn read_video_metadata(path: &Path) -> ExifMetadata {
     meta
 }
 
+/// Remplace `slot` par `value` quand celle-ci existe (une source qui ne connaît pas la valeur ne doit pas effacer celle d'une autre).
+fn keep<T>(slot: &mut Option<T>, value: Option<T>) {
+    if value.is_some() { *slot = value; }
+}
+
 pub fn read_exif(path: &Path) -> ExifMetadata {
     if crate::video::is_video_path(path) { return read_video_metadata(path); }
     let mut meta = ExifMetadata::default();
@@ -1005,33 +1010,26 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     meta.text_sources.title[2] = jpeg.object_name;
     meta.text_sources.description[4] = jpeg.comment;
     meta.text_sources.description[8] = jpeg.caption;
-    let file = match fs::File::open(path) {
-        Ok(f) => f,
-        Err(_) => { resolve_values(&mut meta); return meta; }
-    };
-
-    let mut bufreader = std::io::BufReader::new(&file);
-    let exifreader = Reader::new();
-
     let mut xp_keywords: Vec<String> = Vec::new();
-    if let Ok(exif) = exifreader.read_from_container(&mut bufreader) {
+    // Une ou plusieurs sources EXIF (CR3 : boîtes CMT, RAF : JPEG intégré, voir read_exif_sources) ; les valeurs absentes d'une source n'effacent pas celles d'une autre.
+    for exif in crate::thumbnails::read_exif_sources(path) {
         // XPKeywords (EXIF, mots-clés de l'Explorateur Windows) : texte UTF-16 terminé par un zéro, mots séparés par « ; ».
         if let Some(text) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY).and_then(exif_xp_text) {
             xp_keywords = text.split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
         }
         // Note EXIF de Windows : Rating (étoiles) et RatingPercent.
-        meta.rating_sources[3] = exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5));
-        meta.rating_sources[4] = exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32));
+        keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
+        keep(&mut meta.rating_sources[4], exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32)));
         // Titre et description EXIF : XPTitle, ImageDescription, UserComment, XPComment.
-        meta.text_sources.title[3] = exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text));
+        keep(&mut meta.text_sources.title[3], exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text)));
         if let Some(field) = exif.get_field(Tag::ImageDescription, In::PRIMARY) {
             if let Value::Ascii(ref parts) = field.value {
                 let bytes: Vec<u8> = parts.iter().flatten().copied().collect();
                 meta.text_sources.description[5] = clean_exif_description(&text_from_bytes(&bytes));
             }
         }
-        meta.text_sources.description[6] = exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian()));
-        meta.text_sources.description[7] = exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text));
+        keep(&mut meta.text_sources.description[6], exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian())));
+        keep(&mut meta.text_sources.description[7], exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text)));
         if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
             meta.date_taken = field.display_value().with_unit(&exif).to_string();
         }
@@ -1070,11 +1068,10 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             if let Some(value) = field.value.get_uint(0) { meta.height = value as i32; }
         }
         // Orientation EXIF : les zones de visage sont dans le repère de l'image stockée, l'interface l'applique pour les afficher.
-        meta.faces.orientation = exif.get_field(Tag::Orientation, In::PRIMARY)
-            .and_then(|field| field.value.get_uint(0))
-            .filter(|value| (1..=8).contains(value))
-            .unwrap_or(1);
-        meta.gps_sources[0] = exif_gps(&exif);
+        if let Some(orientation) = exif.get_field(Tag::Orientation, In::PRIMARY).and_then(|field| field.value.get_uint(0)).filter(|value| (1..=8).contains(value)) {
+            meta.faces.orientation = orientation;
+        }
+        keep(&mut meta.gps_sources[0], exif_gps(&exif));
         // Le tag EXIF fait foi sur le XMP quand il est présent.
         if let Some(flash) = exif.get_field(Tag::Flash, In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(flash_fired) {
             meta.flash = Some(flash);
@@ -2356,15 +2353,16 @@ fn detail_entry(key: impl Into<String>, value: impl AsRef<str>) -> MetadataEntry
 }
 
 fn read_exif_entries(path: &Path) -> Vec<MetadataEntry> {
-    let Ok(file) = fs::File::open(path) else { return Vec::new(); };
-    let mut reader = std::io::BufReader::new(&file);
-    let Ok(exif) = Reader::new().read_from_container(&mut reader) else { return Vec::new(); };
-    let mut entries = Vec::new();
-    for field in exif.fields() {
-        // Miniature intégrée (IFD 1) et MakerNote (binaire propriétaire) écartés.
-        if field.ifd_num != In::PRIMARY || field.tag == Tag::MakerNote { continue; }
-        let value = field.display_value().with_unit(&exif).to_string();
-        entries.push(detail_entry(field.tag.to_string(), value.trim_matches('"')));
+    let mut entries: Vec<MetadataEntry> = Vec::new();
+    for exif in crate::thumbnails::read_exif_sources(path) {
+        for field in exif.fields() {
+            // Miniature intégrée (IFD 1) et MakerNote (binaire propriétaire) écartés ; un tag déjà lu dans une autre source (CR3) n'est pas répété.
+            if field.ifd_num != In::PRIMARY || field.tag == Tag::MakerNote { continue; }
+            let key = field.tag.to_string();
+            if entries.iter().any(|entry| entry.key == key) { continue; }
+            let value = field.display_value().with_unit(&exif).to_string();
+            entries.push(detail_entry(key, value.trim_matches('"')));
+        }
     }
     entries
 }

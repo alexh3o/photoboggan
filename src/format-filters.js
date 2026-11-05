@@ -13,7 +13,7 @@ import { t } from './i18n.js';
 // ---------------------------------------------------------------------------
 
 // RAW : jamais dématricés, on affiche le JPEG intégré.
-export const RAW_EXTENSIONS = new Set(['arw', 'cr2', 'cr3', 'nef', 'nrw', 'dng', 'raf', 'orf', 'rw2', 'raw']);
+export const RAW_EXTENSIONS = new Set(['arw', 'cr2', 'cr3', 'nef', 'nrw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'raw']);
 // HEIC / HEIF : le webview ne sait pas les afficher, le backend en fait un JPEG.
 export const HEIF_EXTENSIONS = new Set(['heic', 'heif', 'hif']);
 // Vidéos : miniature fixe uniquement (liste alignée sur video.rs).
@@ -29,6 +29,7 @@ const RAW_BRANDS = [
   { id: 'fujifilm', name: 'Fujifilm', extensions: ['raf'] },
   { id: 'olympus', name: 'Olympus / OM System', extensions: ['orf'] },
   { id: 'panasonic', name: 'Panasonic', extensions: ['rw2'] },
+  { id: 'pentax', name: 'Pentax', extensions: ['pef'] },
   { id: 'dng', name: 'Adobe DNG', extensions: ['dng'] },
 ];
 

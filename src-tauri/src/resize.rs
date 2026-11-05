@@ -223,7 +223,7 @@ fn resolve_conflict(target: &Path, policy: ConflictPolicy) -> Resolution {
 // ---------------------------------------------------------------------------
 
 fn is_raw_extension(extension: &str) -> bool {
-    matches!(extension, "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "raw")
+    matches!(extension, "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw")
 }
 
 /// Dimensions finales pour des dimensions sources données (jamais plus grandes que la source).

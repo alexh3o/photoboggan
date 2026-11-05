@@ -102,7 +102,7 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     // HEIC / HEIF (décodage et métadonnées : heif.rs)
     "heic", "heif", "hif",
     // Formats RAW
-    "arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "raw",
+    "arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "pef", "raw",
     // Essayés puis retirés :
     // jp2 (ne fonctionne pas), svg (miniature seulement)
 ];

@@ -191,6 +191,15 @@ export function isRawPath(path) {
   return RAW_EXTENSIONS.has(ext);
 }
 
+// RAW sans JPEG intégré exploitable (jamais dématricé) : les lettres de l'extension (minuscules) s'affichent en gros sur la miniature de la grille et
+// dans la case de l'aperçu (voir .format-placeholder dans styles.css). Le texte est lu par ::after sur son propre élément (.thumbnail-inner pour la grille).
+function markFormatPlaceholder(element, path) {
+  if (!element) return;
+  const format = (path || '').split('.').pop()?.toLowerCase() ?? '';
+  element.classList.add('format-placeholder');
+  for (const target of [element, element.querySelector(':scope > .thumbnail-inner')]) if (target) target.dataset.format = format;
+}
+
 // HEIC / HEIF : le webview ne sait pas les afficher. Le backend en fait un JPEG pleine résolution (même commande et même cache que l'aperçu RAW).
 // Liste des extensions : format-filters.js.
 
@@ -578,6 +587,11 @@ function loadThumbnail(image, sourcePath, photo) {
         // Vidéo sans image extractible (codec absent, pas de ffmpeg) : pas de repli webview (il ne sait pas lire la vidéo), la case reste avec son icône Play.
         if (isVideoPath(sourcePath)) {
           image.closest('.thumbnail')?.classList.add('no-thumbnail');
+          return;
+        }
+        // RAW sans aperçu intégré : le webview ne sait pas le lire, la case reste avec le nom du format.
+        if (isRawPath(sourcePath)) {
+          markFormatPlaceholder(image.closest('.thumbnail'), sourcePath);
           return;
         }
         await generateThumbnailInWebview(image, sourcePath, photo);
@@ -4692,6 +4706,7 @@ function createPreviewSlot(photo) {
   });
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
   img.addEventListener('error', () => checkPhotoMissing(photo.path));
+  img.addEventListener('error', () => { if (isRawPath(photo.path)) markFormatPlaceholder(cell, photo.path); });
   getPhotoDisplayUrl(photo).then(url => {
     if (previewSlots.includes(slot) && url) {
       img.src = url;

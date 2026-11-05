@@ -190,7 +190,62 @@ pub fn extract_raw_preview(source: &Path) -> Result<Vec<u8>, String> {
 
     // 3. Fichiers basés sur TIFF (ARW, CR2, NEF, DNG, ORF, RW2) et fallback universel
     // On scanne les premiers 8 Mo pour localiser le JPEG de prévisualisation (commence par FF D8 FF)
-    find_embedded_jpeg_stream(&mut file)
+    match find_embedded_jpeg_stream(&mut file) {
+        Ok(jpeg) => Ok(jpeg),
+        // Pas de JPEG intégré : certains DNG (téléphones) n'ont qu'une vignette RGB non compressée dans l'IFD0, ré-encodée en JPEG (petite image).
+        Err(error) => tiff_rgb_thumbnail_jpeg(&mut file).ok_or(error),
+    }
+}
+
+/// Vignette RGB 8 bits non compressée de l'IFD0 d'un fichier TIFF (DNG de téléphone), encodée en JPEG. None si l'IFD0 n'est pas de ce type :
+/// compression, photométrie, bits et tailles des bandes sont tous vérifiés avant de lire les pixels.
+fn tiff_rgb_thumbnail_jpeg(file: &mut File) -> Option<Vec<u8>> {
+    let mut header = [0u8; 8];
+    file.seek(SeekFrom::Start(0)).ok()?;
+    file.read_exact(&mut header).ok()?;
+    let little = match &header[..4] { b"II* " => true, b"MM *" => false, _ => return None };
+    let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
+    let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
+    file.seek(SeekFrom::Start(long([header[4], header[5], header[6], header[7]]) as u64)).ok()?;
+    let mut count = [0u8; 2];
+    file.read_exact(&mut count).ok()?;
+    let mut entries = vec![0u8; short(count) as usize * 12];
+    file.read_exact(&mut entries).ok()?;
+    // Valeurs numériques d'une entrée : inline (SHORT / LONG, une seule) ou lues à l'adresse indiquée (liste de bandes).
+    let mut read_values = |tag: u16| -> Option<Vec<u32>> {
+        let entry = entries.chunks_exact(12).find(|e| short([e[0], e[1]]) == tag)?;
+        let (kind, n) = (short([entry[2], entry[3]]), long([entry[4], entry[5], entry[6], entry[7]]) as usize);
+        let size = match kind { 3 => 2, 4 => 4, _ => return None };
+        if n == 0 || n > 100_000 { return None; }
+        let raw: Vec<u8> = if size * n <= 4 {
+            entry[8..8 + size * n].to_vec()
+        } else {
+            let mut data = vec![0u8; size * n];
+            file.seek(SeekFrom::Start(long([entry[8], entry[9], entry[10], entry[11]]) as u64)).ok()?;
+            file.read_exact(&mut data).ok()?;
+            data
+        };
+        Some(raw.chunks_exact(size).map(|c| if size == 2 { short([c[0], c[1]]) as u32 } else { long([c[0], c[1], c[2], c[3]]) }).collect())
+    };
+    let (width, height) = (*read_values(0x100)?.first()? as usize, *read_values(0x101)?.first()? as usize);
+    let compression = read_values(0x103)?.first().copied()?;
+    let photometric = read_values(0x106)?.first().copied()?;
+    let bits = read_values(0x102)?;
+    let samples = read_values(0x115).and_then(|v| v.first().copied()).unwrap_or(1);
+    let planar = read_values(0x11c).and_then(|v| v.first().copied()).unwrap_or(1);
+    if compression != 1 || photometric != 2 || samples != 3 || planar != 1 || bits != [8, 8, 8] { return None; }
+    if width == 0 || height == 0 || width * height > 16_000_000 { return None; }
+    let (offsets, lengths) = (read_values(0x111)?, read_values(0x117)?);
+    if offsets.len() != lengths.len() || lengths.iter().map(|&l| l as usize).sum::<usize>() != width * height * 3 { return None; }
+    let mut rgb = Vec::with_capacity(width * height * 3);
+    for (offset, length) in offsets.iter().zip(&lengths) {
+        file.seek(SeekFrom::Start(*offset as u64)).ok()?;
+        file.by_ref().take(*length as u64).read_to_end(&mut rgb).ok()?;
+    }
+    if rgb.len() != width * height * 3 { return None; }
+    let mut jpeg = Vec::new();
+    Encoder::new(&mut jpeg, 92).encode(&rgb, width as u16, height as u16, ColorType::Rgb).ok()?;
+    Some(jpeg)
 }
 
 /// Fin (exclue) du flux JPEG qui commence en `start` (marqueur SOI). Les segments sont parcourus par leur longueur : une vignette EXIF intégrée,
@@ -229,15 +284,9 @@ fn jpeg_stream_end(data: &[u8], start: usize) -> Option<usize> {
     }
 }
 
-/// Recherche un flux JPEG intégré dans le fichier (méthode rapide par segments de 512 Ko)
-fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
-    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-    // La plupart des previews RAW sont dans les 12 premiers mégaoctets
-    let max_search: usize = 12 * 1024 * 1024;
-    let mut buffer = Vec::with_capacity(max_search);
-    file.take(max_search as u64).read_to_end(&mut buffer).map_err(|e| e.to_string())?;
-
-    let mut largest_jpeg: Option<(usize, usize)> = None; // (offset, approx_len)
+/// Plus grand flux JPEG complet (au moins 20 Ko, pour éviter les minuscules icônes 160x120) du tampon : (début, longueur).
+fn largest_jpeg_in(buffer: &[u8]) -> Option<(usize, usize)> {
+    let mut largest_jpeg: Option<(usize, usize)> = None;
     let mut i = 0;
     while i + 4 <= buffer.len() {
         // Marqueur de début de JPEG (SOI) suivi d'un marqueur valide (APP0..APP15 ou DQT ou SOF)
@@ -246,26 +295,44 @@ fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
             if (0xe0..=0xef).contains(&marker) || marker == 0xdb || marker == 0xc0 || marker == 0xc2 {
                 let start = i;
                 // Flux tronqué ou illisible : pas un aperçu, la recherche continue.
-                let Some(end) = jpeg_stream_end(&buffer, start) else {
+                let Some(end) = jpeg_stream_end(buffer, start) else {
                     i += 1;
                     continue;
                 };
                 let len = end - start;
-                // On privilégie une image d'au moins 20 Ko pour éviter les minuscules icônes 160x120
-                if len >= 20_000 {
-                    if let Some((_, best_len)) = largest_jpeg {
-                        if len > best_len {
-                            largest_jpeg = Some((start, len));
-                        }
-                    } else {
-                        largest_jpeg = Some((start, len));
-                    }
+                if len >= 20_000 && largest_jpeg.map_or(true, |(_, best)| len > best) {
+                    largest_jpeg = Some((start, len));
                 }
                 i = end;
                 continue;
             }
         }
         i += 1;
+    }
+    largest_jpeg
+}
+
+/// Recherche un flux JPEG intégré dans le fichier (méthode rapide par segments de 512 Ko)
+fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
+    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    // La plupart des previews RAW sont dans les 12 premiers mégaoctets
+    let max_search: usize = 12 * 1024 * 1024;
+    let mut buffer = Vec::with_capacity(max_search);
+    file.by_ref().take(max_search as u64).read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+
+    let largest_jpeg = largest_jpeg_in(&buffer);
+    // Certains RAW (Pentax PEF) rangent le grand JPEG à la fin du fichier, après les données du capteur : si la tête ne donne qu'une petite image,
+    // la fin du fichier est aussi parcourue.
+    let file_len = file.metadata().map_err(|e| e.to_string())?.len();
+    let small = largest_jpeg.map_or(true, |(_, len)| len < 500_000);
+    if small && file_len > max_search as u64 {
+        let tail_start = file_len.saturating_sub(8 * 1024 * 1024).max(max_search as u64);
+        let mut tail = Vec::new();
+        file.seek(SeekFrom::Start(tail_start)).map_err(|e| e.to_string())?;
+        file.by_ref().take(8 * 1024 * 1024).read_to_end(&mut tail).map_err(|e| e.to_string())?;
+        if let Some((start, len)) = largest_jpeg_in(&tail) {
+            if largest_jpeg.map_or(true, |(_, best)| len > best) { return Ok(tail[start..start + len].to_vec()); }
+        }
     }
 
     if let Some((start, len)) = largest_jpeg {
@@ -332,7 +399,7 @@ pub(crate) fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     
     // Si c'est un format RAW, on extrait la prévisualisation JPEG intégrée
-    let is_raw = matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "raw");
+    let is_raw = matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw");
     if is_raw {
         let jpeg_bytes = extract_raw_preview(source)?;
         return decode_scaled_jpeg_reader(Cursor::new(jpeg_bytes), max_side);
@@ -371,24 +438,80 @@ pub(crate) fn read_orientation(source: &Path) -> u32 {
 
 pub(crate) fn is_raw_path(source: &Path) -> bool {
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "raw")
+    matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw")
 }
 
-/// Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3).
+/// Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).
 fn container_orientation(source: &Path) -> Option<u32> {
-    let mut file = File::open(source).ok()?;
-    let is_cr3 = source.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("cr3"));
-    if is_cr3 {
-        // CR3 : l'EXIF de l'image est un bloc TIFF dans la boîte CMT1 (kamadak-exif ne lit pas ce conteneur).
-        let mut buffer = Vec::new();
-        file.by_ref().take(8 * 1024 * 1024).read_to_end(&mut buffer).ok()?;
-        let name = buffer.windows(4).position(|w| w == b"CMT1")?;
-        let size = u32::from_be_bytes(buffer.get(name.checked_sub(4)?..name)?.try_into().ok()?) as usize;
-        let tiff = buffer.get(name + 4..(name.checked_sub(4)? + size).min(buffer.len()))?.to_vec();
-        return orientation_of(&lenient_exif(Reader::new().continue_on_error(true).read_raw(tiff))?);
+    read_exif_sources(source).iter().find_map(orientation_of)
+}
+
+/// Contenu d'une boîte du conteneur ISO BMFF d'un CR3 (nom de 4 octets) : ici un bloc TIFF autonome.
+fn cr3_box<'a>(buffer: &'a [u8], name: &[u8; 4]) -> Option<&'a [u8]> {
+    let mut from = 4;
+    while let Some(relative) = buffer.get(from..)?.windows(4).position(|w| w == name) {
+        let at = from + relative;
+        let size = u32::from_be_bytes(buffer.get(at - 4..at)?.try_into().ok()?) as usize;
+        let content = buffer.get(at + 4..(at - 4).checked_add(size)?);
+        // Un vrai bloc TIFF commence par II*\0 ou MM\0* ; sinon c'était une suite d'octets quelconque, la recherche continue.
+        if let Some(content) = content.filter(|c| c.starts_with(b"II*\0") || c.starts_with(b"MM\0*")) { return Some(content); }
+        from = at + 1;
     }
-    let mut reader = BufReader::new(file);
-    orientation_of(&lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut reader))?)
+    None
+}
+
+/// Bloc TIFF de la boîte CMT2 d'un CR3 : son IFD0 est directement l'IFD Exif, que kamadak-exif classerait alors comme IFD TIFF (ISO, ouverture,
+/// date… introuvables). Un IFD0 minimal est ajouté en fin de bloc, avec le seul pointeur Exif (0x8769) vers l'IFD d'origine : les décalages internes restent valides.
+fn tiff_as_exif_ifd(tiff: &[u8]) -> Vec<u8> {
+    if tiff.len() < 8 { return tiff.to_vec(); }
+    let little = tiff.starts_with(b"II");
+    let word = |bytes: [u8; 4]| if little { u32::from_le_bytes(bytes) } else { u32::from_be_bytes(bytes) };
+    let short = |value: u16| if little { value.to_le_bytes() } else { value.to_be_bytes() };
+    let long = |value: u32| if little { value.to_le_bytes() } else { value.to_be_bytes() };
+    let original_ifd = word([tiff[4], tiff[5], tiff[6], tiff[7]]);
+    let mut output = tiff.to_vec();
+    if output.len() % 2 != 0 { output.push(0); }
+    let new_ifd = output.len() as u32;
+    output.extend_from_slice(&short(1));
+    output.extend_from_slice(&short(0x8769));
+    output.extend_from_slice(&short(4));
+    output.extend_from_slice(&long(1));
+    output.extend_from_slice(&long(original_ifd));
+    output.extend_from_slice(&long(0));
+    output[4..8].copy_from_slice(&long(new_ifd));
+    output
+}
+
+/// EXIF d'un fichier, une ou plusieurs sources à lire dans l'ordre (la dernière l'emporte pour une même valeur) :
+/// - CR3 : conteneur que kamadak-exif ne lit pas ; l'EXIF de prise de vue est dans la boîte CMT2, l'identité de l'appareil et l'orientation dans CMT1 ;
+/// - RAF : l'EXIF est celui du JPEG intégré (position et longueur dans l'en-tête, comme pour l'aperçu) ;
+/// - autres : lecture directe du fichier (JPEG, TIFF et RAW basés sur TIFF), tolérante aux entrées IFD mal formées.
+pub(crate) fn read_exif_sources(source: &Path) -> Vec<exif::Exif> {
+    let Ok(mut file) = File::open(source) else { return Vec::new(); };
+    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    let mut reader = Reader::new();
+    reader.continue_on_error(true);
+    if ext == "cr3" {
+        let mut buffer = Vec::new();
+        if file.by_ref().take(8 * 1024 * 1024).read_to_end(&mut buffer).is_err() { return Vec::new(); }
+        let exif_ifd = cr3_box(&buffer, b"CMT2").map(tiff_as_exif_ifd);
+        let ifd0 = cr3_box(&buffer, b"CMT1").map(<[u8]>::to_vec);
+        return [exif_ifd, ifd0].into_iter().flatten().filter_map(|tiff| lenient_exif(reader.read_raw(tiff))).collect();
+    }
+    let mut header = [0u8; 0x5c];
+    if file.read_exact(&mut header).is_ok() && header.starts_with(b"FUJIFILMCCD-RAW") {
+        let offset = u32::from_be_bytes([header[0x54], header[0x55], header[0x56], header[0x57]]) as u64;
+        let length = u32::from_be_bytes([header[0x58], header[0x59], header[0x5a], header[0x5b]]) as u64;
+        // Seul le début du JPEG est lu : son EXIF précède les données de l'image.
+        let mut jpeg = Vec::new();
+        let read = file.seek(SeekFrom::Start(offset)).and_then(|_| file.by_ref().take(length.min(1024 * 1024)).read_to_end(&mut jpeg));
+        return match read {
+            Ok(_) => lenient_exif(reader.read_from_container(&mut Cursor::new(jpeg))).into_iter().collect(),
+            Err(_) => Vec::new(),
+        };
+    }
+    if file.seek(SeekFrom::Start(0)).is_err() { return Vec::new(); }
+    lenient_exif(reader.read_from_container(&mut BufReader::new(file))).into_iter().collect()
 }
 
 /// Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
@@ -544,3 +667,7 @@ pub(crate) fn write_jpeg(destination: &Path, rgb: &[u8], width: usize, height: u
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/thumbnails.rs"]
+mod tests;

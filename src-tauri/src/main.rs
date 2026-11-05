@@ -320,7 +320,9 @@ fn thumbnail_cache_file(thumbnails_dir: &Path, source_path: &str) -> Result<Path
     let mut hash = 0xcbf29ce484222325u64;
     let size_bytes = metadata.len().to_le_bytes();
     let modified_bytes = modified.to_le_bytes();
-    for byte in source_path.as_bytes().iter().chain(size_bytes.iter()).chain(modified_bytes.iter()) {
+    // Version du format de l'aperçu : à changer quand son contenu change (orientation EXIF réécrite en v2), pour que les anciens aperçus soient régénérés.
+    const PREVIEW_VERSION: [u8; 1] = [2];
+    for byte in source_path.as_bytes().iter().chain(size_bytes.iter()).chain(modified_bytes.iter()).chain(PREVIEW_VERSION.iter()) {
         hash ^= *byte as u64;
         hash = hash.wrapping_mul(0x100000001b3);
     }

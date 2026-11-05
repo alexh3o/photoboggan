@@ -106,7 +106,7 @@ src-tauri/
 
 ### C. Formats & RAW
 
-- **Standards** : jpg, jpeg, png, webp, avif, gif, bmp, jfif, heic, heif. **RAW** : arw, cr2, cr3, nef, nrw, dng, raf, orf, rw2, raw. **Vidéos** : mp4, mov, avi, mkv (miniature fixe uniquement, ouverture dans le lecteur de l'OS, aucun moteur de lecture).
+- **Standards** : jpg, jpeg, png, webp, avif, gif, bmp, jfif, heic, heif. **RAW** : arw, cr2, cr3, nef, nrw, dng, raf, orf, rw2, pef, raw. **Vidéos** : mp4, mov, avi, mkv (miniature fixe uniquement, ouverture dans le lecteur de l'OS, aucun moteur de lecture).
 - **RAW** : ne jamais dématricer. Toujours extraire le JPEG intégré (`extract_raw_preview` dans `thumbnails.rs`). En plein écran, passer par `get_raw_preview_path` (le Webview ne lit pas les RAW).
 - Les miniatures non gérées côté Rust (ex. PNG) retombent sur la génération du webview : ne pas casser ce repli.
 
