@@ -25,6 +25,7 @@ import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 import { initShootingFilters, matchesShootingState } from './shooting-filters.js';
+import { initFormatFilters, matchesFormatState, RAW_EXTENSIONS, HEIF_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
 import { initSlideshow,startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
@@ -154,6 +155,8 @@ let folders = [];
 let folderTreePhotos = [];
 // Filtres Matériel (appareil, objectif) et Prise de vue (focale, vitesse, ouverture, ISO, flash) : voir shooting-filters.js.
 const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
+// Filtre Format (type, marque de RAW, extension) : voir format-filters.js, qui porte aussi les listes d'extensions.
+const formatFilters = initFormatFilters({ onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
@@ -178,20 +181,19 @@ function photoUrl(photo) {
   return convertFileSrc(photo.path) + (version ? `?v=${version}` : '');
 }
 
-// Ajout extracteur RAW
-const RAW_EXTENSIONS = new Set(['arw', 'cr2', 'cr3', 'nef', 'nrw', 'dng', 'raf', 'orf', 'rw2', 'raw']);
+// Ajout extracteur RAW (liste des extensions : format-filters.js)
 export function isRawPath(path) {
   const ext = (path || '').split('.').pop()?.toLowerCase();
   return RAW_EXTENSIONS.has(ext);
 }
 
 // HEIC / HEIF : le webview ne sait pas les afficher. Le backend en fait un JPEG pleine résolution (même commande et même cache que l'aperçu RAW).
-const HEIF_EXTENSIONS = new Set(['heic', 'heif', 'hif']);
+// Liste des extensions : format-filters.js.
 
 // VIDÉOS : indexées comme les photos, mais jamais affichées ni lues dans l'application. Le backend en extrait une image fixe (miniature de la grille et aperçu,
 // même cache que les photos) ; le double-clic les ouvre dans le lecteur par défaut de l'OS (voir openVideoExternally). Liste alignée sur video.rs.
 // Repères visuels : classe .is-video (miniature et case de l'aperçu) et .video-play-badge (icône Play), réglables dans styles.css.
-const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'avi', 'mkv']);
+// Liste des extensions : format-filters.js.
 export function isVideoPath(path) {
   const ext = (path || '').split('.').pop()?.toLowerCase();
   return VIDEO_EXTENSIONS.has(ext);
@@ -710,7 +712,7 @@ function hasActiveFilters() {
   const hasFilename = filenameFilters.length > 0;
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
   return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all'
-    || shootingFilters.hasGear() || shootingFilters.hasShot()
+    || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats()
     || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
 
@@ -763,6 +765,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && matchesDateFilter(photo)
     && matchesLocationFilter(photo)
     && shootingFilters.matches(photo)
+    && formatFilters.matches(photo)
     && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
   if (activeSmartAlbumId) {
@@ -874,6 +877,9 @@ function resetAllFilters() {
 
   // Réinitialise le matériel et la prise de vue
   shootingFilters.reset();
+
+  // Réinitialise le format
+  formatFilters.reset();
 }
 
 function clearAllFilters() {
@@ -912,6 +918,7 @@ function captureFilterState() {
   if (persons.length) state.persons = persons;
   if (locationFilter !== 'all') state.location = locationFilter;
   Object.assign(state, shootingFilters.capture()); // gear (appareil, objectif) et shot (focale, vitesse, ouverture, ISO, flash)
+  Object.assign(state, formatFilters.capture()); // formats (type, marque de RAW, extensions)
   if (albumFolder) state.folder = albumFolder;
   if (albumMapZone) state.mapZone = albumMapZone;
   return state;
@@ -951,6 +958,7 @@ function matchesFilterState(photo, state) {
     if ((state.location === 'geolocated') !== located) return false;
   }
   if (!matchesShootingState(photo, state)) return false;
+  if (!matchesFormatState(photo, state)) return false;
   if (state.folder?.path) {
     const folder = normalizeFilterPath(state.folder.path);
     const path = photo.path.replace(/\\/g, '/').toLowerCase();
@@ -993,6 +1001,7 @@ function applyFilterState(state) {
   setPersonFilterIds(state.persons ?? []);
   setLocationFilter(state.location ?? 'all', { apply: false });
   shootingFilters.apply(state);
+  formatFilters.apply(state);
   albumFolder = state.folder ?? null;
   albumMapZone = state.mapZone ?? null;
 }
@@ -1368,6 +1377,7 @@ function renderFilterSummaries() {
   document.getElementById('location-summary').replaceChildren(...locationNodes);
 
   shootingFilters.renderSummaries();
+  formatFilters.renderSummaries();
   renderFilterTags();
   renderActiveFilterBadges();
   renderAlbumFilterInfo();
@@ -1389,6 +1399,7 @@ function renderActiveFilterBadges() {
     [locationFilter !== 'all', 'location', 'Location'],
     [shootingFilters.hasGear(), 'gear', 'Gear'],
     [shootingFilters.hasShot(), 'shot', 'Shooting'],
+    [formatFilters.hasFormats(), 'format', 'Format'],
     [pathFilter !== null, 'failed', 'Failed files'],
   ];
   container.replaceChildren(...kinds.filter(([active]) => active).map(([, kind, label]) => {

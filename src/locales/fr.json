@@ -1186,5 +1186,10 @@
   "Without flash": "Sans flash",
   "Flash": "Flash",
   "No flash": "Sans flash",
-  "Invalid value": "Valeur invalide"
+  "Invalid value": "Valeur invalide",
+  "Format...": "Type, marque de RAW ou extension…",
+  "Format filter help": "Choisir un type, une marque de RAW ou une extension (les étiquettes s'additionnent en OU)",
+  "Raster": "Raster",
+  "Video": "Vidéo",
+  "Unknown format": "Format inconnu"
 }

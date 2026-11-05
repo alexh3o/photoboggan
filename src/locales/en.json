@@ -1186,5 +1186,10 @@
   "Without flash": "Without flash",
   "Flash": "Flash",
   "No flash": "No flash",
-  "Invalid value": "Invalid value"
+  "Invalid value": "Invalid value",
+  "Format...": "Type, RAW brand or extension...",
+  "Format filter help": "Pick a type, a RAW brand or an extension (labels are combined with OR)",
+  "Raster": "Raster",
+  "Video": "Video",
+  "Unknown format": "Unknown format"
 }

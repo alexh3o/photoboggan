@@ -1,0 +1,11 @@
+/* Filtre Format (format-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. */
+:root {
+  --tag-format-bg: #4b3f7a; --tag-format-border: #6f5fb0; --tag-format-hover: #5d4f94;
+}
+.filter-tag.tag-format { background: var(--tag-format-bg); border-color: var(--tag-format-border); }
+button.filter-tag.tag-format:hover { background: var(--tag-format-hover); }
+
+#format-filter-input { width: 100%; min-width: 0; box-sizing: border-box; }
+#format-filter-input.invalid { border-color: #e74c3c; }
+.format-error { margin-top: 0.2rem; color: var(--danger-text); font-size: 0.7rem; }
+.format-error:empty { display: none; }

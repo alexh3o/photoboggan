@@ -151,6 +151,20 @@
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
             </div>
           </div>
+          <!-- Filtre Format : type (RAW, Raster, Vidéo), marque de RAW ou extension ; les étiquettes s'additionnent en OU (voir format-filters.js) -->
+          <div class="filter-group" data-filter-group="format">
+            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-format">
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Format">Format</span></span>
+              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Format">Format</span><span id="format-summary" class="filter-summary"></span></span>
+              <span class="filter-group-chevron" aria-hidden="true">▸</span>
+            </button>
+            <div id="filter-body-format" class="filter-group-body" hidden>
+              <input id="format-filter-input" type="text" list="format-options" placeholder="Type, marque de RAW ou extension…" data-i18n-placeholder="Format..." aria-label="Format" data-i18n-aria-label="Format" title="Choisir un type, une marque de RAW ou une extension (les étiquettes s'additionnent en OU)" data-i18n-title="Format filter help" autocomplete="off" spellcheck="false" />
+              <datalist id="format-options"></datalist>
+              <div id="format-error" class="format-error" role="alert"></div>
+              <div id="format-tags" class="filter-tags" aria-live="polite"></div>
+            </div>
+          </div>
           <!-- Filtre Matériel : appareil photo et objectif (listes classées par fréquence, voir shooting-filters.js) -->
           <div class="filter-group" data-filter-group="gear">
             <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-gear">
