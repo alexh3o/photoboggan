@@ -8,6 +8,7 @@
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
 - [ ] *feat*: `filters` add erase button per filter category
 - [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
+- [ ] Warn of running tasks when quitting
 
 ## 💡 Ideas / Longer term / On hold
 

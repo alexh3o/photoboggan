@@ -19,17 +19,17 @@ use tauri::{Emitter, State};
 use crate::AppState;
 
 /// Délais du téléchargement : sans eux, une connexion qui ne répond plus bloquerait la tâche pour toujours.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
-const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+pub(crate) const RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 /// Durée maximale de réception d'un fichier (le plus gros fait quelques dizaines de Mo) : large pour une liaison lente, mais finie.
-const BODY_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+pub(crate) const BODY_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 /// Durée sans aucun octet reçu au bout de laquelle le téléchargement échoue (connexion figée en plein transfert).
-const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Lecteur qui rend la main même quand la connexion est figée : la lecture réelle se fait dans un fil dédié, ce lecteur attend ses blocs par
 /// tranches de 200 ms. Il vérifie ainsi l'arrêt demandé (`cancel`) sans attendre le prochain octet, et échoue après `idle` sans donnée. Le fil
 /// abandonné se termine tout seul : à la fermeture de la connexion, au plus tard au délai `BODY_TIMEOUT`, ou à son prochain envoi.
-struct IdleReader<'a> {
+pub(crate) struct IdleReader<'a> {
     chunks: std::sync::mpsc::Receiver<std::io::Result<Vec<u8>>>,
     pending: Vec<u8>,
     position: usize,
@@ -38,7 +38,7 @@ struct IdleReader<'a> {
 }
 
 impl<'a> IdleReader<'a> {
-    fn new(mut source: Box<dyn Read + Send>, idle: Duration, cancel: &'a AtomicBool) -> Self {
+    pub(crate) fn new(mut source: Box<dyn Read + Send>, idle: Duration, cancel: &'a AtomicBool) -> Self {
         let (sender, chunks) = std::sync::mpsc::sync_channel(4);
         std::thread::spawn(move || loop {
             let mut buffer = vec![0u8; 64 * 1024];
@@ -200,7 +200,7 @@ pub fn get_face_model_status(state: State<'_, AppState>) -> ModelStatus {
     status(&models_dir(&state))
 }
 
-fn hex(digest: &[u8]) -> String {
+pub(crate) fn hex(digest: &[u8]) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 

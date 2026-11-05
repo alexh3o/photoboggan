@@ -18,6 +18,7 @@ import { initDescriptionPanel, refreshDescriptionPanel } from './description-pan
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { reloadAllMaps } from './map-view.js';
 import { initMapsSettings } from './maps-settings.js';
+import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
 import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
@@ -3031,7 +3032,7 @@ for (const link of document.querySelectorAll('#about-modal a[href^="http"]')) {
 
 // Fenêtres de l'interface (Paramètres, À propos, Guide, Affichage, Tri, Tâches) : Tab reste dans la fenêtre du dessus (sinon Tab puis Entrée
 // activerait un bouton de l'interface derrière elle). Les fenêtres créées en JavaScript gèrent Tab elles-mêmes.
-const STATIC_MODALS = '#settings-modal, #about-modal, #guide-modal, #display-modal, #sort-modal, #tasks-modal';
+const STATIC_MODALS = '#settings-modal, #about-modal, #update-modal, #guide-modal, #display-modal, #sort-modal, #tasks-modal';
 document.addEventListener('keydown', event => {
   const top = [...document.querySelectorAll('.modal:not(.hidden)')].at(-1);
   if (top?.matches(STATIC_MODALS)) keepFocusInModal(top, event);
@@ -4415,7 +4416,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   // (ces dernières attendent simplement leur tour dans la file, sans jamais être refusées comme doublon), détections de visages (d'un dossier :
   // « faces » ; d'une sélection : « faces-selection », jamais refusée comme doublon), téléchargement des modèles de visages (« face-models »).
   const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords'
-    : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models'
+    : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models' : taskKind === 'update' ? 'update'
     // Téléchargement d'une zone privée de la carte : une tâche par zone, jamais refusée comme doublon.
     : taskKind === 'private-map' ? 'private-map'
     : FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan');
@@ -6147,6 +6148,12 @@ initMapMode({
 });
 document.getElementById('show-map-toggle').addEventListener('change', onMapModeAccessChanged);
 initMapsSettings({ showToast: message => showWriteToast(message) }); // Paramètres > Cartes : style de la carte
+initUpdateCheck({
+  showToast: (message, action) => showWriteToast(message, false, action, 15000),
+  enqueueTask: task => enqueueScanTask(task),
+  // Avant de quitter pour installer : mêmes questions qu'à la fermeture de la fenêtre.
+  canQuit: async () => !(isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) && (await confirmCloseWithPendingEdits()),
+}); // Paramètres > Général > Internet : mises à jour
 
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
@@ -6332,6 +6339,7 @@ offlineModeToggle.addEventListener('change', () => {
   localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
   sendInternetAllowed();
   onOfflineModeChanged();
+  onUpdateAccessChanged(); // mises à jour : cases grisées en mode hors ligne
   onMapAccessChanged();
   onMapModeAccessChanged();
   reloadAllMaps(); // tuiles déjà demandées (vides ou en filigrane) redemandées maintenant que l'accès change

@@ -508,7 +508,15 @@
             </section>
             <section class="settings-section">
               <h4>Internet</h4>
-              <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages) et la carte n'est pas affichée." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
+              <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages), la carte n'est pas affichée et les mises à jour ne sont pas recherchées. Rien n'est envoyé à des tiers (adresse IP, version de l'application…)." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
+              <!-- Mises à jour (update-check.js) : grisées en mode hors ligne -->
+              <label class="settings-row settings-check" title="Au démarrage (au plus une fois par jour) et à la demande, demande à GitHub s'il existe une version plus récente. GitHub reçoit votre adresse IP et la version de l'application ; rien d'autre n'est envoyé. Sans effet en mode hors ligne." data-i18n-title="Check for updates help"><input id="check-updates-toggle" type="checkbox" /><span data-i18n="Check for updates">Vérifier les mises à jour</span></label>
+              <label class="settings-row settings-check settings-sub" title="Propose aussi les versions de test (beta). Toujours le cas quand la version installée est elle-même une beta." data-i18n-title="Include pre-releases help"><input id="include-prereleases-toggle" type="checkbox" /><span data-i18n="Include pre-releases (beta versions)">Inclure les pré-versions (beta)</span></label>
+              <p id="update-status" class="sort-note" role="status"></p>
+              <div class="settings-button-row update-buttons">
+                <button type="button" id="btn-check-updates" class="btn-highlight" data-i18n="Check now">Vérifier maintenant</button>
+                <button type="button" id="btn-show-update" class="btn-highlight" data-i18n="View the update…" hidden>Voir la mise à jour…</button>
+              </div>
             </section>
             <section class="settings-section">
               <h4 data-i18n="Library">Bibliothèque</h4>
@@ -851,8 +859,29 @@
           <img class="about-logo" src="/src-tauri/icons/128x128@2x.png" alt="Logo photoboggan" data-i18n-alt="photoboggan logo" />
           <div class="about-name"><span class="logo-photo">photo</span><span class="logo-boggan">boggan</span></div>
           <div class="about-version"><span data-i18n="Version">Version</span> <span id="about-version">-</span></div>
+          <div id="about-update" class="about-version" hidden></div>
           <a id="about-github-link" class="about-link" href="https://github.com/alexh3o/photoboggan" title="Ouvrir le dépôt GitHub" data-i18n-title="Open Github repository">github.com/alexh3o/photoboggan</a>
           <a id="about-issues-link" class="about-link" href="https://github.com/alexh3o/photoboggan/issues" title="Signaler un problème ou suggérer une idée sur GitHub" data-i18n-title="Report an issue on GitHub" data-i18n="Report an issue">Signaler un problème (GitHub)</a>
+        </div>
+      </div>
+    </div>
+    <!-- Modale Mise à jour disponible (update-check.js) -->
+    <div id="update-modal" class="modal hidden">
+      <div class="modal-card update-card" role="dialog" aria-modal="true" aria-labelledby="update-modal-title">
+        <div class="modal-header">
+          <h3 id="update-modal-title" data-i18n="Update available">Mise à jour disponible</h3>
+          <button type="button" id="btn-close-update" class="close-x" title="Fermer" data-i18n-title="Close" aria-label="Fermer" data-i18n-aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p id="update-summary"></p>
+          <h4 data-i18n="Release notes">Notes de version</h4>
+          <div id="update-notes" class="update-notes"></div>
+          <div class="update-actions">
+            <button type="button" id="btn-update-download" class="btn-highlight" hidden></button>
+            <button type="button" id="btn-update-github" data-i18n="Open on GitHub">Ouvrir sur GitHub</button>
+            <button type="button" id="btn-update-ignore" data-i18n="Ignore this version">Ignorer cette version</button>
+            <button type="button" id="btn-update-close" data-i18n="Close">Fermer</button>
+          </div>
         </div>
       </div>
     </div>

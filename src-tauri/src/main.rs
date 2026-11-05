@@ -7,6 +7,7 @@ mod exiftool;
 mod face_detect;
 mod face_models;
 mod place_search;
+mod update_check;
 mod private_maps;
 mod geolocation;
 mod face_recognize;
@@ -2272,6 +2273,9 @@ fn main() {
             geolocation::erase_geolocation,
             geolocation::restore_geolocation,
             place_search::search_places,
+            update_check::check_for_update,
+            update_check::download_update,
+            update_check::install_update,
             set_verify_cross_drive_moves,
             face_detect::set_face_settings,
             face_detect::apply_face_thresholds,

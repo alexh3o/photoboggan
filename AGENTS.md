@@ -13,7 +13,7 @@
   * **Performance brute & Réactivité** : Défilement virtuel fluide, lecture multithreadée, génération de miniatures optimisée, décodage RAW instantané via prévisualisation JPEG intégrée.
   * **Interopérabilité maximale** : Les métadonnées à écrire le sont dans les fichiers d'image (ou en sidecars `.xmp` standards pour les fichiers qui ne peuvent pas les contenir : RAW, PNG, HEIC, vidéos…), compatibles avec digiKam, Lightroom et l'Explorateur Windows.
   * **Multiplateforme** : Code portable (Windows et Linux distribués ; éviter tout ce qui bloquerait un autre OS).
-  * **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau (aujourd'hui : téléchargement du modèle de visages) est refusé en mode hors ligne (Paramètres > Général, `set_internet_allowed` dans `face_models.rs`) et propose une installation manuelle.
+  * **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau (modèle de visages, cartes et recherche de lieux, mises à jour) part du backend et est refusé en mode hors ligne (Paramètres > Général, `set_internet_allowed` dans `face_models.rs`, test par `internet_allowed()`). Tout nouvel accès réseau doit faire de même et être mentionné dans l'infobulle « Mode hors ligne ».
 
 ---
 
@@ -38,6 +38,7 @@ index.html              # Structure DOM complète (barre de titre, panneaux, mod
 TODO.md                 # Backlog fonctionnel (voir §4.12)
 src/
   main.js               # Logique frontend principale (grille virtuelle, zoom, filtres, tri, file de tâches)
+  update-check.js       # Mises à jour : cases des Paramètres, ligne des versions, dialogue (notes, téléchargement, installation)
   photo-actions.js      # Menus contextuels, modales (infos, confirmation, redimensionnement)
   keywords-panel.js     # Panneau de droite à onglets Info / Mots-clés (arbre éditable, saisie, application différée)
   keywords.css          # Styles de ce panneau, de sa poignée de redimensionnement et de ses fenêtres
@@ -59,6 +60,7 @@ src-tauri/
     resize.rs           # Redimensionnement par lot
     heif.rs             # HEIC / HEIF
     video.rs            # Vidéos : extraction d'une image fixe uniquement
+    update_check.rs     # Mises à jour : releases GitHub, téléchargement vérifié (SHA-256), lancement de l'installeur
     integrity.rs        # Vérification d'intégrité des fichiers
     tests/              # Tests de non-régression, un fichier par module (voir §5.I)
     test_support.rs     # Images synthétiques et catalogue temporaire pour les tests (cfg(test))
@@ -154,6 +156,13 @@ src-tauri/
 - Tout correctif sur l'écriture de métadonnées, la base ou la synchronisation s'accompagne d'un test qui l'aurait attrapé. Les tests d'écriture interne appellent les fonctions internes (`write_jpeg_metadata`, `write_xmp_sidecar_with`…) : l'aiguillage `write_metadata` dépend du réglage global ExifTool.
 - Test lent ou dépendant d'un outil externe (ExifTool) : `#[ignore = "raison"]`, lancé par `cargo test <module>:: -- --ignored`. Un test ignoré qui échoue documente un écart connu : le dire, ne pas le « réparer » en affaiblissant l'assertion.
 - État global (verrou de `sync_library`, réglages ExifTool) : un seul test par scénario, pas de modification du réglage dans un test rapide.
+
+### J. Mises à jour
+
+- Source unique : les releases GitHub du dépôt (`update_check.rs`). Désactivées par défaut (`checkUpdates`), grisées en mode hors ligne, au plus une vérification par 24 h au démarrage.
+- Version proposée : tag `v<x>.<y>.<z>` uniquement (`face-models-1` et les brouillons sont ignorés) ; pré-releases seulement si « Inclure les pré-versions » est coché ou si la version installée a un suffixe (`-beta`). Comparaison sur les trois nombres : le suffixe `-beta` du .deb est ignoré. La version vient du tag, jamais du nom des fichiers.
+- Installeur : l'interface ne fournit jamais d'adresse ni de chemin. Le backend n'accepte que les fichiers du dépôt avec une somme SHA-256 publiée (`digest`), la vérifie au téléchargement et de nouveau avant le lancement. Windows : `-setup.exe` (sinon `.msi`), l'application se ferme après les mêmes garde-fous que la fermeture. Linux : `.deb` confié à `xdg-open`.
+- La release doit garder un `-setup.exe`/`.msi` (Windows) et un `.deb` (Linux) ; sinon le dialogue renvoie vers la page GitHub.
 
 ---
 
