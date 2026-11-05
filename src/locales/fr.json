@@ -378,6 +378,7 @@
   "No task in progress": "Aucune action en cours.",
   "Waiting": "En attente",
   "{time} left": "{time} restantes",
+  "Reload disabled while tasks are running": "Rechargement désactivé tant que des actions sont en cours (voir le sablier).",
   "Stopping…": "Arrêt en cours…",
   "Stop": "Arrêter",
   "Remove from queue": "Retirer de la file d'attente",

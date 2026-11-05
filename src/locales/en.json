@@ -378,6 +378,7 @@
   "No task in progress": "No task in progress.",
   "Waiting": "Waiting",
   "{time} left": "{time} left",
+  "Reload disabled while tasks are running": "Reload disabled while tasks are running (see the hourglass).",
   "Stopping…": "Stopping…",
   "Stop": "Stop",
   "Remove from queue": "Remove from queue",

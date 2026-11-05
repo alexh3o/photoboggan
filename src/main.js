@@ -3953,7 +3953,12 @@ function formatTaskDuration(ms) {
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
-  if (hours > 0) return `${hours} h ${String(minutes).padStart(2, '0')} min`;
+  // Au-delà de 5 minutes, les secondes n'apportent rien (et feraient scintiller l'affichage) : arrondi à la minute.
+  if (total >= 300) {
+    const roundedMinutes = Math.round(total / 60);
+    const h = Math.floor(roundedMinutes / 60);
+    return h > 0 ? `${h} h ${String(roundedMinutes % 60).padStart(2, '0')} min` : `${roundedMinutes} min`;
+  }
   if (minutes > 0) return `${minutes} min ${String(seconds).padStart(2, '0')} s`;
   return `${seconds} s`;
 }
@@ -4143,6 +4148,16 @@ window.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || tasksModal.classList.contains('hidden')) return;
   event.preventDefault();
   closeTasksModal();
+});
+
+// Un rechargement de la page (F5, Ctrl+R) réinitialise l'interface : la file des tâches, qui n'existe que côté interface, serait perdue alors que le
+// backend continue de travailler (la modale n'afficherait plus rien, et une nouvelle tâche s'ajouterait à une autre encore active). Tant qu'une tâche
+// existe, le rechargement est donc refusé, avec une explication.
+window.addEventListener('keydown', event => {
+  const isReload = event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r');
+  if (!isReload || scanTasks.length === 0) return;
+  event.preventDefault();
+  showWriteToast(t('Reload disabled while tasks are running'));
 });
 
 // Avancement des tâches de scan (pourcentage de la tâche, jamais en recul si deux événements arrivent dans le désordre).
