@@ -38,9 +38,9 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
 
 - 📁 **Zero-copy**: no proprietary library, no import, no duplicate files. It works directly on your existing folders on disk.
 
-- 🛡️ **Files are SAFE**: only metadata is ever written; photoboggan never touches the image data. Every write goes through a temporary file before replacing the original, so a file is never left half-written. Moves between drives are **verified by checksum** before the original is deleted (can be turned off in the settings). An **integrity check** detects corrupted files (JPEG, HEIC, WebP, PNG, RAW).
+- 🛡️ **Files are SAFE**: only metadata is ever written; photoboggan never modifies the image content. Every write goes through a temporary file before replacing the original, so a file is never left half-written. Moves between drives are **verified by checksum** before the original is deleted (can be turned off in the settings). An **integrity check** detects corrupted files (JPEG, HEIC, WebP, PNG, RAW).
 
-  💾 And everything is **local, no cloud**: nothing is sent to the internet, and an offline mode blocks even the optional face-model download.
+  💾 Your photos stay **local, no cloud**. Optional online features, such as map data and geocoding, may connect to external services (nominatim, openfreemap, github). Offline mode disables these connections.
 
 - ⚡ **Built for SPEED**: fast thumbnail generation, then nothing stops you from scrolling as fast as you want. All heavy tasks run in the background without lag.
   **Fast RAW previews**: instead of CPU-heavy demosaicing, the embedded JPEG is extracted in milliseconds. It can be low resolution, but it makes browsing instant.
@@ -51,17 +51,21 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
   - **Fast keyboard rating**: colors and 0 to 5 stars in a snap with the number keys, in the grid or in fullscreen.
   - 🚩 **Pick / reject flags** (optional, in Settings): `Shift`+`P` / `Shift`+`X`, compatible with digiKam and Lightroom. Colors can also be switched off if you don't use them.
   - ⚖️ **Side-by-side comparison**: up to 4 photos at once, with synchronized or unlinked zoom/pan. Rate or delete per shot.
-  - **Filter** by rating, color, pick flag, keywords, dates, filenames, people.
+  - **Filter** by rating, color, pick flag, keywords, dates, filenames, people, camera, lens, use of flash, shoot settings...
 
 - 🏷️ **Hierarchical keywords, titles and descriptions**: build an editable keyword tree, tag one photo or a whole selection, and write them to the files when you are ready. Keywords are read and written in the formats used by digiKam, Lightroom, ACDSee, Microsoft and Media Pro, with their order of priority being configurable.
 
 - 🙂 **People (face recognition)**: optional, 100% local. Faces are detected and suggested, you confirm or correct them, then write them to the files as standard face regions. Filter your collection by person.
 
+- 🗺️ **Maps & Geolocation**: explore your photos on a map, search by location, and assign GPS coordinates to multiple photos by dragging them onto the map. Manage offline map areas to browse your photos without an internet connection and without any request to the internet.
+
+- 📚 **Albums**: organize photos into physical albums without duplicating files, or create virtual albums based on saved filters. Dynamic albums automatically reflect the photos matching their criteria.
+
 - 🔁 **Interoperability, leave anytime**: ratings, color labels, pick flags, keywords, titles and faces are written in standard embedded XMP/IPTC (JPEG), or in companion `.xmp` sidecars for RAW, PNG and other files that can't hold metadata. Your changes are recognized by digiKam, Lightroom and the OS file manager. Writing is done by the embedded [ExifTool](https://exiftool.org) or by an internal writer, at your choice.
 
-- 🖥️ **Flexible UI**: choose text, thumbnails and panels size, thumbnails layout (square, justified, masonry), the panels to display, fullscreen infos or an unobstructed view. Dark or light theme.
+- 🖥️ **Flexible UI**: choose text, thumbnails and panels size, thumbnails layout (square, justified, masonry), the panels to display, fullscreen infos, histogram & cliped shadoiws/highlights or an unobstructed view. Dark or light theme.
 
-- 🛠️ **Comprehensive toolkit**: batch resizing, moving and copying, "open with" your chosen external programs, EXIF viewer, clipboard support, system trash integration, exhaustive shortcuts (with a built-in guide)...
+- 🛠️ **Comprehensive toolkit**: batch resizing, moving and copying, quickly "open with" your chosen external programs specifically for images, RAW, videos, EXIF viewer, clipboard support, system trash integration, exhaustive shortcuts (with a built-in guide)...
 
 See <a href="#screenshots">Screenshots</a> for more detail.
 

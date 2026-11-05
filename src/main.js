@@ -3947,6 +3947,30 @@ function taskStatusText(task) {
   return `${taskPercent(task)} %`;
 }
 
+// Durée lisible : « 45 s », « 3 min 05 s », « 1 h 02 min ».
+function formatTaskDuration(ms) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours} h ${String(minutes).padStart(2, '0')} min`;
+  if (minutes > 0) return `${minutes} min ${String(seconds).padStart(2, '0')} s`;
+  return `${seconds} s`;
+}
+
+// Temps écoulé et estimation du temps restant d'une tâche en cours (extrapolation linéaire de l'avancement ;
+// l'estimation attend quelques secondes et 2 % d'avancement pour ne pas afficher une valeur absurde).
+function taskTimingText(task) {
+  if (task.status !== 'running' || !task.startedAt) return '';
+  const elapsed = Date.now() - task.startedAt;
+  const parts = [formatTaskDuration(elapsed)];
+  const percent = taskPercent(task);
+  if (!task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
+    parts.push(t('{time} left', { time: `~${formatTaskDuration(elapsed * (100 - percent) / percent)}` }));
+  }
+  return parts.join(' · ');
+}
+
 // Une tâche couvre un dossier quand c'est le sien, l'un de ses sous-dossiers, ou que la tâche relit toute la collection.
 function taskCoversFolder(task, path) {
   if (task.path === null) return true;
@@ -3986,16 +4010,25 @@ function buildTaskRow(task) {
   row.className = 'task-item';
   const name = document.createElement('span');
   name.className = 'task-item-name';
-  const status = document.createElement('span');
-  status.className = 'task-item-status';
+  // Barre de progression, puis une ligne « avancement à gauche / temps à droite », puis (vérification d'intégrité) le dossier en cours.
   const bar = document.createElement('div');
   bar.className = 'task-item-bar';
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuemax', '100');
   bar.append(document.createElement('span'));
+  const status = document.createElement('span');
+  status.className = 'task-item-status';
+  const time = document.createElement('span');
+  time.className = 'task-item-time';
+  time.setAttribute('aria-hidden', 'true'); // chronomètre : pas relu à chaque seconde par les lecteurs d'écran
+  const detail = document.createElement('span');
+  detail.className = 'task-item-detail';
   const action = document.createElement('button');
   action.type = 'button';
   action.className = 'task-item-action';
   action.addEventListener('click', () => removeOrStopTask(task));
-  row.append(name, status, bar, action);
+  row.append(name, bar, status, time, detail, action);
   return row;
 }
 
@@ -4042,8 +4075,16 @@ function syncTaskUI() {
     const name = row.querySelector('.task-item-name');
     name.textContent = taskName(task);
     name.title = taskName(task);
-    row.querySelector('.task-item-status').textContent = task.detail && task.status === 'running' ? `${taskStatusText(task)} · ${task.detail}` : taskStatusText(task);
-    row.querySelector('.task-item-bar > span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
+    row.querySelector('.task-item-status').textContent = taskStatusText(task);
+    row.querySelector('.task-item-time').textContent = taskTimingText(task);
+    const detailElement = row.querySelector('.task-item-detail');
+    const detailText = task.detail && task.status === 'running' ? task.detail : '';
+    detailElement.textContent = detailText;
+    detailElement.title = detailText;
+    detailElement.hidden = !detailText;
+    const bar = row.querySelector('.task-item-bar');
+    bar.setAttribute('aria-valuenow', String(task.status === 'waiting' ? 0 : taskPercent(task)));
+    bar.querySelector('span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
     const action = row.querySelector('.task-item-action');
     action.textContent = task.status === 'waiting' ? t('Remove from queue') : t('Stop');
     action.disabled = task.stopRequested;
@@ -4080,12 +4121,18 @@ function hideTaskToast() {
   syncTaskUI();
 }
 
+// Tant que la fenêtre est ouverte, l'affichage est rafraîchi chaque seconde pour faire avancer le temps écoulé.
+let tasksClockTimer = null;
 function openTasksModal() {
   syncTaskUI();
   tasksModal.classList.remove('hidden');
+  clearInterval(tasksClockTimer);
+  tasksClockTimer = setInterval(syncTaskUI, 1000);
 }
 function closeTasksModal() {
   tasksModal.classList.add('hidden');
+  clearInterval(tasksClockTimer);
+  tasksClockTimer = null;
 }
 tasksButton.addEventListener('click', openTasksModal);
 document.getElementById('btn-close-tasks').addEventListener('click', closeTasksModal);
@@ -4204,6 +4251,7 @@ async function pumpScanQueue() {
 
 async function runScanTask(task) {
   task.status = 'running';
+  task.startedAt = Date.now(); // départ du chronomètre affiché dans la fenêtre des actions
   syncTaskUI();
   try {
     const result = task.runner

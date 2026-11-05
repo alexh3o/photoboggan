@@ -5,6 +5,8 @@
 - [ ] *docs*: technical documentation
 - [x] *chore*: `dev` unlink dev and build settings
 - [ ] *chore*: `installer` customize images and text
+- [ ] *feat*: `tasks` add time spent and remaining in taskQueue
+- [ ] *feat*: `filters` add erase button per filter category
 
 ## 💡 Ideas / Longer term / On hold
 
