@@ -96,11 +96,11 @@ fn is_safe_file_name(name: &str) -> bool {
     !name.is_empty() && name.len() <= 150 && !name.starts_with('.') && name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
 }
 
-/// Installeur de la release pour `platform` : Windows `*-setup.exe` (sinon `.msi`), Linux `.deb`. Exige l'adresse du dépôt, un nom sûr, une taille
+/// Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du dépôt, un nom sûr, une taille
 /// raisonnable et la somme SHA-256 publiée par GitHub (`digest`) : sans elle l'intégrité ne serait pas vérifiable, donc pas d'installeur.
 fn pick_asset(release: &serde_json::Value, platform: &str) -> Option<UpdateAsset> {
     let extensions: &[&str] = match platform {
-        "windows" => &["-setup.exe", ".msi"],
+        "windows" => &["_en-US.msi", ".msi"],
         "linux" => &[".deb"],
         _ => return None,
     };

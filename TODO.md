@@ -4,7 +4,7 @@
 
 - [ ] *docs*: `dev` technical documentation
 - [x] *chore*: `dev` unlink dev and build settings
-- [ ] *chore*: `installer` customize images and text
+- [x] *chore*: `installer` customize images and text
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
 - [x] *feat*: `filters` add erase button per filter category
 - [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
@@ -15,17 +15,18 @@
 - [x] *feat*: `metadata` internal metadata writer activated => no exif reading option
 - [x] *style*: `metadata` display clearly source of metadata formats in order lists (XMP / IPTC / EXIF)
 - [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
-- [ ] *feat*: `controls` double click to fold/unfold folders
-- [ ] *chore*: `installation` default settings review
+- [x] *feat*: `controls` double click to fold/unfold folders
+- [x] *chore*: `installation` default settings review
+- [x] *chore*: `dev` centralize settings in a json file
 - [ ] *docs*: `installation` mention to grab exiftool
 
 ## 💡 Ideas / Longer term / On hold
 
 - [x] *feat*: `raw` Find RAW with datetime and camera model
 - [x] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
-- [ ] *fix*: `UI` **resizing app window to a small size** does not go well
+- [x] *fix*: `UI` **resizing app window to a small size** does not go well
 - [x] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
-- [ ] *test*: `UI` verify UI on 1080 resolution
+- [x] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [x] *feat*: `tasks` Close toast that are in current tasks when opening task modal
 - [ ] *feat*: stats in a stat modal from settings

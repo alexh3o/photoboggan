@@ -16,6 +16,8 @@
         "title": "photoboggan",
         "width": 1024,
         "height": 768,
+        "minWidth": 900,
+        "minHeight": 500,
         "visible": false,
         "decorations": false,
         "transparent": false
@@ -53,7 +55,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["msi", "deb"],
     "licenseFile": "LICENSE.rtf",
     "icon": [
       "icons/32x32.png",
@@ -73,7 +75,11 @@
     "windows": {
       "wix": {
         "bannerPath": "icons/msibanner.bmp",
-        "dialogImagePath": "icons/msidialog.bmp"
+        "dialogImagePath": "icons/msidialog.bmp",
+        "language": {
+          "en-US": { "localePath": "wix/en-US.wxl" },
+          "fr-FR": { "localePath": "wix/fr-FR.wxl" }
+        }
       }
     }
   }

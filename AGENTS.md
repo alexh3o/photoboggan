@@ -169,8 +169,8 @@ src-tauri/
 
 - Source unique : les releases GitHub du dépôt (`update_check.rs`). Activées par défaut (`checkUpdates`), grisées en mode hors ligne, au plus une vérification par 24 h au démarrage.
 - Version proposée : tag `v<x>.<y>.<z>` uniquement (`face-models-1` et les brouillons sont ignorés) ; pré-releases seulement si « Inclure les pré-versions » est coché ou si la version installée a un suffixe (`-beta`). Comparaison sur les trois nombres : le suffixe `-beta` du .deb est ignoré. La version vient du tag, jamais du nom des fichiers.
-- Installeur : l'interface ne fournit jamais d'adresse ni de chemin. Le backend n'accepte que les fichiers du dépôt avec une somme SHA-256 publiée (`digest`), la vérifie au téléchargement et de nouveau avant le lancement. Windows : `-setup.exe` (sinon `.msi`), l'application se ferme après les mêmes garde-fous que la fermeture. Linux : `.deb` confié à `xdg-open`.
-- La release doit garder un `-setup.exe`/`.msi` (Windows) et un `.deb` (Linux) ; sinon le dialogue renvoie vers la page GitHub.
+- Installeur : l'interface ne fournit jamais d'adresse ni de chemin. Le backend n'accepte que les fichiers du dépôt avec une somme SHA-256 publiée (`digest`), la vérifie au téléchargement et de nouveau avant le lancement. Windows : `.msi` (via `msiexec`, plus de `-setup.exe`), l'application se ferme après les mêmes garde-fous que la fermeture. Linux : `.deb` confié à `xdg-open`.
+- La release doit garder un `.msi` (Windows ; un MSI par langue, anglais par défaut ; textes dans `src-tauri/wix/*.wxl`, images dans `icons/msi*.bmp` : panneau gauche de 164 px) et un `.deb` (Linux) ; sinon le dialogue renvoie vers la page GitHub.
 
 ### K. Doublons
 

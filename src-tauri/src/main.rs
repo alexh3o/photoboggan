@@ -213,11 +213,19 @@ fn check_window_visibility(window: &tauri::WebviewWindow, saved: &WindowStateCon
 fn restore_window_state(window: &tauri::WebviewWindow, config: &AppConfig) -> WindowTracker {
     const DEFAULT_WIDTH: u32 = 1024;
     const DEFAULT_HEIGHT: u32 = 768;
+    // Keep in sync with minWidth / minHeight in tauri.conf.json (logical pixels).
+    // 900 = narrowest width where the toolbar with labels does not overflow.
+    const MIN_WIDTH_LOGICAL: f64 = 900.0;
+    const MIN_HEIGHT_LOGICAL: f64 = 500.0;
 
     if let Some(ref saved) = config.window_state {
         if check_window_visibility(window, saved) {
-            let width = saved.width.max(640);
-            let height = saved.height.max(480);
+            // Saved sizes are physical pixels while the minimum (tauri.conf.json minWidth /
+            // minHeight, 800x500) is logical: scale it, so a size saved by an older version
+            // without a minimum cannot reopen a window smaller than the OS-enforced one.
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let width = saved.width.max((MIN_WIDTH_LOGICAL * scale).ceil() as u32);
+            let height = saved.height.max((MIN_HEIGHT_LOGICAL * scale).ceil() as u32);
 
             let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
                 width,
