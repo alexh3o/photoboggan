@@ -65,11 +65,11 @@ pub struct Decoded {
 
 /// Décode la photo en RGB 8 bits, rotations du conteneur appliquées.
 pub fn decode(path: &Path) -> Result<Decoded, String> {
-    let bytes = read_all(path).ok_or("Fichier HEIF illisible ou trop volumineux")?;
-    let image = heic_rs::decode(&bytes, &heic_rs::DecodeOptions::default()).map_err(|e| format!("Décodage HEIC impossible : {e}"))?;
+    let bytes = read_all(path).ok_or("Unreadable or too large HEIF file")?;
+    let image = heic_rs::decode(&bytes, &heic_rs::DecodeOptions::default()).map_err(|e| format!("HEIC decoding failed: {e}"))?;
     if image.layout != heic_rs::PixelLayout::Rgb8 { return Err("Disposition de pixels HEIC inattendue".into()); }
     let (width, height) = (image.width as usize, image.height as usize);
-    if width == 0 || height == 0 || image.data.len() != width * height * 3 { return Err("Dimensions HEIC incohérentes".into()); }
+    if width == 0 || height == 0 || image.data.len() != width * height * 3 { return Err("Inconsistent HEIC dimensions".into()); }
     let icc = icc_profile(&bytes);
     Ok(Decoded { rgb: image.data, width, height, icc })
 }

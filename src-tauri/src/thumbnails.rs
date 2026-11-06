@@ -81,7 +81,7 @@ pub(crate) const MAX_DECODED_PIXELS: u64 = 250_000_000;
 
 pub(crate) fn check_pixel_count(width: u32, height: u32) -> Result<(), String> {
     if width == 0 || height == 0 || u64::from(width) * u64::from(height) > MAX_DECODED_PIXELS {
-        return Err(format!("Dimensions d'image déraisonnables ({width} × {height})"));
+        return Err(format!("Unreasonable image dimensions ({width} × {height})"));
     }
     Ok(())
 }
@@ -106,10 +106,10 @@ pub(crate) fn decode_png<R: std::io::BufRead + Seek>(source: R, want_pixels: boo
     check_pixel_count(reader.info().width, reader.info().height)?;
     let icc = reader.info().icc_profile.as_ref().map(|profile| profile.to_vec());
     let mut buffer = vec![0u8; reader.output_buffer_size().ok_or("PNG trop grand")?];
-    let frame = reader.next_frame(&mut buffer).map_err(|error| format!("Décodage PNG impossible : {error}"))?;
+    let frame = reader.next_frame(&mut buffer).map_err(|error| format!("PNG decoding failed: {error}"))?;
     if verify_end { reader.finish().map_err(|error| format!("Fin de fichier PNG invalide : {error}"))?; }
     let (width, height) = (frame.width as usize, frame.height as usize);
-    if width == 0 || height == 0 { return Err("Dimensions PNG incohérentes".into()); }
+    if width == 0 || height == 0 { return Err("Inconsistent PNG dimensions".into()); }
     if frame.bit_depth != png::BitDepth::Eight { return Err("Profondeur de bits PNG non prise en charge".into()); }
     if !want_pixels { return Ok(DecodedPng { rgb: Vec::new(), alpha: None, width, height, icc }); }
     let data = &buffer[..frame.buffer_size()];
@@ -129,9 +129,9 @@ pub(crate) fn decode_png<R: std::io::BufRead + Seek>(source: R, want_pixels: boo
             for pixel in data.chunks_exact(2) { rgb.extend_from_slice(&[pixel[0], pixel[0], pixel[0]]); alpha.push(pixel[1]); }
             (rgb, Some(alpha))
         }
-        png::ColorType::Indexed => return Err("PNG indexé non pris en charge".into()),
+        png::ColorType::Indexed => return Err("Indexed PNG not supported".into()),
     };
-    if rgb.len() != pixel_count * 3 { return Err("Dimensions PNG incohérentes".into()); }
+    if rgb.len() != pixel_count * 3 { return Err("Inconsistent PNG dimensions".into()); }
     Ok(DecodedPng { rgb, alpha, width, height, icc })
 }
 
@@ -140,7 +140,7 @@ pub fn jpeg_size(path: &Path) -> Result<ThumbnailSize, String> {
     let file = File::open(path).map_err(|error| error.to_string())?;
     let mut decoder = Decoder::new(BufReader::new(file));
     decoder.read_info().map_err(|error| format!("Miniature illisible : {error}"))?;
-    let info = decoder.info().ok_or("En-tête JPEG absent")?;
+    let info = decoder.info().ok_or("Missing JPEG header")?;
     Ok(ThumbnailSize { width: info.width as u32, height: info.height as u32 })
 }
 
@@ -347,7 +347,7 @@ fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
         from = pos + 1;
     }
 
-    Err("Aucune prévisualisation JPEG trouvée dans le fichier RAW".into())
+    Err("No JPEG preview found in the RAW file".into())
 }
 
 /// Extraction spécifique pour Canon CR3 (boîte PRVW)
@@ -369,28 +369,28 @@ fn find_cr3_preview(file: &mut File) -> Result<Vec<u8>, String> {
             if let Some(end) = jpeg_stream_end(&buffer, jpeg_start) { return Ok(buffer[jpeg_start..end].to_vec()); }
         }
     }
-    Err("Prévisualisation CR3 introuvable".into())
+    Err("CR3 preview not found".into())
 }
 
 ///////
 
 
 /// Décode un flux JPEG en RGB avec réduction DCT d'échelle proportionnelle à max_side.
-fn decode_scaled_jpeg_reader<R: Read>(reader: R, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
+pub(crate) fn decode_scaled_jpeg_reader<R: Read>(reader: R, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     let mut decoder = Decoder::new(reader);
-    decoder.read_info().map_err(|error| format!("JPEG illisible : {error}"))?;
+    decoder.read_info().map_err(|error| format!("Unreadable JPEG: {error}"))?;
     let side = (max_side * 3 / 2) as u16;
-    decoder.scale(side, side).map_err(|error| format!("Réduction JPEG impossible : {error}"))?;
-    let pixels = decoder.decode().map_err(|error| format!("Décodage JPEG impossible : {error}"))?;
-    let info = decoder.info().ok_or("En-tête JPEG absent")?;
+    decoder.scale(side, side).map_err(|error| format!("JPEG downscaling failed: {error}"))?;
+    let pixels = decoder.decode().map_err(|error| format!("JPEG decoding failed: {error}"))?;
+    let info = decoder.info().ok_or("Missing JPEG header")?;
     let (width, height) = (info.width as usize, info.height as usize);
     let rgb = match info.pixel_format {
         PixelFormat::RGB24 => pixels,
         PixelFormat::L8 => pixels.iter().flat_map(|&value| [value, value, value]).collect(),
-        PixelFormat::L16 | PixelFormat::CMYK32 => return Err("Format de pixels JPEG non pris en charge".into()),
+        PixelFormat::L16 | PixelFormat::CMYK32 => return Err("Unsupported JPEG pixel format".into()),
     };
     if width == 0 || height == 0 || rgb.len() != width * height * 3 {
-        return Err("Dimensions JPEG incohérentes".into());
+        return Err("Inconsistent JPEG dimensions".into());
     }
     Ok((rgb, width, height))
 }

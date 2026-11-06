@@ -4,6 +4,7 @@
 //! 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs de `thumbnails.rs` (le JPEG est décodé à échelle réduite, ce qui lit
 //!    tout le flux compressé sans produire l'image pleine résolution) ; PNG (crate `png`, avec contrôle des CRC et de la fin du fichier) et WebP (crate
 //!    `image-webp`) ; RAW : seule la vignette JPEG intégrée est extraite puis décodée, jamais de dématriçage. Un échec = fichier suspect.
+//!    Un JPEG est de plus contrôlé sur ses marqueurs (`check_jpeg_structure`) : un JPEG progressif dont des scans manquent est suspect, même si le décodeur l'accepte.
 //! 2. Miniature (seulement si absente) : générée à partir de l'image déjà décodée et écrite dans le cache. Si elle existe, rien n'est écrit sur le disque
 //!    et les pixels PNG / WebP ne sont même pas convertis (le décodage seul suffit à vérifier le fichier).
 //!
@@ -212,7 +213,7 @@ fn flatten(color: [u8; 3], alpha: u8) -> [u8; 3] {
 /// Décode un PNG. `want_pixels` faux : le fichier est entièrement décodé et contrôlé, mais les pixels ne sont pas convertis en RGB (vecteur vide renvoyé).
 /// La transparence est aplatie sur fond blanc (le JPEG de la miniature n'en a pas).
 pub(crate) fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
-    let file = File::open(source).map_err(|error| format!("Lecture impossible : {error}"))?;
+    let file = File::open(source).map_err(|error| format!("Cannot read file: {error}"))?;
     let png = thumbnails::decode_png(BufReader::with_capacity(256 * 1024, file), want_pixels, true)?;
     if !want_pixels { return Ok((Vec::new(), png.width, png.height)); }
     let rgb = match png.alpha {
@@ -224,16 +225,16 @@ pub(crate) fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, u
 
 /// Décode un WebP (première image s'il est animé). `want_pixels` faux : décodage complet, mais pas de conversion en RGB (vecteur vide renvoyé).
 pub(crate) fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
-    let file = File::open(source).map_err(|error| format!("Lecture impossible : {error}"))?;
-    let mut decoder = image_webp::WebPDecoder::new(BufReader::with_capacity(256 * 1024, file)).map_err(|error| format!("WebP illisible : {error}"))?;
+    let file = File::open(source).map_err(|error| format!("Cannot read file: {error}"))?;
+    let mut decoder = image_webp::WebPDecoder::new(BufReader::with_capacity(256 * 1024, file)).map_err(|error| format!("Unreadable WebP: {error}"))?;
     let (width, height) = decoder.dimensions();
     thumbnails::check_pixel_count(width, height)?;
     let (width, height) = (width as usize, height as usize);
     let has_alpha = decoder.has_alpha();
-    let mut buffer = vec![0u8; decoder.output_buffer_size().ok_or("WebP trop grand")?];
-    decoder.read_image(&mut buffer).map_err(|error| format!("Décodage WebP impossible : {error}"))?;
+    let mut buffer = vec![0u8; decoder.output_buffer_size().ok_or("WebP too large")?];
+    decoder.read_image(&mut buffer).map_err(|error| format!("WebP decoding failed: {error}"))?;
     let channels = if has_alpha { 4 } else { 3 };
-    if width == 0 || height == 0 || buffer.len() != width * height * channels { return Err("Dimensions WebP incohérentes".into()); }
+    if width == 0 || height == 0 || buffer.len() != width * height * channels { return Err("Inconsistent WebP dimensions".into()); }
     if !want_pixels { return Ok((Vec::new(), width, height)); }
     let rgb: Vec<u8> = if has_alpha {
         buffer.chunks_exact(4).flat_map(|pixel| flatten([pixel[0], pixel[1], pixel[2]], pixel[3])).collect()
@@ -243,6 +244,79 @@ pub(crate) fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, 
     Ok((rgb, width, height))
 }
 
+/// Structural check of a JPEG, from its markers only (no entropy decoding, well under a millisecond per file).
+/// `jpeg-decoder` accepts a file whose scans were cut out or overwritten: it feeds zeros past a marker and skips leftover bytes silently.
+/// Flags only what is certainly incomplete:
+/// - progressive: every coefficient of every component (DC, then AC 1..63) must be refined down to bit 0, with each refinement
+///   scan following the previous precision (`Ah` = previous `Al`), as every common encoder produces;
+/// - sequential: every component must be covered by a scan.
+/// Anything unusual (unsupported coding, truncated header, no frame) is left to the decoder, which reports it more precisely.
+pub(crate) fn check_jpeg_structure(data: &[u8]) -> Result<(), String> {
+    if data.len() < 4 || data[..2] != [0xff, 0xd8] { return Ok(()); }
+    let mut position = 2;
+    let mut progressive = false;
+    let mut component_ids: Vec<u8> = Vec::new();
+    // Per component, per coefficient (0 = DC): the lowest bit position transmitted so far.
+    let mut precision: Vec<[Option<u8>; 64]> = Vec::new();
+    let mut covered: Vec<bool> = Vec::new();
+    let mut scans = 0usize;
+    loop {
+        // Entropy-coded data is crossed byte by byte: stuffed FF00 and restart markers are no-ops below.
+        let Some(offset) = data[position..].iter().position(|&byte| byte == 0xff) else { break };
+        position += offset;
+        while position < data.len() && data[position] == 0xff { position += 1; }
+        if position >= data.len() { break; }
+        let marker = data[position];
+        position += 1;
+        match marker {
+            0x00 | 0x01 | 0xd0..=0xd8 => continue,
+            0xd9 => break,
+            _ => {}
+        }
+        if position + 2 > data.len() { return Ok(()); }
+        let length = u16::from_be_bytes([data[position], data[position + 1]]) as usize;
+        if length < 2 || position + length > data.len() { return Ok(()); }
+        let segment = &data[position + 2..position + length];
+        position += length;
+        match marker {
+            0xc0..=0xc2 if component_ids.is_empty() => {
+                let count = *segment.get(5).unwrap_or(&0) as usize;
+                if count == 0 || segment.len() < 6 + count * 3 { return Ok(()); }
+                progressive = marker == 0xc2;
+                component_ids = (0..count).map(|index| segment[6 + index * 3]).collect();
+                precision = vec![[None; 64]; count];
+                covered = vec![false; count];
+            }
+            // Arithmetic, lossless, hierarchical: not decoded by jpeg-decoder anyway.
+            0xc3 | 0xc5..=0xc7 | 0xc9..=0xcb | 0xcd..=0xcf => return Ok(()),
+            0xda if !component_ids.is_empty() => {
+                let count = *segment.first().unwrap_or(&0) as usize;
+                if count == 0 || segment.len() < 4 + count * 2 { return Ok(()); }
+                let (first, last, approximation) = (segment[1 + count * 2] as usize, segment[2 + count * 2] as usize, segment[3 + count * 2]);
+                let (high, low) = (approximation >> 4, approximation & 15);
+                scans += 1;
+                for index in 0..count {
+                    let Some(component) = component_ids.iter().position(|&id| id == segment[1 + index * 2]) else { return Ok(()) };
+                    covered[component] = true;
+                    if !progressive { continue; }
+                    for coefficient in first..=last.min(63) {
+                        let state = &mut precision[component][coefficient];
+                        if high != 0 && *state != Some(high) {
+                            return Err(format!("Inconsistent progressive JPEG: refinement scan {scans} has no matching previous scan (damaged file)"));
+                        }
+                        *state = Some(low);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if component_ids.is_empty() || scans == 0 { return Ok(()); }
+    let complete = if progressive { precision.iter().all(|states| states.iter().all(|&state| state == Some(0))) } else { covered.iter().all(|&done| done) };
+    if complete { return Ok(()); }
+    Err(format!("Incomplete JPEG: only {scans} scan(s) found, image data is missing (truncated or damaged file)"))
+}
+
 /// Analyse un fichier. `Err` = fichier suspect (message affiché dans le rapport).
 fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc<Gate>, token: &Arc<SlotToken>) -> Result<Outcome, String> {
     let extension = source.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
@@ -250,7 +324,7 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc
         return Ok(Outcome::Unsupported);
     }
     // Même nom de cache que l'interface (chemin, taille et date du fichier). Un fichier dont les métadonnées sont illisibles est suspect.
-    let destination = crate::thumbnail_cache_file(thumbnails_dir, &source.to_string_lossy()).map_err(|error| format!("Fichier illisible : {error}"))?;
+    let destination = crate::thumbnail_cache_file(thumbnails_dir, &source.to_string_lossy()).map_err(|error| format!("Unreadable file: {error}"))?;
     let thumbnail_missing = !destination.is_file();
 
     let format = sniff(source);
@@ -274,11 +348,20 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc
             if matches!(extension.as_str(), "png" | "webp") {
                 let mut magic = [0u8; 2];
                 let is_jpeg = File::open(source).and_then(|mut file| file.read_exact(&mut magic)).is_ok() && magic == [0xff, 0xd8];
-                if !is_jpeg { return Err(format!("Signature {} invalide ou fichier tronqué", extension.to_uppercase())); }
+                if !is_jpeg { return Err(format!("Invalid {} signature or truncated file", extension.to_uppercase())); }
             }
             // HEIC / HEIF : décodage complet (lourd) ; JPEG et RAW (vignette JPEG intégrée) : décodage à échelle réduite.
             let _slot = crate::heif::is_heif_path(source).then(|| Gate::enter(heavy, token));
-            thumbnails::decode_scaled_rgb(source, max_side)?
+            if thumbnails::is_raw_path(source) || crate::heif::is_heif_path(source) {
+                thumbnails::decode_scaled_rgb(source, max_side)?
+            } else {
+                // Plain JPEG: the file is read once, decoded, then its marker structure is checked (the decoder alone
+                // silently accepts a progressive file whose later scans are missing). A decoding error is more precise, so it comes first.
+                let bytes = fs::read(source).map_err(|error| format!("Cannot read file: {error}"))?;
+                let decoded = thumbnails::decode_scaled_jpeg_reader(std::io::Cursor::new(&bytes), max_side)?;
+                check_jpeg_structure(&bytes)?;
+                decoded
+            }
         }
     };
     if !thumbnail_missing { return Ok(Outcome::Healthy(Thumbnail::Existing)); }
@@ -362,7 +445,7 @@ pub fn run(
                 let (path, thumbnails_dir, heavy, token) = (path.clone(), thumbnails_dir.to_path_buf(), heavy.clone(), token.clone());
                 move || {
                     panic::catch_unwind(AssertUnwindSafe(|| check_file(&path, &thumbnails_dir, max_side, &heavy, &token)))
-                        .unwrap_or_else(|_| Err("Décodeur interrompu : fichier probablement corrompu".to_string()))
+                        .unwrap_or_else(|_| Err("Decoder aborted: file probably corrupt".to_string()))
                 }
             };
             let result = match run_bounded(work, FILE_TIMEOUT, cancel) {
@@ -370,7 +453,7 @@ pub fn run(
                 None => {
                     heavy.give_back(&token);
                     if cancel.load(Ordering::Relaxed) { return; }
-                    Err(format!("Délai dépassé ({} s) : lecture ou décodage bloqué", FILE_TIMEOUT.as_secs()))
+                    Err(format!("Timed out ({} s): read or decoding stuck", FILE_TIMEOUT.as_secs()))
                 }
             };
             let micros = file_started.elapsed().as_micros() as u64;
@@ -453,8 +536,8 @@ fn csv_field(value: &str) -> String {
 /// `headers` : titres des 4 colonnes (nom du fichier, dossier, chemin complet, problème). Fins de ligne Windows et BOM UTF-8 : le fichier
 /// s'ouvre correctement dans le Bloc-notes, et la partie CSV se copie telle quelle dans Excel.
 pub fn write_report(directory: &Path, preamble: &str, headers: &[String], rows: &[IntegrityIssue]) -> Result<PathBuf, String> {
-    if !directory.is_dir() { return Err(format!("Dossier de destination introuvable : {}", directory.display())); }
-    if !rows.is_empty() && headers.len() != 4 { return Err("En-têtes de colonnes invalides".into()); }
+    if !directory.is_dir() { return Err(format!("Destination folder not found: {}", directory.display())); }
+    if !rows.is_empty() && headers.len() != 4 { return Err("Invalid column headers".into()); }
     let mut content = String::from("\u{feff}");
     content.push_str(&preamble.trim_end().replace("\r\n", "\n").replace('\n', "\r\n"));
     content.push_str("\r\n");
@@ -478,15 +561,15 @@ pub fn write_report(directory: &Path, preamble: &str, headers: &[String], rows: 
                 if let Err(error) = file.write_all(content.as_bytes()) {
                     drop(file);
                     let _ = fs::remove_file(&target);
-                    return Err(format!("Écriture impossible : {error}"));
+                    return Err(format!("Cannot write file: {error}"));
                 }
                 return Ok(target);
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(format!("Création du fichier impossible : {error}")),
+            Err(error) => return Err(format!("Cannot create file: {error}")),
         }
     }
-    Err("Création du fichier impossible".into())
+    Err("Cannot create file".into())
 }
 
 #[cfg(test)]

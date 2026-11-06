@@ -73,6 +73,77 @@ fn corrupt_files_are_reported() {
     }
 }
 
+/// Progressive JPEG with a noisy gradient (so every scan carries data).
+fn progressive_jpeg() -> Vec<u8> {
+    let rgb = blobs_rgb(96, 64, 7);
+    let mut out = Vec::new();
+    let mut encoder = jpeg_encoder::Encoder::new(&mut out, 90);
+    encoder.set_progressive(true);
+    encoder.encode(&rgb, 96, 64, jpeg_encoder::ColorType::Rgb).expect("progressive JPEG encoding");
+    out
+}
+
+/// Offsets of every SOS marker (FFDA cannot appear inside entropy data: FF is always stuffed).
+fn sos_offsets(jpeg: &[u8]) -> Vec<usize> {
+    (0..jpeg.len() - 1).filter(|&at| jpeg[at] == 0xff && jpeg[at + 1] == 0xda).collect()
+}
+
+#[test]
+fn complete_jpegs_pass_the_structure_check() {
+    let progressive = progressive_jpeg();
+    assert!(sos_offsets(&progressive).len() > 2, "the test file must be multi-scan");
+    assert!(check_jpeg_structure(&progressive).is_ok());
+    assert!(check_jpeg_structure(&jpeg_bytes(40, 30)).is_ok());
+    // Garbage and non-JPEG input are the decoder's business.
+    assert!(check_jpeg_structure(b"not a jpeg").is_ok());
+    assert!(check_jpeg_structure(&[0xff, 0xd8]).is_ok());
+}
+
+#[test]
+fn progressive_jpeg_missing_scans_is_flagged_even_with_an_end_marker() {
+    let progressive = progressive_jpeg();
+    let scans = sos_offsets(&progressive);
+    // Cut before each scan from the 2nd on and close the file properly: the decoder is happy, the structure is not.
+    for (index, &at) in scans.iter().enumerate().skip(1) {
+        let mut cut = progressive[..at].to_vec();
+        cut.extend_from_slice(&[0xff, 0xd9]);
+        assert!(check_jpeg_structure(&cut).is_err(), "file cut before scan {} not flagged", index + 1);
+    }
+    // Same through the real entry point, with the thumbnail cache not touched.
+    let dir = tempfile::tempdir().unwrap();
+    let thumbnails = tempfile::tempdir().unwrap();
+    let mut cut = progressive[..scans[1]].to_vec();
+    cut.extend_from_slice(&[0xff, 0xd9]);
+    let path = write(dir.path(), "partiel.jpg", &cut);
+    let error = check(&path, thumbnails.path()).err().expect("partial progressive JPEG must be suspect");
+    assert!(error.contains("Incomplete JPEG"), "{error}");
+    assert!(is_created(&check(&write(dir.path(), "entier.jpg", &progressive), thumbnails.path())));
+}
+
+#[test]
+fn progressive_scan_headers_overwritten_are_flagged() {
+    // Later scans lost (headers overwritten by filler) while the end marker is kept: the first scan swallows the rest.
+    let progressive = progressive_jpeg();
+    let scans = sos_offsets(&progressive);
+    let end = progressive.len() - 2;
+    let mut damaged = progressive.clone();
+    damaged[scans[2]..end].fill(0x32);
+    assert!(check_jpeg_structure(&damaged).is_err());
+}
+
+#[test]
+fn sequential_jpeg_with_a_missing_component_scan_is_flagged() {
+    // Fabricated: a 3-component frame whose single scan lists only one component.
+    let mut jpeg = jpeg_bytes(16, 16);
+    let sos = sos_offsets(&jpeg)[0];
+    assert_eq!(jpeg[sos + 4], 3, "interleaved 3-component scan expected");
+    let mut one_component = vec![0xff, 0xda, 0, 8, 1, jpeg[sos + 5], jpeg[sos + 6], 0, 63, 0];
+    one_component.extend_from_slice(&[0xff, 0xd9]);
+    jpeg.truncate(sos);
+    jpeg.extend_from_slice(&one_component);
+    assert!(check_jpeg_structure(&jpeg).is_err());
+}
+
 #[test]
 fn unsupported_formats_are_skipped_not_flagged() {
     let dir = tempfile::tempdir().unwrap();
