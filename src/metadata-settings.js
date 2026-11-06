@@ -6,90 +6,98 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, onLanguageChange } from './i18n.js';
-import { createOrderList, resolveOrder } from './order-list.js';
+import { createOrderList, resolveOrder, formatCells } from './order-list.js';
 
 const WRITER_STORAGE_KEY = 'metadataWriter'; // « exiftool » (par défaut) ou « internal »
 const EXIFTOOL_PATH_STORAGE_KEY = 'exiftoolPath'; // exécutable choisi par l'utilisateur ; vide : détection automatique
 const ORDER_KIND_STORAGE_KEY = 'metadataOrderKind'; // type de métadonnée affiché dans le tableau des priorités
 
-// Formats lus pour chaque type de métadonnée, dans l'ordre de lecture par défaut. Le premier qui contient une valeur l'emporte ; tous sont écrits.
-// Identifiants : ceux de exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS,
-// GPS_SOURCE_IDS).
+// Formats read for each metadata type, in default reading order. The first one holding a value wins; all are written.
+// Each format is shown as three parts: `source` (XMP, IPTC, EXIF, JPEG: where the data lives in the file, which tells what the internal writer
+// can reach), `schema` (who defines it) and `field` (technical name, with its XMP prefix when it has one).
+// Ids are those of exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS,
+// GPS_SOURCE_IDS). Display only: ids are what is stored and sent to the backend.
 const READ_ORDERS = {
   keywords: {
     storageKey: 'keywordFormatOrder',
     formats: [
-      { id: 'digikam', label: 'digiKam', property: 'digiKam:TagsList' },
-      { id: 'lightroom', label: 'Adobe Lightroom', property: 'lr:hierarchicalSubject' },
-      { id: 'mediapro', label: 'Media Pro', property: 'mediapro:CatalogSets' },
-      { id: 'microsoft', label: 'Microsoft Photo', property: 'MicrosoftPhoto:LastKeywordXMP' },
-      { id: 'acdsee', label: 'ACDSee', property: 'acdsee:categories' },
+      { id: 'digikam', source: 'XMP', schema: 'digiKam', field: 'digiKam:TagsList' },
+      { id: 'lightroom', source: 'XMP', schema: 'Adobe Lightroom', field: 'lr:hierarchicalSubject' },
+      { id: 'mediapro', source: 'XMP', schema: 'Media Pro', field: 'mediapro:CatalogSets' },
+      { id: 'microsoft', source: 'XMP', schema: 'Microsoft Photo', field: 'MicrosoftPhoto:LastKeywordXMP' },
+      { id: 'acdsee', source: 'XMP', schema: 'ACDSee', field: 'acdsee:categories' },
+    ],
+    // Flat keyword fields: merged into one list of names, no priority and no effect on the tree (not reorderable, shown below the table).
+    flat: [
+      { source: 'XMP', schema: 'Dublin Core', field: 'dc:subject' },
+      { source: 'IPTC', schema: 'Application', field: 'Keywords', note: 'JPEG only' },
+      { source: 'EXIF', schema: 'Windows XP', field: 'XPKeywords', note: 'ExifTool only (JPEG)' },
     ],
   },
   title: {
     storageKey: 'titleFormatOrder',
     formats: [
-      { id: 'xmp-dc', label: 'XMP', property: 'dc:title' },
-      { id: 'xmp-acdsee', label: 'ACDSee (XMP)', property: 'acdsee:caption' },
-      { id: 'iptc', label: 'IPTC', property: 'ObjectName' },
-      { id: 'exif-xp', label: 'EXIF (Windows)', property: 'XPTitle' },
+      { id: 'xmp-dc', source: 'XMP', schema: 'Dublin Core', field: 'dc:title' },
+      { id: 'xmp-acdsee', source: 'XMP', schema: 'ACDSee', field: 'acdsee:caption' },
+      { id: 'iptc', source: 'IPTC', schema: 'Application', field: 'ObjectName' },
+      { id: 'exif-xp', source: 'EXIF', schema: 'Windows XP', field: 'XPTitle' },
     ],
   },
   description: {
     storageKey: 'descriptionFormatOrder',
     formats: [
-      { id: 'xmp-dc', label: 'XMP', property: 'dc:description' },
-      { id: 'xmp-exif', label: 'XMP EXIF', property: 'exif:UserComment' },
-      { id: 'xmp-tiff', label: 'XMP TIFF', property: 'tiff:ImageDescription' },
-      { id: 'xmp-acdsee', label: 'ACDSee (XMP)', property: 'acdsee:notes' },
-      { id: 'jpeg-comment', label: 'JPEG', property: 'Comment' },
-      { id: 'exif-image', label: 'EXIF', property: 'ImageDescription' },
-      { id: 'exif-user-comment', label: 'EXIF', property: 'UserComment' },
-      { id: 'exif-xp', label: 'EXIF (Windows)', property: 'XPComment' },
-      { id: 'iptc', label: 'IPTC', property: 'Caption-Abstract' },
+      { id: 'xmp-dc', source: 'XMP', schema: 'Dublin Core', field: 'dc:description' },
+      { id: 'xmp-exif', source: 'XMP', schema: 'EXIF', field: 'exif:UserComment' },
+      { id: 'xmp-tiff', source: 'XMP', schema: 'TIFF', field: 'tiff:ImageDescription' },
+      { id: 'xmp-acdsee', source: 'XMP', schema: 'ACDSee', field: 'acdsee:notes' },
+      { id: 'jpeg-comment', source: 'JPEG', schema: 'JPEG comment', field: 'Comment' },
+      { id: 'exif-image', source: 'EXIF', schema: 'IFD0', field: 'ImageDescription' },
+      { id: 'exif-user-comment', source: 'EXIF', schema: 'Exif IFD', field: 'UserComment' },
+      { id: 'exif-xp', source: 'EXIF', schema: 'Windows XP', field: 'XPComment' },
+      { id: 'iptc', source: 'IPTC', schema: 'Application', field: 'Caption-Abstract' },
     ],
   },
   rating: {
     storageKey: 'ratingFormatOrder',
     formats: [
-      { id: 'xmp', label: 'XMP', property: 'xmp:Rating' },
-      { id: 'microsoft', label: 'Microsoft Photo', property: 'MicrosoftPhoto:Rating' },
-      { id: 'acdsee', label: 'ACDSee', property: 'acdsee:rating' },
-      { id: 'exif', label: 'EXIF (Windows)', property: 'Rating' },
-      { id: 'exif-percent', label: 'EXIF (Windows)', property: 'RatingPercent' },
+      { id: 'xmp', source: 'XMP', schema: 'XMP Basic', field: 'xmp:Rating' },
+      { id: 'microsoft', source: 'XMP', schema: 'Microsoft Photo', field: 'MicrosoftPhoto:Rating' },
+      { id: 'acdsee', source: 'XMP', schema: 'ACDSee', field: 'acdsee:rating' },
+      { id: 'exif', source: 'EXIF', schema: 'Windows', field: 'Rating' },
+      { id: 'exif-percent', source: 'EXIF', schema: 'Windows', field: 'RatingPercent' },
     ],
   },
   color: {
     storageKey: 'colorFormatOrder',
     formats: [
-      { id: 'xmp-label', label: 'XMP', property: 'xmp:Label' },
-      { id: 'digikam', label: 'digiKam', property: 'digiKam:ColorLabel' },
-      { id: 'urgency', label: 'Photoshop', property: 'photoshop:Urgency' },
+      { id: 'xmp-label', source: 'XMP', schema: 'XMP Basic', field: 'xmp:Label' },
+      { id: 'digikam', source: 'XMP', schema: 'digiKam', field: 'digiKam:ColorLabel' },
+      { id: 'urgency', source: 'XMP', schema: 'Photoshop', field: 'photoshop:Urgency' },
     ],
   },
   pick: {
     storageKey: 'pickFormatOrder',
     formats: [
-      { id: 'digikam', label: 'digiKam', property: 'digiKam:PickLabel' },
-      { id: 'xmpdm-pick', label: 'Adobe Lightroom', property: 'xmpDM:pick' },
-      { id: 'xmpdm-good', label: 'Adobe XMP', property: 'xmpDM:good' },
+      { id: 'digikam', source: 'XMP', schema: 'digiKam', field: 'digiKam:PickLabel' },
+      { id: 'xmpdm-pick', source: 'XMP', schema: 'Adobe Lightroom', field: 'xmpDM:pick' },
+      { id: 'xmpdm-good', source: 'XMP', schema: 'Adobe XMP', field: 'xmpDM:good' },
     ],
   },
-  // Zones de visage (lues seulement si Paramètres > Visages > « Lire les données de visages » est coché ; voir faces.rs).
+  // Face regions (read only if Settings > Faces > "Read face data" is checked; see faces.rs).
   faces: {
     storageKey: 'faceRegionFormatOrder',
     formats: [
-      { id: 'mwg', label: 'MWG (digiKam, Lightroom)', property: 'mwg-rs:Regions' },
-      { id: 'microsoft', label: 'Microsoft Photo', property: 'MP:RegionInfo' },
-      { id: 'acdsee', label: 'ACDSee', property: 'acdsee-rs:Regions' },
+      { id: 'mwg', source: 'XMP', schema: 'MWG (digiKam, Lightroom)', field: 'mwg-rs:Regions' },
+      { id: 'microsoft', source: 'XMP', schema: 'Microsoft Photo', field: 'MP:RegionInfo' },
+      { id: 'acdsee', source: 'XMP', schema: 'ACDSee', field: 'acdsee-rs:Regions' },
     ],
   },
-  // Coordonnées GPS (voir exif::GPS_SOURCE_IDS) : XMP avant EXIF par défaut, pour que la position écrite par le mode Carte soit relue.
+  // GPS coordinates (see exif::GPS_SOURCE_IDS): XMP before EXIF by default, so that a position written by the Map mode is read back.
   gps: {
     storageKey: 'gpsFormatOrder',
     formats: [
-      { id: 'xmp', label: 'XMP', property: 'exif:GPSLatitude / exif:GPSLongitude' },
-      { id: 'exif', label: 'EXIF', property: 'GPSLatitude / GPSLongitude' },
+      { id: 'xmp', source: 'XMP', schema: 'EXIF', field: 'exif:GPSLatitude / exif:GPSLongitude' },
+      { id: 'exif', source: 'EXIF', schema: 'GPS', field: 'GPSLatitude / GPSLongitude' },
     ],
   },
 };
@@ -196,19 +204,48 @@ export function initMetadataSettings() {
       return invoke('set_metadata_read_order', { kind, order }).catch(error => console.error(`Ordre de lecture refusé (${kind})`, error));
     },
   })]));
+  // Fields without priority (flat keywords): static rows below the table, with what each one can be written by.
+  const flatElement = document.getElementById('metadata-order-flat');
+  function renderFlat(kind) {
+    const flat = READ_ORDERS[kind].flat;
+    flatElement.hidden = !flat;
+    if (!flat) return;
+    const note = document.createElement('p');
+    note.className = 'sort-note';
+    note.textContent = t('Flat keywords help');
+    const rows = flat.map(format => {
+      const row = document.createElement('li');
+      row.className = 'keyword-format-item keyword-format-static';
+      row.append(...formatCells(format));
+      if (format.note) {
+        const noteElement = document.createElement('span');
+        noteElement.className = 'format-note';
+        noteElement.textContent = t(format.note);
+        row.append(noteElement);
+      }
+      return row;
+    });
+    const list = document.createElement('ul');
+    list.className = 'keyword-format-static-list';
+    list.append(...rows);
+    flatElement.replaceChildren(note, list);
+  }
   let shownKind = localStorage.getItem(ORDER_KIND_STORAGE_KEY);
   if (!(shownKind in orderLists)) shownKind = 'keywords';
   kindSelect.value = shownKind;
   orderLists[shownKind].render();
+  renderFlat(shownKind);
   kindSelect.addEventListener('change', () => {
     shownKind = kindSelect.value;
     localStorage.setItem(ORDER_KIND_STORAGE_KEY, shownKind);
     orderLists[shownKind].render();
+    renderFlat(shownKind);
   });
 
   onLanguageChange(() => {
     renderStatus();
     orderLists[shownKind].render();
+    renderFlat(shownKind);
   });
   renderStatus();
 }

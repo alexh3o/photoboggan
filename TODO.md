@@ -12,6 +12,9 @@
 - [x] *refactor*: `UI` move qty of dispplayed photos to filters title bar (always visible)
 - [x] *feat*: `dupes` find duplicates by name (regex), exact hash, phash with new modal
 - [x] *feat*: `UI` display descriptions & titles in fullscreen
+- [ ] *feat*: `metadata` internal metadata writer activated => no exif reading option, grey out exif fields
+- [x] *style*: `metadata` display clearly source of metadata formats in order lists (XMP / IPTC / EXIF)
+- [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -22,14 +25,12 @@
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [x] *feat*: `tasks` Close toast that are in current tasks when opening task modal
+- [ ] *feat*: stats in a stat modal from settings
 
 ## ⚖️ Undecided
 
-- [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
-- [ ] *feat*: stats in a stat modal from settings
 - [ ] *feat*: cancellations everywhere
-- [ ] *feat*: `metadata` internal metadata writer activated => no exif reading
 - [ ] *refactor*: `UI` improve toasts placement / visibility
 - [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
 
@@ -52,7 +53,8 @@
 
 ## 🧪 To be tested & potential bugs to be confirmed
 
-- [ ] Test Linux Release
-- [ ] Restoring data from data folder
+- [ ] `linux` Test Linux Release
+- [ ] `backup` restoring data from data folder
 - [x] `maps` handling of photos in 2 zones, eventually with different level
-- [ ] Check effect of 50000 max photos in the grid: is it visible in usage ?
+- [ ] `thumbnails` Check effect of 50 000 max photos in the grid: is it and actual issue in usage ?
+- [ ] `thumbnails` Some thumbnails don't load, but passing mouse over them instantly displays them: dev only ?

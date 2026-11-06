@@ -20,7 +20,23 @@ export function resolveOrder(formats, storageKey) {
   return defaultOrder;
 }
 
-// `formats` : [{ id, label, property }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
+// Cells of one format row: source pill (XMP / IPTC / EXIF / JPEG), schema, technical field. Shared by the reorderable table and the static rows.
+export function formatCells(format) {
+  const source = document.createElement('span');
+  source.className = `format-source format-source-${format.source.toLowerCase()}`;
+  source.textContent = format.source;
+  const schema = document.createElement('span');
+  schema.className = 'format-schema';
+  schema.textContent = t(format.schema);
+  schema.title = schema.textContent;
+  const field = document.createElement('code');
+  field.className = 'format-field';
+  field.textContent = format.field;
+  field.title = format.field;
+  return [source, schema, field];
+}
+
+// `formats` : [{ id, source, schema, field }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
 // au backend (au démarrage et à chaque changement). Renvoie { render } pour afficher ou redessiner la liste (rien n'est affiché avant).
 export function createOrderList({ element, formats, storageKey, send }) {
   let order = resolveOrder(formats, storageKey);
@@ -100,17 +116,10 @@ export function createOrderList({ element, formats, storageKey, send }) {
       const rank = document.createElement('span');
       rank.className = 'keyword-format-rank';
       rank.textContent = `${index + 1}.`;
-      const name = document.createElement('span');
-      name.className = 'keyword-format-name';
-      name.textContent = format.label;
-      const property = document.createElement('code');
-      property.className = 'keyword-format-property';
-      property.textContent = format.property;
       item.append(
         handle,
         rank,
-        name,
-        property,
+        ...formatCells(format),
         makeMoveButton('↑', t('Move up'), index === 0, () => move(index, -1)),
         makeMoveButton('↓', t('Move down'), index === order.length - 1, () => move(index, 1)),
       );
