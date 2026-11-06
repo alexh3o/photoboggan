@@ -11,7 +11,7 @@ import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metada
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
@@ -72,6 +72,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés, titres ou descriptions non écrits ou une écriture en cours
   // demandent confirmation (voir metadata-writes.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
   appWindow.onCloseRequested(async event => {
+    if (!(await confirmCloseWithRunningTasks())) { event.preventDefault(); return; } // tâches de la file encore actives
     if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) { event.preventDefault(); return; } // filtres d'un album intelligent non enregistrés
     if (!(await confirmCloseWithPendingEdits())) event.preventDefault();
   }).catch(err => console.error("Close-request handler failed:", err));
@@ -4329,6 +4330,23 @@ function closeTasksModal() {
   clearInterval(tasksClockTimer);
   tasksClockTimer = null;
 }
+// Fermeture de l'application : si des tâches de la file sont actives ou en attente, le dire avant de les interrompre. Renvoie true si l'on peut quitter ;
+// « Afficher les tâches » et « Annuler » gardent l'application ouverte (le premier ouvre en plus la fenêtre des actions).
+async function confirmCloseWithRunningTasks() {
+  if (scanTasks.length === 0) return true;
+  const choice = await choiceDialog({
+    title: t('Tasks in progress'),
+    message: tp('{count} task is running. Quitting now interrupts it.', scanTasks.length, { count: scanTasks.length }),
+    buttons: [
+      { label: t('Quit anyway'), value: 'quit', tone: 'red' },
+      { label: t('Show tasks'), value: 'show', primary: true },
+      { label: t('Cancel'), value: 'cancel', cancel: true },
+    ],
+  });
+  if (choice === 'show') openTasksModal();
+  return choice === 'quit';
+}
+
 tasksButton.addEventListener('click', openTasksModal);
 document.getElementById('btn-close-tasks').addEventListener('click', closeTasksModal);
 tasksModal.addEventListener('click', event => {
@@ -6152,7 +6170,7 @@ initUpdateCheck({
   showToast: (message, action) => showWriteToast(message, false, action, 15000),
   enqueueTask: task => enqueueScanTask(task),
   // Avant de quitter pour installer : mêmes questions qu'à la fermeture de la fenêtre.
-  canQuit: async () => !(isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) && (await confirmCloseWithPendingEdits()),
+  canQuit: async () => (await confirmCloseWithRunningTasks()) && !(isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) && (await confirmCloseWithPendingEdits()),
 }); // Paramètres > Général > Internet : mises à jour
 
 initFacesGrid({
