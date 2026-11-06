@@ -156,6 +156,7 @@ export function openFacesView(statuses = null) {
   }
   open = true;
   view().hidden = false;
+  document.getElementById('faces-empty').hidden = true; // message recalculé une fois les visages chargés (rebuild)
   host.setPhotoGridVisible(false);
   document.getElementById('btn-toggle-faces')?.classList.add('active');
   renderStatusFilters();
@@ -366,6 +367,19 @@ function rebuild() {
   renderStatusFilters();
   renderOriginFilters();
   updateToolbar();
+  updateEmptyState();
+}
+
+// Vue vide : message centré selon la cause. Aucun visage dans les photos affichées (le plus souvent un dossier sélectionné dans l'arbre) ;
+// des visages existent mais les filtres (statuts, origines, personnes) les masquent tous.
+function updateEmptyState() {
+  const element = document.getElementById('faces-empty');
+  if (!element) return;
+  element.hidden = shown.length > 0;
+  if (element.hidden) return;
+  element.textContent = t(faces.length > 0 ? 'A little too selective! Try adjusting your filters'
+    : host.hasFolderSelected() ? 'Nobody here, there may be more people in the other folders'
+    : 'Nothing to show here');
 }
 
 function renderVisible() {
@@ -661,8 +675,11 @@ function renderStatusFilters() {
       button.title = t(status.label);
       button.setAttribute('aria-label', `${t(status.label)} : ${count}`);
     }
-    button.addEventListener('click', () => {
-      if (visibleStatuses.has(status.id)) visibleStatuses.delete(status.id); else visibleStatuses.add(status.id);
+    button.addEventListener('click', event => {
+      // Shift + clic : ce statut seul est affiché, tous les autres sont masqués.
+      if (event.shiftKey) visibleStatuses = new Set([status.id]);
+      else if (visibleStatuses.has(status.id)) visibleStatuses.delete(status.id);
+      else visibleStatuses.add(status.id);
       saveStatuses();
       rebuild();
     });
@@ -803,7 +820,7 @@ async function nameSelection(typed = null) {
 // ==========================================
 // INITIALISATION
 // ==========================================
-// hostApi : getDisplayedPhotoIds(), getThumbnailUrl(path), selectPhotos(photoIds, mainPhotoId), openPhotoFullscreen(photoId), setPhotoGridVisible(visible), showToast(message),
+// hostApi : getDisplayedPhotoIds(), hasFolderSelected(), getThumbnailUrl(path), selectPhotos(photoIds, mainPhotoId), openPhotoFullscreen(photoId), setPhotoGridVisible(visible), showToast(message),
 // getPersonRoot(), isFullscreen().
 export function initFacesGrid(hostApi) {
   host = hostApi;

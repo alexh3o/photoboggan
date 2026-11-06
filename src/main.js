@@ -6796,6 +6796,8 @@ initUpdateCheck({
 
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
+  // Un dossier de l'arbre (ou d'un album) limite les photos affichées : sert au message de la vue Visages quand elle est vide.
+  hasFolderSelected: () => currentFolderFilter !== null || albumFolder !== null,
   getThumbnailUrl: thumbnailUrlFor,
   // Sélection de visages : leurs photos deviennent exactement la sélection (panneaux Info, Mots-clés, Description), la photo du dernier visage
   // sélectionné étant la principale. Photos absentes de la grille (mode « Visages en attente ») : non sélectionnées, jamais l'ancienne sélection

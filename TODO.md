@@ -22,7 +22,6 @@
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [x] *feat*: `tasks` Close toast that are in current tasks when opening task modal
-- [ ] *feat*: `duplicates` manage duplicates folder actions
 
 ## ⚖️ Undecided
 
@@ -30,8 +29,9 @@
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: stats in a stat modal from settings
 - [ ] *feat*: cancellations everywhere
-- [ ] *feat*: internal metadata writer activated => no exif reading
+- [ ] *feat*: `metadata` internal metadata writer activated => no exif reading
 - [ ] *refactor*: `UI` improve toasts placement / visibility
+- [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
 
 ## ❄️ Cold storage
 
