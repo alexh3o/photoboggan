@@ -256,6 +256,14 @@
           <button id="raw-search-back" type="button" class="raw-search-back" title="Revenir à la vue précédente (Échap)" data-i18n-title="Back to the previous view" data-i18n="Back">← Retour</button>
           <span id="raw-search-text" class="raw-search-text" role="status"></span>
         </div>
+        <!-- Bannière de la recherche de doublons (main.js, section « DOUBLONS ») : retour à la vue d'avant, résumé et tri des groupes -->
+        <div id="duplicates-banner" class="duplicates-banner" hidden>
+          <button id="duplicates-back" type="button" class="duplicates-back" title="Revenir à la vue précédente (Échap)" data-i18n-title="Back to the previous view" data-i18n="Back">← Retour</button>
+          <span id="duplicates-text" class="duplicates-text" role="status"></span>
+          <button id="duplicates-keep" type="button" class="duplicates-keep"></button>
+          <button id="duplicates-select" type="button" class="duplicates-select"></button>
+          <button id="duplicates-sort" type="button" class="duplicates-sort"></button>
+        </div>
         <!-- État vide centré (texte choisi par main.js, updateGridEmptyState) : dossier vide, filtres trop sélectifs, ou autre cas -->
         <p id="grid-empty" class="grid-empty" role="status" hidden></p>
         <div id="virtual-scroll-container">
@@ -859,6 +867,106 @@
             <p id="sort-separator-name-note" class="sort-note" data-i18n="Photos are sorted by name within each folder." hidden>Les photos sont triées par nom au sein de chaque dossier.</p>
           </section>
         </div>
+      </div>
+    </div>
+    <!-- Modale « Trouver les doublons > Plus… » (duplicates-modal.js) : type de recherche, réglages de chaque type, portée -->
+    <div id="duplicates-modal" class="modal hidden">
+      <div class="modal-card duplicates-card" role="dialog" aria-modal="true" aria-labelledby="duplicates-modal-title">
+        <div class="modal-header">
+          <h3 id="duplicates-modal-title" data-i18n="Find duplicates">Trouver les doublons</h3>
+          <button type="button" id="btn-close-duplicates" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="duplicates-scope"><span class="duplicates-scope-label" data-i18n="Scope">Portée</span> <span id="dup-scope"></span></p>
+          <!-- Type : « Images » suivi de deux boutons formant un bloc (même style que le filtre Lieu), un seul actif à la fois -->
+          <div class="settings-row duplicates-kind-row">
+            <span id="dup-kind-title" data-i18n="Images">Images</span>
+            <div id="dup-kind" class="location-filter" role="radiogroup" aria-labelledby="dup-kind-title">
+              <button type="button" class="location-filter-option" role="radio" data-value="identical" data-i18n="Identical">Identiques</button>
+              <button type="button" class="location-filter-option" role="radio" data-value="similar" data-i18n="Similar">Similaires</button>
+            </div>
+          </div>
+
+          <!-- Identiques : hash des données image et/ou nom de fichier ; un groupe est formé si l'un des deux critères coché le trouve -->
+          <!-- Les deux jeux de réglages occupent la même cellule : la fenêtre garde toujours la hauteur du plus grand -->
+          <div class="duplicates-panels">
+          <section id="dup-identical" class="settings-section">
+            <label class="settings-row settings-check"><input id="dup-hash" type="checkbox" /><span data-i18n="Same image data">Mêmes données image</span></label>
+            <label class="settings-row settings-check duplicates-sub"><input id="dup-ignore-metadata" type="checkbox" /><span data-i18n="Ignore metadata" id="dup-ignore-metadata-label">Ignorer les métadonnées</span></label>
+            <label class="settings-row settings-check"><input id="dup-name" type="checkbox" /><span data-i18n="Same file name">Même nom de fichier</span></label>
+            <p class="sort-note duplicates-hint" data-i18n="Duplicate name rule hint">Deux noms correspondent si la clé de l’un contient celle de l’autre.</p>
+            <div class="raw-pattern-grid duplicates-sub">
+              <label for="dup-pattern" data-i18n="Part of the name to compare (regular expression)">Partie du nom à comparer (expression régulière)</label>
+              <input id="dup-pattern" type="text" placeholder="^(IMG_\d+)" autocomplete="off" spellcheck="false" title="Le premier groupe entre parenthèses sert de clé. Vide : nom entier sans extension." data-i18n-title="Duplicate name pattern help" />
+              <label for="dup-pattern-test" data-i18n="Test with a filename">Tester avec un nom</label>
+              <input id="dup-pattern-test" type="text" placeholder="IMG_1234-small.jpg" autocomplete="off" spellcheck="false" />
+              <p id="dup-pattern-result" class="raw-pattern-result" role="status"></p>
+              <label for="dup-min-length" data-i18n="Shortest key compared">Clé la plus courte comparée</label>
+              <input id="dup-min-length" type="number" min="2" max="50" step="1" />
+            </div>
+            <label class="settings-row settings-check duplicates-sub"><input id="dup-name-date" type="checkbox" /><span data-i18n="Also require the same date taken">Exiger aussi la même date de prise de vue</span></label>
+            <label class="settings-row settings-check duplicates-sub"><input id="dup-name-raw" type="checkbox" /><span data-i18n="Include the RAW of a JPEG and the other way round">Inclure le RAW d'un JPEG et inversement</span></label>
+          </section>
+
+          <!-- Similaires : empreinte visuelle (pHash) -->
+          <section id="dup-similar" class="settings-section inactive" inert>
+            <label class="settings-row" for="dup-sensitivity"><span id="dup-sensitivity-label" data-i18n="Sensitivity">Sensibilité</span>
+              <select id="dup-sensitivity">
+                <option value="strict" data-i18n="Strict (almost identical)">Stricte (presque identiques)</option>
+                <option value="normal" data-i18n="Normal">Normale</option>
+                <option value="loose" data-i18n="Loose (more false matches)">Large (plus de faux positifs)</option>
+              </select></label>
+            <label class="settings-row settings-check"><input id="dup-rotations" type="checkbox" /><span data-i18n="Also find rotated and mirrored copies">Trouver aussi les copies pivotées ou en miroir</span></label>
+            <label class="settings-row settings-check"><input id="dup-bursts" type="checkbox" /><span data-i18n="Ignore bursts">Ignorer les rafales</span></label>
+            <label class="settings-row duplicates-sub" for="dup-burst-ms"><span data-i18n="Photos taken less than this apart (ms)">Photos prises à moins de (ms)</span>
+              <input id="dup-burst-ms" type="number" min="0" max="60000" step="100" /></label>
+            <label class="settings-row settings-check"><input id="dup-similar-raw" type="checkbox" /><span data-i18n="Include the RAW of a JPEG and the other way round">Inclure le RAW d'un JPEG et inversement</span></label>
+          </section>
+
+          </div>
+
+          <section class="settings-section">
+            <h4 data-i18n="Where to search">Où chercher</h4>
+            <label id="dup-subfolders-row" class="settings-row settings-check"><input id="dup-subfolders" type="checkbox" /><span data-i18n="Include subfolders">Inclure les sous-dossiers</span></label>
+            <label class="settings-row settings-check"><input id="dup-library" type="checkbox" /><span data-i18n="Also compare with the rest of the library">Comparer aussi avec le reste de la photothèque</span></label>
+            <p class="sort-note duplicates-hint" data-i18n="Library comparison hint">Plus lent la première fois ; les résultats peuvent inclure des photos hors de la portée.</p>
+          </section>
+          <!-- Enregistrement des réglages du type choisi (la portée n'est jamais enregistrée) : appliqué au lancement -->
+          <div class="duplicates-actions">
+            <label class="settings-row settings-check duplicates-save"><input id="dup-save" type="checkbox" /><span id="dup-save-label"></span></label>
+            <button type="button" id="dup-cancel" data-i18n="Cancel">Annuler</button>
+            <button type="button" id="dup-run" class="btn-primary" data-i18n="Search">Chercher</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Panneau flottant « Meilleure copie » des résultats de doublons (duplicates-modal.js) : il reste ouvert pendant qu'on regarde la grille ; chaque réglage s'applique aussitôt -->
+    <div id="duplicates-keep-panel" class="duplicates-keep-panel" role="region" aria-labelledby="duplicates-keep-title" hidden>
+      <div class="duplicates-keep-header">
+        <h3 id="duplicates-keep-title" data-i18n="Best copy">Meilleure copie</h3>
+        <button type="button" id="btn-close-duplicates-keep" class="close-x" title="Fermer" aria-label="Fermer" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+      </div>
+      <p class="sort-note duplicates-keep-help" data-i18n="Best copy help">Les critères cochés départagent les copies de chaque groupe, dans l'ordre. La première copie est la meilleure : elle porte la médaille et reste après « Sélectionner les doublons ».</p>
+      <ul id="dup-keep-list" class="duplicates-keep-list"></ul>
+      <!-- Réglages hors de la liste : direction de la date, puis texte du chemin (appliqué avant les critères de la liste) -->
+      <div class="duplicates-keep-section">
+        <span id="dup-keep-date-label" data-i18n="Date priority label">Priorité à la date la plus</span>
+        <div id="dup-keep-date" class="location-filter" role="radiogroup" aria-labelledby="dup-keep-date-label">
+          <button type="button" class="location-filter-option" role="radio" data-value="oldest" data-i18n="Oldest (date)">Ancienne</button>
+          <button type="button" class="location-filter-option" role="radio" data-value="newest" data-i18n="Newest (date)">Récente</button>
+        </div>
+      </div>
+      <div class="duplicates-keep-section duplicates-keep-path-section">
+        <label class="duplicates-keep-path-row" for="dup-keep-path"><span data-i18n="Text in the path">Texte dans le chemin</span>
+          <input id="dup-keep-path" type="text" autocomplete="off" spellcheck="false" placeholder="originals" /></label>
+        <div class="duplicates-keep-path-row">
+          <span id="dup-keep-path-mode-label" data-i18n="A path containing this text is">Un chemin contenant ce texte est</span>
+          <div id="dup-keep-path-mode" class="location-filter" role="radiogroup" aria-labelledby="dup-keep-path-mode-label">
+            <button type="button" class="location-filter-option" role="radio" data-value="prefer" data-i18n="Path preferred">Préféré</button>
+            <button type="button" class="location-filter-option" role="radio" data-value="avoid" data-i18n="Path to avoid">À éviter</button>
+          </div>
+        </div>
+        <p class="sort-note duplicates-keep-hint" data-i18n="Path text hint">Cherché dans le chemin complet, casse ignorée. Appliqué avant les critères de la liste ; vide : sans effet.</p>
       </div>
     </div>
     <!-- Modale À propos -->

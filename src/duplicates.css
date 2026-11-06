@@ -1,0 +1,57 @@
+/* Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. */
+.duplicates-banner { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0.75rem; background: var(--control-bg); color: var(--text-strong); border-bottom: 1px solid var(--control-border); font-size: 0.8rem; }
+.duplicates-banner[hidden] { display: none; }
+.duplicates-back { flex: 0 0 auto; padding: 0.32rem 0.7rem; font-size: 0.8rem; }
+.duplicates-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.duplicates-keep, .duplicates-select, .duplicates-sort { flex: 0 0 auto; padding: 0.32rem 0.7rem; font-size: 0.8rem; }
+
+/* Window "Find duplicates > More…" (duplicates-modal.js) */
+.duplicates-card { width: min(34rem, calc(100vw - 2.5rem)); }
+.duplicates-card { display: flex; flex-direction: column; max-height: 80vh; }
+.duplicates-card .modal-body { min-height: 0; overflow-y: auto; }
+.duplicates-panels { display: grid; }
+.duplicates-panels > section { grid-area: 1 / 1; }
+.duplicates-panels > section.inactive { visibility: hidden; pointer-events: none; }
+.duplicates-kind-row { justify-content: flex-start; margin-bottom: 0.9rem; }
+.duplicates-kind-row .location-filter { flex: 0 0 auto; }
+.duplicates-scope { margin: 0 0 0.75rem; color: var(--text-strong); font-size: 0.85rem; overflow-wrap: anywhere; }
+.duplicates-scope-label { color: var(--text-muted); }
+.duplicates-scope-label::after { content: ' :'; }
+.duplicates-hint { margin-top: -0.4rem; }
+.duplicates-sub { margin-left: 1.6rem; }
+.duplicates-actions .duplicates-save { margin: 0 auto 0 0; }
+.duplicates-card input[type="number"], .duplicates-card select { box-sizing: border-box; padding: 0.3rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; }
+.duplicates-card input[type="number"] { width: 5.5rem; }
+.duplicates-card input:disabled { opacity: 0.5; }
+.duplicates-card .raw-pattern-grid input[type="number"] { justify-self: start; }
+.duplicates-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--separator); }
+
+/* Results: stronger group separator (the groups are the structure of this view), and the medal of the best copy of each group. */
+.group-separator.duplicate-group { color: var(--text-strong); background: var(--control-bg); border-top: 2px solid var(--accent); }
+.group-separator.duplicate-group .group-separator-label { font-size: 0.78rem; }
+.best-badge { position: absolute; top: 6px; left: 6px; z-index: 2; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #e6b422; color: #4a3500; box-shadow: 0 1px 4px #0009; pointer-events: none; }
+.best-badge[hidden] { display: none; }
+.best-badge svg { width: 1rem; height: 1rem; }
+
+/* Dimensions and size of each copy, along the bottom edge of its thumbnail (duplicate results only). */
+.duplicate-meta { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 2px 6px; overflow: hidden; background: #000a; color: #fff; font-size: 0.68rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.duplicate-meta[hidden] { display: none; }
+
+/* Floating panel "Best copy" (duplicates-modal.js): under the banner of the results, stays open while the grid is used. */
+.duplicates-keep-panel { position: fixed; z-index: 7; width: min(24rem, calc(100vw - 1rem)); max-height: calc(100vh - 9rem); overflow-y: auto; box-sizing: border-box; padding: 0.7rem 0.9rem 0.8rem; background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--control-border); border-radius: 8px; box-shadow: 0 8px 24px #0009; font-size: 0.8rem; }
+.duplicates-keep-panel[hidden] { display: none; }
+.duplicates-keep-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
+.duplicates-keep-header h3 { margin: 0; color: var(--text-strong); font-size: 0.95rem; }
+.duplicates-keep-help { margin: 0 0 0.6rem; }
+.duplicates-keep-list { margin: 0; padding: 0; list-style: none; }
+.duplicates-keep-item { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
+.duplicates-keep-label { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.duplicates-keep-label input { accent-color: var(--accent); }
+.duplicates-keep-move { flex: 0 0 auto; width: 1.7rem; height: 1.7rem; padding: 0; font-size: 0.7rem; }
+.duplicates-keep-section { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid var(--separator); }
+.duplicates-keep-section .location-filter { flex: 0 0 auto; }
+.duplicates-keep-section .location-filter-option:disabled { opacity: 0.5; }
+.duplicates-keep-path-section { flex-direction: column; align-items: stretch; }
+.duplicates-keep-path-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.duplicates-keep-path-row input[type="text"] { flex: 0 1 11rem; min-width: 0; box-sizing: border-box; padding: 0.3rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; }
+.duplicates-keep-hint { margin: 0; }

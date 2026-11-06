@@ -896,3 +896,9 @@ body.immersive .titlebar { display: none; }
 .marking-color-popover[hidden] { display: none; }
 .marking-color-popover .marking-colors { gap: 4px; flex: 0 1 15.5rem; width: 15.5rem; max-width: 100%; min-width: 0; }
 .marking-color-popover .color-square { flex: 0 1 1.5rem; width: auto; min-width: 0.9rem; height: auto; aspect-ratio: 1; }
+/* Finished duplicate search waiting to be shown: "Show" button in the toast, and "Show" / "Dismiss" in the tasks window. */
+.task-toast-show { flex: 0 0 auto; padding: 0.25rem 0.7rem; font-size: 0.8rem; }
+.task-toast-show[hidden] { display: none; }
+.task-item-actions { grid-column: 2; grid-row: 1 / span 4; display: flex; gap: 0.4rem; }
+.task-item-dismiss[hidden] { display: none; }
+.task-item.ready .task-item-bar > span { width: 100%; }

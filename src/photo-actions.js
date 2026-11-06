@@ -5,6 +5,7 @@ import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath, isRawPath } from './main.js';
 import { isWriteLocked } from './metadata-writes.js';
 import { getWriterMode } from './metadata-settings.js';
+import { getIdenticalSettings, getSimilarSettings, describeIdenticalSettings, describeSimilarSettings } from './duplicates.js';
 import { SLIDESHOW_DELAYS, getSlideshowSettings, setSlideshowOption, isSlideshowActive, isSlideshowPaused, startSlideshow, stopSlideshow, toggleSlideshowPause } from './slideshow.js';
 
 // Actions sur les photos : menu contextuel des miniatures (remplace le menu du navigateur), fenêtre d'informations,
@@ -1391,7 +1392,7 @@ function submenuEntry(item) {
     heading.textContent = item.heading;
     return heading;
   }
-  const button = menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), shortcut: item.shortcut, disabled: Boolean(item.disabled) });
+  const button = menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), shortcut: item.shortcut, disabled: Boolean(item.disabled), title: item.title });
   if (!(item.swatch || item.glyph || item.labelClass || item.checked !== undefined)) return button;
   button.classList.add('decorated');
   button.textContent = '';
@@ -1507,6 +1508,31 @@ function buildMarkingItem(targets) {
     }
   }
   return buildSubmenuItem(t('Labels'), items);
+}
+
+// Entries of the duplicate search, `spec` = { scope, label, compareWithLibrary } handed to main.js (section DUPLICATES). The quick entries use the settings
+// saved in the "details" window; their tooltip says which ones. `short`: labels without the word "duplicates" (the submenu already says it).
+function duplicateEntries(spec, short) {
+  return [
+    { label: t(short ? 'Identical' : 'Identical duplicates'), onSelect: () => api.findDuplicates('identical', spec),
+      title: `${t('Same image data (or file name)')}
+${t('Saved settings: {list}', { list: describeIdenticalSettings(getIdenticalSettings()) })}` },
+    { label: t(short ? 'Similar' : 'Similar duplicates'), onSelect: () => api.findDuplicates('similar', spec),
+      title: `${t('Photos that look alike: resized, recompressed, lightly edited')}
+${t('Saved settings: {list}', { list: describeSimilarSettings(getSimilarSettings()) })}` },
+    { label: t(short ? 'Details…' : 'Duplicates: details…'), onSelect: () => api.openDuplicatesDialog(spec),
+      title: t('Choose the kind of search, its settings (file name, sensitivity, bursts…) and where to search') },
+  ];
+}
+
+// Without a RAW to look for (folder, "All photos", selection, a RAW or a video): the duplicates are the only way to find, so no "Find" level.
+function buildDuplicatesItem(spec) {
+  return buildSubmenuItem(t('Find duplicates'), duplicateEntries(spec, true));
+}
+
+// "Find" submenu: the RAW of an image, then the duplicates. `rawEntry` = a submenu entry of the RAW search.
+function buildFindItem(spec, rawEntry) {
+  return buildSubmenuItem(t('Find'), [rawEntry, { separator: true }, ...duplicateEntries(spec, false)]);
 }
 
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
@@ -1657,13 +1683,23 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (api.showInItsFolder && api.isRawSearchActive() && targets.length === 1) {
     menuItems.push(menuButton(t('Show in its folder'), () => api.showInItsFolder(photo), { title: t('Leave the search and show this file in its folder, without any filter') }));
   }
-  if (api.findRaw && targets.length === 1 && !isRawPath(photo.path) && !isVideoPath(photo.path)) {
+  // « Trouver » : le RAW d'une image raster seule (grisé tant qu'aucun critère n'est coché), puis les doublons de la sélection (une photo seule est
+  // cherchée dans toute la photothèque, une sélection aussi). Sans RAW à chercher, seul le sous-menu des doublons reste.
+  const duplicateSpec = hasResizablePhotos && api.findDuplicates ? {
+    scope: { kind: 'paths', paths: targets.filter(target => !isVideoPath(target.path)).map(target => target.path) },
+    label: targets.length > 1 ? tp('{count} photo selected', targets.length) : photoName(photo),
+    compareWithLibrary: true,
+  } : null;
+  const rawEntry = api.findRaw && targets.length === 1 && !isRawPath(photo.path) && !isVideoPath(photo.path) ? (() => {
     const available = api.canFindRaw();
-    menuItems.push(menuButton(t('Find the RAW'), () => api.findRaw(photo), {
-      disabled: !available,
+    return {
+      label: 'RAW', onSelect: () => api.findRaw(photo), disabled: !available,
       title: available ? t('Find the RAW file of this image with the criteria set in Settings > Misc > RAW') : t('Tick at least one criterion in Settings > Misc > RAW'),
-    }));
-  }
+    };
+  })() : null;
+  if (rawEntry && duplicateSpec) menuItems.push(buildFindItem(duplicateSpec, rawEntry));
+  else if (duplicateSpec) menuItems.push(buildDuplicatesItem(duplicateSpec));
+  else if (rawEntry) menuItems.push(menuButton(t('Find the RAW'), rawEntry.onSelect, { disabled: rawEntry.disabled, title: rawEntry.title }));
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
@@ -1772,6 +1808,7 @@ function openFolderMenu(event, folderItem) {
     menuButton(t('Rescan folder data'), () => api.rescanFolder(path), { title: t('Read the files of this folder again to update the list and the metadata') }),
     menuButton(t('Integrity check'), () => api.checkFolderIntegrity(path), { title: t('Check that the files of this folder can be read (detects corrupted files)') }),
   );
+  if (api.findDuplicates) menu.append(buildDuplicatesItem({ scope: { kind: 'folder', path, recursive: true }, label: baseName(path), compareWithLibrary: true }));
   if (api.faceDetectionEnabled?.()) menu.append(buildFacesItem({ folder: path }));
   menu.append(
     menuSeparator(),
@@ -1783,6 +1820,22 @@ function openFolderMenu(event, folderItem) {
   );
   contextTarget = folderItem;
   folderItem.classList.add('context-target');
+  showContextMenu(menu, event);
+}
+
+// Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
+function openAllPhotosMenu(event, item) {
+  closeContextMenu();
+  if (!api.findDuplicates) return;
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.setAttribute('role', 'menu');
+  menu.append(
+    menuHeader(t('All photos')),
+    buildDuplicatesItem({ scope: { kind: 'all' }, label: t('All photos'), compareWithLibrary: false }),
+  );
+  contextTarget = item;
+  item.classList.add('context-target');
   showContextMenu(menu, event);
 }
 
@@ -1952,6 +2005,7 @@ function onContextMenu(event) {
   const folderItem = target?.closest('#folder-tree .folder-tree-item');
   if (folderItem) {
     if (folderItem.dataset.folderPath) openFolderMenu(event, folderItem);
+    else if (folderItem.dataset.allPhotos) openAllPhotosMenu(event, folderItem);
     else closeContextMenu();
     return;
   }

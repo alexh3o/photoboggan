@@ -134,6 +134,10 @@ pub fn init_db(db_path: &str) -> DbPool {
     crate::faces::init_schema(&conn).expect("Face tables could not be created");
     // Coordonnées GPS effacées (sauvegarde pour « Restaurer la géolocalisation ») : voir geolocation.rs.
     crate::geolocation::init_schema(&conn).expect("Erased locations table could not be created");
+    // Cache of the file hashes used by the duplicate search: voir duplicates.rs (empty until a search is started).
+    crate::duplicates::init_schema(&conn).expect("Duplicate hash table could not be created");
+    // Cache of the perceptual hashes used by the similar-image search: voir similar.rs (empty until a search is started).
+    crate::similar::init_schema(&conn).expect("Perceptual hash table could not be created");
     // Zones privées de la carte : voir private_maps.rs (chargées en mémoire dès l'ouverture, pour la règle par tuile).
     crate::private_maps::init_schema(&conn).expect("Private zone table could not be created");
     if let Err(error) = crate::private_maps::reload_zones(&conn) { eprintln!("Private zones unavailable: {error}"); }
@@ -261,6 +265,21 @@ pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<
         }
     };
     photos.map_err(|e| e.to_string())
+}
+
+/// Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
+pub fn get_photos_by_paths(pool: &DbPool, paths: &[String]) -> Result<Vec<Photo>, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut photos = Vec::with_capacity(paths.len());
+    for chunk in paths.chunks(500) {
+        let marks = vec!["?"; chunk.len()].join(",");
+        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE path IN ({marks})")).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), photo_from_row).map_err(|e| e.to_string())?;
+        for row in rows {
+            photos.push(row.map_err(|e| e.to_string())?);
+        }
+    }
+    Ok(photos)
 }
 
 /// Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.

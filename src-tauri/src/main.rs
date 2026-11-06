@@ -2,11 +2,14 @@
 
 mod albums;
 mod db;
+mod duplicates;
 mod exif;
 mod exiftool;
 mod face_detect;
 mod face_models;
+mod phash;
 mod place_search;
+mod similar;
 mod update_check;
 mod private_maps;
 mod geolocation;
@@ -871,6 +874,47 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
     outcome.map_err(|error| error.to_string())?
 }
 
+// Duplicate search, identical images (see duplicates.rs): the scope is resolved in the backend, only groups of paths are returned. Progress goes through
+// "scan-progress" like the other queue tasks; stopping (cancel_scan) returns a report flagged `cancelled`. The catalog only gets the hash cache.
+#[tauri::command]
+async fn find_duplicates(app: tauri::AppHandle, state: State<'_, AppState>, request: duplicates::Request, task_id: String) -> Result<duplicates::Report, String> {
+    let pool = state.pool();
+    let cancel = scan_cancel_flag(&task_id);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let publish = |fraction: f64| {
+            let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
+        };
+        duplicates::run(&pool, &request, &cancel, &publish)
+    }).await;
+    release_scan_cancel_flag(&task_id);
+    outcome.map_err(|error| error.to_string())?
+}
+
+// Duplicate search by file name: the interface applies the name pattern (a JavaScript regular expression), so the backend only lists the photos concerned.
+#[tauri::command(async)]
+fn list_duplicate_candidates(state: State<'_, AppState>, scope: duplicates::Scope, compare_with_library: bool) -> Result<Vec<(String, String, bool)>, String> {
+    duplicates::name_candidates(&state.pool(), &scope, compare_with_library)
+}
+
+// Duplicate search, similar images (see similar.rs): same flow as find_duplicates. Fingerprints are read from the thumbnail cache when a thumbnail exists
+// (nothing is ever written there) and kept in the catalog.
+#[tauri::command]
+async fn find_similar_images(app: tauri::AppHandle, state: State<'_, AppState>, request: similar::Request, task_id: String) -> Result<duplicates::Report, String> {
+    let pool = state.pool();
+    let thumbnails_dir = state.thumbnails_dir();
+    let cancel = scan_cancel_flag(&task_id);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let publish = |fraction: f64| {
+            let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
+        };
+        similar::run(&pool, &thumbnails_dir, &request, &cancel, &publish)
+    }).await;
+    release_scan_cancel_flag(&task_id);
+    outcome.map_err(|error| error.to_string())?
+}
+
 // Exporte le rapport d'intégrité en .txt dans le dossier choisi par l'utilisateur : texte d'en-tête fourni par l'interface, puis fichiers suspects au format CSV.
 // Renvoie le chemin du fichier créé (jamais d'écrasement).
 #[tauri::command(async)]
@@ -948,6 +992,15 @@ fn insert_batch(conn: &rusqlite::Connection, photos: &[Photo]) -> rusqlite::Resu
         }
     }
     tx.commit()
+}
+
+// Catalog records of a list of paths (results of the duplicate search); unknown paths are left out.
+#[tauri::command]
+fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Photo> {
+    db::get_photos_by_paths(&state.pool(), &paths).unwrap_or_else(|error| {
+        eprintln!("Photos by path unavailable: {error}");
+        Vec::new()
+    })
 }
 
 #[tauri::command]
@@ -2168,6 +2221,7 @@ fn main() {
             cancel_scan,
             remove_folder,
             get_photos_paginated,
+            get_photos_by_paths,
             get_cached_thumbnail_path,
             get_cached_thumbnail_paths,
             generate_thumbnail,
@@ -2176,6 +2230,9 @@ fn main() {
             rescan_all_folders,
             rescan_folder,
             integrity_scan,
+            find_duplicates,
+            find_similar_images,
+            list_duplicate_candidates,
             export_integrity_report,
             open_folder_in_file_manager,
             create_subfolder,

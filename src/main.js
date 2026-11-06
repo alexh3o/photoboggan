@@ -8,7 +8,7 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
-import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria } from './raw-settings.js';
+import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal } from './metadata-writes.js';
@@ -30,6 +30,9 @@ import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, r
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 import { initShootingFilters, matchesShootingState } from './shooting-filters.js';
 import { initFormatFilters, matchesFormatState, RAW_EXTENSIONS, HEIF_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
+import { GROUP_SORT_MODES, GROUP_SORT_LABELS, normalizeGroupSort, formatBytes, sortGroupMembers, orderGroups, firstPathOf, getSimilarSettings, similarRequestFields, getIdenticalSettings, mergeGroups, describeSearch, getKeepSettings, describeKeepOrder } from './duplicates.js';
+import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel, initDuplicatesModal } from './duplicates-modal.js';
+import { findNameGroups } from './duplicate-names.js';
 import { initSlideshow,startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
@@ -165,6 +168,8 @@ const formatFilters = initFormatFilters({ onChange: () => applyPhotoFilters() })
 let currentFolderFilter = null;
 // Mode « Trouver le RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
 let rawSearch = null;
+// Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
+let duplicateSearch = null;
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
 let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
@@ -694,7 +699,11 @@ async function loadPhotos() {
   // Dans les deux cas le dossier du disque n'intervient plus.
   const album = getSelectedAlbum();
   const baseAlbumId = album?.kind === 'manual' ? album.id : album?.kind === 'smart' ? getAlbumContext(album.id).baseManualId : 0;
-  if (baseAlbumId) {
+  if (duplicateSearch) {
+    // Duplicate results: only the photos of the groups, never the folder or album view (also used when the mode reloads after a rescan).
+    loadedPhotos = await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() });
+    indexDuplicateGroups();
+  } else if (baseAlbumId) {
     loadedPhotos = await invoke('get_album_photos', { albumId: baseAlbumId });
   } else {
     loadedPhotos = await invoke('get_photos_paginated', {
@@ -705,7 +714,7 @@ async function loadPhotos() {
     });
   }
   photosLoadedOnce = true;
-  if (!album && currentFolderFilter === null) folderTreePhotos = loadedPhotos;
+  if (!album && currentFolderFilter === null && !duplicateSearch) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
@@ -838,6 +847,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   }
   updateFilteredPhotosCount();
   renderRawSearchBanner(); // mode « Trouver le RAW » : le nombre de résultats suit les filtres
+  renderDuplicateBanner(); // duplicate search: the counts follow the filters
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
 }
@@ -1523,6 +1533,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
 
   const allItem = document.createElement('li');
   allItem.className = `folder-tree-item ${currentFolderFilter === null && !getSelectedAlbum() ? 'active' : ''}`;
+  allItem.dataset.allPhotos = '1'; // read by the context menu (photo-actions.js)
   allItem.innerHTML = `<span>📚</span> <span class="folder-tree-name">${t('All photos')}</span>`;
   if (showFolderCounts) allItem.append(folderCountElement(folderCountsTotal, 'in this folder'));
   allItem.addEventListener('click', () => selectFolder(null));
@@ -1700,6 +1711,7 @@ function selectFolder(path) {
     return;
   }
   abandonRawSearch(); // naviguer à la main termine « Trouver le RAW » : les filtres d'avant la recherche reviennent
+  abandonDuplicateSearch(); // same for the duplicate search
   clearAlbumSelection(); // une seule entrée active dans la barre latérale
   syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
   currentFolderFilter = path;
@@ -1759,6 +1771,11 @@ async function exitRawSearch() {
   if (!rawSearch) return;
   const { snapshot } = rawSearch;
   abandonRawSearch();
+  await restoreViewSnapshot(snapshot);
+}
+
+// Reopens the view saved before a results mode (folder or album, scroll, selection). The caller has already left the mode.
+async function restoreViewSnapshot(snapshot) {
   if (snapshot.albumId) {
     restoreAlbumSelection(snapshot.albumId);
     syncSmartAlbumWithSelection(); // album intelligent : ses filtres reviennent
@@ -1779,9 +1796,10 @@ async function exitRawSearch() {
 // « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossier du
 // fichier dans l'arbre, sans aucun filtre, avec le fichier sélectionné et visible dans la grille.
 async function showPhotoInItsFolder(photo) {
-  if (!photo || !rawSearch) return;
+  if (!photo || !(rawSearch || duplicateSearch)) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
+  abandonDuplicateSearch();
   resetAllFilters(); // aucun filtre dans le dossier du fichier, pas même ceux d'avant la recherche
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
@@ -1803,6 +1821,20 @@ async function showPhotoInItsFolder(photo) {
     updateUIOnSelection();
   }
   document.querySelector('#folder-tree .folder-tree-item.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+// Everything needed to come back to the current view after a results mode (folder or album, filters, scroll, selection).
+function captureViewSnapshot(album = getSelectedAlbum()) {
+  return {
+    folder: currentFolderFilter,
+    includeSubfolders,
+    albumId: album?.id ?? 0,
+    albumKind: album?.kind ?? null,
+    filterState: captureFilterState(),
+    scrollTop: gridContainer.scrollTop,
+    selectedPaths: [...selectedIndices].map(index => photos[index]?.path).filter(Boolean),
+    lastPath: photos[lastSelectedIndex]?.path,
+  };
 }
 
 const RAW_CRITERION_LABELS ={ name: 'Filename', date: 'Date', gear: 'Gear', shooting: 'Shooting' };
@@ -1837,16 +1869,9 @@ async function findRawFor(photo) {
 
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = rawSearch?.snapshot ?? {
-    folder: currentFolderFilter,
-    includeSubfolders,
-    albumId: album?.id ?? 0,
-    albumKind: album?.kind ?? null,
-    filterState: captureFilterState(),
-    scrollTop: gridContainer.scrollTop,
-    selectedPaths: [...selectedIndices].map(index => photos[index]?.path).filter(Boolean),
-    lastPath: photos[lastSelectedIndex]?.path,
-  };
+  const snapshot = rawSearch?.snapshot ?? duplicateSearch?.snapshot ?? captureViewSnapshot(album);
+  duplicateSearch = null; // a duplicate search in progress ends here; the view saved above is the one to go back to
+  renderDuplicateBanner();
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   resetAllFilters();
@@ -1988,6 +2013,16 @@ function updateVirtualScroller() {
   renderVisibleItems();
 }
 
+// Medal of the best copy in the duplicate results.
+const BEST_BADGE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h4l1.2 6.2-3.4 1.8zM17 2h-4l-1.2 6.2 3.4 1.8z" fill="currentColor" opacity="0.65"/><circle cx="12" cy="15" r="6.5" fill="currentColor"/><path d="M12 11.2l1.1 2.3 2.5.3-1.8 1.7.5 2.5-2.3-1.2-2.3 1.2.5-2.5-1.8-1.7 2.5-.3z" fill="#e6b422"/></svg>';
+function createBestBadge() {
+  const badge = document.createElement('span');
+  badge.className = 'best-badge';
+  badge.setAttribute('aria-hidden', 'true');
+  badge.innerHTML = BEST_BADGE_ICON;
+  return badge;
+}
+
 function renderVisibleItems() {
   const scrollTop = gridContainer.scrollTop;
   const overscan = Math.round(gridContainer.clientHeight * THUMBNAIL_OVERSCAN_SCREENS);
@@ -2054,6 +2089,29 @@ function renderVisibleItems() {
     if (div._flag.className !== flagClass) div._flag.className = flagClass;
     const pickClass = `pick-indicator pick-${photo.pick_flag || 'none'}`;
     if (div._pick.className !== pickClass) div._pick.className = pickClass;
+    // Duplicate results: the path on hover, to tell the copies apart (the same name can sit in several folders).
+    // The best copy of each group (first of its group) also wears a medal, created only in this mode.
+    const isBest = duplicateSearch ? duplicateSearch.best?.has(photo.path) === true : false;
+    if (div._best !== isBest) {
+      if (isBest && !div._bestBadge) {
+        div._bestBadge = createBestBadge();
+        div.querySelector('.thumbnail-inner').append(div._bestBadge);
+      }
+      if (div._bestBadge) div._bestBadge.hidden = !isBest;
+      div._best = isBest;
+    }
+    // Duplicate results: dimensions and size on the thumbnail, to choose between the copies (created only in this mode).
+    if (duplicateSearch && !div._dupMeta) {
+      div._dupMeta = Object.assign(document.createElement('span'), { className: 'duplicate-meta' });
+      div.querySelector('.thumbnail-inner').append(div._dupMeta);
+    }
+    if (div._dupMeta) {
+      const text = duplicateSearch ? [duplicateSearch.mixedFormats ? photoFormat(photo.path) : '', photo.width > 0 && photo.height > 0 ? `${photo.width}×${photo.height}` : '', photo.file_size > 0 ? formatBytes(photo.file_size) : ''].filter(Boolean).join(' · ') : '';
+      if (div._dupMeta.textContent !== text) div._dupMeta.textContent = text;
+      div._dupMeta.hidden = !text;
+    }
+    const hoverTitle = duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
+    if (div._hoverTitle !== hoverTitle) { div.title = hoverTitle; div._hoverTitle = hoverTitle; }
     const located = hasGps(photo);
     if (div._located !== located) { div.classList.toggle('has-gps', located); div._located = located; }
     // Position choisie dans le mode Carte, pas encore écrite dans le fichier : pastille orange.
@@ -2084,6 +2142,7 @@ function renderVisibleSeparators(top, bottom) {
       renderedSeparatorNodes.set(separator.group, node);
       scrollContent.appendChild(node);
     }
+    node.classList.toggle('duplicate-group', Boolean(duplicateSearch)); // stronger look for the groups of the duplicate results
     if (node._label !== separator.label) { node._text.textContent = separator.label; node._label = separator.label; }
     if (node._title !== separator.title) { node.title = separator.title; node._title = separator.title; }
     const transform = `translate3d(0, ${separator.y}px, 0)`;
@@ -3012,6 +3071,7 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === 'Escape') {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
     else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
+    else if (!isFullscreen && duplicateSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (isFullscreen) closeFullscreen();
@@ -3466,6 +3526,7 @@ function separatorText(photo, mode) {
 
 // Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
 function computePhotoGroups() {
+  if (duplicateSearch && photos.length > 0) return computeDuplicateSeparators();
   const mode = activeSeparator();
   if (mode === 'none' || photos.length === 0) return [];
   const groups = [];
@@ -3483,6 +3544,12 @@ function computePhotoGroups() {
 }
 
 function comparePhotosForSort(a, b) {
+  // Duplicate results: groups in the chosen group order, members best first inside each group.
+  if (duplicateSearch) {
+    const orderA = duplicateSearch.order.get(a.path);
+    const orderB = duplicateSearch.order.get(b.path);
+    if (orderA && orderB) return duplicateSearch.position.get(orderA.group) - duplicateSearch.position.get(orderB.group) || orderA.rank - orderB.rank;
+  }
   // Tri par nom avec séparateur par dossier : les dossiers d'abord (dans le sens choisi), puis les noms au sein de chaque dossier.
   if (activeSeparator() === 'folder') {
     const folderResult = compareFolders(a, b);
@@ -4208,7 +4275,12 @@ const normalizeTaskPath = path => path.replace(/\\/g, '/').replace(/\/+$/, '').t
 const taskName = task => task.displayName ?? t(task.labelKey, task.labelParams);
 const taskPercent = task => Math.max(0, Math.min(100, Math.round(task.percent)));
 
+// A 'ready' task has finished and only waits for the user to show its results: it stays in the list (and warns before quitting) but is not work in
+// progress, so it never holds back the queue, the library synchronisation or the reload shortcut.
+const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready').length;
+
 function taskStatusText(task) {
+  if (task.status === 'ready') return tp('Results ready: {count} group', task.groupCount);
   if (task.status === 'waiting') return t('Waiting');
   if (task.stopRequested) return t('Stopping…');
   return `${taskPercent(task)} %`;
@@ -4273,7 +4345,13 @@ function buildTaskToast(task) {
     task.toastHidden = true; // le toast se ferme, la tâche continue (elle reste dans la fenêtre des actions)
     syncTaskUI();
   });
-  toast.append(text, close);
+  // Duplicate search finished: "Show" opens the results (the button only appears while the task is 'ready').
+  const show = document.createElement('button');
+  show.type = 'button';
+  show.className = 'task-toast-show';
+  show.hidden = true;
+  show.addEventListener('click', () => showReadyDuplicateResults(task));
+  toast.append(text, show, close);
   return toast;
 }
 
@@ -4299,8 +4377,16 @@ function buildTaskRow(task) {
   const action = document.createElement('button');
   action.type = 'button';
   action.className = 'task-item-action';
-  action.addEventListener('click', () => removeOrStopTask(task));
-  row.append(name, bar, status, time, detail, action);
+  action.addEventListener('click', () => (task.status === 'ready' ? showReadyDuplicateResults(task) : removeOrStopTask(task)));
+  // A finished duplicate search whose results are not shown yet: "Show" (the main button) or "Dismiss" (this one).
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'task-item-dismiss';
+  dismiss.addEventListener('click', () => removeReadyTask(task));
+  const actions = document.createElement('div');
+  actions.className = 'task-item-actions';
+  actions.append(action, dismiss);
+  row.append(name, bar, status, time, detail, actions);
   return row;
 }
 
@@ -4316,6 +4402,9 @@ function syncTaskUI() {
     toast.classList.toggle('waiting', task.status === 'waiting');
     const textElement = toast.querySelector('.task-toast-text');
     textElement.textContent = `${taskName(task)} · ${taskStatusText(task)}`;
+    const showButton = toast.querySelector('.task-toast-show');
+    showButton.hidden = task.status !== 'ready';
+    showButton.textContent = t('Show');
     // Dossier en cours d'analyse (vérification d'intégrité), sur une seconde ligne.
     if (task.detail && task.status === 'running') {
       const detail = document.createElement('span');
@@ -4357,9 +4446,13 @@ function syncTaskUI() {
     const bar = row.querySelector('.task-item-bar');
     bar.setAttribute('aria-valuenow', String(task.status === 'waiting' ? 0 : taskPercent(task)));
     bar.querySelector('span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
+    row.classList.toggle('ready', task.status === 'ready');
     const action = row.querySelector('.task-item-action');
-    action.textContent = task.status === 'waiting' ? t('Remove from queue') : t('Stop');
+    action.textContent = task.status === 'ready' ? t('Show') : task.status === 'waiting' ? t('Remove from queue') : t('Stop');
     action.disabled = task.stopRequested;
+    const dismiss = row.querySelector('.task-item-dismiss');
+    dismiss.hidden = task.status !== 'ready';
+    dismiss.textContent = t('Dismiss');
     return row;
   });
   for (const [task, row] of taskRowElements) {
@@ -4421,9 +4514,13 @@ function closeTasksModal() {
 // « Afficher les tâches » et « Annuler » gardent l'application ouverte (le premier ouvre en plus la fenêtre des actions).
 async function confirmCloseWithRunningTasks() {
   if (scanTasks.length === 0) return true;
+  const active = activeTaskCount();
   const choice = await choiceDialog({
     title: t('Tasks in progress'),
-    message: tp('{count} task is running. Quitting now interrupts it.', scanTasks.length, { count: scanTasks.length }),
+    // Only finished searches left: nothing is interrupted, but their results are lost.
+    message: active > 0
+      ? tp('{count} task is running. Quitting now interrupts it.', active, { count: active })
+      : tp('{count} search result has not been shown yet. Quitting now discards it.', scanTasks.length, { count: scanTasks.length }),
     buttons: [
       { label: t('Quit anyway'), value: 'quit', tone: 'red' },
       { label: t('Show tasks'), value: 'show', primary: true },
@@ -4450,7 +4547,7 @@ window.addEventListener('keydown', event => {
 // existe, le rechargement est donc refusé, avec une explication.
 window.addEventListener('keydown', event => {
   const isReload = event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r');
-  if (!isReload || scanTasks.length === 0) return;
+  if (!isReload || activeTaskCount() === 0) return;
   event.preventDefault();
   showWriteToast(t('Reload disabled while tasks are running'));
 });
@@ -4486,6 +4583,10 @@ async function reloadPhotosAfterRescan() {
 // Retire une tâche en attente de la file, ou demande l'arrêt de la tâche en cours (les photos déjà lues restent dans le catalogue ;
 // les fichiers non lus d'un dossier sont repris par la synchronisation avec le disque, ou par une nouvelle relecture).
 function removeOrStopTask(task) {
+  if (task.status === 'ready') {
+    removeReadyTask(task);
+    return;
+  }
   if (task.status === 'waiting') {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
@@ -4495,7 +4596,7 @@ function removeOrStopTask(task) {
   } else if (!task.stopRequested) {
     task.stopRequested = true;
     syncTaskUI();
-    if (!task.runner) invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Scan stop failed', error));
+    if (!task.runner || task.kind === 'duplicates') invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Scan stop failed', error));
   }
 }
 
@@ -4514,7 +4615,13 @@ const hasFileTask = () => scanTasks.some(task => FILE_TASK_KINDS.includes(task.k
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
 // `runner(task, setPercent)` (facultatif) : tâche pilotée par l'interface (redimensionnement), exécutée à la place de la commande du backend ;
 // elle doit surveiller `task.stopRequested` et publier son avancement avec `setPercent`.
-function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, runner }) {
+function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey }) {
+  // `dedupeKey` (duplicate search): refused while a task with the same key is running or waiting.
+  const sameKey = dedupeKey && scanTasks.find(task => task.dedupeKey === dedupeKey && !task.stopRequested && task.status !== 'ready');
+  if (sameKey) {
+    showWriteToast(t('A duplicate search on this is already in progress or waiting: {name}', { name: taskName(sameKey) }));
+    return false;
+  }
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
   const isIntegrity = kind === 'integrity';
   // Familles de tâches qui ne se bloquent pas entre elles : scans et relectures, vérifications d'intégrité, écritures de mots-clés
@@ -4524,9 +4631,11 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
     : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models' : taskKind === 'update' ? 'update'
     // Téléchargement d'une zone privée de la carte : une tâche par zone, jamais refusée comme doublon.
     : taskKind === 'private-map' ? 'private-map'
+    // Duplicate search: its own family, never refused as a duplicate of another task (each search is queued).
+    : taskKind === 'duplicates' ? 'duplicates'
     : FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan');
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || FILE_TASK_KINDS.includes(kind) ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
@@ -4536,7 +4645,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   scanTaskCounter += 1;
   scanTasks.push({
     id: `scan-${Date.now()}-${scanTaskCounter}`,
-    kind, path, command, args, labelKey, labelParams, onResult, runner,
+    kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
   syncTaskUI();
@@ -4556,7 +4665,7 @@ async function pumpScanQueue() {
     scanPumpActive = false;
   }
   // File vide : synchronisation demandée pendant qu'elle travaillait (fichiers créés par l'application, voir syncLibrary).
-  if (syncAfterTasks && scanTasks.length === 0) runRequestedSync();
+  if (syncAfterTasks && activeTaskCount() === 0) runRequestedSync();
 }
 
 async function runScanTask(task) {
@@ -4570,17 +4679,18 @@ async function runScanTask(task) {
     task.percent = 100;
     syncTaskUI();
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
-    if (task.onResult) await task.onResult(result, task.stopRequested, null); // tâche qui traite elle-même son résultat (mots-clés)
+    if (task.onResult) await task.onResult(result, task.stopRequested, null, task); // tâche qui traite elle-même son résultat (mots-clés) ; elle peut passer en 'ready' (recherche de doublons)
     else if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
     else await reloadPhotosAfterRescan();
     if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
     console.error('Rescan failed', error);
-    if (task.onResult) await task.onResult(null, task.stopRequested, error);
+    if (task.onResult) await task.onResult(null, task.stopRequested, error, task);
     else showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
   } finally {
+    // A task that finished with results to show stays in the list ('ready') until the user shows or dismisses them.
     const position = scanTasks.indexOf(task);
-    if (position >= 0) scanTasks.splice(position, 1);
+    if (position >= 0 && task.status !== 'ready') scanTasks.splice(position, 1);
     syncTaskUI();
   }
 }
@@ -4596,6 +4706,324 @@ function checkFolderIntegrity(path) {
 // Rescan d'un dossier de l'arborescence (sous-dossiers compris), lancé depuis son menu contextuel.
 function rescanFolder(path) {
   return enqueueScanTask({ kind: 'rescan-folder', path, command: 'rescan_folder', args: { path }, labelKey: 'Folder data rescan: {folder}', labelParams: { folder: folderBaseName(path) } });
+}
+
+// ==========================================
+// DUPLICATES
+// ==========================================
+// Right click > "Find duplicates" (a photo, a selection, a folder or "All photos"): the backend (duplicates.rs) searches as a queue task and returns groups
+// of paths. They open in the main grid in a results mode like "Find the RAW": a banner brings back the view saved before (snapshot), the filters
+// are cleared, a separator heads each group, and the groups are ordered by quantity, total size or path (button of the banner).
+// Navigating by hand (folder, album) ends the mode without going back.
+const DUPLICATE_SORT_KEY = 'duplicateGroupSort';
+
+// Groups of the mode with the members found in the catalog, ranked. Called after each load of the mode's photos (loadedPhotos is up to date).
+function indexDuplicateGroups() {
+  const search = duplicateSearch;
+  const byPath = new Map(loadedPhotos.map(photo => [photo.path, photo]));
+  search.groups = [];
+  const keep = getKeepSettings(); // read once: the groups are ranked with the same settings
+  search.groupPaths.forEach((paths, position) => {
+    const members = sortGroupMembers(paths.map(path => byPath.get(path)).filter(Boolean), keep);
+    if (members.length < 2) return; // photos removed since the search leave nothing to compare
+    search.groups.push({ id: search.groups.length, members, reasons: search.groupReasons?.[position] ?? [], bytes: members.reduce((sum, photo) => sum + (photo.file_size || 0), 0), firstPath: firstPathOf(members) });
+  });
+  // Best copies, wearing the medal. One per group; with RAW and JPEG searched together, one per format and only for a format that has several copies in
+  // the group (a lone JPEG next to its RAW is not "the best" of anything).
+  search.best = new Set();
+  for (const group of search.groups) {
+    if (!search.mixedFormats) { search.best.add(group.members[0].path); continue; }
+    const byFormat = new Map();
+    for (const photo of group.members) {
+      const format = photoFormat(photo.path);
+      byFormat.set(format, [...(byFormat.get(format) ?? []), photo]);
+    }
+    for (const copies of byFormat.values()) if (copies.length > 1) search.best.add(copies[0].path);
+  }
+  rankDuplicateGroups();
+}
+
+// File format shown and compared in the duplicate results: the extension in capitals (JPEG and JFIF count as JPG).
+function photoFormat(path) {
+  const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+  return (extension === 'jpeg' || extension === 'jfif' ? 'jpg' : extension).toUpperCase();
+}
+
+// Position of each group in the chosen order, and group and rank of each photo (read by the grid sort).
+function rankDuplicateGroups() {
+  const search = duplicateSearch;
+  search.position = new Map(orderGroups(search.groups, search.sortMode).map((group, index) => [group.id, index]));
+  search.order = new Map();
+  for (const group of search.groups) group.members.forEach((photo, rank) => search.order.set(photo.path, { group: group.id, rank }));
+}
+
+// Separators of the grid: one per group, as groups of consecutive photos (the list is already sorted by group). The label gives the group number,
+// its image count and total size as displayed (filters can hide members).
+function computeDuplicateSeparators() {
+  const groups = [];
+  let current = null;
+  let currentId = null;
+  for (let i = 0; i < photos.length; i++) {
+    const id = duplicateSearch.order.get(photos[i].path)?.group ?? -1;
+    if (current && id === currentId) continue;
+    if (current) current.end = i;
+    current = { start: i, end: photos.length, id };
+    currentId = id;
+    groups.push(current);
+  }
+  for (const group of groups) {
+    let bytes = 0;
+    for (let i = group.start; i < group.end; i++) bytes += photos[i].file_size || 0;
+    const number = (duplicateSearch.position.get(group.id) ?? 0) + 1;
+    // With several criteria, the label says which ones found the group.
+    const reasons = duplicateSearch.groups[group.id]?.reasons ?? [];
+    group.label = [t('Group {number}', { number }), tp('{count} image', group.end - group.start), formatBytes(bytes), ...(reasons.length ? [reasons.map(reason => t(DUPLICATE_REASONS[reason])).join(' + ')] : [])].join(' · ');
+    group.title = '';
+  }
+  return groups;
+}
+
+function renderDuplicateBanner() {
+  // Elements read at each call: the function can run before this section of the module has been executed.
+  const banner = document.getElementById('duplicates-banner');
+  if (!banner) return;
+  banner.hidden = !duplicateSearch;
+  if (!duplicateSearch) return;
+  const shownGroups = new Set(photos.map(photo => duplicateSearch.order.get(photo.path)?.group)).size;
+  const text = document.getElementById('duplicates-text');
+  text.textContent = `${t(duplicateSearch.titleKey)} · ${duplicateSearch.label} · ${tp('{count} group', shownGroups)} · ${tp('{count} image', photos.length)}`;
+  text.title = [duplicateSearch.note, t('Best copy: {list}', { list: describeKeepOrder(getKeepSettings()) || '—' })].filter(Boolean).join('\n');
+  const keepButton = document.getElementById('duplicates-keep');
+  keepButton.textContent = t('Best copy…');
+  keepButton.title = t('Choose how the best copy of each group is picked');
+  const select = document.getElementById('duplicates-select');
+  select.textContent = t('Select duplicates');
+  select.title = t('Select every copy except the best one of each group, then use Delete to send them to the trash');
+  select.hidden = duplicateSearch.mixedFormats; // with RAW and JPEG together a cleanup could remove the only RAW: never offered
+  const sort = document.getElementById('duplicates-sort');
+  sort.textContent = t(GROUP_SORT_LABELS[duplicateSearch.sortMode]);
+  sort.title = t('Sort the groups by number of images, total size or path');
+}
+
+document.getElementById('duplicates-back')?.addEventListener('click', () => exitDuplicateSearch());
+
+// "Best copy…": the order of the criteria changes who wears the medal. The groups are ranked again at once; the selection is emptied, because the
+// copies it held are no longer the ones to remove.
+function rankDuplicatesAgain() {
+  if (!duplicateSearch) return;
+  indexDuplicateGroups();
+  fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
+  applyPhotoFilters({ keepState: true });
+  selectedIndices.clear();
+  if (photos.length > 0) {
+    lastSelectedIndex = Math.min(lastSelectedIndex, photos.length - 1);
+    selectedIndices.add(lastSelectedIndex);
+    renderVisibleItems();
+    updateUIOnSelection();
+  }
+}
+document.getElementById('duplicates-keep')?.addEventListener('click', () => toggleKeepPanel(rankDuplicatesAgain));
+
+// Cleanup, first step: selects every copy except the best one of each group, among the photos displayed. Nothing is deleted here: the selection is then
+// handled like any other (Delete key or context menu, with the usual confirmation and the trash). A group whose best copy is hidden by a filter is left
+// alone, so a cleanup can never take away every copy of a picture.
+function selectDuplicatesExceptBest() {
+  if (!duplicateSearch || duplicateSearch.mixedFormats) return;
+  const groupsWithBest = new Set();
+  for (const photo of photos) {
+    const info = duplicateSearch.order.get(photo.path);
+    if (info?.rank === 0) groupsWithBest.add(info.group);
+  }
+  selectedIndices.clear();
+  photos.forEach((photo, index) => {
+    const info = duplicateSearch.order.get(photo.path);
+    if (info && info.rank > 0 && groupsWithBest.has(info.group)) selectedIndices.add(index);
+  });
+  if (selectedIndices.size === 0) {
+    showWriteToast(t('No duplicate to select'));
+    return;
+  }
+  lastSelectedIndex = Math.min(...selectedIndices);
+  scrollToPhotoIndex(lastSelectedIndex);
+  renderVisibleItems();
+  updateUIOnSelection();
+  showWriteToast(tp('{count} duplicate selected: the best copy of each group is kept', selectedIndices.size));
+}
+document.getElementById('duplicates-select')?.addEventListener('click', selectDuplicatesExceptBest);
+document.getElementById('duplicates-sort')?.addEventListener('click', () => {
+  if (!duplicateSearch) return;
+  duplicateSearch.sortMode = GROUP_SORT_MODES[(GROUP_SORT_MODES.indexOf(duplicateSearch.sortMode) + 1) % GROUP_SORT_MODES.length];
+  localStorage.setItem(DUPLICATE_SORT_KEY, duplicateSearch.sortMode);
+  rankDuplicateGroups();
+  fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
+  applyPhotoFilters({ keepState: true });
+});
+
+// Ends the mode without reopening the previous view: puts back the sub-folder option and the filters of before the search (except those of a smart
+// album, which going back to the album reloads itself). The caller shows whatever comes next.
+function abandonDuplicateSearch() {
+  if (!duplicateSearch) return;
+  const { snapshot } = duplicateSearch;
+  duplicateSearch = null;
+  closeKeepPanel(); // the floating "Best copy" panel belongs to the results
+  setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
+  resetAllFilters();
+  if (snapshot.albumKind !== 'smart') applyFilterState(snapshot.filterState);
+  renderDuplicateBanner();
+}
+
+// "Back" button and Escape.
+async function exitDuplicateSearch() {
+  if (!duplicateSearch) return;
+  const { snapshot } = duplicateSearch;
+  abandonDuplicateSearch();
+  await restoreViewSnapshot(snapshot);
+}
+
+// Returns false when the user declined to leave a modified smart album (nothing shown).
+async function showDuplicateResults(result, titleKey, label, context) {
+  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
+  if (isFullscreen) closeFullscreen();
+  const album = getSelectedAlbum();
+  const snapshot = duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
+  abandonRawSearch(); // restores the filters of before "Find the RAW"; the snapshot above is the view to go back to
+  clearAlbumSelection();
+  syncSmartAlbumWithSelection();
+  resetAllFilters();
+  currentFolderFilter = null;
+  // What the search could not do, in the tooltip of the banner.
+  const note = [
+    context.criteria,
+    result.wholeFileExtensions?.length ? t('Metadata could not be ignored for: {list}', { list: result.wholeFileExtensions.join(', ') }) : '',
+    result.unsupported > 0 ? tp('{count} photo could not be compared (format not supported)', result.unsupported) : '',
+    result.skippedGroups > 0 ? tp('{count} group was left out because it was too large: lower the sensitivity', result.skippedGroups) : '',
+  ].filter(Boolean).join('\n');
+  duplicateSearch = {
+    titleKey, label, snapshot, note, groupPaths: result.groups, groupReasons: result.reasons ?? null, mixedFormats: context.mixedFormats,
+    sortMode: normalizeGroupSort(localStorage.getItem(DUPLICATE_SORT_KEY)),
+    groups: [], order: new Map(), position: new Map(),
+  };
+  renderFolderTree();
+  await loadPhotos();
+  return true;
+}
+
+// "Show" (toast or tasks window): opens the results of a finished search, then the task leaves the list.
+async function showReadyDuplicateResults(task) {
+  if (task.status !== 'ready' || task.showing) return;
+  task.showing = true; // a double click must not open the results twice
+  try {
+    if (!(await showDuplicateResults(task.result, task.titleKey, task.resultLabel, task.context))) return;
+    closeTasksModal();
+    removeReadyTask(task);
+  } finally {
+    task.showing = false;
+  }
+}
+
+function removeReadyTask(task) {
+  const position = scanTasks.indexOf(task);
+  if (position >= 0) scanTasks.splice(position, 1);
+  task.result = null; // the groups are not kept once the task is gone
+  syncTaskUI();
+}
+
+// A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in the list
+// ('ready') and its toast announces the results: the view is never changed without the user's click.
+async function handleDuplicatesResult(result, stopped, error, titleKey, label, task, context) {
+  if (error) {
+    showWriteToast(t('Duplicate search failed: {error}', { error }));
+    return;
+  }
+  if (!result || result.cancelled || stopped) return; // runScanTask announces the stop
+  if (result.groups.length === 0) {
+    showWriteToast(tp('No duplicates found among {count} photo', result.scanned));
+    return;
+  }
+  // A newer result for the same search replaces the one still waiting.
+  for (const older of scanTasks.filter(other => other !== task && other.status === 'ready' && other.dedupeKey === task.dedupeKey)) removeReadyTask(older);
+  Object.assign(task, { status: 'ready', result, groupCount: result.groups.length, titleKey, resultLabel: label, context });
+  task.toastHidden = !tasksModal.classList.contains('hidden'); // the tasks window already shows it
+}
+
+// `spec` (built by the menus of photo-actions.js): { scope, label, compareWithLibrary }, with scope = { kind: 'all' } | { kind: 'folder', path, recursive }
+// | { kind: 'paths', paths }. `settings` come from the "More…" window, otherwise from the defaults saved there (duplicates.js).
+
+// Hash of the image data and/or file name, as one task. The name search runs here (its pattern is a JavaScript regular expression, the backend only lists
+// the photos); the hash search is a backend command stopped through the task's identifier. Groups found by both are joined, each with its reasons.
+async function runIdenticalSearch({ scope, compareWithLibrary }, settings, task, setPercent) {
+  if (settings.name && compileNamePattern(settings.pattern) === undefined) throw t('Invalid pattern');
+  const parts = [];
+  let nameReport = null;
+  let hashReport = null;
+  if (settings.name) {
+    const rows = await invoke('list_duplicate_candidates', { scope, compareWithLibrary });
+    if (task.stopRequested) return { groups: [], scanned: 0, cancelled: true };
+    const candidates = rows.map(([path, dateTaken, inScope]) => ({ path, dateTaken, inScope, isRaw: RAW_EXTENSIONS.has(path.slice(path.lastIndexOf('.') + 1).toLowerCase()) }));
+    // With the hash search to come, the name search only fills the first tenth of the progress bar.
+    nameReport = await findNameGroups(candidates, settings, { shouldStop: () => task.stopRequested, onProgress: percent => setPercent(settings.hash ? percent / 10 : percent) });
+    if (nameReport.cancelled) return nameReport;
+    parts.push({ reason: 'name', groups: nameReport.groups });
+  }
+  if (settings.hash) {
+    hashReport = await invoke('find_duplicates', { request: { scope, compareWithLibrary, ignoreMetadata: settings.ignoreMetadata }, taskId: task.id });
+    if (hashReport.cancelled) return hashReport;
+    parts.push({ reason: 'hash', groups: hashReport.groups });
+  }
+  const report = {
+    scanned: Math.max(nameReport?.scanned ?? 0, hashReport?.scanned ?? 0),
+    unsupported: 0,
+    skippedGroups: nameReport?.skippedGroups ?? 0,
+    wholeFileExtensions: hashReport?.wholeFileExtensions ?? [],
+    cancelled: false,
+  };
+  if (parts.length === 1) return { ...report, groups: parts[0].groups }; // one criterion: no reason to show
+  return { ...report, ...mergeGroups(parts) };
+}
+
+const DUPLICATE_REASONS = { hash: 'Same image data', name: 'Same file name' };
+
+const DUPLICATE_KINDS = {
+  identical: {
+    settings: getIdenticalSettings,
+    // Title of the results: the image data is the main criterion; the name alone has its own title.
+    titleKey: settings => (settings.hash ? 'Identical images' : 'Same file name'),
+    labelKey: settings => (settings.hash ? 'Identical images: {scope}' : 'Same file name: {scope}'),
+    runner: (spec, settings, task, setPercent) => runIdenticalSearch(spec, settings, task, setPercent),
+  },
+  similar: {
+    settings: getSimilarSettings,
+    titleKey: () => 'Similar images',
+    labelKey: () => 'Similar images: {scope}',
+    command: 'find_similar_images',
+    request: settings => similarRequestFields(settings),
+  },
+};
+
+// `kind`: 'identical' | 'similar'.
+function findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings) {
+  const definition = DUPLICATE_KINDS[kind];
+  settings = settings ?? definition.settings();
+  // Same kind of search on the same scope (same folder, same photos, whole library): refused while another one is running or waiting.
+  const scopeKey = scope.kind === 'folder' ? `folder:${normalizeFilterPath(scope.path)}:${scope.recursive}`
+    : scope.kind === 'paths' ? `paths:${[...scope.paths].sort().join('|')}` : 'all';
+  return enqueueScanTask({
+    kind: 'duplicates', path: null, dedupeKey: `${kind}:${scopeKey}`,
+    ...(definition.runner
+      ? { runner: (task, setPercent) => definition.runner({ scope, compareWithLibrary }, settings, task, setPercent) }
+      : { command: definition.command, args: { request: { scope, compareWithLibrary, ...definition.request(settings) } } }),
+    labelKey: definition.labelKey(settings), labelParams: { scope: label },
+    onResult: (result, stopped, error, task) => handleDuplicatesResult(result, stopped, error, definition.titleKey(settings), label, task, {
+      criteria: describeSearch(kind, settings, { scope, compareWithLibrary }),
+      // RAW and JPEG searched together: results are shown per format and never offered for cleanup. (The hash search never pairs them: only the name does.)
+      mixedFormats: kind === 'identical' ? Boolean(settings.name && settings.includeRawPairs) : Boolean(settings.includeRawPairs),
+    }),
+  });
+}
+
+// "More…" window (duplicates-modal.js): the user picks the kind and the settings, then the search starts with them.
+function openDuplicatesDialog(spec) {
+  openDuplicatesModal(spec, (kind, chosenSpec, settings) => findDuplicateImages(kind, chosenSpec, settings));
 }
 
 // ==========================================
@@ -5955,7 +6383,9 @@ initPhotoActions({
   // « Trouver le RAW » (voir la section du même nom) : disponible tant qu'au moins un critère est coché dans les Paramètres.
   findRaw: findRawFor,
   canFindRaw: hasRawSearchCriteria,
-  isRawSearchActive: () => rawSearch !== null,
+  isRawSearchActive: () => rawSearch !== null || duplicateSearch !== null, // results views, where "Show in its folder" is offered
+  findDuplicates: findDuplicateImages,
+  openDuplicatesDialog,
   showInItsFolder: showPhotoInItsFolder,
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
@@ -6007,13 +6437,14 @@ initPhotoActions({
 
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
+initDuplicatesModal(); // window "Find duplicates > More…"
 initRawSettings(); // Paramètres > Divers > RAW : critères de « Trouver le RAW »
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
-  onSelectionChange: () => { abandonRawSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
+  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
   onTreeChanged: () => scheduleAlbumCounts(),
   // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».
@@ -6303,7 +6734,7 @@ let librarySyncRunning = false;
 let librarySyncNotBefore = 0;
 
 async function syncLibraryWithDisk() {
-  if (librarySyncRunning || scanTasks.length > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
+  if (librarySyncRunning || activeTaskCount() > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
   librarySyncRunning = true;
   const startedAt = Date.now();
   try {
@@ -6315,7 +6746,7 @@ async function syncLibraryWithDisk() {
     librarySyncNotBefore = Date.now() + Math.max(LIBRARY_SYNC_MIN_INTERVAL_MS, (Date.now() - startedAt) * 10);
     librarySyncRunning = false;
   }
-  if (syncAfterTasks && scanTasks.length === 0 && !photoMoveRunning) runRequestedSync();
+  if (syncAfterTasks && activeTaskCount() === 0 && !photoMoveRunning) runRequestedSync();
 }
 
 // Synchronisation demandée par l'application elle-même (fichiers qu'elle vient de créer) : sans délai minimal, et jamais perdue : si une tâche
@@ -6323,7 +6754,7 @@ async function syncLibraryWithDisk() {
 let syncAfterTasks = false;
 function requestLibrarySync() {
   syncAfterTasks = true;
-  if (!librarySyncRunning && scanTasks.length === 0 && !photoMoveRunning) return runRequestedSync();
+  if (!librarySyncRunning && activeTaskCount() === 0 && !photoMoveRunning) return runRequestedSync();
   return Promise.resolve();
 }
 function runRequestedSync() {

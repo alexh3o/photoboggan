@@ -211,7 +211,7 @@ fn flatten(color: [u8; 3], alpha: u8) -> [u8; 3] {
 
 /// Décode un PNG. `want_pixels` faux : le fichier est entièrement décodé et contrôlé, mais les pixels ne sont pas convertis en RGB (vecteur vide renvoyé).
 /// La transparence est aplatie sur fond blanc (le JPEG de la miniature n'en a pas).
-fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
+pub(crate) fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
     let file = File::open(source).map_err(|error| format!("Lecture impossible : {error}"))?;
     let png = thumbnails::decode_png(BufReader::with_capacity(256 * 1024, file), want_pixels, true)?;
     if !want_pixels { return Ok((Vec::new(), png.width, png.height)); }
@@ -223,7 +223,7 @@ fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize
 }
 
 /// Décode un WebP (première image s'il est animé). `want_pixels` faux : décodage complet, mais pas de conversion en RGB (vecteur vide renvoyé).
-fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
+pub(crate) fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, usize, usize), String> {
     let file = File::open(source).map_err(|error| format!("Lecture impossible : {error}"))?;
     let mut decoder = image_webp::WebPDecoder::new(BufReader::with_capacity(256 * 1024, file)).map_err(|error| format!("WebP illisible : {error}"))?;
     let (width, height) = decoder.dimensions();

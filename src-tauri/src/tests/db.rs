@@ -110,3 +110,19 @@ fn adding_the_same_folder_twice_keeps_one_row() {
     add_folder(&pool, "C:/Photo").unwrap();
     assert_eq!(get_folders(&pool).len(), 1);
 }
+
+#[test]
+fn photos_are_read_back_by_path_in_chunks() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let paths: Vec<String> = (0..1200).map(|n| format!("C:/Photos/p{n}.jpg")).collect();
+    for path in &paths {
+        insert_photo(&conn, path);
+    }
+    // More paths than one query can hold, plus an unknown one that is simply left out.
+    let mut wanted = paths.clone();
+    wanted.push("C:/Photos/missing.jpg".to_string());
+    let found = get_photos_by_paths(&pool, &wanted).unwrap();
+    assert_eq!(found.len(), 1200);
+    assert!(get_photos_by_paths(&pool, &[]).unwrap().is_empty());
+}

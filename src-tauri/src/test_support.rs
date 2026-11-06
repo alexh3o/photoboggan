@@ -76,3 +76,60 @@ pub fn insert_photo(conn: &rusqlite::Connection, path: &str) -> i64 {
     conn.execute("INSERT INTO photos (path, filename) VALUES (?1, ?2)", rusqlite::params![path, filename]).expect("insert photo");
     conn.last_insert_rowid()
 }
+
+/// Synthetic picture of soft blobs whose layout depends on `seed` (same relative layout at any size, so a resized copy is a faithful smaller version).
+pub fn blobs_rgb(width: usize, height: usize, seed: u64) -> Vec<u8> {
+    let mut state = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    let mut next = move || {
+        state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        (state >> 33) as f32 / 2147483648.0
+    };
+    // (centre x, centre y, radius, red, green, blue) as fractions of the picture.
+    let blobs: Vec<[f32; 6]> = (0..10).map(|_| [next(), next(), 0.08 + 0.2 * next(), next(), next(), next()]).collect();
+    let mut rgb = Vec::with_capacity(width * height * 3);
+    for y in 0..height {
+        for x in 0..width {
+            let (fx, fy) = (x as f32 / width as f32, y as f32 / height as f32);
+            let mut channels = [40f32; 3];
+            for blob in &blobs {
+                let weight = (-((fx - blob[0]).powi(2) + (fy - blob[1]).powi(2)) / (2.0 * blob[2] * blob[2])).exp();
+                for (channel, value) in channels.iter_mut().zip(&blob[3..]) {
+                    *channel += 200.0 * weight * value;
+                }
+            }
+            rgb.extend(channels.iter().map(|value| value.clamp(0.0, 255.0) as u8));
+        }
+    }
+    rgb
+}
+
+/// JPEG of an RGB picture at the given quality.
+pub fn jpeg_from_rgb(rgb: &[u8], width: usize, height: usize, quality: u8) -> Vec<u8> {
+    let mut out = Vec::new();
+    jpeg_encoder::Encoder::new(&mut out, quality).encode(rgb, width as u16, height as u16, jpeg_encoder::ColorType::Rgb).expect("JPEG encoding");
+    out
+}
+
+/// Picture turned a quarter turn clockwise (the result is `height` wide and `width` high).
+pub fn rotate_quarter(rgb: &[u8], width: usize, height: usize) -> Vec<u8> {
+    let mut out = vec![0u8; rgb.len()];
+    for y in 0..height {
+        for x in 0..width {
+            let target = (x * height + (height - 1 - y)) * 3;
+            out[target..target + 3].copy_from_slice(&rgb[(y * width + x) * 3..(y * width + x) * 3 + 3]);
+        }
+    }
+    out
+}
+
+/// Picture mirrored left to right.
+pub fn mirror(rgb: &[u8], width: usize, height: usize) -> Vec<u8> {
+    let mut out = vec![0u8; rgb.len()];
+    for y in 0..height {
+        for x in 0..width {
+            let target = (y * width + (width - 1 - x)) * 3;
+            out[target..target + 3].copy_from_slice(&rgb[(y * width + x) * 3..(y * width + x) * 3 + 3]);
+        }
+    }
+    out
+}

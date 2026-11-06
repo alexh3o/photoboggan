@@ -43,6 +43,7 @@ src/
   keywords-panel.js     # Panneau de droite à onglets Info / Mots-clés (arbre éditable, saisie, application différée)
   keywords.css          # Styles de ce panneau, de sa poignée de redimensionnement et de ses fenêtres
   metadata-settings.js  # Paramètres > Métadonnées : chemin d'écriture (ExifTool / interne), exécutable ExifTool
+  duplicates.js, duplicate-names.js, duplicates-modal.js  # Doublons : tri des groupes et réglages, recherche par nom (regex JS), fenêtre « Plus… » (mode résultats dans main.js)
   styles.css            # Thèmes sombre/clair, mise en page en rem
   i18n.js               # Moteur de traduction (t, tp, labelWithColon)
   locales/en.json, fr.json
@@ -62,6 +63,8 @@ src-tauri/
     video.rs            # Vidéos : extraction d'une image fixe uniquement
     update_check.rs     # Mises à jour : releases GitHub, téléchargement vérifié (SHA-256), lancement de l'installeur
     integrity.rs        # Vérification d'intégrité des fichiers
+    duplicates.rs       # Doublons identiques : hash des données image (métadonnées ignorées), cache `photo_hashes`, portées dossier / sélection / photothèque
+    similar.rs, phash.rs  # Doublons similaires : pHash (DCT 32×32, Rust pur, 8 variantes pour rotations / miroirs), cache `photo_phash`
     tests/              # Tests de non-régression, un fichier par module (voir §5.I)
     test_support.rs     # Images synthétiques et catalogue temporaire pour les tests (cfg(test))
 .github/workflows/      # release.yml (publication), tests.yml (cargo test à chaque push / PR)
@@ -163,6 +166,14 @@ src-tauri/
 - Version proposée : tag `v<x>.<y>.<z>` uniquement (`face-models-1` et les brouillons sont ignorés) ; pré-releases seulement si « Inclure les pré-versions » est coché ou si la version installée a un suffixe (`-beta`). Comparaison sur les trois nombres : le suffixe `-beta` du .deb est ignoré. La version vient du tag, jamais du nom des fichiers.
 - Installeur : l'interface ne fournit jamais d'adresse ni de chemin. Le backend n'accepte que les fichiers du dépôt avec une somme SHA-256 publiée (`digest`), la vérifie au téléchargement et de nouveau avant le lancement. Windows : `-setup.exe` (sinon `.msi`), l'application se ferme après les mêmes garde-fous que la fermeture. Linux : `.deb` confié à `xdg-open`.
 - La release doit garder un `-setup.exe`/`.msi` (Windows) et un `.deb` (Linux) ; sinon le dialogue renvoie vers la page GitHub.
+
+### K. Doublons
+
+- **Identiques** (`duplicates.rs`) : le hash porte sur les données image (JPEG sans APPn / COM, PNG sans chunks texte, WebP sans EXIF / XMP) ; HEIC, AVIF, GIF, BMP, RAW sont hashés entiers. Trois étapes pour lire le moins possible : longueur des données (en-têtes seuls), 64 Ko de début et de fin, hash complet. Changer les octets pris en compte impose d'incrémenter `LAYOUT_VERSION` (idem `ALGO_VERSION` dans `phash.rs`), sinon le cache reste faux.
+- **Similaires** : empreinte lue dans la miniature en cache si elle existe, sinon décodage réduit ; ne jamais écrire dans le cache de miniatures. Rafales : seul un écart non nul est une rafale (une copie partage l'heure de son original) ; la fraction de seconde se lit à la demande.
+- **Par nom** : calculé dans l'interface (le motif est une regex JS, le backend n'a pas de crate `regex`). Comparaison « contient » dans les deux sens, jamais paire par paire (index de séquences) ; clé minimale et plafond de groupe (`MAX_NAME_GROUP`) contre les motifs trop permissifs.
+- **Tâche** : famille `duplicates` dans la file, refusée seulement pour la même portée et le même type (`dedupeKey`). Une recherche terminée reste `ready` dans la liste jusqu'à « Afficher » ou « Ignorer » : elle ne bloque ni la file ni la synchronisation (`activeTaskCount`) mais compte pour l'avertissement de fermeture. La grille ne change jamais sans clic.
+- **Zéro impact au repos** : tables vides, aucun thread, aucun calcul tant qu'aucune recherche n'est lancée. Résultats dans la grille principale (`duplicateSearch`, comme `rawSearch`) ; naviguer à la main termine le mode. Réglages mémorisés : `identicalSearchSettings`, `similarSearchSettings`, `duplicateGroupSort`, `duplicateKeepSettings` (critères ordonnés de la « meilleure copie », réglés dans les résultats et appliqués aussitôt, sans nouvelle recherche). Avec « RAW et JPEG ensemble » : médaille par format, et jamais de bouton de nettoyage.
 
 ---
 
