@@ -7,6 +7,7 @@ import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
+import { createFilterTag } from './filter-tags.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
 import { registerEditor, writeMetadataItems, choiceDialog } from './metadata-writes.js';
 
@@ -282,12 +283,11 @@ function renderPersonFilterTags() {
     return button;
   }));
   collapsed.querySelectorAll('.filter-tag').forEach(node => node.remove());
-  collapsed.append(...personFilters.map(id => {
-    const tag = document.createElement('span');
-    tag.className = 'filter-tag tag-person';
-    tag.textContent = personName(id);
-    return tag;
-  }));
+  collapsed.append(...personFilters.map(id => createFilterTag({
+    kind: 'person',
+    text: personName(id),
+    onRemove: () => setPersonFilters(personFilters.filter(item => item !== id)),
+  })));
   const options = document.getElementById('person-options');
   options?.replaceChildren(...listedPersons().sort((a, b) => a.name.localeCompare(b.name)).map(person => {
     const option = document.createElement('option');

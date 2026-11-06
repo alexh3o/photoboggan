@@ -10,6 +10,7 @@
 // (une clé absente = critère inactif ; `exact` : valeur choisie dans la liste, sinon recherche « contient »).
 import './shooting-filters.css';
 import { t } from './i18n.js';
+import { createFilterTag } from './filter-tags.js';
 
 // ---------------------------------------------------------------------------
 // Lecture des valeurs numériques saisies ou stockées
@@ -338,6 +339,10 @@ export function initShootingFilters({ getPhotos, onChange }) {
 
   const reset = () => apply({});
 
+  // Efface un seul des deux groupes (× du groupe ou du badge) sans relancer le filtrage : l'appelant le fait.
+  const clearGear = () => { const state = capture(); delete state.gear; apply(state); };
+  const clearShot = () => { const state = capture(); delete state.shot; apply(state); };
+
   // --- Étiquettes : boutons à croix quand le groupe est déplié, simples étiquettes sur la ligne repliée ---
   function gearEntryText(entry) {
     return entry.exact ? entry.text : `~${entry.text}`;
@@ -357,24 +362,38 @@ export function initShootingFilters({ getPhotos, onChange }) {
       });
       return button;
     }));
-    byId('gear-summary').replaceChildren(...entries.map(({ key, entry }) => {
-      const tag = document.createElement('span');
-      tag.className = 'filter-tag tag-gear';
-      tag.textContent = gearEntryText(entry);
-      tag.title = `${t(GEAR_FIELDS[key].tag)} : ${entry.text}`;
-      return tag;
-    }));
+    byId('gear-summary').replaceChildren(...entries.map(({ key, entry }) => createFilterTag({
+      kind: 'gear',
+      text: gearEntryText(entry),
+      title: `${t(GEAR_FIELDS[key].tag)} : ${entry.text}`,
+      onRemove: () => {
+        gear[key] = gear[key].filter(item => item !== entry);
+        changed();
+      },
+    })));
+  }
+
+  // Retire un critère de prise de vue : un champ numérique (texte vidé, message d'erreur effacé) ou le flash.
+  function clearShotCriterion(key) {
+    if (key === 'flash') {
+      shot.flash = 'all';
+      flashSelect.value = 'all';
+    } else {
+      applied[key] = '';
+      shotInputs[key].value = '';
+      setError(key, '');
+    }
+    changed();
   }
 
   function renderShotSummary() {
-    const tags = RANGE_KEYS.filter(key => applied[key]).map(key => RANGE_FIELDS[key].summary(applied[key]));
-    if (shot.flash !== 'all') tags.push(shot.flash === 'with' ? t('Flash') : t('No flash'));
-    byId('shot-summary').replaceChildren(...tags.map(text => {
-      const tag = document.createElement('span');
-      tag.className = 'filter-tag tag-shot';
-      tag.textContent = text;
-      return tag;
-    }));
+    const tags = RANGE_KEYS.filter(key => applied[key]).map(key => ({ key, text: RANGE_FIELDS[key].summary(applied[key]) }));
+    if (shot.flash !== 'all') tags.push({ key: 'flash', text: shot.flash === 'with' ? t('Flash') : t('No flash') });
+    byId('shot-summary').replaceChildren(...tags.map(({ key, text }) => createFilterTag({
+      kind: 'shot',
+      text,
+      onRemove: () => clearShotCriterion(key),
+    })));
   }
 
   function renderSummaries() {
@@ -385,6 +404,6 @@ export function initShootingFilters({ getPhotos, onChange }) {
 
   return {
     matches: photo => matchesShootingState(photo, currentState()),
-    hasGear, hasShot, capture, apply, reset, refreshOptions, renderSummaries,
+    hasGear, hasShot, capture, apply, reset, clearGear, clearShot, refreshOptions, renderSummaries,
   };
 }

@@ -2,35 +2,33 @@
 
 ## 🚀 Next in line
 
-- [ ] *docs*: technical documentation
+- [ ] *docs*: `dev` technical documentation
 - [x] *chore*: `dev` unlink dev and build settings
 - [ ] *chore*: `installer` customize images and text
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
 - [ ] *feat*: `filters` add erase button per filter category
 - [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
 - [x] *fix*: `tasks` warn of running tasks when quitting
-- [ ] refactor: move qty of dispplayed photos to filters title bar (always visible)
+- [x] *refactor*: `UI` move qty of dispplayed photos to filters title bar (always visible)
+- [ ] *feat*: `dupes` find duplicates by name (regex), exact hash, phash with new modal
 
 ## 💡 Ideas / Longer term / On hold
 
-- [x] *feat*: Find RAW with datetime and camera model
-- [ ] *feat*: find duplicates
+- [x] *feat*: `raw` Find RAW with datetime and camera model
 - [x] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
-- [x] *chore*: Add **Linux** release
-  - [ ] **Test** linux release (more)
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
 - [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: Close toats that are in current tasks when opening task modal
+- [ ] *feat*: Close toast that are in current tasks when opening task modal
 
 ## ⚖️ Undecided
 
 - [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `faces` resize / move face area
-- [ ] *feat*: stats
+- [ ] *feat*: stats in a stat modal from settings
 - [ ] *feat*: cancellations everywhere
 - [ ] *feat*: internal metadata writer activated => no exif reading
 - [ ] *refactor*: `UI` improve toasts placement / visibility

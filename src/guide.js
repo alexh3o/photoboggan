@@ -35,6 +35,7 @@ const GROUPS = [
     { a: 'Move to a folder', k: [['Shift', 'Drag']] },
     { a: 'Copy to a folder', k: [['Ctrl', 'Drag']] },
     { a: 'Zoom around the cursor', tag: 'Fullscreen', k: [['Ctrl', 'Mouse wheel']] },
+    { a: 'Open a filter group, keeping the others open', d: 'Without Shift, a click opens the group and closes the others', tag: 'Filters', k: [['Shift', 'Click']] },
   ] },
   { title: 'Preview and comparison', rows: [
     { a: 'Previous / next photo', tag: 'Preview and fullscreen', k: [['←'], ['→']], sep: 'slash' },

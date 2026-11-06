@@ -7,6 +7,7 @@
 //   { formats: ['raw', 'brand:sony', 'ext:jpg'] }   (clé absente = critère inactif)
 import './format-filters.css';
 import { t } from './i18n.js';
+import { createFilterTag } from './filter-tags.js';
 
 // ---------------------------------------------------------------------------
 // Extensions connues (source unique pour le frontend ; la liste Rust est dans thumbnails.rs / video.rs)
@@ -187,12 +188,14 @@ export function initFormatFilters({ onChange }) {
       });
       return button;
     }));
-    byId('format-summary').replaceChildren(...selected.map(id => {
-      const tag = document.createElement('span');
-      tag.className = 'filter-tag tag-format';
-      tag.textContent = labelOf(id);
-      return tag;
-    }));
+    byId('format-summary').replaceChildren(...selected.map(id => createFilterTag({
+      kind: 'format',
+      text: labelOf(id),
+      onRemove: () => {
+        selected = selected.filter(item => item !== id);
+        changed();
+      },
+    })));
   }
 
   refreshOptions();

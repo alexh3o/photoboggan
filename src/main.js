@@ -22,6 +22,7 @@ import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
 import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
+import { createFilterTag } from './filter-tags.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
@@ -750,6 +751,8 @@ function updateGridEmptyState() {
   element.textContent = t(key);
 }
 
+// Nombre de photos affichées, dans l'en-tête du bloc Filtres : « 12 480 photos » sans filtre, « 342 sur 12 480 photos » avec (le total donne le contexte).
+// Le nombre est en gras ; le style change avec l'état (filtré : pastille d'accent ; aucun résultat : couleur d'alerte).
 function updateFilteredPhotosCount() {
   const countElement = document.getElementById('filtered-photos-count');
   const clearBtn = document.getElementById('btn-clear-all-filters');
@@ -760,8 +763,22 @@ function updateFilteredPhotosCount() {
   }
 
   if (countElement) {
-    const translationKey = isFiltered ? '{count} photo filtered' : '{count} photo displayed';
-    countElement.textContent = tp(translationKey, photos.length);
+    const total = loadedPhotos.length;
+    const format = value => value.toLocaleString(getLanguage()); // séparateur de milliers de la langue
+    const number = format(photos.length);
+    // Texte court (la barre latérale est étroite) : « 12 480 photos » ou « 342 sur 12 480 » ; la phrase complète est en infobulle.
+    // Le pluriel suit le total (« 1 sur 12 photos ») ; les nombres affichés sont les valeurs mises en forme.
+    const narrowed = isFiltered && photos.length !== total;
+    const text = narrowed
+      ? t('{shown} of {count}', { shown: number, count: format(total) })
+      : tp('{count} photo', photos.length, { count: number });
+    countElement.title = narrowed ? tp('{shown} of {count} photo', total, { shown: number, count: format(total) }) : '';
+    // Le nombre des photos affichées (le premier du texte, quelle que soit la langue) est mis en valeur.
+    const at = text.indexOf(number);
+    const parts = at < 0 ? [text] : [text.slice(0, at), Object.assign(document.createElement('strong'), { textContent: number }), text.slice(at + number.length)];
+    countElement.replaceChildren(...parts);
+    countElement.classList.toggle('is-filtered', isFiltered);
+    countElement.classList.toggle('is-empty', photos.length === 0);
   }
   updateGridEmptyState();
 }
@@ -856,52 +873,72 @@ function renderInfoKeywords(photo) {
   }));
 }
 
+// Efface un type de filtre (contrôles compris) sans relancer le filtrage : l'appelant le fait. Servent à « Effacer tous les filtres »,
+// au × d'un groupe replié (clearFilterGroup) et au × des badges du bloc replié.
+const clearFilterKinds = {
+  rating() {
+    Object.assign(ratingFilter, { stars: 0, unrated: false }); // le mode (≥ / =) reste celui choisi par l'utilisateur
+    updateRatingFilterControls();
+  },
+  color() {
+    colorFilters.clear();
+    document.querySelectorAll('#color-filter-bar .color-square').forEach(btn => setColorSquareChecked(btn, false));
+  },
+  pick() {
+    pickFilters.clear();
+    document.querySelectorAll('#pick-filter-bar .pick-square').forEach(btn => setColorSquareChecked(btn, false));
+  },
+  keyword() {
+    keywordFilters = [];
+    const keywordInput = document.getElementById('keyword-filter-input');
+    if (keywordInput) keywordInput.value = '';
+    renderKeywordFilters();
+  },
+  filename() {
+    filenameFilters = [];
+    const filenameInput = document.getElementById('filename-filter-input');
+    if (filenameInput) filenameInput.value = '';
+    renderFilenameFilters();
+  },
+  failed() {
+    pathFilter = null;
+    renderFilterTags();
+  },
+  person: () => clearPersonFilters(),
+  date() {
+    dateFilterInput.value = '';
+    dateFilter = null;
+    updateDateFilterUI('');
+    closeDatePicker();
+  },
+  location: () => setLocationFilter('all', { apply: false }),
+  gear: () => shootingFilters.clearGear(),
+  shot: () => shootingFilters.clearShot(),
+  format: () => formatFilters.reset(),
+};
+
+// Types de filtre de chaque groupe de l'accordéon (data-filter-group), pour le × d'un groupe.
+const filterGroupKinds = {
+  'rating-color': ['rating', 'color', 'pick'],
+  tags: ['keyword', 'filename', 'failed'],
+  persons: ['person'],
+  date: ['date'],
+  gear: ['gear'],
+  shooting: ['shot'],
+  more: ['format', 'location'],
+};
+
 // Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent restent.
 function resetAllFilters() {
   albumFolder = null;
   albumMapZone = null;
-  // Réinitialise la note
-  Object.assign(ratingFilter, { stars: 0, unrated: false }); // le mode (≥ / =) reste celui choisi par l'utilisateur
-  updateRatingFilterControls();
+  for (const clear of Object.values(clearFilterKinds)) clear();
+}
 
-  // Réinitialise les couleurs
-  colorFilters.clear();
-  document.querySelectorAll('#color-filter-bar .color-square').forEach(btn => setColorSquareChecked(btn, false));
-
-  // Réinitialise les fanions pick
-  pickFilters.clear();
-  document.querySelectorAll('#pick-filter-bar .pick-square').forEach(btn => setColorSquareChecked(btn, false));
-
-  // Réinitialise les mots-clés
-  keywordFilters = [];
-  const keywordInput = document.getElementById('keyword-filter-input');
-  if (keywordInput) keywordInput.value = '';
-  renderKeywordFilters();
-
-  // Réinitialise les personnes
-  clearPersonFilters();
-
-  // Réinitialise les chaînes de nom de fichier
-  filenameFilters = [];
-  pathFilter = null;
-  const filenameInput = document.getElementById('filename-filter-input');
-  if (filenameInput) filenameInput.value = '';
-  renderFilenameFilters();
-
-  // Réinitialise la date
-  dateFilterInput.value = '';
-  dateFilter = null;
-  updateDateFilterUI('');
-  closeDatePicker();
-
-  // Réinitialise le lieu
-  setLocationFilter('all', { apply: false });
-
-  // Réinitialise le matériel et la prise de vue
-  shootingFilters.reset();
-
-  // Réinitialise le format
-  formatFilters.reset();
+// Efface les filtres d'un groupe (ou d'un seul type pour un badge) puis relance le filtrage une seule fois.
+function clearFilterKindsAndApply(kinds) {
+  for (const kind of kinds) clearFilterKinds[kind]();
+  applyPhotoFilters();
 }
 
 function clearAllFilters() {
@@ -1240,25 +1277,40 @@ function addFilenameFilter(value) {
   applyPhotoFilters();
 }
 
-// ACCORDÉON DES FILTRES : un seul groupe (Notes & Couleurs, Mots-clés & Nom de fichier, Date) est déplié à la fois.
+// ACCORDÉON DES FILTRES : un clic déplie un groupe et replie les autres ; Maj + clic déplie ou replie un groupe sans toucher aux autres
+// (on peut ainsi en garder plusieurs ouverts ; le clic suivant sans Maj sur un autre groupe ne laisse ouvert que celui-là).
 // Replié, un groupe tient sur une ligne compacte (titre + résumé / étiquettes) cliquable pour le déplier ; un clic hors de la zone des filtres replie tout.
+// Le × d'un groupe actif efface ses filtres sans le déplier.
 const filterGroups = [...document.querySelectorAll('.photo-filters .filter-group')];
 
-function setExpandedFilterGroup(name) {
+// `names` : groupes (data-filter-group) à laisser dépliés ; tous les autres sont repliés.
+function setExpandedFilterGroups(names) {
+  const open = new Set(names);
   for (const group of filterGroups) {
-    const expanded = group.dataset.filterGroup === name;
+    const expanded = open.has(group.dataset.filterGroup);
     group.classList.toggle('expanded', expanded);
     group.querySelector('.filter-group-toggle').setAttribute('aria-expanded', String(expanded));
     group.querySelector('.filter-group-body').hidden = !expanded;
   }
-  if (name !== 'date') closeDatePicker();
+  if (!open.has('date')) closeDatePicker();
   fitCollapsedTags(); // la ligne repliée vient d'apparaître ou de disparaître : on la mesure à nouveau
 }
 
 for (const group of filterGroups) {
-  group.querySelector('.filter-group-toggle').addEventListener('click', () => {
-    setExpandedFilterGroup(group.classList.contains('expanded') ? null : group.dataset.filterGroup);
+  const name = group.dataset.filterGroup;
+  // Tout l'en-tête est cliquable (le bouton de bascule, sans texte, porte le focus clavier et l'état ARIA) ; les croix gardent leur propre clic.
+  group.querySelector('.filter-group-header').addEventListener('click', event => {
+    if (event.target.closest('.filter-group-clear, .filter-tag-clear')) return;
+    const open = new Set(filterGroups.filter(item => item.classList.contains('expanded')).map(item => item.dataset.filterGroup));
+    if (open.has(name)) {
+      open.delete(name); // un groupe ouvert se replie, avec ou sans Maj, les autres restent comme ils sont
+    } else {
+      if (!event.shiftKey) open.clear(); // clic simple sur un groupe replié : il s'ouvre, tous les autres se ferment
+      open.add(name);
+    }
+    setExpandedFilterGroups(open);
   });
+  group.querySelector('.filter-group-clear')?.addEventListener('click', () => clearFilterKindsAndApply(filterGroupKinds[name] ?? []));
 }
 
 // Le calendrier est placé dans <body> : il fait partie de la zone des filtres pour ce test. Il en va de même du menu contextuel d'un champ de filtre
@@ -1268,7 +1320,7 @@ document.addEventListener('pointerdown', event => {
   if (!filterGroups.some(group => group.classList.contains('expanded'))) return;
   const target = event.target;
   if (target instanceof Element && (target.closest('.photo-filters') || target.closest('.date-picker') || target.closest('.context-menu'))) return;
-  setExpandedFilterGroup(null);
+  setExpandedFilterGroups([]);
 }, true);
 
 // Étiquettes des mots-clés (bleu) et des noms de fichier (vert), sur une ligne commune : boutons à croix quand le groupe est déplié,
@@ -1282,38 +1334,41 @@ function renderFilterTags() {
     ...keywordFilters.map(text => ({ kind: 'keyword', text })),
     ...filenameFilters.map(text => ({ kind: 'filename', text })),
   ];
+  // Retire une étiquette (boutons du groupe déplié comme croix des étiquettes repliées) puis relance le filtrage.
+  const removeEntry = (kind, text) => {
+    if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
+    else if (kind === 'failed') pathFilter = null;
+    else filenameFilters = filenameFilters.filter(item => item !== text);
+    renderFilterTags();
+    applyPhotoFilters();
+  };
   expandedContainer.replaceChildren(...entries.map(({ kind, text }) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `filter-tag tag-${kind}`;
     button.textContent = `${text} ×`;
     button.title = t('Remove filter {keyword}', { keyword: text });
-    button.addEventListener('click', () => {
-      if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
-      else if (kind === 'failed') pathFilter = null;
-      else filenameFilters = filenameFilters.filter(item => item !== text);
-      renderFilterTags();
-      applyPhotoFilters();
-    });
+    button.addEventListener('click', () => removeEntry(kind, text));
     return button;
   }));
   collapsedLine.querySelectorAll('.filter-tag').forEach(node => node.remove());
-  collapsedLine.append(...entries.map(({ kind, text }) => {
-    const tag = document.createElement('span');
-    tag.className = `filter-tag tag-${kind}`;
-    tag.textContent = text;
-    tag.title = t(kind === 'keyword' ? 'Keyword: {text}' : kind === 'failed' ? 'Files whose keywords could not be written' : 'Filename: {text}', { text });
-    return tag;
-  }));
+  collapsedLine.append(...entries.map(({ kind, text }) => createFilterTag({
+    kind,
+    text,
+    title: t(kind === 'keyword' ? 'Keyword: {text}' : kind === 'failed' ? 'Files whose keywords could not be written' : 'Filename: {text}', { text }),
+    onRemove: () => removeEntry(kind, text),
+  })));
   fitCollapsedTags();
 }
 
-// Ligne repliée des étiquettes : au plus deux lignes. Si elles ne tiennent pas, les dernières sont masquées et remplacées par une
+// Lignes repliées (classe fit-lines) : au plus deux lignes. Si les étiquettes ne tiennent pas, les dernières sont masquées et remplacées par une
 // étiquette « … » (d'une autre couleur) qui termine la deuxième ligne. Les lignes sont comptées d'après la position verticale des éléments
 // (tous de même hauteur), ce qui suppose la ligne visible : une ligne masquée (groupe déplié) est mesurée quand elle réapparaît.
 function fitCollapsedTags() {
-  const line = document.getElementById('tags-collapsed-line');
-  if (!line) return;
+  document.querySelectorAll('.filter-collapsed-line.fit-lines').forEach(fitCollapsedLine);
+}
+
+function fitCollapsedLine(line) {
   line.querySelectorAll('.tag-more').forEach(node => node.remove());
   const tags = [...line.querySelectorAll('.filter-tag')];
   tags.forEach(tag => { tag.hidden = false; });
@@ -1330,18 +1385,20 @@ function fitCollapsedTags() {
     visibleCount--;
     tags[visibleCount].hidden = true;
   }
-  more.title = tags.slice(visibleCount).map(tag => tag.textContent).join(', ');
+  more.title = tags.slice(visibleCount).map(tag => tag.dataset.label ?? tag.textContent).join(', ');
 }
 
-// La largeur de la ligne change avec la barre latérale (redimensionnement, repli) ou quand le groupe est replié : les étiquettes sont réparties à nouveau.
-const tagsCollapsedLine = document.getElementById('tags-collapsed-line');
-let tagsCollapsedLineWidth = 0;
-if (tagsCollapsedLine && typeof ResizeObserver !== 'undefined') {
-  new ResizeObserver(() => {
-    if (tagsCollapsedLine.clientWidth === tagsCollapsedLineWidth) return;
-    tagsCollapsedLineWidth = tagsCollapsedLine.clientWidth;
-    fitCollapsedTags();
-  }).observe(tagsCollapsedLine);
+// La largeur d'une ligne change avec la barre latérale (redimensionnement, repli) ou quand son groupe est replié : ses étiquettes sont réparties à nouveau.
+if (typeof ResizeObserver !== 'undefined') {
+  const lineWidths = new WeakMap();
+  const observer = new ResizeObserver(entries => {
+    for (const { target } of entries) {
+      if (target.clientWidth === lineWidths.get(target)) continue;
+      lineWidths.set(target, target.clientWidth);
+      fitCollapsedLine(target);
+    }
+  });
+  document.querySelectorAll('.filter-collapsed-line.fit-lines').forEach(line => observer.observe(line));
 }
 
 // Bornes du filtre de date au format AAAAMMJJHHmmss -> « 01/05/2024 » ; l'heure n'est ajoutée que si elle diffère de celle par défaut de la borne (00:00:00 au début, 23:59:59 à la fin).
@@ -1358,14 +1415,15 @@ function renderFilterSummaries() {
   updateRatingFilterControls();
   const ratingColorNodes = [];
   if (isRatingFilterActive()) {
-    const badge = document.createElement('span');
-    badge.className = 'filter-tag tag-rating';
     const parts = [];
     if (ratingFilter.unrated) parts.push('∅');
     if (ratingFilter.stars > 0) parts.push(`${ratingFilter.mode === 'eq' ? '=' : '≥'} ${ratingFilter.stars} ★`);
-    badge.textContent = parts.join(' + ');
-    badge.title = ratingFilterDescription();
-    ratingColorNodes.push(badge);
+    ratingColorNodes.push(createFilterTag({
+      kind: 'rating',
+      text: parts.join(' + '),
+      title: ratingFilterDescription(),
+      onRemove: () => clearFilterKindsAndApply(['rating']),
+    }));
   }
   for (const key of colorFilters) {
     const dot = document.createElement('span');
@@ -1381,20 +1439,23 @@ function renderFilterSummaries() {
   }
   document.getElementById('rating-color-summary').replaceChildren(...ratingColorNodes);
 
-  const dateNodes = dateFilter ? [
-    ['From {date}', formatDateFilterBound(dateFilter.from, false)],
-    ['To {date}', formatDateFilterBound(dateFilter.to, true)],
-  ].map(([key, date]) => {
-    const tag = document.createElement('span');
-    tag.className = 'filter-tag tag-date';
-    tag.textContent = t(key, { date });
-    return tag;
-  }) : [];
+  // Dates de début et de fin réunies en une seule étiquette (« Du 01/01/2024 au 31/12/2024 ») ; « Le 01/05/2024 » quand la période tient dans un jour.
+  const dateNodes = dateFilter ? (() => {
+    const from = formatDateFilterBound(dateFilter.from, false);
+    const to = formatDateFilterBound(dateFilter.to, true);
+    return [createFilterTag({
+      kind: 'date',
+      text: from === to ? t('On {date}', { date: from }) : t('From {from} to {to}', { from, to }),
+      onRemove: () => clearFilterKindsAndApply(['date']),
+    })];
+  })() : [];
   document.getElementById('date-summary').replaceChildren(...dateNodes);
 
-  const locationNodes = locationFilter === 'all' ? [] : [Object.assign(document.createElement('span'), {
-    className: 'filter-tag tag-location',
-    textContent: t(locationFilter === 'geolocated' ? 'Geolocated' : 'Not geolocated'),
+  const locationNodes = locationFilter === 'all' ? [] : [createFilterTag({
+    kind: 'location',
+    text: t(locationFilter === 'geolocated' ? 'Geolocated' : 'Not geolocated'),
+    title: t('Geolocation'),
+    onRemove: () => clearFilterKindsAndApply(['location']),
   })];
   document.getElementById('location-summary').replaceChildren(...locationNodes);
 
@@ -1403,6 +1464,21 @@ function renderFilterSummaries() {
   renderFilterTags();
   renderActiveFilterBadges();
   renderAlbumFilterInfo();
+  updateFilterGroupStates();
+}
+
+// Marque chaque groupe de l'accordéon actif ou non (data-active) : seuls les groupes actifs montrent leur × d'effacement.
+function updateFilterGroupStates() {
+  const active = {
+    'rating-color': isRatingFilterActive() || colorFilters.size > 0 || pickFilters.size > 0,
+    tags: keywordFilters.length > 0 || filenameFilters.length > 0 || pathFilter !== null,
+    persons: hasPersonFilters(),
+    date: dateFilter !== null,
+    gear: shootingFilters.hasGear(),
+    shooting: shootingFilters.hasShot(),
+    more: formatFilters.hasFormats() || locationFilter !== 'all',
+  };
+  for (const group of filterGroups) group.dataset.active = String(Boolean(active[group.dataset.filterGroup]));
 }
 
 // Badges du bloc Filtres replié : un par type de filtre actif (note, couleur, mots-clés, nom de fichier, personnes, date, fichiers en échec),
@@ -1418,18 +1494,18 @@ function renderActiveFilterBadges() {
     [filenameFilters.length > 0, 'filename', 'Filename'],
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
-    [locationFilter !== 'all', 'location', 'Location'],
+    [locationFilter !== 'all', 'location', 'Geolocation'],
     [shootingFilters.hasGear(), 'gear', 'Gear'],
     [shootingFilters.hasShot(), 'shot', 'Shooting'],
     [formatFilters.hasFormats(), 'format', 'Format'],
     [pathFilter !== null, 'failed', 'Failed files'],
   ];
-  container.replaceChildren(...kinds.filter(([active]) => active).map(([, kind, label]) => {
-    const badge = document.createElement('span');
-    badge.className = `filter-tag tag-${kind}`;
-    badge.textContent = t(label);
-    return badge;
-  }));
+  // Chaque badge a sa croix : elle efface ce type de filtre sans déplier le bloc (les clés de `clearFilterKinds` sont les types ci-dessus).
+  container.replaceChildren(...kinds.filter(([active]) => active).map(([, kind, label]) => createFilterTag({
+    kind,
+    text: t(label),
+    onRemove: () => clearFilterKindsAndApply([kind]),
+  })));
 }
 
 function decodeHtmlEntities(text) {

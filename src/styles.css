@@ -203,8 +203,18 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 /* ACCORDÉON DES FILTRES : déplié, un groupe montre son titre et ses contrôles ; replié, une ligne compacte (titre + résumé) cliquable.
    Toutes les étiquettes et le titre ont la même hauteur : la répartition sur deux lignes max. des étiquettes (fitCollapsedTags dans main.js) se mesure sur leur position verticale. */
 .filter-group { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--separator); }
-.filter-group-toggle { display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 2px 4px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font-size: var(--side-row-size); text-align: left; }
-.filter-group-toggle:hover { background: var(--control-bg); }
+/* En-tête d'un groupe : toute sa surface bascule le groupe (clic géré dans main.js). Le bouton .filter-group-toggle, sans texte, le recouvre
+   pour porter le focus clavier et aria-expanded ; les croix (groupe, étiquettes) restent des boutons distincts, jamais imbriqués dans un autre bouton. */
+.filter-group-header { position: relative; display: flex; align-items: flex-start; gap: 6px; padding: 2px 4px; border-radius: 4px; color: var(--text-muted); font-size: var(--side-row-size); cursor: pointer; user-select: none; }
+.filter-group-header:hover { background: var(--control-bg); }
+.filter-group-header > .filter-group-toggle, .filter-group-header > .filter-group-toggle:hover { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 4px; background: transparent; }
+/* × d'un groupe : visible seulement quand le groupe est actif (data-active, posé par updateFilterGroupStates), à droite de la ligne, aligné sur le titre */
+.filter-group-clear { display: none; position: relative; z-index: 1; flex: 0 0 auto; align-items: center; justify-content: center; width: 1.4rem; height: 1.4rem; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--danger-text); font-size: 1rem; line-height: 1; cursor: pointer; }
+.filter-group[data-active="true"]:not(.expanded) .filter-group-clear { display: inline-flex; } /* déplié, les contrôles et leurs étiquettes à croix suffisent, et les titres gardent leur place */
+.filter-group-clear:hover { background: rgba(231, 76, 60, 0.15); border-color: rgba(231, 76, 60, 0.3); color: var(--text-strong); }
+/* Sous-parties du groupe « Plus de filtres » */
+.filter-subgroup + .filter-subgroup { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--separator); }
+.filter-subtitle { margin-bottom: 4px; font-weight: 600; }
 /* Chevron à gauche du titre, comme celui des blocs Dossiers et Personnes */
 .filter-group-chevron { order: -1; flex: 0 0 0.7rem; align-self: center; color: var(--text-faint); font-size: var(--side-meta-size); transition: transform 0.15s; }
 .filter-group.expanded .filter-group-chevron { transform: rotate(90deg); }
@@ -215,6 +225,8 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-group.expanded .filter-collapsed-line { display: none; }
 .filter-collapsed-line { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .filter-collapsed-line.nowrap { flex-wrap: nowrap; overflow: hidden; }
+/* Lignes ajustées à deux lignes au plus (fitCollapsedTags) : les résumés s'effacent pour que leurs étiquettes soient comptées avec celles de la ligne */
+.filter-collapsed-line.fit-lines .filter-summary { display: contents; }
 .filter-group-title { display: block; height: 1.4rem; min-width: 0; overflow: hidden; line-height: 1.4rem; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .filter-collapsed-line .filter-group-title { flex: 0 0 auto; max-width: 100%; margin-right: 2px; }
 .filter-summary { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
@@ -244,9 +256,14 @@ body.show-geo-badges .thumbnail.has-gps .geo-badge { display: inline-flex; }
 .filter-tag.tag-pick { background: var(--tag-color-bg); border-color: var(--tag-color-border); }
 .filter-tag.tag-rating { background: var(--tag-rating-bg); border-color: var(--tag-rating-border); color: var(--tag-rating-text); }
 button.filter-tag { cursor: pointer; }
+/* Étiquette avec croix de retrait (lignes repliées et badges) : texte tronqué à gauche, croix toujours visible à droite */
+.filter-tag.has-clear { display: inline-flex; align-items: center; gap: 2px; padding-right: 2px; cursor: default; }
+.filter-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.filter-tag-clear { position: relative; z-index: 1; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; align-self: stretch; width: 1.1rem; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font-size: 0.85rem; line-height: 1; opacity: 0.75; cursor: pointer; }
+.filter-tag-clear:hover, .filter-tag-clear:focus-visible { background: rgba(255, 255, 255, 0.28); opacity: 1; }
 button.filter-tag.tag-keyword:hover { background: var(--tag-keyword-hover); }
 button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
-.filters-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.filters-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}
 /* Bloc Filtres replié : taille minimale de 5 rem ; reste visible le bouton « tout effacer », le nombre de photos et un badge par type de filtre actif */
 .photo-filters.collapsed { min-height: 4rem; }
@@ -275,7 +292,12 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .selection-rating-stars { display: flex; gap: 1px; }
 .selection-rating-stars button { background: transparent; border: 0; padding: 2px 3px; color: var(--star-off); font-size: 1.7rem; line-height: 1; }
 .selection-rating-stars button:hover, .selection-rating-stars button.active { color: #ffd43b; }
-.selection-count {display: block; margin: -2px 0 10px 0; color: var(--text-faint); font-size: var(--side-meta-size); text-align:right }
+/* Nombre de photos affichées (en-tête du bloc Filtres) : le plus lisible du bloc, chiffres de largeur fixe pour qu'il ne « danse » pas pendant la saisie d'un filtre.
+   Filtré : pastille d'accent ; aucun résultat : couleur d'alerte. */
+.filtered-count { flex: 0 1 auto; margin-left: auto; padding: 1px 0.5rem; overflow: hidden; border-radius: 0.6rem; color: var(--text-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; }
+.filtered-count strong { color: var(--text-strong); font-size: 0.95rem; font-weight: 700; }
+.filtered-count.is-filtered { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--text-strong); }
+.filtered-count.is-empty, .filtered-count.is-empty strong { color: var(--danger-text); }
 .write-toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1000; padding: 0.75rem 1rem; max-width: min(22.5rem, calc(100vw - 2.5rem)); border: 1px solid var(--control-border); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; }
 .write-toast.writing { border-color: #d6a900; }
 /* Bouton d'un toast (ex. « Annuler ») */

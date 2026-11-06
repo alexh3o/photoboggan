@@ -68,22 +68,26 @@
           <!-- Bloc repliable comme Dossiers et Personnes (faces-panel.js) : replié, il garde le bouton « tout effacer », le nombre de photos et des badges par type de filtre actif -->
           <div class="filters-header">
             <h3 id="filters-title" class="sidebar-block-title"><button type="button" id="filters-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="filters-body"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Filters">Filtres</span></button></h3>
+            <!-- Nombre de photos affichées, dans l'en-tête pour rester visible bloc replié (« 342 sur 12 480 photos » quand un filtre est actif) : main.js, updateFilteredPhotosCount -->
+            <span id="filtered-photos-count" class="filtered-count" role="status"></span>
             <button id="btn-clear-all-filters" type="button" class="btn-clear-filters hidden" title="Effacer tous les filtres" aria-label="Effacer tous les filtres" data-i18n-title="Clear all filters" data-i18n-aria-label="Clear all filters">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-filter-x"><path d="M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055"/><path d="m22 3-5 5"/><path d="m17 3 5 5"/></svg>
             </button>
           </div>
-          <span id="filtered-photos-count" class="selection-count"></span>
           <div id="active-filter-badges" class="filter-badges" aria-live="polite"></div>
           <!-- Album intelligent ouvert : filtres hérités du parent (grisés) et critères propres sans contrôle (dossier, zone de carte) : main.js -->
           <div id="album-filter-info" class="album-filter-info" hidden></div>
           <div id="filters-body">
-          <!-- Accordéon : un seul groupe déplié à la fois (voir « ACCORDÉON DES FILTRES » dans main.js). Déplié : titre(s) et contrôles ; replié : titre + résumé sur une ligne compacte. -->
+          <!-- Accordéon : un seul groupe déplié à la fois, sauf Maj + clic (voir « ACCORDÉON DES FILTRES » dans main.js). Déplié : titre(s) et contrôles ; replié : titre + résumé sur une ligne compacte.
+               Chaque en-tête porte un bouton de bascule sans texte qui le recouvre (.filter-group-toggle) et, par-dessus, un × qui efface le groupe (visible seulement s'il est actif) ; les étiquettes du résumé ont leur propre ×. -->
           <div class="filter-group" data-filter-group="rating-color">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-rating-color">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-rating-color" aria-label="Notes & Couleurs" data-i18n-aria-label="Ratings & Colors"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Ratings & Colors">Notes & Couleurs</span></span>
-              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Ratings & Colors">Notes & Couleurs</span><span id="rating-color-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line"><span class="filter-group-title" data-i18n="Ratings & Colors">Notes & Couleurs</span><span id="rating-color-summary" class="filter-summary"></span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
+            </div>
             <div id="filter-body-rating-color" class="filter-group-body" hidden>
               <!-- Filtre de note : pastille « non notées », cinq étoiles (générées par main.js) et bascule ≥ / = -->
               <div id="rating-filter-bar" class="rating-filter-bar" role="group" aria-label="Note" data-i18n-aria-label="Rating">
@@ -96,11 +100,13 @@
             </div>
           </div>
           <div class="filter-group" data-filter-group="tags">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-tags">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-tags" aria-label="Mots-clés / Nom" data-i18n-aria-label="Keywords / Name"></button>
               <span class="filter-expanded-line two-columns"><span class="filter-group-title" data-i18n="Keywords (&)">Mots-clés (tous)</span><span class="filter-group-title" data-i18n="Filename">Nom de fichier</span></span>
-              <span id="tags-collapsed-line" class="filter-collapsed-line"><span class="filter-group-title" data-i18n="Keywords / Name">Mots-clés / Nom</span></span>
+              <span id="tags-collapsed-line" class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="Keywords / Name">Mots-clés / Nom</span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
+            </div>
             <div id="filter-body-tags" class="filter-group-body" hidden>
               <div class="filter-two-columns">
                 <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" data-i18n-placeholder="Choose keyword..." aria-label="Mots-clés" data-i18n-aria-label="Keywords" autocomplete="off" />
@@ -112,11 +118,13 @@
           </div>
           <!-- Filtre Personnes (ET) : faces-panel.js ; masqué tant que la lecture des visages est désactivée -->
           <div id="filter-group-persons" class="filter-group" data-filter-group="persons" hidden>
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-persons">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-persons" aria-label="Personnes" data-i18n-aria-label="People"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="People (&)">Personnes (&)</span></span>
               <span id="persons-collapsed-line" class="filter-collapsed-line"><span class="filter-group-title" data-i18n="People">Personnes</span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
+            </div>
             <div id="filter-body-persons" class="filter-group-body" hidden>
               <input id="person-filter-input" type="text" list="person-options" placeholder="Choisir une personne…" data-i18n-placeholder="Choose person..." aria-label="Personnes" data-i18n-aria-label="People" autocomplete="off" />
               <datalist id="person-options"></datalist>
@@ -133,11 +141,13 @@
             </div>
           </div>
           <div class="filter-group" data-filter-group="date">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-date">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-date" aria-label="Date de prise de vue" data-i18n-aria-label="Date taken"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Date taken">Date de prise de vue</span></span>
-              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Date">Date</span><span id="date-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="Date">Date</span><span id="date-summary" class="filter-summary"></span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
+            </div>
             <div id="filter-body-date" class="filter-group-body" hidden>
           <div class="date-filter">
             <input id="date-filter-input" type="text" placeholder="AAAAMMJJ" data-i18n-placeholder="YYYYMMDD" aria-label="Date de prise de vue" data-i18n-aria-label="Date taken" maxlength="29" autocomplete="off" spellcheck="false" title="AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss — plage : début-fin (formats mélangeables, ex. 20240501-2025)" data-i18n-title="Date format help" />
@@ -151,27 +161,15 @@
           <div id="date-filter-error" class="date-filter-error" role="alert"></div>
             </div>
           </div>
-          <!-- Filtre Format : type (RAW, Raster, Vidéo), marque de RAW ou extension ; les étiquettes s'additionnent en OU (voir format-filters.js) -->
-          <div class="filter-group" data-filter-group="format">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-format">
-              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Format">Format</span></span>
-              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Format">Format</span><span id="format-summary" class="filter-summary"></span></span>
-              <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
-            <div id="filter-body-format" class="filter-group-body" hidden>
-              <input id="format-filter-input" type="text" list="format-options" placeholder="Type, marque de RAW ou extension…" data-i18n-placeholder="Format..." aria-label="Format" data-i18n-aria-label="Format" title="Choisir un type, une marque de RAW ou une extension (les étiquettes s'additionnent en OU)" data-i18n-title="Format filter help" autocomplete="off" spellcheck="false" />
-              <datalist id="format-options"></datalist>
-              <div id="format-error" class="format-error" role="alert"></div>
-              <div id="format-tags" class="filter-tags" aria-live="polite"></div>
-            </div>
-          </div>
           <!-- Filtre Matériel : appareil photo et objectif (listes classées par fréquence, voir shooting-filters.js) -->
           <div class="filter-group" data-filter-group="gear">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-gear">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-gear" aria-label="Matériel" data-i18n-aria-label="Gear"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Gear">Matériel</span></span>
-              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Gear">Matériel</span><span id="gear-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="Gear">Matériel</span><span id="gear-summary" class="filter-summary"></span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
+            </div>
             <div id="filter-body-gear" class="filter-group-body" hidden>
               <div class="gear-filters">
                 <input id="camera-filter-input" type="text" list="camera-options" placeholder="Appareil photo…" data-i18n-placeholder="Camera..." aria-label="Appareil photo" data-i18n-aria-label="Camera" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
@@ -184,11 +182,13 @@
           </div>
           <!-- Filtre Prise de vue : focale, vitesse, ouverture, ISO (« xxx », « xxx-yyy », « >xxx », « <xxx ») et flash -->
           <div class="filter-group" data-filter-group="shooting">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-shooting">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-shooting" aria-label="Prise de vue" data-i18n-aria-label="Shooting"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Shooting">Prise de vue</span></span>
-              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Shooting">Prise de vue</span><span id="shot-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="Shooting">Prise de vue</span><span id="shot-summary" class="filter-summary"></span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
+            </div>
             <div id="filter-body-shooting" class="filter-group-body" hidden>
               <div class="shot-filters">
                 <label class="shot-label" for="shot-focal-input" data-i18n="Focal length">Focale</label>
@@ -214,18 +214,31 @@
               </div>
             </div>
           </div>
-          <!-- Filtre Lieu : photos géolocalisées ou non (champs gps_lat / gps_lon de la liste chargée, voir « FILTRE LIEU » dans main.js) -->
-          <div class="filter-group" data-filter-group="location">
-            <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-location">
-              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="Location">Lieu</span></span>
-              <span class="filter-collapsed-line nowrap"><span class="filter-group-title" data-i18n="Location">Lieu</span><span id="location-summary" class="filter-summary"></span></span>
+          <!-- Plus de filtres : Format (type RAW / Raster / Vidéo, marque de RAW ou extension ; étiquettes en OU, voir format-filters.js) et Géolocalisation
+               (photos géolocalisées ou non : champs gps_lat / gps_lon de la liste chargée, voir « FILTRE LIEU » dans main.js). Les deux résumés partagent la ligne repliée. -->
+          <div class="filter-group" data-filter-group="more">
+            <div class="filter-group-header">
+              <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-more" aria-label="Plus de filtres" data-i18n-aria-label="More filters"></button>
+              <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span></span>
+              <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
-            </button>
-            <div id="filter-body-location" class="filter-group-body" hidden>
-              <div id="location-filter" class="location-filter" role="radiogroup" aria-label="Lieu" data-i18n-aria-label="Location">
-                <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
-                <button type="button" class="location-filter-option" data-value="geolocated" role="radio" data-i18n="Geolocated">Géolocalisées</button>
-                <button type="button" class="location-filter-option" data-value="not-geolocated" role="radio" data-i18n="Not geolocated">Non géolocalisées</button>
+            </div>
+            <div id="filter-body-more" class="filter-group-body" hidden>
+              <div class="filter-subgroup">
+                <div class="filter-subtitle" data-i18n="Format">Format</div>
+                <input id="format-filter-input" type="text" list="format-options" placeholder="Type, marque de RAW ou extension…" data-i18n-placeholder="Format..." aria-label="Format" data-i18n-aria-label="Format" title="Choisir un type, une marque de RAW ou une extension (les étiquettes s'additionnent en OU)" data-i18n-title="Format filter help" autocomplete="off" spellcheck="false" />
+                <datalist id="format-options"></datalist>
+                <div id="format-error" class="format-error" role="alert"></div>
+                <div id="format-tags" class="filter-tags" aria-live="polite"></div>
+              </div>
+              <div class="filter-subgroup">
+                <div class="filter-subtitle" data-i18n="Geolocation">Géolocalisation</div>
+                <div id="location-filter" class="location-filter" role="radiogroup" aria-label="Géolocalisation" data-i18n-aria-label="Geolocation">
+                  <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
+                  <button type="button" class="location-filter-option" data-value="geolocated" role="radio" data-i18n="Geolocated">Géolocalisées</button>
+                  <button type="button" class="location-filter-option" data-value="not-geolocated" role="radio" data-i18n="Not geolocated">Non géolocalisées</button>
+                </div>
               </div>
             </div>
           </div>
