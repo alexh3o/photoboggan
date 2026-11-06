@@ -8,7 +8,8 @@
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
 - [ ] *feat*: `filters` add erase button per filter category
 - [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
-- [ ] *fix*: warn of running tasks when quitting
+- [x] *fix*: `tasks` warn of running tasks when quitting
+- [ ] refactor: move qty of dispplayed photos to filters title bar (always visible)
 
 ## 💡 Ideas / Longer term / On hold
 

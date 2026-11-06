@@ -21,7 +21,8 @@ const BACKDROP_SOURCE_ID = 'photo-backdrop'; // toutes les photos affichées (mo
 const PRIVATE_ZONE_COLOR = '#2e9e4f';
 const OFFLINE_ZONE_COLOR = '#000000';
 const OTHER_SELECTED_COLOR = '#4da3ff'; // photos sélectionnées autres que la photo active (la photo active a la couleur de sélection)
-const PENDING_COLOR = '#f59e0b'; // position en attente d'écriture
+// Position en attente d'écriture : même couleur que le reste de l'interface (variable --pending-color, lue à la création des couches).
+const pendingColor = () => getComputedStyle(document.documentElement).getPropertyValue('--pending-color').trim() || '#f59e0b';
 const BACKDROP_COLOR = '#8a94a6';
 
 // Bibliothèque chargée une seule fois, à la première carte réellement affichée.
@@ -151,7 +152,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
         id: BACKDROP_SOURCE_ID, type: 'circle', source: BACKDROP_SOURCE_ID,
         paint: {
           'circle-radius': 3.5,
-          'circle-color': ['case', ['get', 'pending'], PENDING_COLOR, BACKDROP_COLOR],
+          'circle-color': ['case', ['get', 'pending'], pendingColor(), BACKDROP_COLOR],
           'circle-opacity': 0.75,
           'circle-stroke-color': '#fff',
           'circle-stroke-width': 0.75,
@@ -169,7 +170,7 @@ export function createMapView(container, { isAllowed, onStatus = () => {}, inter
         paint: {
           'circle-radius': ['case', ['get', 'focus'], 7, 5],
           'circle-color': ['case', ['get', 'focus'], accent, ['get', 'other'], OTHER_SELECTED_COLOR, accent],
-          'circle-stroke-color': ['case', ['get', 'pending'], PENDING_COLOR, '#fff'],
+          'circle-stroke-color': ['case', ['get', 'pending'], pendingColor(), '#fff'],
           'circle-stroke-width': 2,
         },
       });

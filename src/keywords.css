@@ -18,7 +18,7 @@
 .side-tab-btn.active { background: transparent; color: var(--text-strong); border-bottom-color: var(--active-button); }
 .side-tab-btn:disabled { opacity: 0.45; cursor: default; background: transparent; }
 /* Pastille : l'onglet porte des modifications pas encore écrites dans les fichiers */
-.side-tab-btn.pending::after { content: "●"; margin-left: 0.3rem; font-size: 0.6rem; vertical-align: 0.1em; color: var(--active-button); }
+.side-tab-btn.pending::after { content: "●"; margin-left: 0.3rem; font-size: 0.6rem; vertical-align: 0.1em; color: var(--pending-color); }
 /* Lignes de l'onglet Info qui mènent à un onglet d'édition */
 #exif-data li.exif-editable { cursor: pointer; }
 #exif-data li.exif-editable:hover, #exif-data li.exif-editable:focus-visible { background: var(--control-bg); outline: none; }
@@ -36,7 +36,7 @@
 .keyword-row:hover { background: var(--control-bg); }
 .keyword-row.keyword-root { color: var(--text-muted); font-weight: 600; }
 /* Mot-clé dont l'état a été modifié et pas encore écrit dans les fichiers */
-.keyword-row.pending { box-shadow: inset 2px 0 0 var(--active-button); font-style: italic; }
+.keyword-row.pending { box-shadow: inset 2px 0 0 var(--pending-color); font-style: italic; }
 .keyword-toggle { flex: 0 0 1rem; width: 1rem; padding: 0; border: 0; background: transparent; color: var(--text-soft); font-size: 0.7rem; }
 .keyword-toggle:hover { background: transparent; color: var(--btn-text); }
 .keyword-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -76,7 +76,7 @@
 .description-textarea { flex: 1 1 auto; min-height: 6rem; resize: none; font-family: inherit; line-height: 1.4; }
 .description-input::placeholder { font-style: italic; }
 /* Champ modifié dont la valeur n'est pas encore écrite dans les fichiers */
-.description-input.pending { box-shadow: inset 2px 0 0 var(--active-button); }
+.description-input.pending { box-shadow: inset 2px 0 0 var(--pending-color); }
 #exif-tab-description .keyword-actions { margin-top: 0.4rem; }
 
 /* Fenêtre à choix multiples (modifications en attente, échec d'écriture) */

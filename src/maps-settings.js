@@ -9,6 +9,36 @@ import { reloadAllMaps } from './map-view.js';
 
 const REFRESH_STORAGE_KEY = 'mapStyleRefresh';
 
+/** Ouvre les Paramètres sur l'onglet demandé ('maps', 'general'…) : lien des messages « Carte désactivée », « Mode hors ligne »… */
+export function openSettingsTab(tab) {
+  document.getElementById('btn-open-settings').click();
+  document.querySelector(`.settings-tab-btn[data-tab="${tab}"]`)?.click();
+}
+
+/** Rend un élément de message cliquable vers l'onglet `tab` des Paramètres (clic ou Entrée / Espace), ou ne l'est plus si `tab` est vide. */
+export function setSettingsLink(element, tab) {
+  element.classList.toggle('settings-link', !!tab);
+  if (tab) {
+    element.dataset.settingsTab = tab;
+    element.setAttribute('role', 'link');
+    element.tabIndex = 0;
+    element.title = t(tab === 'maps' ? 'Open the map settings' : 'Open the general settings, or disable the map widget in display options');
+  } else {
+    delete element.dataset.settingsTab;
+    element.removeAttribute('role');
+    element.removeAttribute('tabindex');
+    element.removeAttribute('title');
+  }
+}
+
+/** À appeler une fois par élément de message : l'action n'a lieu que s'il est marqué comme lien (setSettingsLink). */
+export function bindSettingsLink(element) {
+  element.addEventListener('click', () => { if (element.dataset.settingsTab) openSettingsTab(element.dataset.settingsTab); });
+  element.addEventListener('keydown', event => {
+    if ((event.key === 'Enter' || event.key === ' ') && element.dataset.settingsTab) { event.preventDefault(); openSettingsTab(element.dataset.settingsTab); }
+  });
+}
+
 /** Le style doit être téléchargé avec chaque zone (case des Paramètres > Cartes, décochée par défaut). */
 export function isMapStyleRefreshEnabled() {
   try { return localStorage.getItem(REFRESH_STORAGE_KEY) === 'true'; } catch { return false; }

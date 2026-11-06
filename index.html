@@ -332,10 +332,10 @@
           <div class="map-toolbar">
             <div class="map-toolbar-row">
               <div class="map-group">
-                <span class="map-group-label" data-i18n="Photos">Photos</span>
+                <span class="map-group-label" data-i18n="Grid View">Vue Grille</span>
                 <div class="map-filter" role="group" aria-label="Photos affichées dans la grille" data-i18n-aria-label="Photos shown in the grid">
                   <button type="button" data-filter="all" aria-pressed="true" data-i18n="All" data-i18n-title="Show all the photos of the selected folders and filters in the grid" title="Afficher dans la grille toutes les photos des dossiers et filtres choisis">Toutes</button>
-                  <button type="button" data-filter="visible" aria-pressed="false" data-i18n="This zone" data-i18n-title="Show in the grid only the geolocated photos inside the visible map area" title="Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte">Cette zone</button>
+                  <button type="button" data-filter="visible" aria-pressed="false" data-i18n="This zone" data-i18n-title="Show in the grid only the geolocated photos inside the visible map area. The grid follows the map when you move or zoom it; photos without a location are hidden." title="Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte. La grille suit la carte quand vous la déplacez ou zoomez ; les photos sans position sont masquées.">Cette zone</button>
                 </div>
               </div>
               <form id="map-search" class="map-search" role="search" hidden>
@@ -349,7 +349,7 @@
                 <span id="map-pending" class="map-pending"></span>
                 <div class="map-buttons">
                   <button id="btn-map-write" type="button" class="btn-primary" data-i18n="Write to files" data-i18n-title="Write the locations to the files" title="Écrire les positions dans les fichiers" disabled>Écrire dans les fichiers</button>
-                  <button id="btn-map-revert" type="button" class="btn-danger" data-i18n="Discard" data-i18n-title="Discard the changes" title="Abandonner les modifications" disabled>Abandonner</button>
+                  <button id="btn-map-revert" type="button" data-i18n="Discard" data-i18n-title="Discard the changes" title="Abandonner les modifications" disabled>Abandonner</button>
                 </div>
               </div>
             </div>

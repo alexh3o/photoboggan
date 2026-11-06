@@ -1,6 +1,6 @@
 // Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte.
 // Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones privées.
-// La carte n'est chargée que si l'option « Afficher une carte » est cochée (Paramètres > Général, décochée par défaut) :
+// La carte n'est chargée que si l'option « Afficher une carte » est cochée (Paramètres > Cartes, décochée par défaut) :
 // - lieu ordinaire : il faut aussi que le mode hors ligne soit désactivé ;
 // - lieu privé (dans une zone privée, voir private-zones.js) : carte en mode strict, uniquement avec les tuiles enregistrées sur le disque
 //   (même hors ligne).
@@ -11,6 +11,7 @@ import { t, tp, onLanguageChange } from './i18n.js';
 import { createMapView } from './map-view.js';
 import { MAP_MAX_POINTS, MAP_MAX_ZOOM, defaultMapZoom } from './map-config.js';
 import { locatePrivatePoints, onZonesChange } from './private-zones.js';
+import { setSettingsLink, bindSettingsLink } from './maps-settings.js';
 import { openPrivateZonesModal, offerPrivateZonesWelcome } from './private-zones-modal.js';
 
 const SHOW_MAP_STORAGE_KEY = 'showMap';
@@ -90,13 +91,16 @@ function focusPoint() {
 function renderMessage() {
   let message = '';
   if (!isWidgetEnabled()) message = ''; // widget masqué par l'utilisateur : aucun message sur la carte
-  else if (!isMapEnabled()) message = t('Map disabled (Settings > General)');
+  else if (!isMapEnabled()) message = t('Map disabled (Settings > Maps)');
   else if (isOffline() && !privacy.strict) message = t('Offline mode is on (Settings > General)');
   else if (mapStatus === 'unavailable') message = t('The map cannot be displayed on this computer (WebGL unavailable).');
   else if (mapStatus === 'tiles-failed' && !privacy.strict) message = t('The map could not be loaded (no connection?).');
   else if (geolocatedCount > MAP_MAX_POINTS) message = t('Only the first {count} locations are shown.', { count: MAP_MAX_POINTS });
   messageElement.textContent = message;
   messageElement.hidden = !message;
+  // « Carte désactivée » mène à Paramètres > Cartes, « Mode hors ligne activé » à Paramètres > Général.
+  const linkTab = !isWidgetEnabled() ? '' : !isMapEnabled() ? 'maps' : (isOffline() && !privacy.strict) ? 'general' : '';
+  setSettingsLink(messageElement, linkTab);
 }
 
 function renderText() {
@@ -185,6 +189,7 @@ export function initLocationPanel(options = {}) {
   coordsElement = document.getElementById('location-coords');
   lockButton = document.getElementById('btn-location-lock');
   messageElement = document.getElementById('location-message');
+  bindSettingsLink(messageElement);
   mapElement = document.getElementById('location-map');
   mapView = createMapView(mapElement, {
     isAllowed: isMapAllowed,

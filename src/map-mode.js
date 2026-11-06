@@ -15,6 +15,7 @@ import { ensureZonesLoaded, getZones, onZonesChange, zonesFeatureCollection } fr
 import { openPrivateZonesModal } from './private-zones-modal.js';
 import { registerEditor, notifyPendingChange, onPendingChange, onLockChange, isWriteLocked, writeMetadataItems, choiceDialog } from './metadata-writes.js';
 import { setMapSuppressed } from './location-panel.js';
+import { setSettingsLink, bindSettingsLink } from './maps-settings.js';
 import { initPlaceSearch, updatePlaceSearchAvailability } from './place-search.js';
 import './map-mode.css';
 
@@ -287,11 +288,12 @@ function updateControls() {
 
 function renderMessage() {
   let text = '';
-  if (!isMapEnabled()) text = t('Map disabled (Settings > General)');
+  if (!isMapEnabled()) text = t('Map disabled (Settings > Maps)');
   else if (mapStatus === 'unavailable') text = t('The map cannot be displayed on this computer (WebGL unavailable).');
   else if (mapStatus === 'tiles-failed') text = t('The map could not be loaded (no connection?).');
   message.textContent = text;
   message.hidden = !text;
+  setSettingsLink(message, isMapEnabled() ? '' : 'maps'); // seul « Carte désactivée » mène aux paramètres
   canvas.hidden = !isMapEnabled() || mapStatus === 'unavailable';
 }
 
@@ -454,6 +456,7 @@ export function initMapMode(hostApi) {
   panel = document.getElementById('map-panel');
   canvas = document.getElementById('map-canvas');
   message = document.getElementById('map-message');
+  bindSettingsLink(message);
   writeButton = document.getElementById('btn-map-write');
   revertButton = document.getElementById('btn-map-revert');
   pendingLabel = document.getElementById('map-pending');

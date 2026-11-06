@@ -51,6 +51,8 @@
   --row-bg: #181818;
   --toast-bg: #252525;
   --toast-text: #f4f4f4;
+  --pending-color: #f59e0b; /* « pas encore écrit dans le fichier » (positions, mots-clés…) : même couleur partout */
+  --pending-on: #000; /* texte posé sur --pending-color */
 }
 
 :root[data-theme="light"] {
@@ -80,6 +82,8 @@
   --row-bg: #f0f0f0;
   --toast-bg: #fff;
   --toast-text: #222;
+  --pending-color: #b45309; /* plus foncé sur fond clair (contraste ≥ 4,5:1) */
+  --pending-on: #fff;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -774,6 +778,7 @@ body.immersive .titlebar { display: none; }
 .location-panel[hidden], .location-map[hidden], .location-message[hidden] { display: none; }
 .location-coords { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; font-size: 0.8rem; }
 .location-message { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--text-dim); }
+.location-message.settings-link { cursor: pointer; text-decoration: underline; color: var(--accent-text); } /* « Carte désactivée » : ouvre Paramètres > Cartes */
 /* isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas */
 .location-map { isolation: isolate; height: 12rem; margin-top: 0.6rem; border: 1px solid var(--border); border-radius: 0.4rem; overflow: hidden; background: var(--control-bg); }
 .location-map .maplibregl-ctrl-attrib { font-size: 0.65rem; }
