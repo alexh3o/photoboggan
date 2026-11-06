@@ -4372,6 +4372,15 @@ function syncTaskUI() {
 
   const label = `${t('Running tasks')} (${scanTasks.length})`;
   tasksButton.hidden = scanTasks.length === 0;
+  // Badge with the number of running + waiting tasks (created on first use).
+  let badge = tasksButton.querySelector('.tasks-count-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'tasks-count-badge';
+    badge.setAttribute('aria-hidden', 'true'); // the count is already in the button's aria-label
+    tasksButton.append(badge);
+  }
+  badge.textContent = scanTasks.length > 99 ? '99+' : String(scanTasks.length);
   tasksButton.title = label;
   tasksButton.setAttribute('aria-label', label);
 }
@@ -4396,6 +4405,8 @@ function hideTaskToast() {
 // Tant que la fenêtre est ouverte, l'affichage est rafraîchi chaque seconde pour faire avancer le temps écoulé.
 let tasksClockTimer = null;
 function openTasksModal() {
+  // The modal lists every queued task, so their toasts would only duplicate it: close them (the transient toast is not in the modal and stays).
+  for (const task of scanTasks) task.toastHidden = true;
   syncTaskUI();
   tasksModal.classList.remove('hidden');
   clearInterval(tasksClockTimer);

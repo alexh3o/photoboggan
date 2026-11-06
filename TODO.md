@@ -6,7 +6,7 @@
 - [x] *chore*: `dev` unlink dev and build settings
 - [ ] *chore*: `installer` customize images and text
 - [x] *feat*: `tasks` add time spent and remaining in taskQueue
-- [ ] *feat*: `filters` add erase button per filter category
+- [x] *feat*: `filters` add erase button per filter category
 - [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
 - [x] *fix*: `tasks` warn of running tasks when quitting
 - [x] *refactor*: `UI` move qty of dispplayed photos to filters title bar (always visible)
