@@ -469,14 +469,25 @@
       <!-- Zones de visage sur la photo (touche V), calées sur l'image affichée : faces-panel.js -->
       <div id="fullscreen-faces" class="face-overlay" aria-hidden="true" hidden></div>
       <div id="fullscreen-zoom-badge" class="preview-zoom-badge"></div>
-      <!-- Diaporama (slideshow.js) : ▶ un instant au lancement, ⏸ tant qu'il est en pause ; coin haut gauche -->
+      <!-- Diaporama (slideshow.js) : ▶ un instant au lancement, ⏸ tant qu'il est en pause ; coin haut droit, à gauche du rang quand les informations sont affichées -->
       <div id="slideshow-indicator" class="slideshow-indicator" aria-hidden="true" hidden></div>
       <!-- Informations sur la photo (touche D) : voir updateFullscreenInfo dans main.js -->
       <div id="fullscreen-info" class="fullscreen-info hidden" aria-hidden="true">
         <div id="fullscreen-info-name" class="fullscreen-info-name"></div>
         <div id="fullscreen-info-rank" class="fullscreen-info-rank"></div>
         <div id="fullscreen-info-exif" class="fullscreen-info-exif"><div></div><div></div></div>
-        <div id="fullscreen-info-date" class="fullscreen-info-date"></div>
+        <!-- Bas, centre : titre (gras, une ligne), description (trois lignes au plus) puis date de prise de vue -->
+        <div class="fullscreen-info-bottom">
+          <div id="fullscreen-info-title" class="fullscreen-info-title" hidden></div>
+          <div id="fullscreen-info-description" class="fullscreen-info-description" hidden></div>
+          <div id="fullscreen-info-date" class="fullscreen-info-date"></div>
+        </div>
+      </div>
+      <!-- Résumé de la note, de la couleur et du fanion pick (bas, droite) : affiché avec les informations quand la barre de notes (R) est masquée -->
+      <div id="fullscreen-marking" class="fullscreen-marking" aria-hidden="true" hidden>
+        <span id="fullscreen-marking-stars" class="fullscreen-marking-stars"><span class="on"></span><span class="off"></span></span>
+        <span id="fullscreen-marking-color" class="fullscreen-color-dot fullscreen-color-item flag-none"></span>
+        <span id="fullscreen-marking-pick" class="fullscreen-pick-flag fullscreen-pick-item pick-none">⚑</span>
       </div>
       <div id="fullscreen-rating" class="fullscreen-rating hidden" role="group" aria-label="Noter la photo" data-i18n-aria-label="Rate the photo">
         <button type="button" data-rating="1" aria-label="Attribuer 1 étoile" data-i18n-aria-label="Set 1 star">★</button>
@@ -484,6 +495,15 @@
         <button type="button" data-rating="3" aria-label="Attribuer 3 étoiles" data-i18n-aria-label="Set 3 stars">★</button>
         <button type="button" data-rating="4" aria-label="Attribuer 4 étoiles" data-i18n-aria-label="Set 4 stars">★</button>
         <button type="button" data-rating="5" aria-label="Attribuer 5 étoiles" data-i18n-aria-label="Set 5 stars">★</button>
+        <!-- Couleur et fanion pick : comme dans la barre de marquage de la grille (pastille / drapeau qui ouvrent une bulle de choix) -->
+        <div class="fullscreen-popover-wrap fullscreen-color-item">
+          <button id="fullscreen-color-button" type="button" class="fullscreen-color-dot flag-none" aria-haspopup="true" aria-expanded="false" title="Couleur" aria-label="Couleur" data-i18n-title="Color" data-i18n-aria-label="Color"></button>
+          <div id="fullscreen-color-popover" class="marking-color-popover color-bar fullscreen-popover" role="group" aria-label="Couleur" data-i18n-aria-label="Color" hidden></div>
+        </div>
+        <div class="fullscreen-popover-wrap fullscreen-pick-item">
+          <button id="fullscreen-pick-button" type="button" class="fullscreen-pick-flag pick-none" aria-haspopup="true" aria-expanded="false" title="Pick" aria-label="Pick" data-i18n-title="Pick" data-i18n-aria-label="Pick">⚑</button>
+          <div id="fullscreen-pick-popover" class="marking-color-popover marking-pick-popover fullscreen-popover" role="group" aria-label="Pick" data-i18n-aria-label="Pick" hidden></div>
+        </div>
       </div>
     </div>
 

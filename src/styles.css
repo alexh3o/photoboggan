@@ -418,8 +418,8 @@ body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover
 .marking-bar .marking-pick .pick-square, .marking-pick-button.pick-square { width: 1.5rem; height: 1.5rem; min-width: 1.5rem; font-size: 1.5rem; }
 .marking-pick-button { cursor: pointer; }
 .marking-pick-popover .marking-pick { margin-top: 0; gap: 4px; }
-body.no-color-labels .color-bar, body.no-color-labels .flag-indicator, body.no-color-labels .marking-color-wrap { display: none !important; }
-body.no-pick-labels .pick-control, body.no-pick-labels .pick-indicator { display: none !important; }
+body.no-color-labels .color-bar, body.no-color-labels .flag-indicator, body.no-color-labels .marking-color-wrap, body.no-color-labels .fullscreen-color-item { display: none !important; }
+body.no-pick-labels .pick-control, body.no-pick-labels .pick-indicator, body.no-pick-labels .fullscreen-pick-item { display: none !important; }
 .thumbnail-rating {  color: #ffd43b;  font-size: 0.85rem;  line-height: 1;  letter-spacing: -1px;  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);}
 
 /* PREVIEW */
@@ -455,16 +455,34 @@ body.no-pick-labels .pick-control, body.no-pick-labels .pick-indicator { display
 .compare-option.hidden { display: none; }
 .grid-section.dragging-scroll, .grid-section.dragging-scroll .thumbnail { cursor: grabbing; }
 
+/* Couleurs et ombre des éléments posés sur la photo en plein écran (informations, étoiles, résumé, badge de zoom) : le plein écran est sombre dans tous les thèmes. */
+:root {
+  --fullscreen-text: #fff;
+  --fullscreen-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(0, 0, 0, 0.6); /* triple ombre : lisible sur tout fond sans fond opaque */
+  --fullscreen-icon-shadow: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.85));
+  --fullscreen-star-off: #666;
+  --fullscreen-star-on: #ffd43b;
+  --fullscreen-none-fill: rgba(150, 150, 150, 0.15);   /* couleur / pick absents : gris très translucide... */
+  --fullscreen-none-edge: #000;                         /* ...cerné de noir */
+  --fullscreen-none-shadow: 0 0 3px 1px rgba(0, 0, 0, 0.7);
+  --fullscreen-summary-star-fill: rgba(240, 240, 240, 0.7);    /* étoiles pleines du résumé : proche du blanc de l'histogramme en luminance (0,85) mais un peu plus translucide */
+  --fullscreen-summary-star-empty:rgba(255, 255, 255, 0.22);  /* étoiles vides du résumé : discrètes */
+  --fullscreen-summary-star-empty-shadow: 0 0 2px rgba(0, 0, 0, 0.45);
+  --fullscreen-date-rule-width: 4ch;                            /* longueur des traits qui encadrent la date (environ 4 lettres) */
+}
 /* Indicateur de pourcentage de zoom : aligné sur la typographie et l'ombre de .fullscreen-info */
-.preview-zoom-badge { position: absolute; z-index: 5;  pointer-events: none;  color: #fff;  font-size: 0.85rem;  font-variant-numeric: tabular-nums;  line-height: 1.4;  padding: 0.3rem 0.6rem;  /* Même triple ombre que .fullscreen-info pour rester lisible sur tout type de fond sans fond opaque */  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(0, 0, 0, 0.6);  opacity: 0;  visibility: hidden;  transition: opacity 0.4s ease, visibility 0.4s ease;}
+.preview-zoom-badge { position: absolute; z-index: 5;  pointer-events: none;  color: var(--fullscreen-text);  font-size: 0.85rem;  font-variant-numeric: tabular-nums;  line-height: 1.4;  padding: 0.3rem 0.6rem;  text-shadow: var(--fullscreen-text-shadow);  opacity: 0;  visibility: hidden;  transition: opacity 0.4s ease, visibility 0.4s ease;}
 .preview-zoom-badge.visible { opacity: 1; visibility: visible; transition: none;}
-/* En plein écran : calé symétriquement en face de .fullscreen-info-rank */
-#fullscreen-zoom-badge { top: 1rem !important; left: 1.25rem !important; font-size: 0.95rem;}
-/* Diaporama : icône ▶ / ⏸ dans le coin haut gauche (même ombre que .fullscreen-info) ; le badge de zoom se décale à sa droite */
-.slideshow-indicator { position: absolute; z-index: 5; top: 1rem; left: 1.25rem; padding: 0.3rem 0.6rem; line-height: 0; color: #fff; pointer-events: none; opacity: 0; transition: opacity 0.4s ease; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.85)); }
+/* En plein écran : coin haut droit, sous le rang (et sous l'icône du diaporama), bord droit aligné sur celui du rang */
+#fullscreen-zoom-badge { top: 2.9rem !important; left: auto !important; right: 1.25rem !important; font-size: 1.15rem;}
+/* Loupe à gauche du pourcentage (masque SVG teinté par la couleur du texte) */
+#fullscreen-zoom-badge::before { content: ''; display: inline-block; width: 1em; height: 1em; margin-right: 0.35em; vertical-align: -0.12em; background: currentColor; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 5px rgba(0, 0, 0, 0.8)); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") center / contain no-repeat; }
+/* Diaporama : icône ▶ / ⏸ dans le coin haut droit, à la hauteur du rang. Informations affichées : elle se place juste à gauche du rang, dont la
+   largeur est mesurée par updateFullscreenInfo (--fullscreen-rank-width) ; sa hauteur égale celle du rang pour que les deux soient centrés sur la même ligne. */
+.slideshow-indicator { position: absolute; z-index: 5; top: 1rem; right: 1.25rem; height: 1.93rem; padding: 0 0.1rem 0 0.6rem; display: flex; align-items: center; line-height: 0; color: var(--fullscreen-text); pointer-events: none; opacity: 0; transition: opacity 0.4s ease; filter: var(--fullscreen-icon-shadow); }
 .slideshow-indicator.visible { opacity: 1; }
 .slideshow-indicator[hidden] { display: none; }
-#fullscreen-view.slideshow #fullscreen-zoom-badge { left: 3.75rem !important; }
+#fullscreen-view.show-info .slideshow-indicator { right: calc(1.25rem + var(--fullscreen-rank-width, 4rem)); }
 #fullscreen-view.cursor-idle, #fullscreen-view.cursor-idle.zoomed { cursor: none; }
 
 /* FILTRE DE DATE */
@@ -512,22 +530,64 @@ html[lang="en"] .exif-label::after { content: ":"; }
 #fullscreen-view img { position: absolute; top: 0; left: 0; max-width: none; max-height: none; transform-origin: 0 0; will-change: transform; user-select: none; -webkit-user-drag: none; pointer-events: none; animation: fadeInImage 0.2s ease; }
 #fullscreen-view.zoomed { cursor: grab; }
 #fullscreen-view.zoomed.dragging { cursor: grabbing; }
-.fullscreen-rating { position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%); padding: 0.6rem 1rem; border-radius: 2rem; background: #181818dd; box-shadow: 0 3px 18px #000a; display: flex; gap: 0.4rem; z-index: 2; }
+/* Barre de notes (R) : étoiles nues (sans fond ni pastille, ombre comme les textes), suivies de la couleur et du fanion pick. En bas au centre ;
+   avec les informations affichées, elle remonte au-dessus de la date (le titre et la description lui laissent la place : voir .rating-shown). */
+.fullscreen-rating { position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 0.4rem; z-index: 2; text-shadow: var(--fullscreen-text-shadow); }
+#fullscreen-view.show-info .fullscreen-rating { bottom: 3.5rem; }
+#fullscreen-view.rating-shown .fullscreen-info-title, #fullscreen-view.rating-shown .fullscreen-info-description { display: none; }
 .fullscreen-rating.hidden { display: none; }
-.fullscreen-rating button { background: transparent; border: 0; padding: 0 3px; color: #666; font-size: 2.4rem; line-height: 1; }
-.fullscreen-rating button:hover, .fullscreen-rating button.active { color: #ffd43b; }
-/* INFORMATIONS SUR LA PHOTO (touche D) : nom en haut au centre, rang en haut à droite, EXIF en bas à gauche, date en bas au centre.
+.fullscreen-rating button[data-rating] { background: transparent; border: 0; padding: 0 3px; color: var(--fullscreen-star-off); font-size: 2.4rem; line-height: 1; }
+.fullscreen-rating button[data-rating]:hover, .fullscreen-rating button[data-rating].active { background: transparent; color: var(--fullscreen-star-on); }
+/* Survol : les étoiles à gauche de celle qu'on survole se remplissent aussi (la note qu'un clic poserait) */
+.fullscreen-rating button[data-rating]:has(~ button[data-rating]:hover) { color: var(--fullscreen-star-on); }
+/* Pastille de couleur et drapeau pick : même rendu que les vignettes ; absents, ils restent visibles en gris très translucide cerné de noir. */
+.fullscreen-color-dot { flex: 0 0 auto; box-sizing: border-box; width: 1.6rem; height: 1.6rem; min-width: 0; padding: 0; border: 0; border-radius: 50%; background: var(--flag-color, transparent); appearance: none; }
+.fullscreen-color-dot:not(.flag-none) { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75), 0 0 3px 1px rgba(0, 0, 0, 0.7); }
+.fullscreen-color-dot.flag-none { background: var(--fullscreen-none-fill); border: 1px solid var(--fullscreen-none-edge); box-shadow: var(--fullscreen-none-shadow); }
+.fullscreen-pick-flag { flex: 0 0 auto; display: inline-block; min-width: 0; padding: 0; border: 0; background: transparent; font-size: 2rem; line-height: 1; color: var(--pick-color); text-shadow: var(--fullscreen-text-shadow); appearance: none; }
+/* Aucun fanion : intérieur translucide comme la pastille de couleur. Pas de text-shadow (il serait visible à travers le remplissage, d'où un drapeau noir) :
+   un halo extérieur par filter, et un fin contour. */
+.fullscreen-pick-flag.pick-none { color: var(--fullscreen-none-fill); text-shadow: none; -webkit-text-stroke: 1px var(--fullscreen-none-edge); filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6)); }
+button.fullscreen-pick-flag.pick-none:hover { filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6)) brightness(1.4); }
+button.fullscreen-color-dot, button.fullscreen-pick-flag { cursor: pointer; }
+button.fullscreen-color-dot:hover, button.fullscreen-pick-flag:hover { filter: brightness(1.2); }
+.fullscreen-popover-wrap { position: relative; display: flex; }
+.fullscreen-rating > .fullscreen-color-item { margin-left: 0.6rem; }
+.fullscreen-popover-wrap .fullscreen-popover { text-shadow: none; } /* la bulle s'ouvre vers le haut (valeurs de .marking-color-popover) */
+.fullscreen-popover-wrap .fullscreen-popover[hidden] { display: none; }
+/* Choix dans les bulles : aussi grands que la pastille et le drapeau qui les ouvrent */
+.fullscreen-popover .marking-colors { width: auto; flex: none; } /* les 9 pastilles agrandies tiennent sur une ligne */
+.fullscreen-popover .color-square { flex: 0 0 auto; width: 1.6rem; height: 1.6rem; border-radius: 50%; }
+.fullscreen-popover .pick-square { width: 2rem; height: 2rem; min-width: 2rem; font-size: 2rem; }
+/* Résumé en bas à droite, dans l'angle de l'histogramme : à sa place s'il est masqué, juste au-dessus sinon (son encadré : hauteur du canvas + marges et ligne de statistiques). */
+.fullscreen-marking { position: absolute; right: 1.25rem; bottom: 1.25rem; z-index: 1; display: flex; align-items: center; gap: 0.5rem; pointer-events: none; color: var(--fullscreen-text); text-shadow: var(--fullscreen-text-shadow); }
+.fullscreen-marking[hidden] { display: none; }
+body:has(.histogram-widget.in-fullscreen:not(.hidden)) .fullscreen-marking { bottom: calc(1.25rem + var(--histogram-height, 6rem) + 2.6rem); }
+.fullscreen-marking-stars { font-size: 1.35rem; line-height: 1; letter-spacing: 0.05em; } /* non colorées : blanc translucide comme la courbe de luminance de l'histogramme ; les vides sont les mêmes étoiles, très atténuées */
+.fullscreen-marking-stars .on { color: var(--fullscreen-summary-star-fill); }
+.fullscreen-marking-stars .off { color: var(--fullscreen-summary-star-empty); text-shadow: var(--fullscreen-summary-star-empty-shadow); }
+.fullscreen-marking .fullscreen-color-dot { width: 0.9rem; height: 0.9rem; }
+.fullscreen-marking .fullscreen-pick-flag { font-size: 1.15rem; }
+/* INFORMATIONS SUR LA PHOTO (touche D) : nom en haut au centre, rang en haut à droite, EXIF en bas à gauche, titre / description / date en bas au centre.
    Texte blanc avec ombre portée (un halo serré puis un plus large) pour rester lisible sur n'importe quel fond. */
-.fullscreen-info { position: absolute; inset: 0; z-index: 1; pointer-events: none; color: #fff; font-size: 0.95rem; line-height: 1.4; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(0, 0, 0, 0.6); }
+.fullscreen-info { position: absolute; inset: 0; z-index: 1; pointer-events: none; color: var(--fullscreen-text); font-size: 0.95rem; line-height: 1.4; text-shadow: var(--fullscreen-text-shadow); }
 .fullscreen-info.hidden { display: none; }
 .fullscreen-info > * { position: absolute; padding: 0.3rem 0.6rem; } /* la marge laisse la place au halo de l'ombre (sinon rogné par overflow: hidden) */
 .fullscreen-info-name { top: 1rem; left: 50%; transform: translateX(-50%); max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .fullscreen-info-rank { top: 1rem; right: 1.25rem; font-variant-numeric: tabular-nums; }
 .fullscreen-info-exif { bottom: 1rem; left: 1.25rem; max-width: 36%; padding: 0; }
 .fullscreen-info-exif > div { padding: 0.05rem 0.6rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.fullscreen-info-date { bottom: 1rem; left: 50%; transform: translateX(-50%); max-width: 36%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-/* La barre de notes (R) est au même endroit que la date : elle remonte quand les informations sont affichées. */
-#fullscreen-view.show-info .fullscreen-rating { bottom: 3.5rem; }
+.fullscreen-info-bottom { bottom: 1rem; left: 50%; transform: translateX(-50%); max-width: 36%; padding: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.fullscreen-info-bottom > * { max-width: 100%; box-sizing: border-box; }
+.fullscreen-info-bottom [hidden] { display: none; }
+.fullscreen-info-title { padding: 0.05rem 0.6rem; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.fullscreen-info-description { padding: 0.05rem 0.6rem; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+.fullscreen-info-date { padding: 0.3rem 0.6rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* Deux traits encadrent la date (longueur : --fullscreen-date-rule-width), pour qu'elle ne se noie pas dans la description. */
+.fullscreen-info-date::before, .fullscreen-info-date::after { content: ''; display: inline-block; width: var(--fullscreen-date-rule-width, 4ch); height: 1px; vertical-align: middle; background: currentColor; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.95); }
+.fullscreen-info-date::before { margin-right: 0.7em; }
+.fullscreen-info-date::after { margin-left: 0.7em; }
+.fullscreen-info-date:empty::before, .fullscreen-info-date:empty::after { display: none; }
 
 /* MODALE DE TRI */
 .sort-card { width: min(24rem, calc(100vw - 2.5rem)); }

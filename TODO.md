@@ -10,8 +10,8 @@
 - [x] *fix*: `storage` put thumbs in subfolders to avoid big collection issues
 - [x] *fix*: `tasks` warn of running tasks when quitting
 - [x] *refactor*: `UI` move qty of dispplayed photos to filters title bar (always visible)
-- [ ] *feat*: `dupes` find duplicates by name (regex), exact hash, phash with new modal
-- [ ] *feat*: `UI` display descriptions & titles in fullscreen
+- [x] *feat*: `dupes` find duplicates by name (regex), exact hash, phash with new modal
+- [x] *feat*: `UI` display descriptions & titles in fullscreen
 
 ## 💡 Ideas / Longer term / On hold
 

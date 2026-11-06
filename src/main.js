@@ -2209,6 +2209,8 @@ function closeFullscreen() {
   fullscreenView.classList.add('hidden');
   clearTimeout(fullscreenRatingTimeout);
   fullscreenRatingPinned = false;
+  closeFullscreenPopovers();
+  fullscreenMarking.hidden = true;
   clearTimeout(fullscreenSlot.zoomTimeout);
   fullscreenSlot.zoomBadge?.classList.remove('visible');
   layoutFullscreenFaces(fullscreenSlot); // masque les zones de visage
@@ -2306,12 +2308,20 @@ const fullscreenRating = document.getElementById('fullscreen-rating');
 function showFullscreenRatingForAWhile() {
   fullscreenRating.classList.remove('hidden');
   clearTimeout(fullscreenRatingTimeout);
-  if (!fullscreenRatingPinned) fullscreenRatingTimeout = setTimeout(() => fullscreenRating.classList.add('hidden'), 3000);
+  if (!fullscreenRatingPinned) {
+    fullscreenRatingTimeout = setTimeout(() => {
+      if (fullscreenPopoverOpen()) return; // une bulle de choix est ouverte : la barre reste, elle repart pour 3 s à la fermeture
+      fullscreenRating.classList.add('hidden');
+      syncFullscreenMarking();
+    }, 3000);
+  }
+  syncFullscreenMarking();
 }
 
 function updateFullscreenRatingStars() {
   const rating = photos[lastSelectedIndex]?.rating || 0;
-  fullscreenRating.querySelectorAll('button').forEach(button => button.classList.toggle('active', Number(button.dataset.rating) <= rating));
+  fullscreenRating.querySelectorAll('button[data-rating]').forEach(button => button.classList.toggle('active', Number(button.dataset.rating) <= rating));
+  if (isFullscreen) syncFullscreenMarking();
 }
 
 // INFORMATIONS SUR LA PHOTO EN PLEIN ÉCRAN (touche D) : nom de fichier (haut, centre), rang dans la liste parcourue (haut, droite),
@@ -2323,6 +2333,8 @@ const fullscreenInfoName = document.getElementById('fullscreen-info-name');
 const fullscreenInfoRank = document.getElementById('fullscreen-info-rank');
 const fullscreenInfoExifLines = [...document.querySelectorAll('#fullscreen-info-exif > div')];
 const fullscreenInfoDate = document.getElementById('fullscreen-info-date');
+const fullscreenInfoTitle = document.getElementById('fullscreen-info-title');
+const fullscreenInfoDescription = document.getElementById('fullscreen-info-description');
 
 // « samedi 12 septembre 2026, 12h36 » (l'heure n'est ajoutée que si la date EXIF en contient une).
 function formatFullscreenDate(photo) {
@@ -2351,22 +2363,86 @@ function fullscreenCameraName(photo) {
 function updateFullscreenInfo() {
   fullscreenView.classList.toggle('show-info', fullscreenInfoVisible);
   fullscreenInfo.classList.toggle('hidden', !fullscreenInfoVisible);
-  if (!fullscreenInfoVisible) return;
+  if (!fullscreenInfoVisible) { syncFullscreenMarking(); return; }
   const photo = fullscreenSlot.photo;
   if (!photo) {
     fullscreenInfoName.textContent = fullscreenInfoRank.textContent = fullscreenInfoDate.textContent = '';
+    fullscreenInfoTitle.textContent = fullscreenInfoDescription.textContent = '';
+    fullscreenInfoTitle.hidden = fullscreenInfoDescription.hidden = true;
     fullscreenInfoExifLines.forEach(line => { line.textContent = ''; line.hidden = true; });
+    syncFullscreenMarking();
     return;
   }
   fullscreenInfoName.textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '';
   const index = photos[lastSelectedIndex] === photo ? lastSelectedIndex : photos.indexOf(photo);
   fullscreenInfoRank.textContent = index >= 0 ? `${index + 1}/${photos.length}` : '';
+  // The slideshow icon sits right before the rank: its offset follows the rank's width (see .slideshow-indicator in styles.css).
+  const rankWidth = fullscreenInfoRank.offsetWidth;
+  if (rankWidth > 0) fullscreenView.style.setProperty('--fullscreen-rank-width', `${rankWidth}px`);
   fullscreenInfoDate.textContent = formatFullscreenDate(photo);
+  // Title (one line, bold) and description (three lines at most) above the date, only when the metadata holds them.
+  const title = (photo.title || '').trim();
+  const description = (photo.caption || '').trim();
+  fullscreenInfoTitle.textContent = title;
+  fullscreenInfoTitle.hidden = !title;
+  fullscreenInfoDescription.textContent = description;
+  fullscreenInfoDescription.hidden = !description;
   const lines = [
     [fullscreenCameraName(photo), (photo.lens_model || '').trim()],
     [photo.focal_length, photo.shutter_speed ? formatShutterSpeed(photo.shutter_speed) : '', photo.iso ? `ISO ${photo.iso}` : ''],
   ].map(parts => parts.filter(Boolean).join(' · '));
   fullscreenInfoExifLines.forEach((line, i) => { line.textContent = lines[i] || ''; line.hidden = !lines[i]; });
+  syncFullscreenMarking();
+}
+
+// RATING, COLOR AND PICK IN FULLSCREEN. Two places show them: the row under the file name (R; stars, color dot and pick flag are
+// clickable and behave like the marking bar of the grid: the dot and the flag open a choice popover) and, when the info overlay is on
+// while that row is hidden, a read-only summary at the bottom right (above the histogram if it is displayed).
+const fullscreenColorButton = document.getElementById('fullscreen-color-button');
+const fullscreenColorPopover = document.getElementById('fullscreen-color-popover');
+const fullscreenPickButton = document.getElementById('fullscreen-pick-button');
+const fullscreenPickPopover = document.getElementById('fullscreen-pick-popover');
+const fullscreenMarking = document.getElementById('fullscreen-marking');
+const fullscreenMarkingStars = document.getElementById('fullscreen-marking-stars');
+const fullscreenMarkingColor = document.getElementById('fullscreen-marking-color');
+const fullscreenMarkingPick = document.getElementById('fullscreen-marking-pick');
+
+function fullscreenPopoverOpen() {
+  return !fullscreenColorPopover.hidden || !fullscreenPickPopover.hidden;
+}
+
+function closeFullscreenPopovers() {
+  fullscreenColorPopover.hidden = fullscreenPickPopover.hidden = true;
+  fullscreenColorButton.setAttribute('aria-expanded', 'false');
+  fullscreenPickButton.setAttribute('aria-expanded', 'false');
+}
+
+// Opens `popover` (closing the other one); the 3 s countdown of the row is suspended while a popover is open.
+function toggleFullscreenPopover(button, popover) {
+  const open = popover.hidden;
+  closeFullscreenPopovers();
+  popover.hidden = !open;
+  button.setAttribute('aria-expanded', String(open));
+  clearTimeout(fullscreenRatingTimeout);
+  if (!open) showFullscreenRatingForAWhile();
+}
+
+// Brings the dot, the flag, the summary and its visibility in line with the current photo.
+function syncFullscreenMarking() {
+  const photo = photos[lastSelectedIndex];
+  const rating = photo?.rating || 0;
+  const colorFlag = photo?.color_flag || 'none';
+  const pickFlag = photo?.pick_flag || 'none';
+  const rowShown = !fullscreenRating.classList.contains('hidden');
+  if (!rowShown) closeFullscreenPopovers();
+  fullscreenColorButton.className = `fullscreen-color-dot flag-${colorFlag}`;
+  fullscreenPickButton.className = `fullscreen-pick-flag pick-${pickFlag}`;
+  fullscreenMarkingStars.firstElementChild.textContent = '★'.repeat(rating); // filled stars; the empty ones are the same glyph, faded (CSS)
+  fullscreenMarkingStars.lastElementChild.textContent = '★'.repeat(5 - rating);
+  fullscreenView.classList.toggle('rating-shown', rowShown); // the title and description make room for the row (CSS)
+  fullscreenMarkingColor.className = `fullscreen-color-dot fullscreen-color-item flag-${colorFlag}`;
+  fullscreenMarkingPick.className = `fullscreen-pick-flag fullscreen-pick-item pick-${pickFlag}`;
+  fullscreenMarking.hidden = !(isFullscreen && fullscreenInfoVisible && !rowShown && photo);
 }
 
 function toggleFullscreenInfo() {
@@ -2456,7 +2532,7 @@ fullscreenImg.addEventListener('error', () => {
   if (path && fullscreenImg.getAttribute('src')) checkPhotoMissing(path);
 });
 fullscreenRating.addEventListener('click', event => event.stopPropagation());
-fullscreenRating.querySelectorAll('button').forEach(button => button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating))));
+fullscreenRating.querySelectorAll('button[data-rating]').forEach(button => button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating))));
 
 // ==========================================
 // SELECTION MULTIPLE
@@ -2869,6 +2945,7 @@ window.addEventListener('keydown', (e) => {
     clearTimeout(fullscreenRatingTimeout);
     if (fullscreenRatingPinned) fullscreenRating.classList.remove('hidden');
     else fullscreenRating.classList.add('hidden');
+    syncFullscreenMarking();
     return;
   }
   // F10 : lance le diaporama, ou l'arrête s'il est en cours (plein écran, ou grille : sur la sélection si elle compte 2 photos ou plus, sinon sur toute la vue).
@@ -4192,6 +4269,32 @@ document.addEventListener('keydown', event => {
   closeMarkingColorPopover();
   closeMarkingPickPopover();
   event.stopImmediatePropagation();
+}, true);
+
+// Fullscreen row (R): the same choices as the marking bar, in popovers opening downwards (see syncFullscreenMarking).
+fullscreenColorPopover.append(createMarkingColors());
+fullscreenPickPopover.append(createMarkingPick());
+fullscreenColorButton.addEventListener('click', () => toggleFullscreenPopover(fullscreenColorButton, fullscreenColorPopover));
+fullscreenPickButton.addEventListener('click', () => toggleFullscreenPopover(fullscreenPickButton, fullscreenPickPopover));
+for (const popover of [fullscreenColorPopover, fullscreenPickPopover]) {
+  popover.addEventListener('click', event => {
+    if (event.target instanceof Element && event.target.closest('.color-square, .pick-square')) {
+      closeFullscreenPopovers();
+      showFullscreenRatingForAWhile();
+    }
+  });
+}
+document.addEventListener('pointerdown', event => {
+  if (fullscreenPopoverOpen() && !(event.target instanceof Element && event.target.closest('.fullscreen-popover-wrap'))) {
+    closeFullscreenPopovers();
+    showFullscreenRatingForAWhile();
+  }
+}, true);
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || !fullscreenPopoverOpen()) return;
+  closeFullscreenPopovers();
+  showFullscreenRatingForAWhile();
+  event.stopImmediatePropagation(); // Escape closes the popover only, not the fullscreen view
 }, true);
 
 // Le panneau Info compte comme « ouvert » quand il est affiché avec son onglet Info (le seul qui porte la section Marquage).
