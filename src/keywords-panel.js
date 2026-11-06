@@ -315,6 +315,15 @@ function buildNodeRow(node, depth, hasChildren, expanded, togglable) {
     toggle.tabIndex = -1;
     toggle.textContent = hasChildren ? '▾' : ' ';
   }
+  // Double-click on the row (name or empty area) folds / unfolds it. The checkbox and the arrow are excluded:
+  // a double-click there must keep meaning "two clicks" for the checkbox attribution.
+  if (hasChildren && togglable) {
+    row.addEventListener('dblclick', event => {
+      if (event.target.closest('.keyword-check, .keyword-toggle')) return;
+      if (expanded) expandedIds.delete(node.id); else expandedIds.add(node.id);
+      renderTree();
+    });
+  }
   const name = document.createElement('span');
   name.className = 'keyword-name';
   name.textContent = node.name;

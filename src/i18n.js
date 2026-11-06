@@ -10,7 +10,7 @@ export const LANGUAGES = {
   fr: { label: 'Français', messages: fr, colon: '\u00a0:' },
   en: { label: 'English', messages: en, colon: ':' },
 };
-export const DEFAULT_LANGUAGE = 'fr';
+export const DEFAULT_LANGUAGE = 'en';
 const STORAGE_KEY = 'appLanguage';
 
 const isSupported = language => Object.prototype.hasOwnProperty.call(LANGUAGES, language);

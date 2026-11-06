@@ -16,7 +16,7 @@ import { t, onLanguageChange } from './i18n.js';
 const STORAGE_KEY = 'rawSearch';
 const SCOPES = ['parent', 'current', 'children'];
 const CRITERIA = ['name', 'date', 'gear', 'shooting'];
-const DEFAULTS = { name: true, date: true, gear: true, shooting: true, scope: 'parent', pattern: '' };
+const DEFAULTS = { name: false, date: true, gear: true, shooting: true, scope: 'parent', pattern: '' };
 
 function load() {
   try {

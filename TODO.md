@@ -15,7 +15,9 @@
 - [x] *feat*: `metadata` internal metadata writer activated => no exif reading option
 - [x] *style*: `metadata` display clearly source of metadata formats in order lists (XMP / IPTC / EXIF)
 - [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
-- [ ] double click to fold/unfold folders
+- [ ] *feat*: `controls` double click to fold/unfold folders
+- [ ] *chore*: `installation` default settings review
+- [ ] *docs*: `installation` mention to grab exiftool
 
 ## 💡 Ideas / Longer term / On hold
 

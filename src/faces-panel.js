@@ -17,8 +17,8 @@ const FACE_SETTINGS_STORAGE_KEY = 'faceSettings'; // réglages de détection (JS
 const SUBFOLDERS_STORAGE_KEY = 'faceScanSubfolders'; // « true » : toujours inclure les sous-dossiers d'un dossier scanné
 // Valeurs par défaut provisoires (spec §8), à ajuster après les premiers essais.
 const DEFAULT_FACE_SETTINGS = {
-  scanRaw: true, minSizePermille: 10, minConfidence: 0.8, minSharpness: 50,
-  autoThreshold: 0.5, suggestionThreshold: 0.36, margin: 0.05,
+  scanRaw: false, minSizePermille: 6, minConfidence: 0.5, minSharpness: 10,
+  autoThreshold: 0.8, suggestionThreshold: 0.38, margin: 0.07,
 };
 const THRESHOLD_INPUTS = {
   minSizePermille: 'face-min-size-permille', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness',
@@ -31,12 +31,12 @@ const SORT_STORAGE_KEY = 'personsSort'; // « count » (fréquence, par défaut)
 const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed', filters: 'filtersCollapsed' };
 
 let host = null; // fonctions fournies par main.js (voir initFacesPanel)
-let readingEnabled = readStorage(READING_STORAGE_KEY) === 'true';
+let readingEnabled = readStorage(READING_STORAGE_KEY) !== 'false';
 // Anciennes valeurs mémorisées : « true » (zones affichées) et « false » (masquées).
 const OVERLAY_MODES = ['hover', 'always', 'hidden'];
 let overlayMode = (() => {
   const stored = readStorage(OVERLAY_STORAGE_KEY);
-  return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : 'hidden';
+  return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : stored === 'false' ? 'hidden' : 'hover';
 })();
 // Zones écartées (ignorées, « pas un visage ») affichées aussi sur la photo : réglages du sous-menu Visages (aperçu et plein écran).
 const IGNORED_SHOWN_STORAGE_KEY = 'faceIgnoredShown';

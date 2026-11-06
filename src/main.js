@@ -169,13 +169,15 @@ const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos,
 // Filtre Format (type, marque de RAW, extension) : voir format-filters.js, qui porte aussi les listes d'extensions.
 const formatFilters = initFormatFilters({ onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
+// Folders added to `currentFolderFilter` by Ctrl+click in the tree: the grid shows the photos of all of them (not persisted, reset by a plain click).
+let extraFolderFilters = [];
 // Mode « Trouver le RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
 let rawSearch = null;
 // Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
 let duplicateSearch = null;
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
-let includeSubfolders = localStorage.getItem('includeSubfolders') !== 'false';
+let includeSubfolders = localStorage.getItem('includeSubfolders') === 'true'; // off by default
 let keywordFilters = [];
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
@@ -290,7 +292,7 @@ const PICK_FLAGS = [
 ];
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
-const DEFAULT_SELECTION_COLOR = '#1e72ad';
+const DEFAULT_SELECTION_COLOR = '#15932a';
 let appTheme = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark';
 const storedSelectionColor = localStorage.getItem('selectionColor') || '';
 let selectionColor = /^#[0-9a-f]{6}$/i.test(storedSelectionColor) ? storedSelectionColor : DEFAULT_SELECTION_COLOR;
@@ -355,15 +357,15 @@ document.getElementById('text-size-select')?.addEventListener('change', event =>
 });
 
 // DOM
-let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 512;
+let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 1024;
 // 512 px minimum : la détection des visages lit les miniatures en cache.
 if (![512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
-  let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || 160;
+  let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || 512;
 thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
 // Encadrée (framed) : grille carrée où chaque photo entière (non recadrée) s'inscrit dans sa case ; portrait et paysage de même ratio ont la même taille.
-let thumbnailLayout = ['square', 'framed', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'square';
+let thumbnailLayout = ['square', 'framed', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'justified';
 // ESPACEMENT DES MINIATURES (mémorisé localement), commun à toutes les dispositions : aucun, petit (0,25 rem) ou normal (marge et cadre historiques de la cascade).
 // Sans choix enregistré, on garde l'aspect d'avant ce réglage : vue justifiée sans espace, autres dispositions espacées.
 const THUMBNAIL_SPACINGS = ['none', 'small', 'normal'];
@@ -698,6 +700,18 @@ async function loadFolders() {
   renderSettingsFolderList();
 }
 
+// Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains another),
+// newest first like the backend order.
+async function queryFolderPhotos(folder) {
+  const query = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter, recursive: includeSubfolders });
+  if (folder === null || folder !== currentFolderFilter || extraFolderFilters.length === 0) return query(folder);
+  const lists = await Promise.all([folder, ...extraFolderFilters].map(query));
+  const seen = new Set();
+  const merged = [];
+  for (const list of lists) for (const photo of list) if (!seen.has(photo.path)) { seen.add(photo.path); merged.push(photo); }
+  return merged.sort((a, b) => String(b.date_taken || '').localeCompare(String(a.date_taken || '')) || (b.id ?? 0) - (a.id ?? 0));
+}
+
 async function loadPhotos() {
   // Album virtuel affiché : un album manuel montre son contenu ; un album intelligent part de toute la photothèque (ses filtres viennent ensuite).
   // Dans les deux cas le dossier du disque n'intervient plus.
@@ -710,12 +724,7 @@ async function loadPhotos() {
   } else if (baseAlbumId) {
     loadedPhotos = await invoke('get_album_photos', { albumId: baseAlbumId });
   } else {
-    loadedPhotos = await invoke('get_photos_paginated', {
-      offset: 0,
-      limit: 50000,
-      folderFilter: album ? null : currentFolderFilter,
-      recursive: includeSubfolders,
-    });
+    loadedPhotos = await queryFolderPhotos(album ? null : currentFolderFilter);
   }
   photosLoadedOnce = true;
   if (!album && currentFolderFilter === null && !duplicateSearch) folderTreePhotos = loadedPhotos;
@@ -1571,7 +1580,8 @@ function renderFolderTree({ fromCounts = false } = {}) {
   if (showEmptyFolders) for (const folderPath of diskFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''), true);
   const renderNode = (node, parentElement, depth, isRoot = false) => {
     const li = document.createElement('li');
-    li.className = `folder-tree-item ${currentFolderFilter && !getSelectedAlbum() && normalize(currentFolderFilter) === normalize(node.path) ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
+    const isActiveFolder = !getSelectedAlbum() && [currentFolderFilter, ...extraFolderFilters].some(folder => folder && normalize(folder) === normalize(node.path));
+    li.className = `folder-tree-item ${isActiveFolder ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
     li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
     if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
     li.style.paddingLeft = `${10 + depth * 16}px`;
@@ -1599,7 +1609,10 @@ function renderFolderTree({ fromCounts = false } = {}) {
         ? folderCountElement(folderCountsTree.get(key) ?? 0, 'with its subfolders')
         : folderCountElement(folderCountsOwn.get(key) ?? 0, 'in this folder'));
     }
-    li.addEventListener('click', () => selectFolder(node.path));
+    // Ctrl (Cmd on macOS) + click adds the folder to / removes it from the multiple selection.
+    li.addEventListener('click', event => {
+      if (event.ctrlKey || event.metaKey) toggleFolderInSelection(node.path); else selectFolder(node.path);
+    });
     parentElement.appendChild(li);
     if (expanded) for (const child of [...node.children.values()].sort((a, b) => a.name.localeCompare(b.name))) renderNode(child, parentElement, depth + 1);
   };
@@ -1626,12 +1639,12 @@ function renderFolderTree({ fromCounts = false } = {}) {
 
 // Compteurs de l'option « Montrer le nombre de photos des dossiers » : photos et vidéos du catalogue, sans filtre, calculées côté Rust.
 // Clés normalisées comme celles de l'arbre (« / », minuscules, sans « / » final) ; `Own` = niveau du dossier, `Tree` = avec ses sous-dossiers.
-let showFolderCounts = localStorage.getItem('showFolderCounts') === 'true';
+let showFolderCounts = localStorage.getItem('showFolderCounts') !== 'false';
 
 // Pastille des photos géolocalisées sur les miniatures (Options d'affichage, désactivée par défaut) : simple classe sur <body>.
 const GEO_BADGE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
 const showGeoBadgesToggle = document.getElementById('show-geo-badges-toggle');
-showGeoBadgesToggle.checked = localStorage.getItem('showGeoBadges') === 'true';
+showGeoBadgesToggle.checked = localStorage.getItem('showGeoBadges') !== 'false';
 document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
 showGeoBadgesToggle.addEventListener('change', () => {
   localStorage.setItem('showGeoBadges', String(showGeoBadgesToggle.checked));
@@ -1684,7 +1697,7 @@ function scheduleFolderCounts() {
 }
 const folderTreeExpanded = new Set();
 const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
-let showEmptyFolders = localStorage.getItem('showEmptyFolders') === 'true';
+let showEmptyFolders = localStorage.getItem('showEmptyFolders') !== 'false';
 let diskFolders = []; // sous-dossiers présents sur le disque, lus seulement si showEmptyFolders est actif
 // Relit les sous-dossiers du disque puis redessine l'arborescence ; sans l'option, la liste est vidée et rien n'est lu.
 async function refreshDiskFolders() {
@@ -1719,10 +1732,44 @@ function selectFolder(path) {
   clearAlbumSelection(); // une seule entrée active dans la barre latérale
   syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
   currentFolderFilter = path;
+  extraFolderFilters = [];
   rememberCurrentFolder();
   renderFolderTree();
   loadPhotos();
 }
+
+// Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
+function toggleFolderInSelection(path) {
+  const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  if (currentFolderFilter === null || getSelectedAlbum() || duplicateSearch || rawSearch) { selectFolder(path); return; }
+  if (isSelectedAlbumDirty()) { selectFolder(path); return; }
+  if (same(currentFolderFilter, path)) {
+    if (extraFolderFilters.length === 0) return; // the only selected folder stays selected
+    // The main folder is deselected: the first extra one takes over.
+    [currentFolderFilter, ...extraFolderFilters] = extraFolderFilters;
+    rememberCurrentFolder();
+  } else if (extraFolderFilters.some(folder => same(folder, path))) {
+    extraFolderFilters = extraFolderFilters.filter(folder => !same(folder, path));
+  } else {
+    extraFolderFilters.push(path);
+  }
+  renderFolderTree();
+  loadPhotos();
+}
+
+// Double-click on a folder row folds / unfolds it (same as its arrow). The tree is redrawn by the first click (and again when the photos load), so the
+// row under the second click is a new element and the browser may never fire `dblclick` on it: the second `mousedown` (detail 2) is used instead.
+folderTree.addEventListener('mousedown', event => {
+  if (event.detail !== 2 || event.button !== 0 || event.ctrlKey || event.metaKey || event.target.closest('.folder-tree-toggle')) return;
+  event.preventDefault(); // no text selection on a double-click
+  const row = event.target.closest('li[data-folder-path]');
+  if (!row) return;
+  const key = row.dataset.folderPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  if (!row.querySelector('.folder-tree-toggle')?.textContent.trim()) return; // no subfolder
+  if (folderTreeExpanded.has(key)) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
+  folderTreeInitialized = true;
+  renderFolderTree();
+});
 
 // ==========================================
 // TROUVER LE RAW
@@ -1784,7 +1831,7 @@ async function restoreViewSnapshot(snapshot) {
     restoreAlbumSelection(snapshot.albumId);
     syncSmartAlbumWithSelection(); // album intelligent : ses filtres reviennent
   } else {
-    currentFolderFilter = snapshot.folder;
+    currentFolderFilter = snapshot.folder; extraFolderFilters = [];
   }
   await loadPhotos();
   const indexByPath = new Map(photos.map((photo, index) => [photo.path, index]));
@@ -1808,7 +1855,7 @@ async function showPhotoInItsFolder(photo) {
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   const folder = folderOf(photo.path);
-  currentFolderFilter = folder;
+  currentFolderFilter = folder; extraFolderFilters = [];
   rememberCurrentFolder();
   // Dossiers parents dépliés pour que le dossier soit visible dans l'arbre (comme à la reprise du dernier dossier au démarrage).
   const segments = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase().split('/');
@@ -1881,7 +1928,7 @@ async function findRawFor(photo) {
   resetAllFilters();
   applyFilterState(state);
   setIncludeSubfoldersTemporarily(true);
-  currentFolderFilter = folder;
+  currentFolderFilter = folder; extraFolderFilters = [];
   rawSearch = { name, excludeDir: excluded, nameStem, snapshot };
   renderFolderTree();
   await loadPhotos();
@@ -3342,7 +3389,7 @@ function setToolbarLabels(show) {
   topBarEl?.classList.toggle('show-labels', show);
   try { localStorage.setItem('toolbarShowLabels', String(show)); } catch { /* storage unavailable: the choice just isn't remembered */ }
 }
-setToolbarLabels(localStorage.getItem('toolbarShowLabels') === 'true');
+setToolbarLabels(localStorage.getItem('toolbarShowLabels') !== 'false');
 if (localStorage.getItem('toolbarAutoHide') === 'true') topBarEl?.classList.add('hidden'); // restored before the first layout: the grid starts at full height
 topBarEl?.addEventListener('contextmenu', event => {
   event.preventDefault();
@@ -5031,7 +5078,7 @@ async function showDuplicateResults(result, titleKey, label, context) {
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   resetAllFilters();
-  currentFolderFilter = null;
+  currentFolderFilter = null; extraFolderFilters = [];
   // What the search could not do, in the tooltip of the banner.
   const note = [
     context.criteria,
@@ -6011,6 +6058,7 @@ function applyDeletedFolder(deletedPath, removedPaths) {
   diskFolders = diskFolders.filter(folder => !isInside(folder)); // sinon le dossier supprimé resterait dans l'arbre (option « dossiers sans photo »)
   for (const key of [...folderTreeExpanded]) if (isInside(key)) folderTreeExpanded.delete(key);
   const viewAffected = currentFolderFilter !== null && isInside(currentFolderFilter);
+  extraFolderFilters = extraFolderFilters.filter(folder => !isInside(folder));
   removePhotosFromLibrary(removedPaths);
   renderFolderTree();
   // Le dossier supprimé n'est jamais un dossier suivi : son parent l'est, ou en fait partie.
@@ -6077,6 +6125,7 @@ async function renameFolderOnDisk(path, newName) {
       currentFolderFilter = follow(currentFolderFilter);
       rememberCurrentFolder();
     }
+    extraFolderFilters = extraFolderFilters.map(folder => (isInside(folder) ? follow(folder) : folder));
     if (moved.length) await applyMovedPhotos(moved);
     renderFolderTree();
     if (showEmptyFolders) refreshDiskFolders(); // relit le disque : un sous-dossier vide renommé garde la bonne casse
@@ -6913,7 +6962,7 @@ async function refreshLibraryAfterSync(changes) {
   const known = new Map(loadedPhotos.map(photo => [photo.path, photo]));
   const modified = new Set(changes.updated);
   const query = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter, recursive: includeSubfolders });
-  const [fresh, everything] = await Promise.all([query(folderAtStart), folderAtStart === null ? null : query(null)]);
+  const [fresh, everything] = await Promise.all([queryFolderPhotos(folderAtStart), folderAtStart === null ? null : query(null)]);
   if (folderAtStart !== currentFolderFilter) return; // dossier changé pendant le chargement : le rechargement normal fait foi
   for (const photo of fresh) {
     const previous = known.get(photo.path);

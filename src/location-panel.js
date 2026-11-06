@@ -33,7 +33,7 @@ function isMapEnabled() {
 // l'option « Afficher une carte du lieu de la photo » des Paramètres.
 const WIDGET_STORAGE_KEY = 'showInfoMapWidget';
 function isWidgetEnabled() {
-  return readStorage(WIDGET_STORAGE_KEY) !== 'false';
+  return readStorage(WIDGET_STORAGE_KEY) === 'true';
 }
 
 let panel, coordsElement, lockButton, messageElement, mapElement, mapView;

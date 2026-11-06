@@ -27,7 +27,7 @@ export function getSlideshowSettings() {
   const storedDelay = readStored('delay');
   return {
     delay: storedDelay === null ? DEFAULT_DELAY : clampDelay(storedDelay),
-    loop: readStored('loop') === '1',
+    loop: readStored('loop') !== '0',
     random: readStored('random') === '1',
   };
 }

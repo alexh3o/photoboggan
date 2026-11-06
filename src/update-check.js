@@ -27,7 +27,7 @@ const remove = key => { try { localStorage.removeItem(key); } catch { /* rien à
 
 const isOffline = () => read('offlineMode') === 'true';
 // Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
-const isEnabled = () => read(KEY_ENABLED) === 'true';
+const isEnabled = () => read(KEY_ENABLED) !== 'false';
 const includesPrereleases = () => read(KEY_PRERELEASES) === 'true';
 
 function savedInfo() {

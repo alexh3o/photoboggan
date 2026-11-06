@@ -68,13 +68,13 @@ impl Default for FaceSettings {
 
 impl FaceSettings {
     const DEFAULT: FaceSettings = FaceSettings {
-        scan_raw: true,
-        min_size_permille: 10.0,
-        min_confidence: 0.8,
-        min_sharpness: 50.0,
-        auto_threshold: 0.50,
-        suggestion_threshold: 0.36,
-        margin: 0.05,
+        scan_raw: false,
+        min_size_permille: 6.0,
+        min_confidence: 0.5,
+        min_sharpness: 10.0,
+        auto_threshold: 0.80,
+        suggestion_threshold: 0.38,
+        margin: 0.07,
     };
 
     pub fn thresholds(&self) -> crate::face_recognize::Thresholds {

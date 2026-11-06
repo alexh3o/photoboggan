@@ -41,7 +41,7 @@ export function bindSettingsLink(element) {
 
 /** Le style doit être téléchargé avec chaque zone (case des Paramètres > Cartes, décochée par défaut). */
 export function isMapStyleRefreshEnabled() {
-  try { return localStorage.getItem(REFRESH_STORAGE_KEY) === 'true'; } catch { return false; }
+  try { return localStorage.getItem(REFRESH_STORAGE_KEY) !== 'false'; } catch { return true; }
 }
 
 const isOffline = () => { try { return localStorage.getItem('offlineMode') === 'true'; } catch { return false; } };

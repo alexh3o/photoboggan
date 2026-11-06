@@ -12,7 +12,7 @@ import { t, labelWithColon, getLanguage } from './i18n.js';
 const MAX_ANALYSIS_SIDE = 768;   // plus grand côté des pixels analysés (au-delà, l'image est réduite : surtout le repli sur l'image d'origine)
 const PIXEL_CACHE_SIZE = 6;      // photos dont les pixels restent en mémoire
 const ANALYSIS_DELAY_MS = 30;    // attente avant analyse : évite de décoder chaque miniature pendant un défilement rapide au clavier
-const DEFAULT_CLIPPING_RANGE = 2;
+const DEFAULT_CLIPPING_RANGE = 3;
 const MAX_CLIPPING_RANGE = 20;
 
 const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
@@ -21,7 +21,7 @@ const write = (key, value) => { try { localStorage.setItem(key, String(value)); 
 // Réglages (Options d'affichage > Histogramme), mémorisés localement.
 let showHistogram = read('showHistogram', 'false') === 'true';
 let showClippings = read('showClippings', 'false') === 'true';
-let clippingMode = read('clippingMode', 'colors') === 'bw' ? 'bw' : 'colors'; // 'colors' : rouge / bleu fixes ; 'bw' : noir / blanc pulsant
+let clippingMode = read('clippingMode', 'bw') === 'colors' ? 'colors' : 'bw';// 'colors' : rouge / bleu fixes ; 'bw' : noir / blanc pulsant
 let clippingRange = clampRange(Number(read('clippingRange', DEFAULT_CLIPPING_RANGE)));
 let rgbMode = read('histogramRgb', 'false') === 'true';                         // false : luminance, true : trois courbes RVB
 
