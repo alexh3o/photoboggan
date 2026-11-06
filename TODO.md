@@ -26,7 +26,7 @@
 
 ## ⚖️ Undecided
 
-- [ ] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
+- [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `faces` resize / move face area
 - [ ] *feat*: stats
