@@ -1,7 +1,7 @@
 # Instructions pour les Agents IA — photoboggan
 
 > Ce fichier doit rester court (≈180 lignes max) : il est relu à chaque session. N'y mettre que ce qui ne se déduit pas du code.
-> Réponses et interface en **français** (clés d'interface en anglais, voir §5.E).
+> Réponses à l'utilisateur et interface en **français** (clés d'interface en anglais, voir §5.F). **Documentation, commentaires de code et messages de commit en anglais** (voir §4.9).
 
 ---
 
@@ -79,7 +79,7 @@ src-tauri/
 6. **Pas de framework** dans le frontend (React, Vue, jQuery, bibliothèques lourdes…).
 7. **Dépendances** : ne pas en ajouter sans demande ou nécessité (les tests ont `tempfile` en `[dev-dependencies]`, rien d'autre). Pour toute dépendance native ou réimplémentation de format, comparer compilation, distribution (Windows/Linux), maintenance, sécurité et performance, et justifier le choix.
 8. **Portabilité** : pas d'appel spécifique à Windows (cmd.exe, PowerShell, registre…) sans équivalent Linux/macOS ; utiliser les API Tauri (`app.path()`, `PathBuf`).
-9. **Lisibilité** : code facile à relire, commenté en français (utilité de chaque bloc, intention de l'utilisateur), ordonné logiquement.
+9. **Lisibilité** : code facile à relire, ordonné logiquement, commenté **en anglais** (utilité de chaque bloc, intention de l'utilisateur). Toute documentation (`dev_tools/`, README…) et tout message de commit sont aussi en anglais. Les commentaires français existants ne sont pas traduits en masse : les traduire quand on modifie le code concerné.
 10. **Comportement existant** : conserver l'interface en français et le comportement actuel, sauf demande contraire.
 11. **Vérifications honnêtes** : lancer les commandes du §6 (dont `cargo test`) si l'agent a un terminal. Sinon (outils fichiers seuls), le dire clairement : la vérification se limite à la relecture du code, et l'agent liste les commandes à exécuter par l'utilisateur. Ne jamais présenter une vérification non faite comme réussie.
 12. **TODO.md** : lors de la livraison d'un item du backlog, proposer de le cocher (ne pas réécrire le fichier).
