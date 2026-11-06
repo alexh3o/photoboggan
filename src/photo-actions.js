@@ -1320,12 +1320,17 @@ function onOutsidePointerDown(event) {
 
 // `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
 // `title` : infobulle expliquant l'action. `disabled` : ligne grisée (l'infobulle dit pourquoi).
-function menuButton(label, onSelect, { danger = false, shortcut = null, title = '', disabled = false } = {}) {
+function menuButton(label, onSelect, { danger = false, shortcut = null, title = '', disabled = false, checked } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `context-menu-item${danger ? ' danger' : ''}`;
   button.setAttribute('role', 'menuitem');
   if (title) button.title = title;
+  if (checked !== undefined) {
+    button.setAttribute('role', 'menuitemcheckbox');
+    button.setAttribute('aria-checked', String(checked));
+    button.classList.toggle('checked', checked);
+  }
   if (disabled) {
     button.disabled = true;
     button.setAttribute('aria-disabled', 'true');
@@ -1839,7 +1844,7 @@ function openAllPhotosMenu(event, item) {
   showContextMenu(menu, event);
 }
 
-// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, shortcut }] ;
+// Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, shortcut, checked }] (checked : ligne cochable) ;
 // un item peut porter `submenu` = [{ label, onSelect }] à la place de `onSelect` pour ouvrir un sous-niveau. { header: 'texte' } ajoute une ligne
 // d'en-tête (ce que le menu vise), { separator: true } un séparateur.
 export function openContextMenuAt(event, items) {
@@ -1852,7 +1857,7 @@ export function openContextMenuAt(event, items) {
     if (item.separator) return menuSeparator();
     return item.submenu
       ? buildSubmenuItem(item.label, item.submenu)
-      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title, disabled: Boolean(item.disabled), shortcut: item.shortcut });
+      : menuButton(item.label, item.onSelect, { danger: Boolean(item.danger), title: item.title, disabled: Boolean(item.disabled), shortcut: item.shortcut, checked: item.checked });
   }));
   showContextMenu(menu, event);
 }

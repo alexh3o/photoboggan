@@ -15,13 +15,14 @@
 - [x] *feat*: `metadata` internal metadata writer activated => no exif reading option
 - [x] *style*: `metadata` display clearly source of metadata formats in order lists (XMP / IPTC / EXIF)
 - [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
+- [ ] double click to fold/unfold folders
 
 ## 💡 Ideas / Longer term / On hold
 
 - [x] *feat*: `raw` Find RAW with datetime and camera model
 - [x] *refactor*: `UI` group manufacturer and model in camera on side panel metadata
 - [ ] *fix*: `UI` **resizing app window to a small size** does not go well
-- [ ] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
+- [x] *perf*: `Safety` improve integrity check - currently gets only 8/11 corrupted sample set
 - [ ] *test*: `UI` verify UI on 1080 resolution
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [x] *feat*: `tasks` Close toast that are in current tasks when opening task modal
@@ -32,7 +33,6 @@
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: cancellations everywhere
 - [ ] *refactor*: `UI` improve toasts placement / visibility
-- [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
 
 ## ❄️ Cold storage
 
@@ -42,6 +42,8 @@
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
 - [ ] *feat*: `formats` live photos
 - [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected => precision improved but not 100% fixed,  do not use as private meanwhile
+- [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
+- [x] *perf*: `Safety` improve integrity check - currently gets 10/11 corrupted sample set: solution but with maintenance impact
 
 ## ❌ Ruled out
 

@@ -142,6 +142,7 @@ src-tauri/
 ### G. Fenêtre & persistance
 
 - État de la fenêtre (x, y, taille, maximisée) et des panneaux mémorisé. À la restauration, toujours appeler `check_window_visibility` ; si l'écran a disparu, recentrer en 1024×768 sur l'écran principal.
+- Barre d'outils (clic droit : Mode immersif, Masquer automatiquement, Afficher tous les libellés, Panneaux) : le masquage (touche T, `toolbarAutoHide`) et les libellés (`toolbarShowLabels`) sont mémorisés ; masquée, la barre réapparaît au survol du haut de la fenêtre.
 - Fermeture : `onCloseRequested` (`main.js`) demande confirmation si des mots-clés ne sont pas écrits ou si une écriture est en cours ; elle requiert la permission `core:window:allow-destroy` (`capabilities/default.json`).
 
 ### H. Protection des Photos

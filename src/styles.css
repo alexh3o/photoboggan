@@ -93,6 +93,22 @@ body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif
 
 .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .actions { display: flex; align-items: center; gap: 0.75rem; }
+/* Toolbar buttons: icon and label are centered on the same axis (an inline SVG otherwise sits on the text baseline, which pushes it above the label) */
+.top-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; line-height: 1; }
+.top-bar button[hidden] { display: none; }
+.top-bar button svg { flex: none; display: block; }
+.panel-toggles { display: flex; align-items: center; gap: 1rem; }
+/* People / Map: joined buttons (mutually exclusive, both can be off). A divider separates them from the Library panel toggle. */
+.mode-group, .toolbar-group { display: flex; align-items: center; padding-left: 1rem; border-left: 1px solid var(--separator); }
+.toolbar-group { gap: 1rem; }
+/* Labels of the central buttons (Settings / Display / Sort): hidden unless "Show all labels" is checked in the toolbar menu */
+.toolbar-label { display: none; }
+.top-bar.show-labels .toolbar-label { display: inline; }
+.mode-group > button { border-radius: 0; }
+.mode-group > button:not([hidden]) { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+.mode-group > button:not([hidden]):not(:has(~ button:not([hidden]))) { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
+.mode-group > button:not([hidden]) ~ button:not([hidden]) { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.mode-group > button.active { position: relative; z-index: 1; }
 /* Barre d'outils masquée avec la touche T (non mémorisé : toujours visible au démarrage) */
 .top-bar.hidden { display: none; }
 /* Barre masquée mais survol du haut de la fenêtre : elle apparaît par-dessus la grille (sans la décaler), sous les toasts et les fenêtres */
@@ -347,6 +363,16 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .grid-empty[hidden] { display: none; }
 #virtual-scroll-content { position: absolute; top: 0; left: 0; width: 100%; }
 
+/* Thumbnail visual tokens */
+:root {
+  --thumb-hover-scale: 1.03;            /* zoom on hover */
+  --thumb-selected-scale: 0.95;         /* selected photos sit slightly "pressed in" */
+  --thumb-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --thumb-selected-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --thumb-ring: 4px;                    /* width of the selection ring */
+  --thumb-ring-line: rgba(0, 0, 0, 0.25); /* thin line on the inner edge of the ring (thumbnails and face tiles) */
+  --thumb-corner-size: 1.75rem;         /* legs of the selection corner triangle */
+}
 .thumbnail { position: absolute; width: var(--item-size); height: var(--item-size); padding: 4px; cursor: pointer; }
 .thumbnail-inner { 
   position: relative; width: 100%; height: 100%; 
@@ -355,8 +381,8 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
   transition: border-color 0.10s ease, transform 0.10s ease-in-out, box-shadow 0.10s ease-in-out, filter 0.15s ease;
 }/* Effet de zoom avant et légère élévation au survol de la miniature */
 .thumbnail:hover .thumbnail-inner {
-  transform: scale(1.03); /* Ajustez entre 1.02 et 1.05 selon vos préférences */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: scale(var(--thumb-hover-scale));
+  box-shadow: var(--thumb-hover-shadow);
   z-index: 10; /* S'assure que la miniature survolée passe au-dessus des voisines pendant le zoom */
 }
 .thumbnail-inner > img {
@@ -365,19 +391,30 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
   transition: transform 0.3s ease, opacity 0.15s ease; /* Transition fluide pour l'image */ }
 .thumbnail-inner > img.loaded { opacity: 1; }
 .thumbnail.frameless .thumbnail-inner { border: 0; border-radius: 0; }
+/* Selection frame: one overlay drawn with a single inset box-shadow (selection colour ring + thin light line on its inner edge, so it stays
+   visible on photos close to the selection colour). It covers the 2px transparent border (inset: -2px) so the ring is --thumb-ring wide. */
 .thumbnail.selected .thumbnail-inner {
-  outline: 4px solid var(--selected-border);
-  outline-offset: -4px;
-  border-color: var(--selected-border);
-  transform: scale(0.98); /* Effet enfoncé / en retrait propre et centré */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transform: scale(var(--thumb-selected-scale)); /* Effet enfoncé / en retrait propre et centré */
+  box-shadow: var(--thumb-selected-shadow);
 }
+.selection-ring { display: none; }
+.thumbnail.selected .selection-ring {
+  display: block; position: absolute; inset: -2px; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 var(--thumb-ring) var(--selected-border), inset 0 0 0 calc(var(--thumb-ring) + 1px) var(--thumb-ring-line);
+}
+.thumbnail.selected.frameless .selection-ring { inset: 0; }
 
 /* Au survol d'une photo déjà sélectionnée, légère remontée réactive */
 .thumbnail.selected:hover .thumbnail-inner {
-  transform: scale(0.98);
+  transform: scale(var(--thumb-selected-scale));
 }
-.thumbnail.selected .thumbnail-inner::after { content: ''; position: absolute; top: 0; left: 0; width: 1.75rem; height: 1.75rem; background: var(--selected-border); clip-path: polygon(0 0, 100% 0, 0 100%); pointer-events: none; }
+.thumbnail.selected .thumbnail-inner::after { content: ''; position: absolute; top: 0; left: 0; width: var(--thumb-corner-size); height: var(--thumb-corner-size); background: var(--selected-border); clip-path: polygon(0 0, 100% 0, 0 100%); pointer-events: none; }
+/* Last selected photo (active): a dot at the centroid of the triangle (a third of each leg), in near-white or near-black depending on the selection colour (--selected-contrast, set in main.js). */
+.thumbnail.selected.active-photo .thumbnail-inner::after {
+  background:
+    radial-gradient(circle at calc(var(--thumb-corner-size) / 3) calc(var(--thumb-corner-size) / 3), color-mix(var(--selected-contrast, #fff) 60%, transparent) 0.14rem, transparent 0.17rem),
+    var(--selected-border);
+}
 /* Assombrissement configurable des miniatures hors sélection au survol d'une miniature sélectionnée */
 body.dim-unselected-active #virtual-scroll-content:has(.thumbnail.selected:hover) .thumbnail:not(.selected) .thumbnail-inner {
   filter: brightness(var(--dim-unselected-brightness, 0.65));

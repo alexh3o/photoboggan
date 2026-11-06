@@ -34,6 +34,7 @@ import { GROUP_SORT_MODES, GROUP_SORT_LABELS, normalizeGroupSort, formatBytes, s
 import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel, initDuplicatesModal } from './duplicates-modal.js';
 import { findNameGroups } from './duplicate-names.js';
 import { initSlideshow,startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
+import { initToolbarAria } from './toolbar-a11y.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
 // à DOMContentLoaded, on attend deux images (premier rendu stylé peint) avant de l'afficher. Un filet de sécurité existe côté Rust (main.rs).
@@ -147,6 +148,8 @@ window.addEventListener('DOMContentLoaded', () => {
       immersiveToggleRunning = false;
     }
   }
+
+  toggleImmersiveFromMenu = toggleImmersiveMode;
 
   // Ce raccourci reste actif même quand un champ de saisie a le focus (le gestionnaire de touches principal les ignore).
   window.addEventListener('keydown', event => {
@@ -306,6 +309,7 @@ function readableTextColor(hex) {
 function applyAppearance() {
   document.documentElement.dataset.theme = appTheme;
   document.documentElement.style.setProperty('--selected-border', selectionColor);
+  document.documentElement.style.setProperty('--selected-contrast', readableTextColor(selectionColor)); // marker of the active photo, drawn on the selection colour
   document.documentElement.style.setProperty('--active-button', activeButtonColor);
   document.documentElement.style.setProperty('--active-button-text', readableTextColor(activeButtonColor));
 }
@@ -2056,7 +2060,9 @@ function renderVisibleItems() {
       const flag = document.createElement('span'); flag.className = `flag-indicator flag-${photo.color_flag}`;
       const pick = document.createElement('span'); pick.className = 'pick-indicator pick-none';
       const flags = document.createElement('span'); flags.className = 'meta-flags'; flags.append(pick, flag);
-      overlay.append(stars, flags); inner.append(thumbnailImage, overlay); div.appendChild(inner);
+      // Selection frame (styled in styles.css, shown only on .selected): a dedicated element, because ::before/::after are already taken (RAW placeholder, corner mark).
+      const selectionRing = document.createElement('span'); selectionRing.className = 'selection-ring';
+      overlay.append(stars, flags); inner.append(thumbnailImage, selectionRing, overlay); div.appendChild(inner);
       if (isVideoPath(photo.path)) { div.classList.add('is-video'); inner.append(createVideoPlayBadge()); }
       // Pastille des photos géolocalisées (option d'affichage, visible par la classe show-geo-badges sur <body>).
       const geoBadge = document.createElement('span'); geoBadge.className = 'geo-badge'; geoBadge.innerHTML = GEO_BADGE_ICON;
@@ -2083,6 +2089,9 @@ function renderVisibleItems() {
     if (div._objectFit !== objectFit) { div._thumbnailImage.style.objectFit = objectFit; div._objectFit = objectFit; }
     const selected = selectedIndices.has(i);
     if (div._selected !== selected) { div.classList.toggle('selected', selected); div._selected = selected; }
+    // The active photo (last clicked, target of keyboard navigation and of the Info panel) gets a marker in its corner triangle to tell it apart from the rest of the selection.
+    const activePhoto = selected && i === lastSelectedIndex;
+    if (div._activePhoto !== activePhoto) { div.classList.toggle('active-photo', activePhoto); div._activePhoto = activePhoto; }
     const stars = '★'.repeat(photo.rating);
     if (div._ratingLabel.textContent !== stars) div._ratingLabel.textContent = stars;
     const flagClass = `flag-indicator flag-${photo.color_flag}`;
@@ -3063,7 +3072,7 @@ window.addEventListener('keydown', (e) => {
     }
   }
   // T : masque / affiche la barre d'outils du haut (Filtres, Paramètres, Options d'affichage, Comparer, Aperçu, Info).
-  // Réglage volontairement non mémorisé : la barre est visible à chaque démarrage. Les raccourcis N, P, J et X restent actifs barre masquée.
+  // Réglage mémorisé (`toolbarAutoHide`) : la barre masquée reste masquée au démarrage (elle réapparaît au survol du haut). Les raccourcis N, P, J et X restent actifs barre masquée.
   // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte (comme les autres bascules de panneaux).
   if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
@@ -3315,14 +3324,43 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 // ==========================================
 // BOUTONS VUES & SIDEBAR
 // ==========================================
-// Barre d'outils du haut (touche T) : masquée ou affichée sans aucune mémorisation (pas de localStorage), elle redevient visible à chaque démarrage.
+// Barre d'outils du haut (touche T ou menu de la barre) : masquée ou affichée, le choix est mémorisé (`toolbarAutoHide`).
 function toggleTopBar() {
   const topBar = document.getElementById('top-bar');
   if (!topBar) return;
   topBar.classList.remove('peek', 'peek-out'); // T annule l'apparition au survol : la barre devient visible (ou masquée) pour de bon
-  topBar.classList.toggle('hidden');
+  const hidden = topBar.classList.toggle('hidden');
+  try { localStorage.setItem('toolbarAutoHide', String(hidden)); } catch { /* storage unavailable: the choice just isn't remembered */ }
   requestAnimationFrame(updateVirtualScroller); // la grille gagne ou perd la hauteur de la barre : recalcul de la zone visible
 }
+
+let toggleImmersiveFromMenu = () => {}; // set by the window-controls block above (immersive mode lives in its scope)
+// Toolbar context menu (right-click on the bar): auto-hide (same as the T key) and labels on the central buttons.
+// Both choices are remembered (`toolbarAutoHide`, `toolbarShowLabels`); a hidden bar still appears on hover (peek).
+const topBarEl = document.getElementById('top-bar');
+function setToolbarLabels(show) {
+  topBarEl?.classList.toggle('show-labels', show);
+  try { localStorage.setItem('toolbarShowLabels', String(show)); } catch { /* storage unavailable: the choice just isn't remembered */ }
+}
+setToolbarLabels(localStorage.getItem('toolbarShowLabels') === 'true');
+if (localStorage.getItem('toolbarAutoHide') === 'true') topBarEl?.classList.add('hidden'); // restored before the first layout: the grid starts at full height
+topBarEl?.addEventListener('contextmenu', event => {
+  event.preventDefault();
+  event.stopPropagation(); // the global photo menu handler must not also react
+  openContextMenuAt(event, [
+    { label: t('Immersive mode item'), title: t('Immersive mode'), shortcut: 'F11', onSelect: () => toggleImmersiveFromMenu() },
+    { separator: true },
+    { header: t('Toolbar') },
+    { label: t('Auto-hide'), shortcut: 'T', checked: topBarEl.classList.contains('hidden'), onSelect: toggleTopBar },
+    { label: t('Show all labels'), checked: topBarEl.classList.contains('show-labels'), onSelect: () => setToolbarLabels(!topBarEl.classList.contains('show-labels')) },
+    { separator: true },
+    { header: t('Panels') },
+    ...[['btn-toggle-sidebar', 'Library panel', 'N'], ['btn-toggle-preview', 'Preview', 'P'], ['btn-toggle-exif', 'Info panel', 'J']].map(([id, key, shortcut]) => {
+      const button = document.getElementById(id);
+      return { label: t(key), shortcut, checked: button.classList.contains('active'), disabled: button.disabled, onSelect: () => button.click() };
+    }),
+  ]);
+});
 
 // Barre masquée : un survol du haut de la fenêtre (bande tout en haut de l'application ou barre de titre) la fait apparaître en surimpression (classe « peek », sans décaler la grille).
 // Elle reste affichée tant que la souris est sur elle ou sur la barre de titre, puis glisse vers le haut (classe « peek-out ») quand la souris descend ou quitte la fenêtre.
@@ -6541,6 +6579,7 @@ initPhotoActions({
 // Paramètres, onglet Métadonnées : écriture par ExifTool ou interne (voir metadata-settings.js).
 initMetadataSettings();
 initDuplicatesModal(); // window "Find duplicates > More…"
+initToolbarAria(); // aria-pressed on the toolbar toggle buttons
 initRawSettings(); // Paramètres > Divers > RAW : critères de « Trouver le RAW »
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
