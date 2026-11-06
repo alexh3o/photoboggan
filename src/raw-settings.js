@@ -12,11 +12,15 @@
 //   - pattern  : expression régulière appliquée au nom de l'image (vide = inactif).
 import './raw-settings.css';
 import { t, onLanguageChange } from './i18n.js';
+import { DEFAULTS as APP_DEFAULTS } from './settings-defaults.js';
 
 const STORAGE_KEY = 'rawSearch';
 const SCOPES = ['parent', 'current', 'children'];
 const CRITERIA = ['name', 'date', 'gear', 'shooting'];
-const DEFAULTS = { name: false, date: true, gear: true, shooting: true, scope: 'parent', pattern: '' };
+const DEFAULTS = {
+  name: APP_DEFAULTS.rawMatchName, date: APP_DEFAULTS.rawMatchDate, gear: APP_DEFAULTS.rawMatchGear,
+  shooting: APP_DEFAULTS.rawMatchShooting, scope: APP_DEFAULTS.rawScope, pattern: '',
+};
 
 function load() {
   try {

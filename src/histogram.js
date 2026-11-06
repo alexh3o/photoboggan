@@ -8,22 +8,23 @@
 // écran, voir `getView` fourni par main.js) ; un clic bascule Luminance / RVB. Apparence et écrêtage réglables dans histogram.css.
 import './histogram.css';
 import { t, labelWithColon, getLanguage } from './i18n.js';
+import { DEFAULTS } from './settings-defaults.js';
 
 const MAX_ANALYSIS_SIDE = 768;   // plus grand côté des pixels analysés (au-delà, l'image est réduite : surtout le repli sur l'image d'origine)
 const PIXEL_CACHE_SIZE = 6;      // photos dont les pixels restent en mémoire
 const ANALYSIS_DELAY_MS = 30;    // attente avant analyse : évite de décoder chaque miniature pendant un défilement rapide au clavier
-const DEFAULT_CLIPPING_RANGE = 3;
+const DEFAULT_CLIPPING_RANGE = DEFAULTS.clippingRange;
 const MAX_CLIPPING_RANGE = 20;
 
 const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
 const write = (key, value) => { try { localStorage.setItem(key, String(value)); } catch { /* stockage indisponible : réglage non mémorisé */ } };
 
 // Réglages (Options d'affichage > Histogramme), mémorisés localement.
-let showHistogram = read('showHistogram', 'false') === 'true';
-let showClippings = read('showClippings', 'false') === 'true';
-let clippingMode = read('clippingMode', 'bw') === 'colors' ? 'colors' : 'bw';// 'colors' : rouge / bleu fixes ; 'bw' : noir / blanc pulsant
+let showHistogram = read('showHistogram', String(DEFAULTS.showHistogram)) === 'true';
+let showClippings = read('showClippings', String(DEFAULTS.showClippings)) === 'true';
+let clippingMode = read('clippingMode', DEFAULTS.clippingMode) === 'bw' ? 'bw' : 'colors';// 'colors' : rouge / bleu fixes ; 'bw' : noir / blanc pulsant
 let clippingRange = clampRange(Number(read('clippingRange', DEFAULT_CLIPPING_RANGE)));
-let rgbMode = read('histogramRgb', 'false') === 'true';                         // false : luminance, true : trois courbes RVB
+let rgbMode = read('histogramRgb', String(DEFAULTS.histogramRgb)) === 'true';                         // false : luminance, true : trois courbes RVB
 
 function clampRange(value) {
   return Number.isFinite(value) ? Math.min(MAX_CLIPPING_RANGE, Math.max(0, Math.round(value))) : DEFAULT_CLIPPING_RANGE;

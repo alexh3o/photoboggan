@@ -7,6 +7,7 @@ import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, onLanguageChange } from './i18n.js';
+import { DEFAULTS, readBool } from './settings-defaults.js';
 import { createFilterTag } from './filter-tags.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
 import { registerEditor, writeMetadataItems, choiceDialog } from './metadata-writes.js';
@@ -16,10 +17,7 @@ const DETECTION_STORAGE_KEY = 'faceDetection'; // « true » : détection et rec
 const FACE_SETTINGS_STORAGE_KEY = 'faceSettings'; // réglages de détection (JSON), envoyés au backend (face_detect.rs, FaceSettings)
 const SUBFOLDERS_STORAGE_KEY = 'faceScanSubfolders'; // « true » : toujours inclure les sous-dossiers d'un dossier scanné
 // Valeurs par défaut provisoires (spec §8), à ajuster après les premiers essais.
-const DEFAULT_FACE_SETTINGS = {
-  scanRaw: false, minSizePermille: 6, minConfidence: 0.5, minSharpness: 10,
-  autoThreshold: 0.8, suggestionThreshold: 0.38, margin: 0.07,
-};
+const DEFAULT_FACE_SETTINGS = DEFAULTS.faceSettings;
 const THRESHOLD_INPUTS = {
   minSizePermille: 'face-min-size-permille', minConfidence: 'face-min-confidence', minSharpness: 'face-min-sharpness',
   autoThreshold: 'face-auto-threshold', suggestionThreshold: 'face-suggestion-threshold', margin: 'face-margin',
@@ -31,12 +29,12 @@ const SORT_STORAGE_KEY = 'personsSort'; // « count » (fréquence, par défaut)
 const COLLAPSED_STORAGE_KEYS = { folders: 'foldersCollapsed', persons: 'personsCollapsed', filters: 'filtersCollapsed' };
 
 let host = null; // fonctions fournies par main.js (voir initFacesPanel)
-let readingEnabled = readStorage(READING_STORAGE_KEY) !== 'false';
+let readingEnabled = readBool(READING_STORAGE_KEY);
 // Anciennes valeurs mémorisées : « true » (zones affichées) et « false » (masquées).
 const OVERLAY_MODES = ['hover', 'always', 'hidden'];
 let overlayMode = (() => {
   const stored = readStorage(OVERLAY_STORAGE_KEY);
-  return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : stored === 'false' ? 'hidden' : 'hover';
+  return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : stored === 'false' ? 'hidden' : DEFAULTS.fullscreenFacesVisible;
 })();
 // Zones écartées (ignorées, « pas un visage ») affichées aussi sur la photo : réglages du sous-menu Visages (aperçu et plein écran).
 const IGNORED_SHOWN_STORAGE_KEY = 'faceIgnoredShown';
@@ -54,7 +52,7 @@ let refreshToken = 0;
 // Calques de zones (plein écran et cases de l'aperçu) : visages de la photo affichée, chargés une fois par photo.
 const overlayStates = new WeakMap(); // calque -> { photoId, faces: { orientation, faces } ou null pendant le chargement, token }
 // Détection : réglages, état des fichiers du modèle (get_face_model_status) et reclassement différé après un changement de seuil.
-let detectionEnabled = readStorage(DETECTION_STORAGE_KEY) === 'true';
+let detectionEnabled = readBool(DETECTION_STORAGE_KEY);
 let faceSettings = loadFaceSettings();
 let modelStatus = null;
 let reclassifyTimer = null;
@@ -236,7 +234,7 @@ export async function eraseFaceData(photoIds) {
 
 // Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
 export function getPersonRoot() {
-  return (readStorage(PERSON_ROOT_STORAGE_KEY) ?? '').trim();
+  return (readStorage(PERSON_ROOT_STORAGE_KEY) ?? DEFAULTS.facePersonRoot).trim();
 }
 
 function setPersonFilters(ids) {
@@ -1297,7 +1295,7 @@ function initDetectionSettings() {
     });
   }
   const subfolders = document.getElementById('face-scan-subfolders');
-  subfolders.checked = readStorage(SUBFOLDERS_STORAGE_KEY) === 'true';
+  subfolders.checked = readBool(SUBFOLDERS_STORAGE_KEY);
   subfolders.addEventListener('change', () => writeStorage(SUBFOLDERS_STORAGE_KEY, String(subfolders.checked)));
   document.getElementById('btn-face-model-download').addEventListener('click', downloadModels);
   document.getElementById('btn-face-model-import').addEventListener('click', importModels);
@@ -1449,7 +1447,7 @@ export async function openFaceScanDialog(scope) {
   const withSubfolders = countOf(recursive);
   question.textContent = t('Include subfolders?');
   summary.textContent = t('Photos to scan: {here} in this folder, {all} with its subfolders.', { here, all: withSubfolders });
-  const always = checkbox(t('Always include subfolders'), readStorage(SUBFOLDERS_STORAGE_KEY) === 'true');
+  const always = checkbox(t('Always include subfolders'), readBool(SUBFOLDERS_STORAGE_KEY));
   // « Non » est la réponse proposée (bouton bleu, focus) ; « Inclure » reste à un clic.
   const no = dialogButton(t('No'), 'btn-primary', () => launch(false));
   const include = dialogButton(t('Include'), '', () => launch(true));

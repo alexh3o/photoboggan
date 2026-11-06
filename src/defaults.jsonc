@@ -1,0 +1,152 @@
+// Default settings of a NEW installation (a value already saved by the user always wins).
+// Single source of truth: read by the frontend (src/settings-defaults.js) and, for the "faceSettings" section,
+// by the Rust backend (src-tauri/src/face_detect.rs, via include_str!).
+// Keys are the localStorage keys. Only FULL-LINE comments (lines starting with //) are allowed: both readers
+// drop those lines before parsing, so never put a comment after a value.
+// Booleans: true | false.
+{
+  // ---------------------------------------------------------------- Panels and toolbar
+  // Left panel (folders).
+  "sidebarVisible": true,
+  // Preview panel.
+  "previewVisible": true,
+  // Right panel (Info / Keywords).
+  "exifVisible": true,
+  // Toolbar hidden until the mouse reaches the top of the window.
+  "toolbarAutoHide": false,
+  // Text labels under the toolbar icons.
+  "toolbarShowLabels": true,
+  // Info overlay in full screen.
+  "fullscreenInfoVisible": false,
+
+  // ---------------------------------------------------------------- Display options
+  // "square" | "framed" | "justified" | "masonry".
+  "thumbnailLayout": "justified",
+  // "auto" (none for the justified layout, normal otherwise) | "none" | "small" | "normal".
+  "thumbnailSpacing": "none",
+  // Thumbnail display size in px: 96 to 1024, multiple of 16 (also capped by thumbnailCacheSize).
+  "thumbnailSize": 512,
+  // Badge on geolocated photos.
+  "showGeoBadges": true,
+  // Include the subfolders of the selected folder.
+  "includeSubfolders": false,
+  // Folders without any photo shown in the tree.
+  "showEmptyFolders": true,
+  // Photo count next to each folder.
+  "showFolderCounts": true,
+  // Marking bars (rating, color, pick): "off" | "panel" | "floating" | "hybrid".
+  "markingPlacement": "hybrid",
+  // Dim unselected photos on hover: "none" | "0.75" (light) | "0.65" (medium) | "0.5" (strong). A string.
+  "dimUnselectedOnHover": "0.65",
+  // Small map widget in the Info panel.
+  "showInfoMapWidget": false,
+  // Histogram of the current photo.
+  "showHistogram": false,
+  // Clipped shadows / highlights painted on the image.
+  "showClippings": false,
+  // Clipping colors: "colors" (red / blue) | "bw" (black / white, pulsing).
+  "clippingMode": "bw",
+  // Clipping range: integer 0 to 20.
+  "clippingRange": 3,
+  // Histogram curves: false = luminance, true = three RGB curves.
+  "histogramRgb": false,
+  // "dark" | "light".
+  "appTheme": "dark",
+  // Text size in percent: "90" | "100" | "110" | "120". A string.
+  "textSize": "100",
+  // Selection color: "#rrggbb".
+  "selectionColor": "#15932a",
+  // Active buttons color: "#rrggbb".
+  "activeButtonColor": "#1e72ad",
+
+  // ---------------------------------------------------------------- Sort
+  // "taken" (date taken) | "modified" (date modified) | "name" (file name).
+  "photoSortKey": "taken",
+  // "desc" | "asc".
+  "photoSortOrder": "desc",
+  // Separators when sorted by date: "none" | "day" | "week" | "month" | "year".
+  "photoDateSeparator": "none",
+  // Separators when sorted by name: "none" | "folder".
+  "photoNameSeparator": "none",
+
+  // ---------------------------------------------------------------- Settings: General and Storage
+  // Language code: "fr" | "en" (must exist in src/locales/).
+  "appLanguage": "en",
+  // At startup: "all" (all photos) | "last" (last opened location).
+  "startupView": "all",
+  // Ask before replacing the filters of a smart album.
+  "albumOverwriteWarning": true,
+  // Offline mode: never connects to the Internet.
+  "offlineMode": false,
+  // Check GitHub for updates (ignored in offline mode).
+  "checkUpdates": true,
+  // Also propose beta versions.
+  "includePrereleases": false,
+  // Verify (SHA-256) moves between drives.
+  "verifyCrossDriveMoves": true,
+  // Thumbnail cache resolution in px: 512 | 768 | 1024.
+  "thumbnailCacheSize": 1024,
+
+  // ---------------------------------------------------------------- Settings: Metadata, Maps
+  // Metadata writer: "exiftool" | "internal".
+  "metadataWriter": "exiftool",
+  // Internal writer: skip EXIF fields when reading.
+  "skipExifWithInternalWriter": true,
+  // Color labels enabled.
+  "colorLabelEnabled": true,
+  // Pick / reject flags enabled.
+  "pickLabelEnabled": false,
+  // Apply keyword, title and description changes automatically.
+  "keywordsAutoApply": false,
+  // Show a map of the photo location (needs Internet unless the area is saved on disk).
+  "showMap": false,
+  // Default map zoom for one photo: integer 7 to 14.
+  "mapDefaultZoom": 12,
+  // Download the map style with each zone download.
+  "mapStyleRefresh": true,
+
+  // ---------------------------------------------------------------- Settings: Faces (frontend part)
+  // Read face regions written by other programs.
+  "faceReading": true,
+  // Face detection and recognition.
+  "faceDetection": false,
+  // Always include the subfolders when detecting faces.
+  "faceScanSubfolders": false,
+  // Face regions in full screen and preview: "hidden" | "hover" | "always".
+  "fullscreenFacesVisible": "hover",
+  // Keyword root for new people (e.g. "#CONTACTS"); empty = first level of the keyword tree.
+  "facePersonRoot": "",
+
+  // ---------------------------------------------------------------- Settings: Slideshow, Find RAW
+  // Delay between photos in seconds: integer 1 to 60.
+  "slideshowDelay": 5,
+  // Loop.
+  "slideshowLoop": true,
+  // Random order.
+  "slideshowRandom": false,
+  // Find RAW: criteria that must all match (name without extension, date taken, camera and lens, shutter / ISO / aperture).
+  "rawMatchName": false,
+  "rawMatchDate": true,
+  "rawMatchGear": true,
+  "rawMatchShooting": true,
+  // Find RAW: start folder: "parent" | "current" | "children".
+  "rawScope": "parent",
+
+  // ---------------------------------------------------------------- Face detection thresholds (frontend AND Rust)
+  "faceSettings": {
+    // Scan RAW files (embedded preview).
+    "scanRaw": false,
+    // Minimum face size in per mille of the photo's longest side: 0 to 500.
+    "minSizePermille": 6,
+    // Minimum detection confidence: 0.5 to 1.
+    "minConfidence": 0.5,
+    // Minimum sharpness: 0 to 2000.
+    "minSharpness": 10,
+    // Automatic attribution from this similarity: 0.2 to 1.
+    "autoThreshold": 0.8,
+    // Suggestion from this similarity: 0.2 to 1, below autoThreshold.
+    "suggestionThreshold": 0.38,
+    // Minimum gap with the next person: 0 to 0.5.
+    "margin": 0.07
+  }
+}

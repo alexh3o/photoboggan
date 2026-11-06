@@ -2,6 +2,7 @@
 // (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même. main.js appelle ce module depuis closeFullscreen
 // (arrêt), showFullscreenPhoto (armement du minuteur) et le clavier (F10, Espace) ; photo-actions.js y lit les réglages pour le menu contextuel.
 import { t } from './i18n.js';
+import { DEFAULTS } from './settings-defaults.js';
 
 // ==========================================
 // RÉGLAGES (mémorisés localement, partagés par le menu contextuel et Paramètres > Général)
@@ -9,12 +10,18 @@ import { t } from './i18n.js';
 export const SLIDESHOW_DELAYS = [2, 3, 5, 10, 30]; // durées proposées par le menu contextuel (secondes) ; Paramètres accepte 1 à 60
 const MIN_DELAY = 1;
 const MAX_DELAY = 60;
-const DEFAULT_DELAY = 5;
+const DEFAULT_DELAY = DEFAULTS.slideshowDelay;
 
 const storageKey = { delay: 'slideshowDelay', loop: 'slideshowLoop', random: 'slideshowRandom' };
 
 function readStored(key) {
   try { return localStorage.getItem(storageKey[key]); } catch { return null; }
+}
+
+// Flags are saved as "1" / "0"; nothing saved gives the default.
+function storedFlag(key, fallback) {
+  const stored = readStored(key);
+  return stored === null ? fallback : stored === '1';
 }
 
 function clampDelay(value) {
@@ -27,8 +34,8 @@ export function getSlideshowSettings() {
   const storedDelay = readStored('delay');
   return {
     delay: storedDelay === null ? DEFAULT_DELAY : clampDelay(storedDelay),
-    loop: readStored('loop') !== '0',
-    random: readStored('random') === '1',
+    loop: storedFlag('loop', DEFAULTS.slideshowLoop),
+    random: storedFlag('random', DEFAULTS.slideshowRandom),
   };
 }
 

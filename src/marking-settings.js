@@ -3,11 +3,13 @@
 // et indicateurs (classes no-color-labels / no-pick-labels sur <body>), et main.js ignore ses raccourcis et ses filtres.
 // Réglages mémorisés localement : couleurs activées par défaut, pick désactivé par défaut.
 
-const COLOR_STORAGE_KEY = 'colorLabelEnabled';
+import { readBool } from './settings-defaults.js';
+
+const COLOR_STORAGE_KEY ='colorLabelEnabled';
 const PICK_STORAGE_KEY = 'pickLabelEnabled';
 
-let colorEnabled = localStorage.getItem(COLOR_STORAGE_KEY) !== 'false';
-let pickEnabled = localStorage.getItem(PICK_STORAGE_KEY) === 'true';
+let colorEnabled = readBool(COLOR_STORAGE_KEY);
+let pickEnabled = readBool(PICK_STORAGE_KEY);
 const listeners = [];
 
 export const isColorEnabled = () => colorEnabled;

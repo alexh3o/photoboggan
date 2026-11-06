@@ -45,6 +45,8 @@ src/
   metadata-settings.js  # Paramètres > Métadonnées : chemin d'écriture (ExifTool / interne), exécutable ExifTool
   duplicates.js, duplicate-names.js, duplicates-modal.js  # Doublons : tri des groupes et réglages, recherche par nom (regex JS), fenêtre « Plus… » (mode résultats dans main.js)
   styles.css            # Thèmes sombre/clair, mise en page en rem
+  defaults.jsonc        # Valeurs par défaut des nouvelles installations (seul endroit à éditer, valeurs possibles en commentaire)
+  settings-defaults.js  # Lit defaults.jsonc ; readBool / readChoice / readNumber : valeur enregistrée si valide, sinon défaut
   i18n.js               # Moteur de traduction (t, tp, labelWithColon)
   locales/en.json, fr.json
 scripts/fetch-exiftool.mjs  # Télécharge ExifTool (version et SHA-256 figées) dans src-tauri/vendor/exiftool/
@@ -140,6 +142,8 @@ src-tauri/
 - `labelWithColon('Key')` pour l'espace insécable avant « : » en français ; `tp('Key', count, params)` pour les pluriels (forme `Key|other`) ; attributs HTML `data-i18n`, `data-i18n-title`, `data-i18n-aria-label`.
 
 ### G. Fenêtre & persistance
+
+- **Valeurs par défaut** : tout nouveau réglage mémorisé en `localStorage` a son défaut dans `src/defaults.jsonc` (clé = clé `localStorage`, valeurs possibles en commentaire, commentaires en ligne entière seulement) ; ne jamais coder un défaut en dur dans un module. Le backend lit la section `faceSettings` du même fichier (`face_detect.rs`, `include_str!`).
 
 - État de la fenêtre (x, y, taille, maximisée) et des panneaux mémorisé. À la restauration, toujours appeler `check_window_visibility` ; si l'écran a disparu, recentrer en 1024×768 sur l'écran principal.
 - Barre d'outils (clic droit : Mode immersif, Masquer automatiquement, Afficher tous les libellés, Panneaux) : le masquage (touche T, `toolbarAutoHide`) et les libellés (`toolbarShowLabels`) sont mémorisés ; masquée, la barre réapparaît au survol du haut de la fenêtre.

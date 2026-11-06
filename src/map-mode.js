@@ -10,6 +10,7 @@
 // Le widget carte du panneau Info est désactivé tant que ce mode est ouvert (un seul contexte WebGL).
 
 import { t, tp, onLanguageChange } from './i18n.js';
+import { readBool } from './settings-defaults.js';
 import { createMapView } from './map-view.js';
 import { ensureZonesLoaded, getZones, onZonesChange, zonesFeatureCollection } from './private-zones.js';
 import { openPrivateZonesModal } from './private-zones-modal.js';
@@ -38,7 +39,7 @@ let mapStatus = 'ready';
 let firstFraming = true;
 
 const hasGps = photo => Number.isFinite(photo?.gps_lat) && Number.isFinite(photo?.gps_lon);
-const isMapEnabled = () => { try { return localStorage.getItem('showMap') === 'true'; } catch { return false; } };
+const isMapEnabled = () => readBool('showMap');
 
 /** Position à prendre en compte pour une photo : celle en attente, sinon celle de la base ; null si elle n'en a pas. */
 export function positionOf(photo) {

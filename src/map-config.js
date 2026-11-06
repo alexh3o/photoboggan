@@ -6,6 +6,8 @@
 // commercial permis ; attribution obligatoire (OpenFreeMap, OpenMapTiles, OpenStreetMap, voir MAP_ATTRIBUTION), affichée par MapLibre.
 // Style, tuiles, polices et icônes sont tous servis par tiles.openfreemap.org.
 
+import { DEFAULTS, readBool } from './settings-defaults.js';
+
 export const MAP_PROVIDER = {
   name: 'OpenFreeMap',
   // Un style par thème de l'application (noms des styles du fournisseur, aussi enregistrés pour la carte privée : private_maps::STYLES).
@@ -24,11 +26,7 @@ export const MAP_ATTRIBUTION = '<a href="https://openfreemap.org">OpenFreeMap</a
 
 // Accès au fournisseur permis : option « Afficher une carte » cochée (Paramètres > Général) et mode hors ligne désactivé.
 export function isMapNetworkAllowed() {
-  try {
-    return localStorage.getItem('showMap') === 'true' && localStorage.getItem('offlineMode') !== 'true';
-  } catch {
-    return false;
-  }
+  return readBool('showMap') && !readBool('offlineMode');
 }
 
 // Zoom : plafond strict (les tuiles OpenFreeMap s'arrêtent au niveau 14, au-delà elles seraient seulement agrandies) et zoom d'une photo seule.
@@ -39,7 +37,7 @@ export const MAP_OVERZOOM_LEVELS = 4;
 export const MAP_VECTOR_MAX_ZOOM = 18;
 /** Zoom maximal de la carte pour un dernier niveau de tuiles donné. */
 export const mapMaxZoom = tileMaxZoom => Math.min(MAP_VECTOR_MAX_ZOOM, tileMaxZoom + MAP_OVERZOOM_LEVELS);
-export const MAP_SINGLE_PHOTO_ZOOM = 12;
+export const MAP_SINGLE_PHOTO_ZOOM = DEFAULTS.mapDefaultZoom;
 
 // Zoom d'une photo seule choisi dans Paramètres > Général (7 à 14, 12 par défaut). Dans une zone privée, la carte est plafonnée au niveau de la
 // zone : le niveau disponible le plus proche est alors utilisé (voir frame dans map-view.js).

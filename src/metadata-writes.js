@@ -7,6 +7,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp } from './i18n.js';
+import { readBool } from './settings-defaults.js';
 
 const AUTO_APPLY_STORAGE_KEY = 'keywordsAutoApply'; // réglage « Appliquer automatiquement les modifications » (Paramètres, onglet Métadonnées)
 const QUEUE_THRESHOLD = 20; // à partir de ce nombre de fichiers, l'écriture passe par la file de tâches
@@ -21,7 +22,7 @@ let pendingPrompt = null; // question en cours au changement de sélection (part
 let promptOpen = false;
 let closing = false; // fermeture de l'application en cours (question, puis écriture finale) : pas de seconde fermeture en parallèle
 
-export const isAutoApply = () => localStorage.getItem(AUTO_APPLY_STORAGE_KEY) === 'true';
+export const isAutoApply = () => readBool(AUTO_APPLY_STORAGE_KEY);
 
 // La proposition « Toujours écrire automatiquement » n'est faite qu'une fois : à la première question posée au changement de sélection.
 const AUTO_APPLY_ASKED_STORAGE_KEY = 'keywordsAutoApplyAsked';

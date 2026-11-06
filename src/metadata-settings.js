@@ -6,6 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, onLanguageChange } from './i18n.js';
+import { DEFAULTS, readChoice } from './settings-defaults.js';
 import { createOrderList, resolveOrder, formatCells, markIgnored } from './order-list.js';
 
 const WRITER_STORAGE_KEY = 'metadataWriter'; // « exiftool » (par défaut) ou « internal »
@@ -114,13 +115,14 @@ export function topPickFormat() {
   return resolveOrder(formats, storageKey)[0]; // même ordre que le tableau et le backend
 }
 
-let writerMode = localStorage.getItem(WRITER_STORAGE_KEY) === 'internal' ? 'internal' : 'exiftool';
+let writerMode = readChoice(WRITER_STORAGE_KEY, ['exiftool', 'internal']);
 /** Chemin d'écriture actif : « exiftool » ou « internal ». */
 export function getWriterMode() {
   return writerMode;
 }
 // Internal writer only: ignore the EXIF metadata fields it neither writes nor erases (checked by default).
-let skipExif = localStorage.getItem(SKIP_EXIF_STORAGE_KEY) !== '0';
+// Saved as "0" / "1" (not "true" / "false"); nothing saved gives the default.
+let skipExif = localStorage.getItem(SKIP_EXIF_STORAGE_KEY) === null ? DEFAULTS.skipExifWithInternalWriter : localStorage.getItem(SKIP_EXIF_STORAGE_KEY) !== '0';
 let customPath = localStorage.getItem(EXIFTOOL_PATH_STORAGE_KEY) || '';
 let lastStatus = null; // dernier état renvoyé par get_exiftool_status
 let statusToken = 0;

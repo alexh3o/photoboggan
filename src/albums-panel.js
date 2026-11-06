@@ -4,6 +4,7 @@
 import './albums.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
+import { readBool } from './settings-defaults.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
 
 const KIND_FOLDER = 'folder';
@@ -291,7 +292,7 @@ export async function confirmLeaveAlbum() {
 // « Enregistrer la vue actuelle dans cet album » : écrase les critères de l'album ; confirmation, désactivable (« ne plus afficher »).
 async function saveViewInto(album) {
   let ask = true;
-  try { ask = localStorage.getItem(OVERWRITE_WARNING_KEY) !== 'false'; } catch { /* sans mémorisation, on demande toujours */ }
+  try { ask = readBool(OVERWRITE_WARNING_KEY); } catch { /* sans mémorisation, on demande toujours */ }
   if (ask) {
     const label = document.createElement('label');
     label.className = 'confirm-check';
@@ -716,7 +717,7 @@ export function initAlbumsPanel(options) {
   // confirmation) peut avoir changé depuis : elle est relue à l'ouverture des Paramètres.
   const warningToggle = document.getElementById('album-overwrite-warning-toggle');
   const syncWarningToggle = () => {
-    try { warningToggle.checked = localStorage.getItem(OVERWRITE_WARNING_KEY) !== 'false'; } catch { warningToggle.checked = true; }
+    try { warningToggle.checked = readBool(OVERWRITE_WARNING_KEY); } catch { warningToggle.checked = true; }
   };
   warningToggle.addEventListener('change', () => {
     try {

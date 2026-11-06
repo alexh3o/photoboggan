@@ -10,6 +10,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { t, onLanguageChange } from './i18n.js';
+import { readBool } from './settings-defaults.js';
 
 const KEY_ENABLED = 'checkUpdates';
 const KEY_PRERELEASES = 'includePrereleases';
@@ -25,10 +26,10 @@ const read = key => { try { return localStorage.getItem(key); } catch { return n
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* réglage non mémorisé */ } };
 const remove = key => { try { localStorage.removeItem(key); } catch { /* rien à retirer */ } };
 
-const isOffline = () => read('offlineMode') === 'true';
+const isOffline = () => readBool('offlineMode');
 // Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
-const isEnabled = () => read(KEY_ENABLED) !== 'false';
-const includesPrereleases = () => read(KEY_PRERELEASES) === 'true';
+const isEnabled = () => readBool(KEY_ENABLED);
+const includesPrereleases = () => readBool(KEY_PRERELEASES);
 
 function savedInfo() {
   try { return JSON.parse(read(KEY_INFO)); } catch { return null; }

@@ -8,6 +8,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { t, tp, onLanguageChange } from './i18n.js';
+import { readBool } from './settings-defaults.js';
 import { createMapView } from './map-view.js';
 import { MAP_MAX_POINTS, MAP_MAX_ZOOM, defaultMapZoom } from './map-config.js';
 import { locatePrivatePoints, onZonesChange } from './private-zones.js';
@@ -22,18 +23,18 @@ function readStorage(key) {
 }
 
 function isOffline() {
-  return readStorage('offlineMode') === 'true';
+  return readBool('offlineMode');
 }
 
 function isMapEnabled() {
-  return readStorage(SHOW_MAP_STORAGE_KEY) === 'true';
+  return readBool(SHOW_MAP_STORAGE_KEY);
 }
 
 // Widget carte du panneau Info (Options d'affichage > Interface, affiché par défaut) : sans effet sur le mode Carte, qui ne dépend que de
 // l'option « Afficher une carte du lieu de la photo » des Paramètres.
 const WIDGET_STORAGE_KEY = 'showInfoMapWidget';
 function isWidgetEnabled() {
-  return readStorage(WIDGET_STORAGE_KEY) === 'true';
+  return readBool(WIDGET_STORAGE_KEY);
 }
 
 let panel, coordsElement, lockButton, messageElement, mapElement, mapView;

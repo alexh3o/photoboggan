@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t } from './i18n.js';
+import { readBool } from './settings-defaults.js';
 import { reloadAllMaps } from './map-view.js';
 
 const REFRESH_STORAGE_KEY = 'mapStyleRefresh';
@@ -41,10 +42,10 @@ export function bindSettingsLink(element) {
 
 /** Le style doit être téléchargé avec chaque zone (case des Paramètres > Cartes, décochée par défaut). */
 export function isMapStyleRefreshEnabled() {
-  try { return localStorage.getItem(REFRESH_STORAGE_KEY) !== 'false'; } catch { return true; }
+  return readBool(REFRESH_STORAGE_KEY);
 }
 
-const isOffline = () => { try { return localStorage.getItem('offlineMode') === 'true'; } catch { return false; } };
+const isOffline = () => readBool('offlineMode');
 
 /** `showToast(message)` vient de main.js. */
 export function initMapsSettings({ showToast }) {

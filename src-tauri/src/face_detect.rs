@@ -60,23 +60,33 @@ pub struct FaceSettings {
     pub margin: f64,
 }
 
+/// Defaults of a new installation: the "faceSettings" section of `src/defaults.jsonc`, the single file that also feeds the frontend.
+/// Only full-line `//` comments are allowed in that file; they are dropped before parsing (same rule as src/settings-defaults.js).
+const DEFAULTS_FILE: &str = include_str!("../../src/defaults.jsonc");
+
 impl Default for FaceSettings {
     fn default() -> Self {
-        FaceSettings::DEFAULT
+        static PARSED: OnceLock<FaceSettings> = OnceLock::new();
+        *PARSED.get_or_init(|| {
+            let json: String = DEFAULTS_FILE.lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+            let mut root: serde_json::Value = serde_json::from_str(&json).expect("src/defaults.jsonc is not valid JSON");
+            let section = root["faceSettings"].take();
+            // Read key by key (not through serde): a missing key must fail loudly, not call this function again.
+            let number = |key: &str| section[key].as_f64().unwrap_or_else(|| panic!("src/defaults.jsonc: faceSettings.{key} is missing or not a number"));
+            FaceSettings {
+                scan_raw: section["scanRaw"].as_bool().expect("src/defaults.jsonc: faceSettings.scanRaw is missing or not a boolean"),
+                min_size_permille: number("minSizePermille"),
+                min_confidence: number("minConfidence"),
+                min_sharpness: number("minSharpness"),
+                auto_threshold: number("autoThreshold"),
+                suggestion_threshold: number("suggestionThreshold"),
+                margin: number("margin"),
+            }
+        })
     }
 }
 
 impl FaceSettings {
-    const DEFAULT: FaceSettings = FaceSettings {
-        scan_raw: false,
-        min_size_permille: 6.0,
-        min_confidence: 0.5,
-        min_sharpness: 10.0,
-        auto_threshold: 0.80,
-        suggestion_threshold: 0.38,
-        margin: 0.07,
-    };
-
     pub fn thresholds(&self) -> crate::face_recognize::Thresholds {
         crate::face_recognize::Thresholds { auto: self.auto_threshold, suggestion: self.suggestion_threshold, margin: self.margin }
     }
@@ -87,15 +97,16 @@ impl FaceSettings {
     }
 }
 
-static SETTINGS: RwLock<FaceSettings> = RwLock::new(FaceSettings::DEFAULT);
+/// `None` until the interface sends its settings: the defaults file applies meanwhile.
+static SETTINGS: RwLock<Option<FaceSettings>> = RwLock::new(None);
 
 pub fn settings() -> FaceSettings {
-    *SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner())
+    SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner()).unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn set_face_settings(settings: FaceSettings) {
-    *SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = settings;
+    *SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(settings);
 }
 
 /// Reclasse les visages détectés non attribués (« inconnu » ↔ « filtré ») d'après les seuils actuels, sans rescan. Renvoie le nombre de visages changés.
@@ -815,5 +826,34 @@ mod tests {
         // Orientation 8 (Explorateur Windows) : même zone que celle recalculée par digiKam après sa rotation des pixels.
         let shown = orient_rect(rect, 8);
         assert!((shown[0] - 0.2423).abs() < 1e-4 && (shown[1] - 0.1889).abs() < 1e-4);
+    }
+
+    /// The shared defaults file must stay parseable by both readers (comment-line stripping, then JSON).
+    fn defaults_json() -> serde_json::Value {
+        let json: String = DEFAULTS_FILE.lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+        serde_json::from_str(&json).expect("src/defaults.jsonc is valid JSON once comment lines are dropped")
+    }
+
+    #[test]
+    fn default_face_settings_come_from_the_shared_file_and_are_in_range() {
+        let defaults = FaceSettings::default();
+        assert!((0.0..=500.0).contains(&defaults.min_size_permille));
+        assert!((0.5..=1.0).contains(&defaults.min_confidence));
+        assert!((0.0..=2000.0).contains(&defaults.min_sharpness));
+        assert!((0.2..=1.0).contains(&defaults.auto_threshold));
+        assert!((0.2..=1.0).contains(&defaults.suggestion_threshold));
+        assert!(defaults.suggestion_threshold <= defaults.auto_threshold);
+        assert!((0.0..=0.5).contains(&defaults.margin));
+    }
+
+    #[test]
+    fn the_defaults_file_has_every_key_the_frontend_reads() {
+        let root = defaults_json();
+        for key in [
+            "sidebarVisible", "toolbarShowLabels", "thumbnailLayout", "thumbnailSize", "appLanguage", "checkUpdates",
+            "faceReading", "slideshowDelay", "rawScope", "mapDefaultZoom", "selectionColor",
+        ] {
+            assert!(!root[key].is_null(), "missing default: {key}");
+        }
     }
 }

@@ -4,13 +4,14 @@
 // Pour ajouter une langue : créer son fichier JSON et l'enregistrer dans LANGUAGES.
 import en from './locales/en.json';
 import fr from './locales/fr.json';
+import { DEFAULTS } from './settings-defaults.js';
 
 // `colon` : séparateur entre un libellé et sa valeur (espace insécable avant les deux-points en français).
 export const LANGUAGES = {
   fr: { label: 'Français', messages: fr, colon: '\u00a0:' },
   en: { label: 'English', messages: en, colon: ':' },
 };
-export const DEFAULT_LANGUAGE = 'en';
+export const DEFAULT_LANGUAGE = DEFAULTS.appLanguage;
 const STORAGE_KEY = 'appLanguage';
 
 const isSupported = language => Object.prototype.hasOwnProperty.call(LANGUAGES, language);

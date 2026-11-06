@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { DEFAULTS, readBool, readChoice } from './settings-defaults.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
@@ -176,8 +177,8 @@ let rawSearch = null;
 // Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
 let duplicateSearch = null;
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
-let startupView = localStorage.getItem('startupView') === 'last' ? 'last' : 'all';
-let includeSubfolders = localStorage.getItem('includeSubfolders') === 'true'; // off by default
+let startupView = readChoice('startupView', ['last', 'all']);
+let includeSubfolders = readBool('includeSubfolders');
 let keywordFilters = [];
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
@@ -292,12 +293,12 @@ const PICK_FLAGS = [
 ];
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
-const DEFAULT_SELECTION_COLOR = '#15932a';
-let appTheme = localStorage.getItem('appTheme') === 'light' ? 'light' : 'dark';
+const DEFAULT_SELECTION_COLOR = DEFAULTS.selectionColor;
+let appTheme = readChoice('appTheme', ['dark', 'light']);
 const storedSelectionColor = localStorage.getItem('selectionColor') || '';
 let selectionColor = /^#[0-9a-f]{6}$/i.test(storedSelectionColor) ? storedSelectionColor : DEFAULT_SELECTION_COLOR;
 // Couleur des boutons activés (Filtres, Comparer, Aperçu, Info), distincte de la couleur de sélection des miniatures.
-const DEFAULT_ACTIVE_BUTTON_COLOR = '#1e72ad';
+const DEFAULT_ACTIVE_BUTTON_COLOR = DEFAULTS.activeButtonColor;
 const storedActiveButtonColor = localStorage.getItem('activeButtonColor') || '';
 let activeButtonColor = /^#[0-9a-f]{6}$/i.test(storedActiveButtonColor) ? storedActiveButtonColor : DEFAULT_ACTIVE_BUTTON_COLOR;
 // Texte noir ou blanc, selon celui qui contraste le plus avec la couleur du bouton activé (rapport WCAG ≥ 4,5:1 pour toutes les couleurs
@@ -318,7 +319,7 @@ function applyAppearance() {
 applyAppearance();
 
 // ASSOMBRISSEMENT DES HORS-SÉLECTIONS AU SURVOL
-let dimUnselected = localStorage.getItem('dimUnselectedOnHover') || '0.65';
+let dimUnselected = localStorage.getItem('dimUnselectedOnHover') || DEFAULTS.dimUnselectedOnHover;
 function applyDimUnselected() {
   const active = dimUnselected !== 'none';
   document.body.classList.toggle('dim-unselected-active', active);
@@ -339,8 +340,7 @@ document.getElementById('dim-unselected-select')?.addEventListener('change', eve
 // Toute la typographie et les espacements étant en rem (voir styles.css), un seul réglage sur <html> met l'interface à l'échelle ;
 // les dimensions en px (grille de miniatures, bordures, icônes SVG) ne changent pas. 100 % = taille historique (16 px).
 const TEXT_SIZES = ['90', '100', '110', '120'];
-const storedTextSize = localStorage.getItem('textSize');
-let textSize = TEXT_SIZES.includes(storedTextSize) ? storedTextSize : '100';
+let textSize = readChoice('textSize', TEXT_SIZES);
 function applyTextSize() {
   document.documentElement.style.fontSize = `${textSize}%`;
   const select = document.getElementById('text-size-select');
@@ -357,34 +357,35 @@ document.getElementById('text-size-select')?.addEventListener('change', event =>
 });
 
 // DOM
-let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || 1024;
+let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || DEFAULTS.thumbnailCacheSize;
 // 512 px minimum : la détection des visages lit les miniatures en cache.
-if (![512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = 512;
-  let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || 512;
+if (![512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = DEFAULTS.thumbnailCacheSize;
+  let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || DEFAULTS.thumbnailSize;
 thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
 // Encadrée (framed) : grille carrée où chaque photo entière (non recadrée) s'inscrit dans sa case ; portrait et paysage de même ratio ont la même taille.
-let thumbnailLayout = ['square', 'framed', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : 'justified';
+let thumbnailLayout = ['square', 'framed', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : DEFAULTS.thumbnailLayout;
 // ESPACEMENT DES MINIATURES (mémorisé localement), commun à toutes les dispositions : aucun, petit (0,25 rem) ou normal (marge et cadre historiques de la cascade).
 // Sans choix enregistré, on garde l'aspect d'avant ce réglage : vue justifiée sans espace, autres dispositions espacées.
 const THUMBNAIL_SPACINGS = ['none', 'small', 'normal'];
 const storedThumbnailSpacing = localStorage.getItem('thumbnailSpacing');
-let thumbnailSpacing = THUMBNAIL_SPACINGS.includes(storedThumbnailSpacing) ? storedThumbnailSpacing : (thumbnailLayout === 'justified' ? 'none' : 'normal');
+let thumbnailSpacing = THUMBNAIL_SPACINGS.includes(storedThumbnailSpacing) ? storedThumbnailSpacing
+  : DEFAULTS.thumbnailSpacing !== 'auto' ? DEFAULTS.thumbnailSpacing : (thumbnailLayout === 'justified' ? 'none' : 'normal');
 // En disposition Encadrée, l'espacement « Aucun » est interdit (les cadres se toucheraient) : voir syncThumbnailSpacingWithLayout.
 // TRI DES MINIATURES (critère et ordre mémorisés localement). Par défaut : date de prise de vue, de la plus récente à la plus ancienne (ordre historique de la grille).
 const SORT_KEYS = ['taken', 'modified', 'name'];
 const storedSortKey = localStorage.getItem('photoSortKey');
-let sortKey = SORT_KEYS.includes(storedSortKey) ? storedSortKey : 'taken';
-let sortOrder = localStorage.getItem('photoSortOrder') === 'asc' ? 'asc' : 'desc';
+let sortKey = SORT_KEYS.includes(storedSortKey) ? storedSortKey : DEFAULTS.photoSortKey;
+let sortOrder = readChoice('photoSortOrder', ['asc', 'desc']);
 // SÉPARATEURS DE LA GRILLE (mémorisés localement, un choix par famille de tri) : par défaut aucun. Dates (tri par date de prise de vue ou de modification) :
 // par jour, semaine, mois ou année. Nom de fichier : par dossier (le tri par nom se fait alors au sein de chaque dossier).
 const DATE_SEPARATORS = ['none', 'day', 'week', 'month', 'year'];
 const NAME_SEPARATORS = ['none', 'folder'];
 const storedDateSeparator = localStorage.getItem('photoDateSeparator');
-let dateSeparator = DATE_SEPARATORS.includes(storedDateSeparator) ? storedDateSeparator : 'none';
+let dateSeparator = DATE_SEPARATORS.includes(storedDateSeparator) ? storedDateSeparator : DEFAULTS.photoDateSeparator;
 const storedNameSeparator = localStorage.getItem('photoNameSeparator');
-let nameSeparator = NAME_SEPARATORS.includes(storedNameSeparator) ? storedNameSeparator : 'none';
+let nameSeparator = NAME_SEPARATORS.includes(storedNameSeparator) ? storedNameSeparator : DEFAULTS.photoNameSeparator;
 let photoLayouts = [];
 let separatorLayouts = []; // { group, y, height, label, title } : lignes de séparation, dans l'ordre de la grille
 const renderedSeparatorNodes = new Map();
@@ -1639,12 +1640,12 @@ function renderFolderTree({ fromCounts = false } = {}) {
 
 // Compteurs de l'option « Montrer le nombre de photos des dossiers » : photos et vidéos du catalogue, sans filtre, calculées côté Rust.
 // Clés normalisées comme celles de l'arbre (« / », minuscules, sans « / » final) ; `Own` = niveau du dossier, `Tree` = avec ses sous-dossiers.
-let showFolderCounts = localStorage.getItem('showFolderCounts') !== 'false';
+let showFolderCounts = readBool('showFolderCounts');
 
 // Pastille des photos géolocalisées sur les miniatures (Options d'affichage, désactivée par défaut) : simple classe sur <body>.
 const GEO_BADGE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
 const showGeoBadgesToggle = document.getElementById('show-geo-badges-toggle');
-showGeoBadgesToggle.checked = localStorage.getItem('showGeoBadges') !== 'false';
+showGeoBadgesToggle.checked = readBool('showGeoBadges');
 document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
 showGeoBadgesToggle.addEventListener('change', () => {
   localStorage.setItem('showGeoBadges', String(showGeoBadgesToggle.checked));
@@ -1697,7 +1698,7 @@ function scheduleFolderCounts() {
 }
 const folderTreeExpanded = new Set();
 const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
-let showEmptyFolders = localStorage.getItem('showEmptyFolders') !== 'false';
+let showEmptyFolders = readBool('showEmptyFolders');
 let diskFolders = []; // sous-dossiers présents sur le disque, lus seulement si showEmptyFolders est actif
 // Relit les sous-dossiers du disque puis redessine l'arborescence ; sans l'option, la liste est vidée et rien n'est lu.
 async function refreshDiskFolders() {
@@ -2383,7 +2384,7 @@ function updateFullscreenRatingStars() {
 // INFORMATIONS SUR LA PHOTO EN PLEIN ÉCRAN (touche D) : nom de fichier (haut, centre), rang dans la liste parcourue (haut, droite),
 // EXIF sur deux lignes (bas, gauche) et date de prise de vue en toutes lettres (bas, centre). Le choix affiché / masqué est mémorisé.
 let fullscreenInfoVisible = false;
-try { fullscreenInfoVisible = localStorage.getItem('fullscreenInfoVisible') === 'true'; } catch { /* stockage indisponible : masqué par défaut */ }
+fullscreenInfoVisible = readBool('fullscreenInfoVisible');
 const fullscreenInfo = document.getElementById('fullscreen-info');
 const fullscreenInfoName = document.getElementById('fullscreen-info-name');
 const fullscreenInfoRank = document.getElementById('fullscreen-info-rank');
@@ -3389,8 +3390,8 @@ function setToolbarLabels(show) {
   topBarEl?.classList.toggle('show-labels', show);
   try { localStorage.setItem('toolbarShowLabels', String(show)); } catch { /* storage unavailable: the choice just isn't remembered */ }
 }
-setToolbarLabels(localStorage.getItem('toolbarShowLabels') !== 'false');
-if (localStorage.getItem('toolbarAutoHide') === 'true') topBarEl?.classList.add('hidden'); // restored before the first layout: the grid starts at full height
+setToolbarLabels(readBool('toolbarShowLabels'));
+if (readBool('toolbarAutoHide')) topBarEl?.classList.add('hidden'); // restored before the first layout: the grid starts at full height
 topBarEl?.addEventListener('contextmenu', event => {
   event.preventDefault();
   event.stopPropagation(); // the global photo menu handler must not also react
@@ -4230,7 +4231,7 @@ colorFilterBar.addEventListener('click', event => {
 // affiché avec son onglet Info, barre flottante sinon). Rien n'est affiché sans photo sélectionnée ; les raccourcis 0 à 9 marchent toujours.
 const MARKING_MODES = ['off', 'panel', 'floating', 'hybrid'];
 const storedMarkingMode = localStorage.getItem('markingPlacement');
-let markingMode = MARKING_MODES.includes(storedMarkingMode) ? storedMarkingMode : 'hybrid';
+let markingMode = MARKING_MODES.includes(storedMarkingMode) ? storedMarkingMode : DEFAULTS.markingPlacement;
 const markingPanel = document.getElementById('marking-panel');
 const markingBar = document.getElementById('marking-bar');
 const markingColorButton = document.getElementById('marking-color-button');
@@ -6993,9 +6994,9 @@ window.addEventListener('focus', () => { syncLibraryWithDisk(); });
 // DEMARRAGE
 
 function restorePanelsVisibility() {
-  const sidebarVisible = localStorage.getItem('sidebarVisible') !== 'false';
-  const previewVisible = localStorage.getItem('previewVisible') !== 'false';
-  const exifVisible = localStorage.getItem('exifVisible') !== 'false';
+  const sidebarVisible = readBool('sidebarVisible');
+  const previewVisible = readBool('previewVisible');
+  const exifVisible = readBool('exifVisible');
 
   // 1. Panneau latéral gauche
   sidebarPanel.classList.toggle('hidden', !sidebarVisible);
@@ -7059,7 +7060,7 @@ document.querySelectorAll('input[name="startup-view"]').forEach(input => {
 
 // Mode hors ligne (Paramètres > Général) : le backend refuse tout téléchargement (modèle de visages) tant qu'il est actif.
 const offlineModeToggle = document.getElementById('offline-mode-toggle');
-offlineModeToggle.checked = localStorage.getItem('offlineMode') === 'true';
+offlineModeToggle.checked = readBool('offlineMode');
 function sendInternetAllowed() {
   invoke('set_internet_allowed', { allowed: !offlineModeToggle.checked }).catch(error => console.error('Offline mode setting rejected', error));
 }
@@ -7076,7 +7077,7 @@ offlineModeToggle.addEventListener('change', () => {
 
 // Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, choix mémorisé et transmis au backend.
 const verifyMovesToggle = document.getElementById('verify-moves-toggle');
-verifyMovesToggle.checked = localStorage.getItem('verifyCrossDriveMoves') !== 'false';
+verifyMovesToggle.checked = readBool('verifyCrossDriveMoves');
 function sendVerifyMoves() {
   invoke('set_verify_cross_drive_moves', { enabled: verifyMovesToggle.checked }).catch(error => console.error('Move verification setting rejected', error));
 }
