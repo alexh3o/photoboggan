@@ -1011,25 +1011,29 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     meta.text_sources.description[4] = jpeg.comment;
     meta.text_sources.description[8] = jpeg.caption;
     let mut xp_keywords: Vec<String> = Vec::new();
+    // Internal writer + option: the EXIF metadata fields are ignored (it neither writes nor erases them); camera data is still read.
+    let skip_exif_metadata = crate::exiftool::skip_exif_metadata();
     // Une ou plusieurs sources EXIF (CR3 : boîtes CMT, RAF : JPEG intégré, voir read_exif_sources) ; les valeurs absentes d'une source n'effacent pas celles d'une autre.
     for exif in crate::thumbnails::read_exif_sources(path) {
-        // XPKeywords (EXIF, mots-clés de l'Explorateur Windows) : texte UTF-16 terminé par un zéro, mots séparés par « ; ».
-        if let Some(text) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY).and_then(exif_xp_text) {
-            xp_keywords = text.split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
-        }
-        // Note EXIF de Windows : Rating (étoiles) et RatingPercent.
-        keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
-        keep(&mut meta.rating_sources[4], exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32)));
-        // Titre et description EXIF : XPTitle, ImageDescription, UserComment, XPComment.
-        keep(&mut meta.text_sources.title[3], exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text)));
-        if let Some(field) = exif.get_field(Tag::ImageDescription, In::PRIMARY) {
-            if let Value::Ascii(ref parts) = field.value {
-                let bytes: Vec<u8> = parts.iter().flatten().copied().collect();
-                meta.text_sources.description[5] = clean_exif_description(&text_from_bytes(&bytes));
+        if !skip_exif_metadata {
+            // XPKeywords (EXIF, mots-clés de l'Explorateur Windows) : texte UTF-16 terminé par un zéro, mots séparés par « ; ».
+            if let Some(text) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY).and_then(exif_xp_text) {
+                xp_keywords = text.split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
             }
+            // Note EXIF de Windows : Rating (étoiles) et RatingPercent.
+            keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
+            keep(&mut meta.rating_sources[4], exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32)));
+            // Titre et description EXIF : XPTitle, ImageDescription, UserComment, XPComment.
+            keep(&mut meta.text_sources.title[3], exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text)));
+            if let Some(field) = exif.get_field(Tag::ImageDescription, In::PRIMARY) {
+                if let Value::Ascii(ref parts) = field.value {
+                    let bytes: Vec<u8> = parts.iter().flatten().copied().collect();
+                    meta.text_sources.description[5] = clean_exif_description(&text_from_bytes(&bytes));
+                }
+            }
+            keep(&mut meta.text_sources.description[6], exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian())));
+            keep(&mut meta.text_sources.description[7], exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text)));
         }
-        keep(&mut meta.text_sources.description[6], exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian())));
-        keep(&mut meta.text_sources.description[7], exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text)));
         if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
             meta.date_taken = field.display_value().with_unit(&exif).to_string();
         }

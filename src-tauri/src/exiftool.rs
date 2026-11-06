@@ -38,9 +38,11 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 struct Settings {
     use_exiftool: bool,
     custom_path: Option<PathBuf>,
+    /// With the internal writer: do not read the EXIF metadata fields (see `skip_exif_metadata`).
+    skip_exif: bool,
 }
 
-static SETTINGS: RwLock<Settings> = RwLock::new(Settings { use_exiftool: true, custom_path: None });
+static SETTINGS: RwLock<Settings> = RwLock::new(Settings { use_exiftool: true, custom_path: None, skip_exif: true });
 /// Dossier de la version embarquée (`<ressources>/exiftool`), fixé au démarrage.
 static BUNDLED_DIR: OnceLock<PathBuf> = OnceLock::new();
 /// Exécutable détecté (ou raison de l'échec), gardé jusqu'au prochain changement de réglage ou à la prochaine demande d'état.
@@ -58,10 +60,19 @@ pub fn is_enabled() -> bool {
     SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner()).use_exiftool
 }
 
-/// Règle le chemin d'écriture (`mode` : « exiftool » ou « internal ») et le chemin d'ExifTool choisi par l'utilisateur (vide : aucun).
-/// Un changement arrête les processus en cours et relance la détection à la prochaine écriture.
+/// True when the EXIF metadata fields (XPTitle, XPComment, XPKeywords, ImageDescription, UserComment, Rating, RatingPercent) must not be read:
+/// the internal writer is active and the user asked to ignore them, because that writer neither writes nor erases them, so they could contradict
+/// what it wrote in XMP / IPTC. Camera data (date, exposure, GPS recorded by the camera…) is always read.
+pub fn skip_exif_metadata() -> bool {
+    let settings = SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+    !settings.use_exiftool && settings.skip_exif
+}
+
+/// Règle le chemin d'écriture (`mode` : « exiftool » ou « internal »), le chemin d'ExifTool choisi par l'utilisateur (vide : aucun) et
+/// la lecture des métadonnées EXIF en écriture interne (`skip_exif`).
+/// Un changement de chemin arrête les processus en cours et relance la détection à la prochaine écriture.
 #[tauri::command]
-pub fn set_metadata_writer(mode: String, custom_path: Option<String>) -> Result<(), String> {
+pub fn set_metadata_writer(mode: String, custom_path: Option<String>, skip_exif: bool) -> Result<(), String> {
     let use_exiftool = match mode.as_str() {
         "exiftool" => true,
         "internal" => false,
@@ -70,6 +81,7 @@ pub fn set_metadata_writer(mode: String, custom_path: Option<String>) -> Result<
     let custom_path = custom_path.map(|path| path.trim().to_string()).filter(|path| !path.is_empty()).map(PathBuf::from);
     {
         let mut settings = SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        settings.skip_exif = skip_exif;
         if settings.use_exiftool == use_exiftool && settings.custom_path == custom_path { return Ok(()); }
         settings.use_exiftool = use_exiftool;
         settings.custom_path = custom_path;

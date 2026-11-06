@@ -111,6 +111,7 @@ body { font-family: 'Open Sans', Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif
 /* Case grisée (ex. mises à jour en mode hors ligne) : la ligne entière l'est aussi. */
 .settings-check:has(input:disabled) { opacity: 0.5; cursor: default; }
 .settings-sub { margin-left: 1.6rem; }
+.settings-check.disabled { opacity: 0.5; cursor: default; }
 .update-buttons { margin: 0 0 0.75rem 1.6rem; }
 .update-buttons[hidden], .update-buttons button[hidden] { display: none; }
 /* Fenêtre « Mise à jour disponible » */

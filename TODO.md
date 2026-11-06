@@ -12,7 +12,7 @@
 - [x] *refactor*: `UI` move qty of dispplayed photos to filters title bar (always visible)
 - [x] *feat*: `dupes` find duplicates by name (regex), exact hash, phash with new modal
 - [x] *feat*: `UI` display descriptions & titles in fullscreen
-- [ ] *feat*: `metadata` internal metadata writer activated => no exif reading option, grey out exif fields
+- [x] *feat*: `metadata` internal metadata writer activated => no exif reading option
 - [x] *style*: `metadata` display clearly source of metadata formats in order lists (XMP / IPTC / EXIF)
 - [x] *feat*: `internet` check and inform of **available update** on github (on hold, needs official releases)
 

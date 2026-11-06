@@ -36,9 +36,17 @@ export function formatCells(format) {
   return [source, schema, field];
 }
 
+// Greys out a row whose format is not read (tooltip says why); the row keeps its place in the order.
+export function markIgnored(item, format, isIgnored) {
+  const ignored = isIgnored(format);
+  item.classList.toggle('format-ignored', ignored);
+  item.title = ignored ? t('Not read: EXIF metadata is ignored with the internal writer') : '';
+}
+
 // `formats` : [{ id, source, schema, field }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : transmission
 // au backend (au démarrage et à chaque changement). Renvoie { render } pour afficher ou redessiner la liste (rien n'est affiché avant).
-export function createOrderList({ element, formats, storageKey, send }) {
+// `isIgnored(format)` (optional): true for a format that is currently not read; its row is greyed out but stays in the order and can be moved.
+export function createOrderList({ element, formats, storageKey, send, isIgnored = () => false }) {
   let order = resolveOrder(formats, storageKey);
 
   function save(newOrder) {
@@ -108,6 +116,7 @@ export function createOrderList({ element, formats, storageKey, send }) {
       const item = document.createElement('li');
       item.className = 'keyword-format-item';
       item.dataset.formatId = id;
+      markIgnored(item, format, isIgnored);
       const handle = document.createElement('span');
       handle.className = 'keyword-format-handle';
       handle.textContent = '⠿';

@@ -631,3 +631,34 @@ fn flash_is_unknown_without_exif_tag_and_falls_back_on_xmp() {
     fs::write(dir.path().join("tagged.jpg.xmp"), "<x:xmpmeta><rdf:Description><exif:Fired>False</exif:Fired></rdf:Description></x:xmpmeta>").unwrap();
     assert_eq!(read_exif(&with_tag).flash, Some(true));
 }
+
+/// TIFF/EXIF segment holding only IFD0 ImageDescription (ASCII, 4 bytes stored inline in the entry).
+fn exif_image_description_segment(text: [u8; 4]) -> Vec<u8> {
+    let mut tiff = b"II*\0".to_vec();
+    tiff.extend(8u32.to_le_bytes());
+    tiff.extend(1u16.to_le_bytes());
+    tiff.extend(0x010eu16.to_le_bytes());
+    tiff.extend(2u16.to_le_bytes());
+    tiff.extend(4u32.to_le_bytes());
+    tiff.extend(text);
+    tiff.extend(0u32.to_le_bytes());
+    let mut segment = b"Exif\0\0".to_vec();
+    segment.extend(tiff);
+    segment
+}
+
+// Internal writer + "do not read EXIF metadata": the EXIF description is ignored, camera data stays. Changes the global writer setting, so it
+// does not run with the fast tests: `cargo test skipped_exif -- --ignored`.
+#[test]
+#[ignore = "changes the global metadata writer setting"]
+fn skipped_exif_metadata_is_not_read_with_the_internal_writer() {
+    let dir = tempfile::tempdir().unwrap();
+    let jpeg = with_segment(&jpeg_bytes(16, 16), 0xe1, &exif_image_description_segment(*b"Hey\0"));
+    let path = write_sample(dir.path(), "described.jpg", &jpeg);
+    crate::exiftool::set_metadata_writer("internal".into(), None, false).unwrap();
+    assert_eq!(read_exif(&path).caption, "Hey", "internal writer, option off: EXIF description read");
+    crate::exiftool::set_metadata_writer("internal".into(), None, true).unwrap();
+    assert_eq!(read_exif(&path).caption, "", "internal writer, option on: EXIF description ignored");
+    crate::exiftool::set_metadata_writer("exiftool".into(), None, true).unwrap();
+    assert_eq!(read_exif(&path).caption, "Hey", "ExifTool active: the option has no effect");
+}
