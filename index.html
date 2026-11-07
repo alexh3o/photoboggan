@@ -843,13 +843,15 @@
             <label class="settings-row" for="theme-select"><span data-i18n="Theme">Thème</span>
                 <select id="theme-select"><option value="dark" data-i18n="Dark">Sombre</option><option value="light" data-i18n="Light">Clair</option></select>
               </label>
-            <label class="settings-row" for="text-size-select"><span data-i18n="Text size">Taille des textes</span>
-                <select id="text-size-select">
-                  <option value="90" data-i18n="Small">Petit</option>
-                  <option value="100" data-i18n="Medium">Moyen</option>
-                  <option value="110" data-i18n="Large">Grand</option>
-                  <option value="120" data-i18n="Very large">Très grand</option>
-                </select>
+            <div class="settings-row"><span data-i18n="Text size">Taille des textes</span>
+                <span class="text-size-control" role="group" aria-label="Taille des textes" data-i18n-aria-label="Text size">
+                  <button id="text-size-down" type="button" title="Réduire" aria-label="Réduire" data-i18n-title="Decrease" data-i18n-aria-label="Decrease">−</button>
+                  <output id="text-size-value" for="text-size-down text-size-up">100 %</output>
+                  <button id="text-size-up" type="button" title="Agrandir" aria-label="Agrandir" data-i18n-title="Increase" data-i18n-aria-label="Increase">+</button>
+                </span>
+              </div>
+            <label class="settings-row" for="app-font-select"><span data-i18n="Font">Police</span>
+                <select id="app-font-select"></select>
               </label>
             <div class="settings-row"><span data-i18n="Selection color">Couleur de sélection</span>
                 <span class="accent-picker" role="group" aria-label="Couleur de sélection" data-i18n-aria-label="Selection color">

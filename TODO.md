@@ -9,8 +9,7 @@
 - [ ] *feat*: `scan` allow pausing
 - [x] *fix*: `UI` window title bar's minimize and maximize buttons don't highlight when hovering
 - [x] *fix*: `tree` folders use empty folder logo while having files and showing count
-- [ ] *feat*: `people` return button when going into someone's photos from its badge
-- [ ] *feat*: `people` text filter in people view
+- [x] *feat*: `people` text filter in people view
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -33,6 +32,7 @@
 - [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected => precision improved but not 100% fixed,  do not use as private meanwhile
 - [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
 - [ ] *perf*: `Safety` improve integrity check - currently gets 10/11 corrupted sample set: solution known but with maintenance impact
+- [ ] *feat*: `people` return button when going into someone's photos from its badge: people button does it
 
 ## ❌ Ruled out
 

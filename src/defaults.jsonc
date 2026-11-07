@@ -52,8 +52,10 @@
   "histogramRgb": false,
   // "dark" | "light".
   "appTheme": "dark",
-  // Text size in percent: "90" | "100" | "110" | "120". A string.
-  "textSize": "100",
+  // Text size in percent: integer 80 to 140, in steps of 5.
+  "textSize": 100,
+  // Interface font: an id from APP_FONTS in src/app-fonts.js ("system" | "inter" | "manrope" | "geist" | "raleway").
+  "appFont": "raleway",
   // Selection color: "#rrggbb".
   "selectionColor": "#15932a",
   // Active buttons color: "#rrggbb".

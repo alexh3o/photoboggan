@@ -4,7 +4,8 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { DEFAULTS, readBool, readChoice } from './settings-defaults.js';
+import { DEFAULTS, readBool, readChoice, readNumber } from './settings-defaults.js';
+import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
@@ -339,20 +340,53 @@ document.getElementById('dim-unselected-select')?.addEventListener('change', eve
 // TAILLE DES TEXTES (Paramètres / Affichage, mémorisée localement) : pourcentage de la taille de police de base du document.
 // Toute la typographie et les espacements étant en rem (voir styles.css), un seul réglage sur <html> met l'interface à l'échelle ;
 // les dimensions en px (grille de miniatures, bordures, icônes SVG) ne changent pas. 100 % = taille historique (16 px).
-const TEXT_SIZES = ['90', '100', '110', '120'];
-let textSize = readChoice('textSize', TEXT_SIZES);
+// Slider from 80 to 140 %, in steps of 5 (older saved values 90 / 100 / 110 / 120 stay valid).
+const TEXT_SIZE_MIN = 80, TEXT_SIZE_MAX = 140, TEXT_SIZE_STEP = 5;
+const snapTextSize = value => Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN + Math.round((value - TEXT_SIZE_MIN) / TEXT_SIZE_STEP) * TEXT_SIZE_STEP));
+let textSize = snapTextSize(readNumber('textSize', TEXT_SIZE_MIN, TEXT_SIZE_MAX));
 function applyTextSize() {
   document.documentElement.style.fontSize = `${textSize}%`;
-  const select = document.getElementById('text-size-select');
-  if (select) select.value = textSize;
+  const label = document.getElementById('text-size-value');
+  if (label) label.textContent = `${textSize} %`;
+  const down = document.getElementById('text-size-down');
+  const up = document.getElementById('text-size-up');
+  if (down) down.disabled = textSize <= TEXT_SIZE_MIN;
+  if (up) up.disabled = textSize >= TEXT_SIZE_MAX;
 }
 applyTextSize();
-document.getElementById('text-size-select')?.addEventListener('change', event => {
-  if (!TEXT_SIZES.includes(event.target.value)) return;
-  textSize = event.target.value;
-  localStorage.setItem('textSize', textSize);
+// « − » / « + » instead of a slider: the settings window is sized in rem, so it resizes with the text and would move
+// a slider thumb away from the pointer while dragging.
+function stepTextSize(delta) {
+  const next = snapTextSize(textSize + delta);
+  if (next === textSize) return;
+  textSize = next;
+  localStorage.setItem('textSize', String(textSize));
   applyTextSize();
   // Les largeurs en rem (barre latérale, panneaux) changent : la grille virtuelle est recalculée sur sa nouvelle largeur.
+  requestAnimationFrame(() => updateVirtualScroller());
+}
+document.getElementById('text-size-down')?.addEventListener('click', () => stepTextSize(-TEXT_SIZE_STEP));
+document.getElementById('text-size-up')?.addEventListener('click', () => stepTextSize(TEXT_SIZE_STEP));
+
+// POLICE DE L'INTERFACE (Paramètres / Apparence, mémorisée localement) : la liste des polices est dans app-fonts.js.
+let appFont = readChoice('appFont', APP_FONT_IDS);
+function applyAppFont() {
+  document.documentElement.style.setProperty('--app-font', fontStack(appFont));
+  const select = document.getElementById('app-font-select');
+  if (select) select.value = appFont;
+}
+const appFontSelect = document.getElementById('app-font-select');
+if (appFontSelect) {
+  for (const font of APP_FONTS) appFontSelect.add(new Option(font.label, font.id));
+}
+applyAppFont();
+appFontSelect?.addEventListener('change', event => {
+  if (!APP_FONT_IDS.includes(event.target.value)) return;
+  appFont = event.target.value;
+  localStorage.setItem('appFont', appFont);
+  applyAppFont();
+  // Les chasses des polices diffèrent : la grille virtuelle (légendes) est recalculée.
   requestAnimationFrame(() => updateVirtualScroller());
 });
 
