@@ -252,8 +252,8 @@ struct ParsedXmp {
 }
 
 fn parse_xmp(path: &Path) -> ParsedXmp {
-    // digiKam utilise `photo.jpg.xmp` ou le nom compatible `photo.xmp`.
-    let sources = sidecar_candidates(path);
+    // Only the sidecar in use (see read_sidecar): `photo.jpg.xmp`, else the compatible name `photo.xmp`.
+    let sources = read_sidecar(path);
     let mut keywords = Vec::new();
     let mut hierarchical: Vec<Vec<String>> = Vec::new();
     let mut ratings: [Option<i32>; 3] = Default::default();
@@ -293,13 +293,11 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         if read_faces { face_regions = crate::faces::parse_regions(&embedded); }
         read_sources(&embedded);
     }
-    for source in sources {
-        if let Ok(text) = fs::read_to_string(source) {
-            if keywords.is_empty() { keywords = parse_xmp_subjects(&text); }
-            if hierarchical.is_empty() { hierarchical = parse_hierarchical_keywords(&text); }
-            if read_faces && face_regions.is_empty() { face_regions = crate::faces::parse_regions(&text); }
-            read_sources(&text);
-        }
+    if let Some(text) = sources {
+        if keywords.is_empty() { keywords = parse_xmp_subjects(&text); }
+        if hierarchical.is_empty() { hierarchical = parse_hierarchical_keywords(&text); }
+        if read_faces && face_regions.is_empty() { face_regions = crate::faces::parse_regions(&text); }
+        read_sources(&text);
     }
     ParsedXmp {
         ratings,
@@ -933,9 +931,8 @@ fn read_image_dimensions(path: &Path) -> Option<(i32, i32)> {
 /// Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
 /// sinon la date de modification du fichier (comme les logiciels photo quand un fichier n'a pas de date de prise de vue).
 fn video_date_taken(path: &Path) -> String {
-    for source in sidecar_candidates(path) {
-        let Ok(text) = fs::read_to_string(source) else { continue; };
-        let Some(raw) = xmp_value(&text, &["exif:DateTimeOriginal", "xmp:CreateDate", "photoshop:DateCreated"]) else { continue; };
+    let text = read_sidecar(path).unwrap_or_default();
+    if let Some(raw) = xmp_value(&text, &["exif:DateTimeOriginal", "xmp:CreateDate", "photoshop:DateCreated"]) {
         let value = xml_unescape(raw.trim());
         if value.chars().next().is_some_and(|c| c.is_ascii_digit()) {
             return if value.len() >= 19 && value.is_char_boundary(19) { value[..19].replace('T', " ") } else { value };
@@ -1932,12 +1929,7 @@ pub fn read_face_regions(path: &Path) -> Vec<crate::faces::FaceRegion> {
         let regions = crate::faces::parse_regions(&embedded);
         if !regions.is_empty() { return regions; }
     }
-    sidecar_candidates(path)
-        .into_iter()
-        .filter_map(|sidecar| fs::read_to_string(sidecar).ok())
-        .map(|text| crate::faces::parse_regions(&text))
-        .find(|regions| !regions.is_empty())
-        .unwrap_or_default()
+    read_sidecar(path).map(|text| crate::faces::parse_regions(&text)).unwrap_or_default()
 }
 
 /// Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
@@ -2241,12 +2233,62 @@ fn write_jpeg_metadata(path: &Path, update: &MetadataUpdate) -> std::io::Result<
     write_file_atomically(path, &output)
 }
 
-/// Sidecar XMP d'une image : `photo.ext.xmp` s'il existe, sinon `photo.xmp` (nom compatible digiKam) s'il existe, sinon `photo.ext.xmp` à créer.
-/// Renvoie aussi s'il existe déjà.
-pub(crate) fn sidecar_target(image_path: &Path) -> (std::path::PathBuf, bool) {
+/// Sidecar an image's metadata is written to (see `sidecar_target`).
+pub(crate) struct SidecarTarget {
+    pub path: std::path::PathBuf,
+    /// `path` already exists: it is updated in place.
+    pub exists: bool,
+    /// `path` is to be created from this shared `photo.xmp`, so the image keeps the values it read there.
+    pub seed: Option<std::path::PathBuf>,
+}
+
+/// XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
+/// belongs to this image only; otherwise `photo.ext.xmp`, to create.
+/// A `photo.xmp` shared with another image that also writes to a sidecar (RAW + DNG, RAW + PNG, HEIC + MOV…) is never written: two writes
+/// on two different images would modify the same file at the same time, and each image would overwrite the other's values. The image gets its
+/// own `photo.ext.xmp` instead, created from the content of `photo.xmp` (`seed`); `photo.xmp` stays as is for the other image. A JPEG writes
+/// in its own file: RAW + JPEG pairs keep writing to `photo.xmp`.
+pub(crate) fn sidecar_target(image_path: &Path) -> SidecarTarget {
     let [appended, compatible] = sidecar_candidates(image_path);
-    if appended.exists() { return (appended, true); }
-    if compatible.exists() { (compatible, true) } else { (appended, false) }
+    if appended.exists() { return SidecarTarget { path: appended, exists: true, seed: None }; }
+    if !compatible.exists() { return SidecarTarget { path: appended, exists: false, seed: None }; }
+    // Folder unreadable: treated as shared, the safe side.
+    if shares_sidecar_with_sidecar_writer(image_path).unwrap_or(true) {
+        return SidecarTarget { path: appended, exists: false, seed: Some(compatible) };
+    }
+    SidecarTarget { path: compatible, exists: true, seed: None }
+}
+
+/// True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
+/// None if the folder cannot be read.
+pub(crate) fn has_same_stem_sibling(image_path: &Path) -> Option<bool> {
+    same_stem_siblings(image_path).map(|siblings| !siblings.is_empty())
+}
+
+/// Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
+fn shares_sidecar_with_sidecar_writer(image_path: &Path) -> Option<bool> {
+    let siblings = same_stem_siblings(image_path)?;
+    Some(siblings.iter().any(|other| {
+        crate::library_sync::is_photo_file(other)
+            && !other.extension().and_then(|value| value.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("jpg") || ext.eq_ignore_ascii_case("jpeg"))
+    }))
+}
+
+fn same_stem_siblings(image_path: &Path) -> Option<Vec<std::path::PathBuf>> {
+    let stem = image_path.file_stem()?.to_string_lossy().to_lowercase();
+    let siblings = fs::read_dir(image_path.parent()?).ok()?.flatten().map(|entry| entry.path()).filter(|other| {
+        other != image_path
+            && other.file_stem().is_some_and(|name| name.to_string_lossy().to_lowercase() == stem)
+            && !other.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("xmp"))
+    });
+    Some(siblings.collect())
+}
+
+/// Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
+/// sidecar (see sidecar_target), a value removed from it must not come back from a `photo.xmp` shared with another image.
+pub(crate) fn read_sidecar(image_path: &Path) -> Option<String> {
+    let [appended, compatible] = sidecar_candidates(image_path);
+    if appended.exists() { fs::read_to_string(appended).ok() } else { fs::read_to_string(compatible).ok() }
 }
 
 /// Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
@@ -2256,10 +2298,12 @@ pub(crate) fn sidecar_candidates(image_path: &Path) -> [std::path::PathBuf; 2] {
     [std::path::PathBuf::from(format!("{}.xmp", image_path.display())), image_path.with_extension("xmp")]
 }
 
-/// Sidecar XMP (`photo.ext.xmp` ou `photo.xmp` existant) dont le contenu est remplacé par `update(contenu actuel)` ; créé si nécessaire.
+/// XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
+/// `photo.xmp` when the image gets its own sidecar).
 fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Result<()> {
-    let (sidecar, _) = sidecar_target(image_path);
-    let xml = match fs::read_to_string(&sidecar) {
+    let target = sidecar_target(image_path);
+    let sidecar = target.path;
+    let xml = match fs::read_to_string(target.seed.as_deref().unwrap_or(&sidecar)) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(error),
@@ -2374,7 +2418,7 @@ fn read_exif_entries(path: &Path) -> Vec<MetadataEntry> {
 /// Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
 fn read_xmp_packet(path: &Path) -> Option<String> {
     if let Some(embedded) = read_embedded_xmp(path) { return Some(embedded); }
-    sidecar_candidates(path).into_iter().find_map(|sidecar| fs::read_to_string(sidecar).ok())
+    read_sidecar(path)
 }
 
 /// Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.

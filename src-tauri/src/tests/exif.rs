@@ -300,6 +300,52 @@ fn existing_compatible_sidecar_is_reused() {
     assert_eq!(read_exif(&path).rating, 1);
 }
 
+/// `photo.xmp` written by the internal path for a lone `seed.png`, then renamed: a compatible-name sidecar with rating 3 and red color.
+fn shared_sidecar(dir: &Path) -> PathBuf {
+    let seed = write_sample(dir, "seed.png", &png_bytes(8, 8));
+    write_xmp_sidecar_with(&seed, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(3), label: Some(Some("Red")), pick: None })).unwrap();
+    fs::remove_file(&seed).unwrap();
+    let shared = dir.join("photo.xmp");
+    fs::rename(dir.join("seed.png.xmp"), &shared).unwrap();
+    shared
+}
+
+#[test]
+fn shared_compatible_sidecar_is_never_written_each_image_gets_its_own() {
+    let dir = tempfile::tempdir().unwrap();
+    let shared = shared_sidecar(dir.path());
+    let shared_bytes = fs::read(&shared).unwrap();
+    let raw = write_sample(dir.path(), "photo.cr2", b"raw");
+    let dng = write_sample(dir.path(), "photo.dng", b"dng");
+
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(5), ..Default::default() })).unwrap();
+    assert_eq!(fs::read(&shared).unwrap(), shared_bytes, "the shared photo.xmp was modified");
+    assert!(dir.path().join("photo.cr2.xmp").exists(), "no own sidecar created");
+    let meta = read_exif(&raw);
+    assert_eq!((meta.rating, meta.color_flag.as_str()), (5, "red"), "values of photo.xmp not carried to the own sidecar");
+    assert_eq!(read_exif(&dng).rating, 3, "the other image lost its values");
+
+    // A removal sticks: the color no longer comes back from photo.xmp.
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_metadata(xml, XmpEdit { label: Some(None), ..Default::default() })).unwrap();
+    assert_eq!(read_exif(&raw).color_flag, "none");
+    assert_eq!(read_exif(&dng).color_flag, "red");
+    assert!(leftovers(dir.path()).is_empty());
+}
+
+#[test]
+fn raw_and_jpeg_pair_keeps_writing_the_compatible_sidecar() {
+    // The JPEG writes in its own file: photo.xmp belongs to the RAW alone (Lightroom layout), it is updated in place.
+    let dir = tempfile::tempdir().unwrap();
+    let shared = shared_sidecar(dir.path());
+    let before = fs::read(&shared).unwrap();
+    let raw = write_sample(dir.path(), "photo.cr2", b"raw");
+    write_sample(dir.path(), "photo.jpg", &jpeg_bytes(8, 8));
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(5), ..Default::default() })).unwrap();
+    assert!(!dir.path().join("photo.cr2.xmp").exists());
+    assert_ne!(fs::read(&shared).unwrap(), before, "photo.xmp not updated");
+    assert_eq!(read_exif(&raw).rating, 5);
+}
+
 #[test]
 fn removal_alone_does_not_create_a_sidecar() {
     let dir = tempfile::tempdir().unwrap();

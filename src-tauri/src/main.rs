@@ -1204,18 +1204,8 @@ fn sidecar_to_trash(photo: &Path) -> Option<PathBuf> {
     if has_same_stem_sibling(photo)? { None } else { Some(compatible) }
 }
 
-// Vrai si un autre fichier (hors .xmp) du même dossier porte le même nom sans extension que la photo : le sidecar « photo.xmp » lui est alors partagé.
-// None si le dossier est illisible (dans le doute, l'appelant ne touche pas au sidecar).
-fn has_same_stem_sibling(photo: &Path) -> Option<bool> {
-    let stem = photo.file_stem()?.to_string_lossy().to_lowercase();
-    let found = fs::read_dir(photo.parent()?).ok()?.flatten().any(|entry| {
-        let other = entry.path();
-        other != photo
-            && other.file_stem().is_some_and(|name| name.to_string_lossy().to_lowercase() == stem)
-            && !other.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("xmp"))
-    });
-    Some(found)
-}
+// Shared « photo.xmp » detection: see exif::has_same_stem_sibling.
+use exif::has_same_stem_sibling;
 
 // Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous Linux et
 // macOS), ni point ou espace final, ni nom réservé de Windows (« CON », « NUL »…, avec ou sans extension).
@@ -2222,6 +2212,14 @@ fn file_uri(path: &str) -> String {
 
 fn main() {
     tauri::Builder::default()
+        // Registered first, so a second instance exits before opening the database or starting anything. It brings the open window back.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {

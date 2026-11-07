@@ -31,6 +31,9 @@ walkdir = "2.5.0"
 rayon = "1.10.0"
 chrono = "0.4.38"
 tauri-plugin-dialog = "2.8.2"
+# Single instance: a second launch only brings the open window to the front. Two instances would write to the same photos and the same
+# database at the same time (concurrent writes on one file). Official Tauri plugin; Windows (named mutex), Linux (D-Bus), macOS.
+tauri-plugin-single-instance = "2"
 # Copie de fichiers dans le presse-papiers de l'OS (commande copy_files_to_clipboard) : Windows, macOS et Linux (X11 ; pour Wayland,
 # ajouter la fonctionnalité « wayland »). Sans « image » : on ne copie que des listes de fichiers, pas de pixels.
 clipboard-rs = { version = "0.3", default-features = false }

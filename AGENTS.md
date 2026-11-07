@@ -19,7 +19,7 @@
 
 ## 2. Pile Technologique
 
-* **Desktop Shell** : [Tauri v2](https://tauri.app/) (plugins `dialog`, `opener`).
+* **Desktop Shell** : [Tauri v2](https://tauri.app/) (plugins `dialog`, `opener`, `single-instance` : un second lancement ramène la fenêtre ouverte).
 * **Backend** : Rust (édition 2021), crates en Rust pur privilégiées (voir les commentaires de `Cargo.toml`).
   * Concurrence : `rayon` (parcours & EXIF parallèle), `tokio` (tâches asynchrones), `walkdir`.
   * Base locale : SQLite en mode WAL via `rusqlite` + pool `r2d2_sqlite`.
@@ -122,7 +122,7 @@ src-tauri/
 
 - **Deux chemins d'écriture** (Paramètres > Métadonnées, `metadataWriter`) : **ExifTool** (défaut) ou **interne** (XMP + IPTC). Les mêmes champs sont écrits par les deux chemins ; seul ExifTool écrit en plus XPKeywords (JPEG). ExifTool introuvable : l'écriture est refusée, jamais de repli sur l'autre chemin. Ordre de recherche : chemin choisi (`exiftoolPath`) > version embarquée (ressource Tauri `exiftool/`) > PATH. Tout nouveau champ écrit (titre, description…) doit être ajouté aux deux chemins.
 - **JPEG** : injection du paquet XMP dans le segment APP1 (`http://ns.adobe.com/xap/1.0/\0`), sans décompresser ni ré-échantillonner l'image.
-- **RAW, PNG, HEIC, vidéos…** : écriture dans un sidecar `.xmp` (ex. `photo.cr2.xmp` ou `photo.xmp`).
+- **RAW, PNG, HEIC, vidéos…** : écriture dans un sidecar `.xmp` (`sidecar_target`) : `photo.cr2.xmp` (créé sous ce nom), ou un `photo.xmp` existant propre à l'image. Un `photo.xmp` partagé avec une autre image à sidecar (RAW + DNG, HEIC + MOV…) n'est jamais écrit : l'image reçoit son `photo.ext.xmp`, créé depuis `photo.xmp` (RAW + JPEG : `photo.xmp` reste au RAW). Une image ne lit qu'un seul sidecar (`read_sidecar`), jamais les deux fusionnés.
 - **Note** : `xmp:Rating` (0–5), `acdsee:rating`, `MicrosoftPhoto:Rating`. **Couleur** : `xmp:Label` (Red, Orange, Yellow, Green, Blue, Magenta, Grey, Black, White ou vide), `photoshop:Urgency`, `digikam:ColorLabel`.
 - **Pick / rejet** (`exif.rs`, `marking-settings.js`) : 4 états en base (`pick_flag`) : `none`, `pending` (digiKam seulement : écrit `PickLabel=2`, `pick=0`, sans `good`), `picked`, `rejected`. Écrits dans `digiKam:PickLabel` (0 à 3), `xmpDM:pick` (-1, 0, 1) et `xmpDM:good` (True / False, retiré sans fanion) ; ordre de lecture réglable (`pick`) ; le format de tête décide des choix proposés dans les boutons (digiKam : aucun / attente / retenu / rejeté ; `xmpDM:pick` et `good` : aucun / retenu / rejeté), par un drapeau coloré (blanc, jaune, vert, rouge). Une valeur 0 est une réponse explicite, seule l'absence passe à la source suivante. Couleurs et pick sont activables dans Paramètres > Métadonnées (couleurs actives, pick inactif par défaut) : désactivés, ils sont lus mais ni affichés ni modifiés (classes `no-color-labels` / `no-pick-labels` sur `<body>`, filtres vidés).
 - **Mots-clés hiérarchiques** (`keywords.rs`, `keywords-panel.js`) : l'arbre vit en base (`keyword_nodes`, `photo_keywords`) et grandit à la lecture des fichiers ; seul le dernier niveau d'un chemin est actif. À l'écriture (Appliquer, suppression, renommage), ce qui est actif remplace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP`, `acdsee:categories` (arbre XML en texte, `Assigned="1"` = actif) et l'IPTC 2:25 des JPEG ; XPKeywords est lu, et écrit seulement par ExifTool (JPEG, noms contenant `;` omis). Après écriture, le fichier est relu et la base reflète cette relecture. Noms interdits : `/`, `|`, `,`.

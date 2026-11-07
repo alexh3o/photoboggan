@@ -704,12 +704,19 @@ pub(crate) fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
 fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
     let _guard = path_lock(image_path);
     if !matches!(target_of(image_path), Target::Sidecar) { return overwrite(image_path, tag_args); }
-    let (sidecar, exists) = crate::exif::sidecar_target(image_path);
+    let crate::exif::SidecarTarget { path: sidecar, exists, seed } = crate::exif::sidecar_target(image_path);
     if exists { return overwrite(&sidecar, tag_args); }
-    if !has_values { return Ok(()); }
-    // Nouveau sidecar : créé sous un nom temporaire (extension .xmp conservée, ExifTool en déduit le format), puis renommé.
     let temp = PathBuf::from(format!("{}.photoboggan-tmp.xmp", image_path.display()));
     let _ = std::fs::remove_file(&temp);
+    if let Some(seed) = seed {
+        // Own sidecar created from the shared `photo.xmp` (see exif::sidecar_target), even for a removal: the value to remove may come from
+        // `photo.xmp`, which the image would otherwise keep reading. Copy, update, then rename: `photo.xmp` is never modified.
+        let created = std::fs::copy(&seed, &temp).and_then(|_| overwrite(&temp, tag_args)).and_then(|_| std::fs::rename(&temp, &sidecar));
+        if created.is_err() { let _ = std::fs::remove_file(&temp); }
+        return created;
+    }
+    if !has_values { return Ok(()); }
+    // Nouveau sidecar : créé sous un nom temporaire (extension .xmp conservée, ExifTool en déduit le format), puis renommé.
     let mut args = vec!["-o".to_string(), temp.to_string_lossy().into_owned()];
     args.extend(tag_args);
     if let Err(error) = run(args) {

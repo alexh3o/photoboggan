@@ -206,6 +206,37 @@ fn marking_round_trip_and_raw_sidecar() {
 
 #[test]
 #[ignore = "intégration : lance ExifTool"]
+fn shared_compatible_sidecar_is_copied_never_written() {
+    // photo.cr2 + photo.dng share photo.xmp: ExifTool writes photo.cr2.xmp, created from photo.xmp, which stays untouched.
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let seed = dir.path().join("seed.cr2");
+    std::fs::write(&seed, b"raw").unwrap();
+    write_marking(&seed, XmpEdit { rating: Some(3), label: Some(Some("Red")), pick: None }).unwrap();
+    let shared = dir.path().join("photo.xmp");
+    std::fs::rename(dir.path().join("seed.cr2.xmp"), &shared).unwrap();
+    std::fs::remove_file(&seed).unwrap();
+    let shared_bytes = std::fs::read(&shared).unwrap();
+    let raw = dir.path().join("photo.cr2");
+    let dng = dir.path().join("photo.dng");
+    std::fs::write(&raw, b"raw").unwrap();
+    std::fs::write(&dng, b"dng").unwrap();
+
+    write_marking(&raw, XmpEdit { rating: Some(5), ..Default::default() }).unwrap();
+    assert_eq!(std::fs::read(&shared).unwrap(), shared_bytes, "the shared photo.xmp was modified");
+    let meta = read_exif(&raw);
+    assert_eq!((meta.rating, meta.color_flag.as_str()), (5, "red"));
+    assert_eq!(read_exif(&dng).rating, 3);
+    // A removal alone also creates the own sidecar, and sticks.
+    write_marking(&dng, XmpEdit { label: Some(None), ..Default::default() }).unwrap();
+    assert_eq!(read_exif(&dng).color_flag, "none");
+    assert_eq!(read_exif(&dng).rating, 3);
+    assert_eq!(std::fs::read(&shared).unwrap(), shared_bytes);
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
 fn failure_is_an_error_and_leaves_no_residue() {
     if !exiftool_available() { return; }
     let dir = tempfile::tempdir().unwrap();
