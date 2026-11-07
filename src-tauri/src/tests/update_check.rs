@@ -93,32 +93,37 @@ fn release_with_assets(assets: &[(&str, &str, &str)]) -> serde_json::Value {
 }
 
 #[test]
-fn windows_prefers_the_setup_exe_then_the_msi_and_linux_takes_the_deb() {
+fn windows_takes_the_english_msi_never_the_setup_exe_and_linux_takes_the_deb() {
+    // The installer is a .msi (one per language, English first); a -setup.exe is no longer offered (see AGENTS.md, updates).
     let release = release_with_assets(&[
         ("photoboggan_0.7.0-beta_amd64.deb", &format!("{PREFIX}photoboggan_0.7.0-beta_amd64.deb"), DIGEST),
+        ("photoboggan_0.7.0_x64_fr-FR.msi", &format!("{PREFIX}photoboggan_0.7.0_x64_fr-FR.msi"), DIGEST),
         ("photoboggan_0.7.0_x64_en-US.msi", &format!("{PREFIX}photoboggan_0.7.0_x64_en-US.msi"), DIGEST),
         ("photoboggan_0.7.0_x64-setup.exe", &format!("{PREFIX}photoboggan_0.7.0_x64-setup.exe"), DIGEST),
     ]);
     let windows = pick_asset(&release, "windows").unwrap();
-    assert_eq!(windows.name, "photoboggan_0.7.0_x64-setup.exe");
+    assert_eq!(windows.name, "photoboggan_0.7.0_x64_en-US.msi");
     assert!(windows.restarts);
     assert_eq!(pick_asset(&release, "linux").unwrap().name, "photoboggan_0.7.0-beta_amd64.deb");
     assert!(!pick_asset(&release, "linux").unwrap().restarts);
     assert_eq!(pick_asset(&release, "other"), None);
 
-    let msi_only = release_with_assets(&[("photoboggan_0.7.0_x64_en-US.msi", &format!("{PREFIX}photoboggan_0.7.0_x64_en-US.msi"), DIGEST)]);
-    assert_eq!(pick_asset(&msi_only, "windows").unwrap().name, "photoboggan_0.7.0_x64_en-US.msi");
+    // No English MSI: another language is taken. Only a -setup.exe: nothing (the dialog points to the GitHub page).
+    let french_only = release_with_assets(&[("photoboggan_0.7.0_x64_fr-FR.msi", &format!("{PREFIX}photoboggan_0.7.0_x64_fr-FR.msi"), DIGEST)]);
+    assert_eq!(pick_asset(&french_only, "windows").unwrap().name, "photoboggan_0.7.0_x64_fr-FR.msi");
+    let setup_only = release_with_assets(&[("photoboggan_0.7.0_x64-setup.exe", &format!("{PREFIX}photoboggan_0.7.0_x64-setup.exe"), DIGEST)]);
+    assert_eq!(pick_asset(&setup_only, "windows"), None);
 }
 
 #[test]
 fn unsafe_or_unverifiable_assets_are_refused() {
-    let good = format!("{PREFIX}app-setup.exe");
+    let good = format!("{PREFIX}app_en-US.msi");
     // Adresse hors du dépôt, somme absente ou mal formée, nom avec séparateur : aucun installeur.
-    assert_eq!(pick_asset(&release_with_assets(&[("app-setup.exe", "https://evil.example/app-setup.exe", DIGEST)]), "windows"), None);
-    assert_eq!(pick_asset(&release_with_assets(&[("app-setup.exe", &good, "")]), "windows"), None);
-    assert_eq!(pick_asset(&release_with_assets(&[("app-setup.exe", &good, "sha256:abc")]), "windows"), None);
-    assert_eq!(pick_asset(&release_with_assets(&[("../app-setup.exe", &good, DIGEST)]), "windows"), None);
-    assert!(pick_asset(&release_with_assets(&[("app-setup.exe", &good, DIGEST)]), "windows").is_some());
+    assert_eq!(pick_asset(&release_with_assets(&[("app_en-US.msi", "https://evil.example/app_en-US.msi", DIGEST)]), "windows"), None);
+    assert_eq!(pick_asset(&release_with_assets(&[("app_en-US.msi", &good, "")]), "windows"), None);
+    assert_eq!(pick_asset(&release_with_assets(&[("app_en-US.msi", &good, "sha256:abc")]), "windows"), None);
+    assert_eq!(pick_asset(&release_with_assets(&[("../app_en-US.msi", &good, DIGEST)]), "windows"), None);
+    assert!(pick_asset(&release_with_assets(&[("app_en-US.msi", &good, DIGEST)]), "windows").is_some());
 }
 
 fn sha_of(data: &[u8]) -> String {

@@ -12,7 +12,7 @@ import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metada
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
@@ -2881,7 +2881,9 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     if (successful.length && refilter()) applyPhotoFilters({ keepState: true });
     else updateUIOnSelection();
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
-    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`);
+    // Failures: the toast names the first one, its "Details" button lists them all.
+    const details = failureDetailsAction(t('Metadata could not be written to some files'), result.failed);
+    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`, false, details);
   };
   const run = () => {
     // Photos of a move in progress or waiting would change path while being written (the backend lock makes the write fail cleanly
@@ -6164,6 +6166,7 @@ function movePhotosToFolder(targets, folderPath) {
         showWriteToast(t('Move failed: {error}', { error }));
         return;
       }
+      if (!result) return; // removed from the queue before it started: nothing was moved
       if (result.failed.length) console.error('Move failures', result.failed);
       if (result.moved.length) await applyMovedPhotos(result.moved);
       const parts = [];
@@ -6172,10 +6175,12 @@ function movePhotosToFolder(targets, folderPath) {
       if (result.failed.length) parts.push(tp('{count} failure', result.failed.length));
       const renamed = sidecarRenameNotice(result);
       if (renamed.text) parts.push(renamed.text);
-      if (!stopped || renamed.text) {
+      // Failures: "Details" lists them all (with the renames and their log); otherwise the renames' "Show log" button.
+      const action = failureDetailsAction(t('Some files could not be moved'), result.failed, { notes: [renamed.text], logPath: result.log_path }) ?? renamed.action;
+      if (!stopped || renamed.text || result.failed.length) {
         showWriteToast(!result.moved.length && !result.skipped && result.failed.length
           ? t('Move failed: {error}', { error: result.failed[0].error })
-          : parts.join(' · '), false, renamed.action, renamed.action ? 12000 : null);
+          : parts.join(' · '), false, action, action ? 12000 : null);
       }
     },
   });
@@ -6198,17 +6203,19 @@ async function copyPhotosToFolder(targets, folderPath) {
         showWriteToast(t('Copy failed: {error}', { error }));
         return;
       }
+      if (!result) return; // removed from the queue before it started: nothing was copied
       if (result.failed.length) console.error('Copy failures', result.failed);
       if (result.copied) {
         const changes = await invoke('sync_library');
         if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
       }
       const renamed = sidecarRenameNotice(result);
-      if (!stopped || renamed.text) {
+      const action = failureDetailsAction(t('Some files could not be copied'), result.failed, { notes: [renamed.text], logPath: result.log_path }) ?? renamed.action;
+      if (!stopped || renamed.text || result.failed.length) {
         showWriteToast(!result.copied && result.failed.length
           ? t('Copy failed: {error}', { error: result.failed[0].error })
           : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', result.failed.length ? tp('{count} failure', result.failed.length) : '', renamed.text].filter(Boolean).join(' · '),
-        false, renamed.action, renamed.action ? 12000 : null);
+        false, action, action ? 12000 : null);
       }
     },
   });
@@ -6659,7 +6666,7 @@ initAlbumsPanel({
 });
 // Effacement / restauration de la géolocalisation : les coordonnées relues sont reportées sur les photos chargées (pastille, filtre Lieu, carte).
 initGeoTools({
-  showToast: message => showWriteToast(message),
+  showToast: (message, action) => showWriteToast(message, false, action),
   onPhotosUpdated: updates => {
     const byId = new Map(updates.map(update => [update.photo_id, update]));
     for (const photo of loadedPhotos) {

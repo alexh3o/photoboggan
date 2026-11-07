@@ -3,7 +3,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { getIsFullscreen, isVideoPath, isRawPath } from './main.js';
-import { isWriteLocked } from './metadata-writes.js';
+import { isWriteLocked, failureDetailsAction } from './metadata-writes.js';
 import { getWriterMode } from './metadata-settings.js';
 import { getIdenticalSettings, getSimilarSettings, describeIdenticalSettings, describeSimilarSettings } from './duplicates.js';
 import { SLIDESHOW_DELAYS, getSlideshowSettings, setSlideshowOption, isSlideshowActive, isSlideshowPaused, startSlideshow, stopSlideshow, toggleSlideshowPause } from './slideshow.js';
@@ -570,9 +570,11 @@ export async function confirmAndDelete(targets) {
     if (result.deleted.length) api.removePhotos(result.deleted);
     const failures = result.failed.length;
     if (failures) console.error('Delete failures', result.failed);
+    const details = failureDetailsAction(t('Some files could not be deleted'), result.failed);
     api.showToast(failures && !result.deleted.length
       ? t('Delete failed: {error}', { error: result.failed[0].error })
-      : `${tp(permanent ? '{count} file deleted' : '{count} file moved to the trash', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`);
+      : `${tp(permanent ? '{count} file deleted' : '{count} file moved to the trash', result.deleted.length)}${failures ? ` · ${tp('{count} failure', failures)}` : ''}`,
+    false, details);
   } catch (error) {
     api.showToast(t('Delete failed: {error}', { error }));
   }
@@ -671,14 +673,16 @@ export async function copyPhotosTo(targets) {
         api.showToast(t('Copy failed: {error}', { error }));
         return;
       }
+      if (!result) return; // removed from the queue before it started: nothing was copied
       const failures = result.failed.length;
       if (failures) console.error('Copy failures', result.failed);
-      if (stopped) return;
       const renamed = sidecarRenameNotice(result);
+      if (stopped && !renamed.text && !failures) return;
+      const action = failureDetailsAction(t('Some files could not be copied'), result.failed, { notes: [renamed.text], logPath: result.log_path }) ?? renamed.action;
       api.showToast(failures && !result.copied
         ? t('Copy failed: {error}', { error: result.failed[0].error })
         : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', failures ? tp('{count} failure', failures) : '', renamed.text].filter(Boolean).join(' · '),
-      false, renamed.action, renamed.action ? 12000 : null);
+      false, action, action ? 12000 : null);
     },
   });
 }
@@ -1045,13 +1049,14 @@ async function runResizeBatch(targets, options, task, setPercent) {
 // Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
 function showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped) {
   if (failures.length) console.error('Resize failures', failures);
-  if (stopped) return; // le toast « Action arrêtée » de la file suffit
+  if (stopped && !failures.length) return; // le toast « Action arrêtée » de la file suffit, sauf s'il y a des échecs à détailler
   const parts = [];
   if (written) parts.push(tp('{count} file resized', written));
   if (skipped) parts.push(tp('{count} file skipped', skipped));
   if (failures.length) parts.push(tp('{count} failure', failures.length));
   if (ignoredVideosCount > 0) parts.push(tp('{count} video file ignored', ignoredVideosCount));
-  api.showToast(!written && !skipped && failures.length ? t('Resize failed: {error}', { error: failures[0].error }) : parts.join(' · '));
+  const details = failureDetailsAction(t('Some files could not be resized'), failures);
+  api.showToast(!written && !skipped && failures.length ? t('Resize failed: {error}', { error: failures[0].error }) : parts.join(' · '), false, details);
 }
 
 // Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
@@ -1078,6 +1083,7 @@ export async function resizePhotos(targets) {
         api.showToast(t('Resize failed: {error}', { error }));
         return;
       }
+      if (!summary) return; // removed from the queue before it started: nothing was resized
       showResizeSummary(summary, ignoredVideosCount, stopped);
       // Les nouveaux fichiers entrent dans le catalogue : synchronisation demandée, faite dès que la file des tâches est vide (main.js).
       if (summary.written) setTimeout(() => api.syncLibrary?.(), 0);

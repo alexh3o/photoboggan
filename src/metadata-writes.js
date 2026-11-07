@@ -144,7 +144,7 @@ export function keepFocusInModal(modal, event) {
 
 // Fenêtre modale : `buttons` = [{ label, value, primary?, cancel?, tone? }]. Échap choisit le bouton marqué `cancel` (sans lui, Échap ne fait rien).
 // `tone` : couleur du bouton, « blue » (écrire), « orange » (plus tard) ou « red » (abandonner) ; sans `tone`, couleur du thème (voir keywords.css).
-export function choiceDialog({ title, message, buttons }) {
+export function choiceDialog({ title, message, buttons, scrollable = false }) {
   return new Promise(resolve => {
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -157,6 +157,7 @@ export function choiceDialog({ title, message, buttons }) {
     const body = document.createElement('p');
     body.textContent = message;
     body.style.whiteSpace = 'pre-line';
+    if (scrollable) body.classList.add('dialog-scroll-list'); // long lists (every failed file): the text scrolls, the buttons stay visible
     const actions = document.createElement('div');
     actions.className = 'keyword-dialog-actions';
     const close = value => {
@@ -398,12 +399,37 @@ async function finishWrite(items, sentBy, result, error) {
   else { lastWriteOk = true; host.showToast(tp('Metadata written in {count} file', result.written.length)); }
 }
 
+// Every failure of a batch, one per line: file name, then its error (and its full path). Very long lists stop at MAX_LISTED_FAILURES.
+const MAX_LISTED_FAILURES = 1000;
+function failureLines(failures) {
+  const lines = failures.slice(0, MAX_LISTED_FAILURES).map(failure => `• ${fileName(failure.path)} : ${failure.error}\n   ${failure.path}`);
+  const more = failures.length - MAX_LISTED_FAILURES;
+  if (more > 0) lines.push(tp('… and {count} more file', more));
+  return lines.join('\n');
+}
+
+// Window listing every failure of a batch (the end-of-task toast only has room for the first one). `notes`: lines added below (e.g. photos
+// renamed because of a sidecar); `logPath`: offers to show that log file.
+export async function showFailureDetails({ title, failures, notes = [], logPath = null }) {
+  const buttons = [{ label: t('OK'), value: 'ok', primary: true, cancel: true }];
+  if (logPath) buttons.push({ label: t('Show log'), value: 'log' });
+  const message = [tp('{count} failure', failures.length), failureLines(failures), ...notes].filter(Boolean).join('\n\n');
+  const choice = await choiceDialog({ title, message, buttons, scrollable: true });
+  if (choice === 'log') invoke('reveal_in_file_manager', { path: logPath }).catch(error => host?.showToast(String(error)));
+}
+
+// "Details" button of an end-of-task toast that reports failures (null without failures): opens showFailureDetails.
+export function failureDetailsAction(title, failures, extra = {}) {
+  if (!failures?.length) return null;
+  return { label: t('Details'), onClick: () => showFailureDetails({ title, failures, ...extra }) };
+}
+
 // `retry` relance l'opération pour les fichiers en échec (nouvelle application des modifications, ou nouvelle suppression du mot-clé).
 export async function showFailureDialog(result, retry) {
-  const details = result.failed.slice(0, 3).map(failure => `${fileName(failure.path)} : ${failure.error}`).join('\n');
   const choice = await choiceDialog({
     title: t('Metadata could not be written to some files'),
-    message: `${t('{written} written · {failed} failed', { written: result.written.length, failed: result.failed.length })}\n${details}`,
+    message: `${t('{written} written · {failed} failed', { written: result.written.length, failed: result.failed.length })}\n\n${failureLines(result.failed)}`,
+    scrollable: true,
     buttons: [
       { label: t('No'), value: 'no', cancel: true },
       { label: t('Retry'), value: 'retry', primary: true },

@@ -1417,5 +1417,12 @@
   "The log file could not be written: {error}": "Le fichier journal n'a pas pu être écrit : {error}",
   "Show log": "Afficher le journal",
   "{count} renamed: a sidecar was already at the destination": "{count} photo renommée : un sidecar qui ne lui appartient pas était déjà à destination",
-  "{count} renamed: a sidecar was already at the destination|other": "{count} photos renommées : des sidecars qui ne leur appartiennent pas étaient déjà à destination"
+  "{count} renamed: a sidecar was already at the destination|other": "{count} photos renommées : des sidecars qui ne leur appartiennent pas étaient déjà à destination",
+  "Some files could not be moved": "Certains fichiers n'ont pas pu être déplacés",
+  "Some files could not be copied": "Certains fichiers n'ont pas pu être copiés",
+  "Some files could not be deleted": "Certains fichiers n'ont pas pu être supprimés",
+  "Some files could not be resized": "Certains fichiers n'ont pas pu être redimensionnés",
+  "Some photos could not be updated": "Certaines photos n'ont pas pu être modifiées",
+  "… and {count} more file": "… et {count} autre fichier",
+  "… and {count} more file|other": "… et {count} autres fichiers"
 }

@@ -83,6 +83,8 @@
 .keyword-dialog { width: min(28rem, calc(100vw - 2.5rem)); padding: 1rem 1.125rem; }
 .keyword-dialog h3 { font-size: 0.95rem; }
 .keyword-dialog p { margin: 0.5rem 0 0; line-height: 1.4; white-space: pre-line; overflow-wrap: anywhere; }
+/* Long lists in a dialog (every failed file of a batch): the text scrolls, the buttons stay in view */
+.keyword-dialog p.dialog-scroll-list { max-height: 55vh; overflow-y: auto; padding-right: 0.25rem; }
 .keyword-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
 /* Boutons colorés des questions d'écriture : écrire (bleu), écrire plus tard (orange), abandonner / quitter sans écrire (rouge) */
 .keyword-dialog-actions button.tone-blue { background: var(--accent); border-color: var(--accent); color: #fff; }

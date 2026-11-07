@@ -1417,5 +1417,12 @@
   "The log file could not be written: {error}": "The log file could not be written: {error}",
   "Show log": "Show log",
   "{count} renamed: a sidecar was already at the destination": "{count} photo renamed: a sidecar not its own was already at the destination",
-  "{count} renamed: a sidecar was already at the destination|other": "{count} photos renamed: a sidecar not their own was already at the destination"
+  "{count} renamed: a sidecar was already at the destination|other": "{count} photos renamed: a sidecar not their own was already at the destination",
+  "Some files could not be moved": "Some files could not be moved",
+  "Some files could not be copied": "Some files could not be copied",
+  "Some files could not be deleted": "Some files could not be deleted",
+  "Some files could not be resized": "Some files could not be resized",
+  "Some photos could not be updated": "Some photos could not be updated",
+  "… and {count} more file": "… and {count} more file",
+  "… and {count} more file|other": "… and {count} more files"
 }

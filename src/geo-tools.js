@@ -7,7 +7,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp } from './i18n.js';
 import { confirmDialog } from './photo-actions.js';
-import { runLocked, isWriteLocked } from './metadata-writes.js';
+import { runLocked, isWriteLocked, failureDetailsAction } from './metadata-writes.js';
 
 let host = { showToast: () => {}, onPhotosUpdated: () => {} };
 let erasedIds = new Set(); // photos dont les coordonnées effacées sont sauvegardées
@@ -50,7 +50,7 @@ function report(result, error, restored) {
     messages.push(tp('{count} photo failed: {error}', result.failed.length, { error: result.failed[0].error }));
   }
   if (result.cancelled) messages.push(tp('{count} photo not processed (task stopped)', result.cancelled));
-  if (messages.length) host.showToast(messages.join(' · '));
+  if (messages.length) host.showToast(messages.join(' · '), failureDetailsAction(t('Some photos could not be updated'), result.failed));
 }
 
 async function run(command, photos, restored) {
