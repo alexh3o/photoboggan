@@ -155,24 +155,87 @@ fn capped_list_follows_the_interface_sort_with_undated_photos_last() {
 #[test]
 fn photo_count_matches_the_uncapped_list() {
     let (_dir, pool) = sort_catalog();
-    assert_eq!(count_photos(&pool, None, true).unwrap(), 6);
-    assert_eq!(count_photos(&pool, Some("C:\\P\\".into()), false).unwrap(), 5);
-    assert_eq!(count_photos(&pool, Some("C:/P".into()), true).unwrap(), 5);
-    assert_eq!(count_photos(&pool, Some("C:/".into()), false).unwrap(), 0);
-    assert_eq!(count_photos(&pool, Some("C:/".into()), true).unwrap(), 6);
+    let none = PhotoPrefilter::default();
+    assert_eq!(count_photos(&pool, None, true, &none).unwrap(), 6);
+    assert_eq!(count_photos(&pool, Some("C:\\P\\".into()), false, &none).unwrap(), 5);
+    assert_eq!(count_photos(&pool, Some("C:/P".into()), true, &none).unwrap(), 5);
+    assert_eq!(count_photos(&pool, Some("C:/".into()), false, &none).unwrap(), 0);
+    assert_eq!(count_photos(&pool, Some("C:/".into()), true, &none).unwrap(), 6);
+}
+
+/// Prefilter catalogue: each photo differs from `base.jpg` by one field, so each filter is checked on its own.
+fn prefilter_catalog() -> (tempfile::TempDir, DbPool) {
+    let (dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for (name, set) in [
+            ("base.jpg", ""),
+            ("rated3.jpg", "rating = 3"),
+            ("rated5.jpg", "rating = 5"),
+            ("red.jpg", "color_flag = 'red'"),
+            ("emptyflag.jpg", "color_flag = '', pick_flag = ''"),
+            ("picked.jpg", "pick_flag = 'picked'"),
+            ("paris.jpg", "keywords = 'Voyage, Paris'"),
+            ("old.jpg", "date_taken = '2001:06:01 10:00:00'"),
+            ("oddformat.jpg", "date_taken = 'June 2001'"),
+            ("gps.jpg", "gps_lat = 48.8, gps_lon = 2.3"),
+        ] {
+            let id = insert_photo(&conn, &format!("C:/P/{name}"));
+            conn.execute("UPDATE photos SET date_taken = '2020:01:01 10:00:00', rating = 0 WHERE id = ?1", [id]).unwrap();
+            if !set.is_empty() {
+                conn.execute(&format!("UPDATE photos SET {set} WHERE id = ?1"), [id]).unwrap();
+            }
+        }
+        let id_of = |name: &str| -> i64 { conn.query_row("SELECT id FROM photos WHERE filename = ?1", [name], |row| row.get(0)).unwrap() };
+        // Person 7 on paris.jpg and old.jpg, person 8 on old.jpg only.
+        for (photo, person) in [("paris.jpg", 7), ("old.jpg", 7), ("old.jpg", 8)] {
+            conn.execute(
+                "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id) VALUES (?1, 0, 0, 0.1, 0.1, 'manual', 'confirmed', ?2)",
+                rusqlite::params![id_of(photo), person],
+            )
+            .unwrap();
+        }
+    }
+    (dir, pool)
+}
+
+fn matching(pool: &DbPool, filter: PhotoPrefilter) -> Vec<String> {
+    let photos = get_photos_filtered(pool, 0, 100, Some("C:/P".into()), true, "taken", false, &filter).unwrap();
+    assert_eq!(count_photos(pool, Some("C:/P".into()), true, &filter).unwrap(), photos.len() as i64, "count and list agree");
+    names(photos)
 }
 
 #[test]
-fn photos_are_read_back_by_id_in_chunks() {
-    let (_dir, pool) = temp_catalog();
-    let ids: Vec<i64> = {
-        let conn = pool.get().unwrap();
-        (0..1200).map(|n| insert_photo(&conn, &format!("C:/Photos/{n}.jpg"))).collect()
-    };
-    let wanted: Vec<i64> = ids.iter().copied().step_by(2).chain([999_999]).collect();
-    let found = get_photos_by_ids(&pool, &wanted).unwrap();
-    assert_eq!(found.len(), 600, "every known id across chunks, unknown ids skipped");
-    assert!(get_photos_by_ids(&pool, &[]).unwrap().is_empty());
+fn prefilter_keeps_what_the_interface_filters_would_keep() {
+    let (_dir, pool) = prefilter_catalog();
+    assert_eq!(matching(&pool, PhotoPrefilter::default()).len(), 10);
+    assert_eq!(matching(&pool, PhotoPrefilter { rating_min: Some(3), ..Default::default() }), ["rated3.jpg", "rated5.jpg"]);
+    assert_eq!(matching(&pool, PhotoPrefilter { rating_eq: Some(3), ..Default::default() }), ["rated3.jpg"]);
+    assert_eq!(matching(&pool, PhotoPrefilter { unrated: true, ..Default::default() }).len(), 8);
+    // Empty or missing labels count as "none", like `photo.color_flag || 'none'` in the interface.
+    let colors = matching(&pool, PhotoPrefilter { colors: vec!["red".into(), "none".into()], ..Default::default() });
+    assert_eq!(colors.len(), 10);
+    assert_eq!(matching(&pool, PhotoPrefilter { colors: vec!["red".into()], ..Default::default() }), ["red.jpg"]);
+    assert_eq!(matching(&pool, PhotoPrefilter { picks: vec!["picked".into()], ..Default::default() }), ["picked.jpg"]);
+    assert!(matching(&pool, PhotoPrefilter { picks: vec!["none".into()], ..Default::default() }).contains(&"emptyflag.jpg".to_string()));
+    assert_eq!(matching(&pool, PhotoPrefilter { keywords: vec!["Paris".into(), "Voyage".into()], ..Default::default() }), ["paris.jpg"]);
+    // Years: a date in an unexpected format is kept (superset), the interface decides.
+    assert_eq!(matching(&pool, PhotoPrefilter { year_from: Some(2000), year_to: Some(2005), ..Default::default() }), ["oddformat.jpg", "old.jpg"]);
+    // Persons: all of them on the photo.
+    assert_eq!(matching(&pool, PhotoPrefilter { persons: vec![7], ..Default::default() }), ["old.jpg", "paris.jpg"]);
+    assert_eq!(matching(&pool, PhotoPrefilter { persons: vec![7, 8], ..Default::default() }), ["old.jpg"]);
+    assert_eq!(matching(&pool, PhotoPrefilter { geolocated: Some(true), ..Default::default() }), ["gps.jpg"]);
+    assert_eq!(matching(&pool, PhotoPrefilter { geolocated: Some(false), ..Default::default() }).len(), 9);
+    // Combined filters: all of them.
+    assert_eq!(matching(&pool, PhotoPrefilter { persons: vec![7], year_to: Some(2010), ..Default::default() }), ["old.jpg"]);
+}
+
+#[test]
+fn prefilter_applies_before_the_cut() {
+    // The bug it prevents: on a capped list, a filter matching only older photos found nothing.
+    let (_dir, pool) = prefilter_catalog();
+    let filter = PhotoPrefilter { persons: vec![8], ..Default::default() };
+    assert_eq!(names(get_photos_filtered(&pool, 0, 1, None, true, "taken", false, &filter).unwrap()), ["old.jpg"]);
 }
 
 #[test]

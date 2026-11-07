@@ -239,7 +239,8 @@ pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo>
 }
 
 /// Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
-/// Une erreur de lecture est renvoyée, jamais masquée par une liste incomplète.
+/// Une erreur de lecture est renvoyée, jamais masquée par une liste incomplète. Tests only: the app calls `get_photos_filtered`.
+#[cfg(test)]
 pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool) -> Result<Vec<Photo>, String> {
     get_photos_sorted(pool, offset, limit, folder_filter, recursive, "taken", false)
 }
@@ -256,18 +257,112 @@ fn folder_prefix(folder: Option<&str>) -> String {
 /// A dated photo for the date sort: the interface ignores empty dates such as `0000:00:00` (they sort with the undated ones).
 const DATED: &str = "date_taken >= '1000'";
 
+/// Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
+/// It may keep more photos than the interface filters (it is a superset, never a subset): the interface filters the list again exactly.
+/// Empty fields filter nothing. Sent by `sqlPrefilter` (main.js).
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PhotoPrefilter {
+    /// Rating at least / exactly this value; `unrated`: rating 0 only.
+    pub rating_min: Option<i32>,
+    pub rating_eq: Option<i32>,
+    pub unrated: bool,
+    /// Accepted colour labels / pick flags (`none` = no label).
+    pub colors: Vec<String>,
+    pub picks: Vec<String>,
+    /// Keywords that must all appear in the `keywords` text (substring: superset of the interface's whole-keyword match).
+    pub keywords: Vec<String>,
+    /// Years of the date filter (the interface filters the exact instants).
+    pub year_from: Option<i32>,
+    pub year_to: Option<i32>,
+    /// Persons who must all appear on the photo (named faces).
+    pub persons: Vec<i64>,
+    /// `true`: with GPS coordinates; `false`: without.
+    pub geolocated: Option<bool>,
+}
+
+/// SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
+/// the `first` fixed ones of the statement.
+fn prefilter_condition(filter: &PhotoPrefilter, first: usize, values: &mut Vec<rusqlite::types::Value>) -> String {
+    use rusqlite::types::Value;
+    let push = |value: Value, values: &mut Vec<Value>| {
+        values.push(value);
+        format!("?{}", first + values.len())
+    };
+    let mut parts: Vec<String> = Vec::new();
+    if filter.unrated {
+        parts.push("COALESCE(rating, 0) = 0".into());
+    } else if let Some(stars) = filter.rating_eq {
+        parts.push(format!("COALESCE(rating, 0) = {}", push(Value::Integer(stars.into()), values)));
+    } else if let Some(stars) = filter.rating_min {
+        parts.push(format!("COALESCE(rating, 0) >= {}", push(Value::Integer(stars.into()), values)));
+    }
+    // Labels as the interface reads them: an empty or missing value is "none".
+    for (column, accepted) in [("color_flag", &filter.colors), ("pick_flag", &filter.picks)] {
+        if accepted.is_empty() {
+            continue;
+        }
+        let marks: Vec<String> = accepted.iter().map(|value| push(Value::Text(value.clone()), values)).collect();
+        parts.push(format!("COALESCE(NULLIF({column}, ''), 'none') IN ({})", marks.join(", ")));
+    }
+    for keyword in filter.keywords.iter().filter(|keyword| !keyword.is_empty()) {
+        parts.push(format!("instr(COALESCE(keywords, ''), {}) > 0", push(Value::Text(keyword.clone()), values)));
+    }
+    if filter.year_from.is_some() || filter.year_to.is_some() {
+        // A date that does not start with its year (unusual format) is kept: the interface decides.
+        let from = push(Value::Integer(filter.year_from.unwrap_or(0).into()), values);
+        let to = push(Value::Integer(filter.year_to.unwrap_or(9999).into()), values);
+        parts.push(format!(
+            "date_taken IS NOT NULL AND (date_taken NOT GLOB '[0-9][0-9][0-9][0-9]*' OR CAST(substr(date_taken, 1, 4) AS INTEGER) BETWEEN {from} AND {to})"
+        ));
+    }
+    for person in &filter.persons {
+        parts.push(format!("id IN (SELECT photo_id FROM faces WHERE person_id = {})", push(Value::Integer(*person), values)));
+    }
+    match filter.geolocated {
+        Some(true) => parts.push("gps_lat IS NOT NULL AND gps_lon IS NOT NULL".into()),
+        Some(false) => parts.push("(gps_lat IS NULL OR gps_lon IS NULL)".into()),
+        None => {}
+    }
+    if parts.is_empty() {
+        "1".into()
+    } else {
+        parts.iter().map(|part| format!("({part})")).collect::<Vec<_>>().join(" AND ")
+    }
+}
+
 /// Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
 /// folder (with or without its subfolders). Photos without the sort value come last in both directions, like the interface sort; ties keep
 /// a stable order. When the list is capped, this decides WHICH photos are loaded: ascending by date must start with the oldest ones.
+#[cfg(test)]
 pub fn get_photos_sorted(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: &str, ascending: bool) -> Result<Vec<Photo>, String> {
+    get_photos_filtered(pool, offset, limit, folder_filter, recursive, sort_key, ascending, &PhotoPrefilter::default())
+}
+
+/// Fixed placeholders of the list and count statements: ?1 folder prefix, ?2 recursion, ?3 limit, ?4 offset; the prefilter's follow.
+const FIXED_PARAMS: usize = 4;
+
+/// `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
+#[allow(clippy::too_many_arguments)]
+pub fn get_photos_filtered(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: &str, ascending: bool, filter: &PhotoPrefilter) -> Result<Vec<Photo>, String> {
     let conn = pool.get().map_err(|e| e.to_string())?;
     let prefix = folder_prefix(folder_filter.as_deref());
     let direction = if ascending { "ASC" } else { "DESC" };
+    let mut filter_values = Vec::new();
+    let filter_sql = prefilter_condition(filter, FIXED_PARAMS, &mut filter_values);
+    let statement_values = |limit: i32, offset: i32| {
+        let mut values = vec![prefix.clone().into(), recursive.into(), limit.into(), offset.into()];
+        values.extend(filter_values.iter().cloned());
+        values
+    };
     let page = |condition: &str, order: &str, limit: i32, offset: i32| -> Result<Vec<Photo>, String> {
         let mut stmt = conn
-            .prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE {FOLDER_CONDITION} AND ({condition}) ORDER BY {order} LIMIT ?3 OFFSET ?4"))
+            .prepare(&format!(
+                "SELECT {PHOTO_COLUMNS} FROM photos WHERE {FOLDER_CONDITION} AND ({condition}) AND ({filter_sql}) ORDER BY {order} LIMIT ?3 OFFSET ?4"
+            ))
             .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(params![prefix, recursive, limit, offset], photo_from_row).map_err(|e| e.to_string())?;
+        let values: Vec<rusqlite::types::Value> = statement_values(limit, offset);
+        let rows = stmt.query_map(rusqlite::params_from_iter(values), photo_from_row).map_err(|e| e.to_string())?;
         rows.collect::<rusqlite::Result<Vec<Photo>>>().map_err(|e| e.to_string())
     };
     match sort_key {
@@ -281,10 +376,8 @@ pub fn get_photos_sorted(pool: &DbPool, offset: i32, limit: i32, folder_filter: 
             if missing > 0 {
                 // The page ends past the dated photos: the undated ones fill it. Offset among them = what the offset skips beyond the dated ones.
                 let skip = if photos.is_empty() && offset > 0 {
-                    let dated: i32 = conn
-                        .query_row(&format!("SELECT COUNT(*) FROM photos WHERE {FOLDER_CONDITION} AND {DATED}"), params![prefix, recursive], |row| row.get(0))
-                        .map_err(|e| e.to_string())?;
-                    (offset - dated).max(0)
+                    let dated = count_matching(&conn, &prefix, recursive, DATED, &filter_sql, &filter_values)?;
+                    (offset as i64 - dated).max(0) as i32
                 } else {
                     0
                 };
@@ -295,27 +388,24 @@ pub fn get_photos_sorted(pool: &DbPool, offset: i32, limit: i32, folder_filter: 
     }
 }
 
-/// Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
-pub fn count_photos(pool: &DbPool, folder_filter: Option<String>, recursive: bool) -> Result<i64, String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
-    conn.query_row(&format!("SELECT COUNT(*) FROM photos WHERE {FOLDER_CONDITION}"), params![folder_prefix(folder_filter.as_deref()), recursive], |row| row.get(0))
-        .map_err(|e| e.to_string())
+/// Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
+fn count_matching(conn: &rusqlite::Connection, prefix: &str, recursive: bool, condition: &str, filter_sql: &str, filter_values: &[rusqlite::types::Value]) -> Result<i64, String> {
+    let mut values: Vec<rusqlite::types::Value> = vec![prefix.to_string().into(), recursive.into(), (-1i64).into(), 0i64.into()];
+    values.extend(filter_values.iter().cloned());
+    conn.query_row(
+        &format!("SELECT COUNT(*) FROM (SELECT 1 FROM photos WHERE {FOLDER_CONDITION} AND ({condition}) AND ({filter_sql}) LIMIT ?3 OFFSET ?4)"),
+        rusqlite::params_from_iter(values),
+        |row| row.get(0),
+    )
+    .map_err(|e| e.to_string())
 }
 
-/// Photos of the given identifiers (person filter beyond the capped list), in chunks to stay under the SQLite variable limit.
-/// Unknown identifiers are skipped.
-pub fn get_photos_by_ids(pool: &DbPool, ids: &[i64]) -> Result<Vec<Photo>, String> {
+/// Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
+pub fn count_photos(pool: &DbPool, folder_filter: Option<String>, recursive: bool, filter: &PhotoPrefilter) -> Result<i64, String> {
     let conn = pool.get().map_err(|e| e.to_string())?;
-    let mut photos = Vec::with_capacity(ids.len());
-    for chunk in ids.chunks(500) {
-        let marks = vec!["?"; chunk.len()].join(",");
-        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE id IN ({marks})")).map_err(|e| e.to_string())?;
-        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), photo_from_row).map_err(|e| e.to_string())?;
-        for row in rows {
-            photos.push(row.map_err(|e| e.to_string())?);
-        }
-    }
-    Ok(photos)
+    let mut filter_values = Vec::new();
+    let filter_sql = prefilter_condition(filter, FIXED_PARAMS, &mut filter_values);
+    count_matching(&conn, &folder_prefix(folder_filter.as_deref()), recursive, "1", &filter_sql, &filter_values)
 }
 
 /// Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.

@@ -1015,31 +1015,25 @@ fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Ph
 }
 
 // `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
+// `prefilter` (optional): filters applied before the cut on large folders (see `db::PhotoPrefilter`).
 #[tauri::command]
-fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: Option<String>, sort_order: Option<String>) -> Vec<Photo> {
+#[allow(clippy::too_many_arguments)]
+fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: Option<String>, sort_order: Option<String>, prefilter: Option<db::PhotoPrefilter>) -> Vec<Photo> {
     let pool = state.pool();
     let ascending = sort_order.as_deref() == Some("asc");
+    let prefilter = prefilter.unwrap_or_default();
     // L'interface attend une liste : une erreur est tracée et donne une liste vide plutôt qu'un rejet de la commande.
-    db::get_photos_sorted(&pool, offset, limit, folder_filter, recursive, sort_key.as_deref().unwrap_or("taken"), ascending).unwrap_or_else(|error| {
+    db::get_photos_filtered(&pool, offset, limit, folder_filter, recursive, sort_key.as_deref().unwrap_or("taken"), ascending, &prefilter).unwrap_or_else(|error| {
         eprintln!("Photo list unavailable: {error}");
         Vec::new()
     })
 }
 
-// Number of photos of a folder (or of the whole catalogue): compared with the loaded list to warn when it is capped.
-// An error gives `None`: the interface then shows no warning rather than a wrong number.
+// Number of photos of a folder (or of the whole catalogue), optionally prefiltered: it decides whether the backend prefilters, and
+// the warning shown when the list is capped. An error gives `None`: the interface then shows no number rather than a wrong one.
 #[tauri::command(async)]
-fn count_photos(state: State<'_, AppState>, folder_filter: Option<String>, recursive: bool) -> Option<i64> {
-    db::count_photos(&state.pool(), folder_filter, recursive).map_err(|error| eprintln!("Photo count unavailable: {error}")).ok()
-}
-
-// Catalog records of a list of identifiers (photos of the filtered persons missing from the capped list); unknown ids are left out.
-#[tauri::command(async)]
-fn get_photos_by_ids(state: State<'_, AppState>, ids: Vec<i64>) -> Vec<Photo> {
-    db::get_photos_by_ids(&state.pool(), &ids).unwrap_or_else(|error| {
-        eprintln!("Photos by id unavailable: {error}");
-        Vec::new()
-    })
+fn count_photos(state: State<'_, AppState>, folder_filter: Option<String>, recursive: bool, prefilter: Option<db::PhotoPrefilter>) -> Option<i64> {
+    db::count_photos(&state.pool(), folder_filter, recursive, &prefilter.unwrap_or_default()).map_err(|error| eprintln!("Photo count unavailable: {error}")).ok()
 }
 
 // Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
@@ -2535,7 +2529,6 @@ fn main() {
             remove_folder,
             get_photos_paginated,
             get_photos_by_paths,
-            get_photos_by_ids,
             count_photos,
             get_cached_thumbnail_path,
             get_cached_thumbnail_paths,

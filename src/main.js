@@ -24,7 +24,7 @@ import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeM
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag } from './filter-tags.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, getPersonFilterPhotoIds, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -701,18 +701,25 @@ async function loadFolders() {
   renderSettingsFolderList();
 }
 
-// The grid loads at most this many photos per folder. The backend picks them in the current sort (ascending by date = the oldest ones),
-// and `photoListCap` warns the user when the list is cut.
+// The grid loads at most this many photos per folder. The backend picks them in the current sort (ascending by date = the oldest ones);
+// on larger folders it also pre-applies the filters it can (`sqlPrefilter`), and `photoListCap` warns the user when the list is still cut.
 const PHOTO_LOAD_LIMIT = 50000;
-const queryPhotoPage = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: PHOTO_LOAD_LIMIT, folderFilter, recursive: includeSubfolders, sortKey, sortOrder });
-// Loaded list cut at PHOTO_LOAD_LIMIT: { total } = photos of the displayed folders in the catalogue; null when everything is loaded.
+const queryPhotoPage = (folderFilter, prefilter = null) => invoke('get_photos_paginated', {
+  offset: 0, limit: PHOTO_LOAD_LIMIT, folderFilter, recursive: includeSubfolders, sortKey, sortOrder, prefilter,
+});
+// Loaded list cut at PHOTO_LOAD_LIMIT: { total } = matching photos of the displayed folders in the catalogue; null when everything is loaded.
 let photoListCap = null;
+// Displayed folders hold more than PHOTO_LOAD_LIMIT photos: filters are pre-applied by the backend before the cut.
+let largeScope = false;
+// Prefilter the loaded list was read with (JSON, '' = none): a filter change that alters it reloads the list (see applyPhotoFilters).
+let loadedPrefilterKey = '';
+let photoLoadGeneration = 0; // a newer load (folder change, filter reload) makes the answer of an older one obsolete
 
 // Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains another).
 // `capped` is set on the returned list when one of the queries reached PHOTO_LOAD_LIMIT; the interface sorts the list itself.
-async function queryFolderPhotos(folder) {
+async function queryFolderPhotos(folder, prefilter = null) {
   const folderList = folder === null || folder !== currentFolderFilter ? [folder] : [folder, ...extraFolderFilters];
-  const lists = await Promise.all(folderList.map(queryPhotoPage));
+  const lists = await Promise.all(folderList.map(item => queryPhotoPage(item, prefilter)));
   const capped = lists.some(list => list.length >= PHOTO_LOAD_LIMIT);
   let merged = lists[0];
   if (lists.length > 1) {
@@ -729,50 +736,65 @@ function displayedPhotoFolders() {
   return getSelectedAlbum() || currentFolderFilter === null ? [null] : [currentFolderFilter, ...extraFolderFilters];
 }
 
-// After a load: when the list was cut, counts the photos of the displayed folders so the warning can say how many exist.
-// Overlapping Ctrl+click folders may be counted twice: the number is a "more than shown" hint, never used to pick photos.
-async function updatePhotoListCap(list) {
-  if (!list?.capped) {
-    photoListCap = null;
-    return;
-  }
-  const counts = await Promise.all(displayedPhotoFolders().map(folderFilter => invoke('count_photos', { folderFilter, recursive: includeSubfolders }).catch(() => null)));
-  photoListCap = { total: counts.every(Number.isFinite) ? counts.reduce((sum, count) => sum + count, 0) : null };
+// Photos of the displayed folders in the catalogue (optionally prefiltered), or null if a count failed.
+// Overlapping Ctrl+click folders may be counted twice: the number decides "more than the limit" and feeds the warning, nothing else.
+async function countDisplayedPhotos(prefilter = null) {
+  const counts = await Promise.all(displayedPhotoFolders().map(folderFilter => invoke('count_photos', { folderFilter, recursive: includeSubfolders, prefilter }).catch(() => null)));
+  return counts.every(Number.isFinite) ? counts.reduce((sum, count) => sum + count, 0) : null;
 }
 
-// Person filter on a capped list: the catalogue photos of the filtered persons that the cut left out are read by id and added to the
-// loaded list (within the displayed folders), so a person whose photos are all older still shows them. Each id is asked once per load.
-let personPhotosRequested = new Set();
-let photoLoadGeneration = 0;
-async function loadMissingPersonPhotos() {
-  const ids = photoListCap ? getPersonFilterPhotoIds() : null;
-  if (!ids?.length) return;
-  const loadedIds = new Set(loadedPhotos.map(photo => photo.id));
-  const missing = ids.filter(id => !loadedIds.has(id) && !personPhotosRequested.has(id));
-  if (missing.length === 0) return;
-  for (const id of missing) personPhotosRequested.add(id);
-  const generation = photoLoadGeneration;
-  let found;
-  try {
-    found = await invoke('get_photos_by_ids', { ids: missing });
-  } catch (error) {
-    console.debug('Person photos unavailable', error);
-    return;
+// Filters the backend can apply before the cut, as a superset of the interface filters (see `PhotoPrefilter` in db.rs): rating, labels,
+// keywords, years of the date filter, persons, geolocation. File name, format, gear, shooting, map area and album criteria stay in the
+// interface only. Null when none is active.
+function buildSqlPrefilter() {
+  const filter = {};
+  if (ratingFilter.unrated) filter.unrated = true;
+  else if (ratingFilter.stars > 0) filter[ratingFilter.mode === 'eq' ? 'ratingEq' : 'ratingMin'] = ratingFilter.stars;
+  if (colorFilters.size) filter.colors = [...colorFilters].sort();
+  if (pickFilters.size) filter.picks = [...pickFilters].sort();
+  if (keywordFilters.length) filter.keywords = [...keywordFilters].sort();
+  if (dateFilter) {
+    filter.yearFrom = Math.floor(dateFilter.from / 1e10); // AAAAMMJJHHmmss -> AAAA
+    filter.yearTo = Math.floor(dateFilter.to / 1e10);
   }
-  if (generation !== photoLoadGeneration) return; // the list was reloaded meanwhile: its own pass will ask again
-  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  const folders = displayedPhotoFolders().filter(folder => folder !== null).map(normalize);
-  const inScope = photo => {
-    if (folders.length === 0) return true;
-    const path = normalize(photo.path);
-    const dir = path.slice(0, path.lastIndexOf('/'));
-    return folders.some(folder => (includeSubfolders ? path.startsWith(`${folder}/`) : dir === folder));
-  };
-  const known = new Set(loadedPhotos.map(photo => photo.id));
-  const added = found.filter(photo => inScope(photo) && !known.has(photo.id));
-  if (added.length === 0) return;
-  loadedPhotos.push(...added); // same array as folderTreePhotos on the whole catalogue: renames, removals and metadata updates follow
-  applyPhotoFilters({ keepState: true });
+  const persons = getPersonFilterIds();
+  if (persons.length) filter.persons = [...persons].sort((a, b) => a - b);
+  if (locationFilter !== 'all') filter.geolocated = locationFilter === 'geolocated';
+  return Object.keys(filter).length ? filter : null;
+}
+const sqlPrefilter = () => (largeScope ? buildSqlPrefilter() : null);
+const prefilterKey = prefilter => (prefilter ? JSON.stringify(prefilter) : '');
+
+// Reads the displayed folders: on a large folder, prefiltered (counted first to know). Returns { list, cap, large, key }.
+async function readDisplayedFolderPhotos(folder) {
+  const wanted = buildSqlPrefilter();
+  let total;
+  let list;
+  if (wanted) {
+    total = await countDisplayedPhotos();
+  } else {
+    [total, list] = await Promise.all([countDisplayedPhotos(), queryFolderPhotos(folder)]); // usual case: no wait for the count
+  }
+  const large = total === null ? Boolean(list?.capped) || largeScope : total > PHOTO_LOAD_LIMIT;
+  const prefilter = large ? wanted : null;
+  if (!list) list = await queryFolderPhotos(folder, prefilter);
+  const cap = list.capped ? { total: prefilter ? await countDisplayedPhotos(prefilter) : total } : null;
+  return { list, cap, large, key: prefilterKey(prefilter) };
+}
+
+// A filter changed on a large folder: the list is read again with the new prefilter (grouped over a burst of changes).
+let prefilterReloadTimer = null;
+function schedulePrefilterReload() {
+  clearTimeout(prefilterReloadTimer);
+  prefilterReloadTimer = setTimeout(async () => {
+    if (!largeScope || prefilterKey(sqlPrefilter()) === loadedPrefilterKey) return;
+    const generation = ++photoLoadGeneration;
+    const result = await readDisplayedFolderPhotos(getSelectedAlbum() ? null : currentFolderFilter);
+    if (generation !== photoLoadGeneration) return;
+    ({ cap: photoListCap, large: largeScope, key: loadedPrefilterKey } = result);
+    loadedPhotos = result.list;
+    applyPhotoFilters(); // same reset (scroll, selection) as any filter change
+  }, 200);
 }
 
 async function loadPhotos() {
@@ -780,22 +802,23 @@ async function loadPhotos() {
   // Dans les deux cas le dossier du disque n'intervient plus.
   const album = getSelectedAlbum();
   const baseAlbumId = album?.kind === 'manual' ? album.id : album?.kind === 'smart' ? getAlbumContext(album.id).baseManualId : 0;
-  photoLoadGeneration++;
-  personPhotosRequested = new Set();
-  let list;
+  const generation = ++photoLoadGeneration;
+  let result;
   if (duplicateSearch) {
     // Duplicate results: only the photos of the groups, never the folder or album view (also used when the mode reloads after a rescan).
-    list = await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() });
+    result = { list: await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() }), cap: null, large: false, key: '' };
   } else if (baseAlbumId) {
-    list = await invoke('get_album_photos', { albumId: baseAlbumId }); // never capped
+    result = { list: await invoke('get_album_photos', { albumId: baseAlbumId }), cap: null, large: false, key: '' }; // never capped
   } else {
-    list = await queryFolderPhotos(album ? null : currentFolderFilter);
+    result = await readDisplayedFolderPhotos(album ? null : currentFolderFilter);
   }
-  await updatePhotoListCap(list); // before the list is shown, so the count and its warning appear together
-  loadedPhotos = list;
+  if (generation !== photoLoadGeneration) return; // a newer load is under way and will show its own list
+  ({ cap: photoListCap, large: largeScope, key: loadedPrefilterKey } = result);
+  loadedPhotos = result.list;
   if (duplicateSearch) indexDuplicateGroups();
   photosLoadedOnce = true;
-  if (!album && currentFolderFilter === null && !duplicateSearch) folderTreePhotos = loadedPhotos;
+  // The whole-catalogue list feeds the keyword suggestions and gear lists: never a prefiltered one.
+  if (!album && currentFolderFilter === null && !duplicateSearch && !loadedPrefilterKey) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
@@ -872,8 +895,8 @@ function updateFilteredPhotosCount() {
       const params = { loaded: format(PHOTO_LOAD_LIMIT), total: format(photoListCap.total ?? 0) };
       const warning = Object.assign(document.createElement('span'), { className: 'photo-cap-warning', textContent: '⚠' });
       warning.title = t(Number.isFinite(photoListCap.total)
-        ? 'Only the first {loaded} of the {total} photos here are loaded, in the current sort order. Filters only see these, except Persons, which also finds the others.'
-        : 'Only the first {loaded} photos here are loaded, in the current sort order. Filters only see these, except Persons, which also finds the others.', params);
+        ? 'Only the first {loaded} of the {total} matching photos here are loaded, in the current sort order. Rating, labels, keywords, date, persons and geolocation are applied before this cut; the other filters only see the loaded photos.'
+        : 'Only the first {loaded} matching photos here are loaded, in the current sort order. Rating, labels, keywords, date, persons and geolocation are applied before this cut; the other filters only see the loaded photos.', params);
       warning.setAttribute('aria-label', warning.title);
       countElement.append(warning);
       if (!countElement.title) countElement.title = warning.title;
@@ -942,7 +965,8 @@ function applyPhotoFilters({ keepState = false } = {}) {
   renderDuplicateBanner(); // duplicate search: the counts follow the filters
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
-  if (photoListCap && hasPersonFilters()) loadMissingPersonPhotos(); // capped list: photos of the persons left out by the cut
+  // Large folder: the loaded list was prefiltered by the backend; a change of those filters reads it again.
+  if (largeScope && prefilterKey(sqlPrefilter()) !== loadedPrefilterKey) schedulePrefilterReload();
 }
 
 // Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
@@ -7074,12 +7098,18 @@ async function refreshLibraryAfterSync(changes) {
   const folderAtStart = currentFolderFilter;
   const known = new Map(loadedPhotos.map(photo => [photo.path, photo]));
   const modified = new Set(changes.updated);
-  const [fresh, everything] = await Promise.all([queryFolderPhotos(folderAtStart), folderAtStart === null ? null : queryPhotoPage(null)]);
-  if (folderAtStart !== currentFolderFilter) return; // dossier changé pendant le chargement : le rechargement normal fait foi
-  await updatePhotoListCap(fresh);
-  if (folderAtStart !== currentFolderFilter) return;
-  photoLoadGeneration++; // photos added for the person filter are dropped with the old list, and asked again below
-  personPhotosRequested = new Set();
+  // Same prefilter as the list on screen (large folder); the whole-catalogue list stays unfiltered (keyword suggestions, gear lists).
+  const generation = photoLoadGeneration;
+  const prefilter = loadedPrefilterKey ? JSON.parse(loadedPrefilterKey) : null;
+  const [fresh, everything] = await Promise.all([
+    queryFolderPhotos(folderAtStart, prefilter),
+    folderAtStart === null && !prefilter ? null : queryPhotoPage(null),
+  ]);
+  const stale = () => folderAtStart !== currentFolderFilter || generation !== photoLoadGeneration;
+  if (stale()) return; // dossier changé (ou liste relue) pendant le chargement : le rechargement normal fait foi
+  const cap = fresh.capped ? { total: await countDisplayedPhotos(prefilter) } : null;
+  if (stale()) return;
+  photoListCap = cap;
   for (const photo of fresh) {
     const previous = known.get(photo.path);
     if (!previous || modified.has(photo.path)) continue;
