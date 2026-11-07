@@ -2018,6 +2018,8 @@ function onContextMenu(event) {
   if (target?.closest('.person-item, .person-tile')) return;
   // Arborescence des mots-clés : son menu est ouvert par keywords-panel.js (openContextMenuAt).
   if (target?.closest('#keyword-tree')) return;
+  // Titre « Dossiers » de la barre latérale : son menu est ouvert par main.js (openContextMenuAt).
+  if (target?.closest('#folders-toggle')) return;
   // Section Albums : son menu est ouvert par albums-panel.js (openContextMenuAt).
   if (target?.closest('#albums-section')) return;
   // Panneau carte (mode Carte) : son menu propre est ouvert par map-mode.js, pas celui de la sélection.

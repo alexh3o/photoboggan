@@ -1942,6 +1942,37 @@ function selectFolder(path) {
   loadPhotos();
 }
 
+// Right-click on the "Folders" title: fold every folder, or unfold the ancestors of the folders holding the selected photos.
+document.getElementById('folders-toggle').addEventListener('contextmenu', event => {
+  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const selectedFolders = new Set();
+  for (const index of selectedIndices) {
+    const path = photos[index]?.path;
+    if (path) selectedFolders.add(normalize(path.slice(0, Math.max(path.search(/[\\/][^\\/]*$/), 0))));
+  }
+  openContextMenuAt(event, [
+    { header: t('Folders') },
+    { label: t('Collapse all'), title: t('Fold every folder'), onSelect: () => {
+      folderTreeExpanded.clear();
+      folderTreeInitialized = true; // otherwise the tracked folders would be unfolded again as on first display
+      renderFolderTree();
+    } },
+    {
+      label: tp('Expand to the selected photo', selectedIndices.size),
+      title: t('Unfold the folders needed to see the selected photos'),
+      disabled: selectedFolders.size === 0,
+      onSelect: () => {
+        // Every proper ancestor of a photo's folder must be unfolded for that folder to show.
+        for (const folder of selectedFolders) {
+          for (let cut = folder.indexOf('/', 1); cut !== -1; cut = folder.indexOf('/', cut + 1)) folderTreeExpanded.add(folder.slice(0, cut));
+        }
+        folderTreeInitialized = true;
+        renderFolderTree();
+      },
+    },
+  ]);
+});
+
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
 function toggleFolderInSelection(path) {
   const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();

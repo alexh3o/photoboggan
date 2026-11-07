@@ -7,7 +7,7 @@
 - [ ] *feat*: `scan` allow pausing
 - [x] *fix*: `faces` faces don't obey to sorting options
 - [ ] *feat*: `tree` add collapse all and unfold to active photo path on folders tree
-- [ ] *fix*: `ui` count badge cut on tasks button since removing the top padding
+- [x] *fix*: `ui` count badge cut on tasks button since removing the top padding
 - [x] *fix*: `faces` keyboard selction doesn't work in faces review
 
 ## 💡 Ideas / Longer term / On hold
