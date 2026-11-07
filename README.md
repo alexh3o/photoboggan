@@ -30,7 +30,7 @@ My photo collection grew to the opposite of my patience to organize an always gr
 - **Linux (.deb)**: tested a bit, seems functional, have a try and tell me!
 - **macOS & other Linux packages**: not provided yet, but builds can easily be made if testers are interested. Feel free to open an issue!
 
-Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/releases).
+Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French), `.deb` for Linux. The app can **check for new versions** on GitHub and download the installer, which is verified by checksum before it is launched (can be turned off in the settings, and is disabled in offline mode).
 
 ---
 
@@ -40,10 +40,12 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
 
 - 🛡️ **Files are SAFE**: only metadata is ever written; photoboggan never modifies the image content. Every write goes through a temporary file before replacing the original, so a file is never left half-written. Moves between drives are **verified by checksum** before the original is deleted (can be turned off in the settings). An **integrity check** detects corrupted files (JPEG, HEIC, WebP, PNG, RAW).
 
-  💾 Your photos stay **local, no cloud**. Optional online features, such as map data and geocoding, may connect to external services (nominatim, openfreemap, github). Offline mode disables these connections.
+  💾 Your photos stay **local, no cloud**. Optional online features, such as map data, geocoding, the face model download and update checks, may connect to external services (nominatim, openfreemap, github). Offline mode (Settings > General) disables all of these connections.
 
-- ⚡ **Built for SPEED**: fast thumbnail generation, then nothing stops you from scrolling as fast as you want. All heavy tasks run in the background without lag.
+- ⚡ **Built for SPEED**: fast thumbnail generation, nothing stops you from scrolling as fast as you want. All heavy tasks run in the background without lag.
   **Fast RAW previews**: instead of CPU-heavy demosaicing, the embedded JPEG is extracted in milliseconds. It can be low resolution, but it makes browsing instant.
+
+- 🧬 **Duplicates finder**: search a folder, a selection or the whole library for **identical** photos (image data hash, so metadata changes don't matter), **similar** photos (perceptual hash, tolerant to resizing, rotations and mirroring, with burst detection) or photos with **similar names** (regex). Results appear in the main grid, grouped and sorted, with a configurable "best copy" criteria.
 
 - ⭐ **ORGANISE (sort, compare, rate, filter, move...)** in a breeze
 
@@ -51,7 +53,8 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
   - **Fast keyboard rating**: colors and 0 to 5 stars in a snap with the number keys, in the grid or in fullscreen.
   - 🚩 **Pick / reject flags** (optional, in Settings): `Shift`+`P` / `Shift`+`X`, compatible with digiKam and Lightroom. Colors can also be switched off if you don't use them.
   - ⚖️ **Side-by-side comparison**: up to 4 photos at once, with synchronized or unlinked zoom/pan. Rate or delete per shot.
-  - **Filter** by rating, color, pick flag, keywords, dates, filenames, people, camera, lens, use of flash, shoot settings...
+  - **Filter** by rating, color, pick flag, keywords, dates, filenames, people, camera, lens, use of flash, shoot settings... Each filter category can be cleared on its own, and the number of displayed photos is always visible in the filters title bar.
+  - 📷 **Find the RAW** matching a JPEG (same date/time and camera model) to quickly open with your RAW editor for a re-edit
 
 - 🏷️ **Hierarchical keywords, titles and descriptions**: build an editable keyword tree, tag one photo or a whole selection, and write them to the files when you are ready. Keywords are read and written in the formats used by digiKam, Lightroom, ACDSee, Microsoft and Media Pro, with their order of priority being configurable.
 
@@ -61,11 +64,11 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
 
 - 📚 **Albums**: organize photos into physical albums without duplicating files, or create virtual albums based on saved filters. Dynamic albums automatically reflect the photos matching their criteria.
 
-- 🔁 **Interoperability, leave anytime**: ratings, color labels, pick flags, keywords, titles and faces are written in standard embedded XMP/IPTC (JPEG), or in companion `.xmp` sidecars for RAW, PNG and other files that can't hold metadata. Your changes are recognized by digiKam, Lightroom and the OS file manager. Writing is done by the embedded [ExifTool](https://exiftool.org) or by an internal writer, at your choice.
+- 🔁 **Interoperability, leave anytime**: ratings, color labels, pick flags, keywords, titles and faces are written in standard embedded XMP/IPTC (JPEG), or in companion `.xmp` sidecars for RAW, PNG and other files that can't hold metadata. Your changes are recognized by digiKam, Lightroom and the OS file manager. Writing is done by the [ExifTool](https://exiftool.org) (embedded in the release builds) or by an internal writer, at your choice; with the internal writer, EXIF reading can be switched off.
 
-- 🖥️ **Flexible UI**: choose text, thumbnails and panels size, thumbnails layout (square, justified, masonry), the panels to display, fullscreen infos, histogram & cliped shadoiws/highlights or an unobstructed view. Dark or light theme.
+- 🖥️ **Flexible UI**: choose text, thumbnails and panels size, thumbnails layout (square, justified, masonry), the panels to display, fullscreen infos (including titles and descriptions), histogram & clipped shadows/highlights or an unobstructed view. Dark or light theme.
 
-- 🛠️ **Comprehensive toolkit**: batch resizing, moving and copying, quickly "open with" your chosen external programs specifically for images, RAW, videos, EXIF viewer, clipboard support, system trash integration, exhaustive shortcuts (with a built-in guide)...
+- 🛠️ **Comprehensive toolkit**: batch resizing, moving and copying, quickly "open with" your chosen external programs specifically for images, RAW, videos, EXIF viewer, clipboard support, system trash integration, a **task manager** with progress, time spent and remaining, cancellation and a warning when you quit while tasks are running, exhaustive shortcuts (with a built-in guide)...
 
 See <a href="#screenshots">Screenshots</a> for more detail.
 
