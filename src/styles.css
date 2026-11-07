@@ -315,6 +315,8 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filtered-count strong { color: var(--text-strong); font-size: 0.95rem; font-weight: 700; }
 .filtered-count.is-filtered { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--text-strong); }
 .filtered-count.is-empty, .filtered-count.is-empty strong { color: var(--danger-text); }
+/* Loaded list cut at its limit (main.js, PHOTO_LOAD_LIMIT): amber mark, the explanation is in the tooltip. */
+.filtered-count .photo-cap-warning { margin-left: 0.3rem; color: #d6a900; font-weight: 700; cursor: help; }
 .write-toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1000; padding: 0.75rem 1rem; max-width: min(22.5rem, calc(100vw - 2.5rem)); border: 1px solid var(--control-border); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; }
 .write-toast.writing { border-color: #d6a900; }
 /* Bouton d'un toast (ex. « Annuler ») */

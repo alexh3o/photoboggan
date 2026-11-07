@@ -139,6 +139,15 @@ export function setPersonFilterIds(ids) {
   renderPersons();
 }
 
+// Identifiers of every catalogued photo showing all the filtered persons (face index of the whole catalogue), or null without a person
+// filter: main.js reads the ones missing from its capped photo list.
+export function getPersonFilterPhotoIds() {
+  if (!readingEnabled || personFilters.length === 0) return null;
+  const ids = [];
+  for (const [photoId, photoPersons] of faceIndex) if (personFilters.every(id => photoPersons.has(id))) ids.push(photoId);
+  return ids;
+}
+
 export function photoMatchesPersonIds(photo, ids) {
   if (!ids?.length) return true;
   const photoPersons = faceIndex.get(photo.id);

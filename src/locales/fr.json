@@ -1424,5 +1424,7 @@
   "Some files could not be resized": "Certains fichiers n'ont pas pu être redimensionnés",
   "Some photos could not be updated": "Certaines photos n'ont pas pu être modifiées",
   "… and {count} more file": "… et {count} autre fichier",
-  "… and {count} more file|other": "… et {count} autres fichiers"
+  "… and {count} more file|other": "… et {count} autres fichiers",
+  "Only the first {loaded} of the {total} photos here are loaded, in the current sort order. Filters only see these, except Persons, which also finds the others.": "Seules les {loaded} premières des {total} photos d'ici sont chargées, dans l'ordre de tri actuel. Les filtres ne voient qu'elles, sauf Personnes, qui trouve aussi les autres.",
+  "Only the first {loaded} photos here are loaded, in the current sort order. Filters only see these, except Persons, which also finds the others.": "Seules les {loaded} premières photos d'ici sont chargées, dans l'ordre de tri actuel. Les filtres ne voient qu'elles, sauf Personnes, qui trouve aussi les autres."
 }

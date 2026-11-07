@@ -88,6 +88,94 @@ fn folder_counts_are_direct_per_folder_and_normalised() {
 }
 
 #[test]
+fn folder_list_covers_folders_beyond_the_photo_page() {
+    // The interface loads a capped page of the most recent photos but builds its folder tree from `get_folder_counts`:
+    // a folder whose photos are all older than the page must still be listed, with its full count.
+    let (_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for (path, date) in [("C:/Photos/2024/a.jpg", "2024:01:01 10:00:00"), ("C:/Photos/2024/b.jpg", "2024:01:02 10:00:00"),
+                             ("C:/Photos/2014/old1.jpg", "2014:01:01 10:00:00"), ("C:/Photos/2014/old2.jpg", "2014:01:02 10:00:00")] {
+            let id = insert_photo(&conn, path);
+            conn.execute("UPDATE photos SET date_taken = ?1 WHERE id = ?2", rusqlite::params![date, id]).unwrap();
+        }
+    }
+    let page = get_photos(&pool, 0, 2, None, true).unwrap();
+    assert!(page.iter().all(|photo| photo.path.contains("/2024/")), "the page holds only the most recent photos");
+    let counts = get_folder_counts(&pool).unwrap();
+    assert_eq!((counts.get("C:/Photos/2024").copied(), counts.get("C:/Photos/2014").copied()), (Some(2), Some(2)));
+}
+
+/// Catalogue for the sort tests: three dated photos, one without date, one with an empty date, one in another folder.
+fn sort_catalog() -> (tempfile::TempDir, DbPool) {
+    let (dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for (path, date, modified) in [("C:/P/b2010.jpg", Some("2010:05:01 10:00:00"), 3), ("C:/P/a2000.jpg", Some("2000:01:01 10:00:00"), 1),
+                                       ("C:/P/c2020.jpg", Some("2020:01:01 10:00:00"), 2), ("C:/P/nodate.jpg", None, 0),
+                                       ("C:/P/zero.jpg", Some("0000:00:00 00:00:00"), 5), ("C:/Q/q2015.jpg", Some("2015:01:01 10:00:00"), 4)] {
+            let id = insert_photo(&conn, path);
+            conn.execute("UPDATE photos SET date_taken = ?1, modified = ?2 WHERE id = ?3", rusqlite::params![date, modified, id]).unwrap();
+        }
+    }
+    (dir, pool)
+}
+
+fn ordered(photos: Vec<Photo>) -> Vec<String> {
+    photos.into_iter().map(|photo| photo.filename).collect()
+}
+
+#[test]
+fn capped_list_follows_the_interface_sort_with_undated_photos_last() {
+    let (_dir, pool) = sort_catalog();
+    let folder = || Some("C:/P".to_string());
+    // Ascending by date: a capped list starts with the OLDEST photos (the bug: it used to hold the newest ones, merely reversed).
+    assert_eq!(ordered(get_photos_sorted(&pool, 0, 2, folder(), true, "taken", true).unwrap()), ["a2000.jpg", "b2010.jpg"]);
+    // Undated and empty dates (0000:00:00) come last in both directions.
+    let ascending = ordered(get_photos_sorted(&pool, 0, 10, folder(), true, "taken", true).unwrap());
+    assert_eq!(ascending[..3], ["a2000.jpg", "b2010.jpg", "c2020.jpg"]);
+    let descending = ordered(get_photos_sorted(&pool, 0, 10, folder(), true, "taken", false).unwrap());
+    assert_eq!(descending[..3], ["c2020.jpg", "b2010.jpg", "a2000.jpg"]);
+    for list in [&ascending, &descending] {
+        let mut tail = list[3..].to_vec();
+        tail.sort();
+        assert_eq!(tail, ["nodate.jpg", "zero.jpg"]);
+    }
+    // Pages across the dated / undated boundary: disjoint and complete.
+    let pages: Vec<String> = (0..3).flat_map(|page| ordered(get_photos_sorted(&pool, page * 2, 2, folder(), true, "taken", true).unwrap())).collect();
+    assert_eq!(pages, ascending);
+    assert!(get_photos_sorted(&pool, 10, 2, folder(), true, "taken", true).unwrap().is_empty());
+    // Modification date (missing = 0, last) and name.
+    assert_eq!(ordered(get_photos_sorted(&pool, 0, 10, folder(), true, "modified", true).unwrap()), ["a2000.jpg", "c2020.jpg", "b2010.jpg", "zero.jpg", "nodate.jpg"]);
+    assert_eq!(ordered(get_photos_sorted(&pool, 0, 2, folder(), true, "name", false).unwrap()), ["zero.jpg", "nodate.jpg"]);
+    // Without a folder, the whole catalogue; the default query keeps newest first.
+    assert_eq!(ordered(get_photos(&pool, 0, 2, None, true).unwrap()), ["c2020.jpg", "q2015.jpg"]);
+}
+
+#[test]
+fn photo_count_matches_the_uncapped_list() {
+    let (_dir, pool) = sort_catalog();
+    assert_eq!(count_photos(&pool, None, true).unwrap(), 6);
+    assert_eq!(count_photos(&pool, Some("C:\\P\\".into()), false).unwrap(), 5);
+    assert_eq!(count_photos(&pool, Some("C:/P".into()), true).unwrap(), 5);
+    assert_eq!(count_photos(&pool, Some("C:/".into()), false).unwrap(), 0);
+    assert_eq!(count_photos(&pool, Some("C:/".into()), true).unwrap(), 6);
+}
+
+#[test]
+fn photos_are_read_back_by_id_in_chunks() {
+    let (_dir, pool) = temp_catalog();
+    let ids: Vec<i64> = {
+        let conn = pool.get().unwrap();
+        (0..1200).map(|n| insert_photo(&conn, &format!("C:/Photos/{n}.jpg"))).collect()
+    };
+    let wanted: Vec<i64> = ids.iter().copied().step_by(2).chain([999_999]).collect();
+    let found = get_photos_by_ids(&pool, &wanted).unwrap();
+    assert_eq!(found.len(), 600, "every known id across chunks, unknown ids skipped");
+    assert!(get_photos_by_ids(&pool, &[]).unwrap().is_empty());
+}
+
+#[test]
 fn removing_a_folder_keeps_photos_still_covered_and_neighbours() {
     let (_dir, pool) = temp_catalog();
     let outer = add_folder(&pool, "C:/Photo").unwrap();

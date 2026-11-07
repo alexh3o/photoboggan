@@ -241,30 +241,81 @@ pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo>
 /// Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
 /// Une erreur de lecture est renvoyée, jamais masquée par une liste incomplète.
 pub fn get_photos(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool) -> Result<Vec<Photo>, String> {
+    get_photos_sorted(pool, offset, limit, folder_filter, recursive, "taken", false)
+}
+
+/// Folder condition shared by the list and the count: `?1` is the folder prefix (normalised, ending with "/"), `?2` the recursion flag.
+/// Without a folder, `?1` is empty and every photo matches.
+const FOLDER_CONDITION: &str = "(?1 = '' OR (substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
+     AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)))";
+
+fn folder_prefix(folder: Option<&str>) -> String {
+    folder.map(|folder| format!("{}/", folder.replace('\\', "/").trim_end_matches('/'))).unwrap_or_default()
+}
+
+/// A dated photo for the date sort: the interface ignores empty dates such as `0000:00:00` (they sort with the undated ones).
+const DATED: &str = "date_taken >= '1000'";
+
+/// Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
+/// folder (with or without its subfolders). Photos without the sort value come last in both directions, like the interface sort; ties keep
+/// a stable order. When the list is capped, this decides WHICH photos are loaded: ascending by date must start with the oldest ones.
+pub fn get_photos_sorted(pool: &DbPool, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: &str, ascending: bool) -> Result<Vec<Photo>, String> {
     let conn = pool.get().map_err(|e| e.to_string())?;
-    let photos = match folder_filter {
-        Some(folder) => {
-            let normalized_folder = folder.replace('\\', "/").trim_end_matches('/').to_string();
-            let prefix = format!("{normalized_folder}/");
-            let mut stmt = conn
-                .prepare(&format!(
-                    "SELECT {PHOTO_COLUMNS} FROM photos WHERE substr(replace(path, char(92), '/'), 1, length(?1)) = ?1
-                     AND (?2 OR instr(substr(replace(path, char(92), '/'), length(?1) + 1), '/') = 0)
-                     ORDER BY date_taken DESC, id DESC LIMIT ?3 OFFSET ?4"
-                ))
-                .map_err(|e| e.to_string())?;
-            let rows = stmt.query_map(params![prefix, recursive, limit, offset], photo_from_row).map_err(|e| e.to_string())?;
-            rows.collect::<rusqlite::Result<Vec<Photo>>>()
-        }
-        None => {
-            let mut stmt = conn
-                .prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos ORDER BY date_taken DESC, id DESC LIMIT ? OFFSET ?"))
-                .map_err(|e| e.to_string())?;
-            let rows = stmt.query_map(params![limit, offset], photo_from_row).map_err(|e| e.to_string())?;
-            rows.collect::<rusqlite::Result<Vec<Photo>>>()
-        }
+    let prefix = folder_prefix(folder_filter.as_deref());
+    let direction = if ascending { "ASC" } else { "DESC" };
+    let page = |condition: &str, order: &str, limit: i32, offset: i32| -> Result<Vec<Photo>, String> {
+        let mut stmt = conn
+            .prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE {FOLDER_CONDITION} AND ({condition}) ORDER BY {order} LIMIT ?3 OFFSET ?4"))
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(params![prefix, recursive, limit, offset], photo_from_row).map_err(|e| e.to_string())?;
+        rows.collect::<rusqlite::Result<Vec<Photo>>>().map_err(|e| e.to_string())
     };
-    photos.map_err(|e| e.to_string())
+    match sort_key {
+        "modified" => page("1", &format!("modified <= 0, modified {direction}, id {direction}"), limit, offset),
+        "name" => page("1", &format!("filename COLLATE NOCASE {direction}, path {direction}, id {direction}"), limit, offset),
+        _ => {
+            // Dated photos first, read through the `date_taken` index, then the undated ones. A single ORDER BY starting with an
+            // "is dated" expression gives the same order but loses the index: ~15 times slower on a 250,000-photo catalogue.
+            let mut photos = page(DATED, &format!("date_taken {direction}, id {direction}"), limit, offset)?;
+            let missing = limit - photos.len() as i32;
+            if missing > 0 {
+                // The page ends past the dated photos: the undated ones fill it. Offset among them = what the offset skips beyond the dated ones.
+                let skip = if photos.is_empty() && offset > 0 {
+                    let dated: i32 = conn
+                        .query_row(&format!("SELECT COUNT(*) FROM photos WHERE {FOLDER_CONDITION} AND {DATED}"), params![prefix, recursive], |row| row.get(0))
+                        .map_err(|e| e.to_string())?;
+                    (offset - dated).max(0)
+                } else {
+                    0
+                };
+                photos.extend(page(&format!("NOT ({DATED}) OR date_taken IS NULL"), &format!("id {direction}"), missing, skip)?);
+            }
+            Ok(photos)
+        }
+    }
+}
+
+/// Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
+pub fn count_photos(pool: &DbPool, folder_filter: Option<String>, recursive: bool) -> Result<i64, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    conn.query_row(&format!("SELECT COUNT(*) FROM photos WHERE {FOLDER_CONDITION}"), params![folder_prefix(folder_filter.as_deref()), recursive], |row| row.get(0))
+        .map_err(|e| e.to_string())
+}
+
+/// Photos of the given identifiers (person filter beyond the capped list), in chunks to stay under the SQLite variable limit.
+/// Unknown identifiers are skipped.
+pub fn get_photos_by_ids(pool: &DbPool, ids: &[i64]) -> Result<Vec<Photo>, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut photos = Vec::with_capacity(ids.len());
+    for chunk in ids.chunks(500) {
+        let marks = vec!["?"; chunk.len()].join(",");
+        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE id IN ({marks})")).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), photo_from_row).map_err(|e| e.to_string())?;
+        for row in rows {
+            photos.push(row.map_err(|e| e.to_string())?);
+        }
+    }
+    Ok(photos)
 }
 
 /// Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.

@@ -24,7 +24,7 @@ import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeM
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag } from './filter-tags.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, getPersonFilterPhotoIds, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -701,16 +701,78 @@ async function loadFolders() {
   renderSettingsFolderList();
 }
 
-// Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains another),
-// newest first like the backend order.
+// The grid loads at most this many photos per folder. The backend picks them in the current sort (ascending by date = the oldest ones),
+// and `photoListCap` warns the user when the list is cut.
+const PHOTO_LOAD_LIMIT = 50000;
+const queryPhotoPage = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: PHOTO_LOAD_LIMIT, folderFilter, recursive: includeSubfolders, sortKey, sortOrder });
+// Loaded list cut at PHOTO_LOAD_LIMIT: { total } = photos of the displayed folders in the catalogue; null when everything is loaded.
+let photoListCap = null;
+
+// Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains another).
+// `capped` is set on the returned list when one of the queries reached PHOTO_LOAD_LIMIT; the interface sorts the list itself.
 async function queryFolderPhotos(folder) {
-  const query = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter, recursive: includeSubfolders });
-  if (folder === null || folder !== currentFolderFilter || extraFolderFilters.length === 0) return query(folder);
-  const lists = await Promise.all([folder, ...extraFolderFilters].map(query));
-  const seen = new Set();
-  const merged = [];
-  for (const list of lists) for (const photo of list) if (!seen.has(photo.path)) { seen.add(photo.path); merged.push(photo); }
-  return merged.sort((a, b) => String(b.date_taken || '').localeCompare(String(a.date_taken || '')) || (b.id ?? 0) - (a.id ?? 0));
+  const folderList = folder === null || folder !== currentFolderFilter ? [folder] : [folder, ...extraFolderFilters];
+  const lists = await Promise.all(folderList.map(queryPhotoPage));
+  const capped = lists.some(list => list.length >= PHOTO_LOAD_LIMIT);
+  let merged = lists[0];
+  if (lists.length > 1) {
+    const seen = new Set();
+    merged = [];
+    for (const list of lists) for (const photo of list) if (!seen.has(photo.path)) { seen.add(photo.path); merged.push(photo); }
+  }
+  merged.capped = capped;
+  return merged;
+}
+
+// Displayed folders (null = whole catalogue), as queried by `queryFolderPhotos` for the current view.
+function displayedPhotoFolders() {
+  return getSelectedAlbum() || currentFolderFilter === null ? [null] : [currentFolderFilter, ...extraFolderFilters];
+}
+
+// After a load: when the list was cut, counts the photos of the displayed folders so the warning can say how many exist.
+// Overlapping Ctrl+click folders may be counted twice: the number is a "more than shown" hint, never used to pick photos.
+async function updatePhotoListCap(list) {
+  if (!list?.capped) {
+    photoListCap = null;
+    return;
+  }
+  const counts = await Promise.all(displayedPhotoFolders().map(folderFilter => invoke('count_photos', { folderFilter, recursive: includeSubfolders }).catch(() => null)));
+  photoListCap = { total: counts.every(Number.isFinite) ? counts.reduce((sum, count) => sum + count, 0) : null };
+}
+
+// Person filter on a capped list: the catalogue photos of the filtered persons that the cut left out are read by id and added to the
+// loaded list (within the displayed folders), so a person whose photos are all older still shows them. Each id is asked once per load.
+let personPhotosRequested = new Set();
+let photoLoadGeneration = 0;
+async function loadMissingPersonPhotos() {
+  const ids = photoListCap ? getPersonFilterPhotoIds() : null;
+  if (!ids?.length) return;
+  const loadedIds = new Set(loadedPhotos.map(photo => photo.id));
+  const missing = ids.filter(id => !loadedIds.has(id) && !personPhotosRequested.has(id));
+  if (missing.length === 0) return;
+  for (const id of missing) personPhotosRequested.add(id);
+  const generation = photoLoadGeneration;
+  let found;
+  try {
+    found = await invoke('get_photos_by_ids', { ids: missing });
+  } catch (error) {
+    console.debug('Person photos unavailable', error);
+    return;
+  }
+  if (generation !== photoLoadGeneration) return; // the list was reloaded meanwhile: its own pass will ask again
+  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const folders = displayedPhotoFolders().filter(folder => folder !== null).map(normalize);
+  const inScope = photo => {
+    if (folders.length === 0) return true;
+    const path = normalize(photo.path);
+    const dir = path.slice(0, path.lastIndexOf('/'));
+    return folders.some(folder => (includeSubfolders ? path.startsWith(`${folder}/`) : dir === folder));
+  };
+  const known = new Set(loadedPhotos.map(photo => photo.id));
+  const added = found.filter(photo => inScope(photo) && !known.has(photo.id));
+  if (added.length === 0) return;
+  loadedPhotos.push(...added); // same array as folderTreePhotos on the whole catalogue: renames, removals and metadata updates follow
+  applyPhotoFilters({ keepState: true });
 }
 
 async function loadPhotos() {
@@ -718,15 +780,20 @@ async function loadPhotos() {
   // Dans les deux cas le dossier du disque n'intervient plus.
   const album = getSelectedAlbum();
   const baseAlbumId = album?.kind === 'manual' ? album.id : album?.kind === 'smart' ? getAlbumContext(album.id).baseManualId : 0;
+  photoLoadGeneration++;
+  personPhotosRequested = new Set();
+  let list;
   if (duplicateSearch) {
     // Duplicate results: only the photos of the groups, never the folder or album view (also used when the mode reloads after a rescan).
-    loadedPhotos = await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() });
-    indexDuplicateGroups();
+    list = await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() });
   } else if (baseAlbumId) {
-    loadedPhotos = await invoke('get_album_photos', { albumId: baseAlbumId });
+    list = await invoke('get_album_photos', { albumId: baseAlbumId }); // never capped
   } else {
-    loadedPhotos = await queryFolderPhotos(album ? null : currentFolderFilter);
+    list = await queryFolderPhotos(album ? null : currentFolderFilter);
   }
+  await updatePhotoListCap(list); // before the list is shown, so the count and its warning appear together
+  loadedPhotos = list;
+  if (duplicateSearch) indexDuplicateGroups();
   photosLoadedOnce = true;
   if (!album && currentFolderFilter === null && !duplicateSearch) folderTreePhotos = loadedPhotos;
   renderFolderTree();
@@ -800,6 +867,17 @@ function updateFilteredPhotosCount() {
     const at = text.indexOf(number);
     const parts = at < 0 ? [text] : [text.slice(0, at), Object.assign(document.createElement('strong'), { textContent: number }), text.slice(at + number.length)];
     countElement.replaceChildren(...parts);
+    // Capped list: amber mark, its tooltip says how many photos exist and what the filters cover.
+    if (photoListCap) {
+      const params = { loaded: format(PHOTO_LOAD_LIMIT), total: format(photoListCap.total ?? 0) };
+      const warning = Object.assign(document.createElement('span'), { className: 'photo-cap-warning', textContent: '⚠' });
+      warning.title = t(Number.isFinite(photoListCap.total)
+        ? 'Only the first {loaded} of the {total} photos here are loaded, in the current sort order. Filters only see these, except Persons, which also finds the others.'
+        : 'Only the first {loaded} photos here are loaded, in the current sort order. Filters only see these, except Persons, which also finds the others.', params);
+      warning.setAttribute('aria-label', warning.title);
+      countElement.append(warning);
+      if (!countElement.title) countElement.title = warning.title;
+    }
     countElement.classList.toggle('is-filtered', isFiltered);
     countElement.classList.toggle('is-empty', photos.length === 0);
   }
@@ -864,6 +942,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   renderDuplicateBanner(); // duplicate search: the counts follow the filters
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
+  if (photoListCap && hasPersonFilters()) loadMissingPersonPhotos(); // capped list: photos of the persons left out by the cut
 }
 
 // Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
@@ -1543,7 +1622,7 @@ function decodeHtmlEntities(text) {
 // `fromCounts` : redessin demandé par l'arrivée de nouveaux compteurs, qui ne doit pas en redemander.
 function renderFolderTree({ fromCounts = false } = {}) {
   folderTree.innerHTML = '';
-  if (showFolderCounts && !fromCounts) scheduleFolderCounts(); // les photos ont pu changer (scan, déplacement, suppression…)
+  if (!fromCounts) scheduleFolderCounts(); // photos may have changed (scan, move, deletion…): re-read the catalogue folders
 
   const allItem = document.createElement('li');
   allItem.className = `folder-tree-item ${currentFolderFilter === null && !getSelectedAlbum() ? 'active' : ''}`;
@@ -1571,6 +1650,10 @@ function renderFolderTree({ fromCounts = false } = {}) {
       node = node.children.get(segment);
     }
   };
+  // Every folder holding at least one catalogued photo, read from the whole catalogue: the loaded photo list is capped
+  // (50,000 most recent), so older folders would otherwise be missing, or shown as empty by the disk listing below.
+  for (const folderPath of catalogFolders) addFolderToTree(folderPath);
+  // Loaded photos too: they draw the tree right away, before the first catalogue read answers.
   for (const photo of (folderTreePhotos.length ? folderTreePhotos : loadedPhotos)) {
     const photoPath = photo.path.replace(/\\/g, '/');
     addFolderToTree(photoPath.slice(0, photoPath.lastIndexOf('/')));
@@ -1664,21 +1747,24 @@ function folderCountElement(count, scope) {
   element.title = tp(titleKey, count);
   return element;
 }
-// Relit les compteurs (regroupés une fois par rafale de redessins) ; l'arbre n'est redessiné que si un nombre a changé.
+// Folders of the whole catalogue (original case, "/" separators), from the same query as the counts: the tree is built from them.
+let catalogFolders = [];
+// Re-reads the catalogue folders and their counts (once per burst of redraws), whether or not counts are shown: the tree needs
+// the folder list. The tree is redrawn only when something changed.
 function scheduleFolderCounts() {
   clearTimeout(folderCountsTimer);
   folderCountsTimer = setTimeout(async () => {
-    if (!showFolderCounts) return;
-    let raw = {};
+    let raw;
     try {
       raw = await invoke('get_folder_counts');
     } catch (error) {
       console.debug('Folder counts unavailable', error);
+      return; // keep the previous list rather than emptying the tree
     }
-    if (!showFolderCounts) return;
     const signature = JSON.stringify(raw);
     if (signature === folderCountsSignature) return;
     folderCountsSignature = signature;
+    catalogFolders = Object.keys(raw).filter(Boolean);
     folderCountsOwn = new Map();
     folderCountsTree = new Map();
     folderCountsTotal = 0;
@@ -3784,6 +3870,11 @@ function applySortChange() {
   localStorage.setItem('photoNameSeparator', nameSeparator);
   updateSortUI();
   fullscreenImageCache.clear(); // le cache de préchargement est indexé par position dans la liste
+  // Capped list: the backend picked its photos in the previous sort (e.g. the newest ones), so the new sort needs another set.
+  if (photoListCap) {
+    loadPhotos();
+    return;
+  }
   applyPhotoFilters({ keepState: true }); // sélection conservée (retrouvée par chemin)
   scrollToPhotoIndex(lastSelectedIndex);
 }
@@ -4777,7 +4868,7 @@ listenToBackend('scan-detail', event => {
 // filtré, cette liste est relue aussi, sinon un sous-dossier découvert par le rescan n'y apparaîtrait pas.
 async function reloadPhotosAfterRescan() {
   if (currentFolderFilter !== null) {
-    folderTreePhotos = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: null, recursive: includeSubfolders });
+    folderTreePhotos = await queryPhotoPage(null);
   }
   await loadPhotos();
   if (showEmptyFolders) refreshDiskFolders(); // dossiers ajoutés ou supprimés sur le disque depuis la dernière lecture
@@ -6618,14 +6709,12 @@ initPhotoActions({
   syncLibrary: () => requestLibrarySync(), // nouveaux fichiers créés par l'application (redimensionnement)
   enqueueFileTask: task => enqueueScanTask(task), // copie vers un dossier choisi, redimensionnement : tâches de la file (voir enqueueScanTask)
   deleteFolder: deleteFolderToTrash,
-  // En-tête du menu d'un dossier : nombre de photos (sous-dossiers compris si l'option est cochée)
+  // Folder menu header: number of photos (subfolders included if the option is checked), from the whole-catalogue counts
+  // (the loaded photo list is capped and would undercount older folders). Unknown until the first counts read: no number.
   folderPhotoCount: path => {
-    const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-    const folder = normalize(path);
-    return folderTreePhotos.filter(photo => {
-      const photoPath = normalize(photo.path);
-      return includeSubfolders ? photoPath.startsWith(`${folder}/`) : photoPath.slice(0, photoPath.lastIndexOf('/')) === folder;
-    }).length;
+    if (!folderCountsSignature) return undefined;
+    const folder = path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    return (includeSubfolders ? folderCountsTree : folderCountsOwn).get(folder) ?? 0;
   },
   // Sous-menu « Visages » d'une photo affichée (aperçu, plein écran) : ajouter un visage, modes des zones, zones écartées
   faces: { getDisplay: getFaceDisplay, setMode: setFaceDisplayMode, setExtra: setFaceDisplayExtra, startDrawing: armFaceDrawing },
@@ -6985,9 +7074,12 @@ async function refreshLibraryAfterSync(changes) {
   const folderAtStart = currentFolderFilter;
   const known = new Map(loadedPhotos.map(photo => [photo.path, photo]));
   const modified = new Set(changes.updated);
-  const query = folderFilter => invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter, recursive: includeSubfolders });
-  const [fresh, everything] = await Promise.all([queryFolderPhotos(folderAtStart), folderAtStart === null ? null : query(null)]);
+  const [fresh, everything] = await Promise.all([queryFolderPhotos(folderAtStart), folderAtStart === null ? null : queryPhotoPage(null)]);
   if (folderAtStart !== currentFolderFilter) return; // dossier changé pendant le chargement : le rechargement normal fait foi
+  await updatePhotoListCap(fresh);
+  if (folderAtStart !== currentFolderFilter) return;
+  photoLoadGeneration++; // photos added for the person filter are dropped with the old list, and asked again below
+  personPhotosRequested = new Set();
   for (const photo of fresh) {
     const previous = known.get(photo.path);
     if (!previous || modified.has(photo.path)) continue;
@@ -7055,7 +7147,7 @@ async function restoreStartupFolder() {
   const isRoot = folders.some(folder => target === normalize(folder.path));
   const watched = isRoot || folders.some(folder => target.startsWith(`${normalize(folder.path)}/`));
   if (!watched) return;
-  const library = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: null, recursive: includeSubfolders });
+  const library = await queryPhotoPage(null);
   if (!isRoot && !library.some(photo => normalize(photo.path).startsWith(`${target}/`))) return; // dossier disparu
   folderTreePhotos = library;
   currentFolderFilter = lastFolder;
