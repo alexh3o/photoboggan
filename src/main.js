@@ -339,14 +339,17 @@ document.getElementById('dim-unselected-select')?.addEventListener('change', eve
 
 // TAILLE DES TEXTES (Paramètres / Affichage, mémorisée localement) : pourcentage de la taille de police de base du document.
 // Toute la typographie et les espacements étant en rem (voir styles.css), un seul réglage sur <html> met l'interface à l'échelle ;
-// les dimensions en px (grille de miniatures, bordures, icônes SVG) ne changent pas. 100 % = taille historique (16 px).
+// les dimensions en px (grille de miniatures, bordures, icônes SVG) ne changent pas. 100 % = 17,6 px (voir UI_BASE_PERCENT).
 // Slider from 80 to 140 %, in steps of 5 (older saved values 90 / 100 / 110 / 120 stay valid).
 const TEXT_SIZE_MIN = 80, TEXT_SIZE_MAX = 140, TEXT_SIZE_STEP = 5;
 const snapTextSize = value => Math.max(TEXT_SIZE_MIN, Math.min(TEXT_SIZE_MAX,
   TEXT_SIZE_MIN + Math.round((value - TEXT_SIZE_MIN) / TEXT_SIZE_STEP) * TEXT_SIZE_STEP));
 let textSize = snapTextSize(readNumber('textSize', TEXT_SIZE_MIN, TEXT_SIZE_MAX));
+// The displayed 100 % is 110 % of the browser base size (17.6 px): the former "110 %" became the reference size.
+// Everything is in rem, so this single factor rebalances every font-size, spacing and icon at once.
+const UI_BASE_PERCENT = 110;
 function applyTextSize() {
-  document.documentElement.style.fontSize = `${textSize}%`;
+  document.documentElement.style.fontSize = `${(textSize * UI_BASE_PERCENT) / 100}%`;
   const label = document.getElementById('text-size-value');
   if (label) label.textContent = `${textSize} %`;
   const down = document.getElementById('text-size-down');

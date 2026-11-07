@@ -108,12 +108,20 @@ body { font-family: var(--app-font); background: var(--bg-dark); color: var(--te
 
 #app { position: relative; overflow: hidden; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; } /* position: relative : repère de la barre d'outils en surimpression (.top-bar.peek) ; overflow: hidden : la barre glisse depuis le haut sans passer sur la barre de titre (sans effet sur les fenêtres, en position: fixed) */
 
-.top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+.top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0rem 1rem 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
 .actions { display: flex; align-items: center; gap: 0.75rem; }
 /* Toolbar buttons: icon and label are centered on the same axis (an inline SVG otherwise sits on the text baseline, which pushes it above the label) */
 .top-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; line-height: 1; }
 .top-bar button[hidden] { display: none; }
 .top-bar button svg { flex: none; display: block; }
+/* Interface icons follow the interface size (Settings > Appearance): the width / height attributes of the inline SVGs are px,
+   so these rules override them with the same size in rem (identical at 100 %). Excluded on purpose: the window-control icons of
+   the title bar (10 px, native look) and the 12 px badges on thumbnails (the grid is in px). A new icon size needs a line here. */
+svg[width="14"]:not(.titlebar svg) { width: 0.875rem; height: 0.875rem; }
+svg[width="16"]:not(.titlebar svg) { width: 1rem; height: 1rem; }
+svg[width="20"]:not(.titlebar svg) { width: 1.25rem; height: 1.25rem; }
+svg[width="22"]:not(.titlebar svg) { width: 1.375rem; height: 1.375rem; }
+svg[width="24"]:not(.titlebar svg) { width: 1.5rem; height: 1.5rem; }
 .panel-toggles { display: flex; align-items: center; gap: 1rem; }
 /* People / Map: joined buttons (mutually exclusive, both can be off). A divider separates them from the Library panel toggle. */
 .mode-group, .toolbar-group { display: flex; align-items: center; padding-left: 1rem; border-left: 1px solid var(--separator); }
@@ -182,7 +190,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
   --side-title-size: 0.85rem;
   --side-row-size: 0.8rem;
   --side-meta-size: 0.7rem;
-  --side-row-height: 2rem;
+  --side-row-height: 1.9rem;
   --side-block-gap: 1rem;
   /* Étiquettes de filtre : fond foncé et texte clair dans les deux thèmes */
   --tag-keyword-bg: #29485c; --tag-keyword-border: #376782; --tag-keyword-hover: #37607a;
@@ -207,7 +215,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
 /* Hauteur : la liste des dossiers prend la place restante mais garde de quoi afficher quelques lignes ; si tout ne tient pas, c'est le panneau
    qui défile (les Filtres ne sont jamais écrasés). */
 #folder-tree { list-style: none; flex: 1 1 0; min-height: 7rem; overflow-y: auto; }
-.folder-tree-item { box-sizing: border-box; min-height: var(--side-row-height); padding: 0.25rem 0.65rem; margin-bottom: 0.125rem; border-radius: 4px; cursor: pointer; font-size: var(--side-row-size); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.5rem; }
+.folder-tree-item { box-sizing: border-box; min-height: var(--side-row-height); padding: 0.25rem 0.65rem; margin-bottom: 0.05rem; border-radius: 4px; cursor: pointer; font-size: var(--side-row-size); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.25rem; }
 .folder-tree-item:hover { background: var(--control-bg); }
 /* Le nom se tronque (…) avant le compteur ; le compteur, à droite comme celui des personnes, n'est jamais tronqué. */
 .folder-tree-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -571,15 +579,15 @@ body.no-pick-labels .pick-control, body.no-pick-labels .pick-indicator, body.no-
 /* EXIF */
 .exif-section { width: 15rem; background: var(--bg-panel); border-left: 1px solid var(--border); padding: 1rem; overflow-y: auto; transition: width 0.3s; }
 .exif-section.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
-/* Mots-clés du panneau d'infos : étiquettes cliquables (même aspect que celles du filtre) ; « active » = déjà dans le filtre de mots-clés */
-.exif-section li span#exif-keywords { display: flex; flex-wrap: wrap; gap: 5px; max-height: 20rem; overflow-y: auto;}
+/* Keywords from info panel : clickable tags (same looks as filter tags) ; « active » = already in use as a filter */
+.exif-section li span#exif-keywords { display: flex; flex-wrap: wrap; gap: 3px; max-height: 20rem; overflow-y: auto;}
 .filter-tag.tag-keyword.active { background: var(--tag-keyword-active-bg); border-color: var(--tag-keyword-active-border); }
-.exif-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; }
+.exif-section h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.75rem; }
 .exif-section ul { list-style: none; }
 /* Deux-points des libellés traduits : espace insécable avant en français, collant en anglais */
 .exif-label::after { content: "\00a0:"; }
 html[lang="en"] .exif-label::after { content: ":"; }
-.exif-section li { margin-bottom: 0.6rem; font-size: 0.75rem; color: var(--text-faint); }
+.exif-section li { margin-bottom: 0.4rem; font-size: 0.80rem; color: var(--text-faint); }
 .exif-section li span { color: var(--text-strong); display: block; margin-top: 3px; font-size: 0.8rem; overflow-wrap: anywhere; }
 .exif-section li span#exif-camera,
   .exif-section li span#exif-size, .exif-section li span#exif-shutter,
@@ -912,7 +920,8 @@ body.immersive .titlebar { display: none; }
 .display-card { width: min(34rem, calc(100vw - 2.5rem)); }
 
 /* MARQUAGE : note et couleur de la sélection (main.js, « MARQUAGE »), en bas du panneau Info et/ou en barre flottante sur la grille */
-.marking-count { display: block; color: var(--text-faint); font-size: var(--side-meta-size); white-space: nowrap; }
+.marking-count { display: block; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; } /* Selected photos count */
+.marking-count strong { color: var(--text-strong); font-size: 0.95rem; font-weight: 700; }
 .marking-controls { display: flex; flex-direction: column; gap: 0.6rem; }
 /* Section du panneau Info : épinglée en bas de l'onglet (l'onglet est une colonne dont la liste prend la place libre) et visible même quand la liste défile */
 #exif-tab-info:not([hidden]) { display: flex; flex-direction: column; }
