@@ -14,7 +14,7 @@
 
 photoboggan was created for amateur, family and hobby photo collections, for those who love their photos but don't want to spend too much time on the computer except for watching them again. I regularly use and appreciate the excellent [digiKam](https://www.digikam.org/), but for daily **sorting**, culling **after** a weekend, or simply **browsing** pictures, it often feels a bit heavy and its interface can be somewhat austere.
 
-My photo collection grew to the opposite of my patience to organize an always growing quantity of photos. I wanted a **simple**, **fast** and **pleasant** solution to compare, select, sort, rate and keyword my photos so I can enjoy them after.
+My photo collection grew to the opposite of my patience to organize an always growing quantity of photos. I wanted a **simple**, **fast** and **pleasant** solution to compare, **select, sort, rate and tag keywords, faces, coordinates** my photos so I can enjoy them after.
 
 **photoboggan** is not designed to have every possible feature, it intends to be and stay reactive and enjoyable.
 
