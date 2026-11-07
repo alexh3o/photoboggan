@@ -123,7 +123,9 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
 
     let directory = target.parent().ok_or("Dossier de destination invalide")?;
     let temp = directory.join(format!(".photoboggan-resize-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
-    if let Err(error) = fs::write(&temp, &bytes) {
+    // Flushed to the disk before the rename: with "Replace", the rename takes the place of an existing file, which must never become an
+    // empty or partial file after a power cut.
+    if let Err(error) = fs::write(&temp, &bytes).and_then(|_| crate::flush_to_disk(&temp)) {
         let _ = fs::remove_file(&temp); // écriture partielle (disque plein…) : rien ne reste dans le dossier de l'utilisateur
         return Err(format!("Écriture impossible : {error}"));
     }
@@ -144,6 +146,7 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
         let _ = fs::remove_file(&temp);
         return Err(format!("Écriture impossible : {error}"));
     }
+    crate::sync_parent_dir(&final_path);
     Ok(ResizeOutcome::Done { output: path_text(&final_path), width: width as u32, height: height as u32 })
 }
 

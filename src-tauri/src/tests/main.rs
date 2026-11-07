@@ -93,3 +93,99 @@ fn cached_images_are_kept_when_the_file_does_not_change_or_the_write_fails() {
     assert_eq!(error, "refusé");
     assert_eq!(fs::read(&thumbnail).unwrap(), b"miniature");
 }
+
+// --- Durable copies (copy_durably, copy_replacing, copy_sidecar) ---
+// Whether data really reaches the disk cannot be checked without cutting the power: these tests check that the flush keeps content,
+// attributes and dates, and leaves nothing behind.
+
+#[test]
+fn durable_copy_of_a_read_only_photo_keeps_its_content_attribute_and_date() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("card.jpg");
+    put(&source, b"photo from a memory card");
+    let mut permissions = fs::metadata(&source).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&source, permissions).unwrap();
+    let target = dir.path().join("copy.jpg");
+    assert_eq!(copy_durably(&source, &target).unwrap(), 24);
+    assert_eq!(fs::read(&target).unwrap(), b"photo from a memory card");
+    assert!(fs::metadata(&target).unwrap().permissions().readonly(), "read-only attribute lost by the flush");
+    assert_eq!(fs::metadata(&target).unwrap().modified().unwrap(), fs::metadata(&source).unwrap().modified().unwrap());
+    for path in [&source, &target] {
+        let mut permissions = fs::metadata(path).unwrap().permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        fs::set_permissions(path, permissions).unwrap();
+    }
+}
+
+#[test]
+fn replacing_copy_and_sidecar_overwrite_leave_no_temporary_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let (from, to) = (dir.path().join("from"), dir.path().join("to"));
+    fs::create_dir_all(&from).unwrap();
+    fs::create_dir_all(&to).unwrap();
+    put(&from.join("a.cr2"), b"new raw");
+    put(&from.join("a.cr2.xmp"), b"new sidecar");
+    put(&to.join("a.cr2"), b"old raw");
+    put(&to.join("a.cr2.xmp"), b"old sidecar");
+    copy_replacing(&from.join("a.cr2"), &to.join("a.cr2")).unwrap();
+    copy_sidecar(&from.join("a.cr2"), &to.join("a.cr2"), true).unwrap();
+    assert_eq!(fs::read(to.join("a.cr2")).unwrap(), b"new raw");
+    assert_eq!(fs::read(to.join("a.cr2.xmp")).unwrap(), b"new sidecar");
+    let mut names: Vec<String> = fs::read_dir(&to).unwrap().map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    assert_eq!(names, ["a.cr2", "a.cr2.xmp"], "temporary file left in the destination");
+    // Without overwrite, an existing sidecar is left as is.
+    put(&from.join("a.cr2.xmp"), b"newer sidecar");
+    copy_sidecar(&from.join("a.cr2"), &to.join("a.cr2"), false).unwrap();
+    assert_eq!(fs::read(to.join("a.cr2.xmp")).unwrap(), b"new sidecar");
+}
+
+/// Cost of the flush for moves between drives: `PHOTOBOGGAN_BENCH_DIR` = a folder on another drive (USB disk…), emptied of its test files after.
+/// Old way (copy, optional hash check, delete) against the new one (copy flushed to the disk first). Run with:
+/// `PHOTOBOGGAN_BENCH_DIR=E:\bench cargo test --release move_cost -- --ignored --nocapture`
+#[test]
+#[ignore = "benchmark: needs a folder on another drive (PHOTOBOGGAN_BENCH_DIR)"]
+fn move_cost_between_drives() {
+    let Ok(bench_dir) = std::env::var("PHOTOBOGGAN_BENCH_DIR") else { return eprintln!("PHOTOBOGGAN_BENCH_DIR not set"); };
+    let bench_dir = PathBuf::from(bench_dir);
+    fs::create_dir_all(&bench_dir).unwrap();
+    let count: usize = std::env::var("PHOTOBOGGAN_BENCH_COUNT").ok().and_then(|value| value.parse().ok()).unwrap_or(100);
+    let size: usize = std::env::var("PHOTOBOGGAN_BENCH_MB").ok().and_then(|value| value.parse().ok()).unwrap_or(8) * 1024 * 1024;
+    let source_dir = tempfile::tempdir().unwrap();
+    // Pseudo-random content (not compressible, not deduplicated), different for each file.
+    let make_sources = |round: usize| -> Vec<PathBuf> {
+        (0..count).map(|index| {
+            let mut state = (round * 1_000_003 + index) as u64 | 1;
+            let bytes: Vec<u8> = (0..size).map(|_| { state ^= state << 13; state ^= state >> 7; state ^= state << 17; state as u8 }).collect();
+            let path = source_dir.path().join(format!("r{round}_{index}.jpg"));
+            fs::write(&path, bytes).unwrap();
+            path
+        }).collect()
+    };
+    let old_move = |source: &Path, target: &Path, verify: bool| {
+        fs::copy(source, target).unwrap();
+        if verify { assert!(files_have_same_hash(source, target).unwrap()); }
+        fs::remove_file(source).unwrap();
+    };
+    let new_move = |source: &Path, target: &Path, verify: bool| {
+        copy_durably(source, target).unwrap();
+        if verify { assert!(files_have_same_hash(source, target).unwrap()); }
+        fs::remove_file(source).unwrap();
+    };
+    let scenarios: [(&str, bool, bool); 4] = [("old, no check", false, false), ("new, no check", true, false), ("old, SHA-256 check", false, true), ("new, SHA-256 check", true, true)];
+    eprintln!("{count} files of {} MB to {}", size / 1024 / 1024, bench_dir.display());
+    for (round, (name, durable, verify)) in scenarios.into_iter().enumerate() {
+        let sources = make_sources(round);
+        let started = std::time::Instant::now();
+        let targets: Vec<PathBuf> = sources.iter().map(|source| {
+            let target = bench_dir.join(source.file_name().unwrap());
+            if durable { new_move(source, &target, verify) } else { old_move(source, &target, verify) }
+            target
+        }).collect();
+        let elapsed = started.elapsed();
+        eprintln!("{name:>20}: {:>6.2} s ({:>5.0} MB/s)", elapsed.as_secs_f64(), (count * size) as f64 / 1_048_576.0 / elapsed.as_secs_f64());
+        for target in targets { fs::remove_file(target).unwrap(); }
+    }
+}

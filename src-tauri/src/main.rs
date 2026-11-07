@@ -1673,7 +1673,8 @@ fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Resul
         if !compatible.is_file() { return Ok(()); }
         (compatible, target.with_extension("xmp"))
     };
-    if overwrite || !to.exists() { fs::copy(from, to)?; }
+    // Replacing an existing sidecar goes through copy_replacing: a direct copy would first truncate it.
+    if overwrite && to.exists() { copy_replacing(&from, &to)?; } else if !to.exists() { fs::copy(from, to)?; }
     Ok(())
 }
 
@@ -1687,6 +1688,54 @@ static VERIFY_CROSS_DRIVE_MOVES: AtomicBool = AtomicBool::new(true);
 #[tauri::command]
 fn set_verify_cross_drive_moves(enabled: bool) {
     VERIFY_CROSS_DRIVE_MOVES.store(enabled, Ordering::Relaxed);
+}
+
+/// Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
+fn flush_to_disk(path: &Path) -> std::io::Result<()> {
+    // Linux / macOS: fsync works on a read-only descriptor.
+    #[cfg(not(windows))]
+    fs::File::open(path)?.sync_all()?;
+    // Windows: flushing needs a handle with write access (opened without truncation). A read-only file (attribute kept by fs::copy, frequent
+    // for photos copied from a memory card) briefly loses that attribute, which is then restored.
+    #[cfg(windows)]
+    {
+        let open_and_sync = || fs::OpenOptions::new().write(true).open(path).and_then(|file| file.sync_all());
+        match open_and_sync() {
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
+                let permissions = fs::metadata(path)?.permissions();
+                if !permissions.readonly() { return Err(error); }
+                let mut writable = permissions.clone();
+                #[allow(clippy::permissions_set_readonly_false)]
+                writable.set_readonly(false);
+                fs::set_permissions(path, writable)?;
+                let synced = open_and_sync();
+                let restored = fs::set_permissions(path, permissions);
+                synced?;
+                restored?;
+            }
+            other => other?,
+        }
+    }
+    sync_parent_dir(path);
+    Ok(())
+}
+
+/// Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
+/// systems refuse it). Windows (NTFS journal) has no equivalent and needs none.
+fn sync_parent_dir(path: &Path) {
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        if let Ok(dir) = fs::File::open(parent) { let _ = dir.sync_all(); }
+    }
+    #[cfg(not(unix))]
+    let _ = path;
+}
+
+/// `fs::copy`, then the copy is flushed to the disk: once this returns, the copy survives a power cut, so the source may be deleted or replaced.
+fn copy_durably(source: &Path, target: &Path) -> std::io::Result<u64> {
+    let size = fs::copy(source, target)?;
+    flush_to_disk(target)?;
+    Ok(size)
 }
 
 // Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
@@ -1712,9 +1761,11 @@ fn files_have_same_hash(first: &Path, second: &Path) -> std::io::Result<bool> {
 // Si la copie réussit mais que l'original ne peut pas être supprimé, la copie est retirée : le fichier n'est jamais dupliqué.
 // Avec la vérification activée (Paramètres > Stockage), la copie est relue et comparée à l'original par somme SHA-256 avant toute suppression :
 // en cas de différence, la copie est retirée et l'original reste en place.
+// The copy is flushed to the disk (copy_durably) before the hash check and before the original is deleted: without it, the copy may still sit
+// in the system write cache when the original is gone (power cut, crash, USB drive unplugged), and the hash check would only read that cache.
 fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
     if fs::rename(source, target).is_ok() { return Ok(()); }
-    if let Err(error) = fs::copy(source, target) {
+    if let Err(error) = copy_durably(source, target) {
         let _ = fs::remove_file(target);
         return Err(error);
     }
@@ -1914,12 +1965,12 @@ fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<CopyConflict
     }).collect()
 }
 
-// Copie qui remplace un fichier existant : écrite sous un nom temporaire du dossier de destination puis renommée, pour qu'un échec en cours de route
-// (disque plein…) laisse le fichier d'origine intact.
+// Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then renamed. A failure
+// on the way (full disk…) or a power cut leaves either the old file or the complete new one, never an empty or partial file.
 fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
     let temp = PathBuf::from(format!("{}.photoboggan-tmp", target.display()));
-    let result = fs::copy(source, &temp).and_then(|_| fs::rename(&temp, target));
-    if result.is_err() { let _ = fs::remove_file(&temp); }
+    let result = copy_durably(source, &temp).and_then(|_| fs::rename(&temp, target));
+    if result.is_err() { let _ = fs::remove_file(&temp); } else { sync_parent_dir(target); }
     result
 }
 
@@ -2402,7 +2453,7 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
         return Ok(());
     }
     // Secours si le déplacement traverse deux disques différents (ex: C: vers D:)
-    fs::copy(src, dst)?;
+    copy_durably(src, dst)?;
     let _ = fs::remove_file(src);
     Ok(())
 }
@@ -2413,17 +2464,21 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
 const STORAGE_FILES: [&str; 3] = ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"];
 const STORAGE_DIRS: [&str; 5] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps"];
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+/// `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+fn copy_dir_recursive(src: &Path, dst: &Path, durable: bool) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
         let destination = dst.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            copy_dir_recursive(&entry.path(), &destination)?;
+            copy_dir_recursive(&entry.path(), &destination, durable)?;
+        } else if durable {
+            copy_durably(&entry.path(), &destination)?;
         } else {
             fs::copy(entry.path(), destination)?;
         }
     }
+    if durable { sync_parent_dir(&dst.join(".")); }
     Ok(())
 }
 
@@ -2455,12 +2510,15 @@ fn copy_storage(pool: &DbPool, from: &Path, to: &Path) -> Result<(), String> {
             // Le journal WAL est vide après le point de contrôle : il n'est copié que s'il contient quelque chose. Le fichier -shm se reconstruit seul.
             let empty_wal = name.ends_with("-wal") && fs::metadata(&source).map(|metadata| metadata.len() == 0).unwrap_or(true);
             if !source.is_file() || empty_wal { continue; }
-            fs::copy(&source, to.join(name)).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
+            copy_durably(&source, &to.join(name)).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
         }
         for name in STORAGE_DIRS {
             let source = from.join(name);
             if source.is_dir() {
-                copy_dir_recursive(&source, &to.join(name)).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
+                // The old location is deleted once the copy is done: everything is flushed to the disk except the thumbnail and RAW preview
+                // caches, rebuilt on demand (flushing hundreds of thousands of thumbnails would make the change very slow).
+                let durable = !matches!(name, "thumbnails" | "raw_previews");
+                copy_dir_recursive(&source, &to.join(name), durable).map_err(|error| format!("Erreur lors de la copie de {name} : {error}"))?;
             }
         }
         Ok(())
