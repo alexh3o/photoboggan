@@ -10,9 +10,10 @@
 // - La sélection de visages devient la sélection des photos : les panneaux de droite (Mots-clés, Description) visent leurs photos.
 
 import { invoke } from '@tauri-apps/api/core';
-import { t, tp, onLanguageChange } from './i18n.js';
+import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { faceCropStyle, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
 import { applyPending, isWriteLocked, onLockChange, choiceDialog } from './metadata-writes.js';
+import { readChoice } from './settings-defaults.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
 // Statuts dans l'ordre d'affichage des groupes, avec la clé de traduction de leur nom.
@@ -64,6 +65,32 @@ const ORIGINS = [
 ];
 const ORIGINS_STORAGE_KEY = 'facesViewOrigins';
 let visibleOrigins = loadOrigins();
+
+// Order of the faces inside a group: "grid" (as the photos of the main grid) or "score" (most similar first).
+const SORT_STORAGE_KEY = 'facesViewSort';
+let sortMode = readChoice(SORT_STORAGE_KEY, ['grid', 'score']);
+
+// Same icon as the Sort button of the toolbar.
+const SORT_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>';
+
+// Icon, "Sort:" prefix (shown only with "Show all labels", see faces.css) and the current mode. Both modes are laid out in the same grid cell,
+// the inactive one invisible: the button always has the width of the longer one and does not change size on click.
+function renderSortButton() {
+  const button = document.getElementById('btn-faces-sort');
+  const prefix = document.createElement('span');
+  prefix.className = 'faces-sort-prefix';
+  prefix.textContent = labelWithColon('Sort');
+  const values = document.createElement('span');
+  values.className = 'faces-sort-values';
+  for (const [mode, label] of [['grid', 'Grid'], ['score', 'Score']]) {
+    const option = document.createElement('span');
+    option.className = `faces-sort-option${mode === sortMode ? ' current' : ''}`;
+    option.textContent = t(label);
+    values.append(option);
+  }
+  button.innerHTML = SORT_ICON;
+  button.append(prefix, values);
+}
 const renderedNodes = new Map(); // clé de l'élément de layout -> nœud
 const thumbnailInfo = new Map(); // chemin de la photo -> Promise<{ url, width, height } | null>
 
@@ -296,13 +323,19 @@ function rebuild() {
     .map(face => ({ face, group: groupOf(face) }));
   groupKeyOf = new Map(entries.map(entry => [entry.face.id, entry.group.key]));
   sectionKeyOf = new Map(entries.map(entry => [entry.face.id, entry.group.section]));
-  // Groupes : à valider, personnes (par nom), inconnus, filtrés, ignorés ; dans un groupe, les attributions automatiques avant les
-  // confirmées, puis par ressemblance décroissante.
+  // Groups: to confirm, people (by name), unknown, filtered, ignored; inside a group, automatic assignments before confirmed ones, then (sort
+  // "score" only, never for confirmed faces) the most similar faces first, then the faces follow the order of their photos in the main grid (the sort options), left to
+  // right inside a photo. Photos that are not displayed (pending-writes mode) come last.
+  const photoOrder = new Map(host.getDisplayedPhotoIds().map((photoId, index) => [photoId, index]));
+  const orderOf = face => photoOrder.get(face.photo_id) ?? Number.MAX_SAFE_INTEGER;
   entries.sort((a, b) => a.group.order - b.group.order
     || a.group.sortName.localeCompare(b.group.sortName)
     || a.group.key.localeCompare(b.group.key)
     || (a.face.state === 'auto' ? 0 : 1) - (b.face.state === 'auto' ? 0 : 1)
-    || (b.face.score ?? 0) - (a.face.score ?? 0)
+    || (sortMode === 'score' && a.face.state !== 'confirmed' ? (b.face.score ?? 0) - (a.face.score ?? 0) : 0) // confirmed faces: always grid order
+    || orderOf(a.face) - orderOf(b.face)
+    || a.face.photo_id - b.face.photo_id
+    || a.face.x - b.face.x
     || a.face.id - b.face.id);
   shown = entries.map(entry => entry.face);
   const fullWidth = Math.max(BAR + TILE, scroller().clientWidth - 2 * SIDE_MARGIN);
@@ -634,6 +667,29 @@ export function restoreFaceSelection(photoIds) {
   updateToolbar();
 }
 
+// Left / Right arrow: the selection moves to the previous / next face in display order (a single face stays selected; without selection, the
+// first face is selected). The grid scrolls to keep it visible.
+function moveFaceSelection(step) {
+  if (shown.length === 0) return;
+  const currentId = lastSelectedId();
+  const currentIndex = currentId === null ? -1 : shown.findIndex(face => face.id === currentId);
+  const face = shown[currentIndex < 0 ? 0 : Math.max(0, Math.min(shown.length - 1, currentIndex + step))];
+  selected = new Set([face.id]);
+  selectionOrder = [face.id];
+  anchorId = face.id;
+  revealFace(face.id);
+  selectionChanged();
+}
+
+// Scrolls the grid just enough to show the row of a face, leaving room for the sticky group titles (two levels) above it.
+function revealFace(id) {
+  const row = faceRows.get(id);
+  if (row === undefined) return;
+  const area = scroller();
+  if (row - 2 * SEPARATOR_HEIGHT < area.scrollTop) area.scrollTop = Math.max(0, row - 2 * SEPARATOR_HEIGHT);
+  else if (row + TILE > area.scrollTop + area.clientHeight) area.scrollTop = row + TILE - area.clientHeight;
+}
+
 function clearSelection() {
   selected.clear();
   selectionOrder = [];
@@ -882,6 +938,10 @@ export function initFacesGrid(hostApi) {
     if (event.key === 'Enter') {
       event.preventDefault();
       if (!event.repeat && !document.getElementById('btn-faces-confirm').disabled) runAction('confirm_faces');
+    } else if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      // Previous / next face (the arrows also move the scroll of the focused grid otherwise).
+      event.preventDefault();
+      moveFaceSelection(event.key === 'ArrowRight' ? 1 : -1);
     } else if (['-', '/', 'Delete'].includes(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
       // - : Inconnu ; / : Ignorer ; Suppr : Pas un visage. Même effet que les boutons de la barre d'actions (et seulement s'ils sont actifs) ; ces
       // touches ne sont pas prises pour le début d'un nom. Inactives pendant la fenêtre « Nommer » (fenêtre modale : voir le garde plus haut).
@@ -903,5 +963,12 @@ export function initFacesGrid(hostApi) {
       selectionChanged();
     }
   });
-  onLanguageChange(() => { if (open) rebuild(); });
+  renderSortButton();
+  document.getElementById('btn-faces-sort').addEventListener('click', () => {
+    sortMode = sortMode === 'score' ? 'grid' : 'score';
+    try { localStorage.setItem(SORT_STORAGE_KEY, sortMode); } catch { /* storage unavailable: choice not remembered */ }
+    renderSortButton();
+    rebuild();
+  });
+  onLanguageChange(() => { renderSortButton(); if (open) rebuild(); });
 }

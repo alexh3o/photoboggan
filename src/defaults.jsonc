@@ -118,6 +118,8 @@
   "fullscreenFacesVisible": "hover",
   // Keyword root for new people (e.g. "#CONTACTS"); empty = first level of the keyword tree.
   "facePersonRoot": "",
+  // Order of the faces inside a group of the Faces view: "grid" (as the photos of the main grid) | "score" (most similar first).
+  "facesViewSort": "grid",
 
   // ---------------------------------------------------------------- Settings: Slideshow, Find RAW
   // Delay between photos in seconds: integer 1 to 60.

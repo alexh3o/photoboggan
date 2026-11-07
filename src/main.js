@@ -3605,6 +3605,7 @@ let toggleImmersiveFromMenu = () => {}; // set by the window-controls block abov
 const topBarEl = document.getElementById('top-bar');
 function setToolbarLabels(show) {
   topBarEl?.classList.toggle('show-labels', show);
+  document.body.classList.toggle('show-toolbar-labels', show); // lets views outside the bar (Faces sort button) follow the same choice
   try { localStorage.setItem('toolbarShowLabels', String(show)); } catch { /* storage unavailable: the choice just isn't remembered */ }
 }
 setToolbarLabels(readBool('toolbarShowLabels'));

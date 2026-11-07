@@ -88,6 +88,14 @@ button.filter-tag.tag-person:hover { background: var(--tag-person-hover); }
 .faces-actions button[hidden], .faces-action-bar button[hidden] { display: none; }
 /* Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls les
    coins extérieurs arrondis, un filet entre deux boutons. */
+/* Sort button of the Faces view: icon + current mode; the "Sort:" text only with "Show all labels" (body.show-toolbar-labels, set by main.js).
+   Both modes share one grid cell (the inactive one invisible) so the button keeps the width of the longer one. */
+.faces-sort { display: inline-flex; align-items: center; gap: 0.35rem; }
+.faces-sort-prefix { display: none; }
+body.show-toolbar-labels .faces-sort-prefix { display: inline; margin-right: -0.1rem; }
+.faces-sort-values { display: inline-grid; }
+.faces-sort-option { grid-area: 1 / 1; text-align: left; }
+.faces-sort-option:not(.current) { visibility: hidden; }
 .faces-button-group { display: inline-flex; border-radius: 4px; overflow: hidden; }
 .faces-button-group > button { border-radius: 0; margin: 0; }
 .faces-button-group > button:not([hidden]) ~ button:not([hidden]) { border-left-width: 0; }
