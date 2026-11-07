@@ -199,6 +199,35 @@ export function shootingStateFromPhoto(photo, { gear = false, shooting = false }
   return state;
 }
 
+// SQLite's lower() only folds ASCII letters: a text with other characters cannot be searched there without risking a miss.
+const isAscii = text => /^[\x00-\x7f]*$/.test(text);
+
+// Part of a state the backend can apply before the 50,000-photo cut (`PhotoPrefilter` in db.rs). It must keep every photo
+// `matchesShootingState` keeps: gear becomes a lowercase "contains" test, and each range is widened to the precision of `fits`.
+export function shootingPrefilter(state) {
+  const filter = {};
+  if (!state.gear && !state.shot) return filter;
+  const { gear, ranges, flash } = compile(state);
+  for (const { entries, label } of gear) {
+    // Loose entries (« Trouver le RAW ») and non-ASCII texts are left to the interface.
+    if (entries.some(entry => entry.loose || !isAscii(entry.text))) continue;
+    filter[label === cameraLabel ? 'cameras' : 'lenses'] = entries.map(entry => entry.text.trim().toLowerCase()).filter(Boolean).sort();
+  }
+  const finite = value => (Number.isFinite(value) ? value : null);
+  const widen = {
+    focal: ({ min, max }) => ({ min: min - 0.5, max: max + 0.5 }), // compared in whole mm (Math.round)
+    aperture: ({ min, max }) => ({ min: roundTenth(min) - 0.051, max: roundTenth(max) + 0.051 }), // compared to the tenth
+    shutter: ({ min, max }) => ({ min: min * 0.99, max: max * 1.01 }), // 0.5 % tolerance in the interface
+    iso: range => range,
+  };
+  for (const { key, range } of ranges) {
+    const { min, max } = widen[key](range);
+    filter[key] = { min: finite(min), max: finite(max) };
+  }
+  if (flash !== 'all') filter.flash = flash === 'with';
+  return filter;
+}
+
 export function matchesShootingState(photo, state) {
   if (!state.gear && !state.shot) return true;
   const { gear, ranges, flash } = compile(state);

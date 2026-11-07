@@ -20,7 +20,7 @@ import { initLocationPanel, refreshLocation, onMapAccessChanged } from './locati
 import { reloadAllMaps } from './map-view.js';
 import { initMapsSettings } from './maps-settings.js';
 import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
-import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
+import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag } from './filter-tags.js';
@@ -29,8 +29,8 @@ import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeF
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
-import { initShootingFilters, matchesShootingState } from './shooting-filters.js';
-import { initFormatFilters, matchesFormatState, RAW_EXTENSIONS, HEIF_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
+import { initShootingFilters, matchesShootingState, shootingPrefilter } from './shooting-filters.js';
+import { initFormatFilters, matchesFormatState, formatPrefilterExtensions, RAW_EXTENSIONS, HEIF_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
 import { GROUP_SORT_MODES, GROUP_SORT_LABELS, normalizeGroupSort, formatBytes, sortGroupMembers, orderGroups, firstPathOf, getSimilarSettings, similarRequestFields, getIdenticalSettings, mergeGroups, describeSearch, getKeepSettings, describeKeepOrder } from './duplicates.js';
 import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel, initDuplicatesModal } from './duplicates-modal.js';
 import { findNameGroups } from './duplicate-names.js';
@@ -743,27 +743,58 @@ async function countDisplayedPhotos(prefilter = null) {
   return counts.every(Number.isFinite) ? counts.reduce((sum, count) => sum + count, 0) : null;
 }
 
-// Filters the backend can apply before the cut, as a superset of the interface filters (see `PhotoPrefilter` in db.rs): rating, labels,
-// keywords, years of the date filter, persons, geolocation. File name, format, gear, shooting, map area and album criteria stay in the
-// interface only. Null when none is active.
-function buildSqlPrefilter() {
+// SQLite's lower() only folds ASCII letters: a text with other characters is left to the interface (the prefilter must never miss a photo).
+const isAsciiText = text => /^[\x00-\x7f]*$/.test(text);
+
+// Prefilter of a filter state (`captureFilterState` form): the conditions the backend applies before the cut, a superset of
+// `matchesFilterState` (see `PhotoPrefilter` in db.rs). `dateRange` overrides the date text (the controls keep the last valid range).
+function prefilterFromState(state, dateRange = state.date ? parseDateFilter(state.date).filter : null) {
   const filter = {};
-  if (ratingFilter.unrated) filter.unrated = true;
-  else if (ratingFilter.stars > 0) filter[ratingFilter.mode === 'eq' ? 'ratingEq' : 'ratingMin'] = ratingFilter.stars;
-  if (colorFilters.size) filter.colors = [...colorFilters].sort();
-  if (pickFilters.size) filter.picks = [...pickFilters].sort();
-  if (keywordFilters.length) filter.keywords = [...keywordFilters].sort();
-  if (dateFilter) {
-    filter.yearFrom = Math.floor(dateFilter.from / 1e10); // AAAAMMJJHHmmss -> AAAA
-    filter.yearTo = Math.floor(dateFilter.to / 1e10);
+  const rating = state.rating;
+  if (rating?.unrated) filter.unrated = true;
+  else if (rating?.stars > 0) filter[rating.mode === 'eq' ? 'ratingEq' : 'ratingMin'] = rating.stars;
+  if (state.colors?.length) filter.colors = [...state.colors].sort();
+  if (state.picks?.length) filter.picks = [...state.picks].sort();
+  if (state.keywords?.length) filter.keywords = [...state.keywords].sort();
+  if (dateRange) {
+    filter.yearFrom = Math.floor(dateRange.from / 1e10); // AAAAMMJJHHmmss -> AAAA
+    filter.yearTo = Math.floor(dateRange.to / 1e10);
   }
-  const persons = getPersonFilterIds();
-  if (persons.length) filter.persons = [...persons].sort((a, b) => a - b);
-  if (locationFilter !== 'all') filter.geolocated = locationFilter === 'geolocated';
+  if (state.persons?.length) filter.persons = [...state.persons].sort((a, b) => a - b);
+  if (state.location) filter.geolocated = state.location === 'geolocated';
+  const filenames = (state.filenames ?? []).map(text => text.toLowerCase()).filter(text => text && isAsciiText(text));
+  if (filenames.length) filter.filenames = filenames.sort();
+  const extensions = formatPrefilterExtensions(state);
+  if (extensions) filter.extensions = extensions;
+  Object.assign(filter, shootingPrefilter(state)); // gear and shooting values
+  if (state.folder?.path) {
+    const prefix = `${normalizeFilterPath(state.folder.path)}/`;
+    if (isAsciiText(prefix)) filter.folder = { prefix, recursive: Boolean(state.folder.recursive) };
+  }
+  if (state.mapZone) {
+    const { south, north, west, east } = state.mapZone;
+    if ([south, north, west, east].every(Number.isFinite)) filter.mapZone = { south, north, west, east };
+  }
+  return filter;
+}
+
+// Filters the backend can apply before the cut: the sidebar filters, the folder and map area of the open smart album, and the criteria of its
+// parent albums, and "Visible area only" as "has a position". The map area itself and the failed-files list stay in the interface.
+// Null when none applies.
+function buildSqlPrefilter() {
+  const filter = prefilterFromState(captureFilterState(), dateFilter);
+  const inherited = albumInherited.map(({ state }) => prefilterFromState(state)).filter(item => Object.keys(item).length);
+  if (inherited.length) filter.and = inherited;
+  const map = mapPrefilter();
+  if (map) {
+    filter.positioned = true;
+    filter.pendingPositions = map.pendingIds;
+  }
   return Object.keys(filter).length ? filter : null;
 }
 const sqlPrefilter = () => (largeScope ? buildSqlPrefilter() : null);
-const prefilterKey = prefilter => (prefilter ? JSON.stringify(prefilter) : '');
+// Pending positions stay out of the key: a photo placed on the map is already loaded, so placing one must not read the list again.
+const prefilterKey = prefilter => (prefilter ? JSON.stringify({ ...prefilter, pendingPositions: undefined }) : '');
 
 // Reads the displayed folders: on a large folder, prefiltered (counted first to know). Returns { list, cap, large, key }.
 async function readDisplayedFolderPhotos(folder) {
@@ -895,8 +926,8 @@ function updateFilteredPhotosCount() {
       const params = { loaded: format(PHOTO_LOAD_LIMIT), total: format(photoListCap.total ?? 0) };
       const warning = Object.assign(document.createElement('span'), { className: 'photo-cap-warning', textContent: '⚠' });
       warning.title = t(Number.isFinite(photoListCap.total)
-        ? 'Only the first {loaded} of the {total} matching photos here are loaded, in the current sort order. Rating, labels, keywords, date, persons and geolocation are applied before this cut; the other filters only see the loaded photos.'
-        : 'Only the first {loaded} matching photos here are loaded, in the current sort order. Rating, labels, keywords, date, persons and geolocation are applied before this cut; the other filters only see the loaded photos.', params);
+        ? 'Only the first {loaded} of the {total} matching photos here are loaded, in the current sort order. The filters are applied before this cut: narrow them to see every matching photo.'
+        : 'Only the first {loaded} matching photos here are loaded, in the current sort order. The filters are applied before this cut: narrow them to see every matching photo.', params);
       warning.setAttribute('aria-label', warning.title);
       countElement.append(warning);
       if (!countElement.title) countElement.title = warning.title;

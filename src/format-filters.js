@@ -83,6 +83,11 @@ function compile(state) {
   return compiled;
 }
 
+// Accepted extensions of a state, for the backend prefilter (`PhotoPrefilter` in db.rs); null when the state accepts every format.
+export function formatPrefilterExtensions(state) {
+  return state.formats?.length ? [...compile(state)].sort() : null;
+}
+
 export function matchesFormatState(photo, state) {
   if (!state.formats?.length) return true;
   return compile(state).has(extensionOf(photo));

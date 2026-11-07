@@ -279,7 +279,61 @@ pub struct PhotoPrefilter {
     pub persons: Vec<i64>,
     /// `true`: with GPS coordinates; `false`: without.
     pub geolocated: Option<bool>,
+    /// Lowercase texts that must all appear in the file name (the path is searched: superset). ASCII only: SQLite `lower` ignores the rest.
+    pub filenames: Vec<String>,
+    /// Accepted file extensions, lowercase, without the dot (any one of them).
+    pub extensions: Vec<String>,
+    /// Gear: the camera ("make model") / the lens must contain one of these lowercase texts.
+    pub cameras: Vec<String>,
+    pub lenses: Vec<String>,
+    /// Shooting values, bounds already widened by the interface to the precision it compares with (see `shootingPrefilter`).
+    pub focal: Option<ValueRange>,
+    pub shutter: Option<ValueRange>,
+    pub aperture: Option<ValueRange>,
+    pub iso: Option<ValueRange>,
+    /// `true`: flash fired; `false`: flash known not fired.
+    pub flash: Option<bool>,
+    /// Disk folder saved in a smart album (lowercase path ending with "/").
+    pub folder: Option<FolderCriterion>,
+    /// Map area saved in a smart album (degrees; `west > east` crosses the antimeridian).
+    pub map_zone: Option<MapZone>,
+    /// Criteria of the parent smart albums, each one a prefilter of its own (all must hold).
+    pub and: Vec<PhotoPrefilter>,
+    /// "Visible area only" on the map: GPS coordinates, or a position placed on the map and not written yet (`pending_positions`).
+    pub positioned: bool,
+    pub pending_positions: Vec<i64>,
 }
+
+/// Beyond this many pending positions, "positioned" filters nothing (it is only a prefilter): keeps the statement small.
+const MAX_PENDING_POSITIONS: usize = 500;
+
+/// Inclusive bounds; a missing bound is open.
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct ValueRange {
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct FolderCriterion {
+    pub prefix: String,
+    pub recursive: bool,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct MapZone {
+    pub south: f64,
+    pub north: f64,
+    pub west: f64,
+    pub east: f64,
+}
+
+/// Shooting values read like the interface reads them (shooting-filters.js): a leading number, "f/" dropped from the aperture,
+/// a fraction for the shutter speed. Spaces are removed and a decimal comma becomes a point.
+const FOCAL_VALUE: &str = "CAST(ltrim(focal_length) AS REAL)";
+const APERTURE_VALUE: &str = "CAST(replace(ltrim(replace(replace(replace(lower(aperture), ' ', ''), char(9), ''), 'f/', 'f'), 'f'), ',', '.') AS REAL)";
+const SHUTTER_TEXT: &str = "replace(replace(replace(lower(shutter_speed), ' ', ''), char(9), ''), ',', '.')";
+const ISO_VALUE: &str = "iso";
 
 /// SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
 /// the `first` fixed ones of the statement.
@@ -323,6 +377,77 @@ fn prefilter_condition(filter: &PhotoPrefilter, first: usize, values: &mut Vec<r
         Some(true) => parts.push("gps_lat IS NOT NULL AND gps_lon IS NOT NULL".into()),
         Some(false) => parts.push("(gps_lat IS NULL OR gps_lon IS NULL)".into()),
         None => {}
+    }
+    for text in filter.filenames.iter().filter(|text| !text.is_empty()) {
+        parts.push(format!("instr(lower(COALESCE(NULLIF(filename, ''), path)), {}) > 0", push(Value::Text(text.clone()), values)));
+    }
+    if !filter.extensions.is_empty() {
+        // LIKE ignores ASCII case, as the interface lowercases the extension.
+        let tests: Vec<String> = filter.extensions.iter().map(|extension| format!("path LIKE {}", push(Value::Text(format!("%.{extension}")), values))).collect();
+        parts.push(tests.join(" OR "));
+    }
+    // Camera label of the interface: make and model, the make dropped when the model repeats it; it is always part of "make model".
+    const CAMERA_TEXT: &str = "lower(trim(COALESCE(manufacturer, ''), char(9, 10, 11, 12, 13, 32, 160)) || ' ' || trim(COALESCE(camera_model, ''), char(9, 10, 11, 12, 13, 32, 160)))";
+    for (text_sql, accepted) in [(CAMERA_TEXT, &filter.cameras), ("lower(COALESCE(lens_model, ''))", &filter.lenses)] {
+        if accepted.is_empty() {
+            continue;
+        }
+        let tests: Vec<String> = accepted.iter().map(|text| format!("instr({text_sql}, {}) > 0", push(Value::Text(text.clone()), values))).collect();
+        parts.push(tests.join(" OR "));
+    }
+    let shutter_value = format!(
+        "(CASE WHEN instr({SHUTTER_TEXT}, '/') > 0 THEN CAST(substr({SHUTTER_TEXT}, 1, instr({SHUTTER_TEXT}, '/') - 1) AS REAL) \
+         / NULLIF(CAST(substr({SHUTTER_TEXT}, instr({SHUTTER_TEXT}, '/') + 1) AS REAL), 0) ELSE CAST({SHUTTER_TEXT} AS REAL) END)"
+    );
+    for (value_sql, range) in [(FOCAL_VALUE, &filter.focal), (APERTURE_VALUE, &filter.aperture), (shutter_value.as_str(), &filter.shutter), (ISO_VALUE, &filter.iso)] {
+        let Some(range) = range else { continue };
+        // A missing value (0 or unreadable) never matches, as in the interface.
+        let mut tests = vec![format!("{value_sql} > 0")];
+        if let Some(min) = range.min.filter(|min| min.is_finite()) {
+            tests.push(format!("{value_sql} >= {}", push(Value::Real(min), values)));
+        }
+        if let Some(max) = range.max.filter(|max| max.is_finite()) {
+            tests.push(format!("{value_sql} <= {}", push(Value::Real(max), values)));
+        }
+        parts.push(tests.join(" AND "));
+    }
+    match filter.flash {
+        Some(true) => parts.push("flash = 1".into()),
+        Some(false) => parts.push("flash = 0".into()),
+        None => {}
+    }
+    if let Some(folder) = &filter.folder {
+        // Same test as FOLDER_CONDITION, on the lowercase path (the interface compares folders without case).
+        let prefix = push(Value::Text(folder.prefix.clone()), values);
+        let path = "lower(replace(path, char(92), '/'))";
+        let mut test = format!("substr({path}, 1, length({prefix})) = {prefix}");
+        if !folder.recursive {
+            test.push_str(&format!(" AND instr(substr({path}, length({prefix}) + 1), '/') = 0"));
+        }
+        parts.push(test);
+    }
+    if let Some(zone) = &filter.map_zone {
+        let [south, north, west, east] = [zone.south, zone.north, zone.west, zone.east].map(|bound| push(Value::Real(bound), values));
+        let longitude = if zone.west <= zone.east {
+            format!("gps_lon BETWEEN {west} AND {east}")
+        } else {
+            format!("(gps_lon >= {west} OR gps_lon <= {east})")
+        };
+        parts.push(format!("gps_lat IS NOT NULL AND gps_lon IS NOT NULL AND gps_lat BETWEEN {south} AND {north} AND {longitude}"));
+    }
+    if filter.positioned && filter.pending_positions.len() <= MAX_PENDING_POSITIONS {
+        let mut test = "gps_lat IS NOT NULL AND gps_lon IS NOT NULL".to_string();
+        if !filter.pending_positions.is_empty() {
+            let marks: Vec<String> = filter.pending_positions.iter().map(|id| push(Value::Integer(*id), values)).collect();
+            test = format!("({test}) OR id IN ({})", marks.join(", "));
+        }
+        parts.push(test);
+    }
+    for inherited in &filter.and {
+        let condition = prefilter_condition(inherited, first, values);
+        if condition != "1" {
+            parts.push(condition);
+        }
     }
     if parts.is_empty() {
         "1".into()

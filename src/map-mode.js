@@ -60,6 +60,13 @@ export function getVisibleZone() {
   return { south: bounds.getSouth(), north: bounds.getNorth(), west: bounds.getWest(), east: bounds.getEast() };
 }
 
+/** Backend prefilter while "Visible area only" is active: photos without any position never pass it, except those with a pending one
+ * (`pendingIds`, not written yet). Null when the filter is off. The area itself stays here: panning must not read the catalogue again. */
+export function mapPrefilter() {
+  if (!open || filterMode !== 'visible') return null;
+  return { pendingIds: [...pending.keys()].sort((a, b) => a - b) };
+}
+
 /** Filtre « Zone visible seulement » : vrai si la photo reste affichée dans la grille. */
 export function passesMapFilter(photo) {
   if (!open || filterMode !== 'visible') return true;

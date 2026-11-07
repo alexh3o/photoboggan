@@ -230,6 +230,65 @@ fn prefilter_keeps_what_the_interface_filters_would_keep() {
     assert_eq!(matching(&pool, PhotoPrefilter { persons: vec![7], year_to: Some(2010), ..Default::default() }), ["old.jpg"]);
 }
 
+/// Catalogue for the file, gear, shooting, folder and map filters: values written as the scanner stores them.
+fn shooting_catalog() -> (tempfile::TempDir, DbPool) {
+    let (dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for (path, set) in [
+            ("C:/P/IMG_0001.JPG", "manufacturer = 'Canon', camera_model = 'Canon EOS R5', lens_model = 'RF24-70mm F2.8 L', focal_length = '50 mm', aperture = 'f/2.8', shutter_speed = '1/250', iso = 400, flash = 1"),
+            ("C:/P/DSC_0002.nef", "manufacturer = 'NIKON CORPORATION ', camera_model = 'D750', focal_length = '35.4 mm', aperture = 'F4,0', shutter_speed = '10/2500', iso = 100, flash = 0"),
+            ("C:/P/Sub/clip.mp4", "focal_length = '', aperture = '', shutter_speed = '2', iso = 0"),
+            ("C:\\P\\Sub\\Deep\\pano.jpg", "gps_lat = 48.8, gps_lon = 2.3, shutter_speed = '1/4000 s'"),
+            ("C:/P/fiji.jpg", "gps_lat = -17.7, gps_lon = 179.5"),
+        ] {
+            let id = insert_photo(&conn, path);
+            conn.execute(&format!("UPDATE photos SET {set} WHERE id = ?1"), [id]).unwrap();
+        }
+    }
+    (dir, pool)
+}
+
+fn range(min: Option<f64>, max: Option<f64>) -> Option<ValueRange> {
+    Some(ValueRange { min, max })
+}
+
+#[test]
+fn prefilter_covers_file_gear_shooting_and_album_criteria() {
+    let (_dir, pool) = shooting_catalog();
+    let all = |filter: PhotoPrefilter| matching(&pool, filter);
+    // File name (lowercase "contains"), extension (any case).
+    assert_eq!(all(PhotoPrefilter { filenames: vec!["img_".into()], ..Default::default() }), ["IMG_0001.JPG"]);
+    assert_eq!(all(PhotoPrefilter { extensions: vec!["jpg".into(), "nef".into()], ..Default::default() }).len(), 4);
+    // Gear: the interface label ("NIKON CORPORATION D750", "Canon EOS R5") is part of "make model".
+    assert_eq!(all(PhotoPrefilter { cameras: vec!["nikon corporation d750".into()], ..Default::default() }), ["DSC_0002.nef"]);
+    assert_eq!(all(PhotoPrefilter { cameras: vec!["canon eos r5".into(), "d750".into()], ..Default::default() }).len(), 2);
+    assert_eq!(all(PhotoPrefilter { lenses: vec!["24-70mm".into()], ..Default::default() }), ["IMG_0001.JPG"]);
+    // Shooting values read like the interface: "35.4 mm", "F4,0", "10/2500" (= 1/250), "1/4000 s"; a missing value never matches.
+    assert_eq!(all(PhotoPrefilter { focal: range(Some(34.5), Some(35.5)), ..Default::default() }), ["DSC_0002.nef"]);
+    assert_eq!(all(PhotoPrefilter { aperture: range(Some(3.949), Some(4.051)), ..Default::default() }), ["DSC_0002.nef"]);
+    assert_eq!(all(PhotoPrefilter { shutter: range(Some(0.004 * 0.99), Some(0.004 * 1.01)), ..Default::default() }), ["DSC_0002.nef", "IMG_0001.JPG"]);
+    assert_eq!(all(PhotoPrefilter { shutter: range(None, Some(0.001)), ..Default::default() }), ["pano.jpg"]);
+    assert_eq!(all(PhotoPrefilter { shutter: range(Some(1.0), None), ..Default::default() }), ["clip.mp4"]);
+    assert_eq!(all(PhotoPrefilter { iso: range(Some(0.0), Some(200.0)), ..Default::default() }), ["DSC_0002.nef"]);
+    assert_eq!(all(PhotoPrefilter { flash: Some(false), ..Default::default() }), ["DSC_0002.nef"]);
+    // Album folder (lowercase, either separator) with and without subfolders.
+    let folder = |recursive| Some(FolderCriterion { prefix: "c:/p/sub/".into(), recursive });
+    assert_eq!(all(PhotoPrefilter { folder: folder(false), ..Default::default() }), ["clip.mp4"]);
+    assert_eq!(all(PhotoPrefilter { folder: folder(true), ..Default::default() }), ["clip.mp4", "pano.jpg"]);
+    // Map area, also across the antimeridian.
+    let zone = |west, east| Some(MapZone { south: -90.0, north: 90.0, west, east });
+    assert_eq!(all(PhotoPrefilter { map_zone: zone(0.0, 10.0), ..Default::default() }), ["pano.jpg"]);
+    assert_eq!(all(PhotoPrefilter { map_zone: zone(170.0, -170.0), ..Default::default() }), ["fiji.jpg"]);
+    // "Visible area only": photos with a position, including one placed on the map and not written yet.
+    assert_eq!(all(PhotoPrefilter { positioned: true, ..Default::default() }), ["fiji.jpg", "pano.jpg"]);
+    let clip: i64 = pool.get().unwrap().query_row("SELECT id FROM photos WHERE filename = 'clip.mp4'", [], |row| row.get(0)).unwrap();
+    assert_eq!(all(PhotoPrefilter { positioned: true, pending_positions: vec![clip], ..Default::default() }), ["clip.mp4", "fiji.jpg", "pano.jpg"]);
+    // Parent album criteria add up with the own ones.
+    let parent = PhotoPrefilter { extensions: vec!["jpg".into()], ..Default::default() };
+    assert_eq!(all(PhotoPrefilter { geolocated: Some(true), and: vec![parent], ..Default::default() }), ["fiji.jpg", "pano.jpg"]);
+}
+
 #[test]
 fn prefilter_applies_before_the_cut() {
     // The bug it prevents: on a capped list, a filter matching only older photos found nothing.

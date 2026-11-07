@@ -1016,7 +1016,8 @@ fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Ph
 
 // `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
 // `prefilter` (optional): filters applied before the cut on large folders (see `db::PhotoPrefilter`).
-#[tauri::command]
+// Async: the query can take a few hundred milliseconds on a large catalogue, and must not freeze the window meanwhile.
+#[tauri::command(async)]
 #[allow(clippy::too_many_arguments)]
 fn get_photos_paginated(state: State<'_, AppState>, offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: Option<String>, sort_order: Option<String>, prefilter: Option<db::PhotoPrefilter>) -> Vec<Photo> {
     let pool = state.pool();
