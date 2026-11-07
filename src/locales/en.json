@@ -1404,5 +1404,16 @@
   "Path to avoid": "To avoid",
   "Path text hint": "Looked for in the full path, case ignored. Applied before the criteria of the list; empty: no effect.",
   "Path containing \"{text}\" preferred": "Path containing \"{text}\" preferred",
-  "Path containing \"{text}\" avoided": "Path containing \"{text}\" avoided"
+  "Path containing \"{text}\" avoided": "Path containing \"{text}\" avoided",
+  "Files to check after a failed write": "Files to check after a failed write",
+  "{count} file was left in an unusual state by ExifTool. Nothing was deleted.": "{count} file was left in an unusual state by ExifTool. Nothing was deleted.",
+  "{count} file was left in an unusual state by ExifTool. Nothing was deleted.|other": "{count} files were left in an unusual state by ExifTool. Nothing was deleted.",
+  "Restored from its temporary copy: check its metadata": "Restored from its temporary copy: check its metadata",
+  "Only copy left, to rename by hand: {temp}": "Only copy left, to rename by hand: {temp}",
+  "Temporary copy kept as a precaution: {temp}": "Temporary copy kept as a precaution: {temp}",
+  "… and {count} more file (see the log)": "… and {count} more file (see the log)",
+  "… and {count} more file (see the log)|other": "… and {count} more files (see the log)",
+  "Details saved in: {path}": "Details saved in: {path}",
+  "The log file could not be written: {error}": "The log file could not be written: {error}",
+  "Show log": "Show log"
 }

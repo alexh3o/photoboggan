@@ -2044,6 +2044,34 @@ fn reveal_in_file_manager(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|error| format!("Impossible d'afficher {path} : {error}"))
 }
 
+/// Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
+#[derive(serde::Serialize)]
+struct WriteRecoveryReport {
+    entries: Vec<exiftool::Recovery>,
+    log_path: Option<String>,
+    log_error: Option<String>,
+}
+
+/// Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
+fn log_write_recoveries(base_dir: &Path) -> Option<WriteRecoveryReport> {
+    let entries = exiftool::take_recoveries();
+    if entries.is_empty() { return None; }
+    let (log_path, log_error) = match exiftool::write_recovery_log(&base_dir.join("logs"), &entries, chrono::Local::now()) {
+        Ok(path) => (Some(path.to_string_lossy().into_owned()), None),
+        Err(error) => {
+            eprintln!("Write recovery log not written: {error}");
+            (None, Some(error.to_string()))
+        }
+    };
+    Some(WriteRecoveryReport { entries, log_path, log_error })
+}
+
+/// Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
+#[tauri::command(async)]
+fn take_write_recoveries(state: State<'_, AppState>) -> Option<WriteRecoveryReport> {
+    log_write_recoveries(&state.base_dir())
+}
+
 // Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun lecteur.
 // Seules les vidéos du catalogue sont ouvertes, jamais un chemin arbitraire.
 #[tauri::command(async)]
@@ -2347,14 +2375,19 @@ fn main() {
             face_detect::count_face_scan_targets,
             face_detect::detect_faces,
             exiftool::set_metadata_writer,
+            take_write_recoveries,
             exiftool::get_exiftool_status,
             exiftool::exiftool_prewarm
         ])
         .build(tauri::generate_context!())
         .expect("Erreur de lancement")
         // Fermeture de l'application : les processus ExifTool encore ouverts sont arrêtés.
-        .run(|_, event| {
-            if let tauri::RunEvent::Exit = event { exiftool::shutdown(); }
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                exiftool::shutdown();
+                // Recoveries the interface had no time to report (write at closing time) still get their log file.
+                if let Some(state) = app.try_state::<AppState>() { log_write_recoveries(&state.base_dir()); }
+            }
         });
 }
 

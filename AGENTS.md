@@ -153,7 +153,7 @@ src-tauri/
 
 - Ne jamais toucher aux données image d'un fichier : seules les métadonnées changent. Préserver les métadonnées non concernées.
 - Toute modification passe par un fichier temporaire, puis remplacement de l'original une fois l'écriture réussie : jamais de fichier partiellement écrit.
-  ExifTool : toujours `-overwrite_original` (jamais `_in_place`) ; après un échec, supprimer le `<fichier>_exiftool_tmp` qu'il laisse.
+  ExifTool : toujours `-overwrite_original` (jamais `_in_place`) ; après un échec, supprimer le `<fichier>_exiftool_tmp` qu'il laisse **seulement si l'original existe encore** (sinon c'est la seule copie : la renommer, jamais la supprimer ; `recover_after_failure`).
 - Pas d'écritures concurrentes sur un même fichier ; prévoir une sauvegarde/restauration pour les opérations potentiellement destructrices.
 - Un échec d'écriture de métadonnées n'est jamais présenté comme un succès.
 

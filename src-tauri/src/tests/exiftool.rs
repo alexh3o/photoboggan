@@ -55,6 +55,80 @@ fn same_path_writes_are_serialised_and_other_paths_are_not_blocked() {
     assert!(entered.load(Ordering::SeqCst));
 }
 
+// Cleanup after a failed ExifTool write (recover_after_failure): the states ExifTool can leave behind are recreated by hand.
+
+#[test]
+fn failed_write_leftover_is_removed_when_the_original_is_still_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("photo.jpg");
+    std::fs::write(&file, b"original").unwrap();
+    std::fs::write(exiftool_temp_of(&file), b"new version").unwrap();
+    assert_eq!(recover_after_failure(&file), None);
+    assert_eq!(std::fs::read(&file).unwrap(), b"original");
+    assert!(!exiftool_temp_of(&file).exists(), "leftover temporary file not removed");
+}
+
+#[test]
+fn only_copy_left_by_exiftool_is_restored_never_deleted() {
+    // ExifTool deleted the original, then failed to rename its temporary file: that file is all that remains of the photo.
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("photo.jpg");
+    std::fs::write(exiftool_temp_of(&file), b"only copy").unwrap();
+    let recovery = recover_after_failure(&file).expect("the restoration must be reported");
+    assert_eq!(recovery.kind, RecoveryKind::Restored);
+    assert!(recovery.note().contains("restauré"), "{}", recovery.note());
+    assert_eq!(std::fs::read(&file).unwrap(), b"only copy", "photo not restored under its own name");
+    assert!(!exiftool_temp_of(&file).exists());
+}
+
+#[test]
+fn temporary_file_is_kept_when_the_original_state_is_unclear() {
+    // The original name is now a directory: neither "original present" nor "original missing", so nothing is deleted.
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("photo.jpg");
+    std::fs::write(exiftool_temp_of(&file), b"only copy").unwrap();
+    std::fs::create_dir(&file).unwrap();
+    let recovery = recover_after_failure(&file).expect("the kept copy must be reported");
+    assert_eq!(recovery.kind, RecoveryKind::TempKept);
+    assert!(recovery.note().contains("_exiftool_tmp"), "{}", recovery.note());
+    assert_eq!(std::fs::read(exiftool_temp_of(&file)).unwrap(), b"only copy", "the temporary file was deleted");
+}
+
+#[test]
+fn nothing_to_do_without_temporary_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("photo.jpg");
+    std::fs::write(&file, b"original").unwrap();
+    assert_eq!(recover_after_failure(&file), None);
+    assert_eq!(std::fs::read(&file).unwrap(), b"original");
+}
+
+#[test]
+fn recoveries_of_one_operation_go_to_a_single_timestamped_log_never_overwritten() {
+    use chrono::TimeZone;
+    let dir = tempfile::tempdir().unwrap();
+    let logs = dir.path().join("logs");
+    let recovery = |kind, file: &str| Recovery {
+        kind,
+        file: file.to_string(),
+        temp: format!("{file}_exiftool_tmp"),
+        detail: if kind == RecoveryKind::Restored { String::new() } else { "access denied".to_string() },
+        error: "Error renaming temporary file".to_string(),
+    };
+    let entries = [recovery(RecoveryKind::Restored, "a.jpg"), recovery(RecoveryKind::OnlyCopyKept, "b.jpg")];
+    let now = chrono::Local.with_ymd_and_hms(2026, 11, 7, 14, 3, 9).unwrap();
+    let first = write_recovery_log(&logs, &entries, now).unwrap();
+    assert_eq!(first.file_name().unwrap(), "write-recovery_2026-11-07_14-03-09.log");
+    let text = std::fs::read_to_string(&first).unwrap();
+    assert!(text.contains("2 file(s)"), "{text}");
+    assert!(text.contains("RESTORED") && text.contains("a.jpg"), "{text}");
+    assert!(text.contains("ONLY COPY KEPT") && text.contains("b.jpg_exiftool_tmp") && text.contains("access denied"), "{text}");
+    // Same second: a second file, the first one is kept as is.
+    let second = write_recovery_log(&logs, &entries[..1], now).unwrap();
+    assert_eq!(second.file_name().unwrap(), "write-recovery_2026-11-07_14-03-09-2.log");
+    assert_eq!(std::fs::read_to_string(&first).unwrap(), text);
+}
+
 // --- Intégration (ExifTool réel) ---
 
 /// Prépare ExifTool : version embarquée du dépôt si elle est présente (Windows), sinon celui du PATH. Faux (avec un message) s'il est introuvable.

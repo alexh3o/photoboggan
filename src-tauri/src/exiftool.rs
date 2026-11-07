@@ -544,25 +544,148 @@ fn push_list(args: &mut Vec<String>, tag: &str, values: impl IntoIterator<Item =
     if args.len() == before { args.push(assign(tag, "")); }
 }
 
-/// Modifie un fichier existant : ExifTool écrit `<fichier>_exiftool_tmp` puis remplace l'original. Si le remplacement échoue (fichier en lecture
-/// seule…), ExifTool laisse ce fichier temporaire : il est supprimé pour ne rien laisser dans le dossier de l'utilisateur.
+/// Modifies an existing file: ExifTool writes `<file>_exiftool_tmp`, then replaces the original. After a failure, see `recover_after_failure`.
 fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
     let mut args = vec!["-overwrite_original".to_string()];
     args.extend(tag_args);
     args.push(file.to_string_lossy().into_owned());
-    run(args).inspect_err(|_| {
-        let temp = PathBuf::from(format!("{}_exiftool_tmp", file.display()));
-        if !temp.exists() { return; }
-        // Windows : ExifTool reprend l'attribut lecture seule de l'original, et un fichier en lecture seule ne se supprime pas tel quel.
-        #[cfg(windows)]
-        if let Ok(metadata) = std::fs::metadata(&temp) {
-            let mut permissions = metadata.permissions();
-            #[allow(clippy::permissions_set_readonly_false)]
-            permissions.set_readonly(false);
-            let _ = std::fs::set_permissions(&temp, permissions);
+    run(args).map_err(|error| match recover_after_failure(file) {
+        None => error,
+        Some(mut recovery) => {
+            let message = format!("{error} ; {}", recovery.note());
+            recovery.error = error.to_string();
+            lock(&RECOVERIES).push(recovery);
+            std::io::Error::other(message)
         }
-        let _ = std::fs::remove_file(&temp);
     })
+}
+
+/// What `recover_after_failure` had to do beyond removing a leftover: these cases must reach the user (blocking dialog and log file),
+/// not only the error text of one file among others.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecoveryKind {
+    /// ExifTool had erased the original: its temporary file was renamed back to the original name.
+    Restored,
+    /// ExifTool had erased the original and the temporary file could not be renamed back: it is the only copy of the photo.
+    OnlyCopyKept,
+    /// The state of the original is unclear: the temporary file is kept, just in case.
+    TempKept,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Recovery {
+    pub kind: RecoveryKind,
+    pub file: String,
+    pub temp: String,
+    /// Why the temporary file was kept (rename or read error, original no longer a file); empty when restored.
+    pub detail: String,
+    /// ExifTool error that caused the cleanup (filled by `overwrite`).
+    pub error: String,
+}
+
+impl Recovery {
+    /// Text appended to the error of the file (failure lists, toasts).
+    fn note(&self) -> String {
+        match self.kind {
+            RecoveryKind::Restored => "le fichier, effacé par ExifTool, a été restauré depuis sa copie temporaire (métadonnées à vérifier)".to_string(),
+            RecoveryKind::OnlyCopyKept => format!(
+                "ExifTool a effacé le fichier d'origine : sa seule copie est « {} » (non supprimée, à renommer à la main : {})", self.temp, self.detail
+            ),
+            RecoveryKind::TempKept => format!("copie temporaire « {} » conservée par précaution ({})", self.temp, self.detail),
+        }
+    }
+}
+
+/// Recoveries not yet reported to the user, taken by `take_recoveries` once a write operation is over.
+static RECOVERIES: Mutex<Vec<Recovery>> = Mutex::new(Vec::new());
+
+pub fn take_recoveries() -> Vec<Recovery> {
+    std::mem::take(&mut *lock(&RECOVERIES))
+}
+
+/// Writes one log file for `recoveries` in `logs_dir` (created if needed), named after `now`: `write-recovery_<date>_<time>.log`
+/// (`-2`, `-3`… added if the name is taken, an existing log is never overwritten). Returns its path.
+pub fn write_recovery_log(logs_dir: &Path, recoveries: &[Recovery], now: chrono::DateTime<chrono::Local>) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(logs_dir)?;
+    let mut text = format!(
+        "photoboggan {} - metadata write recovery - {}\n{} file(s) needed attention after a failed ExifTool write.\n",
+        env!("CARGO_PKG_VERSION"), now.format("%Y-%m-%d %H:%M:%S %:z"), recoveries.len()
+    );
+    for recovery in recoveries {
+        let status = match recovery.kind {
+            RecoveryKind::Restored => "RESTORED: the original had been erased by ExifTool and was restored from its temporary copy (check its metadata)",
+            RecoveryKind::OnlyCopyKept => "ONLY COPY KEPT: the original was erased by ExifTool; the temporary file below is the only copy of the photo, rename it by hand",
+            RecoveryKind::TempKept => "TEMPORARY FILE KEPT: the state of the original is unclear; the temporary file below was kept as a precaution",
+        };
+        text.push_str(&format!("\n{status}\n  File: {}\n", recovery.file));
+        if recovery.kind != RecoveryKind::Restored { text.push_str(&format!("  Temporary file: {}\n", recovery.temp)); }
+        if !recovery.detail.is_empty() { text.push_str(&format!("  Reason: {}\n", recovery.detail)); }
+        if !recovery.error.is_empty() { text.push_str(&format!("  ExifTool error: {}\n", recovery.error)); }
+    }
+    let stem = format!("write-recovery_{}", now.format("%Y-%m-%d_%H-%M-%S"));
+    for attempt in 1.. {
+        let name = if attempt == 1 { format!("{stem}.log") } else { format!("{stem}-{attempt}.log") };
+        let path = logs_dir.join(name);
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut log) => {
+                log.write_all(text.as_bytes())?;
+                log.sync_all()?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && attempt < 1000 => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    unreachable!()
+}
+
+/// Temporary file ExifTool writes next to `file` with `-overwrite_original`.
+fn exiftool_temp_of(file: &Path) -> PathBuf {
+    PathBuf::from(format!("{}_exiftool_tmp", file.display()))
+}
+
+/// Cleanup after a failed ExifTool write on `file`. Returns what was done when something beyond a plain failure happened.
+///
+/// When its first rename fails, ExifTool deletes the original and renames again; if that second rename fails too, the temporary file is the
+/// only copy left (seen on volumes without POSIX delete semantics: FAT32 / exFAT, network shares, with the file held open by another program).
+/// So the temporary file is deleted only when the original is known to still exist:
+/// - original present: the temporary file is a leftover, it is deleted (nothing left in the user's folder);
+/// - original missing: the temporary file (complete, written by ExifTool before the rename) is renamed back to the original name;
+/// - anything else (state unknown, rename impossible): the temporary file is kept and its path is reported. Never deleted in doubt.
+fn recover_after_failure(file: &Path) -> Option<Recovery> {
+    let temp = exiftool_temp_of(file);
+    if std::fs::symlink_metadata(&temp).is_err() { return None; }
+    let recovery = |kind: RecoveryKind, detail: String| Some(Recovery {
+        kind,
+        file: file.display().to_string(),
+        temp: temp.display().to_string(),
+        detail,
+        error: String::new(),
+    });
+    match std::fs::symlink_metadata(file) {
+        Ok(metadata) if !metadata.is_file() => recovery(RecoveryKind::TempKept, format!("« {} » n'est plus un fichier", file.display())),
+        Ok(_) => {
+            // Windows: ExifTool copies the original's read-only attribute, and a read-only file cannot be deleted as is.
+            #[cfg(windows)]
+            if let Ok(metadata) = std::fs::metadata(&temp) {
+                let mut permissions = metadata.permissions();
+                #[allow(clippy::permissions_set_readonly_false)]
+                permissions.set_readonly(false);
+                let _ = std::fs::set_permissions(&temp, permissions);
+            }
+            let _ = std::fs::remove_file(&temp);
+            None
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => match std::fs::rename(&temp, file) {
+            Ok(()) => {
+                eprintln!("ExifTool erased {} before failing: restored from its temporary file", file.display());
+                recovery(RecoveryKind::Restored, String::new())
+            }
+            Err(rename_error) => recovery(RecoveryKind::OnlyCopyKept, rename_error.to_string()),
+        },
+        Err(error) => recovery(RecoveryKind::TempKept, format!("fichier d'origine illisible : {error}")),
+    }
 }
 
 /// Verrous par « tranche » de chemin, aussi pris par les écritures internes d'exif.rs (HEIC, JPEG, sidecars) : deux écritures sur la même image

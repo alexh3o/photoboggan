@@ -1404,5 +1404,16 @@
   "Path to avoid": "À éviter",
   "Path text hint": "Cherché dans le chemin complet, casse ignorée. Appliqué avant les critères de la liste ; vide : sans effet.",
   "Path containing \"{text}\" preferred": "Chemin contenant « {text} » préféré",
-  "Path containing \"{text}\" avoided": "Chemin contenant « {text} » à éviter"
+  "Path containing \"{text}\" avoided": "Chemin contenant « {text} » à éviter",
+  "Files to check after a failed write": "Fichiers à vérifier après un échec d'écriture",
+  "{count} file was left in an unusual state by ExifTool. Nothing was deleted.": "{count} fichier a été laissé dans un état inhabituel par ExifTool. Rien n'a été supprimé.",
+  "{count} file was left in an unusual state by ExifTool. Nothing was deleted.|other": "{count} fichiers ont été laissés dans un état inhabituel par ExifTool. Rien n'a été supprimé.",
+  "Restored from its temporary copy: check its metadata": "Restauré depuis sa copie temporaire : vérifiez ses métadonnées",
+  "Only copy left, to rename by hand: {temp}": "Seule copie restante, à renommer à la main : {temp}",
+  "Temporary copy kept as a precaution: {temp}": "Copie temporaire conservée par précaution : {temp}",
+  "… and {count} more file (see the log)": "… et {count} autre fichier (voir le journal)",
+  "… and {count} more file (see the log)|other": "… et {count} autres fichiers (voir le journal)",
+  "Details saved in: {path}": "Détails enregistrés dans : {path}",
+  "The log file could not be written: {error}": "Le fichier journal n'a pas pu être écrit : {error}",
+  "Show log": "Afficher le journal"
 }

@@ -206,6 +206,7 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
       settled = true;
       queuedWrites -= 1;
       notifyLock();
+      await reportWriteRecoveries();
       await finish(result, error);
     };
     queuedWrites += 1;
@@ -231,8 +232,50 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
     directWrites -= 1;
     notifyLock();
   }
+  await reportWriteRecoveries();
   await finish(result, failure);
   return true;
+}
+
+// Files ExifTool left in an unusual state after a failed write (original erased then restored, only copy left as `<file>_exiftool_tmp`,
+// temporary copy kept): the backend writes them all to one log file (logs folder of the storage location) and they are shown here in one
+// blocking dialog, before the usual end of the operation. Dialogs never overlap: a second report waits for the first to be closed.
+const MAX_LISTED_RECOVERIES = 8;
+let recoveryChain = Promise.resolve();
+function reportWriteRecoveries() {
+  recoveryChain = recoveryChain.then(showWriteRecoveries, showWriteRecoveries);
+  return recoveryChain;
+}
+
+async function showWriteRecoveries() {
+  let report = null;
+  try {
+    report = await invoke('take_write_recoveries');
+  } catch (error) {
+    console.error('Write recoveries not read:', error);
+    return;
+  }
+  if (!report?.entries?.length) return;
+  const lines = report.entries.slice(0, MAX_LISTED_RECOVERIES).map(entry => {
+    if (entry.kind === 'restored') return `• ${entry.file}\n   ${t('Restored from its temporary copy: check its metadata')}`;
+    if (entry.kind === 'only_copy_kept') return `• ${entry.file}\n   ${t('Only copy left, to rename by hand: {temp}', { temp: entry.temp })}`;
+    return `• ${entry.file}\n   ${t('Temporary copy kept as a precaution: {temp}', { temp: entry.temp })}`;
+  });
+  const more = report.entries.length - lines.length;
+  if (more > 0) lines.push(tp('… and {count} more file (see the log)', more));
+  const logLine = report.log_path
+    ? t('Details saved in: {path}', { path: report.log_path })
+    : t('The log file could not be written: {error}', { error: report.log_error ?? '' });
+  const buttons = [{ label: t('OK'), value: 'ok', primary: true, cancel: true }];
+  if (report.log_path) buttons.push({ label: t('Show log'), value: 'log' });
+  const choice = await choiceDialog({
+    title: t('Files to check after a failed write'),
+    message: `${tp('{count} file was left in an unusual state by ExifTool. Nothing was deleted.', report.entries.length)}\n\n${lines.join('\n')}\n\n${logLine}`,
+    buttons,
+  });
+  if (choice === 'log') {
+    invoke('reveal_in_file_manager', { path: report.log_path }).catch(error => host?.showToast(String(error)));
+  }
 }
 
 // Écrit tout ce qui attend dans les onglets éditeurs : les éléments d'une même photo sont réunis en une seule écriture. `includeLibrary` : aussi
