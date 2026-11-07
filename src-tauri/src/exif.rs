@@ -2060,7 +2060,18 @@ fn invalid_data(message: &str) -> std::io::Error {
 }
 
 /// JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien à modifier.
+/// Refuses a JPEG whose segment structure cannot be read up to the image data (invalid segment length, missing marker): the XMP or IPTC
+/// segment may then be missed, and a second one inserted. The file is left as it is (headers only are read: negligible cost).
+fn check_jpeg_structure(data: &[u8]) -> std::io::Result<()> {
+    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
+    let mut parser = jpeg_segments(data);
+    parser.by_ref().for_each(drop);
+    if parser.malformed { return Err(invalid_data("Structure JPEG illisible : fichier non modifié")); }
+    Ok(())
+}
+
 fn jpeg_replace_xmp(data: &[u8], update: &dyn Fn(&str) -> String) -> std::io::Result<Vec<u8>> {
+    check_jpeg_structure(data)?;
     let build_segment = |packet: &str| -> std::io::Result<Vec<u8>> {
         let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + packet.len());
         payload.extend_from_slice(JPEG_XMP_HEADER);
@@ -2215,6 +2226,7 @@ fn iptc_with(existing: Option<&[u8]>, changes: &IptcChanges) -> Option<Vec<u8>> 
 /// JPEG dont les jeux de données IPTC concernés par `changes` sont remplacés. Les autres ressources Photoshop et jeux de données IPTC sont
 /// conservés ; le segment est créé s'il n'existe pas et qu'il y a des valeurs à écrire, et retiré s'il devient vide.
 fn jpeg_replace_iptc(data: &[u8], changes: &IptcChanges) -> std::io::Result<Vec<u8>> {
+    check_jpeg_structure(data)?;
     let segment = find_jpeg_photoshop_segment(data);
     let (mut resources, trailer) = match segment {
         Some((_, end, payload_start)) => parse_photoshop_resources(&data[payload_start + PHOTOSHOP_HEADER.len()..end]),

@@ -142,6 +142,14 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
         let _ = fs::remove_file(&temp);
         return Err(format!("« {} » est un dossier", final_path.display()));
     }
+    // "Replace": the existing file (possibly an original of the same name in the chosen folder) goes to the trash, where it can be restored,
+    // instead of being overwritten for good. No trash on that drive (network share, some removable media): nothing is replaced.
+    if final_path.exists() {
+        if let Err(error) = trash::delete(&final_path) {
+            let _ = fs::remove_file(&temp);
+            return Err(format!("« {} » n'a pas pu être mis à la corbeille, il n'est pas remplacé : {error}", final_path.display()));
+        }
+    }
     if let Err(error) = fs::rename(&temp, &final_path) {
         let _ = fs::remove_file(&temp);
         return Err(format!("Écriture impossible : {error}"));

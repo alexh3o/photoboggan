@@ -1233,9 +1233,16 @@ fn validate_new_name(name: &str) -> Result<&str, String> {
     Ok(name)
 }
 
-// Deux chemins qui ne diffèrent que par la casse désignent le même fichier sous Windows et macOS : un changement de casse seule est un renommage valide.
-fn same_path_ignoring_case(first: &Path, second: &Path) -> bool {
-    first.to_string_lossy().to_lowercase() == second.to_string_lossy().to_lowercase()
+/// True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
+/// valid. Compared by the paths the system resolves, not by the names: on Linux, `IMG.jpg` next to `img.jpg` is another file, never replaced.
+fn same_existing_file(first: &Path, second: &Path) -> bool {
+    matches!((fs::canonicalize(first), fs::canonicalize(second)), (Ok(a), Ok(b)) if a == b)
+}
+
+/// Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
+/// appears between a check and the rename can no longer be overwritten.
+fn reserve_new_file(path: &Path) -> std::io::Result<()> {
+    fs::OpenOptions::new().write(true).create_new(true).open(path).map(|_| ())
 }
 
 // Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « photo.jpg.xmp »
@@ -1262,7 +1269,9 @@ fn rename_photo(state: State<'_, AppState>, path: String, new_name: String) -> R
     };
     let target = parent.join(&new_file_name);
     if target == source { return Ok(MovedFile { from: path.clone(), to: path }); }
-    if target.exists() && !same_path_ignoring_case(source, &target) { return Err(format!("« {new_file_name} » existe déjà dans ce dossier")); }
+    let case_only = same_existing_file(source, &target);
+    let already_there = || format!("« {new_file_name} » existe déjà dans ce dossier");
+    if target.exists() && !case_only { return Err(already_there()); }
 
     // Sidecar : (ancien, nouveau, copie seule). Vérifié avant de toucher à la photo, pour ne rien renommer si le sidecar ne peut pas suivre.
     let appended = PathBuf::from(format!("{}.xmp", source.display()));
@@ -1277,10 +1286,9 @@ fn rename_photo(state: State<'_, AppState>, path: String, new_name: String) -> R
             None
         }
     };
+    let sidecar_there = |to: &Path| format!("Le sidecar XMP « {} » existe déjà", to.file_name().unwrap_or_default().to_string_lossy());
     if let Some((from, to, copy_only)) = &sidecar {
-        if !copy_only && to.exists() && !same_path_ignoring_case(from, to) {
-            return Err(format!("Le sidecar XMP « {} » existe déjà", to.file_name().unwrap_or_default().to_string_lossy()));
-        }
+        if !copy_only && to.exists() && !same_existing_file(from, to) { return Err(sidecar_there(to)); }
     }
 
     let thumbnails_dir = state.thumbnails_dir();
@@ -1288,11 +1296,40 @@ fn rename_photo(state: State<'_, AppState>, path: String, new_name: String) -> R
     let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
     let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
 
-    fs::rename(source, &target).map_err(|error| format!("Renommage impossible : {error}"))?;
+    // New names reserved first (empty placeholders, removed on failure): nothing that appears after the checks above is ever overwritten.
+    if !case_only {
+        reserve_new_file(&target).map_err(|error| match error.kind() {
+            std::io::ErrorKind::AlreadyExists => already_there(),
+            _ => format!("Renommage impossible : {error}"),
+        })?;
+    }
+    // Sidecar name reserved too (None: no sidecar, or a case-only rename). Already taken: an error, except for a shared `photo.xmp` that
+    // the pair already has under the new name (nothing to copy).
+    let sidecar_reserved = match &sidecar {
+        Some((from, to, copy_only)) if !same_existing_file(from, to) => match reserve_new_file(to) {
+            Ok(()) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && *copy_only => false,
+            Err(error) => {
+                if !case_only { let _ = fs::remove_file(&target); }
+                return Err(if error.kind() == std::io::ErrorKind::AlreadyExists { sidecar_there(to) } else { format!("Sidecar XMP non renommé : {error}") });
+            }
+        },
+        _ => false,
+    };
+    if let Err(error) = fs::rename(source, &target) {
+        if !case_only { let _ = fs::remove_file(&target); }
+        if let (true, Some((_, to, _))) = (sidecar_reserved, &sidecar) { let _ = fs::remove_file(to); }
+        return Err(format!("Renommage impossible : {error}"));
+    }
     if let Some((from, to, copy_only)) = sidecar {
-        let result = if copy_only { if to.exists() { Ok(()) } else { fs::copy(&from, &to).map(|_| ()) } } else { fs::rename(&from, &to) };
+        let result = match (copy_only, sidecar_reserved) {
+            (true, true) => fs::copy(&from, &to).map(|_| ()),
+            (true, false) => Ok(()),
+            (false, _) => fs::rename(&from, &to),
+        };
         if let Err(error) = result {
-            // Photo et sidecar doivent rester ensemble : la photo reprend son nom.
+            // Photo et sidecar doivent rester ensemble : la photo reprend son nom (libre : elle vient de le quitter).
+            if sidecar_reserved { let _ = fs::remove_file(&to); }
             let _ = fs::rename(&target, source);
             return Err(format!("Sidecar XMP non renommé : {error}"));
         }
@@ -1328,7 +1365,7 @@ fn rename_folder(state: State<'_, AppState>, path: String, new_name: String) -> 
         return Err("Ce dossier est un dossier suivi, ou en contient un : renommez-le hors de l'application après l'avoir retiré de la liste des dossiers (Paramètres)".into());
     }
     let target = parent.join(new_name);
-    if target.exists() && !same_path_ignoring_case(&folder, &target) { return Err(format!("« {new_name} » existe déjà dans ce dossier")); }
+    if target.exists() && !same_existing_file(&folder, &target) { return Err(format!("« {new_name} » existe déjà dans ce dossier")); }
     if target == folder { return Ok(Vec::new()); }
 
     let conn = pool.get().map_err(|error| error.to_string())?;
@@ -1713,8 +1750,13 @@ fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Resul
         (compatible, target.with_extension("xmp"))
     };
     // Replacing an existing sidecar goes through copy_replacing: a direct copy would first truncate it.
-    if overwrite && to.exists() { copy_replacing(&from, &to)?; } else if !to.exists() { fs::copy(from, to)?; }
-    Ok(())
+    if overwrite && to.exists() { return copy_replacing(&from, &to); }
+    // Name reserved first (F2): an existing sidecar, even one that appeared just now, is never overwritten.
+    match reserve_new_file(&to) {
+        Ok(()) => fs::copy(&from, &to).map(|_| ()).inspect_err(|_| { let _ = fs::remove_file(&to); }),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn lowercase_segments(path: &Path) -> Vec<String> {
@@ -1834,8 +1876,12 @@ fn move_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
     let appended = PathBuf::from(format!("{}.xmp", source.display()));
     if appended.is_file() {
         let destination = PathBuf::from(format!("{}.xmp", target.display()));
-        if !destination.exists() { move_file(&appended, &destination)?; }
-        Ok(())
+        // Name reserved (F2): a sidecar that appeared since reserve_destination is never overwritten, it stays where it is.
+        match reserve_new_file(&destination) {
+            Ok(()) => move_file(&appended, &destination).inspect_err(|_| { let _ = fs::remove_file(&destination); }),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) => Err(error),
+        }
     } else {
         copy_sidecar(source, target, false)
     }

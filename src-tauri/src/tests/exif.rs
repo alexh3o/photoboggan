@@ -782,3 +782,17 @@ fn light_marking_read_matches_the_full_read() {
     }
     assert_eq!((read_marking(&mixed).rating, read_marking(&mixed).color_flag.as_str()), (5, "red"));
 }
+
+#[test]
+fn malformed_jpeg_structure_is_refused_before_any_xmp_or_iptc_insertion() {
+    // A segment whose length runs past the end of the file, before the XMP: the existing packet could be missed and a second one inserted.
+    let good = jpeg_bytes(16, 16);
+    let mut bad = vec![0xff, 0xd8, 0xff, 0xe2, 0xff, 0xff, 0x00, 0x00];
+    bad.extend_from_slice(&good[2..]);
+    assert!(jpeg_replace_xmp(&bad, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(3), ..Default::default() })).is_err());
+    let keywords = vec!["a".to_string()];
+    let changes = IptcChanges { keywords: Some(&keywords), object_name: None, caption: None };
+    assert!(jpeg_replace_iptc(&bad, &changes).is_err());
+    // A well-formed JPEG is still written.
+    assert!(jpeg_replace_xmp(&good, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(3), ..Default::default() })).is_ok());
+}

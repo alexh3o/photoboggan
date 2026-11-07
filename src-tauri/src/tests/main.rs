@@ -222,3 +222,31 @@ fn a_moved_or_copied_photo_never_adopts_a_sidecar_already_at_the_destination() {
     assert!(text.contains("2 photo(s)") && text.contains("x (1).cr2") && text.contains("y.xmp"), "{text}");
     assert!(log_sidecar_renames(storage.path(), "move", &[]).is_none(), "a log written for nothing");
 }
+
+// --- Renames and reserved names (F1, F2) ---
+
+#[test]
+fn a_rename_is_only_allowed_onto_the_same_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let photo = dir.path().join("img_1.jpg");
+    put(&photo, b"photo");
+    // Same name in another case: the same file on Windows / macOS, another file name on Linux (it does not exist there).
+    let other_case = dir.path().join("IMG_1.jpg");
+    assert_eq!(same_existing_file(&photo, &other_case), other_case.exists());
+    // Two different files are never the same, whatever their names.
+    let other = dir.path().join("img_2.jpg");
+    put(&other, b"another photo");
+    assert!(!same_existing_file(&photo, &other));
+    assert!(!same_existing_file(&photo, &dir.path().join("missing.jpg")));
+}
+
+#[test]
+fn a_reserved_name_is_never_taken_twice() {
+    let dir = tempfile::tempdir().unwrap();
+    let name = dir.path().join("new.jpg");
+    reserve_new_file(&name).unwrap();
+    assert_eq!(reserve_new_file(&name).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+    put(&dir.path().join("taken.jpg"), b"photo");
+    assert_eq!(reserve_new_file(&dir.path().join("taken.jpg")).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(fs::read(dir.path().join("taken.jpg")).unwrap(), b"photo", "an existing file was truncated");
+}
