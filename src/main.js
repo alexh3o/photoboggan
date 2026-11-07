@@ -6,7 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { DEFAULTS, readBool, readChoice } from './settings-defaults.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
@@ -2884,6 +2884,14 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`);
   };
   const run = () => {
+    // Photos of a move in progress or waiting would change path while being written (the backend lock makes the write fail cleanly
+    // anyway): refused with the same message as the other file operations. Only those photos: the others stay editable during a long
+    // transfer. A rename (photoMoveRunning, no path list, a split second) blocks everything. Copies and resizing do not move files.
+    const moving = new Set(scanTasks.filter(task => task.kind === 'move').flatMap(task => task.args?.paths ?? []));
+    if (photoMoveRunning || photosArg.some(photo => moving.has(photo.path))) {
+      showWriteToast(t('Wait for the running file task to finish.'));
+      return undefined;
+    }
     showWriteToast(startMessage, true);
     return runLocked('update_photos_marking', { photos: photosArg, ...fields }, targets.length, finish);
   };
@@ -6162,10 +6170,12 @@ function movePhotosToFolder(targets, folderPath) {
       if (result.moved.length) parts.push(tp('{count} file moved', result.moved.length));
       if (result.skipped) parts.push(tp('{count} file already in this folder', result.skipped));
       if (result.failed.length) parts.push(tp('{count} failure', result.failed.length));
-      if (!stopped) {
+      const renamed = sidecarRenameNotice(result);
+      if (renamed.text) parts.push(renamed.text);
+      if (!stopped || renamed.text) {
         showWriteToast(!result.moved.length && !result.skipped && result.failed.length
           ? t('Move failed: {error}', { error: result.failed[0].error })
-          : parts.join(' · '));
+          : parts.join(' · '), false, renamed.action, renamed.action ? 12000 : null);
       }
     },
   });
@@ -6193,10 +6203,12 @@ async function copyPhotosToFolder(targets, folderPath) {
         const changes = await invoke('sync_library');
         if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
       }
-      if (!stopped) {
+      const renamed = sidecarRenameNotice(result);
+      if (!stopped || renamed.text) {
         showWriteToast(!result.copied && result.failed.length
           ? t('Copy failed: {error}', { error: result.failed[0].error })
-          : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', result.failed.length ? tp('{count} failure', result.failed.length) : ''].filter(Boolean).join(' · '));
+          : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', result.failed.length ? tp('{count} failure', result.failed.length) : '', renamed.text].filter(Boolean).join(' · '),
+        false, renamed.action, renamed.action ? 12000 : null);
       }
     },
   });

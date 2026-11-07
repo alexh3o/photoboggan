@@ -664,6 +664,65 @@ fn xmp_picks(xml: &str) -> [Option<&'static str>; 3] {
 }
 
 /// Valeur normalisée d'un fanion pick demandé par l'interface (« none », « pending », « picked » ou « rejected »).
+/// Rating, color and pick of a file, read as `read_exif` reads them (same sources, same merge, same read orders), without the rest:
+/// used to check a marking write at a negligible cost. `read_exif` costs ~10 ms on a JPEG (4 MB read for the XMP, IPTC, EXIF) and ~30 ms on
+/// a TIFF-based RAW (whole file read by the EXIF reader), as much as the write itself.
+/// - XMP: the packet of a JPEG (first 64 KB: APP1 segments come first) or of a HEIC, then the sidecar for the sources still missing;
+/// - EXIF `Rating` / `RatingPercent` (Windows): JPEG only, and only if the internal writer does not ignore EXIF. In a RAW they are never
+///   written (ExifTool writes to the sidecar): not read, so a RAW whose EXIF rating comes first in the read order is not checked on that source.
+pub fn read_marking(path: &Path) -> ExifMetadata {
+    let mut meta = ExifMetadata::default();
+    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
+    let jpeg = matches!(extension.as_str(), "jpg" | "jpeg");
+    let embedded = if jpeg {
+        read_jpeg_xmp_prefix(path, 64 * 1024).or_else(|| read_embedded_jpeg_xmp(path))
+    } else if crate::heif::is_heif_path(path) {
+        crate::heif::read_xmp(path)
+    } else {
+        None
+    };
+    for xml in [embedded, read_sidecar(path)].into_iter().flatten() {
+        for (slot, value) in meta.rating_sources.iter_mut().zip(xmp_ratings(&xml)) { if slot.is_none() { *slot = value; } }
+        for (slot, value) in meta.color_sources.iter_mut().zip(xmp_colors(&xml)) { if slot.is_none() { *slot = value; } }
+        for (slot, value) in meta.pick_sources.iter_mut().zip(xmp_picks(&xml)) { if slot.is_none() { *slot = value; } }
+    }
+    if jpeg && !crate::exiftool::skip_exif_metadata() {
+        // JPEG: the EXIF reader stops at the APP1 segment, at the start of the file.
+        for exif in crate::thumbnails::read_exif_sources(path) {
+            keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
+            keep(&mut meta.rating_sources[4], exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32)));
+        }
+    }
+    resolve_values(&mut meta);
+    meta
+}
+
+/// XMP packet of a JPEG if it lies within its first `limit` bytes (None otherwise: the caller reads further).
+fn read_jpeg_xmp_prefix(path: &Path, limit: u64) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    let mut data = Vec::new();
+    file.take(limit).read_to_end(&mut data).ok()?;
+    let (_, segment_end, packet_start) = find_jpeg_xmp_segment(&data)?;
+    std::str::from_utf8(&data[packet_start..segment_end]).ok().map(str::to_string)
+}
+
+/// Check after a marking write: the file, read back as the interface reads it (read orders included), must show each requested value
+/// (`color_flag` and `pick` as sent by the interface). None if everything matches, otherwise the difference.
+pub fn marking_mismatch(meta: &ExifMetadata, rating: Option<i32>, color_flag: Option<&str>, pick: Option<&str>) -> Option<String> {
+    let mut differences = Vec::new();
+    if let Some(rating) = rating {
+        if meta.rating != rating.clamp(0, 5) { differences.push(format!("note {} au lieu de {rating}", meta.rating)); }
+    }
+    if let Some(flag) = color_flag {
+        let expected = normalize_color_flag(flag);
+        if meta.color_flag != expected { differences.push(format!("couleur « {} » au lieu de « {expected} »", meta.color_flag)); }
+    }
+    if let Some(expected) = pick {
+        if meta.pick_flag != expected { differences.push(format!("fanion « {} » au lieu de « {expected} »", meta.pick_flag)); }
+    }
+    (!differences.is_empty()).then(|| format!("Le fichier relu ne contient pas la valeur écrite : {}", differences.join(", ")))
+}
+
 pub fn normalize_pick_flag(flag: &str) -> Result<&'static str, String> {
     match flag.trim().to_ascii_lowercase().as_str() {
         "" | "none" => Ok("none"),
@@ -2233,6 +2292,10 @@ fn write_jpeg_metadata(path: &Path, update: &MetadataUpdate) -> std::io::Result<
     write_file_atomically(path, &output)
 }
 
+pub(crate) fn image_gone(image_path: &Path) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::NotFound, format!("Fichier introuvable (déplacé, renommé ou supprimé ?) : {}", image_path.display()))
+}
+
 /// Sidecar an image's metadata is written to (see `sidecar_target`).
 pub(crate) struct SidecarTarget {
     pub path: std::path::PathBuf,
@@ -2301,6 +2364,8 @@ pub(crate) fn sidecar_candidates(image_path: &Path) -> [std::path::PathBuf; 2] {
 /// XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
 /// `photo.xmp` when the image gets its own sidecar).
 fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Result<()> {
+    // Image moved, renamed or deleted in the meantime: no sidecar is created for a file that is no longer there (it would stay an orphan).
+    if !image_path.is_file() { return Err(image_gone(image_path)); }
     let target = sidecar_target(image_path);
     let sidecar = target.path;
     let xml = match fs::read_to_string(target.seed.as_deref().unwrap_or(&sidecar)) {

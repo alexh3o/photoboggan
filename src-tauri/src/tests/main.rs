@@ -189,3 +189,36 @@ fn move_cost_between_drives() {
         for target in targets { fs::remove_file(target).unwrap(); }
     }
 }
+
+// --- Destination names and sidecars already there (reserve_destination) ---
+
+#[test]
+fn a_moved_or_copied_photo_never_adopts_a_sidecar_already_at_the_destination() {
+    let dir = tempfile::tempdir().unwrap();
+    // Orphan sidecars: left by files deleted or renamed outside the application.
+    put(&dir.path().join("x.cr2.xmp"), b"<other photo>");
+    put(&dir.path().join("y.xmp"), b"<other photo>");
+    let x = reserve_destination(dir.path(), std::ffi::OsStr::new("x.cr2")).unwrap();
+    let y = reserve_destination(dir.path(), std::ffi::OsStr::new("y.cr2")).unwrap();
+    assert_eq!(x.path.file_name().unwrap(), "x (1).cr2");
+    assert_eq!(y.path.file_name().unwrap(), "y (1).cr2");
+    assert_eq!(x.skipped_sidecar.as_deref(), Some(dir.path().join("x.cr2.xmp").as_path()), "the rename is not reported");
+    assert_eq!(y.skipped_sidecar.as_deref(), Some(dir.path().join("y.xmp").as_path()));
+    assert_eq!(fs::read(dir.path().join("x.cr2.xmp")).unwrap(), b"<other photo>");
+
+    // photo.xmp of a RAW already there: the JPEG of the same name joins the pair under its own name, nothing to report.
+    put(&dir.path().join("z.cr2"), b"raw");
+    put(&dir.path().join("z.xmp"), b"<pair>");
+    let z = reserve_destination(dir.path(), std::ffi::OsStr::new("z.jpg")).unwrap();
+    assert_eq!(z.path.file_name().unwrap(), "z.jpg");
+    assert!(z.skipped_sidecar.is_none());
+
+    // One log per operation, listing every rename.
+    let renames: Vec<SidecarRename> = [("D:/src/x.cr2", &x), ("D:/src/y.cr2", &y)].into_iter().filter_map(|(source, reserved)| reserved.sidecar_rename(source)).collect();
+    let storage = tempfile::tempdir().unwrap();
+    let log = log_sidecar_renames(storage.path(), "move", &renames).expect("no log written");
+    let text = fs::read_to_string(&log).unwrap();
+    assert!(Path::new(&log).starts_with(storage.path().join("logs")), "{log}");
+    assert!(text.contains("2 photo(s)") && text.contains("x (1).cr2") && text.contains("y.xmp"), "{text}");
+    assert!(log_sidecar_renames(storage.path(), "move", &[]).is_none(), "a log written for nothing");
+}

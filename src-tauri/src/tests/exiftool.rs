@@ -321,3 +321,33 @@ fn gps_is_erased_from_exif_and_xmp_then_restored() {
     assert_eq!(decoded_pixels(&std::fs::read(&path).unwrap()), decoded_pixels(&original));
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
 }
+
+/// Same as exif::tests::marking_check_cost with the ExifTool writer.
+#[test]
+#[ignore = "benchmark: needs a photo (PHOTOBOGGAN_BENCH_PHOTO) and ExifTool"]
+fn marking_check_cost_with_exiftool() {
+    let Ok(photo) = std::env::var("PHOTOBOGGAN_BENCH_PHOTO") else { return eprintln!("PHOTOBOGGAN_BENCH_PHOTO not set"); };
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let name = Path::new(&photo).file_name().unwrap();
+    let copies: Vec<PathBuf> = (0..40).map(|index| {
+        let path = dir.path().join(format!("{index}_{}", name.to_string_lossy()));
+        std::fs::copy(&photo, &path).unwrap();
+        path
+    }).collect();
+    write_marking(&copies[0], XmpEdit { rating: Some(1), ..Default::default() }).unwrap(); // ExifTool process started outside the timing
+    let started = std::time::Instant::now();
+    for (index, path) in copies.iter().enumerate() {
+        write_marking(path, XmpEdit { rating: Some((index % 5) as i32 + 1), ..Default::default() }).unwrap();
+    }
+    let write = started.elapsed();
+    let started = std::time::Instant::now();
+    for path in &copies { std::hint::black_box(crate::exif::read_marking(path)); }
+    let check = started.elapsed();
+    for path in &copies {
+        let (light, full) = (crate::exif::read_marking(path), read_exif(path));
+        assert_eq!((light.rating, light.color_flag, light.pick_flag), (full.rating, full.color_flag, full.pick_flag), "{}", path.display());
+    }
+    eprintln!("ExifTool write: {:.1} ms/file, check (read_marking): {:.2} ms/file, +{:.1} %",
+        write.as_secs_f64() * 25.0, check.as_secs_f64() * 25.0, check.as_secs_f64() / write.as_secs_f64() * 100.0);
+}

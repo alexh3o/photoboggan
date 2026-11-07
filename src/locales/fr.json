@@ -1415,5 +1415,7 @@
   "… and {count} more file (see the log)|other": "… et {count} autres fichiers (voir le journal)",
   "Details saved in: {path}": "Détails enregistrés dans : {path}",
   "The log file could not be written: {error}": "Le fichier journal n'a pas pu être écrit : {error}",
-  "Show log": "Afficher le journal"
+  "Show log": "Afficher le journal",
+  "{count} renamed: a sidecar was already at the destination": "{count} photo renommée : un sidecar qui ne lui appartient pas était déjà à destination",
+  "{count} renamed: a sidecar was already at the destination|other": "{count} photos renommées : des sidecars qui ne leur appartiennent pas étaient déjà à destination"
 }

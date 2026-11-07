@@ -1124,6 +1124,11 @@ fn write_photo_marking(
 ) -> Result<(), String> {
     if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
     keep_cached_images(dirs, path, || exif::write_xmp_metadata(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string()))?;
+    // The file is read back before the catalog is updated: a write that did not put the value where the interface reads it (ignored field,
+    // read order, sidecar of another file) is a failure, never shown as written. Only the marking is read (exif::read_marking): negligible cost.
+    if let Some(difference) = exif::marking_mismatch(&exif::read_marking(Path::new(path)), rating, color_flag, pick) {
+        return Err(difference);
+    }
     let conn = pool.get().map_err(|error| error.to_string())?;
     // Le fichier vient d'être réécrit par l'application : sa nouvelle taille et sa date sont enregistrées avec les valeurs, dans une même
     // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
@@ -1161,6 +1166,9 @@ struct CopyResult {
     // Fichiers laissés de côté sur choix de l'utilisateur (« Passer » à la question du fichier existant).
     skipped: usize,
     failed: Vec<FileFailure>,
+    /// Photos copied under another name because of a sidecar already there, and the log listing them.
+    renamed_for_sidecar: Vec<SidecarRename>,
+    log_path: Option<String>,
 }
 
 // Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en millisecondes).
@@ -1186,6 +1194,9 @@ struct MoveResult {
     // Photos déjà dans le dossier de destination : ni déplacées, ni en échec.
     skipped: usize,
     failed: Vec<FileFailure>,
+    /// Photos moved under another name because of a sidecar already there, and the log listing them.
+    renamed_for_sidecar: Vec<SidecarRename>,
+    log_path: Option<String>,
 }
 
 // Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
@@ -1240,6 +1251,9 @@ fn rename_photo(state: State<'_, AppState>, path: String, new_name: String) -> R
         .map_err(|error| format!("Catalogue illisible : {error}"))?;
     if !tracked { return Err("Photo absente du catalogue".into()); }
     let source = Path::new(&path);
+    // Same per-file lock as metadata writes: a write in progress ends before the rename, a later one finds the file gone (never a sidecar
+    // recreated under the old name).
+    let _write_guard = exiftool::path_lock(source);
     if !source.is_file() { return Err("Fichier introuvable".into()); }
     let parent = source.parent().ok_or("Dossier introuvable")?;
     let new_file_name = match source.extension() {
@@ -1398,6 +1412,7 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
 
         // Fichier déjà absent (supprimé hors de l'application) : rien à mettre à la corbeille, on retire simplement la photo du catalogue.
         if Path::new(&path).exists() {
+            let _write_guard = exiftool::path_lock(Path::new(&path)); // see rename_photo
             // Sidecar repéré avant la mise à la corbeille : la recherche d'un fichier frère a besoin que l'original soit encore là.
             let sidecar = sidecar_to_trash(Path::new(&path));
             if let Err(error) = trash::delete(&path) {
@@ -1637,15 +1652,49 @@ async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncCh
 // Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fichier vide :
 // la création est atomique (`create_new`), donc deux tâches ou un autre programme n'obtiennent jamais le même nom, et rien n'est jamais écrasé.
 // L'appelant remplace ensuite ce fichier vide (copie, renommage) et le supprime s'il échoue : il lui appartient.
-fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr) -> std::io::Result<PathBuf> {
+/// True if a sidecar would attach to `candidate` (not created yet) although it does not belong to it: `candidate.ext.xmp` (left behind by a
+/// deleted or renamed file), or a `photo.xmp` with no image of the same name next to it. A `photo.xmp` next to `photo.cr2` belongs to that
+/// pair: a JPEG of the same name moved there joins it, as intended.
+/// Returns that sidecar.
+fn sidecar_already_taken(candidate: &Path) -> Option<PathBuf> {
+    let [appended, compatible] = exif::sidecar_candidates(candidate);
+    if appended.exists() { return Some(appended); }
+    (compatible.exists() && !has_same_stem_sibling(candidate).unwrap_or(false)).then_some(compatible)
+}
+
+/// Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
+struct Reserved {
+    path: PathBuf,
+    skipped_sidecar: Option<PathBuf>,
+}
+
+impl Reserved {
+    fn sidecar_rename(&self, source: &str) -> Option<SidecarRename> {
+        self.skipped_sidecar.as_ref().map(|sidecar| SidecarRename {
+            path: source.to_string(),
+            to: self.path.to_string_lossy().into_owned(),
+            sidecar: sidecar.to_string_lossy().into_owned(),
+        })
+    }
+}
+
+fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr) -> std::io::Result<Reserved> {
     let name = Path::new(file_name);
     let stem = name.file_stem().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
     let extension = name.extension().map(|value| format!(".{}", value.to_string_lossy())).unwrap_or_default();
     let mut index = 0u32;
+    let mut skipped_sidecar = None;
     loop {
         let candidate = if index == 0 { directory.join(file_name) } else { directory.join(format!("{stem} ({index}){extension}")) };
+        // A name whose sidecar is already there is skipped too: the moved or copied photo would read that file's metadata as its own,
+        // and its own sidecar would not be carried (never overwritten).
+        if let Some(sidecar) = sidecar_already_taken(&candidate) {
+            skipped_sidecar.get_or_insert(sidecar);
+            index += 1;
+            continue;
+        }
         match fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
-            Ok(_) => return Ok(candidate),
+            Ok(_) => return Ok(Reserved { path: candidate, skipped_sidecar }),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => index += 1,
             Err(error) => return Err(error),
         }
@@ -1858,6 +1907,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
     let mut moved = Vec::new();
     let mut skipped = 0;
     let mut failed = Vec::new();
+    let mut renamed_for_sidecar = Vec::new();
     let thumbnails_dir = state.thumbnails_dir();
     let raw_previews_dir = state.raw_previews_dir();
 
@@ -1881,13 +1931,14 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 skipped += 1;
                 break 'file;
             }
+            let _write_guard = exiftool::path_lock(source); // see rename_photo
             if !source.is_file() {
                 failed.push(FileFailure { path: path.clone(), error: "Fichier introuvable".into() });
                 break 'file;
             }
             // Destination réservée (fichier vide, voir reserve_destination) : move_file la remplace, ou la supprime s'il échoue.
-            let target = match reserve_destination(&destination_dir, file_name) {
-                Ok(target) => target,
+            let (target, sidecar_rename) = match reserve_destination(&destination_dir, file_name) {
+                Ok(reserved) => (reserved.path.clone(), reserved.sidecar_rename(&path)),
                 Err(error) => {
                     failed.push(FileFailure { path: path.clone(), error: format!("Destination impossible à créer : {error}") });
                     break 'file;
@@ -1901,6 +1952,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 failed.push(FileFailure { path: path.clone(), error: error.to_string() });
                 break 'file;
             }
+            renamed_for_sidecar.extend(sidecar_rename);
             if let Err(error) = move_sidecar(source, &target) {
                 // La photo est déplacée mais pas son sidecar XMP : ses métadonnées sont restées à l'ancien emplacement, l'échec est signalé.
                 failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non déplacé : {error}") });
@@ -1931,7 +1983,8 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
         }
         progress.advance(file_size);
     }
-    Ok(MoveResult { moved, skipped, failed })
+    let log_path = log_sidecar_renames(&state.base_dir(), "move", &renamed_for_sidecar);
+    Ok(MoveResult { moved, skipped, failed, renamed_for_sidecar, log_path })
 }
 
 // Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question posée à
@@ -1979,6 +2032,7 @@ fn copy_photos_with_progress(
     let mut copied = 0;
     let mut skipped = 0;
     let mut failed = Vec::new();
+    let mut renamed_for_sidecar = Vec::new();
     for path in paths {
         if progress.cancelled() { break; }
         let source = Path::new(&path);
@@ -2005,15 +2059,16 @@ fn copy_photos_with_progress(
                     // Destination réservée atomiquement : la copie ne peut écraser que ce fichier vide, créé par nous (supprimé si la copie échoue).
                     match reserve_destination(destination, file_name) {
                         Err(error) => failed.push(FileFailure { path: path.clone(), error: format!("Destination impossible à créer : {error}") }),
-                        Ok(target) => match fs::copy(source, &target) {
+                        Ok(reserved) => match fs::copy(source, &reserved.path) {
                             Ok(_) => {
-                                if let Err(error) = copy_sidecar(source, &target, false) {
+                                if let Err(error) = copy_sidecar(source, &reserved.path, false) {
                                     failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
                                 }
+                                renamed_for_sidecar.extend(reserved.sidecar_rename(&path));
                                 copied += 1;
                             }
                             Err(error) => {
-                                let _ = fs::remove_file(&target);
+                                let _ = fs::remove_file(&reserved.path);
                                 failed.push(FileFailure { path: path.clone(), error: error.to_string() });
                             }
                         },
@@ -2023,7 +2078,7 @@ fn copy_photos_with_progress(
         }
         progress.advance(file_size);
     }
-    Ok(CopyResult { copied, skipped, failed })
+    Ok(CopyResult { copied, skipped, failed, renamed_for_sidecar, log_path: None })
 }
 
 // Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en conflit.
@@ -2033,9 +2088,11 @@ fn copy_conflicts(paths: Vec<String>, destination: String) -> Vec<CopyConflict> 
 }
 
 #[tauri::command(async)]
-fn copy_photos(app: tauri::AppHandle, paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>) -> Result<CopyResult, String> {
+fn copy_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>) -> Result<CopyResult, String> {
     let progress = FileTaskProgress::new(app, task_id, &paths);
-    copy_photos_with_progress(paths, Path::new(&destination), &resolutions.unwrap_or_default(), progress)
+    let mut result = copy_photos_with_progress(paths, Path::new(&destination), &resolutions.unwrap_or_default(), progress)?;
+    result.log_path = log_sidecar_renames(&state.base_dir(), "copy", &result.renamed_for_sidecar);
+    Ok(result)
 }
 
 // Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
@@ -2054,7 +2111,9 @@ fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppStat
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
     let progress = FileTaskProgress::new(app, task_id, &paths);
-    copy_photos_with_progress(paths, &folder, &resolutions.unwrap_or_default(), progress)
+    let mut result = copy_photos_with_progress(paths, &folder, &resolutions.unwrap_or_default(), progress)?;
+    result.log_path = log_sidecar_renames(&state.base_dir(), "copy", &result.renamed_for_sidecar);
+    Ok(result)
 }
 
 // Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
@@ -2083,6 +2142,56 @@ fn open_with(program: String, paths: Vec<String>) -> Result<(), String> {
 fn reveal_in_file_manager(path: String) -> Result<(), String> {
     if !Path::new(&path).is_file() { return Err(format!("Fichier introuvable : {path}")); }
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|error| format!("Impossible d'afficher {path} : {error}"))
+}
+
+/// Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
+/// name is taken: an existing log is never overwritten. Returns its path.
+pub(crate) fn write_timestamped_log(logs_dir: &Path, prefix: &str, text: &str, now: chrono::DateTime<chrono::Local>) -> std::io::Result<PathBuf> {
+    use std::io::Write;
+    fs::create_dir_all(logs_dir)?;
+    let stem = format!("{prefix}_{}", now.format("%Y-%m-%d_%H-%M-%S"));
+    for attempt in 1..1000 {
+        let name = if attempt == 1 { format!("{stem}.log") } else { format!("{stem}-{attempt}.log") };
+        let path = logs_dir.join(name);
+        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut log) => {
+                log.write_all(text.as_bytes())?;
+                log.sync_all()?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "too many logs with the same name"))
+}
+
+/// Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
+#[derive(serde::Serialize)]
+struct SidecarRename {
+    path: String,
+    to: String,
+    sidecar: String,
+}
+
+/// Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
+fn log_sidecar_renames(base_dir: &Path, operation: &str, renames: &[SidecarRename]) -> Option<String> {
+    if renames.is_empty() { return None; }
+    let now = chrono::Local::now();
+    let mut text = format!(
+        "photoboggan {} - {operation} - {}\n{} photo(s) got another name: a sidecar that does not belong to them was already at the destination.\nThe sidecars below were left untouched; delete or rename them by hand if they are leftovers.\n",
+        env!("CARGO_PKG_VERSION"), now.format("%Y-%m-%d %H:%M:%S %:z"), renames.len()
+    );
+    for rename in renames {
+        text.push_str(&format!("\n{}\n  New name: {}\n  Sidecar already there: {}\n", rename.path, rename.to, rename.sidecar));
+    }
+    match write_timestamped_log(&base_dir.join("logs"), "sidecar-conflicts", &text, now) {
+        Ok(path) => Some(path.to_string_lossy().into_owned()),
+        Err(error) => {
+            eprintln!("Sidecar conflict log not written: {error}");
+            None
+        }
+    }
 }
 
 /// Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.

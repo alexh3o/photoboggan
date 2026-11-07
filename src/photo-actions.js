@@ -674,11 +674,26 @@ export async function copyPhotosTo(targets) {
       const failures = result.failed.length;
       if (failures) console.error('Copy failures', result.failed);
       if (stopped) return;
+      const renamed = sidecarRenameNotice(result);
       api.showToast(failures && !result.copied
         ? t('Copy failed: {error}', { error: result.failed[0].error })
-        : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', failures ? tp('{count} failure', failures) : ''].filter(Boolean).join(' · '));
+        : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', failures ? tp('{count} failure', failures) : '', renamed.text].filter(Boolean).join(' · '),
+      false, renamed.action, renamed.action ? 12000 : null);
     },
   });
+}
+
+// Move or copy result: photos given another name because a sidecar that is not theirs was already at the destination (left untouched,
+// listed in a log of the storage folder). Returns the text to add to the end-of-task toast and its "Show log" button, or nulls.
+export function sidecarRenameNotice(result) {
+  const count = result?.renamed_for_sidecar?.length ?? 0;
+  if (!count) return { text: null, action: null };
+  const text = tp('{count} renamed: a sidecar was already at the destination', count);
+  const logPath = result.log_path;
+  const action = logPath
+    ? { label: t('Show log'), onClick: () => invoke('reveal_in_file_manager', { path: logPath }).catch(error => api.showToast(String(error))) }
+    : null;
+  return { text, action };
 }
 
 // Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite

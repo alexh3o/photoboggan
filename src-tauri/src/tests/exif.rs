@@ -708,3 +708,77 @@ fn skipped_exif_metadata_is_not_read_with_the_internal_writer() {
     crate::exiftool::set_metadata_writer("exiftool".into(), None, true).unwrap();
     assert_eq!(read_exif(&path).caption, "Hey", "ExifTool active: the option has no effect");
 }
+
+// --- Marking check and files that disappeared ---
+
+#[test]
+fn no_sidecar_is_created_for_an_image_that_is_gone() {
+    // Image moved, renamed or deleted while a write was waiting: the write fails, no orphan sidecar is left at the old place.
+    let dir = tempfile::tempdir().unwrap();
+    let gone = dir.path().join("moved.cr2");
+    let result = write_xmp_sidecar_with(&gone, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(4), ..Default::default() }));
+    assert!(result.is_err(), "a write on a missing image must fail");
+    assert!(fs::read_dir(dir.path()).unwrap().next().is_none(), "something was created");
+}
+
+#[test]
+fn marking_check_reports_each_value_the_file_does_not_show() {
+    let mut meta = ExifMetadata::default();
+    meta.rating = 4;
+    meta.color_flag = "red".into();
+    meta.pick_flag = "picked".into();
+    assert_eq!(marking_mismatch(&meta, Some(4), Some("Red"), Some("picked")), None);
+    assert_eq!(marking_mismatch(&meta, None, None, None), None);
+    let difference = marking_mismatch(&meta, Some(5), Some("none"), Some("rejected")).expect("differences not reported");
+    assert!(difference.contains("note 4") && difference.contains("couleur") && difference.contains("fanion"), "{difference}");
+}
+
+/// Cost of the check after a marking write (lot 4, M1): internal write against the read_exif that follows, on copies of a real photo.
+/// `PHOTOBOGGAN_BENCH_PHOTO=C:\copies\a.jpg cargo test --release marking_check_cost -- --ignored --nocapture` (the photo is only copied).
+#[test]
+#[ignore = "benchmark: needs a photo (PHOTOBOGGAN_BENCH_PHOTO)"]
+fn marking_check_cost() {
+    let Ok(photo) = std::env::var("PHOTOBOGGAN_BENCH_PHOTO") else { return eprintln!("PHOTOBOGGAN_BENCH_PHOTO not set"); };
+    let dir = tempfile::tempdir().unwrap();
+    let name = Path::new(&photo).file_name().unwrap();
+    let copies: Vec<PathBuf> = (0..40).map(|index| {
+        let path = dir.path().join(format!("{index}_{}", name.to_string_lossy()));
+        fs::copy(&photo, &path).unwrap();
+        path
+    }).collect();
+    let jpeg = matches!(Path::new(&photo).extension().and_then(|value| value.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("jpg" | "jpeg"));
+    let started = std::time::Instant::now();
+    for (index, path) in copies.iter().enumerate() {
+        let edit = XmpEdit { rating: Some((index % 5) as i32 + 1), ..Default::default() };
+        if jpeg { mark_jpeg(path, edit) } else { write_xmp_sidecar_with(path, &|xml| update_xmp_metadata(xml, edit)).unwrap() }
+    }
+    let write = started.elapsed();
+    let started = std::time::Instant::now();
+    for path in &copies { std::hint::black_box(read_marking(path)); }
+    let check = started.elapsed();
+    for path in &copies {
+        let (light, full) = (read_marking(path), read_exif(path));
+        assert_eq!((light.rating, light.color_flag, light.pick_flag), (full.rating, full.color_flag, full.pick_flag), "{}", path.display());
+    }
+    eprintln!("internal write: {:.1} ms/file, check (read_marking): {:.2} ms/file, +{:.1} %",
+        write.as_secs_f64() * 25.0, check.as_secs_f64() * 25.0, check.as_secs_f64() / write.as_secs_f64() * 100.0);
+}
+
+#[test]
+fn light_marking_read_matches_the_full_read() {
+    // read_marking must give exactly what read_exif shows: JPEG packet, RAW sidecar, JPEG with a sidecar for the missing sources.
+    let dir = tempfile::tempdir().unwrap();
+    let jpeg = write_sample(dir.path(), "a.jpg", &jpeg_bytes(16, 16));
+    mark_jpeg(&jpeg, XmpEdit { rating: Some(4), label: Some(Some("Blue")), pick: Some("picked") });
+    let raw = write_sample(dir.path(), "b.cr2", b"raw");
+    write_xmp_sidecar_with(&raw, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(2), label: Some(Some("Red")), pick: Some("rejected") })).unwrap();
+    let mixed = write_sample(dir.path(), "c.jpg", &jpeg_bytes(16, 16));
+    mark_jpeg(&mixed, XmpEdit { rating: Some(5), ..Default::default() });
+    fs::copy(dir.path().join("b.cr2.xmp"), dir.path().join("c.jpg.xmp")).unwrap();
+    let bare = write_sample(dir.path(), "d.png", &png_bytes(8, 8));
+    for path in [&jpeg, &raw, &mixed, &bare] {
+        let (light, full) = (read_marking(path), read_exif(path));
+        assert_eq!((light.rating, &light.color_flag, &light.pick_flag), (full.rating, &full.color_flag, &full.pick_flag), "{}", path.display());
+    }
+    assert_eq!((read_marking(&mixed).rating, read_marking(&mixed).color_flag.as_str()), (5, "red"));
+}

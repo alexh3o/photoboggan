@@ -1415,5 +1415,7 @@
   "… and {count} more file (see the log)|other": "… and {count} more files (see the log)",
   "Details saved in: {path}": "Details saved in: {path}",
   "The log file could not be written: {error}": "The log file could not be written: {error}",
-  "Show log": "Show log"
+  "Show log": "Show log",
+  "{count} renamed: a sidecar was already at the destination": "{count} photo renamed: a sidecar not its own was already at the destination",
+  "{count} renamed: a sidecar was already at the destination|other": "{count} photos renamed: a sidecar not their own was already at the destination"
 }

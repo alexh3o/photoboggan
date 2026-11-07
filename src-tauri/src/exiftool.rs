@@ -607,7 +607,6 @@ pub fn take_recoveries() -> Vec<Recovery> {
 /// Writes one log file for `recoveries` in `logs_dir` (created if needed), named after `now`: `write-recovery_<date>_<time>.log`
 /// (`-2`, `-3`… added if the name is taken, an existing log is never overwritten). Returns its path.
 pub fn write_recovery_log(logs_dir: &Path, recoveries: &[Recovery], now: chrono::DateTime<chrono::Local>) -> std::io::Result<PathBuf> {
-    std::fs::create_dir_all(logs_dir)?;
     let mut text = format!(
         "photoboggan {} - metadata write recovery - {}\n{} file(s) needed attention after a failed ExifTool write.\n",
         env!("CARGO_PKG_VERSION"), now.format("%Y-%m-%d %H:%M:%S %:z"), recoveries.len()
@@ -623,21 +622,7 @@ pub fn write_recovery_log(logs_dir: &Path, recoveries: &[Recovery], now: chrono:
         if !recovery.detail.is_empty() { text.push_str(&format!("  Reason: {}\n", recovery.detail)); }
         if !recovery.error.is_empty() { text.push_str(&format!("  ExifTool error: {}\n", recovery.error)); }
     }
-    let stem = format!("write-recovery_{}", now.format("%Y-%m-%d_%H-%M-%S"));
-    for attempt in 1.. {
-        let name = if attempt == 1 { format!("{stem}.log") } else { format!("{stem}-{attempt}.log") };
-        let path = logs_dir.join(name);
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(mut log) => {
-                log.write_all(text.as_bytes())?;
-                log.sync_all()?;
-                return Ok(path);
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && attempt < 1000 => continue,
-            Err(error) => return Err(error),
-        }
-    }
-    unreachable!()
+    crate::write_timestamped_log(logs_dir, "write-recovery", &text, now)
 }
 
 /// Temporary file ExifTool writes next to `file` with `-overwrite_original`.
@@ -704,6 +689,8 @@ pub(crate) fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
 fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
     let _guard = path_lock(image_path);
     if !matches!(target_of(image_path), Target::Sidecar) { return overwrite(image_path, tag_args); }
+    // See exif::write_xmp_sidecar_with: never a sidecar for an image that is no longer there.
+    if !image_path.is_file() { return Err(crate::exif::image_gone(image_path)); }
     let crate::exif::SidecarTarget { path: sidecar, exists, seed } = crate::exif::sidecar_target(image_path);
     if exists { return overwrite(&sidecar, tag_args); }
     let temp = PathBuf::from(format!("{}.photoboggan-tmp.xmp", image_path.display()));
