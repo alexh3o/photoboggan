@@ -660,7 +660,7 @@ body:has(.histogram-widget.in-fullscreen:not(.hidden)) .fullscreen-marking { bot
 .titlebar-drag-region > * { pointer-events: none; }
 .titlebar-controls { display: flex; height: 100%; -webkit-app-region: no-drag; }
 .titlebar-btn { background: transparent; border: none; color: inherit; width: 2.5rem; height: 100%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: background-color 0.15s; -webkit-app-region: no-drag; pointer-events: auto; }
-.titlebar-btn:hover { background-color: rgba(255, 255, 255, 0.1); }
+.titlebar-btn:hover { background-color: rgba(128, 128, 128, 0.3); }
 .titlebar-btn.close-btn:hover { background-color: #e81123; color: white; }
 .titlebar-btn svg { display: block; pointer-events: none; }
 /* Mode immersif (F11) : la fenêtre est en plein écran, la barre de titre personnalisée est masquée. */

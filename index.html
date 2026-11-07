@@ -339,6 +339,10 @@
         <div class="faces-toolbar">
           <span id="persons-count" class="faces-count"></span>
           <div class="faces-actions">
+            <label class="persons-search-box" title="Filtrer les personnes par nom ou alias (Ctrl+F)" data-i18n-title="Filter people by name or alias (Ctrl+F)">
+              <svg class="persons-search-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4.5 4.5"/></svg>
+              <input id="persons-search" class="persons-search" type="search" placeholder="Filtrer… (Ctrl+F)" data-i18n-placeholder="Filter people... (Ctrl+F)" aria-label="Filtrer les personnes par nom ou alias" data-i18n-aria-label="Filter people by name or alias" autocomplete="off" spellcheck="false" />
+            </label>
             <label class="persons-size" title="Taille des vignettes" data-i18n-title="Thumbnail size"><input id="persons-size" type="range" min="96" max="512" step="8" /></label>
             <label class="settings-check persons-show-hidden"><input id="persons-show-hidden" type="checkbox" /><span data-i18n="Show hidden people">Afficher les personnes masquées</span></label>
             <button id="btn-persons-manage" type="button" class="btn-primary" data-i18n="Review faces" data-i18n-title="Review and name the faces of the displayed photos" title="Réviser et nommer les visages des photos affichées">Réviser les visages</button>

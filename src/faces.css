@@ -179,6 +179,9 @@ body.face-drawing #fullscreen-view, body.face-drawing #fullscreen-view *, body.f
 /* VUE PERSONNES (persons-view.js) : grosses vignettes, une par personne (taille réglable), nom et nombre de photos dessous */
 .faces-back { margin-right: 0.25rem; }
 .persons-size input { width: 8rem; vertical-align: middle; }
+.persons-search-box { position: relative; display: inline-flex; align-items: center; }
+.persons-search-icon { position: absolute; left: 0.5rem; color: var(--text-dim); pointer-events: none; }
+.persons-search { width: 12rem; min-height: var(--face-button-height, 1.75rem); padding: 0.25rem 0.5rem 0.25rem 1.7rem; font-size: 0.8rem; }
 .persons-show-hidden { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-muted); }
 .persons-empty-view[hidden] { display: none; }
 .persons-empty-view { padding: 1rem; color: var(--text-dim); font-size: 0.85rem; }

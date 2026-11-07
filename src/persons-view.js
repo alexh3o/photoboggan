@@ -16,6 +16,7 @@ const LABEL_HEIGHT = 40; // nom et nombre de photos sous la vignette
 let host = null; // fonctions fournies par main.js (voir initPersonsView)
 let open = false;
 let tileSize = readSize();
+let searchText = ''; // text typed in the toolbar filter (not persisted: the view always opens unfiltered)
 let shown = []; // personnes affichées, triées par nombre de photos
 let layout = []; // { x, y, index }
 const renderedNodes = new Map(); // identifiant de personne -> nœud
@@ -57,11 +58,22 @@ export function closePersonsView() {
 // Personnes rechargées (après un scan, une révision, une suppression…) : la grille est reconstruite, défilement conservé.
 export function reloadPersonsView() {
   if (!open) return;
-  shown = listedPersons().sort((a, b) => b.photo_count - a.photo_count || personLabel(a).localeCompare(personLabel(b)));
+  const all = listedPersons().sort((a, b) => b.photo_count - a.photo_count || personLabel(a).localeCompare(personLabel(b)));
+  const needle = normalizeSearch(searchText);
+  // Dynamic filter: a person matches when the typed text is part of their alias or of their name (keyword tag).
+  shown = needle ? all.filter(person => normalizeSearch(`${person.alias ?? ''}\n${person.name ?? ''}`).includes(needle)) : all;
   document.getElementById('persons-count').textContent = tp('{count} person', shown.length);
   document.getElementById('persons-show-hidden').checked = getShowHiddenPersons();
-  document.getElementById('persons-empty-view').hidden = shown.length > 0;
+  const emptyMessage = document.getElementById('persons-empty-view');
+  emptyMessage.hidden = shown.length > 0;
+  // No person at all vs. nobody matching the typed text: two different messages.
+  emptyMessage.textContent = all.length > 0 ? t('No person matches this filter.') : t('No people yet: name faces in the face management view.');
   rebuild();
+}
+
+// Case- and accent-insensitive form used to compare the typed text with names and aliases.
+function normalizeSearch(text) {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
 function rebuild() {
@@ -171,6 +183,25 @@ export function initPersonsView(hostApi) {
     tileSize = Number(slider.value);
     try { localStorage.setItem(SIZE_STORAGE_KEY, String(tileSize)); } catch { /* stockage indisponible */ }
     rebuild();
+  });
+  const search = document.getElementById('persons-search');
+  search.addEventListener('input', () => {
+    searchText = search.value;
+    scroller().scrollTop = 0;
+    reloadPersonsView();
+  });
+  // Ctrl+F focuses the filter while the view is open. Capture phase + stopPropagation: main.js maps any "f" key press to full screen.
+  document.addEventListener('keydown', event => {
+    if (!open || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'f') return;
+    if (document.querySelector('.modal:not(.hidden)')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    search.focus();
+    search.select();
+  }, true);
+  // Escape clears the filter first (the native clear button of type=search does the same on click).
+  search.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && search.value) { event.stopPropagation(); search.value = ''; search.dispatchEvent(new Event('input')); }
   });
   document.getElementById('persons-show-hidden').addEventListener('change', event => setShowHiddenPersons(event.target.checked));
   // Bouton de la barre d'outils : vue de gestion sur tous les visages des photos affichées (aucune personne choisie).
