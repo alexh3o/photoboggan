@@ -424,7 +424,7 @@ async function loadAvatar(element, cover) {
     applyAvatarStyle(element, cached);
     return;
   }
-  const url = await host.getThumbnailUrl(cover.path);
+  const url = await host.getThumbnailUrl(cover.path, () => element.isConnected);
   if (!url || !element.isConnected) return;
   const image = new Image();
   image.onload = () => {

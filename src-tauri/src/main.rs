@@ -419,16 +419,29 @@ struct GeneratedThumbnail {
 // Génère la miniature (JPEG, RAW via son aperçu intégré, HEIC / HEIF, et image fixe d'une vidéo) directement dans le cache, hors du webview : décodage réduit,
 // orientation EXIF appliquée, taille réelle renvoyée (ratio exact pour la disposition justifiée).
 // Une erreur (PNG, JPEG CMYK, fichier illisible…) indique à l'interface d'utiliser sa génération de repli.
-#[tauri::command(async)]
-fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max_side: Option<u32>) -> Result<GeneratedThumbnail, String> {
+// Generations running at once: same as the interface's own limit (MAX_THUMBNAIL_GENERATIONS, 6 at most), so this is only a safety net against a
+// flood of requests, not a throttle on normal use. Each one reads and decodes a whole file. The waiting happens
+// on the async side (semaphore), and the work itself on the blocking pool: a backlog of requests must never occupy the runtime threads that
+// serve the other commands (folder change, albums…), otherwise the whole interface freezes until the backlog is done.
+const MAX_CONCURRENT_THUMBNAIL_GENERATIONS: usize = 6;
+static THUMBNAIL_GENERATION_GATE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(MAX_CONCURRENT_THUMBNAIL_GENERATIONS);
+
+#[tauri::command]
+async fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max_side: Option<u32>) -> Result<GeneratedThumbnail, String> {
     let max_side = max_side.map(|s| s as usize).unwrap_or_else(|| state.thumbnail_cache_size());
-    let destination = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
-    let size = if destination.is_file() {
-        thumbnails::jpeg_size(&destination)?
-    } else {
-        thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination, max_side)?
-    };
-    Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
+    let thumbnails_dir = state.thumbnails_dir();
+    let _permit = THUMBNAIL_GENERATION_GATE.acquire().await.map_err(|error| error.to_string())?;
+    tokio::task::spawn_blocking(move || {
+        let destination = thumbnail_cache_file(&thumbnails_dir, &source_path)?;
+        let size = if destination.is_file() {
+            thumbnails::jpeg_size(&destination)?
+        } else {
+            thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination, max_side)?
+        };
+        Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 // Les aperçus (RAW, HEIC, vidéo) ont le même nom de cache que les miniatures (chemin, taille, date du fichier), dans leur propre dossier.

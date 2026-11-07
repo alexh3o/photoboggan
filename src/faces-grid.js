@@ -543,7 +543,9 @@ function createTile(face) {
 function loadCrop(element, face) {
   let info = thumbnailInfo.get(face.path);
   if (!info) {
-    info = host.getThumbnailUrl(face.path).then(url => new Promise(resolve => {
+    // Dropped when the tile has left the screen before its turn; the entry is then forgotten so that a later tile asks again.
+    info = host.getThumbnailUrl(face.path, () => element.isConnected).then(url => new Promise(resolve => {
+      if (!url && !element.isConnected) thumbnailInfo.delete(face.path);
       if (!url) { resolve(null); return; }
       const probe = new Image();
       probe.onload = () => resolve({ url, width: probe.naturalWidth, height: probe.naturalHeight });

@@ -519,14 +519,28 @@ let thumbnailGenerationQueue = [];
 let activeThumbnailGenerations = 0;
 let thumbnailPumpScheduled = false;
 
+let thumbnailJobSequence = 0;
+
 function takeNextThumbnailGeneration() {
-  thumbnailGenerationQueue = thumbnailGenerationQueue.filter(job => job.image.isConnected && job.image.dataset.sourcePath === job.sourcePath);
+  // Jobs nobody waits for any more are dropped (their owner is told, so it can stop waiting).
+  const kept = [];
+  for (const job of thumbnailGenerationQueue) {
+    if (job.isWanted()) kept.push(job); else job.onDrop?.();
+  }
+  thumbnailGenerationQueue = kept;
   const viewTop = gridContainer.scrollTop;
   const viewBottom = viewTop + gridContainer.clientHeight;
   let best = -1;
   let bestDistance = Infinity;
   let bestTop = Infinity;
   thumbnailGenerationQueue.forEach((job, position) => {
+    // Requests from the Faces / People views (no grid image): what the user is looking at, newest first.
+    if (!job.image) {
+      if (bestDistance > -1 || -job.sequence < bestTop) { best = position; bestDistance = -1; bestTop = -job.sequence; }
+      return;
+    }
+    // Grid hidden (People / Faces view): its jobs wait, they are neither dropped nor run.
+    if (gridContainer.hidden) return;
     const node = job.image.closest('.thumbnail');
     const top = node?._y ?? 0;
     const bottom = top + (node?._height ?? 0);
@@ -553,13 +567,24 @@ function pumpThumbnailGenerationQueue() {
   }
 }
 
-function enqueueThumbnailGeneration(image, sourcePath, run) {
-  thumbnailGenerationQueue.push({ image, sourcePath, run });
+function schedulePump() {
   // Le démarrage est différé d'un tour de boucle pour choisir parmi toutes les demandes d'un même rendu.
   if (!thumbnailPumpScheduled) {
     thumbnailPumpScheduled = true;
     setTimeout(pumpThumbnailGenerationQueue, 0);
   }
+}
+
+function enqueueThumbnailGeneration(image, sourcePath, run) {
+  thumbnailGenerationQueue.push({ image, sourcePath, run, sequence: ++thumbnailJobSequence, isWanted: () => image.isConnected && image.dataset.sourcePath === sourcePath });
+  schedulePump();
+}
+
+// Generation requested outside the grid (face crops, people avatars): same queue and same concurrency limit, so that a view showing thousands
+// of faces cannot flood the backend. `isWanted` tells when nobody waits for the result any more; `onDrop` is then called instead of `run`.
+function enqueueStandaloneThumbnailGeneration(isWanted, run, onDrop) {
+  thumbnailGenerationQueue.push({ image: null, run, isWanted, onDrop, sequence: ++thumbnailJobSequence });
+  schedulePump();
 }
 
 // Apprend le ratio réel de la miniature (dimensions EXIF absentes ou fausses en base) et relance la disposition justifiée.
@@ -7005,21 +7030,27 @@ initHistogram({
 // Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
 function setPhotoGridVisible(visible) {
   gridContainer.hidden = !visible;
-  if (visible) requestAnimationFrame(updateVirtualScroller);
+  if (visible) {
+    requestAnimationFrame(updateVirtualScroller);
+    schedulePump(); // grid jobs that waited while the grid was hidden
+  }
 }
 
 // URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
 // chaîne vide si le format n'est pas géré par le backend (pas de vignette).
-async function thumbnailUrlFor(sourcePath) {
+async function thumbnailUrlFor(sourcePath, isWanted = () => true) {
   let cachedPath = await lookupCachedThumbnail(sourcePath);
   if (!cachedPath) {
-    try {
-      cachedPath = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
-    } catch (error) {
-      console.debug('Thumbnail generation failed', sourcePath, error);
-      cachedPath = null;
-    }
-    if (cachedPath) thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
+    cachedPath = await new Promise(resolve => enqueueStandaloneThumbnailGeneration(isWanted, async () => {
+      let generated = null;
+      try {
+        generated = (await invoke('generate_thumbnail', { sourcePath, maxSide: thumbnailCacheSize }))?.path ?? null;
+      } catch (error) {
+        console.debug('Thumbnail generation failed', sourcePath, error);
+      }
+      if (generated) thumbnailCacheLookups.set(sourcePath, Promise.resolve(generated));
+      resolve(generated);
+    }, () => resolve(null)));
   }
   return cachedPath ? convertFileSrc(cachedPath) : '';
 }

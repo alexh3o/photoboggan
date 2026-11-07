@@ -4,12 +4,8 @@
 
 - [ ] *docs*: `dev` technical documentation
 - [ ] *docs*: `installation` mention to grab exiftool
-- [x] *fix*: `grid` 50k displayed photos stay the same when sorting in the opposite order
-- [x] *fix*: `grid` clicking on a face from people can give empty results, probably due to 50k limit
 - [ ] *feat*: `scan` allow pausing
-- [x] *fix*: `UI` window title bar's minimize and maximize buttons don't highlight when hovering
-- [x] *fix*: `tree` folders use empty folder logo while having files and showing count
-- [x] *feat*: `people` text filter in people view
+- [ ] *fix*: `faces` faces don't obey to sorting options
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -50,5 +46,4 @@
 
 - [ ] `linux` Test Linux Release
 - [ ] `backup` restoring data from data folder
-- [x] `thumbnails` Check effect of 50 000 max photos in the grid: is it and actual issue in usage ?
 - [ ] `thumbnails` Some thumbnails don't load, but passing mouse over them instantly displays them: dev only ?
