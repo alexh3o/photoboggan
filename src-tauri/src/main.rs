@@ -111,6 +111,9 @@ struct AppConfig {
     custom_data_dir: Option<String>,
     thumbnail_cache_size: Option<u32>,
     window_state: Option<WindowStateConfig>, // persistance dans config.json
+    /// Programs "Open with" may launch (see open_with). None: list not set up yet (first start after the update, see register_existing_programs).
+    #[serde(default)]
+    open_with_programs: Option<Vec<String>>,
 }
 
 fn config_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -2172,11 +2175,63 @@ async fn resize_photo(path: String, options: resize::ResizeOptions) -> Result<re
         .map_err(|error| error.to_string())?
 }
 
+// ---------------------------------------------------------------------------
+// Programs allowed for "Open with"
+// ---------------------------------------------------------------------------
+// open_with only launches a program the user chose in the OS dialog (pick_program, opened by the backend itself), remembered in config.json:
+// a script running in the page could otherwise launch any executable. The list only grows (a program removed from the Settings stays
+// allowed: the user chose it once).
+
+/// Serialises the read-modify-write of config.json done here.
+static PROGRAMS_CONFIG_LOCK: Mutex<()> = Mutex::new(());
+
+fn same_program(first: &str, second: &str) -> bool {
+    if cfg!(windows) { first.eq_ignore_ascii_case(second) } else { first == second }
+}
+
+fn is_allowed_program(app: &tauri::AppHandle, program: &str) -> bool {
+    load_config(app).ok().and_then(|config| config.open_with_programs).is_some_and(|list| list.iter().any(|known| same_program(known, program)))
+}
+
+fn allow_programs(app: &tauri::AppHandle, programs: &[String], only_first_time: bool) -> Result<(), String> {
+    let _guard = PROGRAMS_CONFIG_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut config = load_config(app)?;
+    if only_first_time && config.open_with_programs.is_some() { return Ok(()); }
+    let list = config.open_with_programs.get_or_insert_with(Vec::new);
+    for program in programs {
+        if Path::new(program).is_file() && !list.iter().any(|known| same_program(known, program)) { list.push(program.clone()); }
+    }
+    save_config(app, &config)
+}
+
+/// OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
+#[tauri::command(async)]
+fn pick_program(app: tauri::AppHandle, title: String, filter_name: String) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut dialog = app.dialog().file().set_title(title);
+    // Windows: executables only. Linux / macOS programs have no extension.
+    if cfg!(windows) { dialog = dialog.add_filter(filter_name, &["exe", "bat", "cmd", "com"]); }
+    if let Some(window) = app.get_webview_window("main") { dialog = dialog.set_parent(&window); }
+    let Some(picked) = dialog.blocking_pick_file() else { return Ok(None) };
+    let path = picked.into_path().map_err(|error| error.to_string())?.to_string_lossy().into_owned();
+    allow_programs(&app, std::slice::from_ref(&path), false)?;
+    Ok(Some(path))
+}
+
+/// Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
+#[tauri::command(async)]
+fn register_existing_programs(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
+    allow_programs(&app, &paths, true)
+}
+
 // Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
 #[tauri::command(async)]
-fn open_with(program: String, paths: Vec<String>) -> Result<(), String> {
+fn open_with(app: tauri::AppHandle, program: String, paths: Vec<String>) -> Result<(), String> {
     let program_path = Path::new(&program);
     if !program_path.is_file() { return Err(format!("Programme introuvable : {program}")); }
+    if !is_allowed_program(&app, &program) {
+        return Err(format!("Programme non autorisé : {program} (choisissez-le de nouveau dans Paramètres > Ouvrir avec)"));
+    }
     if let Some(missing) = paths.iter().find(|path| !Path::new(path).is_file()) { return Err(format!("Fichier introuvable : {missing}")); }
     if paths.is_empty() { return Ok(()); }
     std::process::Command::new(program_path).args(&paths).spawn().map(|_| ()).map_err(|error| format!("Impossible de lancer {program} : {error}"))
@@ -2580,6 +2635,8 @@ fn main() {
             face_detect::detect_faces,
             exiftool::set_metadata_writer,
             take_write_recoveries,
+            pick_program,
+            register_existing_programs,
             exiftool::get_exiftool_status,
             exiftool::exiftool_prewarm
         ])

@@ -77,15 +77,11 @@ async function pickDirectory(defaultPath) {
   }
 }
 
-// Boîte de dialogue de l'OS pour choisir un programme ; null si l'utilisateur annule.
+// OS dialog to choose a program; null if the user cancels. Opened by the backend (pick_program), which then allows that program for
+// "Open with": open_with refuses any program that was not chosen this way.
 async function pickProgram() {
   try {
-    const selected = await open({
-      multiple: false,
-      directory: false,
-      title: t('Choose a program'),
-      filters: [{ name: t('Programs'), extensions: ['exe', 'bat', 'cmd', 'com'] }],
-    });
+    const selected = await invoke('pick_program', { title: t('Choose a program'), filterName: t('Programs') });
     return typeof selected === 'string' && selected ? selected : null;
   } catch (error) {
     console.error('Program selection failed', error);
@@ -2048,6 +2044,9 @@ function onContextMenu(event) {
 // syncLibrary() (relecture des dossiers suivis après la création de fichiers), deleteFolder(path, { permanent }) (suppression d'un dossier de l'arborescence).
 export function initPhotoActions(options) {
   api = options;
+  // Programs already listed before open_with checked them: allowed once by the backend (ignored once its list exists).
+  const listed = [...new Set(Object.values(loadAllPrograms()).flat().map(program => program.path))];
+  invoke('register_existing_programs', { paths: listed }).catch(error => console.error('Programs not registered', error));
   document.addEventListener('contextmenu', onContextMenu);
   document.getElementById('btn-add-program')?.addEventListener('click', addProgramFromDialog);
   const sectionSelect = document.getElementById('open-with-section');

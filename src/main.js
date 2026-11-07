@@ -3251,11 +3251,15 @@ function renderSettingsFolderList() {
   for (let f of folders) {
     const li = document.createElement('li');
     li.className = 'settings-folder-item';
-    li.innerHTML = `
-      <span title="${f.path}">${f.path}</span>
-      <button class="btn-remove-folder">${t('Remove')}</button>
-    `;
-    li.querySelector('.btn-remove-folder').addEventListener('click', async () => {
+    // Built as elements: a folder path is text, never markup (a folder may be named "<img …>").
+    const label = document.createElement('span');
+    label.title = f.path;
+    label.textContent = f.path;
+    const remove = document.createElement('button');
+    remove.className = 'btn-remove-folder';
+    remove.textContent = t('Remove');
+    li.append(label, remove);
+    remove.addEventListener('click', async () => {
       dropScanTasksForFolder(f.path); // un dossier retiré ne doit plus être scanné
       folders = await invoke('remove_folder', { id: f.id, path: f.path });
       if (currentFolderFilter === f.path) { currentFolderFilter = null; rememberCurrentFolder(); }
