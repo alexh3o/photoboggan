@@ -15,7 +15,7 @@ import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './fi
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
-import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
+import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { reloadAllMaps } from './map-view.js';
@@ -1590,6 +1590,19 @@ document.addEventListener('pointerdown', event => {
   if (target instanceof Element && (target.closest('.photo-filters') || target.closest('.date-picker') || target.closest('.context-menu'))) return;
   setExpandedFilterGroups([]);
 }, true);
+
+// Shift+K: shows the library panel, the Filters block and the Keywords / Name group (others stay as they are), then the keyword filter field.
+function focusKeywordFilterField() {
+  if (document.getElementById('sidebar-panel')?.classList.contains('hidden')) document.getElementById('btn-toggle-sidebar')?.click();
+  const filtersToggle = document.getElementById('filters-toggle');
+  if (filtersToggle?.getAttribute('aria-expanded') === 'false') filtersToggle.click();
+  const open = filterGroups.filter(group => group.classList.contains('expanded')).map(group => group.dataset.filterGroup);
+  setExpandedFilterGroups([...open, 'tags']);
+  const input = document.getElementById('keyword-filter-input');
+  input?.scrollIntoView({ block: 'nearest' });
+  input?.focus();
+  input?.select();
+}
 
 // Middle-click on a filter chip removes it, in an open group as on a folded line or a badge of the folded Filters block. The chip's own × (or,
 // for an open group, the chip button itself) does the removal; chips with no removal ("…", inherited album criteria) are left alone.
@@ -3288,6 +3301,24 @@ async function setSelectionRating(rating, explicitTargets = null) {
 // Alt+V : « Ajouter un visage » (le prochain glisser sur la photo trace une zone, sans Maj). Gestionnaire à part, avant celui des raccourcis des photos :
 // celui-ci s'arrête quand la vue Visages ou la vue Personnes est ouverte, alors que leur aperçu permet aussi de dessiner une zone.
 // (e.code : indépendant de la disposition du clavier ; e.repeat : une touche maintenue n'arme et ne désarme pas en boucle)
+// Shortcuts that put the cursor in an input: Alt+K quick keyword input of the Keywords tab, Alt+D title of the Description tab, Shift+K keyword
+// filter field of the sidebar. Alt+K / Alt+D also work from another field (Alt+letter types nothing); Shift+K types a "K" there, so it only
+// applies outside text fields. Handled before the photo shortcuts below, where K alone (with or without Shift) switches the Keywords tab.
+window.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || isFullscreen || document.querySelector('.modal:not(.hidden)')) return;
+  const key = e.code === 'KeyK' ? 'k' : e.code === 'KeyD' ? 'd' : e.key.toLowerCase();
+  const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
+    || (e.target instanceof HTMLElement && e.target.isContentEditable);
+  let action = null;
+  if (e.altKey && !e.shiftKey && key === 'k') action = () => focusSideTabField('keywords');
+  else if (e.altKey && !e.shiftKey && key === 'd') action = () => focusSideTabField('description');
+  else if (e.shiftKey && !e.altKey && key === 'k' && !typing) action = focusKeywordFilterField;
+  if (!action) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (!e.repeat) action();
+});
+
 window.addEventListener('keydown', e => {
   if (!e.altKey || e.ctrlKey || e.metaKey || !(e.key.toLowerCase() === 'v' || e.code === 'KeyV')) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;

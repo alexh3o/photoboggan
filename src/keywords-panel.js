@@ -149,6 +149,25 @@ export function handleSideTabShortcut(name) {
   }
 }
 
+// Alt+K / Alt+D: shows the right panel on the Keywords / Description tab (never hides it, unlike K / D) and puts the cursor in its input
+// (quick keyword input, or the title). Nothing in compare mode, where these tabs are unavailable. The field may be filled a moment
+// after the tab appears (selection read when it becomes visible): the focus is tried again on the next frames.
+export function focusSideTabField(name) {
+  if (!initialized || compareActive || !EDITING_TABS.includes(name)) return;
+  setTab(name);
+  if (exifPanel.classList.contains('hidden')) toggleButton.click();
+  const field = name === 'keywords' ? inputField : document.getElementById('description-title');
+  if (!field) return;
+  const focus = () => {
+    if (document.activeElement === field || field.disabled) return;
+    field.focus();
+    field.select?.();
+  };
+  focus();
+  requestAnimationFrame(focus);
+  setTimeout(focus, 150);
+}
+
 // Mode Comparer : les onglets Mots-clés et Description sont inaccessibles (s'ils étaient affichés, le panneau Info prend leur place).
 export function setKeywordsCompareMode(active) {
   compareActive = active;

@@ -38,6 +38,7 @@ const GROUPS = [
     { a: 'Open a filter group, keeping the others open', d: 'Without Shift, a click opens the group and closes the others', tag: 'Filters', k: [['Shift', 'Click']] },
   ] },
   { title: 'Filters', rows: [
+    { a: 'Go to the keyword filter', d: 'Opens the library panel and the Keywords / Name group', tag: 'Filters', k: [['Shift', 'K']] },
     { a: 'Exclude the chosen value instead of including it', d: 'Keywords, people, camera, lens, format: in the suggestion list. File name: Alt+Enter', tag: 'Filters', k: [['Alt', 'Enter'], ['Alt', 'Click']] },
     { a: 'Include / exclude a filter chip', d: 'An excluded chip starts with "-" and has faded colors', tag: 'Filters', k: [['Right-click']] },
     { a: 'Remove a filter chip', d: 'Open group or folded line', tag: 'Filters', k: [['Middle-click']] },
@@ -60,6 +61,8 @@ const GROUPS = [
     { a: 'Toolbar', k: [['T']] },
   ] },
   { title: 'Metadata', rows: [
+    { a: 'Type a keyword for the selection', d: 'Opens the Keywords tab and its input', k: [['Alt', 'K']] },
+    { a: 'Edit the title of the selection', d: 'Opens the Description tab, cursor in the title', k: [['Alt', 'D']] },
     { a: 'Keywords: all or assigned to the selection', k: [['Ctrl', 'K']] },
     { a: 'Write the pending changes to the files', d: 'Keywords, title and description', k: [['Ctrl', 'Enter']] },
   ] },
