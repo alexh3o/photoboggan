@@ -1698,6 +1698,12 @@ function openThumbnailMenu(event, index, source = 'grid') {
   menuItems.push(
     menuSeparator(),
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo), { shortcut: 'E' }),
+  );
+  // "All photos" with a single photo: jump to the folder that holds it (same navigation as the results views, see showPhotoInItsFolder in main.js).
+  if (targets.length === 1 && api.isAllPhotosView?.() && api.showInItsFolder) {
+    menuItems.push(menuButton(t('Show in its own folder'), () => api.showInItsFolder(photo)));
+  }
+  menuItems.push(
     buildOpenWithItem(targets, programSection(photo.path)),
   );
   // « Trouver le RAW » : une image raster à la fois ; grisé tant qu'aucun critère n'est coché (Paramètres > Divers > RAW).
