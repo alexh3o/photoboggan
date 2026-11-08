@@ -6,11 +6,13 @@
 // Toutes les bornes sont incluses. Une photo sans la donnée est écartée dès que le critère est actif.
 //
 // L'état est un objet simple, enregistrable tel quel dans un album intelligent :
-//   { gear: { cameras: [{ text, exact }], lenses: [{ text, exact }] }, shot: { focal, shutter, aperture, iso, flash } }
-// (une clé absente = critère inactif ; `exact` : valeur choisie dans la liste, sinon recherche « contient »).
+//   { gear: { cameras: [{ text, exact, exclude }], lenses: [{ text, exact, exclude }] }, shot: { focal, shutter, aperture, iso, flash } }
+// (une clé absente = critère inactif ; `exact` : valeur choisie dans la liste, sinon recherche « contient » ;
+// `exclude` : Alt+Enter / Alt+click or the chip's context menu, the photo must NOT match this entry).
 import './shooting-filters.css';
-import { t } from './i18n.js';
-import { createFilterTag } from './filter-tags.js';
+import { t, normalizeSearch } from './i18n.js';
+import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
+import { createFilterSuggest } from './filter-suggest.js';
 
 // ---------------------------------------------------------------------------
 // Lecture des valeurs numériques saisies ou stockées
@@ -164,8 +166,10 @@ function compile(state) {
   if (compiled) return compiled;
   compiled = { gear: [], ranges: [], flash: FLASH_VALUES.includes(state.shot?.flash) ? state.shot.flash : 'all' };
   for (const [key, field] of Object.entries(GEAR_FIELDS)) {
-    const entries = state.gear?.[key] ?? [];
-    if (entries.length) compiled.gear.push({ entries, label: field.label });
+    const all = state.gear?.[key] ?? [];
+    const entries = all.filter(entry => !entry.exclude);
+    const excluded = all.filter(entry => entry.exclude);
+    if (all.length) compiled.gear.push({ entries, excluded, label: field.label });
   }
   for (const key of RANGE_KEYS) {
     const range = parseRange(state.shot?.[key], RANGE_FIELDS[key].parse);
@@ -209,8 +213,9 @@ export function shootingPrefilter(state) {
   if (!state.gear && !state.shot) return filter;
   const { gear, ranges, flash } = compile(state);
   for (const { entries, label } of gear) {
-    // Loose entries (« Trouver le RAW ») and non-ASCII texts are left to the interface.
-    if (entries.some(entry => entry.loose || !isAscii(entry.text))) continue;
+    // Loose entries (« Trouver le RAW ») and non-ASCII texts are left to the interface, and so are excluded entries (no prefilter
+    // when a field only has those).
+    if (entries.length === 0 || entries.some(entry => entry.loose || !isAscii(entry.text))) continue;
     filter[label === cameraLabel ? 'cameras' : 'lenses'] = entries.map(entry => entry.text.trim().toLowerCase()).filter(Boolean).sort();
   }
   const finite = value => (Number.isFinite(value) ? value : null);
@@ -231,7 +236,9 @@ export function shootingPrefilter(state) {
 export function matchesShootingState(photo, state) {
   if (!state.gear && !state.shot) return true;
   const { gear, ranges, flash } = compile(state);
-  if (!gear.every(({ entries, label }) => matchesGearEntries(label(photo), entries))) return false;
+  // Included entries of a field: any one of them (OR); excluded entries: none of them. A photo without the value passes an exclusion.
+  if (!gear.every(({ entries, excluded, label }) => (entries.length === 0 || matchesGearEntries(label(photo), entries))
+    && !(excluded.length && matchesGearEntries(label(photo), excluded)))) return false;
   if (flash === 'with' && photo.flash !== true) return false;
   if (flash === 'without' && photo.flash !== false) return false;
   if (ranges.length === 0) return true;
@@ -254,7 +261,9 @@ export function initShootingFilters({ getPhotos, onChange }) {
   const gear = { cameras: [], lenses: [] };
   const shot = { focal: '', shutter: '', aperture: '', iso: '', flash: 'all' };
   const gearInputs = { cameras: byId('camera-filter-input'), lenses: byId('lens-filter-input') };
-  const gearLists = { cameras: byId('camera-options'), lenses: byId('lens-options') };
+  const gearLists = { cameras: byId('camera-filter-suggestions'), lenses: byId('lens-filter-suggestions') };
+  const gearOptions = { cameras: [], lenses: [] }; // [{ value, label, count, search }] offered by each field's suggestion list
+  const gearSuggests = {};
   const shotInputs = Object.fromEntries(RANGE_KEYS.map(key => [key, byId(`shot-${key}-input`)]));
   const flashSelect = byId('shot-flash-select');
   let optionsSource = null;
@@ -281,33 +290,34 @@ export function initShootingFilters({ getPhotos, onChange }) {
         const label = field.label(photo);
         if (label) counts.set(label, (counts.get(label) ?? 0) + 1);
       }
-      const sorted = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-      gearLists[key].replaceChildren(...sorted.map(([label, count]) => {
-        const option = document.createElement('option');
-        option.value = label;
-        option.label = String(count);
-        return option;
-      }));
+      gearOptions[key] = [...counts].map(([label, count]) => ({ value: label, label, count, search: normalizeSearch(label) }));
+      gearSuggests[key]?.refresh();
     }
   }
 
   // --- Matériel ---
-  // Une valeur de la liste donne un filtre exact ; tout autre texte (Entrée ou sortie du champ) un filtre « contient ».
-  function addGear(key, value) {
+  // A value of the list gives an exact filter; any other text (Enter with no suggestion) a "contains" filter. `exclude`: Alt held.
+  const sameEntry = (a, b) => a.text.toLowerCase() === b.text.toLowerCase() && a.exact === b.exact;
+  function addGear(key, value, exclude = false) {
     const text = value.trim();
     gearInputs[key].value = '';
     if (!text) return;
-    const known = [...gearLists[key].options].find(option => option.value.toLowerCase() === text.toLowerCase());
+    const known = gearOptions[key].find(option => option.value.toLowerCase() === text.toLowerCase());
     const entry = known ? { text: known.value, exact: true } : { text, exact: false };
-    if (gear[key].some(item => item.text.toLowerCase() === entry.text.toLowerCase() && item.exact === entry.exact)) return;
-    gear[key].push(entry);
+    if (exclude) entry.exclude = true;
+    if (gear[key].some(item => sameEntry(item, entry) && Boolean(item.exclude) === exclude)) return;
+    gear[key] = [...gear[key].filter(item => !sameEntry(item, entry)), entry]; // the same entry in the other state is replaced
     changed();
   }
 
+  // Suggestion lists (filter-suggest.js): values already in the filter are not offered again.
   for (const key of Object.keys(gearInputs)) {
-    gearInputs[key].addEventListener('change', event => addGear(key, event.target.value));
-    gearInputs[key].addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); addGear(key, event.target.value); }
+    gearSuggests[key] = createFilterSuggest({
+      input: gearInputs[key],
+      list: gearLists[key],
+      getOptions: () => gearOptions[key].filter(option => !gear[key].some(entry => entry.exact && entry.text === option.value)),
+      onPick: (value, exclude, text) => addGear(key, value ?? text, exclude),
+      emptyText: key === 'cameras' ? 'No matching camera' : 'No matching lens',
     });
   }
 
@@ -352,7 +362,12 @@ export function initShootingFilters({ getPhotos, onChange }) {
   // Charge un état enregistré dans les contrôles sans relancer le filtrage.
   function apply(state = {}) {
     for (const key of Object.keys(gear)) {
-      gear[key] = (state.gear?.[key] ?? []).map(entry => ({ text: String(entry.text), exact: Boolean(entry.exact), ...(entry.loose ? { loose: true } : {}) }));
+      gear[key] = (state.gear?.[key] ?? []).map(entry => ({
+        text: String(entry.text),
+        exact: Boolean(entry.exact),
+        ...(entry.loose ? { loose: true } : {}),
+        ...(entry.exclude ? { exclude: true } : {}),
+      }));
     }
     for (const key of RANGE_KEYS) {
       applied[key] = String(state.shot?.[key] ?? '');
@@ -373,8 +388,23 @@ export function initShootingFilters({ getPhotos, onChange }) {
   const clearShot = () => { const state = capture(); delete state.shot; apply(state); };
 
   // --- Étiquettes : boutons à croix quand le groupe est déplié, simples étiquettes sur la ligne repliée ---
+  // "~": "contains" search; "-": excluded entry (violet chip).
   function gearEntryText(entry) {
-    return entry.exact ? entry.text : `~${entry.text}`;
+    return `${entry.exclude ? '-' : ''}${entry.exact ? '' : '~'}${entry.text}`;
+  }
+
+  // Right-click on a gear chip: switches the entry between "include" and "exclude".
+  function addGearMenu(node, key, entry) {
+    addIncludeExcludeMenu(node, {
+      label: gearEntryText(entry),
+      excluded: Boolean(entry.exclude),
+      onToggle: () => {
+        const switched = { ...entry };
+        if (entry.exclude) delete switched.exclude; else switched.exclude = true;
+        gear[key] = gear[key].map(item => (item === entry ? switched : item));
+        changed();
+      },
+    });
   }
 
   function renderGearTags() {
@@ -389,17 +419,22 @@ export function initShootingFilters({ getPhotos, onChange }) {
         gear[key] = gear[key].filter(item => item !== entry);
         changed();
       });
+      addGearMenu(button, key, entry);
       return button;
     }));
-    byId('gear-summary').replaceChildren(...entries.map(({ key, entry }) => createFilterTag({
-      kind: 'gear',
-      text: gearEntryText(entry),
-      title: `${t(GEAR_FIELDS[key].tag)} : ${entry.text}`,
-      onRemove: () => {
-        gear[key] = gear[key].filter(item => item !== entry);
-        changed();
-      },
-    })));
+    byId('gear-summary').replaceChildren(...entries.map(({ key, entry }) => {
+      const tag = createFilterTag({
+        kind: 'gear',
+        text: gearEntryText(entry),
+        title: `${t(GEAR_FIELDS[key].tag)} : ${gearEntryText(entry)}`,
+        onRemove: () => {
+          gear[key] = gear[key].filter(item => item !== entry);
+          changed();
+        },
+      });
+      addGearMenu(tag, key, entry);
+      return tag;
+    }));
   }
 
   // Retire un critère de prise de vue : un champ numérique (texte vidé, message d'erreur effacé) ou le flash.

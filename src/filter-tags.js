@@ -1,6 +1,7 @@
 // Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et,
 // quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier le groupe.
 import { t } from './i18n.js';
+import { openContextMenuAt } from './photo-actions.js';
 
 /**
  * Crée une étiquette de filtre.
@@ -35,4 +36,21 @@ export function createFilterTag({ kind, text, title = '', onRemove = null }) {
   tag.classList.add('has-clear');
   tag.append(label, remove);
   return tag;
+}
+
+/**
+ * Include / exclude state of a filter chip (keywords, people, gear, format, filename): an excluded chip gets the `excluded` class (violet,
+ * see styles.css) and a right-click opens a small menu that switches it. `label`: chip text, shown as the menu header;
+ * `onToggle()`: switches the entry to the other state, re-renders and filters again.
+ */
+export function addIncludeExcludeMenu(node, { label, excluded, onToggle }) {
+  node.classList.toggle('excluded', excluded);
+  node.addEventListener('contextmenu', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    openContextMenuAt(event, [
+      { header: label },
+      { label: t(excluded ? 'Include' : 'Exclude'), onSelect: onToggle },
+    ]);
+  });
 }

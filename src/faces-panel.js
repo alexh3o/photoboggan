@@ -6,9 +6,10 @@
 import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { t, tp, onLanguageChange } from './i18n.js';
+import { t, tp, onLanguageChange, normalizeSearch } from './i18n.js';
 import { DEFAULTS, readBool } from './settings-defaults.js';
-import { createFilterTag } from './filter-tags.js';
+import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
+import { createFilterSuggest } from './filter-suggest.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
 import { registerEditor, writeMetadataItems, choiceDialog } from './metadata-writes.js';
 
@@ -46,6 +47,9 @@ let sortMode = readStorage(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
 let persons = []; // [{ id, name, keyword_id, photo_count, cover }]
 let faceIndex = new Map(); // identifiant de photo -> Set des identifiants de personnes
 let personFilters = []; // identifiants des personnes filtrées (ET)
+// People a photo must NOT show (Alt+Enter / Alt+click in the people list, or the chip's context menu). A person is never in both lists.
+let excludedPersonFilters = [];
+let personFilterSuggest = null; // suggestion list of the people filter field (filter-suggest.js)
 let scanIndex = new Map(); // identifiant de photo scannée -> à revérifier ? (get_face_scan_index)
 let scanFilter = 'all';
 let refreshToken = 0;
@@ -116,7 +120,7 @@ export function faceCropStyle(face, orientation, width, height, zoom) {
 // FILTRES PERSONNES (ET) ET STATUT DU SCAN : utilisés par applyPhotoFilters dans main.js
 // ==========================================
 export function hasPersonFilters() {
-  return readingEnabled && (personFilters.length > 0 || (detectionEnabled && scanFilter !== 'all'));
+  return readingEnabled && (personFilters.length > 0 || excludedPersonFilters.length > 0 || (detectionEnabled && scanFilter !== 'all'));
 }
 
 export function personFilterMatches(photo) {
@@ -126,28 +130,35 @@ export function personFilterMatches(photo) {
     const status = review === undefined ? 'unscanned' : review ? 'review' : 'scanned';
     if (status !== scanFilter) return false;
   }
-  if (personFilters.length === 0) return true;
-  const photoPersons = faceIndex.get(photo.id);
-  return Boolean(photoPersons) && personFilters.every(id => photoPersons.has(id));
+  return photoMatchesPersonIds(photo, personFilters, excludedPersonFilters);
 }
 
 // Albums intelligents (albums-panel.js, main.js) : personnes du filtre enregistrées dans un album, rétablies à son ouverture (sans relancer le
 // filtrage : l'appelant le fait), et test d'une photo contre une liste de personnes (ET) qui n'est pas le filtre en cours.
-export function setPersonFilterIds(ids) {
+export function setPersonFilterIds(ids, excludedIds = []) {
   personFilters = Array.isArray(ids) ? ids.filter(id => Number.isFinite(id)) : [];
+  excludedPersonFilters = Array.isArray(excludedIds) ? excludedIds.filter(id => Number.isFinite(id) && !personFilters.includes(id)) : [];
   renderPersonFilterTags();
   renderPersons();
 }
 
-export function photoMatchesPersonIds(photo, ids) {
-  if (!ids?.length) return true;
+// `excludedIds`: people who must not be on the photo.
+export function photoMatchesPersonIds(photo, ids, excludedIds = []) {
+  if (!ids?.length && !excludedIds?.length) return true;
   const photoPersons = faceIndex.get(photo.id);
-  return Boolean(photoPersons) && ids.every(id => photoPersons.has(id));
+  if (ids?.length && !(photoPersons && ids.every(id => photoPersons.has(id)))) return false;
+  return !(photoPersons && excludedIds?.some(id => photoPersons.has(id)));
+}
+
+// Excluded people of the filter (smart albums, main.js).
+export function getExcludedPersonFilterIds() {
+  return readingEnabled ? [...excludedPersonFilters] : [];
 }
 
 // Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
 export function clearPersonFilters() {
   personFilters = [];
+  excludedPersonFilters = [];
   scanFilter = 'all';
   writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
   const input = document.getElementById('person-filter-input');
@@ -161,8 +172,9 @@ export function clearPersonFilters() {
 // Ouverture des vues Personnes ou de gestion depuis leur bouton de barre d'outils : les personnes choisies (section et filtre Personnes) sont
 // retirées, pour repartir de toutes les personnes. Le filtre de statut du scan n'est pas touché.
 export function clearPersonSelection() {
-  if (personFilters.length === 0) return;
+  if (personFilters.length === 0 && excludedPersonFilters.length === 0) return;
   personFilters = [];
+  excludedPersonFilters = [];
   const input = document.getElementById('person-filter-input');
   if (input) input.value = '';
   renderPersonFilterTags();
@@ -237,8 +249,10 @@ export function getPersonRoot() {
   return (readStorage(PERSON_ROOT_STORAGE_KEY) ?? DEFAULTS.facePersonRoot).trim();
 }
 
-function setPersonFilters(ids) {
+// `excluded`: new list of excluded people (unchanged if omitted); a person included again leaves it.
+function setPersonFilters(ids, excluded = excludedPersonFilters) {
   personFilters = ids;
+  excludedPersonFilters = excluded.filter(id => !ids.includes(id));
   renderPersonFilterTags();
   renderPersons();
   host.onFilterChange();
@@ -249,17 +263,29 @@ function togglePersonFilter(id, additive) {
   if (additive) {
     setPersonFilters(personFilters.includes(id) ? personFilters.filter(item => item !== id) : [...personFilters, id]);
   } else {
-    setPersonFilters(personFilters.length === 1 && personFilters[0] === id ? [] : [id]);
+    setPersonFilters(personFilters.length === 1 && personFilters[0] === id ? [] : [id], []);
   }
 }
 
-function addPersonFilterByName(value) {
+// Puts a person in the included or excluded list (and out of the other one), then filters again.
+function setPersonFilterMode(id, exclude) {
+  const included = personFilters.filter(item => item !== id);
+  const excluded = excludedPersonFilters.filter(item => item !== id);
+  (exclude ? excluded : included).push(id);
+  setPersonFilters(included, excluded);
+}
+
+// Enter with no suggestion: the typed name, if it is exactly a listed person's.
+function addPersonFilterByName(value, exclude = false) {
   const name = value.trim().toLowerCase();
   if (!name) return;
   const person = listedPersons().find(item => item.name.toLowerCase() === name);
-  document.getElementById('person-filter-input').value = '';
-  if (!person || personFilters.includes(person.id)) return;
-  setPersonFilters([...personFilters, person.id]);
+  if (person) addPersonFilter(person.id, exclude);
+}
+
+function addPersonFilter(id, exclude) {
+  if ((exclude ? excludedPersonFilters : personFilters).includes(id)) return;
+  setPersonFilterMode(id, exclude);
 }
 
 function personName(id) {
@@ -271,27 +297,42 @@ function renderPersonFilterTags() {
   const expanded = document.getElementById('person-filter-tags');
   const collapsed = document.getElementById('persons-collapsed-line');
   if (!expanded || !collapsed) return;
-  expanded.replaceChildren(...personFilters.map(id => {
+  // Excluded person: the chip text starts with "-" (violet chip). A right-click on a chip switches it between "include" and "exclude".
+  const entries = [...personFilters.map(id => ({ id, excluded: false })), ...excludedPersonFilters.map(id => ({ id, excluded: true }))];
+  const label = ({ id, excluded }) => `${excluded ? '-' : ''}${personName(id)}`;
+  const remove = ({ id, excluded }) => (excluded
+    ? setPersonFilters(personFilters, excludedPersonFilters.filter(item => item !== id))
+    : setPersonFilters(personFilters.filter(item => item !== id)));
+  const addMenu = (node, entry) => addIncludeExcludeMenu(node, { label: label(entry), excluded: entry.excluded, onToggle: () => setPersonFilterMode(entry.id, !entry.excluded) });
+  expanded.replaceChildren(...entries.map(entry => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'filter-tag tag-person';
-    button.textContent = `${personName(id)} ×`;
-    button.title = t('Remove filter {keyword}', { keyword: personName(id) });
-    button.addEventListener('click', () => setPersonFilters(personFilters.filter(item => item !== id)));
+    button.textContent = `${label(entry)} ×`;
+    button.title = t('Remove filter {keyword}', { keyword: label(entry) });
+    button.addEventListener('click', () => remove(entry));
+    addMenu(button, entry);
     return button;
   }));
   collapsed.querySelectorAll('.filter-tag').forEach(node => node.remove());
-  collapsed.append(...personFilters.map(id => createFilterTag({
-    kind: 'person',
-    text: personName(id),
-    onRemove: () => setPersonFilters(personFilters.filter(item => item !== id)),
-  })));
-  const options = document.getElementById('person-options');
-  options?.replaceChildren(...listedPersons().sort((a, b) => a.name.localeCompare(b.name)).map(person => {
-    const option = document.createElement('option');
-    option.value = person.name;
-    return option;
+  collapsed.append(...entries.map(entry => {
+    const tag = createFilterTag({ kind: 'person', text: label(entry), onRemove: () => remove(entry) });
+    addMenu(tag, entry);
+    return tag;
   }));
+  personFilterSuggest?.refresh();
+}
+
+// People offered by the filter field: listed people not already in the filter, with their photo count. Searched by name and alias.
+function personFilterOptions() {
+  return listedPersons()
+    .filter(person => !personFilters.includes(person.id) && !excludedPersonFilters.includes(person.id))
+    .map(person => ({
+      value: person.id,
+      label: person.name,
+      count: person.photo_count,
+      search: normalizeSearch(person.alias ? `${person.name} ${person.alias}` : person.name),
+    }));
 }
 
 // ==========================================
@@ -330,8 +371,10 @@ export async function refreshFaces() {
   // Une personne disparue (fichiers relus) ne reste pas dans le filtre.
   const known = new Set(persons.map(person => person.id));
   const keptFilters = personFilters.filter(id => known.has(id));
-  const filtersChanged = keptFilters.length !== personFilters.length;
+  const keptExcluded = excludedPersonFilters.filter(id => known.has(id));
+  const filtersChanged = keptFilters.length !== personFilters.length || keptExcluded.length !== excludedPersonFilters.length;
   personFilters = keptFilters;
+  excludedPersonFilters = keptExcluded;
   renderPersons();
   renderPersonFilterTags();
   if (hasPersonFilters() || filtersChanged) host.onFilterChange({ keepState: true });
@@ -536,6 +579,7 @@ async function mergePerson(person) {
       }
       // Le filtre suit la personne gardée ; refreshFaces refiltre la grille.
       personFilters = [...new Set(personFilters.map(id => (id === person.id ? target.id : id)))];
+      excludedPersonFilters = [...new Set(excludedPersonFilters.map(id => (id === person.id ? target.id : id)))].filter(id => !personFilters.includes(id));
       await refreshFaces();
       host.showToast(tp('{name} merged into {target}: {count} face to write', result.face_count, { name: person.name, target: target.name }));
       return null;
@@ -695,12 +739,13 @@ export async function proposeDeletePersons(unlinked) {
 
 // Vue Personnes, clic sur une personne : la grille des photos est filtrée sur elle seule.
 export function filterOnPerson(personId) {
-  setPersonFilters([personId]);
+  setPersonFilters([personId], []);
 }
 
 // Visages d'une personne à traiter : la grille des photos est filtrée sur elle, puis la vue de gestion s'ouvre sur les visages de ces photos.
 export function showPersonFaces(personId) {
   personFilters = [personId];
+  excludedPersonFilters = [];
   renderPersonFilterTags();
   renderPersons();
   host.onFilterChange();
@@ -1491,6 +1536,7 @@ function applyReadingEnabled() {
     persons = [];
     faceIndex = new Map();
     personFilters = [];
+    excludedPersonFilters = [];
     pendingFaceWrites = [];
     renderPersons();
     renderPersonFilterTags();
@@ -1552,12 +1598,13 @@ export function initFacesPanel(hostApi) {
     writeStorage(SORT_STORAGE_KEY, sortMode);
     renderPersons();
   });
-  const filterInput = document.getElementById('person-filter-input');
-  filterInput.addEventListener('change', () => addPersonFilterByName(filterInput.value));
-  filterInput.addEventListener('keydown', event => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    addPersonFilterByName(filterInput.value);
+  // People filter field: suggestion list (same as the keyword filter); Alt+Enter / Alt+click excludes the person.
+  personFilterSuggest = createFilterSuggest({
+    input: document.getElementById('person-filter-input'),
+    list: document.getElementById('person-filter-suggestions'),
+    getOptions: personFilterOptions,
+    onPick: (id, exclude, text) => (id === null ? addPersonFilterByName(text, exclude) : addPersonFilter(id, exclude)),
+    emptyText: 'No matching person',
   });
 
   initCollapsibleSection('folders');

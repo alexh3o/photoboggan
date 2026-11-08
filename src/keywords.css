@@ -57,6 +57,10 @@
 .keyword-input { width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 0.78rem; }
 .keyword-suggestions { position: absolute; bottom: 100%; left: 0; right: 0; z-index: 20; max-height: 12rem; margin-bottom: 4px; padding: 2px; overflow-y: auto; list-style: none; border: 1px solid var(--control-border); border-radius: 4px; background: var(--card-bg); box-shadow: 0 -4px 12px rgb(0 0 0 / 0.3); }
 .keyword-suggestions[hidden] { display: none; }
+/* Same list opened below its field (keyword filter of the sidebar), across both filter columns. */
+.keyword-filter-fields, .person-filter-field, .gear-filter-field, .format-filter-field { position: relative; }
+.gear-filter-field input { width: 100%; box-sizing: border-box; }
+.keyword-suggestions.below { top: 100%; bottom: auto; margin: 4px 0 0; box-shadow: 0 4px 12px rgb(0 0 0 / 0.3); }
 .keyword-suggestion { display: flex; justify-content: space-between; gap: 0.5rem; padding: 3px 6px; border-radius: 3px; font-size: 0.76rem; cursor: pointer; }
 .keyword-suggestion.highlighted { background: var(--active-button); color: var(--active-button-text); }
 .keyword-suggestion .keyword-suggestion-count { flex: 0 0 auto; opacity: 0.65; }

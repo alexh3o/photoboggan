@@ -193,14 +193,14 @@ button.active { background: var(--active-button); border-color: var(--active-but
   --side-row-height: 1.9rem;
   --side-block-gap: 1rem;
   /* Étiquettes de filtre : fond foncé et texte clair dans les deux thèmes */
-  --tag-keyword-bg: #29485c; --tag-keyword-border: #376782; --tag-keyword-hover: #37607a;
-  --tag-filename-bg: #2f5d3a; --tag-filename-border: #3f8a52; --tag-filename-hover: #3d7a4b;
-  --tag-person-bg: #4b3a5e; --tag-person-border: #6c5287; --tag-person-hover: #5d4875;
-  --tag-date-bg: #4a3a63; --tag-date-border: #6b559a;
-  --tag-more-bg: #6b4e16; --tag-more-border: #a8802c;
-  --tag-rating-bg: #4d4214; --tag-rating-border: #8a7620; --tag-rating-text: #ffd43b;
-  --tag-keyword-active-bg: #3b78a0; --tag-keyword-active-border: #8fc9ee;
-  --tag-color-bg: #444; --tag-color-border: #8a8a8a;
+  --tag-keyword-bg: #2f6488; --tag-keyword-border: #4b8cb8; --tag-keyword-hover: #3a75a0;
+  --tag-filename-bg: #367a46; --tag-filename-border: #52a868; --tag-filename-hover: #418e53;
+  --tag-person-bg: #67498c; --tag-person-border: #8e6cbb; --tag-person-hover: #7656a1;
+  --tag-date-bg: #5b4888; --tag-date-border: #8270bf;
+  --tag-more-bg: #86621c; --tag-more-border: #c09a3c;
+  --tag-rating-bg: #66581a; --tag-rating-border: #a8902c; --tag-rating-text: #ffd43b;
+  --tag-keyword-active-bg: #4790c0; --tag-keyword-active-border: #a6d8f6;
+  --tag-color-bg: #575757; --tag-color-border: #9a9a9a;
   --tag-failed-border: #c0504d;
 }
 .sidebar-section { width: 15rem; background: var(--bg-panel); padding: 0.75rem; padding-bottom: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; transition: width 0.3s ease, padding 0.3s ease; }
@@ -309,6 +309,10 @@ button.filter-tag { cursor: pointer; }
 .filter-tag-clear { position: relative; z-index: 1; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; align-self: stretch; width: 1.1rem; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font-size: 0.85rem; line-height: 1; opacity: 0.75; cursor: pointer; }
 .filter-tag-clear:hover, .filter-tag-clear:focus-visible { background: rgba(255, 255, 255, 0.28); opacity: 1; }
 button.filter-tag.tag-keyword:hover { background: var(--tag-keyword-hover); }
+/* Excluded filter entry (text starts with "-"): the colour of its filter type, faded by a grey veil (an inset shadow, painted over the
+   background whatever rule sets it, hover included) with a dashed border and dimmer text. */
+.filter-tag.excluded { box-shadow: inset 0 0 0 100vmax rgb(38 38 38 / 0.55); border-style: dashed; color: rgb(255 255 255 / 0.75); }
+button.filter-tag.excluded:hover { box-shadow: inset 0 0 0 100vmax rgb(38 38 38 / 0.4); }
 button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filters-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}

@@ -6,7 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { DEFAULTS, readBool, readChoice, readNumber } from './settings-defaults.js';
 import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
-import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange } from './i18n.js';
+import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
@@ -24,8 +24,9 @@ import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
 import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
-import { createFilterTag } from './filter-tags.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
+import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
+import { createFilterSuggest } from './filter-suggest.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -169,7 +170,7 @@ let folderTreePhotos = [];
 // Filtres Matériel (appareil, objectif) et Prise de vue (focale, vitesse, ouverture, ISO, flash) : voir shooting-filters.js.
 const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
 // Filtre Format (type, marque de RAW, extension) : voir format-filters.js, qui porte aussi les listes d'extensions.
-const formatFilters = initFormatFilters({ onChange: () => applyPhotoFilters() });
+const formatFilters = initFormatFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
 // Folders added to `currentFolderFilter` by Ctrl+click in the tree: the grid shows the photos of all of them (not persisted, reset by a plain click).
 let extraFolderFilters = [];
@@ -181,8 +182,11 @@ let duplicateSearch = null;
 let startupView = readChoice('startupView', ['last', 'all']);
 let includeSubfolders = readBool('includeSubfolders');
 let keywordFilters = [];
+// Keywords a photo must NOT carry (Alt+Enter / Alt+click in the keyword list, or the chip's context menu). A keyword is never in both lists.
+let excludedKeywordFilters = [];
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
+let excludedFilenameFilters = []; // texts the file name must NOT contain (Alt+Enter, or the chip's context menu)
 let colorFilters = new Set(); // couleurs cochées dans le filtre (vide = pas de filtre)
 let pickFilters = new Set(); // fanions pick cochés dans le filtre (vide = pas de filtre)
 // Filtre de note : étoiles (0 = aucune), mode « au moins » (gte) ou « exactement » (eq), ou photos non notées (exclusif avec les étoiles). Actif si stars > 0 ou unrated.
@@ -935,8 +939,8 @@ function matchesRatingFilter(photo, filter = ratingFilter) {
 function hasActiveFilters() {
   const hasRating = isRatingFilterActive();
   const hasColor = colorFilters.size > 0 || pickFilters.size > 0;
-  const hasKeywords = keywordFilters.length > 0;
-  const hasFilename = filenameFilters.length > 0;
+  const hasKeywords = hasKeywordFilters();
+  const hasFilename = hasFilenameFilters();
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
   return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all'
     || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats()
@@ -1010,7 +1014,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   renderedThumbnailNodes.clear();
   // Photos avant le filtre « Zone visible seulement » du mode Carte : la carte garde tous leurs points, même hors de la zone visible.
   mapCandidatePhotos = loadedPhotos.filter(photo => matchesRatingFilter(photo)
-    && keywordFilters.every(keyword => (photo.keywords || '').split(', ').includes(keyword))
+    && matchesKeywordFilters(photo)
     && personFilterMatches(photo)
     && matchesFilenameFilters(photo)
     && (pathFilter === null || pathFilter.has(photo.path))
@@ -1079,12 +1083,15 @@ function renderInfoKeywords(photo) {
     button.className = `filter-tag tag-keyword${active ? ' active' : ''}`;
     button.setAttribute('aria-pressed', String(active));
     button.textContent = decodeHtmlEntities(word);
-    button.title = t('Filter on this keyword (Ctrl+click: add to the filter)');
+    button.title = t('Filter on this keyword (Ctrl+click: add to the filter, Alt+click: exclude it)');
     button.addEventListener('click', event => {
-      if (event.ctrlKey || event.metaKey) {
-        if (!keywordFilters.includes(word)) keywordFilters.push(word);
+      if (event.altKey) {
+        setKeywordFilter(word, true); // exclusion added to the current keyword filters
+      } else if (event.ctrlKey || event.metaKey) {
+        setKeywordFilter(word, false);
       } else {
         keywordFilters = [word];
+        excludedKeywordFilters = [];
       }
       renderKeywordFilters();
       applyPhotoFilters();
@@ -1110,12 +1117,14 @@ const clearFilterKinds = {
   },
   keyword() {
     keywordFilters = [];
+    excludedKeywordFilters = [];
     const keywordInput = document.getElementById('keyword-filter-input');
     if (keywordInput) keywordInput.value = '';
     renderKeywordFilters();
   },
   filename() {
     filenameFilters = [];
+    excludedFilenameFilters = [];
     const filenameInput = document.getElementById('filename-filter-input');
     if (filenameInput) filenameInput.value = '';
     renderFilenameFilters();
@@ -1190,11 +1199,15 @@ function captureFilterState() {
   if (colorFilters.size) state.colors = [...colorFilters].sort();
   if (pickFilters.size) state.picks = [...pickFilters].sort();
   if (keywordFilters.length) state.keywords = [...keywordFilters];
+  if (excludedKeywordFilters.length) state.excludedKeywords = [...excludedKeywordFilters];
   if (filenameFilters.length) state.filenames = [...filenameFilters];
+  if (excludedFilenameFilters.length) state.excludedFilenames = [...excludedFilenameFilters];
   const dateText = dateFilterInput.value.trim();
   if (dateFilter && dateText) state.date = dateText;
   const persons = getPersonFilterIds();
   if (persons.length) state.persons = persons;
+  const excludedPersons = getExcludedPersonFilterIds();
+  if (excludedPersons.length) state.excludedPersons = excludedPersons;
   if (locationFilter !== 'all') state.location = locationFilter;
   Object.assign(state, shootingFilters.capture()); // gear (appareil, objectif) et shot (focale, vitesse, ouverture, ISO, flash)
   Object.assign(state, formatFilters.capture()); // formats (type, marque de RAW, extensions)
@@ -1221,17 +1234,14 @@ function matchesFilterState(photo, state) {
   if (state.rating && !matchesRatingFilter(photo, state.rating)) return false;
   if (state.colors && !state.colors.includes(photo.color_flag || 'none')) return false;
   if (state.picks && !state.picks.includes(photo.pick_flag || 'none')) return false;
-  if (state.keywords && !state.keywords.every(keyword => (photo.keywords || '').split(', ').includes(keyword))) return false;
-  if (state.filenames) {
-    const name = (photo.filename || photo.path.split(/[\\/]/).pop() || '').toLowerCase();
-    if (!state.filenames.every(text => name.includes(text.toLowerCase()))) return false;
-  }
+  if ((state.keywords || state.excludedKeywords) && !matchesKeywordFilters(photo, state.keywords, state.excludedKeywords)) return false;
+  if ((state.filenames || state.excludedFilenames) && !matchesFilenameFilters(photo, state.filenames, state.excludedFilenames)) return false;
   if (state.date) {
     const range = parseDateFilter(state.date).filter;
     const key = photoTimeKey(photo);
     if (range && (key === null || key < range.from || key > range.to)) return false;
   }
-  if (state.persons && !photoMatchesPersonIds(photo, state.persons)) return false;
+  if ((state.persons || state.excludedPersons) && !photoMatchesPersonIds(photo, state.persons, state.excludedPersons)) return false;
   if (state.location) {
     const located = Number.isFinite(photo.gps_lat) && Number.isFinite(photo.gps_lon);
     if ((state.location === 'geolocated') !== located) return false;
@@ -1269,15 +1279,17 @@ function applyFilterState(state) {
   for (const key of state.picks ?? []) pickFilters.add(key);
   document.querySelectorAll('#pick-filter-bar .pick-square').forEach(button => setColorSquareChecked(button, pickFilters.has(button.dataset.pick)));
   keywordFilters = [...(state.keywords ?? [])];
+  excludedKeywordFilters = [...(state.excludedKeywords ?? [])].filter(keyword => !keywordFilters.includes(keyword));
   renderKeywordFilters();
   filenameFilters = [...(state.filenames ?? [])];
+  excludedFilenameFilters = [...(state.excludedFilenames ?? [])];
   renderFilenameFilters();
   if (state.date) {
     dateFilterInput.value = state.date;
     dateFilter = parseDateFilter(state.date).filter ?? null;
     updateDateFilterUI('');
   }
-  setPersonFilterIds(state.persons ?? []);
+  setPersonFilterIds(state.persons ?? [], state.excludedPersons ?? []);
   setLocationFilter(state.location ?? 'all', { apply: false });
   shootingFilters.apply(state);
   formatFilters.apply(state);
@@ -1403,9 +1415,10 @@ function describeFilterState(state) {
   if (state.rating) labels.push([state.rating.unrated ? '∅' : '', state.rating.stars > 0 ? `${state.rating.mode === 'eq' ? '=' : '≥'} ${state.rating.stars} ★` : ''].filter(Boolean).join(' + '));
   for (const key of state.colors ?? []) labels.push(colorFlagLabels.get(key) ?? key);
   for (const key of state.picks ?? []) labels.push(t(PICK_FLAGS.find(flag => flag.key === key)?.label ?? key));
-  labels.push(...(state.keywords ?? []), ...(state.filenames ?? []));
+  labels.push(...(state.keywords ?? []), ...(state.excludedKeywords ?? []).map(keyword => `-${keyword}`), ...(state.filenames ?? []), ...(state.excludedFilenames ?? []).map(text => `-${text}`));
   if (state.date) labels.push(state.date);
   if (state.persons?.length) labels.push(`${t('People')} (${state.persons.length})`);
+  if (state.excludedPersons?.length) labels.push(`-${t('People')} (${state.excludedPersons.length})`);
   if (state.location) labels.push(t(state.location === 'geolocated' ? 'Geolocated' : 'Not geolocated'));
   if (state.folder?.path) labels.push(t('Folder: {name}', { name: lastPathSegment(state.folder.path) }));
   if (state.mapZone) labels.push(t('Map area'));
@@ -1450,22 +1463,45 @@ function renderAlbumFilterInfo() {
   container.hidden = rows.length === 0;
 }
 
+// Keywords of the catalogue offered by the keyword filter field, with their photo count, and its suggestion list (filter-suggest.js,
+// wired at startup). Keywords already in the filter are not offered again: their chip's context menu switches them.
+let keywordFilterOptions = [];
+let keywordFilterSuggest = null;
+
 function renderKeywordFilters() {
-  const keywords = new Set();
-  for (const photo of folderTreePhotos) for (const word of (photo.keywords || '').split(', ')) if (word.trim()) keywords.add(word.trim());
-  const options = document.getElementById('keyword-options');
-  options.replaceChildren(...[...keywords].sort((a, b) => a.localeCompare(b)).map(keyword => {
-    const option = document.createElement('option'); option.value = keyword; return option;
-  }));
+  const counts = new Map();
+  for (const photo of folderTreePhotos) {
+    for (const word of new Set((photo.keywords || '').split(', ').map(item => item.trim()))) if (word) counts.set(word, (counts.get(word) || 0) + 1);
+  }
+  keywordFilterOptions = [...counts].map(([word, count]) => ({ value: word, label: decodeHtmlEntities(word), count, search: normalizeSearch(decodeHtmlEntities(word)) }));
+  keywordFilterSuggest?.refresh();
   renderFilterTags();
   shootingFilters.refreshOptions(); // listes des appareils et objectifs : la collection a pu changer
 }
 
-function addKeywordFilter(value) {
+const hasKeywordFilters = () => keywordFilters.length > 0 || excludedKeywordFilters.length > 0;
+
+// A photo passes if it carries every included keyword and none of the excluded ones (whole keywords, as stored).
+// Excluded keywords are never sent to the backend prefilter: it stays a superset of this test.
+function matchesKeywordFilters(photo, included = keywordFilters, excluded = excludedKeywordFilters) {
+  if (!included?.length && !excluded?.length) return true;
+  const words = (photo.keywords || '').split(', ');
+  return (included ?? []).every(keyword => words.includes(keyword)) && !(excluded ?? []).some(keyword => words.includes(keyword));
+}
+
+// Puts a keyword in the included or excluded list (and out of the other one). Neither re-renders nor filters: the caller does.
+function setKeywordFilter(keyword, exclude) {
+  keywordFilters = keywordFilters.filter(item => item !== keyword);
+  excludedKeywordFilters = excludedKeywordFilters.filter(item => item !== keyword);
+  (exclude ? excludedKeywordFilters : keywordFilters).push(keyword);
+}
+
+function addKeywordFilter(value, exclude = false) {
   const keyword = value.trim();
-  if (!keyword || keywordFilters.includes(keyword)) return;
-  keywordFilters.push(keyword);
+  if (!keyword) return;
   document.getElementById('keyword-filter-input').value = '';
+  if ((exclude ? excludedKeywordFilters : keywordFilters).includes(keyword)) return;
+  setKeywordFilter(keyword, exclude);
   renderKeywordFilters();
   applyPhotoFilters();
 }
@@ -1473,17 +1509,29 @@ function addKeywordFilter(value) {
 // FILTRE PAR NOM DE FICHIER : chaque chaîne validée (Entrée) doit figurer dans le nom du fichier (extension comprise), sans tenir compte de la casse.
 const FILENAME_FILTER_PATTERN = /^[\p{L}\p{N}._-]{3,}$/u;
 
-function matchesFilenameFilters(photo) {
-  if (filenameFilters.length === 0) return true;
+const hasFilenameFilters = () => filenameFilters.length > 0 || excludedFilenameFilters.length > 0;
+
+// Every included text in the file name, and none of the excluded ones (case ignored). Excluded texts never reach the backend prefilter.
+function matchesFilenameFilters(photo, included = filenameFilters, excluded = excludedFilenameFilters) {
+  if (!included?.length && !excluded?.length) return true;
   const name = (photo.filename || photo.path.split(/[\\/]/).pop() || '').toLowerCase();
-  return filenameFilters.every(text => name.includes(text.toLowerCase()));
+  return (included ?? []).every(text => name.includes(text.toLowerCase())) && !(excluded ?? []).some(text => name.includes(text.toLowerCase()));
 }
 
 function renderFilenameFilters() {
   renderFilterTags();
 }
 
-function addFilenameFilter(value) {
+// Puts a text in the included or excluded filename list (and out of the other one). Neither re-renders nor filters: the caller does.
+function setFilenameFilter(text, exclude) {
+  const other = item => item.toLowerCase() !== text.toLowerCase();
+  filenameFilters = filenameFilters.filter(other);
+  excludedFilenameFilters = excludedFilenameFilters.filter(other);
+  (exclude ? excludedFilenameFilters : filenameFilters).push(text);
+}
+
+// `exclude` (Alt+Enter): the file name must not contain the text.
+function addFilenameFilter(value, exclude = false) {
   const text = value.trim();
   if (!text) return;
   if (!FILENAME_FILTER_PATTERN.test(text)) {
@@ -1491,8 +1539,8 @@ function addFilenameFilter(value) {
     return;
   }
   document.getElementById('filename-filter-input').value = '';
-  if (filenameFilters.some(item => item.toLowerCase() === text.toLowerCase())) return;
-  filenameFilters.push(text);
+  if ((exclude ? excludedFilenameFilters : filenameFilters).some(item => item.toLowerCase() === text.toLowerCase())) return;
+  setFilenameFilter(text, exclude);
   renderFilenameFilters();
   applyPhotoFilters();
 }
@@ -1543,6 +1591,23 @@ document.addEventListener('pointerdown', event => {
   setExpandedFilterGroups([]);
 }, true);
 
+// Middle-click on a filter chip removes it, in an open group as on a folded line or a badge of the folded Filters block. The chip's own × (or,
+// for an open group, the chip button itself) does the removal; chips with no removal ("…", inherited album criteria) are left alone.
+const removableFilterTag = target => (target instanceof Element ? target.closest('.photo-filters .filter-tag:not(.tag-more):not(.tag-muted)') : null);
+document.addEventListener('mousedown', event => {
+  if (event.button === 1 && removableFilterTag(event.target)) event.preventDefault(); // no auto-scroll
+});
+document.addEventListener('auxclick', event => {
+  if (event.button !== 1) return;
+  const tag = removableFilterTag(event.target);
+  if (!tag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const clear = tag.querySelector('.filter-tag-clear');
+  if (clear) clear.click();
+  else if (tag instanceof HTMLButtonElement) tag.click();
+});
+
 // Étiquettes des mots-clés (bleu) et des noms de fichier (vert), sur une ligne commune : boutons à croix quand le groupe est déplié,
 // simples étiquettes derrière le titre quand il est replié.
 function renderFilterTags() {
@@ -1552,32 +1617,56 @@ function renderFilterTags() {
   const entries = [
     ...(pathFilter !== null ? [{ kind: 'failed', text: t('Failed files') }] : []),
     ...keywordFilters.map(text => ({ kind: 'keyword', text })),
+    ...excludedKeywordFilters.map(text => ({ kind: 'keyword', text, excluded: true })),
     ...filenameFilters.map(text => ({ kind: 'filename', text })),
+    ...excludedFilenameFilters.map(text => ({ kind: 'filename', text, excluded: true })),
   ];
   // Retire une étiquette (boutons du groupe déplié comme croix des étiquettes repliées) puis relance le filtrage.
-  const removeEntry = (kind, text) => {
-    if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
+  const removeEntry = (kind, text, excluded = false) => {
+    if (kind === 'keyword' && excluded) excludedKeywordFilters = excludedKeywordFilters.filter(item => item !== text);
+    else if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
     else if (kind === 'failed') pathFilter = null;
+    else if (excluded) excludedFilenameFilters = excludedFilenameFilters.filter(item => item !== text);
     else filenameFilters = filenameFilters.filter(item => item !== text);
     renderFilterTags();
     applyPhotoFilters();
   };
-  expandedContainer.replaceChildren(...entries.map(({ kind, text }) => {
+  // Excluded keyword or filename text: the chip text starts with "-". A right-click on such a chip switches it between "include" and "exclude".
+  const label = (text, excluded) => (excluded ? `-${text}` : text);
+  const addKeywordMenu = (node, kind, text, excluded) => {
+    if (kind !== 'keyword' && kind !== 'filename') return;
+    addIncludeExcludeMenu(node, {
+      label: label(text, excluded),
+      excluded,
+      onToggle: () => {
+        (kind === 'keyword' ? setKeywordFilter : setFilenameFilter)(text, !excluded);
+        renderFilterTags();
+        applyPhotoFilters();
+      },
+    });
+  };
+  expandedContainer.replaceChildren(...entries.map(({ kind, text, excluded = false }) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `filter-tag tag-${kind}`;
-    button.textContent = `${text} ×`;
-    button.title = t('Remove filter {keyword}', { keyword: text });
-    button.addEventListener('click', () => removeEntry(kind, text));
+    button.textContent = `${label(text, excluded)} ×`;
+    button.title = t('Remove filter {keyword}', { keyword: label(text, excluded) });
+    button.addEventListener('click', () => removeEntry(kind, text, excluded));
+    addKeywordMenu(button, kind, text, excluded);
     return button;
   }));
   collapsedLine.querySelectorAll('.filter-tag').forEach(node => node.remove());
-  collapsedLine.append(...entries.map(({ kind, text }) => createFilterTag({
-    kind,
-    text,
-    title: t(kind === 'keyword' ? 'Keyword: {text}' : kind === 'failed' ? 'Files whose keywords could not be written' : 'Filename: {text}', { text }),
-    onRemove: () => removeEntry(kind, text),
-  })));
+  collapsedLine.append(...entries.map(({ kind, text, excluded = false }) => {
+    const tag = createFilterTag({
+      kind,
+      text: label(text, excluded),
+      title: t(kind === 'keyword' ? (excluded ? 'Excluded keyword: {text}' : 'Keyword: {text}') : kind === 'failed' ? 'Files whose keywords could not be written'
+        : excluded ? 'Filename without: {text}' : 'Filename: {text}', { text }),
+      onRemove: () => removeEntry(kind, text, excluded),
+    });
+    addKeywordMenu(tag, kind, text, excluded);
+    return tag;
+  }));
   fitCollapsedTags();
 }
 
@@ -1691,7 +1780,7 @@ function renderFilterSummaries() {
 function updateFilterGroupStates() {
   const active = {
     'rating-color': isRatingFilterActive() || colorFilters.size > 0 || pickFilters.size > 0,
-    tags: keywordFilters.length > 0 || filenameFilters.length > 0 || pathFilter !== null,
+    tags: hasKeywordFilters() || hasFilenameFilters() || pathFilter !== null,
     persons: hasPersonFilters(),
     date: dateFilter !== null,
     gear: shootingFilters.hasGear(),
@@ -1710,8 +1799,8 @@ function renderActiveFilterBadges() {
     [isRatingFilterActive(), 'rating', 'Rating'],
     [colorFilters.size > 0, 'color', 'Color'],
     [pickFilters.size > 0, 'pick', 'Pick'],
-    [keywordFilters.length > 0, 'keyword', 'Keywords'],
-    [filenameFilters.length > 0, 'filename', 'Filename'],
+    [hasKeywordFilters(), 'keyword', 'Keywords'],
+    [hasFilenameFilters(), 'filename', 'Filename'],
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
     [locationFilter !== 'all', 'location', 'Geolocation'],
@@ -4672,12 +4761,17 @@ markingPlacementSelect.addEventListener('change', event => {
   localStorage.setItem('markingPlacement', markingMode);
   updateMarkingPlacement();
 });
-document.getElementById('keyword-filter-input').addEventListener('change', event => addKeywordFilter(event.target.value));
-document.getElementById('keyword-filter-input').addEventListener('keydown', event => {
-  if (event.key === 'Enter') { event.preventDefault(); addKeywordFilter(event.target.value); }
+// Keyword filter field: suggestion list; Alt+Enter / Alt+click excludes the keyword. With no suggestion, Enter takes the typed text as is
+// (a keyword missing from the loaded photos can still be filtered on).
+keywordFilterSuggest = createFilterSuggest({
+  input: document.getElementById('keyword-filter-input'),
+  list: document.getElementById('keyword-filter-suggestions'),
+  getOptions: () => keywordFilterOptions.filter(option => !keywordFilters.includes(option.value) && !excludedKeywordFilters.includes(option.value)),
+  onPick: (value, exclude, text) => addKeywordFilter(value ?? text, exclude),
+  emptyText: 'No matching keyword',
 });
 document.getElementById('filename-filter-input').addEventListener('keydown', event => {
-  if (event.key === 'Enter') { event.preventDefault(); addFilenameFilter(event.target.value); }
+  if (event.key === 'Enter') { event.preventDefault(); addFilenameFilter(event.target.value, event.altKey); }
 });
 document.getElementById('show-empty-folders-toggle').checked = showEmptyFolders;
 document.getElementById('show-empty-folders-toggle').addEventListener('change', event => {

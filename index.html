@@ -114,11 +114,12 @@
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </div>
             <div id="filter-body-tags" class="filter-group-body" hidden>
-              <div class="filter-two-columns">
-                <input id="keyword-filter-input" type="text" list="keyword-options" placeholder="Choisir un mot-clé…" data-i18n-placeholder="Choose keyword..." aria-label="Mots-clés" data-i18n-aria-label="Keywords" autocomplete="off" />
-                <input id="filename-filter-input" type="text" placeholder="Texte puis Entrée…" data-i18n-placeholder="Type text then press Enter..." aria-label="Nom de fichier" data-i18n-aria-label="Filename" autocomplete="off" spellcheck="false" />
+              <div class="filter-two-columns keyword-filter-fields">
+                <input id="keyword-filter-input" type="text" placeholder="Choisir un mot-clé…" data-i18n-placeholder="Choose keyword..." aria-label="Mots-clés" data-i18n-aria-label="Keywords" autocomplete="off" />
+                <!-- Keyword filter suggestions: same list as the keyword panel input (keywords.css), opened below the fields -->
+                <ul id="keyword-filter-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                <input id="filename-filter-input" type="text" placeholder="Texte puis Entrée…" data-i18n-placeholder="Type text then press Enter..." title="Texte contenu dans le nom de fichier, puis Entrée. Alt + Entrée : exclure les fichiers qui le contiennent" data-i18n-title="Filename filter help" aria-label="Nom de fichier" data-i18n-aria-label="Filename" autocomplete="off" spellcheck="false" />
               </div>
-              <datalist id="keyword-options"></datalist>
               <div id="filter-tags" class="filter-tags" aria-live="polite"></div>
             </div>
           </div>
@@ -132,8 +133,10 @@
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </div>
             <div id="filter-body-persons" class="filter-group-body" hidden>
-              <input id="person-filter-input" type="text" list="person-options" placeholder="Choisir une personne…" data-i18n-placeholder="Choose person..." aria-label="Personnes" data-i18n-aria-label="People" autocomplete="off" />
-              <datalist id="person-options"></datalist>
+              <div class="person-filter-field">
+                <input id="person-filter-input" type="text" placeholder="Choisir une personne…" data-i18n-placeholder="Choose person..." aria-label="Personnes" data-i18n-aria-label="People" autocomplete="off" />
+                <ul id="person-filter-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+              </div>
               <div id="person-filter-tags" class="filter-tags" aria-live="polite"></div>
               <label id="face-scan-filter-row" class="face-scan-filter-row" for="face-scan-filter" hidden>
                 <span data-i18n="Face scan">Scan des visages</span>
@@ -177,12 +180,17 @@
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </div>
             <div id="filter-body-gear" class="filter-group-body" hidden>
+              <!-- Each field has its suggestion list (filter-suggest.js), opened below it -->
               <div class="gear-filters">
-                <input id="camera-filter-input" type="text" list="camera-options" placeholder="Appareil photo…" data-i18n-placeholder="Camera..." aria-label="Appareil photo" data-i18n-aria-label="Camera" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
-                <input id="lens-filter-input" type="text" list="lens-options" placeholder="Objectif…" data-i18n-placeholder="Lens..." aria-label="Objectif" data-i18n-aria-label="Lens" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
+                <div class="gear-filter-field">
+                  <input id="camera-filter-input" type="text" placeholder="Appareil photo…" data-i18n-placeholder="Camera..." aria-label="Appareil photo" data-i18n-aria-label="Camera" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
+                  <ul id="camera-filter-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                </div>
+                <div class="gear-filter-field">
+                  <input id="lens-filter-input" type="text" placeholder="Objectif…" data-i18n-placeholder="Lens..." aria-label="Objectif" data-i18n-aria-label="Lens" title="Choisir dans la liste, ou taper un texte puis Entrée pour chercher ce qui le contient" data-i18n-title="Gear filter help" autocomplete="off" spellcheck="false" />
+                  <ul id="lens-filter-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                </div>
               </div>
-              <datalist id="camera-options"></datalist>
-              <datalist id="lens-options"></datalist>
               <div id="gear-tags" class="filter-tags" aria-live="polite"></div>
             </div>
           </div>
@@ -233,8 +241,10 @@
             <div id="filter-body-more" class="filter-group-body" hidden>
               <div class="filter-subgroup">
                 <div class="filter-subtitle" data-i18n="Format">Format</div>
-                <input id="format-filter-input" type="text" list="format-options" placeholder="Type, marque de RAW ou extension…" data-i18n-placeholder="Format..." aria-label="Format" data-i18n-aria-label="Format" title="Choisir un type, une marque de RAW ou une extension (les étiquettes s'additionnent en OU)" data-i18n-title="Format filter help" autocomplete="off" spellcheck="false" />
-                <datalist id="format-options"></datalist>
+                <div class="format-filter-field">
+                  <input id="format-filter-input" type="text" placeholder="Type, marque de RAW ou extension…" data-i18n-placeholder="Format..." aria-label="Format" data-i18n-aria-label="Format" title="Choisir un type, une marque de RAW ou une extension (les étiquettes s'additionnent en OU)" data-i18n-title="Format filter help" autocomplete="off" spellcheck="false" />
+                  <ul id="format-filter-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                </div>
                 <div id="format-error" class="format-error" role="alert"></div>
                 <div id="format-tags" class="filter-tags" aria-live="polite"></div>
               </div>

@@ -7,7 +7,7 @@
 import { t, onLanguageChange, normalizeSearch } from './i18n.js';
 
 // Mots de touche traduits (clé de traduction) ; toute autre touche s'affiche telle quelle.
-const KEY_WORDS = new Set(['Click', 'Double-click', 'Right-click', 'Shift', 'Drag', 'Mouse wheel', 'Delete Key', 'Enter', 'Esc', 'A letter', 'Space Key']);
+const KEY_WORDS = new Set(['Click', 'Double-click', 'Right-click', 'Middle-click', 'Shift', 'Drag', 'Mouse wheel', 'Delete Key', 'Enter', 'Esc', 'A letter', 'Space Key']);
 
 // `k` : alternatives de touches, chacune étant une combinaison (touches jointes par « + »). `sep` : séparateur entre alternatives
 // (« ou » par défaut, 'slash' pour « / », 'space' pour une simple liste). `tag` : contexte où la ligne s'applique.
@@ -36,6 +36,12 @@ const GROUPS = [
     { a: 'Copy to a folder', k: [['Ctrl', 'Drag']] },
     { a: 'Zoom around the cursor', tag: 'Fullscreen', k: [['Ctrl', 'Mouse wheel']] },
     { a: 'Open a filter group, keeping the others open', d: 'Without Shift, a click opens the group and closes the others', tag: 'Filters', k: [['Shift', 'Click']] },
+  ] },
+  { title: 'Filters', rows: [
+    { a: 'Exclude the chosen value instead of including it', d: 'Keywords, people, camera, lens, format: in the suggestion list. File name: Alt+Enter', tag: 'Filters', k: [['Alt', 'Enter'], ['Alt', 'Click']] },
+    { a: 'Include / exclude a filter chip', d: 'An excluded chip starts with "-" and has faded colors', tag: 'Filters', k: [['Right-click']] },
+    { a: 'Remove a filter chip', d: 'Open group or folded line', tag: 'Filters', k: [['Middle-click']] },
+    { a: 'Filter on a keyword of the photo', d: 'Ctrl+click: add it to the filter; Alt+click: exclude it', tag: 'Info panel', k: [['Click'], ['Ctrl', 'Click'], ['Alt', 'Click']], sep: 'slash' },
   ] },
   { title: 'Preview and comparison', rows: [
     { a: 'Previous / next photo', tag: 'Preview and fullscreen', k: [['←'], ['→']], sep: 'slash' },

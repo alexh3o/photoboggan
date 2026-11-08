@@ -1,7 +1,7 @@
 /* Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. */
 :root {
-  --tag-gear-bg: #1f5a55; --tag-gear-border: #2f8a82; --tag-gear-hover: #2a736d;
-  --tag-shot-bg: #6a3f2a; --tag-shot-border: #9a5f42;
+  --tag-gear-bg: #26736b; --tag-gear-border: #3ca89c; --tag-gear-hover: #2e877e;
+  --tag-shot-bg: #865130; --tag-shot-border: #bb7a52;
 }
 .filter-tag.tag-gear { background: var(--tag-gear-bg); border-color: var(--tag-gear-border); }
 button.filter-tag.tag-gear:hover { background: var(--tag-gear-hover); }
