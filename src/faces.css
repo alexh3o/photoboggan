@@ -114,11 +114,11 @@ body.show-toolbar-labels .faces-sort-prefix { display: inline; margin-right: -0.
   --face-tile-size: 120px;
   --face-tile-gap: 0px;
   --face-tile-radius: 0px;
-  --face-status-bar-width: 2rem;
+  --face-status-bar-width: 1.5rem;
   --face-chip-font-size: 0.8rem;
   --face-bar-width: 4.75rem; /* barre d'actions verticale (plus de 5 vignettes en largeur) */
   --face-bar-reserve: 5.5rem; /* marge réservée à droite de la grille pour elle : sa largeur et un petit écart (lue par faces-grid.js) */
-  --face-separator-height: 2.75rem; /* hauteur d'un titre de groupe (lue par faces-grid.js) */
+  --face-separator-height: 3.25rem; /* hauteur d'un titre de groupe (lue par faces-grid.js) */
   --group-separator-font-size: 0.95rem; /* titres de groupe plus grands et plus contrastés que dans la grille des photos */
   --group-separator-color: var(--text-strong);
   --face-chip-height: 1.875rem; /* hauteur des pastilles de filtre (statuts, origines) */
@@ -128,7 +128,7 @@ body.show-toolbar-labels .faces-sort-prefix { display: inline; margin-right: -0.
   --face-color-confirmed: mediumseagreen; /* #2ecc71; */
   --face-color-unknown: #7f8c8d;
   --face-color-filtered: #555;
-  --face-color-ignored: #555;
+  --face-color-ignored: #3a3a3a; /* a little darker than "filtered" so that the two chips differ */
   --face-color-not-face: #c0392b;
 }
 .face-tile { position: absolute; top: 0; left: 0; width: var(--face-tile-size); height: var(--face-tile-size); border-radius: var(--face-tile-radius); overflow: hidden; cursor: pointer; background: var(--thumb-bg); }
@@ -202,6 +202,11 @@ body.face-drawing #fullscreen-view, body.face-drawing #fullscreen-view *, body.f
 
 /* Vue de gestion (lot 5b) : titres de groupe cliquables (sélection du groupe) */
 .faces-separator { cursor: pointer; }
+/* Avatar of the person after the count in a group title: 24px, enlarged on hover to compare with the faces of the group. */
+.faces-separator { overflow: visible; } /* the enlarged avatar must not be clipped by its title */
+.faces-group-avatar { flex: 0 0 32px; width: 32px; height: 32px; margin-left: 0.5rem; margin-bottom: 1px; border-radius: 50%; background-color: var(--control-bg); background-repeat: no-repeat; transform-origin: left center; transition: transform 0.15s ease; }
+.faces-group-avatar:hover { transform: scale(3); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); position: relative; z-index: 10; }
+.faces-separator:has(.faces-group-avatar:hover) { z-index: 10; }
 .faces-separator:hover .group-separator-label { color: var(--accent); }
 /* « Pas des visages » : libellé de la pastille « Visages » barré (le nom complet est dans l'infobulle) */
 /* Compteurs : même présentation dans les pastilles de filtre et les titres de groupe */

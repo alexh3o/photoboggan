@@ -417,6 +417,17 @@ function applyAvatarStyle(element, style) {
 }
 
 // Vignette ronde : la zone du visage (orientée comme la miniature), élargie et rendue carrée, découpée dans la miniature en cache par CSS.
+// Representative face of a person (null without one): used by the avatars of the group titles of the Faces view.
+export function getPersonCover(personId) {
+  return persons.find(person => person.id === personId)?.cover ?? null;
+}
+
+// Fills a round avatar element with the cover face of a person (same crop as the People section).
+export function fillAvatar(element, cover) {
+  element.dataset.cover = avatarKey(cover);
+  return loadAvatar(element, cover);
+}
+
 async function loadAvatar(element, cover) {
   const key = avatarKey(cover);
   const cached = avatarStyles.get(key);
@@ -435,6 +446,7 @@ async function loadAvatar(element, cover) {
     avatarStyles.set(key, style);
     // L'élément a pu être remplacé entre-temps (liste reconstruite) : le style est appliqué aux vignettes de cette couverture affichées.
     for (const avatar of document.querySelectorAll(`#persons-list .person-avatar[data-cover="${CSS.escape(key)}"]`)) applyAvatarStyle(avatar, style);
+    if (element.isConnected) applyAvatarStyle(element, style); // an avatar outside the People list (group titles of the Faces view)
   };
   image.src = url;
 }

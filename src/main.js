@@ -2081,12 +2081,15 @@ async function restoreViewSnapshot(snapshot) {
 
 // « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossier du
 // fichier dans l'arbre, sans aucun filtre, avec le fichier sélectionné et visible dans la grille.
+// Also used from "All photos" (context menu, one photo): there the current filters are kept, since the photo passes them and the user did not leave a search.
+function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch; }
 async function showPhotoInItsFolder(photo) {
-  if (!photo || !(rawSearch || duplicateSearch)) return;
+  const fromResults = rawSearch !== null || duplicateSearch !== null;
+  if (!photo || !(fromResults || isAllPhotosView())) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
   abandonDuplicateSearch();
-  resetAllFilters(); // aucun filtre dans le dossier du fichier, pas même ceux d'avant la recherche
+  if (fromResults) resetAllFilters(); // aucun filtre dans le dossier du fichier, pas même ceux d'avant la recherche
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   const folder = folderOf(photo.path);
@@ -6841,6 +6844,7 @@ initPhotoActions({
   findDuplicates: findDuplicateImages,
   openDuplicatesDialog,
   showInItsFolder: showPhotoInItsFolder,
+  isAllPhotosView, // "Show in its own folder" in the menu of one photo of "All photos"
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
   getActiveIndex: () => lastSelectedIndex,
@@ -7179,7 +7183,7 @@ initFacesGrid({
     openPersonsView();
   },
   closePersonsView: () => { closePersonsView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue de gestion : une seule vue à la fois
-  showToast: message => showWriteToast(message),
+  showToast: (message, action) => showWriteToast(message, false, action), // `action` : bouton « Annuler » des actions de révision
   getPersonRoot,
   isFullscreen: () => isFullscreen,
 });

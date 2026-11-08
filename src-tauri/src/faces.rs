@@ -1003,7 +1003,7 @@ pub fn set_faces_unknown(state: State<'_, AppState>, face_ids: Vec<i64>) -> Resu
     let conn = pool.get().map_err(|error| error.to_string())?;
     conn.execute(
         "UPDATE faces SET rejected_person_id = COALESCE(person_id, suggested_person_id, rejected_person_id), person_id = NULL,
-                suggested_person_id = NULL, state = 'unknown', unknown_locked = 1, dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+                suggested_person_id = NULL, state = 'unknown', unknown_locked = 1, dirty = CASE WHEN person_id IS NOT NULL AND state = 'confirmed' THEN 1 ELSE dirty END
          WHERE id IN (SELECT value FROM json_each(?1)) AND state <> 'filtered'",
         params![ids_json(&face_ids)?],
     )
@@ -1017,7 +1017,7 @@ pub fn ignore_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<us
     let conn = pool.get().map_err(|error| error.to_string())?;
     conn.execute(
         "UPDATE faces SET state = 'ignored', person_id = NULL, suggested_person_id = NULL,
-                dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+                dirty = CASE WHEN person_id IS NOT NULL AND state = 'confirmed' THEN 1 ELSE dirty END
          WHERE id IN (SELECT value FROM json_each(?1))",
         params![ids_json(&face_ids)?],
     )
@@ -1044,7 +1044,7 @@ pub fn mark_faces_not_a_face(state: State<'_, AppState>, face_ids: Vec<i64>) -> 
     let conn = pool.get().map_err(|error| error.to_string())?;
     conn.execute(
         "UPDATE faces SET state = 'not_face', person_id = NULL, suggested_person_id = NULL,
-                dirty = CASE WHEN person_id IS NOT NULL THEN 1 ELSE dirty END
+                dirty = CASE WHEN person_id IS NOT NULL AND state = 'confirmed' THEN 1 ELSE dirty END
          WHERE id IN (SELECT value FROM json_each(?1))",
         params![ids_json(&face_ids)?],
     )
@@ -1061,6 +1061,78 @@ pub fn unmark_faces_not_a_face(state: State<'_, AppState>, face_ids: Vec<i64>) -
         params![ids_json(&face_ids)?],
     )
     .map_err(|error| error.to_string())
+}
+
+/// Review state of one face, as captured before an action so that the action can be undone (Ctrl+Z in the Faces view).
+#[derive(Serialize, serde::Deserialize)]
+pub struct FaceSnapshot {
+    pub id: i64,
+    pub state: String,
+    pub person_id: Option<i64>,
+    pub suggested_person_id: Option<i64>,
+    pub rejected_person_id: Option<i64>,
+    pub unknown_locked: bool,
+    pub dirty: bool,
+}
+
+/// Captures the review state of `face_ids` (see `restore_faces`).
+#[tauri::command(async)]
+pub fn snapshot_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<Vec<FaceSnapshot>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT id, state, person_id, suggested_person_id, rejected_person_id, unknown_locked, dirty
+             FROM faces WHERE id IN (SELECT value FROM json_each(?1))",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![ids_json(&face_ids)?], |row| {
+            Ok(FaceSnapshot {
+                id: row.get(0)?,
+                state: row.get(1)?,
+                person_id: row.get(2)?,
+                suggested_person_id: row.get(3)?,
+                rejected_person_id: row.get(4)?,
+                unknown_locked: row.get(5)?,
+                dirty: row.get(6)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    crate::keywords::collect_rows(rows)
+}
+
+/// Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped. `dirty` returns to its captured value
+/// while the action is still unwritten; once the files were written, a face whose written content differs from the restored one (confirmed
+/// person) is marked to be rewritten. Returns the number of faces restored.
+#[tauri::command(async)]
+pub fn restore_faces(state: State<'_, AppState>, snapshots: Vec<FaceSnapshot>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    // What a file holds for a face: the person of a confirmed face, nothing otherwise.
+    let written = |state: &str, person: Option<i64>| if state == "confirmed" { person } else { None };
+    in_transaction(&conn, |conn| -> rusqlite::Result<usize> {
+        let mut restored = 0;
+        for snapshot in &snapshots {
+            let current = conn
+                .query_row("SELECT state, person_id, dirty FROM faces WHERE id = ?1", params![snapshot.id], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?, row.get::<_, bool>(2)?))
+                })
+                .optional()?;
+            let Some((current_state, current_person, current_dirty)) = current else { continue };
+            let dirty = if current_dirty || written(&current_state, current_person) == written(&snapshot.state, snapshot.person_id) {
+                snapshot.dirty
+            } else {
+                true
+            };
+            restored += conn.execute(
+                "UPDATE faces SET state = ?2, person_id = (SELECT id FROM persons WHERE id = ?3), suggested_person_id = (SELECT id FROM persons WHERE id = ?4),
+                        rejected_person_id = (SELECT id FROM persons WHERE id = ?5), unknown_locked = ?6, dirty = ?7 WHERE id = ?1",
+                params![snapshot.id, snapshot.state, snapshot.person_id, snapshot.suggested_person_id, snapshot.rejected_person_id, snapshot.unknown_locked, dirty],
+            )?;
+        }
+        Ok(restored)
+    })
 }
 
 /// Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.
@@ -1106,7 +1178,7 @@ fn id_set(conn: &Connection, sql: &str, photo_id: i64) -> Result<HashSet<i64>, S
 }
 
 /// Plan d'écriture des visages d'une photo :
-/// - zones : visages nommés (attribués automatiquement ou confirmés), sous le nom du mot-clé lié, à défaut celui de la personne ;
+/// - zones : visages confirmés seulement (les visages « auto » restent en base tant que l'utilisateur ne les a pas confirmés), sous le nom du mot-clé lié, à défaut celui de la personne ;
 /// - mots-clés : ceux fournis par l'utilisateur (`explicit`, panneau Mots-clés) ou ceux de la photo, plus le mot-clé de chaque personne présente
 ///   (noté « posé par la reconnaissance » s'il n'y était pas), moins les mots-clés posés par la reconnaissance dont la personne n'a plus de visage.
 pub fn plan_face_write(conn: &Connection, photo_id: i64, explicit: Option<&[i64]>) -> Result<FaceWritePlan, String> {
@@ -1120,7 +1192,7 @@ pub fn plan_face_write(conn: &Connection, photo_id: i64, explicit: Option<&[i64]
             .prepare_cached(
                 "SELECT f.x, f.y, f.w, f.h, COALESCE(k.name, p.name), p.keyword_node_id FROM faces f
                  JOIN persons p ON p.id = f.person_id LEFT JOIN keyword_nodes k ON k.id = p.keyword_node_id
-                 WHERE f.photo_id = ?1 AND f.state IN ('auto', 'confirmed') ORDER BY f.x",
+                 WHERE f.photo_id = ?1 AND f.state = 'confirmed' ORDER BY f.x",
             )
             .map_err(|error| error.to_string())?;
         let rows = statement
@@ -1252,7 +1324,7 @@ pub fn face_keyword_conflicts(state: State<'_, AppState>, changes: Vec<KeywordCh
         let mut statement = conn
             .prepare_cached(
                 "SELECT f.id, p.keyword_node_id, COALESCE(k.name, p.name) FROM faces f JOIN persons p ON p.id = f.person_id
-                 JOIN keyword_nodes k ON k.id = p.keyword_node_id WHERE f.photo_id = ?1 AND f.state IN ('auto', 'confirmed')",
+                 JOIN keyword_nodes k ON k.id = p.keyword_node_id WHERE f.photo_id = ?1 AND f.state = 'confirmed'",
             )
             .map_err(|error| error.to_string())?;
         let rows = statement
@@ -1345,7 +1417,7 @@ pub fn rename_person(state: State<'_, AppState>, person_id: i64, name: String) -
     in_transaction(&conn, |conn| -> rusqlite::Result<()> {
         conn.execute("UPDATE persons SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, person_id])?;
         // Les zones écrites portent l'ancien nom : visages de la personne à réécrire.
-        conn.execute("UPDATE faces SET dirty = 1 WHERE person_id = ?1 AND state IN ('auto', 'confirmed')", params![person_id])?;
+        conn.execute("UPDATE faces SET dirty = 1 WHERE person_id = ?1 AND state = 'confirmed'", params![person_id])?;
         Ok(())
     })
 }
@@ -1422,7 +1494,7 @@ pub fn delete_person(state: State<'_, AppState>, person_id: i64) -> Result<usize
 /// Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
 fn delete_person_rows(conn: &Connection, person_id: i64) -> rusqlite::Result<usize> {
     let released = conn.execute(
-        "UPDATE faces SET state = CASE WHEN state IN ('auto', 'confirmed') THEN 'unknown' ELSE state END, person_id = NULL, dirty = 1 WHERE person_id = ?1",
+        "UPDATE faces SET state = CASE WHEN state IN ('auto', 'confirmed') THEN 'unknown' ELSE state END, person_id = NULL, dirty = CASE WHEN state = 'confirmed' THEN 1 ELSE dirty END WHERE person_id = ?1",
         params![person_id],
     )?;
     conn.execute(
@@ -1458,7 +1530,7 @@ fn merge_rows(conn: &Connection, from_person_id: i64, into_person_id: i64) -> Re
     }
     let face_count = conn
         .execute(
-            "UPDATE faces SET person_id = ?2, dirty = CASE WHEN state IN ('auto', 'confirmed') THEN 1 ELSE dirty END WHERE person_id = ?1",
+            "UPDATE faces SET person_id = ?2, dirty = CASE WHEN state = 'confirmed' THEN 1 ELSE dirty END WHERE person_id = ?1",
             params![from_person_id, into_person_id],
         )
         .map_err(|error| error.to_string())?;
@@ -1489,7 +1561,7 @@ fn undo_merge_rows(conn: &Connection, merge_id: i64, from_id: i64, to_id: i64, p
     // Paramètres des trois requêtes : ?1 fusion, ?2 personne recréée, ?3 personne gardée, ?4 rôle (?3 inutilisé pour les refus).
     let face_ids = "SELECT face_id FROM person_merge_faces WHERE merge_id = ?1 AND role = ?4";
     let restored = conn.execute(
-        &format!("UPDATE faces SET person_id = ?2, dirty = CASE WHEN state IN ('auto', 'confirmed') THEN 1 ELSE dirty END
+        &format!("UPDATE faces SET person_id = ?2, dirty = CASE WHEN state = 'confirmed' THEN 1 ELSE dirty END
                   WHERE person_id = ?3 AND id IN ({face_ids})"),
         params![merge_id, from_id, to_id, "person"],
     )?;
@@ -1655,7 +1727,7 @@ pub fn delete_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<us
     in_transaction(&conn, |conn| -> rusqlite::Result<usize> {
         conn.execute(
             "INSERT OR IGNORE INTO photo_face_writes (photo_id)
-             SELECT DISTINCT photo_id FROM faces WHERE id IN (SELECT value FROM json_each(?1)) AND person_id IS NOT NULL AND state IN ('auto', 'confirmed')",
+             SELECT DISTINCT photo_id FROM faces WHERE id IN (SELECT value FROM json_each(?1)) AND person_id IS NOT NULL AND state = 'confirmed'",
             params![ids],
         )?;
         conn.execute("UPDATE persons SET cover_face_id = NULL WHERE cover_face_id IN (SELECT value FROM json_each(?1))", params![ids])?;

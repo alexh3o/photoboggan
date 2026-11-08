@@ -2606,6 +2606,8 @@ fn main() {
             faces::unignore_faces,
             faces::mark_faces_not_a_face,
             faces::unmark_faces_not_a_face,
+            faces::snapshot_faces,
+            faces::restore_faces,
             faces::discard_pending_face_writes,
             faces::recognize_faces,
             faces::get_pending_face_writes,

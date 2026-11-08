@@ -76,6 +76,8 @@ const GROUPS = [
     { a: 'Select all faces', tag: 'Faces view', k: [['Ctrl', 'A']] },
     { a: 'Clear the face selection', tag: 'Faces view', k: [['Esc']] },
     { a: 'Previous / next face', tag: 'Faces view', k: [['←'], ['→']], sep: 'slash' },
+    { a: 'Previous / next row', tag: 'Faces view', k: [['↑'], ['↓']], sep: 'slash' },
+    { a: 'Undo the last review action', tag: 'Faces view', k: [['Ctrl', 'Z']] },
     { a: 'Show only one status', d: 'Click a status button (To confirm, Auto…) while holding Shift: the others are hidden', tag: 'Faces view', k: [['Shift', 'Click']] },
     { a: 'Write the faces to the files', tag: 'Faces view', k: [['Ctrl', 'Enter']] },
   ] },

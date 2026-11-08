@@ -300,12 +300,11 @@ pub fn attribute_faces(conn: &Connection, photo_ids: Option<&[i64]>, thresholds:
                 _ => {}
             }
             let (old_state, old_person, old_suggested) = previous[&id];
-            // Une personne attribuée (ou retirée) change ce qui sera écrit dans le fichier : visage à réécrire.
-            let dirty = old_person != person_id;
-            if old_state != state || old_person != person_id || old_suggested != suggested || dirty {
+            // An "auto" face is never written to the files until the user confirms it, so a change of attribution leaves `dirty` untouched.
+            if old_state != state || old_person != person_id || old_suggested != suggested {
                 conn.execute(
-                    "UPDATE faces SET state = ?1, person_id = ?2, suggested_person_id = ?3, score = ?4, margin = ?5, dirty = MAX(dirty, ?6) WHERE id = ?7",
-                    params![state, person_id, suggested, score, margin, dirty, id],
+                    "UPDATE faces SET state = ?1, person_id = ?2, suggested_person_id = ?3, score = ?4, margin = ?5 WHERE id = ?6",
+                    params![state, person_id, suggested, score, margin, id],
                 )?;
             } else {
                 conn.execute("UPDATE faces SET score = ?1, margin = ?2 WHERE id = ?3", params![score, margin, id])?;

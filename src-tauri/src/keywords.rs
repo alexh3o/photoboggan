@@ -751,7 +751,7 @@ fn run_rename(
         // Personne reliée à ce mot-clé : ses zones de visage portent le nom du mot-clé, elles sont à réécrire (avec cette écriture pour les photos
         // qui portent le mot-clé, à la prochaine écriture des visages pour les autres).
         conn.execute(
-            "UPDATE faces SET dirty = 1 WHERE state IN ('auto', 'confirmed') AND person_id IN (SELECT id FROM persons WHERE keyword_node_id = ?1)",
+            "UPDATE faces SET dirty = 1 WHERE state = 'confirmed' AND person_id IN (SELECT id FROM persons WHERE keyword_node_id = ?1)",
             params![keyword_id],
         )
         .map_err(|error| error.to_string())?;

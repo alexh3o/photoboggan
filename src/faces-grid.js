@@ -11,7 +11,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
-import { faceCropStyle, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
+import { faceCropStyle, getPersonCover, fillAvatar, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
 import { applyPending, isWriteLocked, onLockChange, choiceDialog } from './metadata-writes.js';
 import { readChoice } from './settings-defaults.js';
 
@@ -196,6 +196,7 @@ export function closeFacesView() {
   open = false;
   // Le regroupement vaut pour les photos affichées à ce moment : il n'est pas conservé d'une ouverture à l'autre.
   clusters = null;
+  undoStack.length = 0; // snapshots only make sense for the faces currently loaded
   pendingMode = false;
   // Miniatures relues à la prochaine ouverture : elles ont pu être régénérées (résolution du cache, fichier modifié) et la liste ne grossit pas.
   thumbnailInfo.clear();
@@ -281,9 +282,9 @@ function scopedFaces() {
 
 function groupOf(face) {
   switch (face.state) {
-    case 'suggested': return { order: 0, key: `s${face.suggested_person_id}`, label: t('To confirm: {name}', { name: shownName(face) ?? '?' }), sortName: shownName(face) ?? '' };
+    case 'suggested': return { order: 0, key: `s${face.suggested_person_id}`, personId: face.suggested_person_id, label: t('To confirm: {name}', { name: shownName(face) ?? '?' }), sortName: shownName(face) ?? '' };
     case 'auto':
-    case 'confirmed': return { order: 1, key: `p${face.person_id}`, label: shownName(face) ?? '?', sortName: shownName(face) ?? '' };
+    case 'confirmed': return { order: 1, key: `p${face.person_id}`, personId: face.person_id, label: shownName(face) ?? '?', sortName: shownName(face) ?? '' };
     case 'unknown': {
       // Inconnus regroupés (« Regrouper les inconnus ») : un groupe par ressemblance, du plus grand au plus petit, puis les visages isolés.
       const cluster = clusters?.get(face.id);
@@ -379,7 +380,7 @@ function rebuild() {
     if (newGroup || newSection) {
       currentGroup = entry.group.key;
       const count = groupCounts.get(currentGroup);
-      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, level: entry.group.section ? 1 : 0, label: entry.group.label, count, group: currentGroup, hasClusterButton: !!entry.group.hasClusterButton });
+      layout.push({ kind: 'separator', key: `g:${currentGroup}`, x: SIDE_MARGIN, y, level: entry.group.section ? 1 : 0, label: entry.group.label, personId: entry.group.personId, count, group: currentGroup, hasClusterButton: !!entry.group.hasClusterButton });
       y += SEPARATOR_HEIGHT;
     }
     if (column === 0) layout.push({ kind: 'bar', key: `b:${entry.face.id}`, x: SIDE_MARGIN, y, state: entry.face.state });
@@ -533,6 +534,14 @@ function createSeparator(item) {
   label.className = 'group-separator-label';
   label.textContent = item.label;
   node.append(label, countBadge(item.count));
+  // Round avatar of the person's representative face, to compare their faces with a face already known for them (grows on hover).
+  const cover = item.personId != null ? getPersonCover(item.personId) : null;
+  if (cover) {
+    const avatar = document.createElement('span');
+    avatar.className = 'faces-group-avatar';
+    fillAvatar(avatar, cover);
+    node.append(avatar);
+  }
   if (item.hasClusterButton) {
     // « Regrouper les inconnus » : sur le titre « Visages inconnus » (second clic : annule le regroupement).
     const button = document.createElement('button');
@@ -563,7 +572,7 @@ function createTile(face) {
   if (face.score != null && face.state !== 'confirmed') {
     const score = document.createElement('span');
     score.className = 'face-tile-score';
-    score.textContent = face.score.toFixed(2);
+    score.textContent = face.score.toFixed(2).replace(/^(-?)0\./, '$1.'); // ".83" rather than "0.83"
     node.append(score);
   }
   node.title = `${t(STATE_TITLES[face.state] ?? face.state)}${shownName(face) ? ` · ${shownName(face)}` : ''}${face.score != null ? ` · ${t('similarity')} ${face.score.toFixed(2)}` : ''}`;
@@ -673,7 +682,38 @@ function moveFaceSelection(step) {
   if (shown.length === 0) return;
   const currentId = lastSelectedId();
   const currentIndex = currentId === null ? -1 : shown.findIndex(face => face.id === currentId);
-  const face = shown[currentIndex < 0 ? 0 : Math.max(0, Math.min(shown.length - 1, currentIndex + step))];
+  selectOnly(shown[currentIndex < 0 ? 0 : Math.max(0, Math.min(shown.length - 1, currentIndex + step))]);
+}
+
+// Up / Down arrow: same column in the previous / next row of tiles (the last tile of a shorter row). Rows never mix groups or states, so a
+// row is a run of faces sharing the same vertical position. Without selection, the first face is selected.
+function moveFaceRow(step) {
+  if (shown.length === 0) return;
+  const currentId = lastSelectedId();
+  const currentIndex = currentId === null ? -1 : shown.findIndex(face => face.id === currentId);
+  if (currentIndex < 0) { selectOnly(shown[0]); return; }
+  const rowOf = index => faceRows.get(shown[index].id);
+  let start = currentIndex;
+  while (start > 0 && rowOf(start - 1) === rowOf(currentIndex)) start -= 1;
+  let end = currentIndex;
+  while (end < shown.length - 1 && rowOf(end + 1) === rowOf(currentIndex)) end += 1;
+  const column = currentIndex - start;
+  let target;
+  if (step < 0) {
+    if (start === 0) return;
+    let previousStart = start - 1;
+    while (previousStart > 0 && rowOf(previousStart - 1) === rowOf(start - 1)) previousStart -= 1;
+    target = Math.min(previousStart + column, start - 1);
+  } else {
+    if (end === shown.length - 1) return;
+    let nextEnd = end + 1;
+    while (nextEnd < shown.length - 1 && rowOf(nextEnd + 1) === rowOf(end + 1)) nextEnd += 1;
+    target = Math.min(end + 1 + column, nextEnd);
+  }
+  selectOnly(shown[target]);
+}
+
+function selectOnly(face) {
   selected = new Set([face.id]);
   selectionOrder = [face.id];
   anchorId = face.id;
@@ -831,6 +871,70 @@ async function recognizeAndRefresh(photoIds) {
 // Une action de révision (ou une fenêtre « Nommer ») à la fois : sinon actions et réattributions s'entrelacent sur une sélection qui change.
 let actionBusy = false;
 
+// Undo (Ctrl+Z and the "Undo" button of the toast): the state of the faces before each review action, most recent last. Emptied when the view closes.
+const UNDO_LIMIT = 20;
+const undoStack = []; // [{ snapshots }]
+
+// Toast after a review action: [message naming the person (one person only), message without a name]; both are plural keys on the number of photos.
+const ACTION_MESSAGES = {
+  confirm_faces: ['Face of {name} confirmed on {count} photo', 'Faces confirmed on {count} photo'],
+  assign_faces: ['Face of {name} assigned on {count} photo', 'Faces assigned on {count} photo'],
+  set_faces_unknown: [null, 'Faces set as unknown on {count} photo'],
+  ignore_faces: [null, 'Faces ignored on {count} photo'],
+  mark_faces_not_a_face: [null, 'Faces marked as not faces on {count} photo'],
+  unignore_faces: [null, 'Faces no longer ignored on {count} photo'],
+  unmark_faces_not_a_face: [null, 'Faces marked as faces on {count} photo'],
+};
+
+// State of the faces before an action (null if it cannot be read: the action then simply cannot be undone).
+async function snapshotFaces(targets) {
+  try {
+    return await invoke('snapshot_faces', { faceIds: targets.map(face => face.id) });
+  } catch (error) {
+    console.error('Snapshot of the faces impossible', error);
+    return null;
+  }
+}
+
+// The only person named by the faces, or null when there are none or several.
+function singleName(targets) {
+  const names = new Set(targets.map(shownName).filter(Boolean));
+  return names.size === 1 ? [...names][0] : null;
+}
+
+// Toast "Face of Alex confirmed on 32 photos" with an Undo button, and the action is pushed on the undo stack.
+function announceAction(command, targets, snapshots, name) {
+  const photoCount = new Set(targets.map(face => face.photo_id)).size;
+  const [named, plain] = ACTION_MESSAGES[command];
+  const message = tp(name && named ? named : plain, photoCount, { name });
+  if (snapshots) {
+    undoStack.push({ snapshots });
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  }
+  host.showToast(message, snapshots ? { label: t('Undo'), onClick: undoLastAction } : null);
+}
+
+// Puts the faces of the last review action back in their previous state.
+async function undoLastAction() {
+  if (actionBusy || !open) return;
+  const entry = undoStack.pop();
+  if (!entry) { host.showToast(t('Nothing to undo')); return; }
+  actionBusy = true;
+  try {
+    const photoIds = viewPhotoIds();
+    try {
+      await invoke('restore_faces', { snapshots: entry.snapshots });
+    } catch (error) {
+      host.showToast(String(error));
+      return;
+    }
+    await recognizeAndRefresh(photoIds);
+    host.showToast(t('Action undone'));
+  } finally {
+    actionBusy = false;
+  }
+}
+
 // Action de révision sur les visages sélectionnés, puis réattribution des autres visages et rechargement.
 async function runAction(command, extraArgs = {}) {
   const targets = selectedFaces();
@@ -838,6 +942,8 @@ async function runAction(command, extraArgs = {}) {
   actionBusy = true;
   try {
     const photoIds = viewPhotoIds();
+    const snapshots = await snapshotFaces(targets);
+    const name = singleName(targets); // before the action: the names the faces carried
     let result;
     try {
       result = await invoke(command, { faceIds: targets.map(face => face.id), ...extraArgs });
@@ -846,6 +952,7 @@ async function runAction(command, extraArgs = {}) {
       return null;
     }
     await recognizeAndRefresh(photoIds);
+    announceAction(command, targets, snapshots, name);
     return result;
   } finally {
     actionBusy = false;
@@ -866,8 +973,12 @@ async function nameSelection(typed = null) {
       proposed: typed ?? targets.find(face => face.name)?.name ?? '',
       selectValue: typed === null,
       submit: async args => {
+        const snapshots = await snapshotFaces(targets);
         await invoke('assign_faces', { faceIds: targets.map(face => face.id), ...args });
         await recognizeAndRefresh(photoIds);
+        // The person is read back from the reloaded faces (the dialog may have designated her by id or keyword rather than by name).
+        const assigned = faces.find(face => face.id === targets[0].id);
+        announceAction('assign_faces', targets, snapshots, (assigned && shownName(assigned)) || args.name || null);
       },
     });
   } finally {
@@ -942,6 +1053,14 @@ export function initFacesGrid(hostApi) {
       // Previous / next face (the arrows also move the scroll of the focused grid otherwise).
       event.preventDefault();
       moveFaceSelection(event.key === 'ArrowRight' ? 1 : -1);
+    } else if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      // Previous / next row of tiles.
+      event.preventDefault();
+      moveFaceRow(event.key === 'ArrowDown' ? 1 : -1);
+    } else if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'z') {
+      // Ctrl+Z: undo the last review action.
+      event.preventDefault();
+      if (!event.repeat) undoLastAction();
     } else if (['-', '/', 'Delete'].includes(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
       // - : Inconnu ; / : Ignorer ; Suppr : Pas un visage. Même effet que les boutons de la barre d'actions (et seulement s'ils sont actifs) ; ces
       // touches ne sont pas prises pour le début d'un nom. Inactives pendant la fenêtre « Nommer » (fenêtre modale : voir le garde plus haut).

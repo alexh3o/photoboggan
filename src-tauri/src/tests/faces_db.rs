@@ -40,3 +40,26 @@ fn rereading_a_file_updates_faces_without_duplicating_them() {
     assert!(store_photo_faces(&conn, &[("C:/P/a.jpg".into(), faces_of(None))]));
     assert_eq!(count(&conn), 2);
 }
+
+#[test]
+fn auto_faces_are_not_written_until_confirmed() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let photo = insert_photo(&conn, "C:/P/a.jpg");
+    conn.execute("INSERT INTO persons (name, name_key) VALUES ('Alice', 'alice')", []).unwrap();
+    let person = conn.last_insert_rowid();
+    for (x, state) in [(0.1, "auto"), (0.6, "confirmed")] {
+        conn.execute(
+            "INSERT INTO faces (photo_id, x, y, w, h, origin, state, person_id) VALUES (?1, ?2, 0.1, 0.2, 0.2, 'detected', ?3, ?4)",
+            params![photo, x, state, person],
+        )
+        .unwrap();
+    }
+    // Only the confirmed face becomes a region in the file.
+    let plan = plan_face_write(&conn, photo, None).unwrap();
+    assert_eq!(plan.regions.regions.len(), 1);
+    assert!((plan.regions.regions[0].x - 0.6).abs() < 1e-9);
+    // Confirming the automatic face makes it part of the next write.
+    conn.execute("UPDATE faces SET state = 'confirmed' WHERE state = 'auto'", []).unwrap();
+    assert_eq!(plan_face_write(&conn, photo, None).unwrap().regions.regions.len(), 2);
+}
