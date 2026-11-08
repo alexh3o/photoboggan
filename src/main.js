@@ -2974,8 +2974,13 @@ function showPhotoDimensions(photo) {
 function updateRatingAction() {
   const count = selectedIndices.size;
   if (count > 0) {
-    const label = tp('{count} photo selected', count);
-    document.querySelectorAll('.marking-count').forEach(element => { element.textContent = label; });
+    // Same look as the Filters count: the number in bold, the rest of the text muted.
+    const number = count.toLocaleString(getLanguage());
+    const label = tp('{count} photo selected', count, { count: number });
+    const at = label.indexOf(number);
+    document.querySelectorAll('.marking-count').forEach(element => {
+      element.replaceChildren(...(at < 0 ? [label] : [label.slice(0, at), Object.assign(document.createElement('strong'), { textContent: number }), label.slice(at + number.length)]));
+    });
     const rating = commandReferencePhoto()?.rating || 0; // en mode Comparer avec plusieurs photos : celle de la sous-sélection
     document.querySelectorAll('.marking-stars button').forEach(button => {
       button.classList.toggle('active', Number(button.dataset.rating) <= rating);

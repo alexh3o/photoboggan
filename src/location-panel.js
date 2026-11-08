@@ -108,7 +108,7 @@ function renderText() {
   const focus = focusPoint();
   if (!focus) return;
   coordsElement.textContent = selectedCount > 1
-    ? tp('{count} geolocated photos out of {total}', geolocatedCount, { total: selectedCount })
+    ? tp('{count} geolocated photo', geolocatedCount)
     : `${formatCoordinate(focus.lat, 'N', 'S')}, ${formatCoordinate(focus.lon, 'E', 'W')}`;
   coordsElement.title = t('Copy the coordinates ({coords}) to the clipboard', { coords: coordinatesText(focus) });
   lockButton.classList.toggle('private', privacy.strict);

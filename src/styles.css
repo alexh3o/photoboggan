@@ -920,7 +920,7 @@ body.immersive .titlebar { display: none; }
 .display-card { width: min(34rem, calc(100vw - 2.5rem)); }
 
 /* MARQUAGE : note et couleur de la sélection (main.js, « MARQUAGE »), en bas du panneau Info et/ou en barre flottante sur la grille */
-.marking-count { display: block; color: var(--text-muted); font-size: 0.85rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; } /* Selected photos count */
+.marking-count { display: block; overflow: hidden; color: var(--text-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; text-overflow: ellipsis; } /* Selected photos count */
 .marking-count strong { color: var(--text-strong); font-size: 0.95rem; font-weight: 700; }
 .marking-controls { display: flex; flex-direction: column; gap: 0.6rem; }
 /* Section du panneau Info : épinglée en bas de l'onglet (l'onglet est une colonne dont la liste prend la place libre) et visible même quand la liste défile */
