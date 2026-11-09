@@ -9,6 +9,7 @@ mod face_detect;
 mod face_models;
 mod model_files;
 mod onnx_runtime;
+mod semantic;
 mod semantic_models;
 mod phash;
 mod place_search;

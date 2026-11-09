@@ -28,7 +28,6 @@ pub(crate) fn environment(runtime: &Path) -> Result<Environment, String> {
 /// Session for a background task that must not slow the application down (spec of the semantic search, §4.3): `intra_threads` threads
 /// inside each operator, a single inter-operator thread, no spinning (idle ONNX Runtime threads would otherwise busy-wait and burn CPU
 /// between two calls), all graph optimisations, CPU execution provider.
-#[allow(dead_code)] // first user: the semantic search (next step)
 pub(crate) fn background_session(environment: &Environment, model: &Path, intra_threads: usize) -> Result<Session, String> {
     Session::builder(environment)
         .and_then(|builder| builder.with_optimization_level(GraphOptimizationLevel::All).map_err(Into::into))
