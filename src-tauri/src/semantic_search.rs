@@ -13,6 +13,8 @@
 //!   model deleted drop them too (a loaded model file could not be deleted on Windows).
 //! - Results: the best `MAX_RESULTS` photos of the scope, sorted by decreasing cosine (ties by photo id). The relevance slider of the
 //!   interface keeps `cos >= best − Δ` among them (`relevance_cut`): moving it needs no new search (§18).
+//! - Keyword suggestions (semantic_keywords.rs, §23) use this index and its cache: `Query::Examples` ranks by the mean cosine with the
+//!   nearest tagged photos, and the suggestion model of a photo is kept and released with the index.
 
 use rayon::prelude::*;
 use rusqlite::{params, Connection};
@@ -74,11 +76,37 @@ pub struct Index {
     rows: HashMap<i64, usize>,
     /// Value of the cache generation the rows reflect (see SearchCache).
     generation: u64,
+    /// Unique per index object: with `generation`, tells whether row numbers kept elsewhere (keyword suggestions) still apply.
+    epoch: u64,
 }
+
+/// Source of `Index::epoch`.
+static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
+
+/// Number of nearest tagged photos whose cosines are averaged by the examples score of a keyword (§8.1, §23).
+pub const NEAREST: usize = 5;
 
 impl Index {
     pub fn new(model_id: &str, dim: usize) -> Self {
-        Index { model_id: model_id.to_string(), dim, ids: Vec::new(), vectors: Vec::new(), stamps: Vec::new(), rows: HashMap::new(), generation: 0 }
+        let epoch = NEXT_EPOCH.fetch_add(1, Ordering::Relaxed);
+        Index { model_id: model_id.to_string(), dim, ids: Vec::new(), vectors: Vec::new(), stamps: Vec::new(), rows: HashMap::new(), generation: 0, epoch }
+    }
+
+    /// The rows (and their numbers) of this index are those of `(epoch, generation)` (see `SuggestionModel`).
+    pub fn version(&self) -> (u64, u64) {
+        (self.epoch, self.generation)
+    }
+
+    /// Row of a photo.
+    pub fn row_of(&self, photo_id: i64) -> Option<usize> {
+        self.rows.get(&photo_id).copied()
+    }
+
+    /// Cosine of `query` with every row, in row order (one rayon task per block of rows).
+    pub fn dots(&self, query: &[f32]) -> Vec<f32> {
+        if query.len() != self.dim || self.dim == 0 { return Vec::new(); }
+        let dim = self.dim;
+        self.vectors.par_chunks(dim * ROWS_PER_BLOCK).flat_map_iter(|block| block.chunks_exact(dim).map(|row| dot_half(query, row)).collect::<Vec<_>>()).collect()
     }
 
     #[cfg(test)]
@@ -159,7 +187,34 @@ impl Index {
 
     /// The `cap` best photos accepted by `keep`, by decreasing cosine with `query` (ties by increasing photo id, so the order is stable).
     pub fn rank(&self, query: &[f32], keep: &(dyn Fn(i64) -> bool + Sync), cap: usize) -> Ranking {
-        if query.len() != self.dim || self.dim == 0 || cap == 0 {
+        if query.len() != self.dim { return Ranking::default(); }
+        self.rank_by(keep, cap, || |row: &[u16]| dot_half(query, row))
+    }
+
+    /// The `cap` best photos accepted by `keep`, by decreasing examples score (§8.1): mean of the cosines with the `NEAREST` closest of
+    /// `examples` (all of them when there are fewer). Each row is converted to floats once, then compared with every example.
+    pub fn rank_nearest(&self, examples: &[Vec<f32>], keep: &(dyn Fn(i64) -> bool + Sync), cap: usize) -> Ranking {
+        let dim = self.dim;
+        if examples.is_empty() || examples.iter().any(|example| example.len() != dim) { return Ranking::default(); }
+        let flat: Vec<f32> = examples.concat();
+        self.rank_by(keep, cap, || {
+            let mut row_floats = vec![0f32; dim];
+            let flat = &flat;
+            move |row: &[u16]| {
+                for (slot, &half) in row_floats.iter_mut().zip(row) { *slot = f16_to_f32(half); }
+                mean_of_nearest(flat.chunks_exact(dim).map(|example| dot_f32(&row_floats, example)), NEAREST).unwrap_or(f32::NEG_INFINITY)
+            }
+        })
+    }
+
+    /// Ranking shared by `rank` and `rank_nearest`: `scorer` makes one scoring function per block of rows (its own buffers), applied to
+    /// the half-float row of every photo accepted by `keep`.
+    fn rank_by<S, F>(&self, keep: &(dyn Fn(i64) -> bool + Sync), cap: usize, scorer: S) -> Ranking
+    where
+        S: Fn() -> F + Sync,
+        F: FnMut(&[u16]) -> f32,
+    {
+        if self.dim == 0 || cap == 0 {
             return Ranking::default();
         }
         let dim = self.dim;
@@ -168,10 +223,11 @@ impl Index {
             .par_chunks(dim * ROWS_PER_BLOCK)
             .zip(self.ids.par_chunks(ROWS_PER_BLOCK))
             .map(|(vectors, ids)| {
+                let mut score = scorer();
                 ids.iter()
                     .zip(vectors.chunks_exact(dim))
                     .filter(|(id, _)| keep(**id))
-                    .map(|(&photo_id, row)| Hit { photo_id, cos: dot_half(query, row), prob: None })
+                    .map(|(&photo_id, row)| Hit { photo_id, cos: score(row), prob: None })
                     .collect()
             })
             .collect();
@@ -197,6 +253,32 @@ fn dot_half(query: &[f32], row: &[u16]) -> f32 {
     }
     let tail: f32 = query_chunks.remainder().iter().zip(row_chunks.remainder()).map(|(q, &r)| q * f16_to_f32(r)).sum();
     sums.iter().sum::<f32>() + tail
+}
+
+/// Dot product of two float vectors (eight accumulators, as `dot_half`).
+pub fn dot_f32(a: &[f32], b: &[f32]) -> f32 {
+    let mut sums = [0f32; 8];
+    let mut a_chunks = a.chunks_exact(8);
+    let mut b_chunks = b.chunks_exact(8);
+    for (x, y) in (&mut a_chunks).zip(&mut b_chunks) {
+        for lane in 0..8 { sums[lane] += x[lane] * y[lane]; }
+    }
+    let tail: f32 = a_chunks.remainder().iter().zip(b_chunks.remainder()).map(|(x, y)| x * y).sum();
+    sums.iter().sum::<f32>() + tail
+}
+
+/// Mean of the `k` largest values (all of them when there are fewer); None when there is none. Keeps a small sorted array: no sort of
+/// the whole list (a keyword may have thousands of tagged photos).
+pub fn mean_of_nearest(values: impl Iterator<Item = f32>, k: usize) -> Option<f32> {
+    if k == 0 { return None; }
+    let mut top: Vec<f32> = Vec::with_capacity(k + 1);
+    for value in values {
+        if top.len() == k && value <= top[k - 1] { continue; }
+        let at = top.partition_point(|kept| *kept >= value);
+        top.insert(at, value);
+        top.truncate(k);
+    }
+    if top.is_empty() { None } else { Some(top.iter().sum::<f32>() / top.len() as f32) }
 }
 
 /// Decreasing cosine, then increasing photo id.
@@ -253,7 +335,7 @@ fn text_threads() -> usize {
 }
 
 /// Loads the text encoder of the installed model (errors: `semantic_disabled`, `semantic_model_missing`, `semantic_unsupported_platform`).
-fn load_text_encoder(models_dir: &Path, model: &ModelSpec) -> Result<TextEncoder, String> {
+pub(crate) fn load_text_encoder(models_dir: &Path, model: &ModelSpec) -> Result<TextEncoder, String> {
     // Checked again here: a disable arriving since the command started must not load a model (release() would wait, then drop it).
     ensure_enabled()?;
     let paths = crate::semantic_models::installed_paths(models_dir, model)?;
@@ -287,6 +369,9 @@ pub struct SearchCache {
     /// Text encoder, loaded by the first text query. Held for the whole encoding of a query, so a release waits for it to end and the
     /// model file is really closed when `release` returns.
     text: Mutex<Option<TextEncoder>>,
+    /// Tagged rows of each keyword, for the suggestions of a photo (semantic_keywords.rs): built by the first request, released with the
+    /// index. Taken while the index is read (lock order: `index`, then `suggestions`).
+    suggestions: Mutex<Option<crate::semantic_keywords::SuggestionModel>>,
 }
 
 impl SearchCache {
@@ -299,7 +384,13 @@ impl SearchCache {
             timer: Mutex::new(Timer { last_use: Instant::now(), armed: false }),
             loads: AtomicUsize::new(0),
             text: Mutex::new(None),
+            suggestions: Mutex::new(None),
         })
+    }
+
+    /// The suggestion model slot (take it only inside `with_index`: lock order).
+    pub fn suggestions(&self) -> MutexGuard<'_, Option<crate::semantic_keywords::SuggestionModel>> {
+        lock(&self.suggestions)
     }
 
     /// Notes a use, and arms the release task if none is sleeping. The task sleeps until `idle` after the last use it knows, checks again
@@ -346,6 +437,7 @@ impl SearchCache {
             let _building = lock(&self.building);
             *write(&self.index) = None;
         }
+        *lock(&self.suggestions) = None;
         *lock(&self.text) = None;
     }
 
@@ -366,10 +458,13 @@ impl SearchCache {
 
     /// The embedding tables changed outside a scan batch (data deleted): the index is dropped.
     pub fn invalidate(&self) {
-        let _building = lock(&self.building);
-        let mut index = write(&self.index);
-        self.generation.fetch_add(1, Ordering::SeqCst);
-        *index = None;
+        {
+            let _building = lock(&self.building);
+            let mut index = write(&self.index);
+            self.generation.fetch_add(1, Ordering::SeqCst);
+            *index = None;
+        }
+        *lock(&self.suggestions) = None;
     }
 
     /// A scan stored a batch: the loaded index (if any, and up to date) takes the new embeddings and drops the photos that failed.
@@ -432,7 +527,7 @@ impl SearchCache {
 /// The cache of the application: created by the first search, never before.
 static CACHE: OnceLock<Arc<SearchCache>> = OnceLock::new();
 
-fn cache() -> &'static Arc<SearchCache> {
+pub(crate) fn cache() -> &'static Arc<SearchCache> {
     CACHE.get_or_init(|| SearchCache::new(IDLE_RELEASE))
 }
 
@@ -540,6 +635,9 @@ pub enum Query<'a> {
     Vector(&'a [f32]),
     /// Photo whose embedding is the query (similar content): the photo itself is left out of the results.
     Photo(i64),
+    /// Embeddings of the photos tagged with a keyword (keyword candidates, §8.1): each photo scores the mean of its cosines with the
+    /// `NEAREST` closest examples (`Hit::cos` holds that mean); no probability.
+    Examples(&'a [Vec<f32>]),
 }
 
 /// A search on the database `conn`, with the index of `cache` (built by this call when needed). `gate` is checked before the index is
@@ -554,8 +652,24 @@ pub fn search(
     relevance: Option<f32>,
     gate: fn() -> Result<(), String>,
 ) -> Result<SearchResults, String> {
+    search_excluding(cache, conn, model, query, scope, relevance, gate, &HashSet::new())
+}
+
+/// `search`, with the photos of `exclude` left out of the results (keyword candidates: photos already tagged, or whose suggestion was
+/// dismissed). They still count in `total` and `pending`, which describe the scope.
+#[allow(clippy::too_many_arguments)]
+pub fn search_excluding(
+    cache: &SearchCache,
+    conn: &Connection,
+    model: &ModelSpec,
+    query: Query<'_>,
+    scope: &SearchScope,
+    relevance: Option<f32>,
+    gate: fn() -> Result<(), String>,
+    exclude: &HashSet<i64>,
+) -> Result<SearchResults, String> {
     let photos = scope_photos(conn, scope)?;
-    let members: HashSet<i64> = photos.iter().map(|photo| photo.id).collect();
+    let members: HashSet<i64> = photos.iter().map(|photo| photo.id).filter(|id| !exclude.contains(id)).collect();
     let failures = current_failures(conn, &model.id)?;
 
     let load = || {
@@ -575,6 +689,7 @@ pub fn search(
                 let vector = index.vector(photo_id).ok_or_else(|| PHOTO_NOT_ANALYSED_ERROR.to_string())?;
                 index.rank(&vector, &|id| id != photo_id && members.contains(&id), MAX_RESULTS)
             }
+            Query::Examples(examples) => index.rank_nearest(examples, &|id| members.contains(&id), MAX_RESULTS),
         };
         Ok((ranking, pending))
     })??;

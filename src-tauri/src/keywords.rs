@@ -106,6 +106,8 @@ fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>
             conn.execute("INSERT OR IGNORE INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_id, parent_id])?;
         }
     }
+    // Keyword suggestions built from the old links are outdated (even if the caller's transaction is rolled back: a needless rebuild).
+    crate::semantic_keywords::on_keywords_changed();
     Ok(())
 }
 
@@ -543,7 +545,9 @@ pub fn create_keyword(state: State<'_, AppState>, parent_id: i64, name: String) 
     if duplicate { return Err("duplicate".to_string()); }
     conn.execute("INSERT INTO keyword_nodes (parent_id, name, name_key) VALUES (?1, ?2, ?3)", params![parent_id, name, key])
         .map_err(|error| error.to_string())?;
-    Ok(KeywordNode { id: conn.last_insert_rowid(), parent_id, name })
+    let id = conn.last_insert_rowid();
+    crate::semantic_keywords::on_keywords_changed(); // the parent may no longer be a leaf: keyword suggestions are rebuilt
+    Ok(KeywordNode { id, parent_id, name })
 }
 
 /// Le mot-clé et tous ses descendants.
@@ -639,7 +643,7 @@ fn restore_person_links(pool: &DbPool, linked: &[PersonLink]) {
 }
 
 /// Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
-fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), String> {
+pub(crate) fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), String> {
     let conn = pool.get().map_err(|error| error.to_string())?;
     let ids = subtree_ids(&conn, keyword_id)?;
     let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
@@ -649,7 +653,9 @@ fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), String> {
     tx.execute("DELETE FROM keyword_suggestion_rejections WHERE keyword_id IN (SELECT value FROM json_each(?1))", params![ids_json])
         .map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM keyword_nodes WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|error| error.to_string())?;
-    tx.commit().map_err(|error| error.to_string())
+    let committed = tx.commit().map_err(|error| error.to_string());
+    crate::semantic_keywords::on_keywords_changed(); // the tree changed: keyword suggestions are rebuilt
+    committed
 }
 
 fn run_delete(
@@ -751,6 +757,8 @@ fn run_rename(
         if current_name != name {
             conn.execute("UPDATE keyword_nodes SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, keyword_id])
                 .map_err(|error| error.to_string())?;
+            // The name is read at each keyword → photos request (no stored text embedding); the suggestion model is rebuilt anyway.
+            crate::semantic_keywords::on_keywords_changed();
         }
         // Personne reliée à ce mot-clé : ses zones de visage portent le nom du mot-clé, elles sont à réécrire (avec cette écriture pour les photos
         // qui portent le mot-clé, à la prochaine écriture des visages pour les autres).
