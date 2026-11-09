@@ -150,7 +150,7 @@ src-tauri/
 
 ### G. Fenêtre & persistance
 
-- **Valeurs par défaut** : tout nouveau réglage mémorisé en `localStorage` a son défaut dans `src/defaults.jsonc` (clé = clé `localStorage`, valeurs possibles en commentaire, commentaires en ligne entière seulement) ; ne jamais coder un défaut en dur dans un module. Le backend lit la section `faceSettings` du même fichier (`face_detect.rs`, `include_str!`).
+- **Valeurs par défaut** : tout nouveau réglage mémorisé en `localStorage` a son défaut dans `src/defaults.jsonc` (clé = clé `localStorage`, valeurs possibles en commentaire, commentaires en ligne entière seulement) ; ne jamais coder un défaut en dur dans un module. Le backend lit la section `faceSettings` (`face_detect.rs`) et `thumbnailCacheSize` (`main.rs`) du même fichier (`include_str!`).
 
 - État de la fenêtre (x, y, taille, maximisée) et des panneaux mémorisé. À la restauration, toujours appeler `check_window_visibility` ; si l'écran a disparu, recentrer en 1024×768 sur l'écran principal.
 - Barre d'outils (clic droit : Mode immersif, Masquer automatiquement, Afficher tous les libellés, Panneaux) : le masquage (touche T, `toolbarAutoHide`) et les libellés (`toolbarShowLabels`) sont mémorisés ; masquée, la barre réapparaît au survol du haut de la fenêtre.
