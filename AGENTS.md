@@ -13,7 +13,7 @@
   * **Performance brute & Réactivité** : Défilement virtuel fluide, lecture multithreadée, génération de miniatures optimisée, décodage RAW instantané via prévisualisation JPEG intégrée.
   * **Interopérabilité maximale** : Les métadonnées à écrire le sont dans les fichiers d'image (ou en sidecars `.xmp` standards pour les fichiers qui ne peuvent pas les contenir : RAW, PNG, HEIC, vidéos…), compatibles avec digiKam, Lightroom et l'Explorateur Windows.
   * **Multiplateforme** : Code portable (Windows et Linux distribués ; éviter tout ce qui bloquerait un autre OS).
-  * **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau (modèle de visages, cartes et recherche de lieux, mises à jour) part du backend et est refusé en mode hors ligne (Paramètres > Général, `set_internet_allowed` dans `face_models.rs`, test par `internet_allowed()`). Tout nouvel accès réseau doit faire de même et être mentionné dans l'infobulle « Mode hors ligne ».
+  * **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau (modèles de visages et de recherche par contenu, cartes et recherche de lieux, mises à jour) part du backend et est refusé en mode hors ligne (Paramètres > Général, `set_internet_allowed` dans `face_models.rs`, test par `internet_allowed()`). Tout nouvel accès réseau doit faire de même et être mentionné dans l'infobulle « Mode hors ligne ».
 
 ---
 
@@ -44,6 +44,8 @@ src/
   keywords.css          # Styles de ce panneau, de sa poignée de redimensionnement et de ses fenêtres
   metadata-settings.js  # Paramètres > Métadonnées : chemin d'écriture (ExifTool / interne), exécutable ExifTool
   duplicates.js, duplicate-names.js, duplicates-modal.js  # Doublons : tri des groupes et réglages, recherche par nom (regex JS), fenêtre « Plus… » (mode résultats dans main.js)
+  semantic.js, semantic-settings.js  # Recherche par contenu : barre de recherche et résultats, Paramètres > Recherche (modèle, analyse, réglages)
+  semantic-keywords.js, semantic-tagging.js, semantic-exclusions.js  # Mots-clés → photos (filtre et « Photos susceptibles de convenir »), photo → mots-clés suggérés (bloc « Suggestions »), mots-clés jamais suggérés
   styles.css            # Thèmes sombre/clair, mise en page en rem
   defaults.jsonc        # Valeurs par défaut des nouvelles installations (seul endroit à éditer, valeurs possibles en commentaire)
   settings-defaults.js  # Lit defaults.jsonc ; readBool / readChoice / readNumber : valeur enregistrée si valide, sinon défaut
@@ -67,6 +69,8 @@ src-tauri/
     update_check.rs     # Mises à jour : releases GitHub, téléchargement vérifié (SHA-256), lancement de l'installeur
     integrity.rs        # Vérification d'intégrité des fichiers
     duplicates.rs       # Doublons identiques : hash des données image (métadonnées ignorées), cache `photo_hashes`, portées dossier / sélection / photothèque
+    semantic.rs, semantic_search.rs, semantic_keywords.rs  # Recherche par contenu (SigLIP 2) : analyse en file, recherche texte / image, scores des mots-clés suggérés
+    semantic_models.rs, model_files.rs, onnx_runtime.rs  # Modèle SigLIP 2 (téléchargement, import) ; code de fichiers de modèles et ONNX Runtime partagés avec les visages
     similar.rs, phash.rs  # Doublons similaires : pHash (DCT 32×32, Rust pur, 8 variantes pour rotations / miroirs), cache `photo_phash`
     tests/              # Tests de non-régression, un fichier par module (voir §5.I)
     test_support.rs     # Images synthétiques et catalogue temporaire pour les tests (cfg(test))
@@ -181,6 +185,15 @@ src-tauri/
 - **Par nom** : calculé dans l'interface (le motif est une regex JS, le backend n'a pas de crate `regex`). Comparaison « contient » dans les deux sens, jamais paire par paire (index de séquences) ; clé minimale et plafond de groupe (`MAX_NAME_GROUP`) contre les motifs trop permissifs.
 - **Tâche** : famille `duplicates` dans la file, refusée seulement pour la même portée et le même type (`dedupeKey`). Une recherche terminée reste `ready` dans la liste jusqu'à « Afficher » ou « Ignorer » : elle ne bloque ni la file ni la synchronisation (`activeTaskCount`) mais compte pour l'avertissement de fermeture. La grille ne change jamais sans clic.
 - **Zéro impact au repos** : tables vides, aucun thread, aucun calcul tant qu'aucune recherche n'est lancée. Résultats dans la grille principale (`duplicateSearch`, comme `rawSearch`) ; naviguer à la main termine le mode. Réglages mémorisés : `identicalSearchSettings`, `similarSearchSettings`, `duplicateGroupSort`, `duplicateKeepSettings` (critères ordonnés de la « meilleure copie », réglés dans les résultats et appliqués aussitôt, sans nouvelle recherche). Avec « RAW et JPEG ensemble » : médaille par format, et jamais de bouton de nettoyage.
+
+### L. Recherche par contenu (SigLIP 2)
+
+- **Option, invisible si désactivée** (`semanticSearch`, défaut faux) : classe `no-semantic` sur `<body>`, éléments `semantic-only`, entrées de menu non créées, et **aucune IPC sémantique** (chaque requête du frontend rend la main avant `invoke` si `isSemanticEnabled()` est faux ; le backend refuse aussi). Aucun modèle, thread ni calcul au repos. Le modèle (~785 Mo) se télécharge par le backend (refusé hors ligne : `internet_disabled`, `semantic_models.rs`) ou s'importe depuis un dossier.
+- **Données dérivées uniquement** : embeddings et scores en base, jamais écrits dans les fichiers. **Accepter une suggestion = mot-clé en attente via `addPendingKeyword` (`keywords-panel.js`)**, exactement comme une case cochée : jamais d'écriture sans clic sur « Appliquer ». Aucun autre chemin d'écriture. « Ne pas proposer » passe par `reject_keyword_suggestion`.
+- **Réponses périmées** : le backend n'annule rien. Chaque requête incrémente un compteur (`requestCounter`, `candidatesCounter`, `suggestionCounter`) et ignore sa réponse si un compteur plus récent existe. Tout nouvel appel asynchrone suit ce modèle.
+- **Réglages** (`defaults.jsonc`) : `semanticSearch`, `semanticScanRaw`, `semanticWriteThumbnails`, `semanticScanThreads`, `semanticRelevance`, `semanticInKeywordSearch`, `semanticKeywordsInSearch` (la boîte de la barre d'outils cherche aussi les mots-clés), `semanticKeywordSort` (`grid` / `score`), `semanticShowScore`, `semanticScope`, `semanticExcludedKeywords` (ids ; ces mots-clés et leurs descendants ne sont jamais suggérés, sauf par « Photos susceptibles de convenir » demandé explicitement), `keywordSuggestionsOpen`.
+- **Analyse** : tâches `kind === 'semantic'`, dans une voie à part de la file (`pumpSemanticQueue`), basse priorité, peu de threads. Chaque embedding porte son `model_id` ; changer de modèle l'invalide.
+- Modèle SigLIP 2 (Apache-2.0) et ONNX Runtime (MIT) : téléchargés à la demande (licences dans les manifestes), jamais dans l'installeur.
 
 ---
 
