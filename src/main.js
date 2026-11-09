@@ -10,7 +10,7 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
-import { initSemanticSettings } from './semantic-settings.js';
+import { initSemanticSettings, onSemanticOfflineChanged } from './semantic-settings.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -5206,6 +5206,8 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   // « faces » ; d'une sélection : « faces-selection », jamais refusée comme doublon), téléchargement des modèles de visages (« face-models »).
   const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords'
     : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models' : taskKind === 'update' ? 'update'
+    // Content search: model download (main queue) and content analysis (own lane, see pumpSemanticQueue).
+    : taskKind === 'semantic-models' ? 'semantic-models' : taskKind === 'semantic' ? 'semantic'
     // Téléchargement d'une zone privée de la carte : une tâche par zone, jamais refusée comme doublon.
     : taskKind === 'private-map' ? 'private-map'
     // Duplicate search: its own family, never refused as a duplicate of another task (each search is queued).
@@ -7486,6 +7488,7 @@ offlineModeToggle.addEventListener('change', () => {
   localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
   sendInternetAllowed();
   onOfflineModeChanged();
+  onSemanticOfflineChanged(); // content search model: Download greyed in offline mode
   onUpdateAccessChanged(); // mises à jour : cases grisées en mode hors ligne
   onMapAccessChanged();
   onMapModeAccessChanged();

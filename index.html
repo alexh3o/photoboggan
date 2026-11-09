@@ -549,6 +549,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="maps" data-i18n="Maps">Cartes</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="semantic" data-i18n="Content search">Recherche par contenu</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="misc" data-i18n="Misc">Divers</button>
         </div>
 
@@ -747,6 +748,48 @@
                 <p class="sort-note" data-i18n="Face thresholds help">Un visage sous l'un de ces seuils est écarté (filtré). Changer un seuil reclasse les visages déjà détectés, sans nouveau scan. Valeurs par défaut provisoires.</p>
                 <h4 data-i18n="People">Personnes</h4>
                 <div class="settings-row" title="Supprime, après confirmation, les personnes qui n'ont plus aucun visage attribué. Elles ne sont jamais supprimées automatiquement (une personne peut être créée en attente d'attribution). Les mots-clés de l'arbre restent." data-i18n-title="Clean persons hint"><span data-i18n="People without faces">Personnes sans visage</span><button id="btn-face-clean-persons" type="button" data-i18n="Clean up…">Nettoyer…</button></div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Onglet Recherche par contenu (semantic-settings.js) : seule la case est toujours visible -->
+          <div id="settings-tab-semantic" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Content search">Recherche par contenu</h4>
+              <label class="settings-row settings-check"><input id="semantic-toggle" type="checkbox" /><span data-i18n="Enable content search (local AI)">Activer la recherche par contenu (IA locale)</span></label>
+              <p class="sort-note" data-i18n="Content search help">Trouve les photos par ce qu'elles montrent (« plage au coucher du soleil »), avec un modèle d'IA (SigLIP 2) qui tourne sur cet ordinateur. Le modèle pèse environ 800 Mo à télécharger une fois ; l'analyse des photos est longue (de quelques minutes à plusieurs heures selon la photothèque) mais reprend là où elle s'est arrêtée. Rien n'est envoyé sur Internet et rien n'est écrit dans les fichiers photo. Pas d'identification de personnes (voir Visages) ; les requêtes en anglais marchent mieux qu'en français.</p>
+              <div id="semantic-settings" class="semantic-settings" hidden>
+                <h4 data-i18n="Model">Modèle</h4>
+                <p id="semantic-model-status" class="sort-note"></p>
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-model-download" class="btn-highlight" type="button"></button>
+                  <button id="btn-semantic-model-import" class="btn-secondary" type="button" data-i18n="Install from a folder…">Installer depuis un dossier…</button>
+                </div>
+                <details class="semantic-model-offline">
+                  <summary data-i18n="Installing without Internet">Installation sans Internet</summary>
+                  <p class="sort-note" data-i18n="Content search model offline help">Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.</p>
+                  <ul id="semantic-model-files" class="semantic-model-files"></ul>
+                </details>
+                <h4 data-i18n="Analysis">Analyse</h4>
+                <p id="semantic-analysis-status" class="sort-note"></p>
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-scan-all" class="btn-highlight" type="button" data-i18n="Analyse the whole library">Analyser toute la photothèque</button>
+                </div>
+                <label class="settings-row" for="semantic-threads" title="Nombre de threads utilisés par l'analyse. Plus il est élevé, plus l'analyse est rapide, mais plus elle consomme de processeur. L'analyse cède toujours la place aux autres tâches." data-i18n-title="Content analysis speed hint"><span data-i18n="Analysis speed">Vitesse d'analyse</span>
+                  <select id="semantic-threads">
+                    <option value="1" data-i18n="Low">Basse</option>
+                    <option value="2" data-i18n="Normal">Normale</option>
+                    <option value="4" data-i18n="High">Haute</option>
+                  </select></label>
+                <h4 data-i18n="Search">Recherche</h4>
+                <label class="settings-row settings-check"><input id="semantic-in-keyword-search" type="checkbox" /><span data-i18n="Include suggestions in keyword search">Inclure des suggestions dans la recherche par mots-clés</span></label>
+                <label class="settings-row settings-check"><input id="semantic-show-score" type="checkbox" /><span data-i18n="Show the score on results">Afficher le score sur les résultats</span></label>
+                <h4 data-i18n="Storage">Stockage</h4>
+                <p id="semantic-storage-status" class="sort-note"></p>
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-delete-data" type="button" data-i18n="Delete analysis data">Supprimer les données d'analyse</button>
+                  <button id="btn-semantic-delete-model" type="button" data-i18n="Delete the model files">Supprimer les fichiers du modèle</button>
+                </div>
               </div>
             </section>
           </div>
