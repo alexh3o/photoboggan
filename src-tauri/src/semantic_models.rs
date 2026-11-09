@@ -304,11 +304,13 @@ pub fn delete_model_files(models_dir: &Path, model: &ModelSpec) -> Result<(), St
 #[tauri::command(async)]
 pub fn delete_semantic_model(state: State<'_, AppState>) -> Result<ModelStatus, String> {
     ensure_enabled()?;
-    // A running scan holds the vision model open (it could not be deleted on Windows): it is stopped first.
+    // A running scan holds the vision model open, a search the text model (they could not be deleted on Windows): the scan is stopped
+    // first, the search memory released, and no text query can load the model again until the files are gone.
     crate::semantic::stop_scan_and_wait()?;
     let models_dir = crate::face_models::models_dir(&state);
     let model = active_model();
-    delete_model_files(&models_dir, model)?;
+    crate::semantic_search::release_all();
+    crate::semantic_search::without_text_model(|| delete_model_files(&models_dir, model))?;
     Ok(status(&models_dir, model))
 }
 

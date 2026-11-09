@@ -611,9 +611,10 @@ pub fn stop_scan_and_wait() -> Result<(), String> {
     Ok(())
 }
 
-/// Called when the feature is disabled: the scan stops and releases its model. (Phase 3a: release the search index and text session here.)
+/// Called when the feature is disabled: the scan stops and releases its model; the search index and text encoder are released.
 pub fn on_disabled() {
     cancel_running_scan();
+    crate::semantic_search::release_all();
 }
 
 /// Progress of a semantic scan, sent in "scan-progress" like the other queue tasks (`taskId`, `percent`), with the details of this task.
@@ -788,6 +789,8 @@ fn scan_pending(
             failure = Some(format!("database: {error}"));
             break;
         }
+        // A loaded search index takes the new rows at once (no reload, no stale results).
+        crate::semantic_search::on_batch_stored(&model.id, &results);
         for (target, result) in &results {
             match result {
                 Outcome::Embedded(_) => report.analysed += 1,
@@ -923,13 +926,18 @@ pub fn delete_data(conn: &Connection) -> rusqlite::Result<()> {
     transaction.commit()
 }
 
-/// "Delete analysis data" (with confirmation in the interface): stops a running scan first, then empties the tables.
+/// "Delete analysis data" (with confirmation in the interface): stops a running scan first, then empties the tables and releases what
+/// the searches hold in memory.
 #[tauri::command(async)]
 pub fn delete_semantic_data(state: State<'_, AppState>) -> Result<(), String> {
     ensure_enabled()?;
     stop_scan_and_wait()?;
     let conn = state.pool().get().map_err(|error| error.to_string())?;
-    delete_data(&conn).map_err(|error| error.to_string())
+    let deleted = delete_data(&conn).map_err(|error| error.to_string());
+    // Even after a failed deletion (part of the rows may be gone): the next search reads the tables again.
+    crate::semantic_search::invalidate();
+    crate::semantic_search::release_all();
+    deleted
 }
 
 #[cfg(test)]

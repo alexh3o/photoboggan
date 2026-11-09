@@ -394,6 +394,35 @@ fn the_index_is_released_after_a_while_without_search() {
 }
 
 #[test]
+fn disabling_or_deleting_releases_the_memory_and_the_scan_updates_the_index() {
+    // The only test using the cache of the application (global state).
+    let model = active_model();
+    let cache = cache();
+    let load = || -> Result<Index, String> {
+        let mut index = Index::new(&model.id, model.embed_dim);
+        index.upsert(1, &model_vector(0.0), (1, 1));
+        Ok(index)
+    };
+    cache.with_index(model, load, |_| ()).unwrap();
+    // Disabling the feature (set_semantic_enabled(false)) releases the index.
+    crate::semantic::on_disabled();
+    assert!(!cache.is_loaded());
+    // A batch stored by a scan reaches the loaded index through the hook of the scan.
+    cache.with_index(model, load, |_| ()).unwrap();
+    let target = Target { photo_id: 2, path: "C:/photos/b.jpg".into(), size: 1, mtime: 1, standing: crate::semantic::Standing::Pending };
+    on_batch_stored(&model.id, &[(&target, Outcome::Embedded(model_vector(0.1)))]);
+    let loads = cache.loads.load(Ordering::Relaxed);
+    assert_eq!(cache.with_index(model, || unreachable!("reloaded"), |index| index.len()).unwrap(), 2);
+    assert_eq!(cache.loads.load(Ordering::Relaxed), loads);
+    // Data deleted: dropped.
+    invalidate();
+    assert!(!cache.is_loaded());
+    // Model deleted: no text query can hold the text model while the files are removed.
+    without_text_model(|| assert!(cache.text.try_lock().is_err()));
+    assert!(cache.text.try_lock().unwrap().is_none());
+}
+
+#[test]
 fn searches_refuse_while_the_feature_is_disabled() {
     // The tests never enable the feature: the gate refuses before the index is built, and nothing stays in memory.
     let (_dir, pool) = temp_catalog();

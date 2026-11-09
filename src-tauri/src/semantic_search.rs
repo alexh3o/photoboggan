@@ -343,6 +343,13 @@ impl SearchCache {
         *lock(&self.text) = None;
     }
 
+    /// Runs `task` with the text encoder released and kept from loading until `task` ends (deletion of the model files).
+    pub fn without_text_model<R>(&self, task: impl FnOnce() -> R) -> R {
+        let mut slot = lock(&self.text);
+        *slot = None;
+        task()
+    }
+
     /// Embedding of an already normalised query (`prepare_query`), with the encoder loaded by `load` if needed (one load at a time).
     pub fn embed_text(&self, load: impl FnOnce() -> Result<TextEncoder, String>, text: &str) -> Result<Vec<f32>, String> {
         let mut slot = lock(&self.text);
@@ -424,6 +431,12 @@ fn cache() -> &'static Arc<SearchCache> {
 /// Disabled feature, deleted data or model: everything is released (no-op when no search ever ran).
 pub fn release_all() {
     if let Some(cache) = CACHE.get() { cache.release(); }
+}
+
+/// Runs `task` while no text query can hold or load the text model (deletion of the model files).
+pub fn without_text_model<R>(task: impl FnOnce() -> R) -> R {
+    // Creates the (empty) cache if no search ever ran: a query starting during the deletion must wait too.
+    cache().without_text_model(task)
 }
 
 /// Embedding tables emptied: the index is dropped.
