@@ -47,3 +47,15 @@ body.no-semantic .semantic-only { display: none !important; }
 /* Keyword -> photos results: the row of actions under the banner (main.js, renderSemanticKeywordActions) */
 .semantic-keyword-actions button { flex: 0 0 auto; padding: 0.32rem 0.7rem; font-size: 0.8rem; }
 .semantic-keyword-actions .semantic-hint { font-size: 0.72rem; }
+
+/* "Suggestions" block of the Keywords tab (semantic-tagging.js): rem for sizes, thin borders in px */
+.keyword-photo-suggestions { flex: 0 0 auto; margin: 0.4rem 0; padding: 0.3rem 0.5rem; border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; }
+.keyword-photo-suggestions[hidden] { display: none; }
+.keyword-photo-suggestions summary { cursor: pointer; color: var(--text-strong); }
+.keyword-photo-suggestions.loading .keyword-photo-suggestion button { pointer-events: none; opacity: 0.5; }
+.keyword-photo-suggestions-list { list-style: none; margin: 0.3rem 0 0; padding: 0; }
+.keyword-photo-suggestion { display: flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0; }
+.keyword-photo-suggestion-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.keyword-photo-suggestion button, .keyword-photo-suggestions > button { flex: 0 0 auto; padding: 0.15rem 0.5rem; font-size: 0.72rem; }
+.keyword-photo-suggestions-note { margin: 0.3rem 0 0; font-size: 0.72rem; color: var(--text-muted); }
+.keyword-photo-suggestions-note[hidden], .keyword-photo-suggestions > button[hidden] { display: none; }

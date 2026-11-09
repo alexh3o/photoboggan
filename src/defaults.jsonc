@@ -136,6 +136,8 @@
   "semanticShowScore": false,
   // Scope of a content search: "view" (current view) | "library".
   "semanticScope": "view",
+  // "Suggestions" block of the Keywords tab (keywords suggested for the selected photo): unfolded (true) | folded (false).
+  "keywordSuggestionsOpen": true,
 
   // ---------------------------------------------------------------- Settings: Slideshow, Find RAW
   // Delay between photos in seconds: integer 1 to 60.

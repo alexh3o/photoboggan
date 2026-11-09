@@ -10,6 +10,7 @@
 import './keywords.css';
 import { openContextMenuAt } from './photo-actions.js';
 import { isSemanticEnabled } from './semantic-settings.js';
+import { initPhotoSuggestions, syncPhotoSuggestions, renderPhotoSuggestions } from './semantic-tagging.js';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import {
@@ -270,6 +271,7 @@ function afterEdit() {
   if (!wasDirty && dirtyIds.size > 0) invoke('exiftool_prewarm').catch(() => {});
   renderTree();
   updateButtons();
+  renderPhotoSuggestions(); // a suggestion now ticked leaves the block
 }
 
 function setKeywordsOnAll(keywordIds, turnOn) {
@@ -517,6 +519,7 @@ const keywordEditor = {
     renderTree();
     updateButtons();
     if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
+    syncPhotoSuggestions({ force: true }); // written keywords are no longer suggested
   },
   discard: photoIds => resetChanges(photoIds),
   // Photo renommée ou déplacée : ses mots-clés en attente seront écrits sous le nouveau chemin.
@@ -573,6 +576,7 @@ export function refreshKeywordsPanel() {
   refreshScheduled = true;
   requestAnimationFrame(() => {
     refreshScheduled = false;
+    syncPhotoSuggestions(); // content search: suggestions of the selected photo (no-op while the feature is off)
     reloadFromDatabase();
   });
 }
@@ -1173,6 +1177,15 @@ export function initKeywordsPanel(hostApi) {
   inputField.addEventListener('blur', closeSuggestions);
   inputField.addEventListener('keydown', onInputKeyDown);
   treeList.addEventListener('contextmenu', onTreeContextMenu);
+
+  initPhotoSuggestions({
+    getSelectedPhotos: () => host.getSelectedPhotos(),
+    keywordLabel: keywordId => { const node = nodeById.get(keywordId); return node ? { name: node.name, path: pathLabel(node) } : null; },
+    ensureTree: () => refreshTreeAndUsage(),
+    isActive: keywordId => (workingCount.get(keywordId) || 0) > 0,
+    addKeyword: keywordId => addPendingKeyword(keywordId),
+    showToast: message => host.showToast(message),
+  });
 
   registerEditor(keywordEditor);
   onLockChange(updateButtons);

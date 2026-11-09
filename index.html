@@ -488,6 +488,13 @@
             <button type="button" id="btn-keyword-filter-mode" class="keyword-filter-mode" aria-pressed="false"></button>
           </div>
           <ul id="keyword-tree" class="keyword-tree" role="tree"></ul>
+          <!-- Keywords suggested by the content analysis for the one selected photo (semantic-tagging.js); never filled while the feature is off -->
+          <details id="keyword-photo-suggestions" class="keyword-photo-suggestions semantic-only" hidden>
+            <summary data-i18n="Suggestions">Suggestions</summary>
+            <ul id="keyword-photo-suggestions-list" class="keyword-photo-suggestions-list"></ul>
+            <p id="keyword-photo-suggestions-note" class="keyword-photo-suggestions-note" hidden></p>
+            <button type="button" id="keyword-photo-suggestions-analyse" hidden data-i18n="Analyse">Analyser</button>
+          </details>
           <div class="keyword-editor">
             <div class="keyword-input-wrap">
               <ul id="keyword-suggestions" class="keyword-suggestions" role="listbox" hidden></ul>

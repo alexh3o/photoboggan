@@ -1594,5 +1594,12 @@
   "{count} photo will no longer be suggested for “{name}”|other": "{count} photos will no longer be suggested for “{name}”",
   "Photos that may deserve “{name}”": "Photos that may deserve “{name}”",
   "Not this keyword": "Not this keyword",
-  "These photos will no longer be suggested for this keyword": "These photos will no longer be suggested for this keyword"
+  "These photos will no longer be suggested for this keyword": "These photos will no longer be suggested for this keyword",
+  "Suggestions": "Suggestions",
+  "Add": "Add",
+  "Add the keyword to this photo as a pending change (nothing is written until “Write to files”)": "Add the keyword to this photo as a pending change (nothing is written until “Write to files”)",
+  "Never suggest this keyword for this photo again": "Never suggest this keyword for this photo again",
+  "This photo has not been analysed yet, so no keyword can be suggested.": "This photo has not been analysed yet, so no keyword can be suggested.",
+  "To get suggestions, tag at least 5 analysed photos with a keyword.": "To get suggestions, tag at least 5 analysed photos with a keyword.",
+  "No keyword to suggest for this photo.": "No keyword to suggest for this photo."
 }

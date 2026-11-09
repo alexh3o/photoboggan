@@ -1594,5 +1594,12 @@
   "{count} photo will no longer be suggested for “{name}”|other": "{count} photos ne seront plus proposées pour « {name} »",
   "Photos that may deserve “{name}”": "Photos qui méritent peut-être « {name} »",
   "Not this keyword": "Pas ce mot-clé",
-  "These photos will no longer be suggested for this keyword": "Ces photos ne seront plus proposées pour ce mot-clé"
+  "These photos will no longer be suggested for this keyword": "Ces photos ne seront plus proposées pour ce mot-clé",
+  "Suggestions": "Suggestions",
+  "Add": "Ajouter",
+  "Add the keyword to this photo as a pending change (nothing is written until “Write to files”)": "Ajoute le mot-clé à cette photo en attente (rien n'est écrit avant « Écrire dans les fichiers »)",
+  "Never suggest this keyword for this photo again": "Ne plus proposer ce mot-clé pour cette photo",
+  "This photo has not been analysed yet, so no keyword can be suggested.": "Cette photo n'a pas encore été analysée : aucun mot-clé ne peut être proposé.",
+  "To get suggestions, tag at least 5 analysed photos with a keyword.": "Pour obtenir des suggestions, étiquetez au moins 5 photos analysées avec un mot-clé.",
+  "No keyword to suggest for this photo.": "Aucun mot-clé à proposer pour cette photo."
 }
