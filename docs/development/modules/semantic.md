@@ -61,5 +61,4 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 4. New foreground task: add `let _priority = crate::semantic::PriorityGuard::new();`.
 
 ## Open questions
-- ⚠ unverified: exact set of foreground tasks holding `PriorityGuard` (checked only `face_detect.rs`; the `semantic.rs` comment lists more).
-- ⚠ unverified: scan resume after restart is not described (only the main queue's `resumeSince` was seen).
+none. Holders of `PriorityGuard` (checked): in `main.rs` `generate_thumbnail`, `keep_cached_images` (every metadata write), `purge_orphan_cache`, `run_scan`, `integrity_scan`, `find_duplicates`, `find_similar_images`, `rotate_photo`, `sync_library`, `move_photos`, `copy_photos_with_progress`, `resize_photo`; plus `keywords::run_write` and `face_detect::detect_faces`. Restart: a semantic task is not in `RESUMABLE_TASK_KINDS` and is not restored; running the analysis again skips photos already `Analysed`, so nothing is recomputed.

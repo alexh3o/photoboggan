@@ -38,12 +38,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `_PROGRESS.md` | 192 |  |
+| `_PROGRESS.md` | 198 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 97 |  |
+| `architecture.md` | 98 |  |
 | `build-release.md` | 87 |  |
 | `code-map.md` | 87 |  |
-| `configuration.md` | 62 |  |
+| `configuration.md` | 61 |  |
 | `glossary.md` | 80 |  |
 | `invariants.md` | 81 |  |
 | `README.md` | 56 |  |
@@ -65,28 +65,28 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `module-deps.md` | 93 |  |
 | `symbols-js.md` | 1374 |  |
 | `symbols-rust.md` | 1253 |  |
-| `tests.md` | 404 |  |
+| `tests.md` | 422 |  |
 
 ## docs/development/modules
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums.md` | 61 |  |
-| `app-shell.md` | 72 |  |
+| `albums.md` | 60 |  |
+| `app-shell.md` | 71 |  |
 | `duplicates.md` | 65 |  |
 | `face-detection.md` | 72 |  |
-| `faces.md` | 69 |  |
-| `filters-and-search.md` | 90 |  |
-| `grid-and-viewer.md` | 85 |  |
-| `keywords.md` | 79 |  |
+| `faces.md` | 68 |  |
+| `filters-and-search.md` | 89 |  |
+| `grid-and-viewer.md` | 89 |  |
+| `keywords.md` | 78 |  |
 | `library-and-database.md` | 72 |  |
-| `main-window.md` | 79 |  |
-| `maps-and-geolocation.md` | 70 |  |
-| `metadata-read-write.md` | 97 |  |
-| `photo-operations.md` | 83 |  |
+| `main-window.md` | 78 |  |
+| `maps-and-geolocation.md` | 69 |  |
+| `metadata-read-write.md` | 96 |  |
+| `photo-operations.md` | 82 |  |
 | `private-zones.md` | 65 |  |
-| `semantic.md` | 66 |  |
-| `thumbnails-and-previews.md` | 86 |  |
+| `semantic.md` | 65 |  |
+| `thumbnails-and-previews.md` | 85 |  |
 | `updates.md` | 67 |  |
 
 ## scripts
@@ -95,7 +95,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `fetch-exiftool.mjs` | 106 | Télécharge la distribution officielle d'ExifTool dans src-tauri/vendor/exiftool/, embarquée dans l'application (ressource Tauri « exiftool », voir tauri.conf.json et src-tauri/src/exiftool.rs). Les binaires ne sont pas … |
 | `fetch-map-style.mjs` | 58 | Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « dark » (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écri… |
-| `gen-docs.mjs` | 437 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
+| `gen-docs.mjs` | 440 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
 
@@ -232,7 +232,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `similar.rs` | 351 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
 | `thumbnails.rs` | 719 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
-| `update_check.rs` | 327 | Mises à jour (Paramètres > Général > Internet, et fenêtre « Mise à jour disponible ») : recherche, téléchargement et lancement de l'installeur. Source : les releases GitHub du dépôt de l'application. Les requêtes parten… |
+| `update_check.rs` | 327 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
 | `video.rs` | 210 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
 ## src-tauri/src/tests

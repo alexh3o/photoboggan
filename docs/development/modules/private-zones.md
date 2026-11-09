@@ -48,12 +48,12 @@ A request outside `z ≤ 22` / valid range gets `1` (empty). Zones are loaded in
 - ⚠ sensitive: **a private zone never causes a provider request** for any tile it touches (rule 2). Test: `tile_rule_serves_private_tiles_from_disk_and_never_falls_back`. Also checked on the frontend (`map-tile-protocol.js` rule 1) and by strict mode.
 - ⚠ sensitive: provider limits (3000 tiles / 50 MB per download, 4 parallel requests, identifying User-Agent) follow OpenFreeMap's offline-use rules; do not raise them. The same limits appear in `private-zones.js` (`MAX_ZONE_TILES`, `MAX_ZONE_BYTES`).
 - A file is replaced only after a complete download (`.part` + rename); the open connection is closed first.
-- `private_zones` rows are not rebuildable: "Change storage location" must move `private_maps/` with the catalogue; a lost catalogue loses the zone definitions (the MBTiles files remain).
+- `private_zones` rows are not rebuildable: "Change storage location" moves `private_maps/` with the catalogue (`STORAGE_DIRS`); a lost catalogue loses the zone definitions (the MBTiles files remain).
 - The protection geometry is computed by the backend; the JS geometry is display-only.
 - Overlapping zones: the finest available zoom wins (test `overlapping_zones_give_the_finest_available_zoom`).
 
 ## Tests
-`tests/private_maps.rs` (≈20 tests: geometry validation, point in zone, covering tiles, TMS rows, import validation, tile rule, offline refusal without any request, file naming, legacy rename, overlapping zones, style fallback, imported shapes). Gap: the download itself and the frontend window.
+`tests/private_maps.rs` (18 tests: geometry validation, point in zone, covering tiles, TMS rows, import validation, tile rule, offline refusal without any request, file naming, legacy rename, overlapping zones, style fallback, imported shapes). Gap: the download itself and the frontend window.
 
 ## How to extend
 1. New detail level: `DETAIL_ZOOMS` (Rust) and `DETAIL_LEVELS` (JS) together, with locale keys.
@@ -61,4 +61,4 @@ A request outside `z ≤ 22` / valid range gets `1` (empty). Zones are loaded in
 3. New provider: see `maps-and-geolocation.md` how to extend; here change `PROVIDER`, `TILEJSON_URL`, `STYLES`.
 
 ## Open questions
-- ⚠ unverified: behavior of `reload_zones` at startup (where it is first called) was not traced; only `migrate_legacy_files` was found in `main.rs`.
+none. Zones are first loaded by `db::init_db` (`reload_zones` after the schema is created), then after every zone change.

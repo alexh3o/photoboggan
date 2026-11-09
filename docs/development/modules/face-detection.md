@@ -60,7 +60,7 @@ Finds faces in photos (YuNet), computes a 128-value fingerprint for each (SFace)
 - Defaults must stay in `defaults.jsonc`; test `default_face_settings_come_from_the_shared_file_and_are_in_range` guards the parse.
 
 ## Tests
-Inline in `face_detect.rs` (orientation round trip, defaults file) and `face_recognize.rs` (alignment identity, blob round trip); `tests/faces_db.rs` for the database side. No test runs the models, downloads, `attribute_faces` or `select_targets`.
+Inline `mod tests` (an exception to AGENTS.md §5.I, listed in `generated/tests.md`) in `face_detect.rs` (orientation round trip, defaults file, every key the frontend reads) and `face_recognize.rs` (alignment identity, blob round trip); `tests/faces_db.rs` for the database side. No test runs the models, downloads, `attribute_faces` or `select_targets`.
 
 ## How to extend
 1. New recognition model: new manifest entries and release assets (`scripts/prepare-face-models.mjs`), new `MODEL_ID`; old embeddings become unusable by design.
@@ -68,4 +68,4 @@ Inline in `face_detect.rs` (orientation round trip, defaults file) and `face_rec
 3. New platform: add its runtime file to the manifest and `current_platform`.
 
 ## Open questions
-- ⚠ unverified: `get_face_model_status` is not re-hashed at startup; a corrupted file of the right size would only fail at session load.
+none. Known limit: an installed file is recognised by name and size only (`model_files::is_installed`); the SHA-256 is checked at install, never at load, so a file corrupted later with the same size fails only when the ONNX session is created.

@@ -74,5 +74,4 @@ None (no frontend tests, AGENTS.md §5.I). Backend side: `tests/library_sync.rs`
 4. New startup step: add it to the chain at the end of `main.js`; keep `loadPhotos` after `restoreStartupFolder`.
 
 ## Open questions
-- ⚠ unverified: complete list of `kind` values in use (read from the injections of `enqueueTask`, not all checked).
-- ⚠ unverified: `add_folder` flow in the settings pane (button handler not read).
+none. Task kinds in use: `add`, `rescan-all`, `rescan-folder`, `integrity`, `keywords`, `faces`, `faces-selection`, `face-models`, `update`, `semantic-models`, `semantic`, `private-map`, `duplicates`, and `FILE_TASK_KINDS` (`move`, `copy`, `resize`). Adding a folder: the Settings button picks a directory, calls `add_folder` (the folder appears at once in the tree and the list), then queues the `kind: 'add'` scan.

@@ -55,7 +55,7 @@ Then `auto_link_person` links each touched person to the keyword node of the sam
 - A database error in `store_photo_faces` is reported by `false` and nothing is stored half-way (`database_failure_is_reported`).
 
 ## Tests
-`tests/faces_db.rs`: three tests (error reporting, re-reading without duplicates, auto faces not written). Not covered: merge / undo, `restore_faces`, conflicts, `discard_pending_face_writes`, clustering, covers.
+`tests/faces_db.rs`: three tests (error reporting, re-reading without duplicates, auto faces not written); `faces.rs` also keeps an inline `mod tests` (4 tests, region parsing; see `generated/tests.md`). Not covered: merge / undo, `restore_faces`, conflicts, `discard_pending_face_writes`, clustering, covers.
 
 ## How to extend
 1. New face state: add it to the `STATUSES` list of `faces-grid.js`, to the filters of `get_photo_faces` / `get_faces_for_photos`, and decide whether `plan_face_write` writes it.
@@ -64,5 +64,4 @@ Then `auto_link_person` links each touched person to the keyword node of the sam
 4. New action in the Faces view: backend command that sets `dirty`, snapshot / restore pair for undo, `generate_handler!` entry.
 
 ## Open questions
-- ⚠ unverified: whether `get_faces_for_photos` / `get_face_scan_index` are used elsewhere than `faces-grid.js` and `faces-panel.js` (not checked).
-- ⚠ unverified: the exact trigger that runs `store_photo_faces` outside scans (called from `keywords::run_write` after writes, as `face_batches`); other callers not searched.
+none. Checked: `get_faces_for_photos` is called only by `faces-grid.js`, `get_face_scan_index` only by `faces-panel.js`; `store_photo_faces` has two callers, `library_sync::store_read_batch` (scan / sync) and `keywords::run_write` (after a write, `face_batches`).

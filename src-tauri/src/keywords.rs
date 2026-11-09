@@ -770,9 +770,9 @@ pub async fn rename_keyword(
     outcome.map_err(|error| error.to_string())?
 }
 
-/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating » ou « color ») :
-/// `order` liste une fois chacun des identifiants de ses sources, du plus au moins prioritaire (voir exif::set_read_priority). Il s'applique
-/// aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps" or "faces"):
+/// `order` lists each of its source ids once, most important first (see exif::set_read_priority). It applies to the next file reads
+/// (scan, rescan, sync).
 #[tauri::command]
 pub fn set_metadata_read_order(kind: String, order: Vec<String>) -> Result<(), String> {
     crate::exif::set_read_priority(&kind, &order)

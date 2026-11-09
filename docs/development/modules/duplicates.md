@@ -61,4 +61,4 @@ Finds groups of photos that are the same picture: identical image data (metadata
 4. New search kind: entry in `DUPLICATE_KINDS` (main.js) and a command in `main.rs` (`generate_handler!`).
 
 ## Open questions
-- ⚠ unverified: whether the `photo_phash` cache is invalidated by the thumbnail cache size setting (the source can be a thumbnail of any cache size).
+none. The `photo_phash` key is size + mtime + `ALGO_VERSION` only: changing the thumbnail cache size does not invalidate fingerprints. This is acceptable because the hash is computed on a 32×32 reduction (any cached thumbnail is ≥ 512 px), but fingerprints computed from a thumbnail and from the original may differ by a few bits.

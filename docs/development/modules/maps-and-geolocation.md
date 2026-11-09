@@ -25,7 +25,7 @@ Shows where photos were taken (small map in the Info panel, full map mode), lets
 3. map in *strict* mode (it shows a private place) → empty tile;
 4. provider allowed (`isMapNetworkAllowed()`: setting `showMap` on **and** `offlineMode` off) → fetched from `tiles.openfreemap.org`;
 5. otherwise → empty tile (a watermark placeholder tile, `OFFLINE_PLACEHOLDER`, when offline).
-Style, sprite and fonts: local copy (`get_private_resource`, downloaded with the first zone) if it exists, else provider by rules 3–5. Each map has a context; `setStrict(true)` aborts its in-flight remote requests. The provider host is also in the CSP `connect-src` of `tauri.conf.json` (prod and dev) and in `private_maps.rs`. ⚠ sensitive: a new map resource or host must go through this protocol, the CSP, and `isMapNetworkAllowed()`; mention it in the "Offline mode" tooltip (AGENTS.md §1).
+Style, sprite and fonts (`loadStyle`, `loadSprite`, `loadGlyphs`): local first through `get_private_resource` (the copy downloaded with a zone, else the style bundled in the installer, resource `map-style/`), then the provider by rules 3–5, else an empty style / sprite / glyph range. Only the vector source `openmaptiles` of the style is kept. Each map has a context; `setStrict(true)` aborts its in-flight remote requests. The provider host is also in the CSP `connect-src` of `tauri.conf.json` (prod and dev) and in `private_maps.rs`. ⚠ sensitive: a new map resource or host must go through this protocol, the CSP, and `isMapNetworkAllowed()`; mention it in the "Offline mode" tooltip (AGENTS.md §1).
 
 **2. Location panel.** `refreshLocation(selection, focus)` reads `gps_lat` / `gps_lon` of the selection from loaded photos (never edited here). The map loads only if `showMap` is on: ordinary place → also needs offline mode off; place inside a private zone (`locatePrivatePoints`, private-zones.js) → strict map, disk tiles only (works offline). `onMapAccessChanged` reacts to settings changes. At most `MAP_MAX_POINTS` markers; the panel's map is disabled while map mode is open (`setMapSuppressed`: one WebGL context).
 
@@ -65,5 +65,4 @@ Result `GeoWriteResult` = `updated`, `refused`, `failed`, `cancelled`.
 3. New GPS write path: reuse `apply_metadata_changes` with `gps` items so the re-read check and the database update apply; mark it pending as in map mode.
 
 ## Open questions
-- ⚠ unverified: details of `loadStyle` / `loadSprite` / `loadGlyphs` fallback order were read from the header, not line by line.
-- ⚠ unverified: the full pending-position flow after "Write to files" (UI side of `map-mode.js` lines beyond the header) was only skimmed.
+- ⚠ unverified: the full pending-position flow after "Write to files" (UI side of `map-mode.js` beyond the header) was only skimmed.

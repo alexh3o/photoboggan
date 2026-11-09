@@ -2,12 +2,12 @@
 # Testing
 
 ## Purpose
-The only automated tests are Rust unit and integration tests of the backend. They exist to catch regressions in the places where a bug damages the user's files or catalogue (metadata writes, sidecars, atomic replacement, scan and sync, cache names, duplicate hashes, updates). There is no frontend test suite and the IPC commands themselves are not tested (they need a Tauri `AppHandle` / `State`): logic that must be tested lives in plain functions that tests can call. The per-module inventory is generated: `generated/tests.md` (284 tests, 20 ignored at the time of writing). The rules are AGENTS.md §5.I.
+The only automated tests are Rust unit and integration tests of the backend. They exist to catch regressions in the places where a bug damages the user's files or catalogue (metadata writes, sidecars, atomic replacement, scan and sync, cache names, duplicate hashes, updates). There is no frontend test suite and the IPC commands themselves are not tested (they need a Tauri `AppHandle` / `State`): logic that must be tested lives in plain functions that tests can call. The per-module inventory is generated: `generated/tests.md` (293 tests, 20 ignored at the time of writing). The rules are AGENTS.md §5.I.
 
 ## Files
 | File | Role |
 |---|---|
-| `src-tauri/src/tests/<module>.rs` | One test file per tested module, included at the end of the module with `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` (nothing is compiled into the app) |
+| `src-tauri/src/tests/<module>.rs` | One test file per tested module, included at the end of the module with `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` (nothing is compiled into the app). Exceptions: `face_detect.rs`, `face_recognize.rs` and `faces.rs` still hold an inline `#[cfg(test)] mod tests` (9 tests, listed in `generated/tests.md`); move them to `tests/` when editing those modules |
 | `src-tauri/src/tests/fixtures/` | Small data files (5), including `semantic_reference.json`, the reference output of the SigLIP 2 model used by ignored parity tests |
 | `src-tauri/src/test_support.rs` | Helpers compiled only for tests: synthetic images and a temporary catalogue |
 | `.github/workflows/tests.yml` | CI: runs the tests on every push to `main` and every pull request |
@@ -45,7 +45,7 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 | Albums, geolocation backup, place search, private zones | `tests/albums.rs`, `tests/geolocation.rs`, `tests/place_search.rs`, `tests/private_maps.rs` |
 | Semantic search (index, search, keyword suggestions, model files) | `tests/semantic*.rs` |
 | Update logic and download verification | `tests/update_check.rs` |
-| Face database | `tests/faces_db.rs` |
+| Faces: database, detection settings, alignment | `tests/faces_db.rs`; inline tests of `faces.rs`, `face_detect.rs`, `face_recognize.rs` |
 
 ### Known gaps (covered only by hand)
 - All frontend code (grid layout, selection, dialogs, task queue, write circuit, panels).

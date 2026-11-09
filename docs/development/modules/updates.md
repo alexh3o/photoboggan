@@ -54,7 +54,7 @@ Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re
 - Offline mode: any new network call here must keep the `internet_disabled` check.
 
 ## Tests
-`tests/update_check.rs` (14): version parsing and comparison, eligibility (stable, pre-release, beta installed, drafts, non-app releases), asset choice per platform (English MSI preferred, never a setup `.exe`), refused unsafe assets, download kept only on matching size + hash, cancel leaves nothing. Not covered: network calls (`fetch_info`, `download_update`) and `install_update`, which launches a process.
+`tests/update_check.rs` (12): version parsing and comparison, eligibility (stable, pre-release, beta installed, drafts, non-app releases), asset choice per platform (English MSI preferred, never a setup `.exe`), refused unsafe assets, download kept only on matching size + hash, cancel leaves nothing. Not covered: network calls (`fetch_info`, `download_update`) and `install_update`, which launches a process.
 
 ## How to extend
 1. New platform installer: add its extensions in `pick_asset` and a case in `current_platform` and `install_update`, and make the release workflow publish it (`build-release.md`).
@@ -62,5 +62,5 @@ Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re
 3. New UI text: keys in `en.json` and `fr.json`; error codes go through `updateErrorMessage`.
 
 ## Open questions
-- ⚠ unverified: the header comment of `update_check.rs` still says "NSIS (ou MSI)" while `pick_asset` selects only `.msi` (AGENTS.md §5.J says `.msi`, no more `-setup.exe`); the non-`.msi` branch of `install_update` appears unreachable.
-- ⚠ unverified: the repository slug is hard-coded (`alexh3o/photoboggan`) in both Rust and JS.
+- The non-`.msi` branch of `install_update` (Windows) is unreachable since `pick_asset` only selects `.msi`; kept as a safety net.
+- The repository slug `alexh3o/photoboggan` is written in both `update_check.rs` (`RELEASES_URL`, `DOWNLOAD_URL_PREFIX`) and `update-check.js` (`RELEASE_URL_PREFIX`): change both together.

@@ -73,14 +73,14 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 | State | Location | Rebuildable? |
 |---|---|---|
 | User metadata (rating, keywords, title, faces, GPS, orientation) | The image files and `.xmp` sidecars | — (source of truth) |
-| Catalogue (photos, keyword tree, albums, persons, zones, hashes, embeddings) | SQLite `photos_library.db` (tables: `generated/db-schema.md`) | Mostly yes, by rescan. **Not** rebuildable: albums, keyword nodes not present in any file, person ↔ keyword links, private zone definitions, erased GPS backups (`geolocation`). ⚠ unverified: complete list, check each `init_schema`. |
+| Catalogue (photos, keyword tree, albums, persons, zones, hashes, embeddings) | SQLite `photos_library.db` (tables: `generated/db-schema.md`) | Mostly yes, by rescan (photos, keyword links, imported faces) or by re-running the feature (hashes, pHash, embeddings, detected faces). **Not** rebuildable: the tracked folder list (`folders`), albums (`album_nodes`, `album_photos`), keyword nodes present in no file, persons (names, aliases, hidden flag, keyword links) and review states of detected / manual faces (`ignored`, `not_face`, `unknown_locked`, pending writes `photo_face_writes`, merge journal), recognition-added keywords (`face_keywords`), private zone definitions, erased GPS backups (`erased_locations`), rejected keyword suggestions. |
 | Thumbnails, RAW/HEIC/video previews | `<data dir>/thumbnails/`, `raw_previews/` | Yes (deleted with "Clear cache"; orphans purged by `purge_orphan_cache`) |
 | Models | `<data dir>/models/` (faces), `models/semantic/<id>/` | Yes (re-download / import) |
 | Offline map tiles | `<data dir>/private_maps/*.mbtiles` | Yes, if online |
 | Logs of write recoveries / sidecar conflicts | `<data dir>/logs/` | — |
 | App config (data dir, cache size, thumbnail quality, window state, "Open with" programs) | `config.json` in the OS app-config dir (`AppConfig`, written atomically) | Defaults if missing; set aside as `config.json.invalid-<time>` if invalid |
 | UI settings | webview `localStorage`, defaults in `src/defaults.jsonc` (`generated/config.md`) | Defaults |
-| Backend runtime settings (metadata writer, read priorities, internet allowed, face settings…) | Rust statics, pushed by the frontend at startup and on change | Lost at exit by design: the frontend resends them |
+| Backend runtime settings (metadata writer, read priorities, internet allowed, face settings…) | Rust statics, pushed by the frontend at startup and on change | Lost at exit by design: the frontend resends them. ⚠ sensitive: a new one not resent at startup silently reverts |
 | Downloaded installer | OS temp dir `photoboggan-update/` | Yes |
 
 ## Concurrency model
@@ -90,6 +90,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 - **Threads**: commands are `#[tauri::command(async)]` / `async fn` (Tauri async pool) and push heavy work into `tokio::task::spawn_blocking`, often with `rayon` inside. Plain `#[tauri::command] fn` runs on the main thread (marked "main thread" in `generated/ipc-commands.md`): keep those trivial.
 - **Throttles**: thumbnail generation 2–6 at once (frontend `MAX_THUMBNAIL_GENERATIONS`, backend cap 6); keyword writes 3 threads; incremental sync reads EXIF with 2 threads at most (`library_sync.rs` header); ExifTool 3 processes; `semantic::PriorityGuard` makes the semantic analysis pause while thumbnails are generated, a scan runs or metadata is written.
 - **Per-file write lock**: `exiftool::path_lock` (16 striped mutexes) serialises writes to the same image, for both writers.
+- ⚠ sensitive: the queue lives only in the frontend (a reload would lose it while the backend keeps working, hence the F5 guard), and the pool is swapped by `change_storage_location`: never cache `state.pool()` across calls (`invariants.md` §4, §6).
 
 ## Offline mode and network rule
 

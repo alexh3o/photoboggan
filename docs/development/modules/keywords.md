@@ -18,7 +18,7 @@ Lets the user organise photos with a tree of keywords (e.g. `Places / France / P
 - A node = one name under one parent (`parent_id` 0 = first level); two siblings never differ only by case (`name_key` = trimmed lowercase, `UNIQUE(parent_id, name_key)`). Homonyms under different parents are different keywords.
 - A photo "carries" a keyword when a `photo_keywords` row exists. **Only the last level of a path read from a file is active**; ancestors are active only if the file lists them on their own.
 - The tree grows when files are read: `store_photo_keywords` (called by `library_sync::store_read_batch` for every scan / sync batch) inserts missing nodes with `ensure_node` and replaces the photo's links by those of the file. It is one transaction per batch and returns false on error, so the caller does not consider those photos read. The tree is never pruned automatically (a node with no photo stays).
-- Which format of the file wins (digiKam, Lightroom…) is decided at read time (`metadata-read-write.md`, order sent with `set_metadata_read_order`, kind `keywords`). ⚠ AGENTS.md §5.D names a `set_keyword_format_order` command: it does not exist.
+- Which format of the file wins (digiKam, Lightroom…) is decided at read time (`metadata-read-write.md`, order sent with `set_metadata_read_order`, kind `keywords`).
 - Reading: `get_keyword_tree` (flat list, the UI rebuilds the tree), `get_photo_keyword_ids` (pairs photo / keyword for the selection), `get_keyword_usage` (photo count per keyword).
 
 ### Applying edits: `apply_metadata_changes` → `run_write`
@@ -39,7 +39,7 @@ Result `KeywordWriteResult { written (with the keyword ids stored after re-read)
 
 ### Keywords panel (`keywords-panel.js`)
 - State: `baseline` (stored ids per selected photo, from `get_photo_keyword_ids`) and `working` (pending copy). Checkbox: all selected photos carry it = checked, some = partial. Click toggles for all selected photos; Shift also activates ancestors / deactivates descendants (`toggleKeyword`); "Unify" gives every photo the union (`unifySelection`); "Reset" returns to `baseline`. `dirtyIds` lists photos to write.
-- `refreshKeywordsPanel` is called on selection change (deferred to one per frame, only when the tab is visible). With edits pending, `resolvePendingSelection` asks Apply / Ignore / Cancel. Counter `reloadToken` drops stale answers; `writeEpoch` redoes a read that overlapped a write. After files are re-read by a sync, `invalidateKeywordTree` bumps `treeVersion`; the saved state is reloaded and pending edits are rebased on it (`rebase`), so Apply does not erase what another program added.
+- `refreshKeywordsPanel` is called on selection change (deferred to one per frame, only when the tab is visible). With edits pending, `resolvePendingSelection` (`metadata-writes.js`) asks Apply / Ignore / Cancel. Counter `reloadToken` drops stale answers; `writeEpoch` redoes a read that overlapped a write. After files are re-read by a sync, `invalidateKeywordTree` bumps `treeVersion`; the saved state is reloaded and pending edits are rebased on it (`rebase`), so Apply does not erase what another program added.
 - Registers `keywordEditor` in `metadata-writes.js`: `pendingItems` sends the full final id set per dirty photo; `afterWrite` → `adoptWritten` makes the re-read ids the new baseline and keeps edits made since sending as pending.
 - `addPendingKeyword(keywordId)` is the **only** way content-search suggestions add a keyword: it opens the tab, waits until the selection is loaded, then `activateKeyword`; nothing is written until Apply (AGENTS.md §5.L).
 - Compare mode: `setKeywordsCompareMode` makes the Keywords and Description tabs unavailable. Last tab: `sidePanelTab`.
@@ -74,5 +74,4 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 3. New keyword source format: see `metadata-read-write.md` (read priorities).
 
 ## Open questions
-- ⚠ unverified: `keywordFilterMode` and `sidePanelTab` have no default in `defaults.jsonc` listing seen in `generated/config.md` (not checked whether AGENTS.md §5.G allows it for UI-state keys).
-- AGENTS.md §5.D mentions `set_keyword_format_order` (does not exist; the real one is `set_metadata_read_order`).
+none. `keywordFilterMode` and `sidePanelTab` are UI state without a default in `defaults.jsonc` (see `../configuration.md`).

@@ -25,10 +25,10 @@ Called by `library_sync::read_photo` for every scan and sync. Videos go to `read
 5. `resolve_values` picks, for rating, colour, pick, title, description and GPS, the first source with data in the user's order. `ExifMetadata` keeps every source value (`rating_sources`, `text_sources`…) so that write checks can look at one source.
 6. Orientation is resolved with `orientation::resolve` (see `thumbnails-and-previews.md`); HEIC dimensions and orientation come from the container.
 
-`read_marking` is the cheap version for rating / colour / pick only (first 64 KB of a JPEG, or HEIC XMP, plus sidecar): it is the read-back used to verify a marking write.
+`read_marking` is the cheap version for rating / colour / pick only (the XMP in the first 64 KB of a JPEG, else the whole embedded packet; HEIC through the same `heif::read_xmp` as `read_exif`; plus the sidecar): it is the read-back used to verify a marking write.
 
 ### Read priorities
-Six sources lists are in `exif.rs` as `*_SOURCE_IDS` constants with a matching `*_PRIORITY` static: `RATING`, `COLOR`, `PICK`, `TITLE`, `DESCRIPTION`, `GPS`, plus `HIERARCHY_IDS` (5 keyword formats, `HIERARCHY_PRIORITY`) and `faces::REGION_PRIORITY`. The frontend keeps each order in localStorage (`keywordFormatOrder`, `titleFormatOrder`, `descriptionFormatOrder`… one key per kind, listed in `READ_ORDERS` of `metadata-settings.js`; `resolveOrder` in `order-list.js` completes an old stored order with new ids) and sends it with `set_metadata_read_order { kind, order }` (command in `keywords.rs`, forwards to `exif::set_read_priority`; `order` must contain each id exactly once, else `invalid_order`; unknown kind → `invalid_kind`). Orders are sent at startup (`initMetadataSettings`) and on each change; a new order only applies to files read afterwards, so the user must rescan. Value 0 is an answer; only absence falls through.
+Six sources lists are in `exif.rs` as `*_SOURCE_IDS` constants with a matching `*_PRIORITY` static: `RATING`, `COLOR`, `PICK`, `TITLE`, `DESCRIPTION`, `GPS`, plus `HIERARCHY_IDS` (5 keyword formats, `HIERARCHY_PRIORITY`) and `faces::REGION_PRIORITY`. The frontend keeps each order in localStorage (`keywordFormatOrder`, `titleFormatOrder`, `descriptionFormatOrder`… one key per kind, listed in `READ_ORDERS` of `metadata-settings.js`; `resolveOrder` in `order-list.js` completes an old stored order with new ids) and sends it with `set_metadata_read_order { kind, order }` (command in `keywords.rs`, forwards to `exif::set_read_priority`; kinds `keywords`, `title`, `description`, `rating`, `color`, `pick`, `gps`, `faces`; `order` must contain each id exactly once, else `invalid_order`; unknown kind → `invalid_kind`). Orders are sent at startup (`initMetadataSettings`) and on each change; a new order only applies to files read afterwards, so the user must rescan. Value 0 is an answer; only absence falls through.
 
 Display-only rows: flat keyword fields (`dc:subject`, IPTC, XPKeywords) have no priority. With the internal writer and "ignore EXIF" (`skipExifWithInternalWriter`, default on), EXIF rows are greyed (`markIgnored`) because that writer neither writes nor erases them.
 
@@ -92,5 +92,4 @@ Marking (rating / colour / pick) does not use this circuit: it goes through `upd
 3. New editor tab: `registerEditor` with `pendingItems` returning items for `apply_metadata_changes`.
 
 ## Open questions
-- ⚠ unverified: AGENTS.md §5.D lists HEIC under sidecar formats, while the code writes into the container first (`heif::update_xmp`) and uses the sidecar only for `Unsupported`; AGENTS.md should be aligned (not changed here).
-- ⚠ unverified: whether `read_marking` of a HEIC sees the same XMP as `read_exif` in every layout (not checked in `heif.rs`).
+none (HEIC: written in the container, AGENTS.md §5.D now says so; `read_marking` and `read_exif` read the same HEIC XMP).

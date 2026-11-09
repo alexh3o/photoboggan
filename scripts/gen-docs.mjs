@@ -360,9 +360,12 @@ function genConfig() {
 /** tests.md : inventory of backend tests. */
 function genTests() {
   let body = '', total = 0, ign = 0;
-  for (const f of testFiles.sort()) {
+  // A few modules keep an inline `#[cfg(test)] mod tests { … }` (face_detect.rs, face_recognize.rs, faces.rs): list them too.
+  const inlineFiles = files.filter((f) => /^src-tauri\/src\/[^/]+\.rs$/.test(f) && /^\s*#\[test\]/m.test(read(f)));
+  for (const f of [...testFiles.sort(), ...inlineFiles.sort()]) {
+    const inline = !f.includes('/tests/');
     const lines = read(f).split('\n');
-    const head = lines.filter((l) => l.startsWith('//!')).map((l) => l.replace(/^\/\/!\s?/, '')).join(' ');
+    const head = inline ? '' : lines.filter((l) => l.startsWith('//!')).map((l) => l.replace(/^\/\/!\s?/, '')).join(' ');
     const names = [];
     let isTest = false, ignore = null;
     for (const l of lines) {
@@ -376,8 +379,8 @@ function genTests() {
     total += names.length; ign += names.filter((x) => x.ignore).length;
     // Owner = the module that includes this file with #[path = "tests/<name>"] (faces.rs includes faces_db.rs), else the same-name module.
     const owner = files.find((m) => /^src-tauri\/src\/[^/]+\.rs$/.test(m) && read(m).includes(`"tests/${basename(f)}"`));
-    const target = owner ? basename(owner) : existsSync(join(ROOT, 'src-tauri/src', basename(f))) ? basename(f) : '—';
-    body += `\n## ${basename(f)} — ${names.length} test(s), tests \`src-tauri/src/${target.replace(/`/g, '')}\`\n\n${head ? cut(head, 400) + '\n\n' : ''}${names.map((x) => `- \`${x.n}\`${x.ignore ? ` — **ignored**: ${x.ignore}` : ''}`).join('\n') || '_no #[test]_'}\n`;
+    const target = inline || owner ? basename(owner ?? f) : existsSync(join(ROOT, 'src-tauri/src', basename(f))) ? basename(f) : '—';
+    body += `\n## ${basename(f)}${inline ? ' (inline mod tests)' : ''} — ${names.length} test(s), tests \`src-tauri/src/${target.replace(/`/g, '')}\`\n\n${head ? cut(head, 400) + '\n\n' : ''}${names.map((x) => `- \`${x.n}\`${x.ignore ? ` — **ignored**: ${x.ignore}` : ''}`).join('\n') || '_no #[test]_'}\n`;
   }
   const fixtures = files.filter((f) => f.startsWith('src-tauri/src/tests/fixtures/')).length;
   write('tests.md', `Backend tests (${total}, ${ign} ignored)`, `One \`src-tauri/src/tests/<module>.rs\` per tested module, declared at the end of the module with \`#[cfg(test)] #[path = …] mod tests;\`. Run: \`cd src-tauri && cargo test\` (fast set) and \`cargo test exiftool:: -- --ignored --test-threads=1\` (needs ExifTool, see \`npm run fetch-exiftool\`). Fixtures: ${fixtures} file(s) in \`tests/fixtures/\`; synthetic helpers in \`test_support.rs\`. There is no frontend test suite.`, body);

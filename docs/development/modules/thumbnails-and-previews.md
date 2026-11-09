@@ -43,7 +43,7 @@ Order: (1) Fujifilm RAF (`FUJIFILMCCD-RAW`): offset and length of the embedded J
 Returns a cached JPEG path, creating it if missing: video → `generate_video_preview` (side 1280); HEIC → `heif::preview_jpeg` (full-resolution JPEG); RAW → `extract_raw_preview` + `preview_with_orientation` (replaces the EXIF segment with a minimal one carrying the orientation, so the webview turns it like the thumbnail; pixels untouched); other → raw bytes. Written with `write_cache_file`. Videos play only in the OS player (`open_video_externally`).
 
 ### Video stills (`video.rs`)
-Not the same on every platform: Windows asks the Shell (`IShellItemImageFactory`, same as Explorer, 30 s timeout, uses installed codecs); every platform then falls back to an external `ffmpeg` if it is on `PATH` (20 s timeout, never shipped). On Linux without ffmpeg there is no thumbnail and the grid shows a "play" icon. ⚠ unverified: whether macOS is supported (the non-Windows `system_thumbnail` is a stub returning an error).
+Not the same on every platform: Windows asks the Shell (`IShellItemImageFactory`, same as Explorer, 30 s timeout, uses installed codecs); every platform then falls back to an external `ffmpeg` if it is on `PATH` (20 s timeout, never shipped). Elsewhere `system_thumbnail` is a stub returning an error, so on Linux (and macOS, not distributed) without ffmpeg there is no thumbnail and the grid shows a "play" icon.
 
 ### EXIF sources (`read_exif_sources`)
 Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `tiff_as_exif_ifd`) and CMT1 (camera, orientation); RAF uses the EXIF of the embedded JPEG; everything else is read directly, leniently (`continue_on_error`, `distill_partial_result`: a malformed RAW IFD keeps the fields read so far).
@@ -59,7 +59,7 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 - IPC: `get_cached_thumbnail_paths`, `generate_thumbnail`, `save_thumbnail_cache`, `get_raw_preview_path`, `clear_thumbnail_cache`, `purge_orphan_thumbnails`, `set_thumbnail_cache_size`, `set_thumbnail_quality`, `rotate_photos`, `open_video_externally` (`../generated/ipc-commands.md`).
 - Events: `scan-progress` during `rotate_photos` with a task id.
 - Database: `photos.orientation`, `photos.view_fix` (written by `rotate_photo` and the scan).
-- Settings: `thumbnailCacheSize`, `thumbnailQuality` (in `config.json` and `localStorage`, resent at startup; see `app-shell.md`), `thumbnailSize` (display only).
+- Settings: `thumbnailCacheSize`, `thumbnailQuality` (backend value in `config.json`, read at startup; the frontend keeps its own copy in `localStorage` and calls the setters **only on change**, never at startup), `thumbnailSize` (display only).
 
 ## Dependencies
 - Uses: `exif.rs` (XMP orientation read / write, regions), `exiftool.rs` (writer, `skip_exif_metadata`), `heif.rs`, `video.rs`, `semantic::PriorityGuard`, `db` pool.
@@ -81,5 +81,4 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 3. New format decoded in Rust: add to `decode_scaled_rgb`, decide its `orientation::Kind`, and keep the webview fallback for anything that errors.
 
 ## Open questions
-- ⚠ unverified: `thumbnailCacheSize` default 1024 in `generated/config.md` versus the backend default in `AppState` (not checked in `main.rs` startup).
-- ⚠ unverified: macOS video thumbnails (see above).
+- ⚠ Known mismatch (code, not fixed by the docs): on a new install `config.json` has no cache size, so the backend uses 512 (`.setup`, `unwrap_or(512)`) while the frontend default is `thumbnailCacheSize` = 1024 (`defaults.jsonc`) and the setter is only called when the user changes the value. The grid then believes thumbnails can be shown up to 1024 px while they are generated at 512.

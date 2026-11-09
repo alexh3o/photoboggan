@@ -30,10 +30,10 @@ On a scope of more than 50 000 photos (`largeScope`), `buildSqlPrefilter` sends 
 
 | Criterion | JS (exact) | SQL (`prefilter_condition`) | Difference |
 |---|---|---|---|
-| Rating | `matchesRatingFilter` | `rating_min` / `rating_eq` / `unrated` | same |
+| Rating | `matchesRatingFilter` (`unrated` = 0, `eq` = exact, else ≥ stars) | `rating_min` / `rating_eq` / `unrated` | same |
 | Colour / pick | `color_flag \|\| 'none'` | `COALESCE(NULLIF(col,''),'none') IN (…)` | same |
 | Keywords (included) | whole-keyword match on `photo.keywords.split(', ')` | `instr(keywords, text) > 0` | SQL is a substring: superset. Excluded never sent |
-| People | `photoMatchesPersonIds` | `id IN (SELECT photo_id FROM faces WHERE person_id=…)` | excluded persons not sent |
+| People | `personFilterMatches` → `photoMatchesPersonIds` (`faces-panel.js`: every included person on the photo, no excluded one) | `id IN (SELECT photo_id FROM faces WHERE person_id=…)` | excluded persons and the face-scan status filter (unscanned / to review / scanned) not sent |
 | Date | exact instants (`dateFilter.from/to`) | years only (`year_from`/`year_to`), odd formats kept | SQL coarser |
 | Location | GPS finite | `gps_lat/gps_lon IS (NOT) NULL` | same |
 | File names | substring of file name | `instr(lower(filename or path), text)` | ASCII-only texts sent (`isAsciiText`); path searched: superset; excluded not sent |
@@ -85,5 +85,4 @@ No frontend tests. Backend: `tests/db.rs` has `prefilter_keeps_what_the_interfac
 4. New Find-RAW criterion: setting in `raw-settings.js`, state building in `buildRawSearchState`.
 
 ## Open questions
-- ⚠ unverified: `personFilterMatches` / `photoMatchesPersonIds` and the rating `matchesRatingFilter` details were not read; the table assumes they are exact-person / rating-range tests.
-- ⚠ unverified: the location filter value `not-geolocated` in `captureFilterState` is stored as `state.location`, but `prefilterFromState` maps it as `geolocated: state.location === 'geolocated'` (so not-geolocated → `false`): consistent as read, not tested.
+none. Checked: the person and rating predicates match the table; the location filter is saved as `state.location` (`geolocated` / `not-geolocated`) and sent as `geolocated: true / false`, matching `matchesFilterState`.

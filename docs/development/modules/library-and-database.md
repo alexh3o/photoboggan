@@ -68,4 +68,4 @@ Called by the `sync_library` command (blocking thread, `PriorityGuard`) at start
 4. New long task: queue it (`../invariants.md` §6) with `scan_cancel_flag` / `release_scan_cancel_flag`.
 
 ## Open questions
-- ⚠ unverified: whether `rescan_all_folders` ignores a `resume_since` for nested folders correctly (each `run_scan` loads `read_since` per folder; not exercised by a test).
+none. `rescan_all_folders` passes the same `resume_since` to the `run_scan` of each tracked folder; `read_since` filters by `scanned_at` and `is_inside_folder`, so with nested tracked folders a file already read in this task is skipped in the next folder's pass (without resume it is read twice, which is harmless). Not covered by a test.

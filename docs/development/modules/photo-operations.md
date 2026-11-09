@@ -31,7 +31,7 @@ Queued task with `task_id` (`FileTaskProgress`: progress weighted by file size, 
 Same task wrapper. The UI first asks for conflicts (`copy_conflicts` lists files whose name already exists, with sizes and dates; `askCopyResolutions` shows the dialog), then sends `resolutions` per source path: `replace`, `skip`, or `rename` (default). A photo copied into its own folder is never a conflict: it is always renamed. `replace` goes through `copy_replacing` (temp file `.photoboggan-tmp`, flush, rename: the old or the complete new file, never a partial one) and overwrites the sidecar too. Copies into a tracked folder are not added to the catalogue here: the UI then runs `sync_library`.
 
 ### Rename and delete
-- `rename_photo`: keeps the extension (`IMG.2024.cr2` + `vacances` → `vacances.cr2`), refuses an existing name except a case-only change (`same_existing_file`), checks the sidecar can follow **before** renaming, takes `path_lock`, keeps the row `id`, renames cache files. `rename_folder` renames a tracked-folder subfolder and updates every row under it.
+- `rename_photo`: keeps the extension (`IMG.2024.cr2` + `vacances` → `vacances.cr2`), refuses an existing name except a case-only change (`same_existing_file`), checks the sidecar can follow **before** renaming, takes `path_lock`, keeps the row `id`, renames cache files. `rename_folder` renames a subfolder of a tracked folder in place and updates every row under it (ids kept, cache files renamed); it refuses a tracked folder (or one containing one) and the app data folder, like `delete_folder`.
 - `delete_photos`: only photos of the catalogue; `trash::delete` for the file, then its sidecar; on a trash failure the photo stays and the failure is reported, **never a permanent fallback**. A file already gone only loses its row. Cache files are removed. The row is deleted after the trash; if the row delete fails, the failure is reported. `delete_folder` / `is_folder_empty` / `get_folder_unrecognized_files` ask the user first about files the app does not catalogue.
 - `has_trash(path)` (Windows): false for UNC paths and drives of type removable, network, optical or RAM (`GetDriveTypeW`); true elsewhere and on other OSes. `count_permanent_deletions` counts paths without trash; `confirmAndDelete` (JS) uses it to word the confirmation ("Permanently delete…" / "some… permanently deleted") **before** anything happens. It refuses while a metadata write runs (`isWriteLocked`), because ExifTool could recreate a trashed file.
 
@@ -70,7 +70,7 @@ Queued task (`kind: 'integrity'`), events `scan-progress` and `scan-detail` (cur
 - `has_trash` changes the wording of the deletion dialog: a new delete path must call `count_permanent_deletions` first.
 
 ## Tests
-`tests/main.rs` (12: durable copy keeps attributes, replacing copy leaves no temp, move cost between drives, sidecar adoption, rename onto the same file, reserved names, cache follow), `tests/integrity.rs` (12). Gaps: no `tests/resize.rs`; no test of `delete_photos`, `has_trash`, `rename_photo`, `rename_folder`, `update_photos_marking` (they need an `AppHandle` / `State`), nor of the frontend.
+`tests/main.rs` (10: durable copy keeps attributes, replacing copy leaves no temp, move cost between drives, sidecar adoption, rename onto the same file, reserved names, cache follow), `tests/integrity.rs` (12). Gaps: no `tests/resize.rs`; no test of `delete_photos`, `has_trash`, `rename_photo`, `rename_folder`, `update_photos_marking` (they need an `AppHandle` / `State`), nor of the frontend.
 
 ## How to extend
 1. New file operation: queue it (`../invariants.md` §6) with `FileTaskProgress`, lock the file with `exiftool::path_lock`, reserve names with `reserve_destination`, carry the sidecar and the cache files, update the catalogue in one transaction, and report failures per file.
@@ -78,5 +78,4 @@ Queued task (`kind: 'integrity'`), events `scan-progress` and `scan-detail` (cur
 3. New resize option: `ResizeOptions` (serde camelCase) + `resizeOptionsDialog` + `loadResizeSettings`.
 
 ## Open questions
-- ⚠ unverified: whether `rename_folder` / `delete_folder` also handle caches and nested tracked folders (only the doc comments were read).
-- ⚠ unverified: exact set of metadata blocks `resize.rs` copies for PNG outputs (ICC only was seen in `encode_png`).
+none. PNG outputs of `resize.rs` carry only the ICC profile (`encode_png`); EXIF / XMP / IPTC are copied into JPEG outputs only.

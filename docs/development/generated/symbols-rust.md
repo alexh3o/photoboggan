@@ -603,7 +603,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub delete_keyword` · L695 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
 - `run_rename` · L709
 - `pub rename_keyword` · L758 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
-- `pub set_metadata_read_order` · L777 — Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating » ou « color »)…
+- `pub set_metadata_read_order` · L777 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps" or "faces"):
 
 ## library_sync.rs (17)
 
