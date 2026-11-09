@@ -5,15 +5,17 @@
 - [ ] *docs*: `dev` technical documentation
 - [ ] *feat*: `scan` allow pausing
 - [x] *feat*: `semantic` add filter for scanned / unscanned photos
-  - [x] done for thumbnails
-  - [ ] to do for faces (add option to generate while recognizing)
 - [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
+  - [x] done for thumbnails
+  - [x] already in place for face detection & thumbnails
+  - [ ] offer workflow to user ?
 - [x] *feat*: `semantic` irregular progress of scan, seems stuck at times
+- [x] *fix*: `UI`allow exact match without scrolling down in lists
 - [x] *feat*: `semantic` share search box with keywords search
-- [ ] *feat*: `semantic` keywords for which suggestion cannot be done under it's keyword path
+- [x] *feat*: `semantic` keywords for which suggestion cannot be done under it's keyword path
 - [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
-- [ ] *fix*:  `semantic` `UI` issues with search box when window width is small
-- [ ] *style*:  `semantic` `UI` make search settings view clearer with betterseparation between raw and semantic
+- [x] *fix*:  `semantic` `UI` issues with search box when window width is small
+- [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
 - [ ] *feat*: `editing` rotate
 - [ ] *fix*: `keywords` fail to write keyword
 - [ ] *feat*: `keywords` open keyword panel directly on input zone

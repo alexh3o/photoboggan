@@ -11,6 +11,7 @@ import './keywords.css';
 import { openContextMenuAt } from './photo-actions.js';
 import { isSemanticEnabled } from './semantic-settings.js';
 import { initPhotoSuggestions, syncPhotoSuggestions, renderPhotoSuggestions } from './semantic-tagging.js';
+import { sortSuggestions } from './filter-suggest.js';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import {
@@ -76,7 +77,6 @@ let applyButton;
 let resetButton;
 let unifyButton;
 
-const compareByUsage = (a, b) => (usageById.get(b.id) || 0) - (usageById.get(a.id) || 0) || nameCollator.compare(a.name, b.name);
 
 function setsEqual(a, b) {
   if (!a || !b || a.size !== b.size) return false;
@@ -668,7 +668,11 @@ function closeSuggestions() {
 function findKeywordMatches(text, excludeId = null) {
   const query = normalizeSearch(text.trim());
   if (!query) return [];
-  return [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)).sort(compareByUsage).slice(0, MAX_SUGGESTIONS);
+  // Shortest name first (so "michel" comes before a more used "michel-ange"), then the most used.
+  return sortSuggestions(
+    [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)),
+    node => node.search.length, node => usageById.get(node.id) || 0, node => node.name,
+  ).slice(0, MAX_SUGGESTIONS);
 }
 
 // Liste de correspondances au-dessus d'un champ (saisie rapide et fenêtre de nom) : chemin complet et fréquence de chaque mot-clé, le plus
