@@ -1038,6 +1038,15 @@ fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Ph
     })
 }
 
+// Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
+#[tauri::command]
+fn get_photos_by_ids(state: State<'_, AppState>, ids: Vec<i64>) -> Vec<Photo> {
+    db::get_photos_by_ids(&state.pool(), &ids).unwrap_or_else(|error| {
+        eprintln!("Photos by id unavailable: {error}");
+        Vec::new()
+    })
+}
+
 // `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
 // `prefilter` (optional): filters applied before the cut on large folders (see `db::PhotoPrefilter`).
 // Async: the query can take a few hundred milliseconds on a large catalogue, and must not freeze the window meanwhile.
@@ -2557,6 +2566,7 @@ fn main() {
             remove_folder,
             get_photos_paginated,
             get_photos_by_paths,
+            get_photos_by_ids,
             count_photos,
             get_cached_thumbnail_path,
             get_cached_thumbnail_paths,

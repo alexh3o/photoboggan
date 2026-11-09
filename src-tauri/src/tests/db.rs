@@ -322,6 +322,23 @@ fn adding_the_same_folder_twice_keeps_one_row() {
 }
 
 #[test]
+fn photos_are_read_back_by_id_in_chunks() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    for n in 0..1200 {
+        insert_photo(&conn, &format!("C:/Photos/p{n}.jpg"));
+    }
+    let all: Vec<i64> = conn.prepare("SELECT id FROM photos").unwrap().query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
+    // More ids than one query can hold, plus an unknown one that is simply left out.
+    let mut wanted = all.clone();
+    wanted.push(i64::MAX);
+    let found = get_photos_by_ids(&pool, &wanted).unwrap();
+    assert_eq!(found.len(), 1200);
+    assert!(found.iter().all(|photo| all.contains(&photo.id)));
+    assert!(get_photos_by_ids(&pool, &[]).unwrap().is_empty());
+}
+
+#[test]
 fn photos_are_read_back_by_path_in_chunks() {
     let (_dir, pool) = temp_catalog();
     let conn = pool.get().unwrap();

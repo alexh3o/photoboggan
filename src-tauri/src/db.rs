@@ -550,6 +550,21 @@ pub fn get_photos_by_paths(pool: &DbPool, paths: &[String]) -> Result<Vec<Photo>
     Ok(photos)
 }
 
+/// Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
+pub fn get_photos_by_ids(pool: &DbPool, ids: &[i64]) -> Result<Vec<Photo>, String> {
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut photos = Vec::with_capacity(ids.len());
+    for chunk in ids.chunks(500) {
+        let marks = vec!["?"; chunk.len()].join(",");
+        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE id IN ({marks})")).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), photo_from_row).map_err(|e| e.to_string())?;
+        for row in rows {
+            photos.push(row.map_err(|e| e.to_string())?);
+        }
+    }
+    Ok(photos)
+}
+
 /// Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
 /// Les chemins sont normalisés en « / » sans « / » final : l'interface en tire les totaux de chaque sous-arbre.
 /// Le dossier est le chemin privé de son dernier segment (`rtrim(p, replace(p, '/', ''))` retire tout ce qui suit le dernier « / »).
