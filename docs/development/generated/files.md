@@ -38,16 +38,16 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `_PROGRESS.md` | 65 |  |
+| `_PROGRESS.md` | 151 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 15 |  |
+| `architecture.md` | 97 |  |
 | `build-release.md` | 14 |  |
-| `code-map.md` | 13 |  |
+| `code-map.md` | 87 |  |
 | `configuration.md` | 13 |  |
 | `glossary.md` | 9 |  |
-| `invariants.md` | 16 |  |
+| `invariants.md` | 81 |  |
 | `README.md` | 56 |  |
-| `recipes.md` | 16 |  |
+| `recipes.md` | 94 |  |
 | `style.md` | 15 |  |
 | `testing.md` | 14 |  |
 | `troubleshooting.md` | 12 |  |
@@ -61,30 +61,33 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
 | `files.md` | 282 |  |
-| `ipc-commands.md` | 178 |  |
+| `ipc-commands.md` | 176 |  |
 | `module-deps.md` | 93 |  |
 | `symbols-js.md` | 1374 |  |
-| `symbols-rust.md` | 1256 |  |
+| `symbols-rust.md` | 1253 |  |
 | `tests.md` | 404 |  |
 
 ## docs/development/modules
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums.md` | 23 |  |
-| `app-shell.md` | 23 |  |
-| `duplicates.md` | 23 |  |
-| `faces.md` | 23 |  |
-| `filters-and-search.md` | 23 |  |
-| `grid-and-viewer.md` | 23 |  |
-| `keywords.md` | 23 |  |
-| `library-and-database.md` | 23 |  |
-| `maps-and-geolocation.md` | 23 |  |
-| `metadata-read-write.md` | 23 |  |
-| `photo-operations.md` | 23 |  |
-| `semantic.md` | 23 |  |
-| `thumbnails-and-previews.md` | 23 |  |
-| `updates.md` | 23 |  |
+| `albums.md` | 31 |  |
+| `app-shell.md` | 32 |  |
+| `duplicates.md` | 32 |  |
+| `face-detection.md` | 32 |  |
+| `faces.md` | 32 |  |
+| `filters-and-search.md` | 32 |  |
+| `grid-and-viewer.md` | 32 |  |
+| `keywords.md` | 32 |  |
+| `library-and-database.md` | 32 |  |
+| `main-window.md` | 32 |  |
+| `maps-and-geolocation.md` | 32 |  |
+| `metadata-read-write.md` | 32 |  |
+| `photo-operations.md` | 32 |  |
+| `private-zones.md` | 31 |  |
+| `semantic.md` | 32 |  |
+| `thumbnails-and-previews.md` | 32 |  |
+| `updates.md` | 30 |  |
 
 ## scripts
 
