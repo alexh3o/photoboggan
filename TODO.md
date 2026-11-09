@@ -18,7 +18,7 @@
 - [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
 - [ ] *feat*: `editing` rotate
 - [ ] *fix*: `keywords` fail to write keyword
-- [ ] *feat*: `keywords` open keyword panel directly on input zone
+- [x] *feat*: `keywords` open keyword panel directly on input zone
 
 ## 💡 Ideas / Longer term / On hold
 

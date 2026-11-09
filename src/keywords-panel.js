@@ -141,10 +141,13 @@ export function handleSideTabShortcut(name) {
   if (!initialized) return;
   if (EDITING_TABS.includes(name) && compareActive) return;
   const panelVisible = !exifPanel.classList.contains('hidden');
-  if (!panelVisible) {
-    setTab(name);
+  if (panelVisible && displayedTab() === name) {
     toggleButton.click();
-  } else if (displayedTab() === name) {
+  } else if (name === 'keywords') {
+    // Opening / switching to the Keywords tab puts the cursor in the quick keyword input so the user can type right away.
+    focusSideTabField(name);
+  } else if (!panelVisible) {
+    setTab(name);
     toggleButton.click();
   } else {
     setTab(name);
