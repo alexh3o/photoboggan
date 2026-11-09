@@ -2990,7 +2990,11 @@ dependencies = [
 
 [[package]]
 name = "photoboggan"
+<<<<<<< HEAD
 version = "0.6.10"
+=======
+version = "0.6.11"
+>>>>>>> 8e9f9ab (chore(dev): bump version to v0.6.11)
 dependencies = [
  "chrono",
  "clipboard-rs",
