@@ -185,6 +185,8 @@
   "{count} orphan thumbnail removed|other": "{count} orphan thumbnails removed",
   "Orphan thumbnail removal failed: {error}": "Orphan thumbnail removal failed: {error}",
   "Max resolution": "Max resolution",
+  "Thumbnail quality": "Thumbnail quality",
+  "Thumbnail quality help": "High quality very slightly improves details in some areas (foliage, fine textures), at the cost of thumbnails twice as large. Only applies to new thumbnails.",
   "Moving photos": "Moving photos",
   "Verify moves between drives": "Verify moves between drives (checksum)",
   "Verify moves help": "When moving photos to another drive, the copy is compared with the original (SHA-256 checksum) before the original is deleted. Safer, but both files are read again: turn off for faster moves.",

@@ -88,6 +88,8 @@
   "verifyCrossDriveMoves": true,
   // Thumbnail cache resolution in px: 512 | 768 | 1024.
   "thumbnailCacheSize": 1024,
+  // Thumbnail JPEG quality: "normal" (q60, about half the size) | "high" (q84). Mirrored in config.json by the backend.
+  "thumbnailQuality": "normal",
 
   // ---------------------------------------------------------------- Settings: Metadata, Maps
   // Metadata writer: "exiftool" | "internal".

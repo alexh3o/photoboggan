@@ -117,6 +117,10 @@ pub struct AppState {
 struct AppConfig {
     custom_data_dir: Option<String>,
     thumbnail_cache_size: Option<u32>,
+    /// Thumbnail JPEG quality: "normal" or "high" (see set_thumbnail_quality). Kept here so it applies from startup,
+    /// before the frontend sends anything. None or unknown: normal.
+    #[serde(default)]
+    thumbnail_quality: Option<String>,
     window_state: Option<WindowStateConfig>, // persistance dans config.json
     /// Programs "Open with" may launch (see open_with). None: list not set up yet (first start after the update, see register_existing_programs).
     #[serde(default)]
@@ -623,6 +627,22 @@ fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, s
     let mut config = load_config(&app)?;
     config.thumbnail_cache_size = Some(size);
     save_config(&app, &config)?;
+    Ok(())
+}
+
+/// Thumbnail quality chosen in Settings > Storage: "normal" or "high". Applies to thumbnails written from now on,
+/// existing ones are kept (the user did not ask for the cache to be rebuilt).
+#[tauri::command(async)]
+fn set_thumbnail_quality(app: tauri::AppHandle, quality: String) -> Result<(), String> {
+    let high = match quality.as_str() {
+        "normal" => false,
+        "high" => true,
+        _ => return Err("Qualité de miniature non valide".into()),
+    };
+    let mut config = load_config(&app)?;
+    config.thumbnail_quality = Some(quality);
+    save_config(&app, &config)?;
+    thumbnails::set_high_quality_thumbnails(high);
     Ok(())
 }
 
@@ -2628,6 +2648,7 @@ fn main() {
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
             let config = load_config_at_startup(handle);
             let cache_size = config.thumbnail_cache_size.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or(512);
+            thumbnails::set_high_quality_thumbnails(config.thumbnail_quality.as_deref() == Some("high"));
 
             // Restauration de la fenêtre au démarrage avec vérification des écrans
             let main_window = app.get_webview_window("main").ok_or("Fenêtre principale introuvable")?;
@@ -2695,6 +2716,7 @@ fn main() {
             change_storage_location,
             clear_thumbnail_cache,
             set_thumbnail_cache_size,
+            set_thumbnail_quality,
             get_folders,
             list_disk_folders,
             get_folder_counts,

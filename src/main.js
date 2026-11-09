@@ -4664,6 +4664,22 @@ purgeOrphanThumbnailsButton?.addEventListener('click', async () => {
     purgeOrphanThumbnailsButton.disabled = false;
   }
 });
+// Thumbnail quality (Settings > Storage): only thumbnails written from now on use it, the cache is not cleared.
+// The backend keeps its own copy in config.json so the setting applies from startup.
+const thumbnailQualitySelect = document.getElementById('thumbnail-quality-select');
+if (thumbnailQualitySelect) {
+  thumbnailQualitySelect.value = readChoice('thumbnailQuality', ['normal', 'high']);
+  thumbnailQualitySelect.addEventListener('change', async () => {
+    const quality = thumbnailQualitySelect.value;
+    try {
+      await invoke('set_thumbnail_quality', { quality });
+      localStorage.setItem('thumbnailQuality', quality);
+    } catch (error) {
+      console.error('Thumbnail quality change failed', error);
+      thumbnailQualitySelect.value = readChoice('thumbnailQuality', ['normal', 'high']);
+    }
+  });
+}
 // Gestionnaire du sélecteur de taille des miniatures en cache
 const thumbnailCacheSelect = document.getElementById('thumbnail-cache-size-select');
 if (thumbnailCacheSelect) {

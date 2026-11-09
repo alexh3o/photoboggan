@@ -184,6 +184,8 @@
   "Orphan thumbnail removal failed: {error}":"Échec de la suppression des miniatures orphelines : {error}",
   "Thumbnail cache size": "Taille des miniatures en cache",
   "Max resolution": "Résolution maximale",
+  "Thumbnail quality": "Qualité des miniatures",
+  "Thumbnail quality help": "La qualité haute améliore très légèrement les détails dans certaines zones (feuillage, textures fines), au prix de miniatures deux fois plus lourdes. Ne s'applique qu'aux nouvelles miniatures.",
   "Moving photos": "Déplacement de photos",
   "Verify moves between drives": "Vérifier les déplacements entre disques (somme de contrôle)",
   "Verify moves help": "Lors d'un déplacement vers un autre disque, la copie est comparée à l'original (somme SHA-256) avant de supprimer l'original. Plus sûr, mais les deux fichiers sont relus : désactivez pour accélérer.",

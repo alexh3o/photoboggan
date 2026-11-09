@@ -104,3 +104,24 @@ fn dng_without_jpeg_uses_uncompressed_rgb_thumbnail() {
     let (_, width, height) = decode_scaled_jpeg_reader(Cursor::new(jpeg), 64).unwrap();
     assert_eq!((width, height), (2, 2));
 }
+
+/// Both quality levels write a decodable JPEG of the right size, and "normal" is lighter than "high".
+/// write_jpeg_with_quality is called directly: the global quality setting is never changed in a fast test.
+#[test]
+fn thumbnail_quality_levels_write_valid_jpegs() {
+    let dir = tempfile::tempdir().unwrap();
+    let (width, height) = (320, 240);
+    let rgb = crate::test_support::blobs_rgb(width, height, 7);
+    let mut sizes = Vec::new();
+    for quality in [THUMBNAIL_QUALITY_NORMAL, THUMBNAIL_QUALITY_HIGH] {
+        let path = dir.path().join("ab").join(format!("q{quality}.jpg"));
+        write_jpeg_with_quality(&path, &rgb, width, height, quality).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let (_, decoded_width, decoded_height) = crate::test_support::decoded_pixels(&bytes);
+        assert_eq!((decoded_width as usize, decoded_height as usize), (width, height));
+        sizes.push(bytes.len());
+    }
+    assert!(sizes[0] < sizes[1], "normal quality should be lighter than high: {sizes:?}");
+    // No temporary file left behind.
+    assert_eq!(std::fs::read_dir(dir.path().join("ab")).unwrap().count(), 2);
+}
