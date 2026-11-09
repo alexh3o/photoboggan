@@ -1,4 +1,4 @@
-<!-- verified: e0276f7 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: d9de6cb | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 # Maintenance recipes
 
 Ordered checklists for the most common changes. Each recipe names a **traced example** (an existing feature built that way: read it first and copy its shape), the files to touch with the name to search, the test to add and the traps. Rules behind them: `invariants.md`.
