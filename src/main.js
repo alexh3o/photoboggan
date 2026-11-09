@@ -7267,6 +7267,10 @@ initPhotoActions({
   // Entrées « Analyser le contenu » (voir semantic-settings.js) : seulement quand la recherche par contenu est active et son modèle installé.
   semanticEnabled: isSemanticEnabled,
   analyseContent: scope => analyseContent(scope),
+  // Ids with an up-to-date analysis (context menu: hides "Analyse content" when nothing is left to analyse); empty set on error.
+  getAnalysedIds: async () => {
+    try { return new Set(await invoke('get_analysed_photo_ids')); } catch { return new Set(); }
+  },
   findSimilarContent: photo => findSimilarContent(photo),
   // Photo shown only because the content analysis suggests it for the keyword filter ("Suggested" badge): accept / dismiss entries.
   guessedKeywordEntries: photo => guessedKeywordEntries(keywordGuesses.get(photo.id) ?? [], photo.id),

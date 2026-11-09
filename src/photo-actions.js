@@ -1552,11 +1552,6 @@ function buildDuplicatesItem(spec) {
   return buildSubmenuItem(t('Find duplicates'), duplicateEntries(spec, true));
 }
 
-// "Find" submenu: the RAW of an image, then the duplicates. `rawEntry` = a submenu entry of the RAW search.
-function buildFindItem(spec, rawEntry) {
-  return buildSubmenuItem(t('Find'), [rawEntry, { separator: true }, ...duplicateEntries(spec, false)]);
-}
-
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
 // `source` : 'preview' ou 'fullscreen' pour le menu d'une photo affichée (où existent les zones : ajouter un visage, modes et zones écartées) ;
 // sans, dans la grille et pour un dossier, le sous-menu ne propose que la reconnaissance (et l'effacement pour des photos).
@@ -1649,8 +1644,11 @@ function onMenuKeydown(event) {
   }
 }
 
-function openThumbnailMenu(event, index, source = 'grid') {
+let thumbnailMenuToken = 0; // a newer right-click supersedes a menu still waiting for the analysed ids
+
+async function openThumbnailMenu(event, index, source = 'grid') {
   closeContextMenu();
+  const token = ++thumbnailMenuToken;
   const photos = api.getPhotos();
   const photo = photos[index];
   if (!photo) return;
@@ -1665,6 +1663,13 @@ function openThumbnailMenu(event, index, source = 'grid') {
   const targets = isDirectView
     ? [photo]
     : [...api.getSelectedIndices()].sort((a, b) => a - b).map(selectedIndex => photos[selectedIndex]).filter(Boolean);
+
+  // Content search on: which photos of the target are already analysed (decides the "Analyse content" entry). Read before the menu is built.
+  let analysedIds = null;
+  if (api.semanticEnabled?.() && api.getAnalysedIds) {
+    analysedIds = await api.getAnalysedIds();
+    if (token !== thumbnailMenuToken) return;
+  }
 
   // Vérifie si la sélection contient au moins une photo (les vidéos ne sont pas redimensionnables)
   const hasResizablePhotos = targets.some(target => !isVideoPath(target.path));
@@ -1725,9 +1730,17 @@ function openThumbnailMenu(event, index, source = 'grid') {
       title: available ? t('Find the RAW file of this image with the criteria set in Settings > Misc > RAW') : t('Tick at least one criterion in Settings > Misc > RAW'),
     };
   })() : null;
-  if (rawEntry && duplicateSpec) menuItems.push(buildFindItem(duplicateSpec, rawEntry));
+  // Similar content of one photo (content search on): last entry of the "Find" submenu, under a separator.
+  const similarEntry = api.semanticEnabled?.() && targets.length === 1 ? {
+    label: t('Similar content'), onSelect: () => api.findSimilarContent(photo),
+    title: t('Search the photos that look like this one: same subject or scene'),
+  } : null;
+  if (rawEntry && duplicateSpec) menuItems.push(buildSubmenuItem(t('Find'), [rawEntry, { separator: true }, ...duplicateEntries(duplicateSpec, false), ...(similarEntry ? [{ separator: true }, similarEntry] : [])]));
+  else if (duplicateSpec && similarEntry) menuItems.push(buildSubmenuItem(t('Find'), [...duplicateEntries(duplicateSpec, false), { separator: true }, similarEntry]));
   else if (duplicateSpec) menuItems.push(buildDuplicatesItem(duplicateSpec));
   else if (rawEntry) menuItems.push(menuButton(t('Find the RAW'), rawEntry.onSelect, { disabled: rawEntry.disabled, title: rawEntry.title }));
+  // Alone (e.g. a video): no submenu to join.
+  if (!duplicateSpec && similarEntry) menuItems.push(menuButton(t('Find similar content'), similarEntry.onSelect, { title: similarEntry.title }));
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
@@ -1737,10 +1750,12 @@ function openThumbnailMenu(event, index, source = 'grid') {
     if (source === 'grid' && targets.length === 1) {
       for (const entry of api.guessedKeywordEntries?.(photo) ?? []) menuItems.push(menuButton(entry.label, entry.onSelect, { title: entry.title }));
     }
-    if (targets.length === 1) {
-      menuItems.push(menuButton(t('Find similar content'), () => api.findSimilarContent(photo), { title: t('Search the photos that look like this one: same subject or scene') }));
+    // Hidden when every photo is already analysed; a mixed selection shows how many are not.
+    const notAnalysed = analysedIds ? targets.filter(target => !analysedIds.has(target.id)).length : targets.length;
+    if (notAnalysed > 0) {
+      const label = notAnalysed < targets.length ? `${t('Analyse content')} (${notAnalysed})` : t('Analyse content');
+      menuItems.push(menuButton(label, () => api.analyseContent({ photoIds: targets.map(target => target.id) }), { title: t('Compute the content analysis of these photos (low priority, in the background)') }));
     }
-    menuItems.push(menuButton(t('Analyse content'), () => api.analyseContent({ photoIds: targets.map(target => target.id) }), { title: t('Compute the content analysis of these photos (low priority, in the background)') }));
   }
   // Géolocalisation (geo-tools.js) : restaurer les coordonnées sauvegardées, effacer celles des photos géolocalisées (danger).
   const withCount = (label, list) => (targets.length > 1 ? `${label} (${list.length})` : label);
