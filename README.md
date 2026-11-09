@@ -79,6 +79,11 @@ Available languages: 🇬🇧 *English* and 🇫🇷 *French*, more to come if t
 ### License & Disclaimer
 
 Distributed under the **GNU General Public License v3.0** (GPL-3.0). See the [LICENSE](LICENSE) file.
+
+Optional components downloaded on request (never bundled in the installer), under their own licenses:
+
+- **SigLIP 2** (`google/siglip2-base-patch16-224`, ONNX export by `onnx-community`), content search model: Apache License 2.0.
+- **ONNX Runtime** (Microsoft), runs the face and content search models: MIT License.
 Photos from Lorem Picsum / Unsplash.
 
 Designed and developed by alexh3o, sped up with the precious help of Claude & Gemini.
