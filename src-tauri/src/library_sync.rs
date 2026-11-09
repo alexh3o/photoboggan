@@ -51,16 +51,50 @@ pub fn modified_millis(metadata: &fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
-/// Enregistre la date de modification (ms) des fichiers qui viennent d'être lus, par chemin (une transaction : tout ou rien).
+/// Current time in milliseconds since 1970 (same clock as the interface's `Date.now()`).
+pub fn now_millis() -> i64 {
+    std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_millis() as i64).unwrap_or(0)
+}
+
+/// Stores the modification date (ms) of files, by path (one transaction: all or nothing), without marking them as read.
 pub fn store_modified(conn: &rusqlite::Connection, items: &[(String, i64)]) -> rusqlite::Result<()> {
+    store_dates(conn, items, None)
+}
+
+/// Stores the modification date (ms) of files that were just read, and marks them read now (`scanned_at`, used to resume a paused scan).
+fn store_read_dates(conn: &rusqlite::Connection, items: &[(String, i64)]) -> rusqlite::Result<()> {
+    store_dates(conn, items, Some(now_millis()))
+}
+
+fn store_dates(conn: &rusqlite::Connection, items: &[(String, i64)], scanned_at: Option<i64>) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut update = tx.prepare_cached("UPDATE photos SET modified = ? WHERE path = ?")?;
+        let mut update = tx.prepare_cached("UPDATE photos SET modified = ?1, scanned_at = COALESCE(?2, scanned_at) WHERE path = ?3")?;
         for (path, modified) in items {
-            update.execute(params![modified, path])?;
+            update.execute(params![modified, scanned_at, path])?;
         }
     }
     tx.commit()
+}
+
+/// Files under `root` read since `since` (ms), with the size and modification date they had then: path -> (size, modified).
+/// A resumed scan skips them (see `already_read`) instead of reading the whole folder again.
+pub fn read_since(conn: &rusqlite::Connection, root: &str, since: i64) -> rusqlite::Result<HashMap<String, (i64, i64)>> {
+    let mut statement = conn.prepare("SELECT path, file_size, modified FROM photos WHERE path IS NOT NULL AND scanned_at >= ?1")?;
+    let rows = statement.query_map(params![since], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?.unwrap_or(0), row.get::<_, Option<i64>>(2)?.unwrap_or(0)))
+    })?;
+    let mut read = HashMap::new();
+    for row in rows {
+        let (path, size, modified) = row?;
+        if is_inside_folder(root, &path) { read.insert(path, (size, modified)); }
+    }
+    Ok(read)
+}
+
+/// The file was read by the scan being resumed and has not changed since (same size and modification date): it can be skipped.
+pub fn already_read(read: &HashMap<String, (i64, i64)>, path: &str, size: i64, modified: i64) -> bool {
+    matches!(read.get(path), Some(&(read_size, read_modified)) if read_size == size && read_modified == modified && modified != 0)
 }
 
 /// Enregistre un lot de photos lues : lignes, mots-clés, visages, puis dates de modification. Les dates ne sont écrites que si tout le reste
@@ -77,7 +111,7 @@ pub fn store_read_batch(
         .map_err(|error| format!("photos not stored: {error}"))
         .and_then(|_| if crate::keywords::store_photo_keywords(conn, keyword_batches) { Ok(()) } else { Err("keywords not stored".to_string()) })
         .and_then(|_| if crate::faces::store_photo_faces(conn, face_batches) { Ok(()) } else { Err("faces not stored".to_string()) })
-        .and_then(|_| store_modified(conn, modified).map_err(|error| format!("modification dates not stored: {error}")));
+        .and_then(|_| store_read_dates(conn, modified).map_err(|error| format!("modification dates not stored: {error}")));
     if let Err(error) = &stored {
         let marked = conn.unchecked_transaction().and_then(|tx| {
             for photo in photos { tx.execute("UPDATE photos SET file_size = -1 WHERE path = ?1", params![photo.path])?; }
@@ -158,6 +192,12 @@ pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(P
     Ok((photo, exif_data.keyword_paths, exif_data.faces))
 }
 
+/// The path is one of the `excluded` folders or lies inside one.
+fn is_excluded(excluded: &[String], path: &str) -> bool {
+    let normalize = |value: &str| value.replace('\\', "/").trim_end_matches('/').to_lowercase();
+    excluded.iter().any(|folder| normalize(folder) == normalize(path) || is_inside_folder(folder, path))
+}
+
 /// Compare les dossiers suivis au catalogue :
 /// - nouveau fichier : ajouté ;
 /// - taille ou date de modification différentes : métadonnées relues ;
@@ -165,7 +205,9 @@ pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(P
 /// - ligne sans date enregistrée (catalogue antérieur à cette colonne ou scan manuel) : on enregistre simplement la date
 ///   si la taille n'a pas changé, sans relire le fichier.
 /// Un seul passage à la fois : un appel pendant une synchronisation en cours ne fait rien.
-pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
+/// `excluded`: folders of paused scans, left alone (neither read nor checked for removals): the scan reads them when it is resumed,
+/// instead of the synchronization reading a whole paused root folder in the background.
+pub fn sync_library(pool: &DbPool, excluded: &[String]) -> Result<SyncChanges, String> {
     if RUNNING.swap(true, Ordering::SeqCst) {
         return Ok(SyncChanges::default());
     }
@@ -207,7 +249,8 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
     let mut changed: Vec<(String, i64, i64, bool)> = Vec::new();
     let mut baseline: Vec<(String, i64)> = Vec::new();
     for root in &roots {
-        for entry in WalkDir::new(root).into_iter().filter_map(|entry| entry.ok()) {
+        let walk = WalkDir::new(root).into_iter().filter_entry(|entry| !is_excluded(excluded, &entry.path().to_string_lossy()));
+        for entry in walk.filter_map(|entry| entry.ok()) {
             if entry.file_type().is_dir() || !is_photo_file(entry.path()) {
                 continue;
             }
@@ -236,7 +279,7 @@ pub fn sync_library(pool: &DbPool) -> Result<SyncChanges, String> {
     // Absent du parcours ne suffit pas (erreur de lecture pendant le parcours) : on confirme que le fichier est bien introuvable.
     let removed: Vec<String> = known
         .keys()
-        .filter(|path| !seen.contains(path.as_str()) && roots.iter().any(|root| is_inside_folder(root, path.as_str())))
+        .filter(|path| !seen.contains(path.as_str()) && roots.iter().any(|root| is_inside_folder(root, path.as_str())) && !is_excluded(excluded, path))
         .filter(|path| matches!(fs::metadata(path.as_str()), Err(error) if error.kind() == std::io::ErrorKind::NotFound))
         .cloned()
         .collect();

@@ -703,9 +703,18 @@ fn cancel_scan(task_id: String) {
 
 // `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
 // `task_id` / `cancel` : identifiant de la tâche pour les événements de progression, et drapeau d'arrêt demandé par l'interface
+// `resume_since`: the scan resumes a paused one first started at this time (ms): files read since then and unchanged are skipped.
 // Renvoie une erreur si le parcours ou l'enregistrement a échoué (tâche en erreur, panique, lots non enregistrés) : un scan n'est jamais
 // annoncé réussi alors que des photos n'ont pas été enregistrées.
-async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) -> Result<(), String> {
+async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>, resume_since: Option<i64>) -> Result<(), String> {
+    // Files already read by the paused scan (none for a scan that starts from scratch).
+    let already_read = match resume_since {
+        Some(since) => {
+            let conn = pool.get().map_err(|error| format!("Connexion à la base impossible : {error}"))?;
+            library_sync::read_since(&conn, &scan_path, since).map_err(|error| error.to_string())?
+        }
+        None => HashMap::new(),
+    };
     let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the catalogue is read
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
@@ -786,6 +795,8 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             let Ok(metadata) = entry.metadata() else { return; };
             let file_size = metadata.len() as i64;
             let modified = library_sync::modified_millis(&metadata);
+            // Resumed scan: already read before the pause (it still counts in the progress above).
+            if library_sync::already_read(&already_read, &path_str, file_size, modified) { return; }
             // Même lecture que la synchronisation : un fichier illisible ou modifié pendant la lecture est sauté (repris à la synchronisation suivante),
             // jamais enregistré avec des métadonnées vides.
             let (photo, keyword_paths, photo_faces) = match library_sync::read_photo(&path_str, file_size, modified) {
@@ -807,23 +818,24 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
 // Découverte d'un dossier qui vient d'être ajouté (voir add_folder) : lit les métadonnées de ses photos et rend la main quand c'est terminé.
 // La progression est publiée par « scan-progress » (0 à 100 % du dossier) avec l'identifiant de la tâche.
 #[tauri::command]
-async fn scan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<(), String> {
+// `resume_since` (ms): resumes a paused scan first started at that time (see run_scan); absent for a new scan.
+async fn scan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String, resume_since: Option<i64>) -> Result<(), String> {
     let pool = state.pool();
     let cancel = scan_cancel_flag(&task_id);
-    let outcome = run_scan(app, pool, path, ScanMode::FolderScan, task_id.clone(), cancel).await;
+    let outcome = run_scan(app, pool, path, ScanMode::FolderScan, task_id.clone(), cancel, resume_since).await;
     release_scan_cancel_flag(&task_id);
     outcome
 }
 
 #[tauri::command]
-async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, task_id: String) -> Result<(), String> {
+async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, task_id: String, resume_since: Option<i64>) -> Result<(), String> {
     let pool = state.pool();
     let folders = db::get_folders(&pool);
     let count = folders.len();
     let cancel = scan_cancel_flag(&task_id);
     for (index, folder) in folders.into_iter().enumerate() {
         if cancel.load(Ordering::Relaxed) { break; }
-        if let Err(error) = run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone()).await {
+        if let Err(error) = run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone(), resume_since).await {
             release_scan_cancel_flag(&task_id);
             return Err(error);
         }
@@ -866,12 +878,12 @@ fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
 // Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
 // fichier sont relues. La progression est publiée par l'événement « scan-progress » (0 à 100 % du dossier) avec l'identifiant de la tâche.
 #[tauri::command]
-async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<(), String> {
+async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String, resume_since: Option<i64>) -> Result<(), String> {
     let pool = state.pool();
     let scan_path = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !scan_path.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
     let cancel = scan_cancel_flag(&task_id);
-    let outcome = run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }, task_id.clone(), cancel).await;
+    let outcome = run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }, task_id.clone(), cancel, resume_since).await;
     release_scan_cancel_flag(&task_id);
     outcome
 }
@@ -1847,11 +1859,12 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
 // Synchronisation incrémentale avec le disque (voir library_sync.rs) : fichiers ajoutés, modifiés ou supprimés hors de l'application.
 // Exécutée hors du thread principal et hors des threads asynchrones ; l'interface la lance au démarrage et au retour de focus.
 #[tauri::command]
-async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncChanges, String> {
+// `excluded`: folders of paused scans, left for the scan to read when it is resumed.
+async fn sync_library(state: State<'_, AppState>, excluded: Option<Vec<String>>) -> Result<library_sync::SyncChanges, String> {
     let pool = state.pool();
     tokio::task::spawn_blocking(move || {
         let _priority = semantic::PriorityGuard::new();
-        library_sync::sync_library(&pool)
+        library_sync::sync_library(&pool, &excluded.unwrap_or_default())
     })
         .await
         .map_err(|error| error.to_string())?

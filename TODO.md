@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [ ] *docs*: `dev` technical documentation
-- [ ] *feat*: `scan` allow pausing
+- [x] *feat*: `scan` allow pausing
 - [x] *feat*: `semantic` add filter for scanned / unscanned photos
 - [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
   - [x] done for thumbnails

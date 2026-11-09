@@ -1041,5 +1041,5 @@ body.immersive .titlebar { display: none; }
 .task-toast-show { flex: 0 0 auto; padding: 0.25rem 0.7rem; font-size: 0.8rem; }
 .task-toast-show[hidden] { display: none; }
 .task-item-actions { grid-column: 2; grid-row: 1 / span 4; display: flex; gap: 0.4rem; }
-.task-item-dismiss[hidden] { display: none; }
+.task-item-dismiss[hidden], .task-item-pause[hidden] { display: none; }
 .task-item.ready .task-item-bar > span { width: 100%; }

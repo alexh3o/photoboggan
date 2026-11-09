@@ -4,7 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { DEFAULTS, readBool, readChoice, readNumber } from './settings-defaults.js';
+import { DEFAULTS, readBool, readChoice, readNumber, readStored } from './settings-defaults.js';
 import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
@@ -5183,7 +5183,8 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
 // avec son avancement ; les suivantes au-dessus, « En attente ») et sa ligne dans la fenêtre « Actions en cours » (bouton sablier de la barre du haut), qui permet
 // d'arrêter la tâche en cours ou de retirer une tâche en attente. Le backend publie l'avancement dans « scan-progress » avec l'identifiant de la tâche.
 // { id, kind: 'add' | 'rescan-all' | 'rescan-folder' | 'integrity', path (null = toute la collection), command, args, labelKey, labelParams,
-//   status: 'waiting' | 'running', percent, stopRequested, toastHidden }
+//   status: 'waiting' | 'running' | 'paused' | 'ready', percent, stopRequested, toastHidden,
+//   firstStartedAt (resumable scans: start of their first run), pauseRequested }
 const scanTasks = [];
 let scanTaskCounter = 0;
 let scanPumpActive = false;
@@ -5202,16 +5203,24 @@ const taskPercent = task => Math.max(0, Math.min(100, Math.round(task.percent)))
 
 // A 'ready' task has finished and only waits for the user to show its results: it stays in the list (and warns before quitting) but is not work in
 // progress, so it never holds back the queue, the library synchronisation or the reload shortcut.
-const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready').length;
+const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused').length;
 
 // Content analysis: its own lane, in parallel with the main queue (see pumpSemanticQueue). It counts in activeTaskCount (closing the application,
 // reloading the page) but not in foregroundTaskCount: a library synchronisation never waits for it (the analysis pauses itself instead).
 const isSemanticLaneTask = task => task.kind === 'semantic';
-const foregroundTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && !isSemanticLaneTask(task)).length;
+const foregroundTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused' && !isSemanticLaneTask(task)).length;
+
+// Scans that can be paused: the scan stops (photos already read stay in the catalogue), the task stays in the list without holding back the queue,
+// and resuming puts it first in line; the backend then skips the files read since its first start (`resumeSince`, see run_scan).
+// Unfinished ones are remembered (`pausedScanTasks`) and come back paused at the next launch.
+const RESUMABLE_TASK_KINDS = ['add', 'rescan-all', 'rescan-folder'];
+const isResumableTask = task => RESUMABLE_TASK_KINDS.includes(task.kind);
 
 function taskStatusText(task) {
   if (task.status === 'ready') return tp('Results ready: {count} group', task.groupCount);
   if (task.status === 'waiting') return t('Waiting');
+  if (task.status === 'paused') return `${taskPercent(task)} % · ${t('Paused')}`;
+  if (task.pauseRequested) return t('Pausing…');
   if (task.stopRequested) return t('Stopping…');
   if (isSemanticLaneTask(task)) {
     // Paused while another task works; otherwise the progress and the time left estimated by the backend.
@@ -5322,9 +5331,14 @@ function buildTaskRow(task) {
   dismiss.type = 'button';
   dismiss.className = 'task-item-dismiss';
   dismiss.addEventListener('click', () => removeReadyTask(task));
+  // Resumable scan: "Pause" (running or waiting) / "Resume" (paused).
+  const pause = document.createElement('button');
+  pause.type = 'button';
+  pause.className = 'task-item-pause';
+  pause.addEventListener('click', () => (task.status === 'paused' ? resumeTask(task) : pauseTask(task)));
   const actions = document.createElement('div');
   actions.className = 'task-item-actions';
-  actions.append(action, dismiss);
+  actions.append(pause, action, dismiss);
   row.append(name, bar, status, time, detail, actions);
   return row;
 }
@@ -5338,7 +5352,7 @@ function syncTaskUI() {
       toast = buildTaskToast(task);
       taskToastElements.set(task, toast);
     }
-    toast.classList.toggle('waiting', task.status === 'waiting');
+    toast.classList.toggle('waiting', task.status === 'waiting' || task.status === 'paused');
     const textElement = toast.querySelector('.task-toast-text');
     textElement.textContent = `${taskName(task)} · ${taskStatusText(task)}`;
     const showButton = toast.querySelector('.task-toast-show');
@@ -5371,7 +5385,7 @@ function syncTaskUI() {
       row = buildTaskRow(task);
       taskRowElements.set(task, row);
     }
-    row.classList.toggle('waiting', task.status === 'waiting');
+    row.classList.toggle('waiting', task.status === 'waiting' || task.status === 'paused');
     const name = row.querySelector('.task-item-name');
     name.textContent = taskName(task);
     name.title = taskName(task);
@@ -5387,8 +5401,12 @@ function syncTaskUI() {
     bar.querySelector('span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
     row.classList.toggle('ready', task.status === 'ready');
     const action = row.querySelector('.task-item-action');
-    action.textContent = task.status === 'ready' ? t('Show') : task.status === 'waiting' ? t('Remove from queue') : t('Stop');
+    action.textContent = task.status === 'ready' ? t('Show') : task.status === 'waiting' || task.status === 'paused' ? t('Remove from queue') : t('Stop');
     action.disabled = task.stopRequested;
+    const pause = row.querySelector('.task-item-pause');
+    pause.hidden = !isResumableTask(task) || !['waiting', 'running', 'paused'].includes(task.status);
+    pause.textContent = task.status === 'paused' ? t('Resume') : t('Pause');
+    pause.disabled = task.stopRequested;
     const dismiss = row.querySelector('.task-item-dismiss');
     dismiss.hidden = task.status !== 'ready';
     dismiss.textContent = t('Dismiss');
@@ -5452,14 +5470,18 @@ function closeTasksModal() {
 // Fermeture de l'application : si des tâches de la file sont actives ou en attente, le dire avant de les interrompre. Renvoie true si l'on peut quitter ;
 // « Afficher les tâches » et « Annuler » gardent l'application ouverte (le premier ouvre en plus la fenêtre des actions).
 async function confirmCloseWithRunningTasks() {
-  if (scanTasks.length === 0) return true;
+  // Paused scans are remembered and come back at the next launch: nothing to warn about.
+  const pending = scanTasks.filter(task => task.status !== 'paused');
+  if (pending.length === 0) return true;
   const active = activeTaskCount();
+  // Interrupted scans are remembered too (saveResumableTasks): they come back paused.
+  const resumableNote = pending.some(isResumableTask) ? ` ${t('Interrupted scans are kept paused and can be resumed at the next launch.')}` : '';
   const choice = await choiceDialog({
     title: t('Tasks in progress'),
     // Only finished searches left: nothing is interrupted, but their results are lost.
     message: active > 0
-      ? tp('{count} task is running. Quitting now interrupts it.', active, { count: active })
-      : tp('{count} search result has not been shown yet. Quitting now discards it.', scanTasks.length, { count: scanTasks.length }),
+      ? `${tp('{count} task is running. Quitting now interrupts it.', active, { count: active })}${resumableNote}`
+      : tp('{count} search result has not been shown yet. Quitting now discards it.', pending.length, { count: pending.length }),
     buttons: [
       { label: t('Quit anyway'), value: 'quit', tone: 'red' },
       { label: t('Show tasks'), value: 'show', primary: true },
@@ -5467,6 +5489,7 @@ async function confirmCloseWithRunningTasks() {
     ],
   });
   if (choice === 'show') openTasksModal();
+  if (choice === 'quit') saveResumableTasks(); // latest progress of the interrupted scans
   return choice === 'quit';
 }
 
@@ -5533,9 +5556,10 @@ function removeOrStopTask(task) {
     removeReadyTask(task);
     return;
   }
-  if (task.status === 'waiting') {
+  if (task.status === 'waiting' || task.status === 'paused') {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
+    saveResumableTasks();
     syncTaskUI();
     // Tâche qui traite elle-même son résultat (écriture de métadonnées…) : prévenue qu'elle ne s'exécutera pas (libère le verrou d'écriture).
     task.onResult?.(null, true, null);
@@ -5586,6 +5610,10 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || kind === 'semantic' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
+  if (covering?.status === 'paused') {
+    showWriteToast(t('Already part of a paused scan: {name}', { name: taskName(covering) }));
+    return false;
+  }
   if (covering) {
     showWriteToast(t(isIntegrity ? 'Already part of an integrity check in progress or waiting: {name}' : 'Already part of a scan in progress or waiting: {name}', { name: taskName(covering) }));
     return false;
@@ -5596,6 +5624,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
     kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
+  if (isResumableTask({ kind })) saveResumableTasks();
   syncTaskUI();
   if (isSemanticLaneTask({ kind })) pumpSemanticQueue();
   else pumpScanQueue();
@@ -5643,28 +5672,109 @@ function stopSemanticTasks() {
 async function runScanTask(task) {
   task.status = 'running';
   task.startedAt = Date.now(); // départ du chronomètre affiché dans la fenêtre des actions
+  // Resumed scan: the files read since its first start are skipped. Taken before the scan reads anything, so every file it reads is dated after it.
+  const resumeSince = isResumableTask(task) ? task.firstStartedAt ?? null : null;
+  if (isResumableTask(task)) {
+    task.firstStartedAt ??= task.startedAt;
+    saveResumableTasks();
+  }
   syncTaskUI();
   try {
+    const args = resumeSince === null ? task.args : { ...task.args, resumeSince };
     const result = task.runner
       ? await task.runner(task, percent => { task.percent = Math.max(task.percent, percent); syncTaskUI(); })
-      : await invoke(task.command, { ...task.args, taskId: task.id });
-    task.percent = 100;
+      : await invoke(task.command, { ...args, taskId: task.id });
+    if (!task.pauseRequested) task.percent = 100; // a paused scan keeps its progress
     syncTaskUI();
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
     if (task.onResult) await task.onResult(result, task.stopRequested, null, task); // tâche qui traite elle-même son résultat (mots-clés) ; elle peut passer en 'ready' (recherche de doublons)
     else if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
     else await reloadPhotosAfterRescan();
-    if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
+    if (task.pauseRequested) showWriteToast(t('Task paused: {name}', { name: taskName(task) }));
+    else if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
     console.error('Rescan failed', error);
     if (task.onResult) await task.onResult(null, task.stopRequested, error, task);
     else showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
   } finally {
-    // A task that finished with results to show stays in the list ('ready') until the user shows or dismisses them.
-    const position = scanTasks.indexOf(task);
-    if (position >= 0 && task.status !== 'ready') scanTasks.splice(position, 1);
+    if (task.pauseRequested) {
+      // Paused: stays in the list, out of the queue, until "Resume" (its own toast closes: the list shows it).
+      task.status = 'paused';
+      task.pauseRequested = false;
+      task.stopRequested = false;
+      task.toastHidden = true;
+    } else {
+      // A task that finished with results to show stays in the list ('ready') until the user shows or dismisses them.
+      const position = scanTasks.indexOf(task);
+      if (position >= 0 && task.status !== 'ready') scanTasks.splice(position, 1);
+    }
+    if (isResumableTask(task)) saveResumableTasks();
     syncTaskUI();
   }
+}
+
+// Pauses a resumable scan: a waiting one leaves the queue at once, a running one stops (runScanTask then keeps it as 'paused').
+function pauseTask(task) {
+  if (!isResumableTask(task) || task.stopRequested) return;
+  if (task.status === 'waiting') {
+    task.status = 'paused';
+    saveResumableTasks();
+    syncTaskUI();
+  } else if (task.status === 'running') {
+    task.pauseRequested = true;
+    task.stopRequested = true;
+    syncTaskUI();
+    invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Scan pause failed', error));
+  }
+}
+
+// Resumes a paused scan: it goes first among the waiting tasks, so it starts as soon as the running task has finished.
+function resumeTask(task) {
+  if (task.status !== 'paused') return;
+  scanTasks.splice(scanTasks.indexOf(task), 1);
+  const firstWaiting = scanTasks.findIndex(item => item.status === 'waiting' && !isSemanticLaneTask(item));
+  scanTasks.splice(firstWaiting < 0 ? scanTasks.length : firstWaiting, 0, task);
+  task.status = 'waiting';
+  saveResumableTasks();
+  syncTaskUI();
+  pumpScanQueue();
+}
+
+// Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
+// folder in the background, unseen and unstoppable, holding back the content analysis); the scan reads them when resumed.
+// Paused rescans are not excluded: the synchronisation only reads their new or changed files, as for any folder.
+const pausedScanFolders = () => scanTasks.filter(task => task.kind === 'add' && task.status === 'paused' && task.path).map(task => task.path);
+
+// Remembers the unfinished resumable scans (running, waiting or paused): after a restart they come back paused (restorePausedTasks).
+function saveResumableTasks() {
+  const saved = scanTasks
+    .filter(task => isResumableTask(task) && ['waiting', 'running', 'paused'].includes(task.status))
+    .map(({ kind, path, command, args, labelKey, labelParams, firstStartedAt, percent }) => ({
+      kind, path, command, args, labelKey, labelParams, firstStartedAt: firstStartedAt ?? null, percent: firstStartedAt ? percent : 0,
+    }));
+  try { localStorage.setItem('pausedScanTasks', JSON.stringify(saved)); } catch (error) { console.debug('Paused scans not saved', error); }
+}
+
+// At startup: the scans left unfinished last time come back paused (only those whose folder is still tracked), with a toast to tell so.
+function restorePausedTasks() {
+  let saved;
+  try { saved = JSON.parse(readStored('pausedScanTasks') ?? 'null'); } catch { saved = null; }
+  if (!Array.isArray(saved)) saved = DEFAULTS.pausedScanTasks;
+  const tracked = path => folders.some(folder => taskCoversFolder({ path: folder.path }, path));
+  const restored = saved.filter(item => item && RESUMABLE_TASK_KINDS.includes(item.kind) && typeof item.command === 'string'
+    && (item.path === null ? folders.length > 0 : typeof item.path === 'string' && tracked(item.path)));
+  for (const item of restored) {
+    scanTaskCounter += 1;
+    scanTasks.push({
+      id: `scan-${Date.now()}-${scanTaskCounter}`,
+      kind: item.kind, path: item.path, command: item.command, args: item.args ?? {}, labelKey: item.labelKey, labelParams: item.labelParams,
+      firstStartedAt: Number.isFinite(item.firstStartedAt) ? item.firstStartedAt : null, percent: Number(item.percent) || 0,
+      status: 'paused', stopRequested: false, toastHidden: true,
+    });
+  }
+  saveResumableTasks(); // drops the scans of folders no longer tracked
+  syncTaskUI();
+  if (restored.length) showWriteToast(tp('{count} paused scan can be resumed from the task list.', restored.length, { count: restored.length }));
 }
 
 document.getElementById('btn-rescan-folders').addEventListener('click', () => enqueueScanTask({ kind: 'rescan-all', path: null, command: 'rescan_all_folders', args: {}, labelKey: 'Collection data rescan', labelParams: undefined }));
@@ -6992,7 +7102,7 @@ async function copyPhotosToFolder(targets, folderPath) {
       if (!result) return; // removed from the queue before it started: nothing was copied
       if (result.failed.length) console.error('Copy failures', result.failed);
       if (result.copied) {
-        const changes = await invoke('sync_library');
+        const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
         if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
       }
       const renamed = sidecarRenameNotice(result);
@@ -8062,7 +8172,7 @@ async function syncLibraryWithDisk() {
   librarySyncRunning = true;
   const startedAt = Date.now();
   try {
-    const changes = await invoke('sync_library');
+    const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   } catch (error) {
     console.debug('Disk synchronization failed', error);
@@ -8184,6 +8294,7 @@ refreshStorageLocationUI();
 onLanguageChange(refreshStorageLocationUI); // « Par défaut » suit la langue (un chemin personnalisé reste tel quel)
 restoreStartupFolder()
   .catch(error => console.error('Startup folder restore failed', error))
+  .then(() => restorePausedTasks())
   .then(() => loadPhotos())
   .then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
 
