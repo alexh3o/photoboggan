@@ -13,11 +13,9 @@
 - [x] *fix*: `UI`allow exact match without scrolling down in lists
 - [x] *feat*: `semantic` share search box with keywords search
 - [x] *feat*: `semantic` keywords for which suggestion cannot be done under it's keyword path
-- [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
 - [x] *fix*:  `semantic` `UI` issues with search box when window width is small
 - [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
 - [x] *feat*: `editing` rotate
-- [ ] *fix*: `keywords` fail to write keyword
 - [x] *feat*: `keywords` open keyword panel directly on input zone
 
 ## 💡 Ideas / Longer term / On hold
@@ -26,11 +24,12 @@
 - [ ] *feat*: `stats` stats in a stat modal from settings
 - [ ] *feat*: `tasks` task to popup action to see progress
 - [ ] *perf*: `thumbnails` more compressed thumbnails
+- [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
-- [ ] *feat*: cancellations everywhere
+- [x] *feat*: cancellations everywhere
 - [ ] *refactor*: `UI` improve toasts placement / visibility
 
 ## ❄️ Cold storage
@@ -44,6 +43,7 @@
 - [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
 - [ ] *perf*: `Safety` improve integrity check - currently gets 10/11 corrupted sample set: solution known but with maintenance impact
 - [ ] *feat*: `people` return button when going into someone's photos from its badge: people button does it
+- [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
 
 ## ❌ Ruled out
 

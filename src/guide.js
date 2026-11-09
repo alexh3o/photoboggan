@@ -26,7 +26,7 @@ const GROUPS = [
     { a: 'Copy to clipboard', k: [['Ctrl', 'C']] },
     { a: 'Resize…', k: [['S']] },
     { a: 'Turn right / left', d: 'Lossless: only the orientation tag changes (not for HEIC, HEIF and videos)', k: [['Ctrl', 'R'], ['Shift', 'R']], sep: 'slash' },
-    { a: 'Undo the last rotation', k: [['Ctrl', 'Z']] },
+    { a: 'Undo the last change', d: 'Rating, color, pick flag or rotation; up to 20 changes back. The Faces view has its own undo', tag: 'Grid and fullscreen', k: [['Ctrl', 'Z']] },
     { a: 'Show in file explorer', k: [['E']] },
     { a: 'Open with the first program', d: 'Settings > Open with', k: [['O']] },
     { a: 'Information Sheet', k: [['I']] },

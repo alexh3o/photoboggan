@@ -1084,10 +1084,17 @@ fn get_folder_counts(state: State<'_, AppState>) -> std::collections::HashMap<St
 }
 
 /// Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
+/// Optional values of its own (undo, which gives every photo back its previous value): they replace those of the batch for this photo.
 #[derive(serde::Deserialize)]
 struct MarkingTarget {
     id: i64,
     path: String,
+    #[serde(default)]
+    rating: Option<i32>,
+    #[serde(default)]
+    color_flag: Option<String>,
+    #[serde(default)]
+    pick_flag: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -1119,23 +1126,37 @@ async fn update_photos_marking(
     pick_flag: Option<String>,
     task_id: Option<String>,
 ) -> Result<MarkingResult, String> {
-    let rating = rating.map(|value| value.clamp(0, 5));
-    // Valeurs vérifiées avant toute écriture : une valeur invalide refuse tout le lot.
-    let label = color_flag.as_deref().map(exif::label_for_color_flag).transpose()?;
-    let pick = pick_flag.as_deref().map(exif::normalize_pick_flag).transpose()?;
+    // Values of each photo (its own, else those of the batch), all checked before any write: an invalid value refuses the whole batch.
+    struct Prepared {
+        photo: MarkingTarget,
+        rating: Option<i32>,
+        label: Option<Option<&'static str>>,
+        pick: Option<&'static str>,
+        color_flag: Option<String>,
+    }
+    let prepared = photos
+        .into_iter()
+        .map(|photo| -> Result<Prepared, String> {
+            let rating = photo.rating.or(rating).map(|value| value.clamp(0, 5));
+            let color_flag = photo.color_flag.clone().or_else(|| color_flag.clone());
+            let label = color_flag.as_deref().map(exif::label_for_color_flag).transpose()?;
+            let pick = photo.pick_flag.as_deref().or(pick_flag.as_deref()).map(exif::normalize_pick_flag).transpose()?;
+            Ok(Prepared { photo, rating, label, pick, color_flag })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     let pool = state.pool();
     let dirs = ImageCacheDirs::of(&state);
     let cancel = task_id.as_deref().map(scan_cancel_flag);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<MarkingResult, String> {
-        let total = photos.len().max(1);
+        let total = prepared.len().max(1);
         let done = AtomicUsize::new(0);
         let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
         // None : photo non traitée (tâche arrêtée) ; Some(Err(message)) : échec.
         let outcomes: Vec<(MarkingTarget, Option<Result<(), String>>)> = threads.install(|| {
-            photos
+            prepared
                 .into_par_iter()
-                .map(|photo| {
+                .map(|Prepared { photo, rating, label, pick, color_flag }| {
                     if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) { return (photo, None); }
                     let result = write_photo_marking(&pool, &dirs, photo.id, &photo.path, rating, label, pick, color_flag.as_deref());
                     let finished = done.fetch_add(1, Ordering::SeqCst) + 1;

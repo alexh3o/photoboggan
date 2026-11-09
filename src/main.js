@@ -3355,9 +3355,18 @@ function failureSummary(failures) {
 // dans le verrou d'écriture (fermeture de l'application, renommages et déplacements refusés pendant ce temps). Les écritures de marquage
 // partent l'une après l'autre, dans l'ordre des touches. `apply(photo)` reporte la valeur sur chaque photo écrite ; `refilter()` : un filtre
 // porte sur cette valeur, la grille est refiltrée (une photo qui n'y répond plus disparaît).
+// Undo (Ctrl+Z, "Undo" in the toast): the value each photo had just before the write is kept, and written back to it by `undoMarking`.
+// `restore` (undo itself): Map photo id -> value of `property` to write back, one per photo (`fields` is then empty).
 let markingChain = Promise.resolve();
-function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter }) {
-  const photosArg = targets.map(photo => ({ id: photo.id, path: photo.path }));
+// Photo property of each field of update_photos_marking, and its value when the photo has none. The per-photo values of an undo use the
+// same names (MarkingTarget in main.rs).
+const MARKING_PROPERTIES = { rating: ['rating', 0], colorFlag: ['color_flag', 'none'], pickFlag: ['pick_flag', 'none'] };
+function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter, property = null, restore = null }) {
+  const [markedProperty, emptyValue] = property ? [property, null] : MARKING_PROPERTIES[Object.keys(fields)[0]];
+  const photosArg = targets.map(photo => (restore
+    ? { id: photo.id, path: photo.path, [markedProperty]: restore.get(photo.id) }
+    : { id: photo.id, path: photo.path }));
+  let previous = null; // id -> value before this write (read when the write starts, after the writes queued before it)
   const finish = (result, error) => {
     if (!result) {
       if (error) showWriteToast(t('Metadata writing failed: {error}', { error: String(error) }));
@@ -3369,10 +3378,15 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     forgetCachedImagePaths(successful.map(photo => photo.path));
     if (successful.length && refilter()) applyPhotoFilters({ keepState: true });
     else updateUIOnSelection();
+    if (markedProperty === 'rating') updateFullscreenRatingStars();
+    // Only the photos actually written can be given their previous value back.
+    const undoEntry = !restore && successful.length
+      ? pushUndo(() => undoMarking(markedProperty, successful.map(photo => ({ id: photo.id, path: photo.path, value: previous.get(photo.id) })), refilter))
+      : null;
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
-    // Failures: the toast names the first one, its "Details" button lists them all.
-    const details = failureDetailsAction(t('Metadata could not be written to some files'), result.failed);
-    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`, false, details);
+    // Failures: the toast names the first one, its "Details" button lists them all. Otherwise the button undoes this write.
+    const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed) ?? (undoEntry ? undoToastAction(undoEntry) : null);
+    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`, false, action);
   };
   const run = () => {
     // Photos of a move in progress or waiting would change path while being written (the backend lock makes the write fail cleanly
@@ -3383,12 +3397,55 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
       showWriteToast(t('Wait for the running file task to finish.'));
       return undefined;
     }
+    previous = new Map(targets.map(photo => [photo.id, photo[markedProperty] ?? emptyValue]));
     showWriteToast(startMessage, true);
     return runLocked('update_photos_marking', { photos: photosArg, ...fields }, targets.length, finish);
   };
   markingChain = markingChain.then(run, run);
   return markingChain;
 }
+
+// Gives each photo of an earlier marking write its previous value back (`entries`: { id, path, value }), in one command. The photos are
+// looked up in the whole list: they may have left the view (filter on that value) or be shown in another order.
+function undoMarking(property, entries, refilter) {
+  const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
+  const targets = entries.map(entry => byId.get(entry.id) ?? { id: entry.id, path: entry.path });
+  const values = new Map(entries.map(entry => [entry.id, entry.value]));
+  return writeMarking(targets, {}, {
+    property,
+    restore: values,
+    startMessage: t('Undoing…'),
+    doneMessage: count => tp('Change undone for {count} photo', count),
+    apply: photo => { photo[property] = values.get(photo.id); },
+    refilter,
+  });
+}
+
+// ==========================================
+// UNDO (Ctrl+Z, "Undo" button of the toasts)
+// ==========================================
+// Last actions on the files that can be undone (rating, color, pick flag, lossless rotation), the latest at the end. Each entry knows how to
+// undo itself; an undo is not stacked again. The toast button undoes its own action, Ctrl+Z the latest one.
+const MAX_UNDO = 20;
+const undoStack = [];
+
+function pushUndo(run) {
+  const entry = { run };
+  undoStack.push(entry);
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  return entry;
+}
+
+// Undoes `entry` (default: the latest action), once: it leaves the stack. False if there is nothing (left) to undo.
+function runUndo(entry = undoStack.at(-1)) {
+  const index = entry ? undoStack.lastIndexOf(entry) : -1;
+  if (index < 0) return false;
+  undoStack.splice(index, 1);
+  entry.run();
+  return true;
+}
+
+const undoToastAction = entry => ({ label: t('Undo'), onClick: () => runUndo(entry) });
 
 // `explicitTargets` (menu contextuel) : photos précises à noter, à la place de la sélection.
 async function setSelectionRating(rating, explicitTargets = null) {
@@ -3423,9 +3480,6 @@ export function isRotatablePath(path) {
   return !VIDEO_EXTENSIONS.has(ext) && !HEIF_EXTENSIONS.has(ext);
 }
 
-const MAX_ROTATION_UNDO = 20;
-const rotationUndoStack = []; // { photos: [{ id, path }], quarterTurns }, last done at the end
-
 // `quarterTurns`: 1 right, -1 left, 2 for 180°. `explicitTargets` (context menu): photos to turn, instead of the selection.
 // `undo`: the rotation turns back a previous one (not stacked again, other toast).
 function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {}) {
@@ -3449,15 +3503,13 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {
     const turned = targets.filter(photo => written.has(photo.id));
     for (const photo of turned) photo.view_fix = written.get(photo.id);
     refreshRotatedPhotos(turned, quarterTurns);
-    if (turned.length && !undo) {
-      rotationUndoStack.push({ photos: turned.map(photo => ({ id: photo.id, path: photo.path })), quarterTurns });
-      if (rotationUndoStack.length > MAX_ROTATION_UNDO) rotationUndoStack.shift();
-    }
+    const turnedEntries = turned.map(photo => ({ id: photo.id, path: photo.path }));
+    const undoEntry = turned.length && !undo ? pushUndo(() => undoRotation(turnedEntries, quarterTurns)) : null;
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
     const message = `${undo ? tp('Rotation undone for {count} photo', turned.length) : tp('{count} photo turned', turned.length)}${failureSummary(result.failed)}${stopped}`;
     // Failures take the toast button (their details); otherwise "Undo".
     const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed)
-      ?? (turned.length && !undo ? { label: t('Undo'), onClick: undoLastRotation } : null);
+      ?? (undoEntry ? undoToastAction(undoEntry) : null);
     showWriteToast(message, false, action);
   };
   const run = () => {
@@ -3474,14 +3526,11 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {
   return markingChain;
 }
 
-// Ctrl+Z / "Undo": turns back the last rotation still in the stack (its photos, wherever the view is now).
-function undoLastRotation() {
-  const last = rotationUndoStack.pop();
-  if (!last) return false;
+// Undo of a rotation (see runUndo): the opposite rotation, on its photos wherever the view is now.
+function undoRotation(entries, quarterTurns) {
   const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
-  const targets = last.photos.map(entry => byId.get(entry.id) ?? entry);
-  rotatePhotos(-last.quarterTurns, targets, { undo: true });
-  return true;
+  const targets = entries.map(entry => byId.get(entry.id) ?? entry);
+  return rotatePhotos(-quarterTurns, targets, { undo: true });
 }
 
 // Turned photos: their cached images are regenerated by the backend; the grid, the preview and the fullscreen view load them again.
@@ -3535,7 +3584,7 @@ function refreshRotatedPhotos(turned, quarterTurns) {
 // P      : Preview panel
 // R      : Rating bar in fullscreen
 // Ctrl+R : Lossless rotation to the right, Shift+R to the left
-// Ctrl+Z : Undo the last lossless rotation
+// Ctrl+Z : Undo the latest rating, color, pick flag or lossless rotation
 // S      : Resize
 // T      : Show / Hide the top toolbar
 // X      : Compare mode
@@ -3607,11 +3656,11 @@ window.addEventListener('keydown', (e) => {
     if (!e.repeat && selectedIndices.size > 0 && !document.querySelector('.modal:not(.hidden)')) rotatePhotos(e.ctrlKey ? 1 : -1);
     return;
   }
-  // Ctrl+Z: undoes the last lossless rotation (text fields keep their own Ctrl+Z: this handler ignores them).
+  // Ctrl+Z: undoes the latest rating, color, pick flag or lossless rotation (text fields keep their own Ctrl+Z: this handler ignores them).
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
     if (document.querySelector('.modal:not(.hidden)')) return;
     e.preventDefault();
-    if (!e.repeat) undoLastRotation();
+    if (!e.repeat && !runUndo()) showWriteToast(t('Nothing to undo'));
     return;
   }
   // CTrl+D debug to console
