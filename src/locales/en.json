@@ -1536,7 +1536,7 @@
   "{count} photo analysed|other": "{count} photos analysed",
   "{count} already up to date": "{count} already up to date",
   "{count} already up to date ({refreshed} with only metadata changes)": "{count} already up to date ({refreshed} with only metadata changes)",
-  "{count} skipped (no thumbnail yet)": "{count} skipped (no thumbnail yet)",
+  "{count} skipped (no thumbnail yet or file not found)": "{count} skipped (no thumbnail yet or file not found)",
   "Analyse content": "Analyse content",
   "Compute the content analysis of these photos (low priority, in the background)": "Compute the content analysis of these photos (low priority, in the background)",
   "This folder only": "This folder only",

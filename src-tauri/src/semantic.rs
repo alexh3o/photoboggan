@@ -558,7 +558,8 @@ const FALLBACK_SIDE: usize = 512;
 /// Result of the analysis of one photo.
 pub enum Outcome {
     Embedded(Vec<f32>),
-    /// Nothing to analyse yet (video or format without a cached thumbnail): not recorded, tried again at the next scan.
+    /// Nothing to analyse yet (video or format without a cached thumbnail, or file not found: moved or deleted since the catalogue was
+    /// read): not recorded, tried again at the next scan.
     Skipped,
     /// Unreadable file: recorded with its reason, not retried until the file changes.
     Failed(String),
@@ -572,7 +573,12 @@ pub enum Outcome {
 fn load_pixels(path: &str, thumbnails_dir: &Path) -> Result<(Vec<u8>, usize, usize), Option<String>> {
     use crate::thumbnails;
     let source = Path::new(path);
-    let cached = crate::thumbnail_cache_file(thumbnails_dir, path).map_err(Some)?; // file missing or unreadable
+    // A file that is not there (moved or deleted while the scan runs, catalogue not synchronised yet) is skipped, never recorded as a
+    // failure: its size and date have not changed, so a failure would never be retried at its new place.
+    if let Err(error) = std::fs::metadata(source) {
+        return Err((error.kind() != std::io::ErrorKind::NotFound).then(|| error.to_string()));
+    }
+    let cached = crate::thumbnail_cache_file(thumbnails_dir, path).map_err(Some)?; // unreadable file
     if cached.is_file() {
         if let Ok(decoded) = thumbnails::decode_scaled_rgb(&cached, FALLBACK_SIDE) { return Ok(decoded); }
     }
@@ -821,7 +827,7 @@ struct DecodeJob {
 
 /// Decoder side of one photo (§6.4): image key first; same key as the stored row → refreshed without decoding the pixels; otherwise the
 /// tensor (or why there is none).
-fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, model: &ModelSpec, cancel: &AtomicBool) -> (Option<ImageKey>, Option<crate::duplicates::DataHash>, Result<Vec<f32>, Outcome>) {
+fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, model: &ModelSpec, cancel: &AtomicBool) -> PreparedWork {
     let (key, computed_hash) = match current_key(Path::new(&job.path), job.cached_hash.as_ref(), cancel) {
         Some((key, computed)) => (Some(key), computed),
         None => (None, None),
@@ -831,6 +837,16 @@ fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, model: &ModelSpec, cancel
     }
     (key, computed_hash, prepare(&job.path, thumbnails_dir, model))
 }
+
+/// Runs the decoder work of one photo, turning a panic (a decoder crate failing on a damaged file) into a failure of that photo, so the
+/// scan goes on with the next ones instead of ending as if it had been cancelled.
+fn guard_panic(work: impl FnOnce() -> PreparedWork) -> PreparedWork {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+        .unwrap_or_else(|_| (None, None, Err(Outcome::Failed("internal error while reading the file".to_string()))))
+}
+
+/// What the decoder computes for one photo: image key, hash to store in `photo_hashes`, tensor or outcome.
+type PreparedWork = (Option<ImageKey>, Option<crate::duplicates::DataHash>, Result<Vec<f32>, Outcome>);
 
 /// The scan itself, on the dedicated worker thread. `emit` publishes the progress.
 fn run_scan(job: ScanJob, emit: &dyn Fn(ScanProgress)) -> Result<ScanReport, String> {
@@ -884,12 +900,14 @@ fn scan_pending(
         .spawn(move || {
             lower_thread_priority();
             for (chunk_index, chunk) in jobs.chunks(BATCH).enumerate() {
-                if decoder_cancel.load(Ordering::Relaxed) { break; }
+                // Reading and hashing files competes with foreground work too: the decoder pauses with the worker (stop checked).
+                if !wait_for_foreground(&decoder_cancel, &mut || {}) { break; }
                 let batch = chunk
                     .iter()
                     .enumerate()
                     .map(|(offset, decode_job)| {
-                        let (key, computed_hash, work) = prepare_job(decode_job, &thumbnails_dir, active_model(), &decoder_cancel);
+                        let (key, computed_hash, work) =
+                            guard_panic(|| prepare_job(decode_job, &thumbnails_dir, active_model(), &decoder_cancel));
                         Prepared { index: chunk_index * BATCH + offset, key, computed_hash, work }
                     })
                     .collect();
@@ -980,7 +998,10 @@ fn scan_pending(
     }
     // The decoder stops at its next send (or right away if it saw the stop request).
     drop(batches);
-    let _ = decoder.join();
+    // A decoder that died (panic outside the per-photo guard) ended the batches early: an error, never a silent "cancelled".
+    if decoder.join().is_err() && failure.is_none() && done < total {
+        failure = Some("semantic decoder stopped unexpectedly".to_string());
+    }
     drop(encoder);
     if done < total && failure.is_none() { report.cancelled = true; }
     match failure {

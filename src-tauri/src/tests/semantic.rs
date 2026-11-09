@@ -353,15 +353,34 @@ fn pixels_come_from_the_thumbnail_and_nothing_is_written_to_the_cache() {
     std::fs::write(&cached, crate::test_support::jpeg_from_rgb(&[128u8; 64 * 48 * 3], 64, 48, 95)).unwrap();
     let tensor = prepare(&photo, thumbnails.path(), model).ok().expect("tensor");
     assert!(tensor.iter().all(|value| value.abs() < 0.05), "the uniform thumbnail was read");
-    // A video without thumbnail is skipped; an unreadable photo or a missing file fails.
+    // A video without thumbnail is skipped; an unreadable photo fails.
     let video = photos.path().join("clip.mp4");
     std::fs::write(&video, b"not a video").unwrap();
     assert!(matches!(prepare(&video.to_string_lossy(), thumbnails.path(), model), Err(Outcome::Skipped)));
     let broken = photos.path().join("broken.jpg");
     std::fs::write(&broken, b"not a jpeg").unwrap();
     assert!(matches!(prepare(&broken.to_string_lossy(), thumbnails.path(), model), Err(Outcome::Failed(_))));
-    let gone = photos.path().join("gone.jpg");
-    assert!(matches!(prepare(&gone.to_string_lossy(), thumbnails.path(), model), Err(Outcome::Failed(_))));
+}
+
+#[test]
+fn a_photo_moved_during_the_scan_is_skipped_not_failed_for_good() {
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let path = photos.path().join("a.jpg");
+    let id = write_version(&conn, &path, &jpeg_bytes(64, 48), 1, None);
+    // Moved away after the catalogue was read: same size and date, so a failure would never be retried.
+    std::fs::rename(&path, photos.path().join("moved.jpg")).unwrap();
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "skipped")]);
+    assert_eq!((standing(&conn, id), count_rows(&conn, "photo_embedding_failures")), (Standing::Pending, 0));
+}
+
+#[test]
+fn a_panic_while_reading_a_photo_fails_that_photo_only() {
+    let ok = guard_panic(|| (None, None, Err(Outcome::Skipped)));
+    assert!(matches!(ok, (None, None, Err(Outcome::Skipped))));
+    let crashed = guard_panic(|| panic!("decoder bug on a damaged file"));
+    assert!(matches!(crashed, (None, None, Err(Outcome::Failed(_)))));
 }
 
 #[test]

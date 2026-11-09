@@ -354,7 +354,7 @@ async function reportAnalysis(report, stopped, error) {
   } else if (upToDate > 0) {
     parts.push(t('{count} already up to date', { count: upToDate }));
   }
-  if (report.skipped > 0) parts.push(t('{count} skipped (no thumbnail yet)', { count: report.skipped }));
+  if (report.skipped > 0) parts.push(t('{count} skipped (no thumbnail yet or file not found)', { count: report.skipped }));
   if (report.failed.length > 0) {
     parts.push(tp('{count} unreadable photo', report.failed.length));
     console.warn('Photos not analysed', report.failed);
