@@ -1,4 +1,4 @@
-<!-- verified: a9ca28f | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
+<!-- verified: e0276f7 | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
 # Application shell: AppState, IPC registry, windows, settings, i18n, startup
 
 ## Purpose
@@ -23,7 +23,7 @@ The shell is everything that exists before and around the features: where the da
 2. `exiftool::init`, `private_maps::init_bundled_style` receive the resource directory.
 3. `resolve_app_paths` → `load_config_at_startup`: data directory is `custom_data_dir` if set, else `<app local data>/data` (`default_data_directory`); creates `thumbnails/` and `raw_previews/`; moves a legacy `photos_library.db` found in the working directory.
 4. `db::init_db` opens the pool; `private_maps::migrate_legacy_files`.
-5. The config is read again for the thumbnail cache size (512 / 768 / 1024, else 512; `THUMBNAIL_CACHE_SIZES`) and quality (`thumbnails::set_high_quality_thumbnails`).
+5. The config is read again for the thumbnail cache size (512 / 768 / 1024, `THUMBNAIL_CACHE_SIZES`; none or invalid → `thumbnailCacheSize` of `defaults.jsonc`, `startup_thumbnail_cache_size`) and quality (`thumbnails::set_high_quality_thumbnails`).
 6. `restore_window_state` then a 10 s fallback thread that shows the window if still hidden.
 7. `app.manage(AppState { db_pool, paths, thumbnail_cache_size, window_tracker })`. Commands read it through `state.pool()`, `base_dir()`, `thumbnails_dir()`…, which clone out of the `RwLock` (never keep the guard).
 
