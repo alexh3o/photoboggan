@@ -1577,5 +1577,22 @@
   "Search the photos that look like this one: same subject or scene": "Search the photos that look like this one: same subject or scene",
   "Type a word or a sentence to search": "Type a word or a sentence to search",
   "This photo has not been analysed yet (right-click > Analyse content)": "This photo has not been analysed yet (right-click > Analyse content)",
-  "this folder": "this folder"
+  "this folder": "this folder",
+  "Find photos that may match": "Find photos that may match",
+  "Search the photos that look like those tagged “{name}” (or, with few of them, that match its name), without this keyword": "Search the photos that look like those tagged “{name}” (or, with few of them, that match its name), without this keyword",
+  "This keyword does not exist any more": "This keyword does not exist any more",
+  "like your {count} photo tagged with it": "like your {count} photo tagged with it",
+  "like your {count} photo tagged with it|other": "like your {count} photos tagged with it",
+  "from the keyword name": "from the keyword name",
+  "Add keyword “{name}”": "Add keyword “{name}”",
+  "Add the keyword to the selected photos as a pending change (nothing is written until “Write to files”)": "Add the keyword to the selected photos as a pending change (nothing is written until “Write to files”)",
+  "Select photos to tag them": "Select photos to tag them",
+  "Keyword “{name}” added to {count} photo: click “Write to files” to save it": "Keyword “{name}” added to {count} photo: click “Write to files” to save it",
+  "Keyword “{name}” added to {count} photo: click “Write to files” to save it|other": "Keyword “{name}” added to {count} photos: click “Write to files” to save it",
+  "The keyword could not be added to the selection": "The keyword could not be added to the selection",
+  "{count} photo will no longer be suggested for “{name}”": "{count} photo will no longer be suggested for “{name}”",
+  "{count} photo will no longer be suggested for “{name}”|other": "{count} photos will no longer be suggested for “{name}”",
+  "Photos that may deserve “{name}”": "Photos that may deserve “{name}”",
+  "Not this keyword": "Not this keyword",
+  "These photos will no longer be suggested for this keyword": "These photos will no longer be suggested for this keyword"
 }

@@ -48,6 +48,7 @@ export function semanticErrorMessage(error) {
     semantic_disabled: 'Content search is disabled (Settings > Content search)',
     semantic_empty_query: 'Type a word or a sentence to search',
     semantic_photo_not_analysed: 'This photo has not been analysed yet (right-click > Analyse content)',
+    unknown_keyword: 'This keyword does not exist any more',
     semantic_scan_running: 'A content analysis is already running',
     semantic_model_missing: 'Install the content search model first (Settings > Content search)',
     semantic_unsupported_platform: 'Content search is not available on this system',

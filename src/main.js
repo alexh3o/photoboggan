@@ -12,13 +12,14 @@ import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
 import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
+import { fetchKeywordCandidates, rejectKeywordSuggestion } from './semantic-tagging.js';
 import { initKeywordSuggestions, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
-import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
+import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { reloadAllMaps } from './map-view.js';
@@ -3071,6 +3072,7 @@ document.getElementById('btn-clear-selection')?.addEventListener('click', () => 
 
 function updateUIOnSelection() {
   refreshKeywordsPanel();
+  if (semanticSearch?.keyword) renderSemanticKeywordActions();
   refreshDescriptionPanel();
   pruneCompareSubSelection();
   renderVisibleItems(); 
@@ -7301,6 +7303,8 @@ initKeywordsPanel({
   showToast: message => showWriteToast(message),
   // Mot-clé supprimé qui était relié à des personnes : proposer de les supprimer aussi (voir faces-panel.js).
   onPersonsUnlinked: unlinked => proposeDeletePersons(unlinked),
+  // Content search: "Find photos that may match" in the context menu of a keyword (see CONTENT SEARCH RESULTS).
+  findKeywordCandidates: keyword => findKeywordCandidates(keyword),
 });
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
@@ -7417,6 +7421,7 @@ function loadSemanticPhotos() {
 // Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
 function matchesSemanticCut(photo) {
   if (!semanticSearch) return true;
+  if (semanticSearch.keyword) return true; // keyword candidates: the backend threshold is the rule, the slider is hidden
   if (photo.id === semanticSearch.sourceId) return true;
   const cos = semanticSearch.cos.get(photo.id);
   return cos !== undefined && cos >= semanticSearch.best - semanticDelta();
@@ -7431,11 +7436,14 @@ function renderSemanticBanner() {
   const search = semanticSearch;
   const shown = photos.filter(photo => photo.id !== search.sourceId).length;
   const parts = [search.label, tp('{count} result', shown)];
+  if (search.keyword) parts.splice(1, 0, search.keyword.kind === 'examples' ? tp('like your {count} photo tagged with it', search.keyword.examples) : t('from the keyword name'));
   // More than the cap was scored and the cut did not stop before it: say that the list is the best part only.
   const cut = search.best - semanticDelta();
-  if (search.capped && search.lastCos >= cut) parts.push(t('The {count} best results only', { count: search.ids.length - (search.sourceId === null ? 0 : 1) }));
+  if (!search.keyword && search.capped && search.lastCos >= cut) parts.push(t('The {count} best results only', { count: search.ids.length - (search.sourceId === null ? 0 : 1) }));
   document.getElementById('semantic-text').textContent = parts.join(' · ');
   const slider = document.getElementById('semantic-relevance');
+  slider.closest('.semantic-relevance').hidden = Boolean(search.keyword); // the slider counts text cosines: not for keyword candidates
+  renderSemanticKeywordActions();
   if (Number(slider.value) !== semanticDelta()) slider.value = String(semanticDelta());
   // Photos of the scope the analysis would still handle (never analysed, or changed since): the answer's `pending`, no other call.
   const pendingRow = document.getElementById('semantic-pending-row');
@@ -7464,6 +7472,50 @@ document.getElementById('semantic-analyse')?.addEventListener('click', () => {
   analyseContent({ folder, recursive, photoIds });
 });
 
+// Keyword -> photos: actions on the selected photos. Disabled while nothing is selected.
+function renderSemanticKeywordActions() {
+  const row = document.getElementById('semantic-keyword-row');
+  if (!row) return;
+  const keyword = semanticSearch?.keyword ?? null;
+  row.hidden = !keyword;
+  if (!keyword) return;
+  const count = getSelectedPhotos().length;
+  const add = document.getElementById('semantic-keyword-add');
+  add.textContent = t('Add keyword “{name}”', { name: keyword.name });
+  add.title = t('Add the keyword to the selected photos as a pending change (nothing is written until “Write to files”)');
+  add.disabled = count === 0;
+  document.getElementById('semantic-keyword-reject').disabled = count === 0;
+  document.getElementById('semantic-keyword-hint').textContent = count === 0 ? t('Select photos to tag them') : tp('{count} photo selected', count, { count: count.toLocaleString() });
+}
+
+// "Add keyword": a pending keyword on the selection through the Keywords panel; the photos stay in the list until the user writes it.
+document.getElementById('semantic-keyword-add')?.addEventListener('click', async () => {
+  const keyword = semanticSearch?.keyword;
+  if (!keyword) return;
+  const count = await addPendingKeyword(keyword.id);
+  showWriteToast(count > 0
+    ? tp('Keyword “{name}” added to {count} photo: click “Write to files” to save it', count, { name: keyword.name })
+    : t('The keyword could not be added to the selection'));
+});
+
+// "Not this keyword": the selected photos are never suggested for it again; they leave the list at once (no new request).
+document.getElementById('semantic-keyword-reject')?.addEventListener('click', async () => {
+  const search = semanticSearch;
+  if (!search?.keyword) return;
+  const ids = getSelectedPhotos().map(photo => photo.id).filter(id => Number.isFinite(id) && id > 0);
+  if (ids.length === 0) return;
+  const { error } = await rejectKeywordSuggestion(ids, search.keyword.id);
+  if (error) { showWriteToast(semanticErrorMessage(error)); return; }
+  if (semanticSearch !== search) return; // the mode was closed or replaced meanwhile
+  const gone = new Set(ids);
+  search.ids = search.ids.filter(id => !gone.has(id));
+  for (const id of gone) { search.cos.delete(id); search.prob.delete(id); search.rank.delete(id); }
+  loadedPhotos = loadedPhotos.filter(photo => !gone.has(photo.id));
+  fullscreenImageCache.clear();
+  applyPhotoFilters({ keepState: true });
+  showWriteToast(tp('{count} photo will no longer be suggested for “{name}”', ids.length, { name: search.keyword.name }));
+});
+
 // Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
 function abandonSemanticSearch() {
   if (!semanticSearch) return;
@@ -7485,7 +7537,7 @@ async function exitSemanticSearch() {
 
 // Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave a
 // modified smart album. A new search from inside the mode replaces the results and keeps the view to go back to.
-async function showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null }) {
+async function showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyword = null }) {
   if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
@@ -7499,7 +7551,7 @@ async function showSemanticResults({ label, answer, scope, viewScope, sourcePhot
   currentFolderFilter = scope.folder ?? null; extraFolderFilters = [];
   const sourceId = sourcePhoto?.id ?? null;
   const search = {
-    label, snapshot, scope, viewScope, sourceId, scopeKind: scope.folder ? 'folder' : semanticScope() === 'library' ? 'library' : 'view',
+    label, snapshot, scope, viewScope, sourceId, keyword, scopeKind: scope.folder ? 'folder' : semanticScope() === 'library' ? 'library' : 'view',
     best: answer.best, capped: answer.capped, pending: answer.pending, total: answer.total,
     lastCos: answer.results.length ? answer.results[answer.results.length - 1].cos : Infinity,
     ids: answer.results.map(result => result.photoId), cos: new Map(), prob: new Map(), rank: new Map(),
@@ -7535,6 +7587,21 @@ async function findSimilarContent(photo) {
   const at = rank => answer.results[rank - 1]?.cos;
   console.debug('Similar content cosines', { best: answer.best, rank10: at(10), rank50: at(50), rank200: at(200), count: answer.results.length });
   await showSemanticResults({ label: t('Content similar to {name}', { name: photo.path.split(/[\\/]/).pop() }), answer, scope, viewScope, sourcePhoto: photo });
+}
+
+// "Find photos that may match" (menu of a keyword): the candidates of the backend (examples or name score, threshold already applied, never the
+// photos that carry the keyword nor the dismissed ones) in the results mode, with the scope of the search toggle like the other entries.
+async function findKeywordCandidates({ id, name }) {
+  if (!isSemanticEnabled()) return;
+  const viewScope = currentViewScope();
+  const scope = currentSearchScope(viewScope);
+  const { answer, error } = await fetchKeywordCandidates(id, scope);
+  if (error) { showWriteToast(semanticErrorMessage(error)); return; }
+  if (!answer) return; // a newer request made this answer stale
+  await showSemanticResults({
+    label: t('Photos that may deserve “{name}”', { name }), answer, scope, viewScope,
+    keyword: { id, name, kind: answer.kind, examples: answer.examples },
+  });
 }
 
 // Content search field of the toolbar (see semantic.js).

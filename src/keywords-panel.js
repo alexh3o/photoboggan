@@ -9,6 +9,7 @@
 // main.js fournit la sélection et les services de l'application (initKeywordsPanel) et appelle refreshKeywordsPanel quand la sélection change.
 import './keywords.css';
 import { openContextMenuAt } from './photo-actions.js';
+import { isSemanticEnabled } from './semantic-settings.js';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import {
@@ -172,6 +173,23 @@ export function focusSideTabField(name) {
 export function setKeywordsCompareMode(active) {
   compareActive = active;
   if (initialized) applyTab();
+}
+
+// Content search, "Add keyword" on the selected photos (results of "Find photos that may match", main.js): the keyword becomes a PENDING change of
+// the selection, exactly as a click on its checkbox. The panel is shown on the Keywords tab first (its state is loaded for the selection only while
+// it is visible). Returns the number of photos that received it, 0 when nothing was added (compare mode, selection not loaded in time, unknown keyword).
+export async function addPendingKeyword(keywordId) {
+  if (!initialized || compareActive) return 0;
+  if (exifPanel.classList.contains('hidden')) toggleButton.click();
+  setTab('keywords');
+  const ready = () => canEdit() && sameAsWorking(currentTarget());
+  for (let attempt = 0; attempt < 60 && !ready(); attempt++) await new Promise(resolve => setTimeout(resolve, 50));
+  if (!ready()) return 0;
+  if (!nodeById.has(keywordId)) await refreshTreeAndUsage();
+  if (!nodeById.has(keywordId)) return 0;
+  const count = working.size;
+  activateKeyword(keywordId, false);
+  return count;
 }
 
 // Les fichiers ont pu changer l'arbre (scan, relecture, synchronisation) : il sera relu à la prochaine mise à jour.
@@ -754,6 +772,12 @@ function onTreeContextMenu(event) {
   openContextMenuAt(event, [
     { header: node.name },
     { label: t('Create a child keyword…'), title: t('Create a keyword inside “{name}”', { name: node.name }), onSelect: () => createKeywordFlow(node.id) },
+    // Content search (entry absent while the feature is off): photos of the view that may deserve this keyword (leaf or not).
+    ...(isSemanticEnabled() ? [{
+      label: t('Find photos that may match'),
+      title: t('Search the photos that look like those tagged “{name}” (or, with few of them, that match its name), without this keyword', { name: node.name }),
+      onSelect: () => host.findKeywordCandidates?.({ id: node.id, name: node.name }),
+    }] : []),
     {
       label: t('Rename keyword…'),
       title: locked ? lockedReason : t('Rename this keyword in the keyword tree and in the files that carry it'),

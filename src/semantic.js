@@ -46,8 +46,8 @@ function toggleScope() {
   renderScopeToggle();
 }
 
-/** Spinner in the field: the first text query loads the model (~1.5 s). */
-function setBusy(busy) {
+/** Spinner in the field: the first text query loads the model (~1.5 s). Also used by the keyword candidates (semantic-tagging.js). */
+export function setBusy(busy) {
   const spinner = byId('semantic-search-spinner');
   if (spinner) spinner.hidden = !busy;
   byId('semantic-search-input')?.classList.toggle('busy', busy);

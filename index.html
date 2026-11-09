@@ -299,6 +299,12 @@
               <input id="semantic-relevance" type="range" min="0.005" max="0.08" step="0.005" />
             </label>
           </div>
+          <!-- Only for the results of "Find photos that may match" (keyword -> photos): actions on the selected photos -->
+          <div id="semantic-keyword-row" class="semantic-banner-row semantic-keyword-actions" hidden>
+            <button id="semantic-keyword-add" type="button" class="active"></button>
+            <button id="semantic-keyword-reject" type="button" title="Ces photos ne seront plus proposées pour ce mot-clé" data-i18n-title="These photos will no longer be suggested for this keyword" data-i18n="Not this keyword">Pas ce mot-clé</button>
+            <span id="semantic-keyword-hint" class="semantic-text semantic-hint"></span>
+          </div>
           <div id="semantic-pending-row" class="semantic-banner-row semantic-pending-row" hidden>
             <span id="semantic-pending-text" class="semantic-text"></span>
             <button id="semantic-analyse" type="button" class="semantic-analyse" data-i18n="Analyse">Analyser</button>

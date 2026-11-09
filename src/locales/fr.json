@@ -1577,5 +1577,22 @@
   "Search the photos that look like this one: same subject or scene": "Cherche les photos qui ressemblent à celle-ci : même sujet ou même scène",
   "Type a word or a sentence to search": "Saisissez un mot ou une phrase à chercher",
   "This photo has not been analysed yet (right-click > Analyse content)": "Cette photo n'a pas encore été analysée (clic droit > Analyser le contenu)",
-  "this folder": "ce dossier"
+  "this folder": "ce dossier",
+  "Find photos that may match": "Trouver les photos qui pourraient correspondre",
+  "Search the photos that look like those tagged “{name}” (or, with few of them, that match its name), without this keyword": "Cherche les photos qui ressemblent à celles étiquetées « {name} » (ou, s'il y en a peu, qui correspondent à son nom), sans ce mot-clé",
+  "This keyword does not exist any more": "Ce mot-clé n'existe plus",
+  "like your {count} photo tagged with it": "d'après votre photo étiquetée ainsi",
+  "like your {count} photo tagged with it|other": "d'après vos {count} photos étiquetées ainsi",
+  "from the keyword name": "d'après le nom du mot-clé",
+  "Add keyword “{name}”": "Ajouter le mot-clé « {name} »",
+  "Add the keyword to the selected photos as a pending change (nothing is written until “Write to files”)": "Ajoute le mot-clé aux photos sélectionnées en attente (rien n'est écrit avant « Écrire dans les fichiers »)",
+  "Select photos to tag them": "Sélectionnez des photos pour les étiqueter",
+  "Keyword “{name}” added to {count} photo: click “Write to files” to save it": "Mot-clé « {name} » ajouté à {count} photo : cliquez sur « Écrire dans les fichiers » pour l'enregistrer",
+  "Keyword “{name}” added to {count} photo: click “Write to files” to save it|other": "Mot-clé « {name} » ajouté à {count} photos : cliquez sur « Écrire dans les fichiers » pour l'enregistrer",
+  "The keyword could not be added to the selection": "Le mot-clé n'a pas pu être ajouté à la sélection",
+  "{count} photo will no longer be suggested for “{name}”": "{count} photo ne sera plus proposée pour « {name} »",
+  "{count} photo will no longer be suggested for “{name}”|other": "{count} photos ne seront plus proposées pour « {name} »",
+  "Photos that may deserve “{name}”": "Photos qui méritent peut-être « {name} »",
+  "Not this keyword": "Pas ce mot-clé",
+  "These photos will no longer be suggested for this keyword": "Ces photos ne seront plus proposées pour ce mot-clé"
 }
