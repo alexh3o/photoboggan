@@ -64,8 +64,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `ipc-commands.md` | 176 |  |
 | `module-deps.md` | 93 |  |
 | `symbols-js.md` | 1373 |  |
-| `symbols-rust.md` | 1258 |  |
-| `tests.md` | 446 |  |
+| `symbols-rust.md` | 1259 |  |
+| `tests.md` | 447 |  |
 
 ## docs/development/modules
 
