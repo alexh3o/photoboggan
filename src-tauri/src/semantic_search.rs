@@ -605,7 +605,15 @@ pub async fn semantic_search_text(
     let cache = cache();
     cache.touch();
     let outcome = tokio::task::spawn_blocking(move || {
-        let vector = cache.embed_text(|| load_text_encoder(&models_dir, model), &fed)?;
+        // Checked again right before loading: a disable arriving after the check above has already released the cache, and a model loaded
+        // now would stay in memory until the idle release.
+        let vector = cache.embed_text(
+            || {
+                ensure_enabled()?;
+                load_text_encoder(&models_dir, model)
+            },
+            &fed,
+        )?;
         let conn = pool.get().map_err(|error| error.to_string())?;
         search(cache, &conn, model, Query::Vector(&vector), &scope, relevance, ensure_enabled)
     })

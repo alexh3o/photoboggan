@@ -117,7 +117,18 @@ pub fn ensure_enabled() -> Result<(), String> {
 #[tauri::command]
 pub fn set_semantic_enabled(enabled: bool) {
     ENABLED.store(enabled, Ordering::Relaxed);
-    if !enabled { crate::semantic::on_disabled(); }
+    if !enabled {
+        crate::semantic::on_disabled();
+        // A model download in progress stops too (the file being received is dropped, complete files are kept).
+        if let Some(flag) = current_download().as_ref() { flag.store(true, Ordering::SeqCst); }
+    }
+}
+
+/// Stop flag of the running model download, so that disabling the feature can stop it. None: no download.
+static CURRENT_DOWNLOAD: std::sync::Mutex<Option<std::sync::Arc<AtomicBool>>> = std::sync::Mutex::new(None);
+
+fn current_download() -> std::sync::MutexGuard<'static, Option<std::sync::Arc<AtomicBool>>> {
+    CURRENT_DOWNLOAD.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 // ---------------------------------------------------------------------------
@@ -237,6 +248,13 @@ pub async fn download_semantic_model(app: tauri::AppHandle, state: State<'_, App
     ensure_enabled()?;
     let models_dir = crate::face_models::models_dir(&state);
     let cancel = crate::scan_cancel_flag(&task_id);
+    *current_download() = Some(cancel.clone());
+    // Checked again once the flag is visible: a disable arriving in between either sees the flag or is seen here.
+    if let Err(error) = ensure_enabled() {
+        *current_download() = None;
+        crate::release_scan_cancel_flag(&task_id);
+        return Err(error);
+    }
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || {
         let missing = missing_files(&models_dir, active_model())?;
@@ -260,6 +278,7 @@ pub async fn download_semantic_model(app: tauri::AppHandle, state: State<'_, App
         Ok(())
     })
     .await;
+    *current_download() = None;
     crate::release_scan_cancel_flag(&task_id);
     match outcome.map_err(|error| error.to_string())? {
         Err(error) if error == "cancelled" => Ok(()), // stop requested: nothing half installed

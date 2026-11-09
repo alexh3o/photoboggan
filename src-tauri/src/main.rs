@@ -561,6 +561,7 @@ fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
 // seraient supprimés) ou quand un fichier du catalogue est illisible pour une autre raison qu'une absence.
 fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &Path) -> Result<usize, String> {
     use rayon::prelude::*;
+    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while every catalogue file is checked
     if db::get_folders(pool).iter().any(|folder| !tracked_root_is_reachable(&folder.path)) {
         return Err("Un dossier suivi est injoignable (disque débranché ?) : nettoyage des miniatures reporté".to_string());
     }
@@ -1996,6 +1997,8 @@ fn carry_cache_file(old: Option<PathBuf>, new: Option<PathBuf>) {
 // Lancé par la file des tâches (`task_id`) : avancement publié, arrêt possible entre deux fichiers (les fichiers déjà déplacés le restent).
 #[tauri::command(async)]
 fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<MoveResult, String> {
+    // The semantic scan waits: it would read photos at the paths they are leaving.
+    let _priority = semantic::PriorityGuard::new();
     let mut progress = FileTaskProgress::new(app, task_id, &paths);
     let pool = state.pool();
     let destination_dir = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
@@ -2125,6 +2128,7 @@ fn copy_photos_with_progress(
     resolutions: &std::collections::HashMap<String, String>,
     mut progress: FileTaskProgress,
 ) -> Result<CopyResult, String> {
+    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while files are copied (disk bound)
     if !destination.is_dir() { return Err(format!("Dossier de destination introuvable : {}", destination.display())); }
     let destination_segments = lowercase_segments(destination);
     let mut copied = 0;
@@ -2219,7 +2223,10 @@ fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppStat
 // threads asynchrones. Le résultat dit si le fichier a été écrit, s'il existait déjà (politique « Ask ») ou s'il a été passé.
 #[tauri::command]
 async fn resize_photo(path: String, options: resize::ResizeOptions) -> Result<resize::ResizeOutcome, String> {
-    tokio::task::spawn_blocking(move || resize::resize_photo(Path::new(&path), &options))
+    tokio::task::spawn_blocking(move || {
+        let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while photos are resized
+        resize::resize_photo(Path::new(&path), &options)
+    })
         .await
         .map_err(|error| error.to_string())?
 }
