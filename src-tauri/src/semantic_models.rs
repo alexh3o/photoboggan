@@ -10,8 +10,6 @@
 //! - Every command refuses with the key `semantic_disabled` until the interface has enabled the feature (`set_semantic_enabled`, sent at
 //!   startup and on change, like `set_internet_allowed`): nothing related to the feature runs while it is off.
 
-#![allow(dead_code)] // constants and paths are read by semantic.rs (next step)
-
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,6 +41,7 @@ impl ModelFile {
 
 /// Constants of one model (spec §3.3). Values come from the checkpoint (Phase 0, §15.1).
 #[derive(Deserialize)]
+#[allow(dead_code)] // logit scale / bias: searches (phase 3a); eos_id: documents the tokenizer, which appends it itself
 pub struct ModelSpec {
     pub id: String,
     pub label: String,
@@ -89,6 +88,11 @@ fn manifest() -> &'static Manifest {
     })
 }
 
+/// Model of the manifest with this id (None: a model of an older version, no longer shipped).
+pub fn model_by_id(id: &str) -> Option<&'static ModelSpec> {
+    manifest().models.iter().find(|model| model.id == id)
+}
+
 /// Model used by scans and searches (v1: the only one of the manifest).
 pub fn active_model() -> &'static ModelSpec {
     &manifest().models[0]
@@ -113,6 +117,7 @@ pub fn ensure_enabled() -> Result<(), String> {
 #[tauri::command]
 pub fn set_semantic_enabled(enabled: bool) {
     ENABLED.store(enabled, Ordering::Relaxed);
+    if !enabled { crate::semantic::on_disabled(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +130,7 @@ pub fn model_dir(models_dir: &Path, model: &ModelSpec) -> PathBuf {
 }
 
 /// Paths of the installed files, used by the scan and the searches.
+#[allow(dead_code)] // text and tokenizer: text search (phase 3a)
 pub struct ModelPaths {
     pub runtime: PathBuf,
     pub vision: PathBuf,
@@ -295,10 +301,12 @@ pub fn delete_model_files(models_dir: &Path, model: &ModelSpec) -> Result<(), St
     if problems.is_empty() { Ok(()) } else { Err(problems.join("\n")) }
 }
 
-/// "Delete the model files" (Settings, with confirmation in the interface). Returns the new status.
+/// "Delete the model files" (Settings, with confirmation in the interface): stops a running scan first. Returns the new status.
 #[tauri::command(async)]
 pub fn delete_semantic_model(state: State<'_, AppState>) -> Result<ModelStatus, String> {
     ensure_enabled()?;
+    // A running scan holds the vision model open (it could not be deleted on Windows): it is stopped first.
+    crate::semantic::stop_scan_and_wait()?;
     let models_dir = crate::face_models::models_dir(&state);
     let model = active_model();
     delete_model_files(&models_dir, model)?;

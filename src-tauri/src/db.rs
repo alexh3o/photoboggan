@@ -138,6 +138,8 @@ pub fn init_db(db_path: &str) -> DbPool {
     crate::duplicates::init_schema(&conn).expect("Duplicate hash table could not be created");
     // Cache of the perceptual hashes used by the similar-image search: voir similar.rs (empty until a search is started).
     crate::similar::init_schema(&conn).expect("Perceptual hash table could not be created");
+    // Embeddings of the semantic search (semantic.rs): empty until the user enables the feature and starts an analysis.
+    crate::semantic::init_schema(&conn).expect("Semantic search tables could not be created");
     // Zones privées de la carte : voir private_maps.rs (chargées en mémoire dès l'ouverture, pour la règle par tuile).
     crate::private_maps::init_schema(&conn).expect("Private zone table could not be created");
     if let Err(error) = crate::private_maps::reload_zones(&conn) { eprintln!("Private zones unavailable: {error}"); }

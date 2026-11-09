@@ -440,6 +440,7 @@ async fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max
         let size = if destination.is_file() {
             thumbnails::jpeg_size(&destination)?
         } else {
+            let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the grid needs thumbnails
             thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination, max_side)?
         };
         Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
@@ -470,6 +471,7 @@ impl ImageCacheDirs {
 /// fichier, dont dépend le nom de sa miniature et de son aperçu en cache, si. Ceux-ci sont renommés pour suivre le fichier réécrit, au lieu
 /// d'être régénérés au prochain affichage (redémarrage compris). Un sidecar écrit ne change pas le fichier : rien à faire.
 pub(crate) fn keep_cached_images<T>(dirs: &ImageCacheDirs, path: &str, write: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    let _priority = semantic::PriorityGuard::new(); // every metadata write goes through here: the semantic scan waits meanwhile
     let before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
     let result = write()?;
     let after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
@@ -700,6 +702,7 @@ fn cancel_scan(task_id: String) {
 // Renvoie une erreur si le parcours ou l'enregistrement a échoué (tâche en erreur, panique, lots non enregistrés) : un scan n'est jamais
 // annoncé réussi alors que des photos n'ont pas été enregistrées.
 async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) -> Result<(), String> {
+    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the catalogue is read
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
     let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>, faces::PhotoFaces)>(100);
@@ -896,6 +899,7 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
         let publish_folder = |folder_label: &str| {
             let _ = app.emit("scan-detail", ScanDetail { task_id: worker_task_id.clone(), detail: folder_label.to_string() });
         };
+        let _priority = semantic::PriorityGuard::new();
         integrity::run(&folder, &thumbnails_dir, max_side, &cancel, &publish, &publish_folder)
     }).await;
     release_scan_cancel_flag(&task_id);
@@ -913,6 +917,7 @@ async fn find_duplicates(app: tauri::AppHandle, state: State<'_, AppState>, requ
         let publish = |fraction: f64| {
             let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
         };
+        let _priority = semantic::PriorityGuard::new();
         duplicates::run(&pool, &request, &cancel, &publish)
     }).await;
     release_scan_cancel_flag(&task_id);
@@ -937,6 +942,7 @@ async fn find_similar_images(app: tauri::AppHandle, state: State<'_, AppState>, 
         let publish = |fraction: f64| {
             let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
         };
+        let _priority = semantic::PriorityGuard::new();
         similar::run(&pool, &thumbnails_dir, &request, &cancel, &publish)
     }).await;
     release_scan_cancel_flag(&task_id);
@@ -1714,7 +1720,10 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
 #[tauri::command]
 async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncChanges, String> {
     let pool = state.pool();
-    tokio::task::spawn_blocking(move || library_sync::sync_library(&pool))
+    tokio::task::spawn_blocking(move || {
+        let _priority = semantic::PriorityGuard::new();
+        library_sync::sync_library(&pool)
+    })
         .await
         .map_err(|error| error.to_string())?
 }
@@ -2633,6 +2642,9 @@ fn main() {
             semantic_models::download_semantic_model,
             semantic_models::import_semantic_model,
             semantic_models::delete_semantic_model,
+            semantic::semantic_scan,
+            semantic::get_semantic_stats,
+            semantic::delete_semantic_data,
             albums::get_album_tree,
             albums::create_album_node,
             albums::rename_album_node,

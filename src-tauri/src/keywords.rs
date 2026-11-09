@@ -297,6 +297,7 @@ fn run_write(
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     let _write_guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while files are written
     let conn = pool.get().map_err(|error| error.to_string())?;
     let cache_dirs = crate::ImageCacheDirs::of(&app.state::<AppState>()); // miniatures et aperçus qui suivent les fichiers réécrits
     let mut nodes: HashMap<i64, (i64, String)> = HashMap::new();
@@ -644,6 +645,9 @@ fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), String> {
     let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
     let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM photo_keywords WHERE keyword_id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|error| error.to_string())?;
+    // Dismissed semantic suggestions of these keywords (semantic.rs) go with them.
+    tx.execute("DELETE FROM keyword_suggestion_rejections WHERE keyword_id IN (SELECT value FROM json_each(?1))", params![ids_json])
+        .map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM keyword_nodes WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|error| error.to_string())?;
     tx.commit().map_err(|error| error.to_string())
 }

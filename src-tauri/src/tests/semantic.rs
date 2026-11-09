@@ -6,6 +6,11 @@
 //! The ONNX Runtime library is read from ORT_DYLIB_PATH, otherwise from the `models/` folder of an installed application.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use rusqlite::{params, Connection};
 
 use super::*;
 use crate::semantic_models::active_model;
@@ -146,6 +151,233 @@ fn queries_are_normalised_as_in_the_reference() {
 }
 
 // ---------------------------------------------------------------------------
+// Tables, incremental scan, clean-up (no model)
+// ---------------------------------------------------------------------------
+
+use crate::test_support::{insert_photo, jpeg_bytes, temp_catalog};
+
+const MODEL: &str = "siglip2-base-p16-224";
+
+/// Catalogue photo with a known size and modification date.
+fn add_photo(conn: &Connection, path: &str, size: i64, mtime: i64) -> i64 {
+    let id = insert_photo(conn, path);
+    conn.execute("UPDATE photos SET file_size = ?1, modified = ?2 WHERE id = ?3", params![size, mtime, id]).unwrap();
+    id
+}
+
+fn target(conn: &Connection, id: i64) -> Target {
+    select_targets(conn, MODEL, Some(&[id]), None, false).unwrap().pop().expect("photo in scope")
+}
+
+fn unit_vector() -> Vec<f32> {
+    let dim = active_model().embed_dim;
+    let mut vector: Vec<f32> = (0..dim).map(|index| (index as f32 * 0.1).cos()).collect();
+    l2_normalise(&mut vector);
+    vector
+}
+
+fn standing(conn: &Connection, id: i64) -> Standing {
+    target(conn, id).standing
+}
+
+fn count_rows(conn: &Connection, table: &str) -> i64 {
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)).unwrap()
+}
+
+#[test]
+fn an_unchanged_file_is_skipped_and_a_changed_one_is_analysed_again() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let id = add_photo(&conn, "C:/photos/a.jpg", 1000, 50);
+    assert_eq!(standing(&conn, id), Standing::Pending);
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Embedded(unit_vector()))]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Analysed);
+    let blob: Vec<u8> = conn.query_row("SELECT vec FROM photo_embeddings WHERE photo_id = ?1", [id], |row| row.get(0)).unwrap();
+    assert_eq!(blob.len(), active_model().embed_dim * 2);
+
+    // Size changed, then date changed: analysed again.
+    conn.execute("UPDATE photos SET file_size = 1001 WHERE id = ?1", [id]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Pending);
+    conn.execute("UPDATE photos SET file_size = 1000, modified = 51 WHERE id = ?1", [id]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Pending);
+    conn.execute("UPDATE photos SET modified = 50 WHERE id = ?1", [id]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Analysed);
+
+    // An embedding of another model does not count.
+    conn.execute("UPDATE photo_embeddings SET model_id = 'other-model' WHERE photo_id = ?1", [id]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Pending);
+}
+
+#[test]
+fn failures_are_not_retried_until_the_file_changes() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let id = add_photo(&conn, "C:/photos/broken.jpg", 10, 5);
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Embedded(unit_vector()))]).unwrap();
+    // The file changed and is now unreadable: the failure replaces the old embedding.
+    conn.execute("UPDATE photos SET file_size = 11 WHERE id = ?1", [id]).unwrap();
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Failed("Unreadable JPEG".to_string()))]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Failed);
+    assert_eq!(count_rows(&conn, "photo_embeddings"), 0);
+    // Repaired file (new date): pending again; once analysed, the failure is gone.
+    conn.execute("UPDATE photos SET modified = 6 WHERE id = ?1", [id]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Pending);
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Embedded(unit_vector()))]).unwrap();
+    assert_eq!((standing(&conn, id), count_rows(&conn, "photo_embedding_failures")), (Standing::Analysed, 0));
+}
+
+#[test]
+fn skipped_photos_are_not_recorded() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let id = add_photo(&conn, "C:/photos/clip.mp4", 10, 5);
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Skipped)]).unwrap();
+    assert_eq!(standing(&conn, id), Standing::Pending);
+}
+
+#[test]
+fn scopes_select_a_folder_with_or_without_subfolders_or_a_selection() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let a = add_photo(&conn, r"C:\photos\a.jpg", 1, 1);
+    let b = add_photo(&conn, r"C:\photos\2024\b.jpg", 1, 1);
+    let c = add_photo(&conn, r"C:\photosbis\c.jpg", 1, 1);
+    let ids = |targets: Vec<Target>| {
+        let mut ids: Vec<i64> = targets.iter().map(|target| target.photo_id).collect();
+        ids.sort();
+        ids
+    };
+    assert_eq!(ids(select_targets(&conn, MODEL, None, Some("C:/photos"), false).unwrap()), vec![a]);
+    assert_eq!(ids(select_targets(&conn, MODEL, None, Some(r"C:\photos\"), true).unwrap()), vec![a, b]);
+    assert_eq!(ids(select_targets(&conn, MODEL, Some(&[b, c]), None, false).unwrap()), vec![b, c]);
+    assert_eq!(ids(select_targets(&conn, MODEL, None, None, false).unwrap()), vec![a, b, c]);
+}
+
+#[test]
+fn rows_of_removed_photos_and_keywords_are_cleaned_up() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let kept = add_photo(&conn, "C:/photos/kept.jpg", 1, 1);
+    let removed = add_photo(&conn, "C:/photos/removed.jpg", 1, 1);
+    for id in [kept, removed] {
+        store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Embedded(unit_vector()))]).unwrap();
+    }
+    let broken = add_photo(&conn, "C:/photos/broken.jpg", 1, 1);
+    store_batch(&conn, MODEL, &[(&target(&conn, broken), Outcome::Failed("x".to_string()))]).unwrap();
+    let beach = crate::keywords::ensure_node(&conn, 0, "Beach").unwrap();
+    let snow = crate::keywords::ensure_node(&conn, 0, "Snow").unwrap();
+    for (photo, keyword) in [(kept, beach), (removed, beach), (kept, snow)] {
+        conn.execute("INSERT INTO keyword_suggestion_rejections (photo_id, keyword_id) VALUES (?1, ?2)", params![photo, keyword]).unwrap();
+    }
+    conn.execute("DELETE FROM photos WHERE id IN (?1, ?2)", params![removed, broken]).unwrap();
+    conn.execute("DELETE FROM keyword_nodes WHERE id = ?1", [snow]).unwrap();
+    remove_orphans(&conn).unwrap();
+    assert_eq!(count_rows(&conn, "photo_embeddings"), 1);
+    assert_eq!(count_rows(&conn, "photo_embedding_failures"), 0);
+    let rejections: Vec<(i64, i64)> = {
+        let mut statement = conn.prepare("SELECT photo_id, keyword_id FROM keyword_suggestion_rejections").unwrap();
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+        rows.map(Result::unwrap).collect()
+    };
+    assert_eq!(rejections, vec![(kept, beach)]);
+}
+
+#[test]
+fn stats_count_the_scope_and_deleting_data_empties_the_tables() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let a = add_photo(&conn, "C:/photos/a.jpg", 1, 1);
+    let b = add_photo(&conn, "C:/photos/b.jpg", 1, 1);
+    add_photo(&conn, "C:/photos/c.jpg", 1, 1);
+    let (target_a, target_b) = (target(&conn, a), target(&conn, b));
+    store_batch(&conn, MODEL, &[(&target_a, Outcome::Embedded(unit_vector())), (&target_b, Outcome::Failed("x".to_string()))]).unwrap();
+    let dim = active_model().embed_dim as u64;
+    assert_eq!(stats(&conn, None, None, false).unwrap(), Stats { total: 3, analysed: 1, failed: 1, pending: 1, bytes: dim * 2 + ROW_OVERHEAD });
+    assert_eq!(stats(&conn, Some(&[a]), None, false).unwrap().total, 1);
+    delete_data(&conn).unwrap();
+    assert_eq!(stats(&conn, None, None, false).unwrap(), Stats { total: 3, analysed: 0, failed: 0, pending: 3, bytes: 0 });
+}
+
+#[test]
+fn a_scan_with_nothing_to_do_does_not_need_the_model_and_a_missing_model_is_reported() {
+    let (_dir, pool) = temp_catalog();
+    let models = tempfile::tempdir().unwrap();
+    let thumbnails = tempfile::tempdir().unwrap();
+    let conn = pool.get().unwrap();
+    let id = add_photo(&conn, "C:/photos/a.jpg", 1, 1);
+    let job = || ScanJob {
+        pool: pool.clone(),
+        models_dir: models.path().to_path_buf(),
+        thumbnails_dir: thumbnails.path().to_path_buf(),
+        photo_ids: None,
+        folder: None,
+        recursive: true,
+        threads: 1,
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+    // Pending photo, no model installed: the scan refuses with the error key.
+    let error = run_scan(job(), &|_| {}).err().expect("model missing");
+    assert!(error == "semantic_model_missing" || error == "semantic_unsupported_platform", "{error}");
+    // Up to date: no model loaded, report only.
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Embedded(unit_vector()))]).unwrap();
+    let report = run_scan(job(), &|_| {}).expect("nothing to do");
+    assert_eq!((report.total, report.up_to_date, report.analysed, report.cancelled), (1, 1, 0, false));
+}
+
+#[test]
+fn pixels_come_from_the_thumbnail_and_nothing_is_written_to_the_cache() {
+    let model = active_model();
+    let photos = tempfile::tempdir().unwrap();
+    let thumbnails = tempfile::tempdir().unwrap();
+    // A photo without thumbnail: decoded in memory, the cache stays empty.
+    let photo = photos.path().join("a.jpg");
+    std::fs::write(&photo, jpeg_bytes(800, 600)).unwrap();
+    let photo = photo.to_string_lossy().into_owned();
+    assert!(prepare(&photo, thumbnails.path(), model).is_ok());
+    assert_eq!(std::fs::read_dir(thumbnails.path()).unwrap().count(), 0);
+    // With a cached thumbnail, the thumbnail is used (here a uniform grey picture, unlike the photo).
+    let cached = crate::thumbnail_cache_file(thumbnails.path(), &photo).unwrap();
+    std::fs::create_dir_all(cached.parent().unwrap()).unwrap();
+    std::fs::write(&cached, crate::test_support::jpeg_from_rgb(&[128u8; 64 * 48 * 3], 64, 48, 95)).unwrap();
+    let tensor = prepare(&photo, thumbnails.path(), model).ok().expect("tensor");
+    assert!(tensor.iter().all(|value| value.abs() < 0.05), "the uniform thumbnail was read");
+    // A video without thumbnail is skipped; an unreadable photo or a missing file fails.
+    let video = photos.path().join("clip.mp4");
+    std::fs::write(&video, b"not a video").unwrap();
+    assert!(matches!(prepare(&video.to_string_lossy(), thumbnails.path(), model), Err(Outcome::Skipped)));
+    let broken = photos.path().join("broken.jpg");
+    std::fs::write(&broken, b"not a jpeg").unwrap();
+    assert!(matches!(prepare(&broken.to_string_lossy(), thumbnails.path(), model), Err(Outcome::Failed(_))));
+    let gone = photos.path().join("gone.jpg");
+    assert!(matches!(prepare(&gone.to_string_lossy(), thumbnails.path(), model), Err(Outcome::Failed(_))));
+}
+
+#[test]
+fn the_scan_gives_way_to_foreground_work_and_stops_when_asked() {
+    // Foreground work running and a stop requested: the wait ends at once with "stop".
+    let guard = PriorityGuard::new();
+    assert!(foreground_busy());
+    assert!(!wait_for_foreground(&AtomicBool::new(true), &mut || {}));
+    // Work that ends while the scan waits: the scan goes on after it, the pause announced once.
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        drop(guard);
+    });
+    let started = Instant::now();
+    let mut announced = 0;
+    assert!(wait_for_foreground(&AtomicBool::new(false), &mut || announced += 1));
+    release.join().unwrap();
+    assert_eq!(announced, 1);
+    assert!(started.elapsed() >= Duration::from_millis(150));
+}
+
+#[test]
+fn commands_refuse_while_the_feature_is_disabled() {
+    // The interface never enables the feature in tests: every command starts with this check.
+    assert_eq!(ensure_enabled().unwrap_err(), "semantic_disabled");
+}
+
+// ---------------------------------------------------------------------------
 // Parity with the reference model (needs the model files)
 // ---------------------------------------------------------------------------
 
@@ -223,4 +455,86 @@ fn text_embeddings_match_the_reference() {
         println!("{:?}: cos = {similarity:.6}", text["fed"]);
         assert!(similarity >= 0.999, "{:?}: cos = {similarity}", text["fed"]);
     }
+}
+
+/// Paths of the model files of SEMANTIC_MODEL_DIR and of the ONNX Runtime library.
+fn model_paths() -> crate::semantic_models::ModelPaths {
+    let dir = model_dir();
+    crate::semantic_models::ModelPaths {
+        runtime: runtime_library(),
+        vision: dir.join("vision.onnx"),
+        text: dir.join("text.onnx"),
+        tokenizer: dir.join("tokenizer.json"),
+    }
+}
+
+#[test]
+#[ignore = "needs the SigLIP 2 model"]
+fn a_scan_stores_what_the_encoder_computes_and_stops_when_asked() {
+    let model = active_model();
+    let (_catalog, pool) = temp_catalog();
+    let photos = tempfile::tempdir().unwrap();
+    let thumbnails = tempfile::tempdir().unwrap();
+    let conn = pool.get().unwrap();
+    // 20 synthetic photos (two batches), one unreadable, one video without thumbnail.
+    let mut ids = Vec::new();
+    for seed in 0..20u64 {
+        let path = photos.path().join(format!("p{seed}.jpg"));
+        std::fs::write(&path, crate::test_support::jpeg_from_rgb(&crate::test_support::blobs_rgb(320, 240, seed), 320, 240, 90)).unwrap();
+        ids.push(add_photo(&conn, &path.to_string_lossy(), 1, seed as i64));
+    }
+    let broken = photos.path().join("broken.jpg");
+    std::fs::write(&broken, b"not a jpeg").unwrap();
+    add_photo(&conn, &broken.to_string_lossy(), 1, 1);
+    let video = photos.path().join("clip.mp4");
+    std::fs::write(&video, b"not a video").unwrap();
+    add_photo(&conn, &video.to_string_lossy(), 1, 1);
+
+    let job = |cancel: Arc<AtomicBool>| ScanJob {
+        pool: pool.clone(),
+        models_dir: PathBuf::new(),
+        thumbnails_dir: thumbnails.path().to_path_buf(),
+        photo_ids: None,
+        folder: None,
+        recursive: true,
+        threads: 2,
+        cancel,
+    };
+    let scan = |cancel: Arc<AtomicBool>, emit: &dyn Fn(ScanProgress)| {
+        let targets = select_targets(&conn, MODEL, None, None, true).unwrap();
+        let total = targets.len();
+        let pending: Vec<Target> = targets.into_iter().filter(|target| target.standing == Standing::Pending).collect();
+        let report = ScanReport { total, up_to_date: total - pending.len(), ..ScanReport::default() };
+        scan_pending(job(cancel), &model_paths(), &conn, pending, report, emit).expect("scan")
+    };
+
+    // Stop requested after the first batch: 16 photos stored, the rest left for the next run.
+    let cancel = Arc::new(AtomicBool::new(false));
+    let events = Mutex::new(Vec::new());
+    let report = scan(cancel.clone(), &|progress| {
+        cancel.store(true, Ordering::SeqCst);
+        events.lock().unwrap().push(progress);
+    });
+    assert!(report.cancelled);
+    assert_eq!(report.analysed + report.skipped + report.failed.len(), 16);
+    {
+        let events = events.lock().unwrap();
+        assert_eq!((events[0].done, events[0].total, events[0].paused), (16, 22, false));
+        assert!(events[0].remaining_seconds.is_some());
+    }
+
+    // Second run: the rest only.
+    let report = scan(Arc::new(AtomicBool::new(false)), &|_| {});
+    assert!(!report.cancelled);
+    assert_eq!(report.up_to_date, 16);
+    assert_eq!(report.analysed + report.skipped + report.failed.len(), 6);
+    assert_eq!(stats(&conn, None, None, false).unwrap(), Stats { total: 22, analysed: 20, failed: 1, pending: 1, bytes: 20 * (768 * 2 + ROW_OVERHEAD) });
+
+    // Stored vectors are those of the encoder on the same pixels.
+    let environment = crate::onnx_runtime::environment(&runtime_library()).unwrap();
+    let mut encoder = VisionEncoder::load(&environment, &model_dir().join("vision.onnx"), model, 2).unwrap();
+    let path: String = conn.query_row("SELECT path FROM photos WHERE id = ?1", [ids[7]], |row| row.get(0)).unwrap();
+    let direct = encoder.embed(prepare(&path, thumbnails.path(), model).ok().unwrap(), 1).unwrap().remove(0);
+    let blob: Vec<u8> = conn.query_row("SELECT vec FROM photo_embeddings WHERE photo_id = ?1", [ids[7]], |row| row.get(0)).unwrap();
+    assert!(cosine(&direct, &blob_to_vector(&blob, model.embed_dim).unwrap()) > 0.9999);
 }

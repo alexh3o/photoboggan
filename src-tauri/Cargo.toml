@@ -58,10 +58,11 @@ sha2 = "0.10"
 # "fancy-regex" is the pure Rust regex engine needed by the file's pre-tokenizer. Builds on Windows and Linux; adds ~28 small crates.
 tokenizers = { version = "0.23.2", default-features = false, features = ["fancy-regex"] }
 
+# Win32_System_Threading: lower priority of the semantic scan threads (semantic.rs).
 # Miniatures des vidéos (module video.rs) : sous Windows, image fournie par le Shell (IShellItemImageFactory), la même que celle de l'Explorateur, avec les codecs
 # déjà installés : aucun lecteur ni binaire à distribuer. Version déjà présente dans Cargo.lock via Tauri (wry, webview2-com) : pas de seconde copie compilée.
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_Security", "Win32_System_JobObjects", "Win32_UI_Shell"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_System_Com", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_UI_Shell"] }
 
 # Tests (`cargo test`) uniquement : dossiers temporaires nettoyés automatiquement. Crate en Rust pur, jamais compilée dans l'application.
 [dev-dependencies]

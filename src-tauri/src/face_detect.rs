@@ -730,6 +730,7 @@ pub async fn detect_faces(
     let cancel = crate::scan_cancel_flag(&task_id);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<DetectionReport, String> {
+        let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while faces are scanned
         let paths = crate::face_models::installed_paths(&models_dir)?;
         let conn = pool.get().map_err(|error| error.to_string())?;
         let targets: Vec<Target> = select_targets(&conn, photo_ids.as_deref(), folder.as_deref(), recursive)?
