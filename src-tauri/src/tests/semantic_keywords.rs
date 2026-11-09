@@ -276,7 +276,7 @@ fn suggestions_of_a_photo_keep_eligible_leaves_above_the_threshold() {
     conn.execute("INSERT INTO persons (name, name_key, keyword_node_id) VALUES ('Alice', 'alice', ?1)", [alice]).unwrap();
 
     let query = photo(&conn, &cache, "query", model_vector(0.02));
-    let found = photo_suggestions(&cache, &conn, model, query, open).unwrap();
+    let found = photo_suggestions(&cache, &conn, model, query, &[], open).unwrap();
     assert_eq!(suggested(&found), vec![sea]);
     assert_eq!(found.eligible, 3, "sea, mountain and the person's keyword have five analysed photos");
     let suggestion = &found.suggestions[0];
@@ -286,17 +286,42 @@ fn suggestions_of_a_photo_keep_eligible_leaves_above_the_threshold() {
 
     // Dismissed: no longer suggested for this photo, still for another one.
     assert_eq!(reject(&conn, &[query], sea).unwrap(), 1);
-    assert!(photo_suggestions(&cache, &conn, model, query, open).unwrap().suggestions.is_empty());
+    assert!(photo_suggestions(&cache, &conn, model, query, &[], open).unwrap().suggestions.is_empty());
     let other = photo(&conn, &cache, "other", model_vector(0.03));
-    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, other, open).unwrap()), vec![sea]);
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, other, &[], open).unwrap()), vec![sea]);
     // Carried: not suggested either.
     tag(&conn, sea, &[other]);
-    assert!(photo_suggestions(&cache, &conn, model, other, open).unwrap().suggestions.is_empty());
+    assert!(photo_suggestions(&cache, &conn, model, other, &[], open).unwrap().suggestions.is_empty());
 
     // A photo without embedding, or not in the catalogue.
     let pending = add_photo(&conn, "C:/photos/pending.jpg");
-    assert_eq!(photo_suggestions(&cache, &conn, model, pending, open).unwrap_err(), PHOTO_NOT_ANALYSED_ERROR);
-    assert_eq!(photo_suggestions(&cache, &conn, model, 9999, open).unwrap_err(), PHOTO_NOT_ANALYSED_ERROR);
+    assert_eq!(photo_suggestions(&cache, &conn, model, pending, &[], open).unwrap_err(), PHOTO_NOT_ANALYSED_ERROR);
+    assert_eq!(photo_suggestions(&cache, &conn, model, 9999, &[], open).unwrap_err(), PHOTO_NOT_ANALYSED_ERROR);
+}
+
+#[test]
+fn excluded_keywords_and_everything_below_them_are_never_suggested() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let cache = SearchCache::new(IDLE_RELEASE);
+    let model = active_model();
+    // Gear > Lens > 50mm and Gear > Body: two levels below the excluded root; "sea" stays suggestible.
+    let gear = keyword(&conn, 0, "Gear");
+    let lens = keyword(&conn, gear, "Lens");
+    let fifty = tagged_leaf(&conn, &cache, lens, "50mm", 0.0);
+    let body = tagged_leaf(&conn, &cache, gear, "Body", 0.01);
+    let sea = tagged_leaf(&conn, &cache, 0, "sea", 0.02);
+    let query = photo(&conn, &cache, "query", model_vector(0.01));
+    let mut all = suggested(&photo_suggestions(&cache, &conn, model, query, &[], open).unwrap());
+    all.sort_unstable();
+    assert_eq!(all, { let mut expected = vec![fifty, body, sea]; expected.sort_unstable(); expected });
+
+    assert_eq!(keyword_subtrees(&conn, &[gear]).unwrap(), HashSet::from([gear, lens, fifty, body]));
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, &[gear], open).unwrap()), vec![sea]);
+    // An intermediate level excludes only its own branch; an unknown id is ignored.
+    let mut kept = suggested(&photo_suggestions(&cache, &conn, model, query, &[lens, 9999], open).unwrap());
+    kept.sort_unstable();
+    assert_eq!(kept, { let mut expected = vec![body, sea]; expected.sort_unstable(); expected });
 }
 
 #[test]
@@ -308,7 +333,7 @@ fn at_most_five_suggestions_best_first() {
     // Seven leaves, the further from the query the later they are created.
     let leaves: Vec<i64> = (0..7).map(|i| tagged_leaf(&conn, &cache, 0, &format!("leaf{i}"), 0.05 * i as f32)).collect();
     let query = photo(&conn, &cache, "query", model_vector(0.0));
-    let found = photo_suggestions(&cache, &conn, model, query, open).unwrap();
+    let found = photo_suggestions(&cache, &conn, model, query, &[], open).unwrap();
     assert_eq!(suggested(&found), leaves[..5].to_vec());
     assert!(found.suggestions.windows(2).all(|pair| pair[0].score >= pair[1].score));
 }
@@ -342,10 +367,10 @@ fn a_model_built_during_a_keyword_write_is_not_kept_after_its_commit() {
     // A file read stores a fifth link in its transaction; a request builds the model before the commit (it reads the old links).
     writer.execute_batch("BEGIN").unwrap();
     crate::keywords::store_photo_keywords_in(&writer, &fifth_link).unwrap();
-    assert!(photo_suggestions(&cache, &conn, model, query, open).unwrap().suggestions.is_empty());
+    assert!(photo_suggestions(&cache, &conn, model, query, &[], open).unwrap().suggestions.is_empty());
     writer.execute_batch("COMMIT").unwrap();
     on_keywords_changed(); // what the callers of store_photo_keywords_in do after their commit
-    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, open).unwrap()), vec![sea], "the model of the old links was kept");
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, &[], open).unwrap()), vec![sea], "the model of the old links was kept");
 }
 
 #[test]
@@ -358,32 +383,32 @@ fn suggestions_follow_the_keywords_and_the_analysis() {
     let photos: Vec<i64> = (0..4).map(|i| photo(&conn, &cache, &format!("sea{i}"), model_vector(0.0))).collect();
     tag(&conn, sea, &photos);
     let query = photo(&conn, &cache, "query", model_vector(0.01));
-    assert!(photo_suggestions(&cache, &conn, model, query, open).unwrap().suggestions.is_empty());
+    assert!(photo_suggestions(&cache, &conn, model, query, &[], open).unwrap().suggestions.is_empty());
     assert!(cache.suggestions().is_some(), "kept with the index");
 
     // A fifth photo tagged (a file read or written): the keyword becomes eligible.
     let fifth = photo(&conn, &cache, "sea4", model_vector(0.0));
     crate::keywords::store_photo_keywords(&conn, &[("C:/photos/sea4.jpg".to_string(), vec![vec!["sea".to_string()]])]);
-    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, open).unwrap()), vec![sea]);
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, &[], open).unwrap()), vec![sea]);
 
     // The analysis changes a tagged photo (new embedding far away): the model follows the index.
     for &id in &photos[..2] { analyse(&conn, &cache, id, model_vector(1.5)); }
-    let found = photo_suggestions(&cache, &conn, model, query, open).unwrap();
+    let found = photo_suggestions(&cache, &conn, model, query, &[], open).unwrap();
     assert!(found.suggestions.is_empty(), "mean of 3 close and 2 far photos is under the threshold: {found:?}");
     for &id in &photos[..2] { analyse(&conn, &cache, id, model_vector(0.0)); }
-    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, open).unwrap()), vec![sea]);
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, &[], open).unwrap()), vec![sea]);
 
     // A child created under the keyword: it is no longer a leaf.
     keyword(&conn, sea, "north sea");
     on_keywords_changed(); // create_keyword does this (ensure_node does not)
-    assert!(photo_suggestions(&cache, &conn, model, query, open).unwrap().suggestions.is_empty());
+    assert!(photo_suggestions(&cache, &conn, model, query, &[], open).unwrap().suggestions.is_empty());
 
     // Deleted keyword: neither suggested nor kept in the dismissed suggestions.
     let lake = tagged_leaf(&conn, &cache, 0, "lake", 0.0);
     reject(&conn, &[fifth], lake).unwrap();
-    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, open).unwrap()), vec![lake]);
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, &[], open).unwrap()), vec![lake]);
     crate::keywords::delete_subtree(&pool, lake).unwrap();
-    assert!(photo_suggestions(&cache, &conn, model, query, open).unwrap().suggestions.is_empty());
+    assert!(photo_suggestions(&cache, &conn, model, query, &[], open).unwrap().suggestions.is_empty());
     let left: i64 = conn.query_row("SELECT COUNT(*) FROM keyword_suggestion_rejections WHERE keyword_id = ?1", [lake], |row| row.get(0)).unwrap();
     assert_eq!(left, 0);
 
@@ -391,9 +416,9 @@ fn suggestions_follow_the_keywords_and_the_analysis() {
     crate::semantic::delete_data(&conn).unwrap();
     cache.invalidate();
     assert!(cache.suggestions().is_none());
-    assert_eq!(photo_suggestions(&cache, &conn, model, query, open).unwrap_err(), PHOTO_NOT_ANALYSED_ERROR);
+    assert_eq!(photo_suggestions(&cache, &conn, model, query, &[], open).unwrap_err(), PHOTO_NOT_ANALYSED_ERROR);
     analyse(&conn, &cache, query, model_vector(0.0));
-    photo_suggestions(&cache, &conn, model, query, open).unwrap();
+    photo_suggestions(&cache, &conn, model, query, &[], open).unwrap();
     cache.release();
     assert!(cache.suggestions().is_none() && !cache.is_loaded());
 }
@@ -404,7 +429,7 @@ fn suggestions_refuse_while_the_feature_is_disabled() {
     let conn = pool.get().unwrap();
     let cache = SearchCache::new(IDLE_RELEASE);
     let id = add_photo(&conn, "C:/photos/a.jpg");
-    assert_eq!(photo_suggestions(&cache, &conn, active_model(), id, ensure_enabled).unwrap_err(), "semantic_disabled");
+    assert_eq!(photo_suggestions(&cache, &conn, active_model(), id, &[], ensure_enabled).unwrap_err(), "semantic_disabled");
     assert!(!cache.is_loaded() && cache.suggestions().is_none());
     assert_eq!(ensure_enabled().unwrap_err(), "semantic_disabled", "every command checks this first");
 }
@@ -473,17 +498,17 @@ fn speed_of_the_suggestions_on_100000_photos() {
 
     let cache = SearchCache::new(IDLE_RELEASE);
     let started = Instant::now();
-    let found = photo_suggestions(&cache, &conn, model, 42, open).unwrap();
+    let found = photo_suggestions(&cache, &conn, model, 42, &[], open).unwrap();
     println!("first suggestions (index built, then the suggestion model): {:?}, {} eligible keywords", started.elapsed(), found.eligible);
     // Model alone, rebuilt on the loaded index.
     on_keywords_changed();
     let started = Instant::now();
-    photo_suggestions(&cache, &conn, model, 43, open).unwrap();
+    photo_suggestions(&cache, &conn, model, 43, &[], open).unwrap();
     println!("suggestions after a keyword change (model rebuilt): {:?}", started.elapsed());
     let mut best = Duration::MAX;
     for id in 100..120 {
         let started = Instant::now();
-        photo_suggestions(&cache, &conn, model, id, open).unwrap();
+        photo_suggestions(&cache, &conn, model, id, &[], open).unwrap();
         best = best.min(started.elapsed());
     }
     println!("next suggestions: {best:?} (best of 20)");
@@ -724,15 +749,15 @@ fn measure_keyword_scores_on_a_catalogue_copy() {
             .map(Result::unwrap)
             .collect();
         let started = Instant::now();
-        let first = photo_suggestions(&cache, &conn, model, photo_ids[0], open).unwrap();
+        let first = photo_suggestions(&cache, &conn, model, photo_ids[0], &[], open).unwrap();
         println!("application: first photo suggestions {:?} (index and suggestion model built), {} eligible leaves", started.elapsed(), first.eligible);
         on_keywords_changed();
         let started = Instant::now();
-        photo_suggestions(&cache, &conn, model, photo_ids[1], open).unwrap();
+        photo_suggestions(&cache, &conn, model, photo_ids[1], &[], open).unwrap();
         println!("application: suggestions after a keyword change (model rebuilt) {:?}", started.elapsed());
         let started = Instant::now();
         let mut shown = 0usize;
-        for &id in photo_ids.iter().take(200) { shown += photo_suggestions(&cache, &conn, model, id, open).unwrap().suggestions.len(); }
+        for &id in photo_ids.iter().take(200) { shown += photo_suggestions(&cache, &conn, model, id, &[], open).unwrap().suggestions.len(); }
         println!(
             "application: next suggestions {:.2} ms per photo, {:.2} suggestions per photo (tagged keywords excluded)",
             started.elapsed().as_secs_f64() * 1000.0 / 200f64.min(photo_ids.len() as f64),

@@ -9,6 +9,7 @@ import { t, tp, onLanguageChange } from './i18n.js';
 import { readBool, readChoice } from './settings-defaults.js';
 import { confirmDialog } from './photo-actions.js';
 import { choiceDialog } from './metadata-writes.js';
+import { initExcludedKeywordsSetting } from './semantic-exclusions.js';
 
 const ENABLED_STORAGE_KEY = 'semanticSearch';
 
@@ -416,6 +417,7 @@ export async function initSemanticSettings(hostApi) {
   byId('btn-semantic-scan-all').addEventListener('click', () => analyseContent());
   byId('btn-semantic-delete-data').addEventListener('click', deleteAnalysisData);
   byId('btn-semantic-delete-model').addEventListener('click', deleteModelFiles);
+  initExcludedKeywordsSetting(document.querySelector('.settings-tab-btn[data-tab="semantic"]'));
   document.querySelector('.settings-tab-btn[data-tab="semantic"]').addEventListener('click', () => {
     if (!enabled) return;
     refreshModelStatus().then(renderSection);

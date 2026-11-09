@@ -65,3 +65,8 @@ body.no-semantic .semantic-only { display: none !important; }
 .keyword-photo-suggestion button, .keyword-photo-suggestions > button { flex: 0 0 auto; padding: 0.15rem 0.5rem; font-size: 0.72rem; }
 .keyword-photo-suggestions-note { margin: 0.3rem 0 0; font-size: 0.72rem; color: var(--text-muted); }
 .keyword-photo-suggestions-note[hidden], .keyword-photo-suggestions > button[hidden] { display: none; }
+
+/* Settings > Content search: keywords never suggested (semantic-exclusions.js). Field with its list opened below, chips under it. */
+.semantic-excluded-note { margin-left: 0; }
+.semantic-excluded-field { max-width: 26rem; }
+.semantic-excluded-chips { max-width: 26rem; margin-bottom: 0.75rem; }

@@ -285,10 +285,34 @@ pub struct PhotoSuggestions {
     pub eligible: usize,
 }
 
+/// `roots` and every keyword below them, at any depth (keywords not in the tree are ignored).
+pub fn keyword_subtrees(conn: &Connection, roots: &[i64]) -> Result<HashSet<i64>, String> {
+    if roots.is_empty() { return Ok(HashSet::new()); }
+    let roots_json = serde_json::to_string(roots).map_err(|error| error.to_string())?;
+    Ok(ids(
+        conn,
+        "WITH RECURSIVE subtree(id) AS (
+             SELECT id FROM keyword_nodes WHERE id IN (SELECT value FROM json_each(?1))
+             UNION SELECT k.id FROM keyword_nodes k JOIN subtree s ON k.parent_id = s.id
+         ) SELECT id FROM subtree",
+        params![roots_json],
+    )?
+    .into_iter()
+    .collect())
+}
+
 /// Keywords that `photo_id` may deserve (§8.2-2): leaves of the tree with at least `MIN_EXAMPLES` analysed photos, never one the photo
-/// carries, one dismissed for it, or the keyword of a person (no identity in this model: that is the faces feature). Errors:
+/// carries, one dismissed for it, the keyword of a person (no identity in this model: that is the faces feature), or one of the
+/// `excluded_roots` subtrees (Settings > Content search: camera gear and other keywords the content cannot tell). Errors:
 /// `semantic_photo_not_analysed`, or a message.
-pub fn photo_suggestions(cache: &SearchCache, conn: &Connection, model: &ModelSpec, photo_id: i64, gate: fn() -> Result<(), String>) -> Result<PhotoSuggestions, String> {
+pub fn photo_suggestions(
+    cache: &SearchCache,
+    conn: &Connection,
+    model: &ModelSpec,
+    photo_id: i64,
+    excluded_roots: &[i64],
+    gate: fn() -> Result<(), String>,
+) -> Result<PhotoSuggestions, String> {
     let in_catalogue: bool = conn
         .query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE id = ?1)", params![photo_id], |row| row.get(0))
         .map_err(|error| error.to_string())?;
@@ -296,6 +320,7 @@ pub fn photo_suggestions(cache: &SearchCache, conn: &Connection, model: &ModelSp
     let mut excluded: HashSet<i64> = ids(conn, "SELECT keyword_id FROM photo_keywords WHERE photo_id = ?1", params![photo_id])?.into_iter().collect();
     excluded.extend(ids(conn, "SELECT keyword_id FROM keyword_suggestion_rejections WHERE photo_id = ?1", params![photo_id])?);
     excluded.extend(ids(conn, "SELECT keyword_node_id FROM persons WHERE keyword_node_id IS NOT NULL", [])?);
+    excluded.extend(keyword_subtrees(conn, excluded_roots)?);
 
     let load = || {
         gate()?;
@@ -328,17 +353,22 @@ pub fn photo_suggestions(cache: &SearchCache, conn: &Connection, model: &ModelSp
 }
 
 /// "Suggestions" block of the right panel (§8.2-2), for one selected photo: at most 5 keywords. The first request (and the first after a
-/// change of the keywords or of the analysis) reads the keyword links; the next ones only score (§23.4). Errors: `semantic_disabled`,
-/// `semantic_photo_not_analysed`, or a message.
+/// change of the keywords or of the analysis) reads the keyword links; the next ones only score (§23.4). `excludedKeywordIds`: keywords
+/// never suggested, with everything below them (Settings > Content search). Errors: `semantic_disabled`, `semantic_photo_not_analysed`,
+/// or a message.
 #[tauri::command]
-pub async fn semantic_photo_suggestions(state: State<'_, AppState>, photo_id: i64) -> Result<PhotoSuggestions, String> {
+pub async fn semantic_photo_suggestions(
+    state: State<'_, AppState>,
+    photo_id: i64,
+    excluded_keyword_ids: Option<Vec<i64>>,
+) -> Result<PhotoSuggestions, String> {
     ensure_enabled()?;
     let pool = state.pool();
     let cache = cache();
     cache.touch();
     let outcome = tokio::task::spawn_blocking(move || {
         let conn = pool.get().map_err(|error| error.to_string())?;
-        photo_suggestions(cache, &conn, active_model(), photo_id, ensure_enabled)
+        photo_suggestions(cache, &conn, active_model(), photo_id, &excluded_keyword_ids.unwrap_or_default(), ensure_enabled)
     })
     .await
     .map_err(|error| error.to_string())?;

@@ -863,6 +863,14 @@
                 <label class="settings-row settings-check"><input id="semantic-in-keyword-search" type="checkbox" /><span data-i18n="Include suggestions in keyword filtering">Inclure des suggestions dans le filtrage par mots-clés</span></label>
                 <label class="settings-row settings-check"><input id="semantic-keywords-in-search" type="checkbox" /><span data-i18n="Include keywords in content search">Inclure les mots-clés dans la recherche sémantique</span></label>
                 <label class="settings-row settings-check"><input id="semantic-show-score" type="checkbox" /><span data-i18n="Show the score on results">Afficher le score sur les résultats</span></label>
+                <!-- Keywords never suggested (semantic-exclusions.js): a field with the keyword list, the chosen keywords as chips below -->
+                <label class="settings-row" for="semantic-excluded-keyword-input"><span data-i18n="Keywords never suggested">Mots-clés jamais suggérés</span></label>
+                <p class="sort-note semantic-excluded-note" data-i18n="Keywords never suggested hint">Ces mots-clés et tous ceux placés en dessous ne sont jamais suggérés : matériel de prise de vue, objectifs et autres informations que le contenu d'une photo ne montre pas.</p>
+                <div class="keyword-input-wrap semantic-excluded-field">
+                  <input id="semantic-excluded-keyword-input" class="keyword-input" type="text" autocomplete="off" spellcheck="false" placeholder="Ajouter un mot-clé…" data-i18n-placeholder="Add a keyword…" />
+                  <ul id="semantic-excluded-keyword-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                </div>
+                <div id="semantic-excluded-keywords" class="filter-tags semantic-excluded-chips"></div>
                 <h4 data-i18n="Storage">Stockage</h4>
                 <p id="semantic-storage-status" class="sort-note"></p>
                 <div class="settings-storage-actions">

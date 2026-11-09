@@ -10,6 +10,7 @@ import { t, tp, onLanguageChange } from './i18n.js';
 import { readBool } from './settings-defaults.js';
 import { isSemanticEnabled, onSemanticChange, semanticErrorMessage } from './semantic-settings.js';
 import { rejectKeywordSuggestion } from './semantic-tagging.js';
+import { excludedKeywordIds, excludedSubtreeIds, onExcludedKeywordsChange } from './semantic-exclusions.js';
 
 let host = null; // provided by main.js (see initKeywordSuggestions)
 let current = null; // { signature, byKeyword: Map(keyword -> Map(photoId -> info)), extra: Map(photoId -> photo), status }
@@ -127,9 +128,10 @@ async function run(state, keywords, scope, request) {
   try {
     let tree = [];
     try { tree = await invoke('get_keyword_tree'); } catch (error) { firstError = String(error); }
+    const neverSuggested = excludedSubtreeIds(tree); // Settings > Content search: these keywords get no suggested photos
     for (const keyword of keywords) {
       const found = new Map();
-      for (const keywordId of nodeIdsOf(tree, keyword)) {
+      for (const keywordId of nodeIdsOf(tree, keyword).filter(id => !neverSuggested.has(id))) {
         try {
           const answer = await invoke('semantic_keyword_candidates', { keywordId, scope });
           if (stale()) return;
@@ -170,7 +172,7 @@ export function syncKeywordSuggestions(keywords, viewKey, getScope) {
     if (current) reset();
     return;
   }
-  const signature = JSON.stringify([[...keywords].sort(), viewKey]);
+  const signature = JSON.stringify([[...keywords].sort(), viewKey, excludedKeywordIds()]);
   if (current?.signature === signature) return;
   const request = ++requestCounter;
   current = { signature, byKeyword: new Map(), extra: new Map(), status: { loading: true, error: null, count: 0 } };
@@ -191,6 +193,7 @@ export function initKeywordSuggestions(hostApi) {
   host = hostApi;
   const dropIfOff = () => { if (current && !keywordSuggestionsOn()) { reset(); host.onChange(); } };
   onSemanticChange(dropIfOff); // feature disabled or model deleted: the suggestions leave the grid at once
+  onExcludedKeywordsChange(() => { if (current) host.onChange(); }); // a new signature: the suggestions are searched again
   document.getElementById('semantic-in-keyword-search')?.addEventListener('change', () => (keywordSuggestionsOn() ? host.onChange() : dropIfOff()));
   onLanguageChange(renderStatus);
 }

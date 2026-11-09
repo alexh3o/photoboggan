@@ -8,6 +8,7 @@ import { t } from './i18n.js';
 import { readBool } from './settings-defaults.js';
 import { isSemanticEnabled, onSemanticChange, semanticErrorMessage, analyseContent } from './semantic-settings.js';
 import { setBusy } from './semantic.js';
+import { excludedKeywordIds, onExcludedKeywordsChange } from './semantic-exclusions.js';
 
 let candidatesCounter = 0; // the backend cancels nothing: an answer older than the latest request is ignored
 
@@ -109,7 +110,7 @@ async function loadPhotoSuggestions(photoId) {
   if (block && !block.hidden) block.classList.add('loading'); // buttons off until the answer: they belong to the previous photo
   let state;
   try {
-    const answer = await invoke('semantic_photo_suggestions', { photoId });
+    const answer = await invoke('semantic_photo_suggestions', { photoId, excludedKeywordIds: excludedKeywordIds() });
     if (request !== suggestionCounter) return;
     await host.ensureTree(); // names of the keywords (the tree may not be loaded yet)
     if (request !== suggestionCounter) return;
@@ -155,4 +156,5 @@ export function initPhotoSuggestions(hostApi) {
     if (shown?.status === 'not-analysed') analyseContent({ photoIds: [shown.photoId] });
   });
   onSemanticChange(() => { if (!isSemanticEnabled()) hideBlock(); }); // disabled or model deleted: the block goes at once
+  onExcludedKeywordsChange(() => { if (shown) syncPhotoSuggestions({ force: true }); }); // Settings > Content search: keywords never suggested
 }

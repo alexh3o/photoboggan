@@ -142,6 +142,8 @@
   "semanticScope": "view",
   // Order of the photos tagged with the keyword typed in the toolbar search box: "grid" (the sort options) | "score" (content score, best first).
   "semanticKeywordSort": "grid",
+  // Keywords never suggested by the content search, nor any keyword below them: ids of keyword_nodes, e.g. [12, 40] (set in Settings > Content search).
+  "semanticExcludedKeywords": [],
   // "Suggestions" block of the Keywords tab (keywords suggested for the selected photo): unfolded (true) | folded (false).
   "keywordSuggestionsOpen": true,
 
