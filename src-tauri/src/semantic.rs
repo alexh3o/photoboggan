@@ -391,6 +391,14 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             PRIMARY KEY (photo_id, keyword_id)
         );",
     )?;
+    // Phase 3c (§6.4): image key of the file version a row was computed from, so a file whose metadata alone changed is refreshed instead
+    // of analysed again. `data_hash`: image-data hash of duplicates.rs (16 bytes), `hash_version`: its `LAYOUT_VERSION`, `orientation`: EXIF
+    // orientation (1–8) when it is outside the hashed bytes (JPEG, PNG, WebP), 1 otherwise. NULL in rows written before Phase 3c.
+    for table in ["photo_embeddings", "photo_embedding_failures"] {
+        crate::db::add_column(conn, table, "data_hash BLOB");
+        crate::db::add_column(conn, table, "hash_version INTEGER");
+        crate::db::add_column(conn, table, "orientation INTEGER");
+    }
     remove_orphans(conn)
 }
 

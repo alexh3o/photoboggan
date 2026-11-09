@@ -26,8 +26,9 @@ use sha2::{Digest, Sha256};
 
 use crate::db::DbPool;
 
-/// Version of the rules that choose the hashed bytes: bump it when they change, so old cached values are ignored.
-const LAYOUT_VERSION: i64 = 1;
+/// Version of the rules that choose the hashed bytes: bump it when they change, so old cached values are ignored. The semantic scan stores it
+/// next to its own copy of the hash (`hash_version`), so a bump also makes it analyse those photos again.
+pub(crate) const LAYOUT_VERSION: i64 = 1;
 /// Bytes hashed at each end of the image data in the partial stage.
 const PARTIAL_BYTES: u64 = 64 * 1024;
 const READ_CHUNK: usize = 256 * 1024;
@@ -35,7 +36,7 @@ const READ_CHUNK: usize = 256 * 1024;
 const VIDEO_EXTENSIONS: [&str; 4] = ["mp4", "mov", "avi", "mkv"];
 
 /// 128 bits of a SHA-256 digest: plenty to tell files apart once length and partial hash already agree.
-type Hash = [u8; 16];
+pub(crate) type Hash = [u8; 16];
 const NO_HASH: Hash = [0; 16];
 /// Byte ranges (offset, length) of a file, in file order.
 type Ranges = Vec<(u64, u64)>;
@@ -348,6 +349,94 @@ fn partial_hash(file: &mut File, ranges: &[(u64, u64)], cancel: &AtomicBool) -> 
 }
 
 // ---------------------------------------------------------------------------
+// Image-data hash of one file (shared with the semantic scan, semantic.rs)
+// ---------------------------------------------------------------------------
+
+/// Image-data hash (mode 1: metadata left out where the format allows it) of one file, and the file version it was computed from, in the
+/// units of `photo_hashes` (size in bytes, modification date in ms since 1970).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DataHash {
+    pub size: u64,
+    pub modified: i64,
+    pub data_len: u64,
+    /// The metadata could be left out (parsed JPEG, PNG or WebP). False: the whole file was hashed.
+    pub tolerant: bool,
+    pub hash: Hash,
+}
+
+/// Videos are never hashed (whole files of several GB, and the duplicate search does not compare them).
+pub(crate) fn is_video(path: &Path) -> bool {
+    VIDEO_EXTENSIONS.contains(&extension_of(path).as_str())
+}
+
+/// Size and modification date (ms) of a file, the key of a cached hash.
+fn file_version(metadata: &fs::Metadata) -> Option<(u64, i64)> {
+    let modified = metadata.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_millis() as i64;
+    Some((metadata.len(), modified))
+}
+
+/// Size and modification date of a file as `photo_hashes` keys them (compare with a cached `DataHash` before reading the file).
+pub(crate) fn current_version(path: &Path) -> std::io::Result<(u64, i64)> {
+    file_version(&fs::metadata(path)?).ok_or_else(|| std::io::Error::other("no modification date"))
+}
+
+/// Reads one file and computes its image-data hash: layout (headers only), then every image byte. Fails when the file changed while it was
+/// read (its version is checked again at the end), so a hash never mixes two versions of a file.
+pub(crate) fn image_data_hash(path: &Path, cancel: &AtomicBool) -> std::io::Result<DataHash> {
+    let (size, modified) = current_version(path)?;
+    if size == 0 {
+        return Err(std::io::Error::other("empty file"));
+    }
+    let layout = layout_of(path, size, true)?;
+    let hash = full_hash(&mut File::open(path)?, &layout.ranges, cancel)?;
+    if current_version(path)? != (size, modified) {
+        return Err(std::io::Error::other("file changed while it was read"));
+    }
+    Ok(DataHash { size, modified, data_len: layout.len(), tolerant: layout.tolerant, hash })
+}
+
+/// Full image-data hashes already in `photo_hashes` (mode 1, current layout version) for these photos. The caller compares their version
+/// with the file before trusting one.
+pub(crate) fn cached_data_hashes(conn: &Connection, photo_ids: &[i64]) -> Result<HashMap<i64, DataHash>, String> {
+    let ids = serde_json::to_string(photo_ids).map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT photo_id, size, modified, data_len, tolerant, full_hash FROM photo_hashes
+             WHERE mode = 1 AND version = ?1 AND full_hash IS NOT NULL AND photo_id IN (SELECT value FROM json_each(?2))",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![LAYOUT_VERSION, ids], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, i64>(4)?, row.get::<_, Option<Vec<u8>>>(5)?))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut hashes = HashMap::new();
+    for row in rows {
+        let (id, size, modified, data_len, tolerant, full) = row.map_err(|e| e.to_string())?;
+        if let Some(hash) = to_hash(full) {
+            hashes.insert(id, DataHash { size: size as u64, modified, data_len: data_len as u64, tolerant: tolerant != 0, hash });
+        }
+    }
+    Ok(hashes)
+}
+
+/// Stores a hash computed outside a duplicate search, so that search does not read the file again. The partial hash of the row is kept when
+/// it belongs to the same file version, cleared otherwise (it is computed again only if a search needs it).
+pub(crate) fn remember_data_hash(conn: &Connection, photo_id: i64, data: &DataHash) -> rusqlite::Result<()> {
+    conn.prepare_cached(
+        "INSERT INTO photo_hashes (photo_id, mode, version, size, modified, data_len, tolerant, partial_hash, full_hash)
+         VALUES (?1, 1, ?2, ?3, ?4, ?5, ?6, NULL, ?7)
+         ON CONFLICT (photo_id, mode) DO UPDATE SET
+             partial_hash = CASE WHEN version = excluded.version AND size = excluded.size AND modified = excluded.modified
+                                  AND data_len = excluded.data_len THEN partial_hash END,
+             version = excluded.version, size = excluded.size, modified = excluded.modified, data_len = excluded.data_len,
+             tolerant = excluded.tolerant, full_hash = excluded.full_hash",
+    )?
+    .execute(params![photo_id, LAYOUT_VERSION, data.size as i64, data.modified, data.data_len as i64, data.tolerant as i64, data.hash.as_slice()])?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Candidates and cache
 // ---------------------------------------------------------------------------
 
@@ -593,12 +682,10 @@ pub fn run(pool: &DbPool, request: &Request, cancel: &AtomicBool, progress: &(dy
                 }
                 let (id, path, in_scope) = (&candidate.id, &candidate.path, &candidate.in_scope);
                 let entry = (|| {
-                    let metadata = fs::metadata(path).ok()?;
-                    let size = metadata.len();
+                    let (size, modified) = file_version(&fs::metadata(path).ok()?)?;
                     if size == 0 {
                         return None;
                     }
-                    let modified = metadata.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_millis() as i64;
                     if let Some(cached) = cache.get(id).filter(|cached| cached.size == size && cached.modified == modified) {
                         return Some(Entry {
                             id: *id, path: path.clone(), in_scope: *in_scope, size, modified, data_len: cached.data_len, tolerant: cached.tolerant,
