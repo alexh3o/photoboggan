@@ -10,7 +10,8 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
-import { initSemanticSettings, onSemanticOfflineChanged, isSemanticEnabled, analyseContent } from './semantic-settings.js';
+import { initSemanticSettings, onSemanticOfflineChanged, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
+import { initSemanticSearch, searchText } from './semantic.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -2185,6 +2186,17 @@ async function restoreViewSnapshot(snapshot) {
 // « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossier du
 // fichier dans l'arbre, sans aucun filtre, avec le fichier sélectionné et visible dans la grille.
 // Also used from "All photos" (context menu, one photo): there the current filters are kept, since the photo passes them and the user did not leave a search.
+// What the content search calls "the view" (semantic.js): a folder (with its subfolders when the view includes them), otherwise the photos of the
+// collection on screen (album, several folders, a results mode), otherwise the whole library. Filters are not part of the scope.
+function currentViewScope() {
+  const album = getSelectedAlbum();
+  if (!album && !rawSearch && !duplicateSearch && extraFolderFilters.length === 0) {
+    if (currentFolderFilter !== null) return { folder: currentFolderFilter, recursive: includeSubfolders, photoIds: null };
+    return { folder: null, recursive: false, photoIds: null }; // "All photos"
+  }
+  return { folder: null, recursive: false, photoIds: loadedPhotos.map(photo => photo.id) };
+}
+
 function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch; }
 async function showPhotoInItsFolder(photo) {
   const fromResults = rawSearch !== null || duplicateSearch !== null;
@@ -7297,6 +7309,17 @@ initSemanticSettings({
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
   stopTasks: () => stopSemanticTasks(), // disabling the feature: the analyses of the queue are stopped
+});
+
+// Content search field of the toolbar (see semantic.js).
+initSemanticSearch({
+  getViewScope: () => currentViewScope(),
+  showToast: message => showWriteToast(message),
+  errorMessage: semanticErrorMessage,
+  onSearch: async query => {
+    const answer = await searchText(query);
+    if (answer) console.debug('Content search', answer.results.length, 'results'); // results mode: next commit
+  },
 });
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.

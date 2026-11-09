@@ -1541,5 +1541,13 @@
   "This folder only": "This folder only",
   "With its subfolders": "With its subfolders",
   "Analyse RAW files (embedded preview)": "Analyse RAW files (embedded preview)",
-  "Downloading the content search model ({size})…": "Downloading the content search model ({size})…"
+  "Downloading the content search model ({size})…": "Downloading the content search model ({size})…",
+  "Search by content…": "Search by content…",
+  "Search by content": "Search by content",
+  "Describe what you are looking for, then press Enter (e.g. beach at sunset)": "Describe what you are looking for, then press Enter (e.g. beach at sunset)",
+  "Searching…": "Searching…",
+  "Scope: view": "View",
+  "Scope: library": "Library",
+  "Searching the whole library. Click to search only the current folder or collection.": "Searching the whole library. Click to search only the current folder or collection.",
+  "Searching the current folder or collection. Click to search the whole library.": "Searching the current folder or collection. Click to search the whole library."
 }

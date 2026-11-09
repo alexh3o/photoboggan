@@ -1541,5 +1541,13 @@
   "This folder only": "Ce dossier seulement",
   "With its subfolders": "Avec ses sous-dossiers",
   "Analyse RAW files (embedded preview)": "Analyser les RAW (aperçu intégré)",
-  "Downloading the content search model ({size})…": "Téléchargement du modèle de recherche par contenu ({size})…"
+  "Downloading the content search model ({size})…": "Téléchargement du modèle de recherche par contenu ({size})…",
+  "Search by content…": "Rechercher par contenu…",
+  "Search by content": "Rechercher par contenu",
+  "Describe what you are looking for, then press Enter (e.g. beach at sunset)": "Décrivez ce que vous cherchez, puis Entrée (ex. : plage au coucher du soleil)",
+  "Searching…": "Recherche en cours…",
+  "Scope: view": "Vue",
+  "Scope: library": "Photothèque",
+  "Searching the whole library. Click to search only the current folder or collection.": "Recherche dans toute la photothèque. Cliquer pour chercher seulement dans le dossier ou la collection affichés.",
+  "Searching the current folder or collection. Click to search the whole library.": "Recherche dans le dossier ou la collection affichés. Cliquer pour chercher dans toute la photothèque."
 }
