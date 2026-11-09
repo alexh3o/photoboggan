@@ -6,7 +6,8 @@
 //!   tagged photos on a real catalogue (§23.2): better in both directions, because a keyword whose photos form several groups (a place
 //!   by day and by night, an event indoors and outdoors) is not averaged into one blurred point.
 //! - Text score (fewer examples, keyword → photos only): cosine with the embedding of the keyword name, normalised as a text query. It is
-//!   not used for the suggestions of a photo: over a whole vocabulary of user keywords (mostly proper names) its precision is below 1 %.
+//!   not used for the suggestions of a photo: every keyword name would have to be encoded (minutes for a few thousand names, so a
+//!   background task and a stored table), for a weak score (§23.2); a keyword is suggested for a photo once it has 5 analysed photos.
 //! - Thresholds: one per direction and kind, measured in §23.2 (constants below). Keyword → photos with examples uses the spread of the
 //!   keyword's own photos, so a keyword with few examples (lower scores) is not emptied by a fixed threshold.
 //! - Memory and storage (§23.3): nothing is stored in the database besides the dismissed suggestions. Keyword → photos reads its examples
