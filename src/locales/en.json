@@ -1560,5 +1560,13 @@
   "the library": "the library",
   "{count} photo of {where} is not analysed yet, or changed since its analysis": "{count} photo of {where} is not analysed yet, or changed since its analysis",
   "{count} photo of {where} is not analysed yet, or changed since its analysis|other": "{count} photos of {where} are not analysed yet, or changed since their analysis",
-  "No photo matches this search": "No photo matches this search"
+  "No photo matches this search": "No photo matches this search",
+  "Source photo of the search": "Source photo of the search",
+  "Photo not analysed": "Photo not analysed",
+  "This photo has not been analysed yet, so similar content cannot be found. Analyse it now? It only takes a moment; search again once the analysis is done.": "This photo has not been analysed yet, so similar content cannot be found. Analyse it now? It only takes a moment; search again once the analysis is done.",
+  "Content similar to {name}": "Content similar to {name}",
+  "Find similar content": "Find similar content",
+  "Search the photos that look like this one: same subject or scene": "Search the photos that look like this one: same subject or scene",
+  "Type a word or a sentence to search": "Type a word or a sentence to search",
+  "This photo has not been analysed yet (right-click > Analyse content)": "This photo has not been analysed yet (right-click > Analyse content)"
 }

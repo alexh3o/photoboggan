@@ -1731,8 +1731,11 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
-  // Content search: analyse the selection (entry absent while the feature is off or its model is not installed).
+  // Content search (entries absent while the feature is off or its model is not installed): similar content of one photo, analyse the selection.
   if (api.semanticEnabled?.()) {
+    if (targets.length === 1) {
+      menuItems.push(menuButton(t('Find similar content'), () => api.findSimilarContent(photo), { title: t('Search the photos that look like this one: same subject or scene') }));
+    }
     menuItems.push(menuButton(t('Analyse content'), () => api.analyseContent({ photoIds: targets.map(target => target.id) }), { title: t('Compute the content analysis of these photos (low priority, in the background)') }));
   }
   // Géolocalisation (geo-tools.js) : restaurer les coordonnées sauvegardées, effacer celles des photos géolocalisées (danger).

@@ -2531,7 +2531,21 @@ function renderVisibleItems() {
       if (div._dupMeta.textContent !== text) div._dupMeta.textContent = text;
       div._dupMeta.hidden = !text;
     }
-    const hoverTitle = duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
+    // Content search results: the score of the text query on the thumbnail (setting "Show the score on results"; image queries have none), and a mark
+    // on the source photo of a similar-content search. Created only in this mode.
+    const score = semanticSearch && readBool('semanticShowScore') ? semanticSearch.prob.get(photo.id) : null;
+    if (score != null && !div._semanticScore) {
+      div._semanticScore = Object.assign(document.createElement('span'), { className: 'semantic-score' });
+      div.querySelector('.thumbnail-inner').append(div._semanticScore);
+    }
+    if (div._semanticScore) {
+      const text = score == null ? '' : score > 0 && score < 0.01 ? '<1 %' : `${Math.round(score * 100)} %`;
+      if (div._semanticScore.textContent !== text) div._semanticScore.textContent = text;
+      div._semanticScore.hidden = !text;
+    }
+    const isSemanticSource = semanticSearch !== null && photo.id === semanticSearch.sourceId;
+    if (div._semanticSource !== isSemanticSource) { div.classList.toggle('semantic-source', isSemanticSource); div._semanticSource = isSemanticSource; }
+    const hoverTitle = isSemanticSource ? `${photo.path}\n${t('Source photo of the search')}` : duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
     if (div._hoverTitle !== hoverTitle) { div.title = hoverTitle; div._hoverTitle = hoverTitle; }
     const located = hasGps(photo);
     if (div._located !== located) { div.classList.toggle('has-gps', located); div._located = located; }
@@ -7096,6 +7110,7 @@ initPhotoActions({
   // Entrées « Analyser le contenu » (voir semantic-settings.js) : seulement quand la recherche par contenu est active et son modèle installé.
   semanticEnabled: isSemanticEnabled,
   analyseContent: scope => analyseContent(scope),
+  findSimilarContent: photo => findSimilarContent(photo),
   // Géolocalisation : effacer (danger) ou restaurer les coordonnées sauvegardées (voir geo-tools.js).
   eraseGeolocation: targets => eraseGeolocation(targets),
   restoreGeolocation: targets => restoreGeolocation(targets),
@@ -7438,6 +7453,31 @@ async function showSemanticResults({ label, answer, scope, viewScope, sourcePhot
   renderFolderTree();
   await loadPhotos();
   return true;
+}
+
+// "Find similar content" (menu of one photo). The interface does not know whether the photo has an embedding: the backend says so, and the user is
+// offered to analyse it. The photo itself is not in the results: it is shown first, marked as the source.
+async function findSimilarContent(photo) {
+  if (!photo || !isSemanticEnabled()) return;
+  const viewScope = currentViewScope();
+  const scope = currentSearchScope(viewScope);
+  const { answer, error } = await searchImage(photo.id, scope);
+  if (error === 'semantic_photo_not_analysed') {
+    const analyse = await confirmDialog({
+      title: t('Photo not analysed'),
+      message: t('This photo has not been analysed yet, so similar content cannot be found. Analyse it now? It only takes a moment; search again once the analysis is done.'),
+      confirmLabel: t('Analyse'),
+      cancelLabel: t('Cancel'),
+    });
+    if (analyse) analyseContent({ photoIds: [photo.id] });
+    return;
+  }
+  if (error) { showWriteToast(semanticErrorMessage(error)); return; }
+  if (!answer) return; // a newer search made this answer stale
+  // Image-to-image cosines are not on the scale of text ones (spec §18.3, §14-5): the values the relevance slider has to work with, for tuning.
+  const at = rank => answer.results[rank - 1]?.cos;
+  console.debug('Similar content cosines', { best: answer.best, rank10: at(10), rank50: at(50), rank200: at(200), count: answer.results.length });
+  await showSemanticResults({ label: t('Content similar to {name}', { name: photo.path.split(/[\\/]/).pop() }), answer, scope, viewScope, sourcePhoto: photo });
 }
 
 // Content search field of the toolbar (see semantic.js).
