@@ -409,7 +409,15 @@ fn disabling_or_deleting_releases_the_memory_and_the_scan_updates_the_index() {
     assert!(!cache.is_loaded());
     // A batch stored by a scan reaches the loaded index through the hook of the scan.
     cache.with_index(model, load, |_| ()).unwrap();
-    let target = Target { photo_id: 2, path: "C:/photos/b.jpg".into(), size: 1, mtime: 1, standing: crate::semantic::Standing::Pending };
+    let target = Target {
+        photo_id: 2,
+        path: "C:/photos/b.jpg".into(),
+        size: 1,
+        mtime: 1,
+        standing: crate::semantic::Standing::Pending,
+        stored_key: None,
+        key: None,
+    };
     on_batch_stored(&model.id, &[(&target, Outcome::Embedded(model_vector(0.1)))]);
     let loads = cache.loads.load(Ordering::Relaxed);
     assert_eq!(cache.with_index(model, || unreachable!("reloaded"), |index| index.len()).unwrap(), 2);

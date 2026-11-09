@@ -347,7 +347,13 @@ async function reportAnalysis(report, stopped, error) {
   }
   if (!report || report.cancelled || stopped) return; // the queue announces the stop
   const parts = [tp('{count} photo analysed', report.analysed)];
-  if (report.upToDate > 0) parts.push(t('{count} already up to date', { count: report.upToDate }));
+  // Refreshed photos (only their metadata changed, no new analysis) are counted with the photos already up to date.
+  const upToDate = report.upToDate + (report.refreshed || 0);
+  if (report.refreshed > 0) {
+    parts.push(t('{count} already up to date ({refreshed} with only metadata changes)', { count: upToDate, refreshed: report.refreshed }));
+  } else if (upToDate > 0) {
+    parts.push(t('{count} already up to date', { count: upToDate }));
+  }
   if (report.skipped > 0) parts.push(t('{count} skipped (no thumbnail yet)', { count: report.skipped }));
   if (report.failed.length > 0) {
     parts.push(tp('{count} unreadable photo', report.failed.length));

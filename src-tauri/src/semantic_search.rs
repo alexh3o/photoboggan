@@ -125,6 +125,11 @@ impl Index {
         self.set_halves(photo_id, stamp, vector.iter().map(|&value| f32_to_f16(value)));
     }
 
+    /// The embedding of a photo now stands for another file version with the same pixels (refreshed by the scan, §6.4).
+    pub fn restamp(&mut self, photo_id: i64, stamp: Stamp) {
+        if let Some(&row) = self.rows.get(&photo_id) { self.stamps[row] = stamp; }
+    }
+
     /// The photo has an embedding of this file version (same rule as `Standing::Analysed`).
     pub fn is_up_to_date(&self, photo_id: i64, stamp: Stamp) -> bool {
         self.rows.get(&photo_id).is_some_and(|&row| self.stamps[row] == stamp)
@@ -378,6 +383,8 @@ impl SearchCache {
             match outcome {
                 Outcome::Embedded(vector) => index.upsert(target.photo_id, vector, (target.size, target.mtime)),
                 Outcome::Failed(_) => index.remove(target.photo_id),
+                // Same pixels, new file version: the vector stays, its stamp follows (a refreshed failure has no row here).
+                Outcome::Refreshed => index.restamp(target.photo_id, (target.size, target.mtime)),
                 Outcome::Skipped => {}
             }
         }

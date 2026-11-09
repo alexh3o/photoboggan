@@ -1535,6 +1535,7 @@
   "{count} photo analysed": "{count} photo analysée",
   "{count} photo analysed|other": "{count} photos analysées",
   "{count} already up to date": "{count} déjà à jour",
+  "{count} already up to date ({refreshed} with only metadata changes)": "{count} déjà à jour (dont {refreshed} après une modification des seules métadonnées)",
   "{count} skipped (no thumbnail yet)": "{count} ignorée(s) (pas encore de miniature)",
   "Analyse content": "Analyser le contenu",
   "Compute the content analysis of these photos (low priority, in the background)": "Calcule l'analyse du contenu de ces photos (basse priorité, en arrière-plan)",

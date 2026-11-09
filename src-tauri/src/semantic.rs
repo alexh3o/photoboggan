@@ -10,7 +10,9 @@
 //! - Encoders: `pooler_output` of the ONNX exports, L2-normalised. Sessions are built by onnx_runtime.rs (few threads, no spinning).
 //! - Storage: embeddings are kept as IEEE half floats (little-endian), converted here without any extra crate.
 //! - Scan (§6): explicit only, incremental (file size + modification date + model id), batches of 16 with one transaction each, the vision
-//!   session loaded at the start and dropped at the end, low OS priority, and a pause while any foreground work runs (`PriorityGuard`).
+//!   session loaded by the first batch to infer and dropped at the end, low OS priority, and a pause while any foreground work runs
+//!   (`PriorityGuard`). A changed file whose image key (image-data hash + orientation, §6.4) did not change is only refreshed: its row
+//!   takes the new size and date, without decoding nor inference (metadata written into a JPEG).
 //!   Nothing runs, and nothing is held in memory, while no scan is running.
 
 use ort::environment::Environment;
@@ -427,6 +429,15 @@ pub enum Standing {
     Pending,
 }
 
+/// What identifies the displayed pixels of a file (§6.4): its image-data hash (duplicates.rs, metadata left out) and, for the formats whose
+/// metadata is left out of that hash, the EXIF orientation (it turns the displayed picture, so it changes the embedding). Formats hashed
+/// whole have orientation 1: their orientation is inside the hash.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImageKey {
+    pub hash: crate::duplicates::Hash,
+    pub orientation: u32,
+}
+
 pub struct Target {
     pub photo_id: i64,
     pub path: String,
@@ -434,6 +445,10 @@ pub struct Target {
     pub size: i64,
     pub mtime: i64,
     pub standing: Standing,
+    /// Key stored with the row of the active model (same hash version): set by the scan for the pending photos only.
+    pub stored_key: Option<ImageKey>,
+    /// Key of the file read by this scan, stored with its outcome. None: not computed (video, unreadable file, tests).
+    pub key: Option<ImageKey>,
 }
 
 /// Photos of a scope: a selection (`photo_ids`), a folder (`folder`, subfolders included if `recursive`), or the whole library (neither).
@@ -453,6 +468,8 @@ pub fn select_targets(conn: &Connection, model_id: &str, photo_ids: Option<&[i64
             size: row.get(2)?,
             mtime: row.get(3)?,
             standing: if analysed { Standing::Analysed } else if failed { Standing::Failed } else { Standing::Pending },
+            stored_key: None,
+            key: None,
         })
     };
     let rows = if let Some(ids) = photo_ids {
@@ -478,6 +495,59 @@ pub fn select_targets(conn: &Connection, model_id: &str, photo_ids: Option<&[i64
     Ok(rows)
 }
 
+/// Sets `stored_key` on targets whose row of `model_id` (embedding or failure) carries an image key of the current hash version. Rows
+/// written before Phase 3c, or with another `hash_version`, have none: those photos are analysed again (and then get one).
+pub fn load_stored_keys(conn: &Connection, model_id: &str, targets: &mut [Target]) -> Result<(), String> {
+    let ids: Vec<i64> = targets.iter().map(|target| target.photo_id).collect();
+    let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT photo_id, data_hash, orientation FROM photo_embeddings
+                 WHERE model_id = ?1 AND hash_version = ?2 AND data_hash IS NOT NULL AND orientation IS NOT NULL
+                 AND photo_id IN (SELECT value FROM json_each(?3))
+             UNION ALL
+             SELECT photo_id, data_hash, orientation FROM photo_embedding_failures
+                 WHERE model_id = ?1 AND hash_version = ?2 AND data_hash IS NOT NULL AND orientation IS NOT NULL
+                 AND photo_id IN (SELECT value FROM json_each(?3))",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![model_id, crate::duplicates::LAYOUT_VERSION, ids_json], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, Vec<u8>>(1)?, row.get::<_, i64>(2)?))
+        })
+        .map_err(|error| error.to_string())?;
+    let mut keys = std::collections::HashMap::new();
+    for (photo_id, blob, orientation) in crate::keywords::collect_rows(rows)? {
+        // A photo has an embedding or a failure, never both (store_batch): the first row found is kept anyway.
+        if let Ok(hash) = crate::duplicates::Hash::try_from(blob.as_slice()) {
+            keys.entry(photo_id).or_insert(ImageKey { hash, orientation: orientation as u32 });
+        }
+    }
+    for target in targets.iter_mut() {
+        target.stored_key = keys.get(&target.photo_id).copied();
+    }
+    Ok(())
+}
+
+/// Image key of a file as it is now (§6.4). The image-data hash comes from `photo_hashes` when the cached row has the file's current size
+/// and date, and is computed otherwise (one read of the image bytes); the second value is then the new hash, for `photo_hashes`.
+/// None: video (never hashed), unreadable file, or stop requested.
+fn current_key(path: &Path, cached: Option<&crate::duplicates::DataHash>, cancel: &AtomicBool) -> Option<(ImageKey, Option<crate::duplicates::DataHash>)> {
+    use crate::duplicates;
+    if duplicates::is_video(path) { return None; }
+    let version = duplicates::current_version(path).ok()?;
+    let (data, computed) = match cached.filter(|cached| (cached.size, cached.modified) == version) {
+        Some(cached) => (*cached, None),
+        None => {
+            let data = duplicates::image_data_hash(path, cancel).ok()?;
+            (data, Some(data))
+        }
+    };
+    // The orientation is read only when the hash left the metadata out (a few KB of header).
+    let orientation = if data.tolerant { crate::thumbnails::read_orientation(path) } else { 1 };
+    Some((ImageKey { hash: data.hash, orientation }, computed))
+}
+
 // ---------------------------------------------------------------------------
 // Pixels of a photo
 // ---------------------------------------------------------------------------
@@ -492,6 +562,9 @@ pub enum Outcome {
     Skipped,
     /// Unreadable file: recorded with its reason, not retried until the file changes.
     Failed(String),
+    /// The file changed (size or date) but not its image key (§6.4): only the stamp of its row (embedding or failure) is updated, nothing
+    /// is decoded nor inferred.
+    Refreshed,
 }
 
 /// RGB pixels of the photo as displayed: the cached thumbnail (oriented) when it exists, otherwise a reduced decode of the file in memory.
@@ -539,29 +612,61 @@ fn prepare(path: &str, thumbnails_dir: &Path, model: &ModelSpec) -> Result<Vec<f
 
 /// Stores the results of one batch in a single transaction (never one per photo, so grid queries are not starved). An embedding replaces
 /// any failure of the photo; a failure replaces its embedding (it belonged to an older version of the file). Skipped photos are not recorded.
+#[cfg(test)]
 pub fn store_batch(conn: &Connection, model_id: &str, results: &[(&Target, Outcome)]) -> rusqlite::Result<()> {
+    store_batch_with_hashes(conn, model_id, results, &[])
+}
+
+/// `store_batch`, plus the image-data hashes the scan computed (`photo_hashes`, shared with the duplicate search) in the same transaction.
+/// Embeddings and failures carry the image key of their target (`Target::key`); a refreshed row only takes the new stamp.
+pub fn store_batch_with_hashes(
+    conn: &Connection,
+    model_id: &str,
+    results: &[(&Target, Outcome)],
+    hashes: &[(i64, crate::duplicates::DataHash)],
+) -> rusqlite::Result<()> {
     let transaction = conn.unchecked_transaction()?;
     {
         let mut insert_vector = transaction.prepare_cached(
-            "INSERT OR REPLACE INTO photo_embeddings (photo_id, model_id, file_size, file_mtime, vec) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR REPLACE INTO photo_embeddings (photo_id, model_id, file_size, file_mtime, vec, data_hash, hash_version, orientation)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         )?;
         let mut insert_failure = transaction.prepare_cached(
-            "INSERT OR REPLACE INTO photo_embedding_failures (photo_id, model_id, file_size, file_mtime, reason) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR REPLACE INTO photo_embedding_failures (photo_id, model_id, file_size, file_mtime, reason, data_hash, hash_version, orientation)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         )?;
         let mut delete_vector = transaction.prepare_cached("DELETE FROM photo_embeddings WHERE photo_id = ?1")?;
         let mut delete_failure = transaction.prepare_cached("DELETE FROM photo_embedding_failures WHERE photo_id = ?1")?;
+        let mut refresh_vector =
+            transaction.prepare_cached("UPDATE photo_embeddings SET file_size = ?3, file_mtime = ?4 WHERE photo_id = ?1 AND model_id = ?2")?;
+        let mut refresh_failure =
+            transaction.prepare_cached("UPDATE photo_embedding_failures SET file_size = ?3, file_mtime = ?4 WHERE photo_id = ?1 AND model_id = ?2")?;
         for (target, outcome) in results {
+            // Image key columns: NULL when the scan could not compute it (the row then follows the stamp rule only).
+            let hash = target.key.map(|key| key.hash.to_vec());
+            let hash_version = target.key.map(|_| crate::duplicates::LAYOUT_VERSION);
+            let orientation = target.key.map(|key| key.orientation as i64);
             match outcome {
                 Outcome::Embedded(vector) => {
-                    insert_vector.execute(params![target.photo_id, model_id, target.size, target.mtime, vector_to_blob(vector)])?;
+                    insert_vector.execute(params![
+                        target.photo_id, model_id, target.size, target.mtime, vector_to_blob(vector), hash, hash_version, orientation
+                    ])?;
                     delete_failure.execute(params![target.photo_id])?;
                 }
                 Outcome::Failed(reason) => {
-                    insert_failure.execute(params![target.photo_id, model_id, target.size, target.mtime, reason])?;
+                    insert_failure.execute(params![target.photo_id, model_id, target.size, target.mtime, reason, hash, hash_version, orientation])?;
                     delete_vector.execute(params![target.photo_id])?;
+                }
+                // The row is an embedding or a failure: one of the two updates finds it.
+                Outcome::Refreshed => {
+                    refresh_vector.execute(params![target.photo_id, model_id, target.size, target.mtime])?;
+                    refresh_failure.execute(params![target.photo_id, model_id, target.size, target.mtime])?;
                 }
                 Outcome::Skipped => {}
             }
+        }
+        for (photo_id, data) in hashes {
+            crate::duplicates::remember_data_hash(&transaction, *photo_id, data)?;
         }
     }
     transaction.commit()
@@ -655,6 +760,8 @@ pub struct ScanReport {
     pub analysed: usize,
     /// Already up to date (embedding or failure of the same model for the same version of the file): not read again.
     pub up_to_date: usize,
+    /// Changed files whose pixels did not change (metadata written): their row only took the new size and date, without inference (§6.4).
+    pub refreshed: usize,
     /// Nothing to analyse yet (video or format without a cached thumbnail).
     pub skipped: usize,
     /// Failed in this run (recorded: not retried until the file changes).
@@ -691,8 +798,39 @@ fn wait_for_foreground(cancel: &AtomicBool, on_pause: &mut dyn FnMut()) -> bool 
     !cancel.load(Ordering::Relaxed)
 }
 
-/// Batch prepared by the decoder thread: (index in the pending list, tensor or why there is none).
-type PreparedBatch = Vec<(usize, Result<Vec<f32>, Outcome>)>;
+/// One photo prepared by the decoder thread.
+struct Prepared {
+    /// Index in the pending list.
+    index: usize,
+    /// Image key of the file as read now (stored with the outcome).
+    key: Option<ImageKey>,
+    /// Image-data hash computed here (not found in `photo_hashes`): stored there with the batch.
+    computed_hash: Option<crate::duplicates::DataHash>,
+    /// Tensor to infer, or the outcome without inference (refreshed, skipped, failed).
+    work: Result<Vec<f32>, Outcome>,
+}
+
+type PreparedBatch = Vec<Prepared>;
+
+/// What the decoder needs to know about one pending photo.
+struct DecodeJob {
+    path: String,
+    stored_key: Option<ImageKey>,
+    cached_hash: Option<crate::duplicates::DataHash>,
+}
+
+/// Decoder side of one photo (§6.4): image key first; same key as the stored row → refreshed without decoding the pixels; otherwise the
+/// tensor (or why there is none).
+fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, model: &ModelSpec, cancel: &AtomicBool) -> (Option<ImageKey>, Option<crate::duplicates::DataHash>, Result<Vec<f32>, Outcome>) {
+    let (key, computed_hash) = match current_key(Path::new(&job.path), job.cached_hash.as_ref(), cancel) {
+        Some((key, computed)) => (Some(key), computed),
+        None => (None, None),
+    };
+    if key.is_some() && key == job.stored_key {
+        return (key, computed_hash, Err(Outcome::Refreshed));
+    }
+    (key, computed_hash, prepare(&job.path, thumbnails_dir, model))
+}
 
 /// The scan itself, on the dedicated worker thread. `emit` publishes the progress.
 fn run_scan(job: ScanJob, emit: &dyn Fn(ScanProgress)) -> Result<ScanReport, String> {
@@ -703,10 +841,11 @@ fn run_scan(job: ScanJob, emit: &dyn Fn(ScanProgress)) -> Result<ScanReport, Str
     let mut targets = select_targets(&conn, &model.id, job.photo_ids.as_deref(), job.folder.as_deref(), job.recursive)?;
     if job.skip_raw { targets.retain(|target| !crate::thumbnails::is_raw_path(Path::new(&target.path))); }
     let mut report = ScanReport { total: targets.len(), ..ScanReport::default() };
-    let pending: Vec<Target> = targets.into_iter().filter(|target| target.standing == Standing::Pending).collect();
+    let mut pending: Vec<Target> = targets.into_iter().filter(|target| target.standing == Standing::Pending).collect();
     report.up_to_date = report.total - pending.len();
     let total = pending.len();
     if total == 0 { return Ok(report); }
+    load_stored_keys(&conn, &model.id, &mut pending)?;
 
     let paths = crate::semantic_models::installed_paths(&job.models_dir, model)?;
     scan_pending(job, &paths, &conn, pending, report, emit)
@@ -717,32 +856,42 @@ fn scan_pending(
     job: ScanJob,
     paths: &crate::semantic_models::ModelPaths,
     conn: &Connection,
-    pending: Vec<Target>,
+    mut pending: Vec<Target>,
     mut report: ScanReport,
     emit: &dyn Fn(ScanProgress),
 ) -> Result<ScanReport, String> {
     let model = active_model();
     let total = pending.len();
-    // The model is loaded only when there is work, and dropped when this function returns.
-    let environment = crate::onnx_runtime::environment(&paths.runtime)?;
-    let mut encoder = VisionEncoder::load(&environment, &paths.vision, model, job.threads)?;
+    // The model is loaded by the first batch that has something to infer (a run that only refreshes stamps never loads it), and dropped
+    // when this function returns.
+    let mut encoder: Option<VisionEncoder> = None;
 
-    // Pipeline: one extra thread (low priority too) decodes the next batch while the current one is inferred. The bounded channel keeps at
-    // most one batch ahead; the thread stops when the worker hangs up or a stop is requested.
+    // Image-data hashes already computed by a duplicate search (or an earlier scan): reused when the file has not changed since.
+    let pending_ids: Vec<i64> = pending.iter().map(|target| target.photo_id).collect();
+    let mut cached_hashes = crate::duplicates::cached_data_hashes(conn, &pending_ids)?;
+    let jobs: Vec<DecodeJob> = pending
+        .iter()
+        .map(|target| DecodeJob { path: target.path.clone(), stored_key: target.stored_key, cached_hash: cached_hashes.remove(&target.photo_id) })
+        .collect();
+
+    // Pipeline: one extra thread (low priority too) hashes and decodes the next batch while the current one is inferred. The bounded
+    // channel keeps at most one batch ahead; the thread stops when the worker hangs up or a stop is requested.
     let (sender, batches) = std::sync::mpsc::sync_channel::<PreparedBatch>(1);
     let decoder_cancel = job.cancel.clone();
     let thumbnails_dir = job.thumbnails_dir.clone();
-    let paths_to_read: Vec<String> = pending.iter().map(|target| target.path.clone()).collect();
     let decoder = std::thread::Builder::new()
         .name("semantic-decode".to_string())
         .spawn(move || {
             lower_thread_priority();
-            for (chunk_index, chunk) in paths_to_read.chunks(BATCH).enumerate() {
+            for (chunk_index, chunk) in jobs.chunks(BATCH).enumerate() {
                 if decoder_cancel.load(Ordering::Relaxed) { break; }
                 let batch = chunk
                     .iter()
                     .enumerate()
-                    .map(|(offset, path)| (chunk_index * BATCH + offset, prepare(path, &thumbnails_dir, active_model())))
+                    .map(|(offset, decode_job)| {
+                        let (key, computed_hash, work) = prepare_job(decode_job, &thumbnails_dir, active_model(), &decoder_cancel);
+                        Prepared { index: chunk_index * BATCH + offset, key, computed_hash, work }
+                    })
                     .collect();
                 if sender.send(batch).is_err() { break; }
             }
@@ -771,29 +920,45 @@ fn scan_pending(
             report.cancelled = true;
             break;
         }
+        // Image keys read by the decoder go with the targets (stored with their outcome); new hashes go to `photo_hashes`.
+        let mut hashes = Vec::new();
+        for prepared in &batch {
+            let target = &mut pending[prepared.index];
+            target.key = prepared.key;
+            if let Some(data) = prepared.computed_hash { hashes.push((target.photo_id, data)); }
+        }
         let mut pixels = Vec::with_capacity(batch.len() * 3 * model.image_size * model.image_size);
         let mut results: Vec<(&Target, Outcome)> = Vec::with_capacity(batch.len());
         let mut embedded_slots = Vec::new();
-        for (index, prepared) in batch {
-            match prepared {
+        for prepared in batch {
+            match prepared.work {
                 Ok(tensor) => {
                     pixels.extend(tensor);
                     embedded_slots.push(results.len());
-                    results.push((&pending[index], Outcome::Skipped)); // replaced by its embedding below
+                    results.push((&pending[prepared.index], Outcome::Skipped)); // replaced by its embedding below
                 }
-                Err(other) => results.push((&pending[index], other)),
+                Err(other) => results.push((&pending[prepared.index], other)),
             }
         }
-        // An inference error is not caused by one photo (memory, damaged model): the scan stops instead of marking photos as failed.
-        let embeddings = match encoder.embed(pixels, embedded_slots.len()) {
-            Ok(embeddings) => embeddings,
-            Err(error) => {
-                failure = Some(error);
-                break;
-            }
-        };
-        for (slot, vector) in embedded_slots.into_iter().zip(embeddings) { results[slot].1 = Outcome::Embedded(vector); }
-        if let Err(error) = store_batch(conn, &model.id, &results) {
+        if !embedded_slots.is_empty() {
+            // An inference error is not caused by one photo (memory, damaged model): the scan stops instead of marking photos as failed.
+            let embedded = (|| {
+                if encoder.is_none() {
+                    let environment = crate::onnx_runtime::environment(&paths.runtime)?;
+                    encoder = Some(VisionEncoder::load(&environment, &paths.vision, model, job.threads)?);
+                }
+                encoder.as_mut().expect("loaded above").embed(pixels, embedded_slots.len())
+            })();
+            let embeddings = match embedded {
+                Ok(embeddings) => embeddings,
+                Err(error) => {
+                    failure = Some(error);
+                    break;
+                }
+            };
+            for (slot, vector) in embedded_slots.into_iter().zip(embeddings) { results[slot].1 = Outcome::Embedded(vector); }
+        }
+        if let Err(error) = store_batch_with_hashes(conn, &model.id, &results, &hashes) {
             failure = Some(format!("database: {error}"));
             break;
         }
@@ -802,6 +967,7 @@ fn scan_pending(
         for (target, result) in &results {
             match result {
                 Outcome::Embedded(_) => report.analysed += 1,
+                Outcome::Refreshed => report.refreshed += 1,
                 Outcome::Skipped => report.skipped += 1,
                 Outcome::Failed(reason) => {
                     eprintln!("Semantic analysis failed for {}: {reason}", target.path);
