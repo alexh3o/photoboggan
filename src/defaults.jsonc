@@ -121,6 +121,20 @@
   // Order of the faces inside a group of the Faces view: "grid" (as the photos of the main grid) | "score" (most similar first).
   "facesViewSort": "grid",
 
+  // ---------------------------------------------------------------- Settings: Content search
+  // Content search (local AI, SigLIP 2): off until the user enables it and installs the model.
+  "semanticSearch": false,
+  // ONNX Runtime threads of the content analysis: 1 (low) | 2 (normal) | 4 (high).
+  "semanticScanThreads": 1,
+  // Relative relevance threshold of the results (0.005 to 0.08): kept when cosine >= best - this value.
+  "semanticRelevance": 0.03,
+  // Also return photos matching a keyword by content when filtering by keyword (shown after the tagged ones).
+  "semanticInKeywordSearch": false,
+  // Show the match score on the results of a content search.
+  "semanticShowScore": false,
+  // Scope of a content search: "view" (current view) | "library".
+  "semanticScope": "view",
+
   // ---------------------------------------------------------------- Settings: Slideshow, Find RAW
   // Delay between photos in seconds: integer 1 to 60.
   "slideshowDelay": 5,

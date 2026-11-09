@@ -10,6 +10,7 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
+import { initSemanticSettings } from './semantic-settings.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -7239,6 +7240,12 @@ initFacesPanel({
   // Renommer une personne reliée : c'est son mot-clé qui est renommé, avec réécriture des fichiers qui le portent (même circuit que le panneau
   // Mots-clés). Renvoie un message d'erreur si le renommage n'est pas lancé, sinon null.
   renameKeyword: (keywordId, name, after) => renameKeywordById(keywordId, name, after),
+});
+
+// Recherche par contenu (voir semantic-settings.js) : réglage, gating et section des Paramètres.
+initSemanticSettings({
+  showToast: message => showWriteToast(message),
+  enqueueTask: task => enqueueScanTask(task),
 });
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.

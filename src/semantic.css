@@ -1,0 +1,11 @@
+/* Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. */
+body.no-semantic .semantic-only { display: none !important; }
+
+/* Settings > Content search */
+.semantic-settings[hidden], #btn-semantic-model-download[hidden], #btn-semantic-model-import[hidden] { display: none !important; }
+.semantic-settings h4 { margin-top: 0.75rem; }
+.semantic-model-offline { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
+.semantic-model-offline summary { cursor: pointer; }
+.semantic-model-files { list-style: none; margin-top: 0.4rem; }
+.semantic-model-files li { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 0.5rem; }
+.semantic-model-files code { font-size: 0.65rem; overflow-wrap: anywhere; user-select: text; }
