@@ -1,4 +1,4 @@
-<!-- verified: 2a26635 | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
+<!-- verified: a427d2d | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
 # Filters and search (sidebar filters, SQL prefilter, "Find the RAW", histogram)
 
 ## Purpose
@@ -76,7 +76,7 @@ Computed in a canvas from the grid **thumbnail** (so RAW/HEIC/video use their ge
 - The Find-RAW "subfolders" option is temporary: do not persist it.
 
 ## Tests
-No frontend tests. Backend: `tests/db.rs` (⚠ unverified: whether `PhotoPrefilter` cases are covered; check `../generated/tests.md`).
+No frontend tests. Backend: `tests/db.rs` has `prefilter_keeps_what_the_interface_filters_would_keep`, `prefilter_covers_file_gear_shooting_and_album_criteria` and `prefilter_applies_before_the_cut` (see `../generated/tests.md`); they protect the superset contract on the SQL side only, nothing compares them with the JS predicates automatically.
 
 ## How to extend
 1. New filter: `recipes.md` §6 (module with `capture`/`matches`/`prefilter`, control in `index.html`, add to `applyPhotoFilters`, capture/apply/reset, locale keys).
