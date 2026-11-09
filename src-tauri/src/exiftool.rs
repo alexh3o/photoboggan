@@ -886,6 +886,19 @@ pub fn write_marking(image_path: &Path, edit: crate::exif::XmpEdit) -> std::io::
     write_to(image_path, args, has_values)
 }
 
+/// Arguments of a lossless rotation (see orientation.rs): XMP `tiff:Orientation` always, and in a JPEG the EXIF `Orientation` of IFD0 too.
+/// Numeric values (`#`): ExifTool would otherwise expect the printed names ("Rotate 90 CW"…).
+fn orientation_args(image_path: &Path, orientation: u32) -> Vec<String> {
+    let mut args = vec![format!("-XMP-tiff:Orientation#={orientation}")];
+    if matches!(target_of(image_path), Target::Jpeg) { args.push(format!("-IFD0:Orientation#={orientation}")); }
+    args
+}
+
+/// Lossless rotation: only the orientation tags change (see `orientation_args`), the image data is never touched.
+pub fn write_orientation(image_path: &Path, orientation: u32) -> std::io::Result<()> {
+    write_to(image_path, orientation_args(image_path, orientation), true)
+}
+
 #[cfg(test)]
 #[path = "tests/exiftool.rs"]
 mod tests;

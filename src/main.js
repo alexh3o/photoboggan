@@ -206,9 +206,32 @@ const fullscreenImageCache = new Map();
 // Version des fichiers modifiés hors de l'application (chemin -> horodatage) : ajoutée à l'URL pour ne pas réafficher une image périmée du cache.
 const photoVersions = new Map();
 function photoUrl(photo) {
-  const version = photoVersions.get(photo.path);
-  return convertFileSrc(photo.path) + (version ? `?v=${version}` : '');
+  return convertFileSrc(photo.path) + versionSuffix(photo.path);
 }
+// Same suffix on the cached images (thumbnail, extracted preview): a lossless rotation written in a sidecar regenerates them under the same name.
+function versionSuffix(path) {
+  const version = photoVersions.get(path);
+  return version ? `?v=${version}` : '';
+}
+
+// LOSSLESS ROTATION (orientation.rs): the webview turns an original it shows by its EXIF tag only. When the orientation that wins is an XMP
+// one (internal writer, sidecar of a PNG…), `photo.view_fix` (1 to 8, same values as the EXIF tag) is what remains to apply on top.
+// Generated previews (RAW, HEIC, videos) and the thumbnails are already turned by the backend: their view_fix is 1.
+// Matrix (CSS / canvas order a, b, c, d, e, f) of an orientation for a box of `width` × `height` px, origin at its top-left corner.
+function orientationMatrix(orientation, width, height) {
+  switch (orientation) {
+    case 2: return [-1, 0, 0, 1, width, 0];
+    case 3: return [-1, 0, 0, -1, width, height];
+    case 4: return [1, 0, 0, -1, 0, height];
+    case 5: return [0, 1, 1, 0, 0, 0];
+    case 6: return [0, 1, -1, 0, height, 0];
+    case 7: return [0, -1, -1, 0, height, width];
+    case 8: return [0, -1, 1, 0, 0, width];
+    default: return null;
+  }
+}
+// Orientations that exchange width and height (quarter turns).
+const swapsSides = orientation => orientation >= 5 && orientation <= 8;
 
 // Ajout extracteur RAW (liste des extensions : format-filters.js)
 export function isRawPath(path) {
@@ -260,7 +283,7 @@ async function getPhotoDisplayUrl(photo) {
   let promise = rawPreviewPromises.get(photo.path);
   if (!promise) {
     promise = invoke('get_raw_preview_path', { sourcePath: photo.path })
-      .then(cachedPath => convertFileSrc(cachedPath))
+      .then(cachedPath => convertFileSrc(cachedPath) + versionSuffix(photo.path))
       .catch(err => {
         console.error('RAW preview extraction failed', photo.path, err);
         rawPreviewPromises.delete(photo.path); // échec non mémorisé : nouvelle tentative au prochain affichage
@@ -608,8 +631,11 @@ function learnPhotoAspectRatio(photo, ratio) {
   }
 }
 
-function updatePhotoAspectRatio(image, photo) {
-  if (image.naturalWidth > 0 && image.naturalHeight > 0) learnPhotoAspectRatio(photo, image.naturalWidth / image.naturalHeight);
+// `original`: the image is the original file shown by the webview, still to be turned by `photo.view_fix` (cached thumbnails already are).
+function updatePhotoAspectRatio(image, photo, original = false) {
+  if (!(image.naturalWidth > 0 && image.naturalHeight > 0)) return;
+  const ratio = image.naturalWidth / image.naturalHeight;
+  learnPhotoAspectRatio(photo, original && swapsSides(photo.view_fix) ? 1 / ratio : ratio);
 }
 
 // Affiche une miniature du cache dans l'image et apprend son ratio réel au chargement.
@@ -619,7 +645,7 @@ function showCachedThumbnail(image, cachedPath, photo) {
     image.classList.add('loaded');
     updatePhotoAspectRatio(image, photo);
   };
-  image.src = convertFileSrc(cachedPath);
+  image.src = convertFileSrc(cachedPath) + versionSuffix(photo.path);
 }
 
 // Repli (PNG, JPEG CMYK, fichier que le backend ne sait pas lire) : ancienne génération dans le webview,
@@ -644,8 +670,8 @@ async function generateThumbnailInWebview(image, sourcePath, photo) {
     image.onerror = null;
     if (!success) return;
     image.classList.add('loaded');
-    updatePhotoAspectRatio(image, photo);
-    await cacheThumbnail(image, sourcePath);
+    updatePhotoAspectRatio(image, photo, true);
+    await cacheThumbnail(image, sourcePath, photo.view_fix);
   } finally {
     activeWebviewThumbnailFallbacks--;
     webviewThumbnailFallbackWaiters.shift()?.();
@@ -691,7 +717,8 @@ function loadThumbnail(image, sourcePath, photo) {
   });
 }
 
-function cacheThumbnail(image, sourcePath) {
+// `viewFix`: orientation still to apply to the image (see orientationMatrix): the cached thumbnail is stored turned, like the backend ones.
+function cacheThumbnail(image, sourcePath, viewFix = 1) {
   if (thumbnailCacheWrites.has(sourcePath)) return thumbnailCacheWrites.get(sourcePath);
   const task = (async () => {
     let bitmap;
@@ -699,10 +726,15 @@ function cacheThumbnail(image, sourcePath) {
       await image.decode();
       bitmap = await createImageBitmap(image);
       const scale = Math.min(1, thumbnailCacheSize / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      canvas.getContext('2d', { alpha: false }).drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      canvas.width = swapsSides(viewFix) ? height : width;
+      canvas.height = swapsSides(viewFix) ? width : height;
+      const context = canvas.getContext('2d', { alpha: false });
+      const matrix = orientationMatrix(viewFix, width, height);
+      if (matrix) context.setTransform(...matrix);
+      context.drawImage(bitmap, 0, 0, width, height);
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.84));
       if (!blob) return;
       const dataUrl = await new Promise((resolve, reject) => {
@@ -715,7 +747,7 @@ function cacheThumbnail(image, sourcePath) {
       thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
       if (image.isConnected && image.dataset.sourcePath === sourcePath) {
         image.onload = null;
-        image.src = convertFileSrc(cachedPath);
+        image.src = convertFileSrc(cachedPath) + versionSuffix(sourcePath);
       }
     } catch (error) {
       console.debug('Thumbnail caching failed', sourcePath, error);
@@ -2756,12 +2788,9 @@ function showFullscreenPhoto(photo, url) {
   const token = ++fullscreenLoadToken;
   const apply = loaded => {
     if (token !== fullscreenLoadToken) return; // une autre photo a été demandée entre-temps
-    fullscreenSlot.naturalWidth = loaded.naturalWidth;
-    fullscreenSlot.naturalHeight = loaded.naturalHeight;
+    setSlotImageSize(fullscreenSlot, loaded.naturalWidth, loaded.naturalHeight);
     fullscreenSlot.zoom = null;
     fullscreenSlot.center = { x: 0.5, y: 0.5 };
-    fullscreenImg.style.width = `${loaded.naturalWidth}px`;
-    fullscreenImg.style.height = `${loaded.naturalHeight}px`;
     updateFullscreenInfo(); // les informations changent en même temps que l'image affichée
     fullscreenImg.src = url;
     layoutFullscreenSlot();
@@ -3384,6 +3413,102 @@ async function setSelectionRating(rating, explicitTargets = null) {
 }
 
 // ==========================================
+// LOSSLESS ROTATION (orientation.rs)
+// ==========================================
+// Only the orientation tag changes (EXIF and / or XMP, through the active writer): the image is never decoded nor recompressed.
+// HEIC / HEIF and videos are left out (their container carries the rotation). Ctrl+R turns right, Shift+R left; Ctrl+Z, or "Undo" in the
+// toast, turns the last rotations back (the opposite rotation gives back the exact previous value).
+export function isRotatablePath(path) {
+  const ext = (path || '').split('.').pop()?.toLowerCase();
+  return !VIDEO_EXTENSIONS.has(ext) && !HEIF_EXTENSIONS.has(ext);
+}
+
+const MAX_ROTATION_UNDO = 20;
+const rotationUndoStack = []; // { photos: [{ id, path }], quarterTurns }, last done at the end
+
+// `quarterTurns`: 1 right, -1 left, 2 for 180°. `explicitTargets` (context menu): photos to turn, instead of the selection.
+// `undo`: the rotation turns back a previous one (not stacked again, other toast).
+function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {}) {
+  const selected = explicitTargets ?? commandTargetPhotos(); // compare mode with several photos: the sub-selection only
+  if (!selected.length) {
+    if (!explicitTargets && isCompareMultiple()) notifyNoCompareTarget();
+    return markingChain;
+  }
+  const targets = selected.filter(photo => isRotatablePath(photo.path));
+  if (!targets.length) {
+    showWriteToast(t('Lossless rotation is not possible for HEIC, HEIF and video files'));
+    return markingChain;
+  }
+  const photosArg = targets.map(photo => ({ id: photo.id, path: photo.path }));
+  const finish = (result, error) => {
+    if (!result) {
+      if (error) showWriteToast(t('Metadata writing failed: {error}', { error: String(error) }));
+      return;
+    }
+    const written = new Map(result.written.map(entry => [entry.id, entry.view_fix]));
+    const turned = targets.filter(photo => written.has(photo.id));
+    for (const photo of turned) photo.view_fix = written.get(photo.id);
+    refreshRotatedPhotos(turned, quarterTurns);
+    if (turned.length && !undo) {
+      rotationUndoStack.push({ photos: turned.map(photo => ({ id: photo.id, path: photo.path })), quarterTurns });
+      if (rotationUndoStack.length > MAX_ROTATION_UNDO) rotationUndoStack.shift();
+    }
+    const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
+    const message = `${undo ? tp('Rotation undone for {count} photo', turned.length) : tp('{count} photo turned', turned.length)}${failureSummary(result.failed)}${stopped}`;
+    // Failures take the toast button (their details); otherwise "Undo".
+    const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed)
+      ?? (turned.length && !undo ? { label: t('Undo'), onClick: undoLastRotation } : null);
+    showWriteToast(message, false, action);
+  };
+  const run = () => {
+    // Same rule as the other metadata writes (see writeMarking): photos of a move in progress are not written.
+    const moving = new Set(scanTasks.filter(task => task.kind === 'move').flatMap(task => task.args?.paths ?? []));
+    if (photoMoveRunning || photosArg.some(photo => moving.has(photo.path))) {
+      showWriteToast(t('Wait for the running file task to finish.'));
+      return undefined;
+    }
+    showWriteToast(undo ? t('Undoing rotation…') : tp('Turning {count} photo…', targets.length), true);
+    return runLocked('rotate_photos', { photos: photosArg, quarterTurns }, targets.length, finish);
+  };
+  markingChain = markingChain.then(run, run);
+  return markingChain;
+}
+
+// Ctrl+Z / "Undo": turns back the last rotation still in the stack (its photos, wherever the view is now).
+function undoLastRotation() {
+  const last = rotationUndoStack.pop();
+  if (!last) return false;
+  const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
+  const targets = last.photos.map(entry => byId.get(entry.id) ?? entry);
+  rotatePhotos(-last.quarterTurns, targets, { undo: true });
+  return true;
+}
+
+// Turned photos: their cached images are regenerated by the backend; the grid, the preview and the fullscreen view load them again.
+function refreshRotatedPhotos(turned, quarterTurns) {
+  if (!turned.length) return;
+  const paths = turned.map(photo => photo.path);
+  const now = Date.now();
+  for (const path of paths) photoVersions.set(path, now); // new URLs: the webview must not show its cached copy
+  forgetCachedImagePaths(paths);
+  // A quarter turn exchanges width and height: the layout follows at once, the new thumbnail confirms the exact ratio.
+  if (quarterTurns % 2 !== 0) {
+    for (const photo of turned) {
+      const ratio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 0);
+      if (ratio > 0) photo.aspectRatio = 1 / ratio;
+    }
+  }
+  const turnedPaths = new Set(paths);
+  for (const [index, node] of renderedThumbnailNodes) {
+    if (turnedPaths.has(photos[index]?.path)) { node.remove(); renderedThumbnailNodes.delete(index); }
+  }
+  previewSignature = ''; // the preview cells are created again
+  updateVirtualScroller();
+  updateUIOnSelection();
+  if (isFullscreen && turnedPaths.has(photos[lastSelectedIndex]?.path)) loadFullscreenPhoto(photos[lastSelectedIndex]);
+}
+
+// ==========================================
 // Keyboard shortcuts Memo
 // ==========================================
 // +      : Zoom in
@@ -3409,6 +3534,8 @@ async function setSelectionRating(rating, explicitTargets = null) {
 // N      : panneau Bibliothèque
 // P      : Preview panel
 // R      : Rating bar in fullscreen
+// Ctrl+R : Lossless rotation to the right, Shift+R to the left
+// Ctrl+Z : Undo the last lossless rotation
 // S      : Resize
 // T      : Show / Hide the top toolbar
 // X      : Compare mode
@@ -3469,6 +3596,22 @@ window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
     e.preventDefault();
     if (!compareMode && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
+    return;
+  }
+  // Lossless rotation: Ctrl+R to the right, Shift+R to the left (selection, sub-selection in compare mode, or the fullscreen photo). Ctrl+R is
+  // always caught so that it never reloads the window. Handled before R alone (rating bar of the fullscreen view). Not behind an open window.
+  const rotationKey = e.key.toLowerCase() === 'r' && !e.altKey && !e.metaKey
+    && ((e.ctrlKey && !e.shiftKey) || (e.shiftKey && !e.ctrlKey));
+  if (rotationKey) {
+    e.preventDefault();
+    if (!e.repeat && selectedIndices.size > 0 && !document.querySelector('.modal:not(.hidden)')) rotatePhotos(e.ctrlKey ? 1 : -1);
+    return;
+  }
+  // Ctrl+Z: undoes the last lossless rotation (text fields keep their own Ctrl+Z: this handler ignores them).
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (document.querySelector('.modal:not(.hidden)')) return;
+    e.preventDefault();
+    if (!e.repeat) undoLastRotation();
     return;
   }
   // CTrl+D debug to console
@@ -5964,6 +6107,20 @@ function clampPreviewCenter(slot, x, y) {
   return { x: clampAxis(x, width, slot.cell.clientWidth), y: clampAxis(y, height, slot.cell.clientHeight) };
 }
 
+// Size of the image of a slot (preview cell, comparison, fullscreen). The element keeps the size the webview gives it (`width` × `height`);
+// naturalWidth / naturalHeight are those of the picture as displayed, after the orientation still to apply (`photo.view_fix`, see
+// orientationMatrix), which layoutPreviewSlot adds to the transform. The whole layout (fit, zoom, faces) then works on the displayed picture.
+function setSlotImageSize(slot, width, height) {
+  slot.viewFix = slot.photo?.view_fix ?? 1;
+  slot.rawWidth = width;
+  slot.rawHeight = height;
+  const swapped = swapsSides(slot.viewFix);
+  slot.naturalWidth = swapped ? height : width;
+  slot.naturalHeight = swapped ? width : height;
+  slot.img.style.width = `${width}px`;
+  slot.img.style.height = `${height}px`;
+}
+
 function layoutPreviewSlot(slot) {
   if (!(slot.naturalWidth > 0 && slot.naturalHeight > 0)) return;
   const cellWidth = slot.cell.clientWidth;
@@ -5984,7 +6141,8 @@ function layoutPreviewSlot(slot) {
   slot.ty = snap(height <= cellHeight ? (cellHeight - height) / 2 : cellHeight / 2 - center.y * height);
   slot.displayWidth = width;
   slot.displayHeight = height;
-  slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})`;
+  const matrix = orientationMatrix(slot.viewFix, slot.rawWidth, slot.rawHeight);
+  slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})${matrix ? ` matrix(${matrix.join(', ')})` : ''}`;
   if (slot.clip) { // surcouche d'écrêtage (histogram.js) : mêmes dimensions et même transformation que l'image
     slot.clip.style.width = slot.img.style.width;
     slot.clip.style.height = slot.img.style.height;
@@ -6012,10 +6170,7 @@ function createPreviewSlot(photo) {
   img.addEventListener('load', () => {
     if (!previewSlots.includes(slot)) return;
     if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return;
-    slot.naturalWidth = img.naturalWidth;
-    slot.naturalHeight = img.naturalHeight;
-    img.style.width = `${slot.naturalWidth}px`;
-    img.style.height = `${slot.naturalHeight}px`;
+    setSlotImageSize(slot, img.naturalWidth, img.naturalHeight);
     cell.classList.add('loaded');
     layoutPreviewSlot(slot);
   });
@@ -7213,6 +7368,9 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
 }
 
 initPhotoActions({
+  // "Turn" submenu (lossless rotation, see rotatePhotos): only the HEIC / HEIF and videos of the targets are left out.
+  isRotatablePath,
+  rotatePhotos: (targets, quarterTurns) => rotatePhotos(quarterTurns, targets),
   // Album manuel affiché (nom pour le menu) et retrait de photos de cet album (albums-panel.js).
   getCurrentManualAlbum: () => { const album = getSelectedAlbum(); return album?.kind === 'manual' ? album : null; },
   removeFromAlbum: targets => removePhotosFromSelectedAlbum(targets.map(photo => photo.id)),
@@ -7479,7 +7637,7 @@ async function thumbnailUrlFor(sourcePath, isWanted = () => true) {
       resolve(generated);
     }, () => resolve(null)));
   }
-  return cachedPath ? convertFileSrc(cachedPath) : '';
+  return cachedPath ? convertFileSrc(cachedPath) + versionSuffix(sourcePath) : '';
 }
 
 // Visages (voir faces-panel.js) : section Personnes, filtre Personnes, zones en plein écran. Vignettes des personnes découpées dans les miniatures en cache.

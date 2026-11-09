@@ -30,12 +30,14 @@ pub struct FaceRegion {
 /// Ce que la lecture d'un fichier apprend sur ses visages : orientation EXIF (1 à 8) et zones (None : lecture des visages désactivée).
 pub struct PhotoFaces {
     pub orientation: u32,
+    /// Orientation the interface applies on top of the webview's own (see orientation::Resolved), stored with `orientation`.
+    pub view_fix: u32,
     pub regions: Option<Vec<FaceRegion>>,
 }
 
 impl Default for PhotoFaces {
     fn default() -> Self {
-        PhotoFaces { orientation: 1, regions: None }
+        PhotoFaces { orientation: 1, view_fix: 1, regions: None }
     }
 }
 
@@ -522,7 +524,7 @@ fn store_photo_faces_in(conn: &Connection, items: &[(String, PhotoFaces)]) -> ru
             )
             .optional()?
         else { continue; };
-        conn.execute("UPDATE photos SET orientation = ?1 WHERE id = ?2", params![faces.orientation, photo_id])?;
+        conn.execute("UPDATE photos SET orientation = ?1, view_fix = ?2 WHERE id = ?3", params![faces.orientation, faces.view_fix, photo_id])?;
         mark_geometry_change(conn, photo_id, width, height)?;
         let Some(regions) = &faces.regions else { continue; };
         struct Existing { id: i64, rect: [f64; 4], state: String, origin: String, person_id: Option<i64>, dirty: bool }

@@ -16,7 +16,7 @@
 - [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
 - [x] *fix*:  `semantic` `UI` issues with search box when window width is small
 - [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
-- [ ] *feat*: `editing` rotate
+- [x] *feat*: `editing` rotate
 - [ ] *fix*: `keywords` fail to write keyword
 - [x] *feat*: `keywords` open keyword panel directly on input zone
 

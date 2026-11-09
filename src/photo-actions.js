@@ -1700,6 +1700,17 @@ async function openThumbnailMenu(event, index, source = 'grid') {
   if (hasResizablePhotos) {
     menuItems.push(menuButton(t('Resize…'), () => resizePhotos(targets), { shortcut: 'S' }));
   }
+  // "Turn >" (lossless rotation: orientation tag only). Absent when no target can be turned (HEIC / HEIF, videos); a multiple selection
+  // shows how many photos will be turned.
+  const rotatable = api.isRotatablePath ? targets.filter(target => api.isRotatablePath(target.path)) : [];
+  if (rotatable.length) {
+    const rotateLabel = targets.length > 1 ? `${t('Turn')} (${rotatable.length})` : t('Turn');
+    menuItems.push(buildSubmenuItem(rotateLabel, [
+      { label: t('Turn right'), shortcut: 'Ctrl+R', onSelect: () => api.rotatePhotos(rotatable, 1) },
+      { label: t('Turn left'), shortcut: 'Shift+R', onSelect: () => api.rotatePhotos(rotatable, -1) },
+      { label: t('Turn 180°'), onSelect: () => api.rotatePhotos(rotatable, 2) },
+    ]));
+  }
   menuItems.push(
     menuSeparator(),
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo), { shortcut: 'E' }),

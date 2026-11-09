@@ -351,3 +351,32 @@ fn marking_check_cost_with_exiftool() {
     eprintln!("ExifTool write: {:.1} ms/file, check (read_marking): {:.2} ms/file, +{:.1} %",
         write.as_secs_f64() * 25.0, check.as_secs_f64() * 25.0, check.as_secs_f64() / write.as_secs_f64() * 100.0);
 }
+
+#[test]
+fn orientation_is_written_in_xmp_and_in_the_exif_of_jpeg_only() {
+    assert_eq!(orientation_args(Path::new("a.JPG"), 6), ["-XMP-tiff:Orientation#=6", "-IFD0:Orientation#=6"]);
+    assert_eq!(orientation_args(Path::new("a.cr2"), 8), ["-XMP-tiff:Orientation#=8"], "RAW: sidecar only, the RAW is never written");
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn lossless_rotation_changes_only_the_orientation_tags() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(40, 30);
+    let path = dir.path().join("turned.jpg");
+    std::fs::write(&path, &original).unwrap();
+    let raw = dir.path().join("turned.cr2");
+    std::fs::write(&raw, b"not a real raw, never written").unwrap();
+
+    write_orientation(&path, 6).unwrap();
+    write_orientation(&raw, 8).unwrap();
+
+    let written = std::fs::read(&path).unwrap();
+    assert_eq!(scan_data(&written), scan_data(&original), "données d'image modifiées");
+    assert_eq!(crate::thumbnails::exif_orientation(&path), Some(6));
+    assert_eq!(crate::exif::read_xmp_orientation(&path), Some(6));
+    assert_eq!(std::fs::read(&raw).unwrap(), b"not a real raw, never written");
+    assert_eq!(crate::exif::read_xmp_orientation(&raw), Some(8));
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}

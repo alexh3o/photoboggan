@@ -153,6 +153,7 @@ pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(P
         gps_lon: exif_data.gps.map(|(_, longitude)| longitude),
         flash: exif_data.flash,
         modified: 0, // non utilisé : la date est enregistrée séparément par store_read_batch
+        view_fix: exif_data.faces.view_fix, // stored with the orientation by faces::store_photo_faces
     };
     Ok((photo, exif_data.keyword_paths, exif_data.faces))
 }

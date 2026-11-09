@@ -49,7 +49,7 @@ pub(crate) fn render_thumbnail(source: &Path, max_side: usize) -> Result<(Vec<u8
     let mut raw_orientation_value = None;
     let (rgb, width, height) = if is_raw_path(source) {
         let jpeg = extract_raw_preview(source)?;
-        raw_orientation_value = Some(raw_orientation(source, &jpeg));
+        raw_orientation_value = Some(raw_display_orientation(source, &jpeg));
         decode_scaled_jpeg_reader(Cursor::new(jpeg), max_side)?
     } else {
         decode_scaled_rgb(source, max_side)?
@@ -432,12 +432,28 @@ fn lenient_exif(result: Result<exif::Exif, exif::Error>) -> Option<exif::Exif> {
     result.or_else(|error| error.distill_partial_result(|_| {})).ok()
 }
 
-/// Orientation EXIF (1 à 8), 1 si absente ou illisible. Pour un RAW, c'est l'orientation à appliquer à son aperçu JPEG (voir `raw_orientation`).
+/// Orientation to apply to the decoded pixels (1 to 8), 1 if absent or unreadable: EXIF tag or XMP `tiff:Orientation`, whichever wins
+/// (see orientation.rs). For a RAW, the orientation to apply to its JPEG preview (see `raw_display_orientation`).
+/// HEIC / HEIF keep their EXIF tag only: the callers that decode them already skip it (the container rotation is applied by the decoder).
 pub(crate) fn read_orientation(source: &Path) -> u32 {
     if is_raw_path(source) {
-        return extract_raw_preview(source).map(|jpeg| raw_orientation(source, &jpeg)).unwrap_or(1);
+        return extract_raw_preview(source).map(|jpeg| raw_display_orientation(source, &jpeg)).unwrap_or(1);
     }
-    container_orientation(source).unwrap_or(1)
+    match crate::orientation::kind_of(source) {
+        crate::orientation::Kind::Fixed => container_orientation(source).unwrap_or(1),
+        _ => crate::orientation::read(source).stored,
+    }
+}
+
+/// EXIF orientation tag of the file itself (the one the webview applies to an image it shows), None if absent.
+pub(crate) fn exif_orientation(source: &Path) -> Option<u32> {
+    container_orientation(source)
+}
+
+/// Orientation of a RAW preview, sidecar `tiff:Orientation` included (a lossless rotation writes it there, see orientation.rs).
+pub(crate) fn raw_display_orientation(source: &Path, jpeg: &[u8]) -> u32 {
+    let preview = raw_orientation(source, jpeg);
+    crate::orientation::raw_preview_orientation(preview, container_orientation(source).unwrap_or(1), crate::exif::read_xmp_orientation(source))
 }
 
 pub(crate) fn is_raw_path(source: &Path) -> bool {
@@ -539,7 +555,7 @@ pub(crate) fn raw_orientation(source: &Path, jpeg: &[u8]) -> u32 {
 /// Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme la miniature.
 /// Les octets de l'image ne sont pas retouchés : seul le segment EXIF APP1 est remplacé par un segment minimal ne contenant que l'orientation.
 pub(crate) fn preview_with_orientation(source: &Path, jpeg: Vec<u8>) -> Vec<u8> {
-    let wanted = raw_orientation(source, &jpeg);
+    let wanted = raw_display_orientation(source, &jpeg);
     let own = lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut Cursor::new(&jpeg[..]))).as_ref().and_then(orientation_of);
     if wanted == own.unwrap_or(1) || jpeg.len() < 4 { return jpeg; }
     // Segments avant l'image : tout APP1 « Exif » est retiré, le nouveau est inséré après un éventuel APP0 (JFIF).

@@ -42,7 +42,12 @@ pub struct Photo {
     // Elle n'est pas écrite par les insertions (voir library_sync::store_modified), d'où la valeur 0 des constructions hors lecture.
     #[serde(default)]
     pub modified: i64,
+    /// Orientation the interface applies on top of the webview's when it shows the original file (see orientation::Resolved).
+    #[serde(default = "one")]
+    pub view_fix: u32,
 }
+
+fn one() -> u32 { 1 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TrackedFolder {
@@ -113,6 +118,9 @@ pub fn init_db(db_path: &str) -> DbPool {
     add_column(&conn, "photos", "modified INTEGER NOT NULL DEFAULT 0");
     // Orientation EXIF (1 à 8) : les zones de visage sont dans le repère de l'image stockée et l'interface l'applique pour les afficher (faces.rs).
     add_column(&conn, "photos", "orientation INTEGER NOT NULL DEFAULT 1");
+    // Orientation the interface applies on top of the webview's, which only knows the EXIF tag of the file (see orientation.rs): differs from 1
+    // only after a lossless rotation written in XMP (internal writer, sidecar of a PNG…). Filled with `orientation`.
+    add_column(&conn, "photos", "view_fix INTEGER NOT NULL DEFAULT 1");
     // Fanion « pick » (none, pending, picked, rejected) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
     add_column(&conn, "photos", "pick_flag TEXT NOT NULL DEFAULT 'none'");
     // Coordonnées GPS (NULL : pas de position) : remplies à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
@@ -201,7 +209,7 @@ pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), St
 
 /// Colonnes lues par `photo_from_row`, dans cet ordre.
 pub(crate) const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
-     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash";
+     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix";
 
 /// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
 /// jamais écartée de la liste parce qu'une de ses colonnes est vide.
@@ -237,6 +245,7 @@ pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo>
         gps_lat: row.get(21)?,
         gps_lon: row.get(22)?,
         flash: row.get::<_, Option<i64>>(23)?.map(|value| value != 0),
+        view_fix: row.get::<_, Option<u32>>(24)?.filter(|value| (1..=8).contains(value)).unwrap_or(1),
     })
 }
 

@@ -25,6 +25,7 @@ mod heif;
 mod integrity;
 mod keywords;
 mod library_sync;
+mod orientation;
 mod resize;
 mod thumbnails;
 mod video;
@@ -1197,6 +1198,101 @@ fn write_photo_marking(
         tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
     }
     tx.commit().map_err(|error| error.to_string())
+}
+
+/// Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
+#[derive(serde::Serialize)]
+struct RotatedPhoto {
+    id: i64,
+    view_fix: u32,
+}
+
+#[derive(serde::Serialize)]
+struct RotationResult {
+    written: Vec<RotatedPhoto>,
+    failed: Vec<MarkingFailure>,
+    /// Photos left untouched because the task was stopped.
+    cancelled: usize,
+}
+
+/// Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
+/// (see orientation.rs). Undoing is the opposite rotation, which gives back the exact previous value. Direct command, or task of the queue with
+/// `task_id` (progress and stop), like `update_photos_marking`.
+#[tauri::command]
+async fn rotate_photos(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    photos: Vec<MarkingTarget>,
+    quarter_turns: i32,
+    task_id: Option<String>,
+) -> Result<RotationResult, String> {
+    if quarter_turns.rem_euclid(4) == 0 { return Ok(RotationResult { written: Vec::new(), failed: Vec::new(), cancelled: 0 }); }
+    let pool = state.pool();
+    let dirs = ImageCacheDirs::of(&state);
+    let cancel = task_id.as_deref().map(scan_cancel_flag);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || -> Result<RotationResult, String> {
+        let total = photos.len().max(1);
+        let done = AtomicUsize::new(0);
+        let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
+        let outcomes: Vec<(MarkingTarget, Option<Result<u32, String>>)> = threads.install(|| {
+            photos
+                .into_par_iter()
+                .map(|photo| {
+                    if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) { return (photo, None); }
+                    let result = rotate_photo(&pool, &dirs, photo.id, &photo.path, quarter_turns);
+                    let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
+                    if let Some(id) = &worker_task_id {
+                        let _ = app.emit("scan-progress", ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
+                    }
+                    (photo, Some(result))
+                })
+                .collect()
+        });
+        let mut result = RotationResult { written: Vec::new(), failed: Vec::new(), cancelled: 0 };
+        for (photo, outcome) in outcomes {
+            match outcome {
+                None => result.cancelled += 1,
+                Some(Ok(view_fix)) => result.written.push(RotatedPhoto { id: photo.id, view_fix }),
+                Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
+            }
+        }
+        Ok(result)
+    })
+    .await;
+    if let Some(id) = &task_id { release_scan_cancel_flag(id); }
+    outcome.map_err(|error| error.to_string())?
+}
+
+/// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `view_fix`.
+fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<u32, String> {
+    let source = Path::new(path);
+    if !orientation::is_rotatable(source) { return Err("Rotation sans perte impossible pour ce format (HEIC, HEIF, vidéo)".into()); }
+    // Internal writer reading the EXIF tag first: the XMP it would write could not change what is displayed. Refused before writing anything.
+    if orientation::kind_of(source) == orientation::Kind::Jpeg && !exiftool::is_enabled() && !exiftool::skip_exif_metadata()
+        && thumbnails::exif_orientation(source).is_some()
+    {
+        return Err("L'orientation EXIF de ce JPEG l'emporte sur le XMP : utilisez ExifTool, ou cochez « Ne pas lire les métadonnées EXIF » (Paramètres > Métadonnées)".into());
+    }
+    let wanted = orientation::rotate(orientation::read(source).stored, quarter_turns);
+    let _priority = semantic::PriorityGuard::new(); // like every metadata write (keep_cached_images): the semantic scan waits meanwhile
+    let cached_before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
+    orientation::write(source, wanted).map_err(|error| error.to_string())?;
+    // The thumbnail and the preview are stored turned: both are dropped, under the old name (file rewritten) and the current one (sidecar
+    // written, same file name), to be generated again on the next display.
+    let cached_after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
+    for file in cached_before.into_iter().chain(cached_after).flatten() { let _ = fs::remove_file(file); }
+    // Read back before the catalog is updated: a value that did not land where it is read is a failure, never shown as written.
+    let after = orientation::read(source);
+    if after.stored != wanted { return Err(format!("Orientation relue différente ({} au lieu de {wanted})", after.stored)); }
+    let metadata = fs::metadata(source).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE photos SET orientation = ?1, view_fix = ?2, file_size = ?3, modified = ?4 WHERE id = ?5",
+        params![after.stored, after.view_fix, metadata.len() as i64, library_sync::modified_millis(&metadata), id],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(after.view_fix)
 }
 
 #[derive(serde::Serialize)]
@@ -2595,6 +2691,7 @@ fn main() {
             rename_photo,
             rename_folder,
             update_photos_marking,
+            rotate_photos,
             get_photo_details,
             delete_photos,
             delete_folder,

@@ -5,7 +5,7 @@ use super::*;
 use crate::test_support::*;
 
 fn faces_of(regions: Option<Vec<FaceRegion>>) -> PhotoFaces {
-    PhotoFaces { orientation: 6, regions }
+    PhotoFaces { orientation: 6, view_fix: 1, regions }
 }
 
 fn region(name: Option<&str>, x: f64) -> FaceRegion {
