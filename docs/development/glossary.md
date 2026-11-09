@@ -75,5 +75,5 @@ One line per term, built from the terms used by the other docs. Module docs hold
 - **Single instance**: a second launch only refocuses the open window.
 - **Library sync**: sync of the catalogue with the disk at startup and window focus (`syncLibraryWithDisk`) and the lazy per-photo check (`checkPhotoMissing`).
 - **Injection**: feature modules receive services from `main.js` at init instead of importing it (`architecture.md`).
-- **`defaults.jsonc`**: the only place for default values of settings (keys = `localStorage` keys); the backend reads its `faceSettings` section.
+- **`defaults.jsonc`**: the only place for default values of settings (keys = `localStorage` keys); the backend reads its `faceSettings` section and `thumbnailCacheSize`.
 - **Recipes**: step lists for common changes (`recipes.md`).

@@ -217,7 +217,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 784 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
 | `library_sync.rs` | 340 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 3072 |  |
+| `main.rs` | 3091 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 146 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -250,7 +250,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `integrity.rs` | 209 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
 | `keywords.rs` | 96 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
 | `library_sync.rs` | 168 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
-| `main.rs` | 253 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
+| `main.rs` | 267 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
 | `orientation.rs` | 162 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs. |
 | `phash.rs` | 62 | Tests of the perceptual hash: stability under resizing and recompression, difference between pictures, rotations, mirrors and flat pictures. |
 | `place_search.rs` | 25 | Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |

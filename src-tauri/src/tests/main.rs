@@ -250,3 +250,17 @@ fn a_reserved_name_is_never_taken_twice() {
     assert_eq!(reserve_new_file(&dir.path().join("taken.jpg")).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(fs::read(dir.path().join("taken.jpg")).unwrap(), b"photo", "an existing file was truncated");
 }
+
+/// The backend default cache size comes from defaults.jsonc like the frontend's (a new install once generated 512 px thumbnails while the
+/// grid believed they were 1024 px); a valid saved size wins, an invalid one falls back to that default.
+#[test]
+fn thumbnail_cache_size_default_is_shared_with_the_frontend() {
+    let json: String = include_str!("../../../src/defaults.jsonc").lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+    let frontend: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let expected = frontend["thumbnailCacheSize"].as_u64().unwrap() as u32;
+    assert!(THUMBNAIL_CACHE_SIZES.contains(&expected), "defaults.jsonc thumbnailCacheSize must be one of {THUMBNAIL_CACHE_SIZES:?}");
+    assert_eq!(default_thumbnail_cache_size(), expected);
+    assert_eq!(startup_thumbnail_cache_size(None), expected);
+    assert_eq!(startup_thumbnail_cache_size(Some(768)), 768);
+    assert_eq!(startup_thumbnail_cache_size(Some(300)), expected);
+}

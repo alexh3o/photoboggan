@@ -608,6 +608,25 @@ async fn purge_orphan_thumbnails(state: State<'_, AppState>) -> Result<usize, St
 // (une miniature de 256 px ferait manquer les petits visages).
 const THUMBNAIL_CACHE_SIZES: [u32; 3] = [512, 768, 1024];
 
+/// Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
+/// agree, since the grid caps the display size with it and the setter is only called when the user changes the value. 512 if the value is
+/// missing or not one of THUMBNAIL_CACHE_SIZES.
+fn default_thumbnail_cache_size() -> u32 {
+    const DEFAULTS_FILE: &str = include_str!("../../src/defaults.jsonc");
+    // Same parsing rule as the frontend (settings-defaults.js) and face_detect.rs: full-line `//` comments are dropped.
+    let json: String = DEFAULTS_FILE.lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+    serde_json::from_str::<serde_json::Value>(&json).ok()
+        .and_then(|root| root["thumbnailCacheSize"].as_u64())
+        .and_then(|size| u32::try_from(size).ok())
+        .filter(|size| THUMBNAIL_CACHE_SIZES.contains(size))
+        .unwrap_or(512)
+}
+
+/// Cache size used at startup: the one saved in config.json when it is valid, otherwise the shared default.
+fn startup_thumbnail_cache_size(saved: Option<u32>) -> u32 {
+    saved.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or_else(default_thumbnail_cache_size)
+}
+
 #[tauri::command(async)]
 fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, size: u32) -> Result<(), String> {
     if !THUMBNAIL_CACHE_SIZES.contains(&size) {
@@ -2640,7 +2659,7 @@ fn main() {
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
             let config = load_config_at_startup(handle);
-            let cache_size = config.thumbnail_cache_size.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or(512);
+            let cache_size = startup_thumbnail_cache_size(config.thumbnail_cache_size);
             thumbnails::set_high_quality_thumbnails(config.thumbnail_quality.as_deref() == Some("high"));
 
             // Restauration de la fenêtre au démarrage avec vérification des écrans

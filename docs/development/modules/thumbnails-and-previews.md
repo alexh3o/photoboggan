@@ -81,4 +81,4 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 3. New format decoded in Rust: add to `decode_scaled_rgb`, decide its `orientation::Kind`, and keep the webview fallback for anything that errors.
 
 ## Open questions
-- ⚠ Known mismatch (code, not fixed by the docs): on a new install `config.json` has no cache size, so the backend uses 512 (`.setup`, `unwrap_or(512)`) while the frontend default is `thumbnailCacheSize` = 1024 (`defaults.jsonc`) and the setter is only called when the user changes the value. The grid then believes thumbnails can be shown up to 1024 px while they are generated at 512.
+none. Default cache size: when `config.json` holds none, `.setup` uses `startup_thumbnail_cache_size`, which reads `thumbnailCacheSize` from `src/defaults.jsonc` (`include_str!`, same rule as `faceSettings`), so backend and frontend agree on a new install (test `thumbnail_cache_size_default_is_shared_with_the_frontend`).
