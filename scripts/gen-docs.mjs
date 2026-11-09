@@ -374,7 +374,9 @@ function genTests() {
       else if (mf) ignore = null;
     }
     total += names.length; ign += names.filter((x) => x.ignore).length;
-    const target = existsSync(join(ROOT, 'src-tauri/src', basename(f))) ? `\`${basename(f)}\`` : '—';
+    // Owner = the module that includes this file with #[path = "tests/<name>"] (faces.rs includes faces_db.rs), else the same-name module.
+    const owner = files.find((m) => /^src-tauri\/src\/[^/]+\.rs$/.test(m) && read(m).includes(`"tests/${basename(f)}"`));
+    const target = owner ? basename(owner) : existsSync(join(ROOT, 'src-tauri/src', basename(f))) ? basename(f) : '—';
     body += `\n## ${basename(f)} — ${names.length} test(s), tests \`src-tauri/src/${target.replace(/`/g, '')}\`\n\n${head ? cut(head, 400) + '\n\n' : ''}${names.map((x) => `- \`${x.n}\`${x.ignore ? ` — **ignored**: ${x.ignore}` : ''}`).join('\n') || '_no #[test]_'}\n`;
   }
   const fixtures = files.filter((f) => f.startsWith('src-tauri/src/tests/fixtures/')).length;

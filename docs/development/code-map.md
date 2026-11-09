@@ -37,7 +37,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 | Metadata (`metadata-read-write`) | `exif.rs`, `exiftool.rs` | `metadata-writes.js`, `metadata-settings.js`, `marking-settings.js`, `order-list.js` |
 | Keywords (`keywords`) | `keywords.rs` | `keywords-panel.js`, `description-panel.js` |
 | Faces (`faces`, `face-detection`) | `faces.rs`; `face_detect.rs`, `face_recognize.rs`, `face_models.rs`, `model_files.rs`, `onnx_runtime.rs` | `faces-panel.js`, `faces-grid.js`, `persons-view.js` |
-| Semantic search (`semantic`) | `semantic.rs`, `semantic_search.rs`, `semantic_keywords.rs`, `semantic_models.rs` | `semantic*.js`, `main.js` section "CONTENT SEARCH RESULTS" |
+| Semantic search (`semantic`) | `semantic.rs`, `semantic_search.rs`, `semantic_keywords.rs`, `semantic_models.rs` | `semantic*.js`, `main.js` section "CONTENT SEARCH RESULTS" (results mode) and `pumpSemanticQueue` (section "FILE D'ATTENTE DES TÂCHES") |
 | Duplicates (`duplicates`) | `duplicates.rs`, `similar.rs`, `phash.rs` | `duplicates.js`, `duplicate-names.js`, `duplicates-modal.js`, `main.js` section "DUPLICATES" |
 | Maps & geolocation (`maps-and-geolocation`) | `geolocation.rs`, `place_search.rs` | `map-view.js`, `map-mode.js`, `map-config.js`, `map-tile-protocol.js`, `maps-settings.js`, `location-panel.js`, `geo-tools.js`, `place-search.js` |
 | Private zones & offline maps (`private-zones`) | `private_maps.rs` | `private-zones.js`, `private-zones-modal.js`, `zone-drawing.js` |
@@ -60,8 +60,8 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - "MODALE PARAMÈTRES" (+ folder management, About, Guide), "BOUTONS VUES & SIDEBAR", sidebar resizing.
 - "TRI DES MINIATURES" (sort; also the settings controls such as thumbnail quality live around here), "MARQUAGE".
 - "FILE D'ATTENTE DES TÂCHES" (`enqueueScanTask`, `pumpScanQueue`, `pumpSemanticQueue`, `runScanTask`, pause / resume) — ⚠ sensitive: every long feature depends on it.
-- "APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER", "DUPLICATES", date / location / content-analysis filters.
-- "DÉFILEMENT DE LA GRILLE AU GLISSER", "DÉPLACEMENT ET COPIE … VERS L'ARBORESCENCE" (drag and drop).
+- "DUPLICATES", "APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER".
+- "DÉFILEMENT DE LA GRILLE AU GLISSER", "DÉPLACEMENT ET COPIE … VERS L'ARBORESCENCE" (drag and drop), then the date / location / content-analysis filters.
 - "MENU CONTEXTUEL DES MINIATURES" (also `removePhotosFromLibrary` and the `init…` calls of most feature modules), "CONTENT SEARCH RESULTS".
 - "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES" (`syncLibraryWithDisk`, on startup and window focus), "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE".
 Module-level mutable state (`loadedPhotos`, `photos`, `selectedIndices`, `scanTasks`…) is shared by all sections: a change in one section can break another.

@@ -12,7 +12,7 @@ photoboggan is a desktop photo browser that works **in place**: the folders on d
 | Tauri v2 shell | `src-tauri/src/main.rs` (`fn main`) | One window, label `main`, created hidden and undecorated (`tauri.conf.json`). Plugins: single-instance (registered first: a second launch only refocuses the window), opener, dialog. |
 | Rust backend | `src-tauri/src/*.rs` | All file, database, decoding and network work. Exposed to the UI as `#[tauri::command]` functions registered in `generate_handler!` (`fn main`). Full list: `generated/ipc-commands.md`. |
 | Webview frontend | `index.html` + `src/*.js` (vanilla ES modules, bundled by Vite) | All UI and UI state. Talks to the backend with `invoke` only; reads image files directly through the asset protocol (`convertFileSrc`, scope `**`). |
-| ExifTool | child processes, `exiftool.rs` | Default metadata writer. Up to `MAX_PROCESSES` (3) persistent `-stay_open` processes, closed after `IDLE_TIMEOUT`. Bundled from `src-tauri/vendor/exiftool/` (resource `exiftool/`). |
+| ExifTool | child processes, `exiftool.rs` | Default metadata writer. Up to `MAX_PROCESSES` (3) persistent `-stay_open` processes, closed after `IDLE_TIMEOUT` (45 s idle) and at exit. Bundled from `src-tauri/vendor/exiftool/` (resource `exiftool/`). |
 | SQLite | `<data dir>/photos_library.db`, `db.rs` | WAL mode, one r2d2 pool (`AppState.db_pool`, behind a `RwLock` because `change_storage_location` swaps it). |
 | ONNX Runtime | `onnx_runtime.rs`, crate `ort` with `load-dynamic` | Face detection/recognition and semantic search models, loaded only when those features are used. |
 
@@ -52,7 +52,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 
 **2. Thumbnail request**
 1. The grid asks `get_cached_thumbnail_paths` for many paths at once; hits are displayed with `convertFileSrc`.
-2. Misses call `generate_thumbnail` (at most 6 at a time, `THUMBNAIL_GENERATION_GATE`): `thumbnails::generate_thumbnail` writes the JPEG into the cache (RAW: embedded preview, never demosaiced; HEIC: `heif.rs`; video: one frame, `video.rs`).
+2. Misses go through a frontend queue (`MAX_THUMBNAIL_GENERATIONS` = cores − 1, clamped to 2…6) and call `generate_thumbnail` (backend cap 6, `THUMBNAIL_GENERATION_GATE`): `thumbnails::generate_thumbnail` writes the JPEG into the cache (RAW: embedded preview, never demosaiced; HEIC: `heif.rs`; video: one frame, `video.rs`).
 3. If the backend fails (e.g. PNG, CMYK JPEG), the webview draws the thumbnail itself and stores it with `save_thumbnail_cache` (data URL).
 4. Full screen of RAW / HEIC / video uses `get_raw_preview_path` (separate `raw_previews/` cache).
 
@@ -88,7 +88,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 - **Frontend queue** (`main.js`, section "FILE D'ATTENTE DES TÂCHES"): `enqueueScanTask` adds a task; `pumpScanQueue` runs the main queue **one task at a time** in request order; `pumpSemanticQueue` runs the content analysis (`kind: 'semantic'`) in its own lane, in parallel. "Families" (`familyOf`) only decide which tasks are refused as duplicates of a running/waiting one (same folder covered, same `dedupeKey`); they do not run concurrently. Each task gets a unique id passed to the backend as `taskId`.
 - **Backend cancel**: `scan_cancel_flag(task_id)` creates or returns an `Arc<AtomicBool>`; `cancel_scan` sets it; the command calls `release_scan_cancel_flag` at the end.
 - **Threads**: commands are `#[tauri::command(async)]` / `async fn` (Tauri async pool) and push heavy work into `tokio::task::spawn_blocking`, often with `rayon` inside. Plain `#[tauri::command] fn` runs on the main thread (marked "main thread" in `generated/ipc-commands.md`): keep those trivial.
-- **Throttles**: thumbnail generation 6 at once; keyword writes 3 threads; incremental sync reads EXIF with 2 threads at most (`library_sync.rs` header); ExifTool 3 processes; `semantic::PriorityGuard` makes the semantic analysis pause while thumbnails are generated, a scan runs or metadata is written.
+- **Throttles**: thumbnail generation 2–6 at once (frontend `MAX_THUMBNAIL_GENERATIONS`, backend cap 6); keyword writes 3 threads; incremental sync reads EXIF with 2 threads at most (`library_sync.rs` header); ExifTool 3 processes; `semantic::PriorityGuard` makes the semantic analysis pause while thumbnails are generated, a scan runs or metadata is written.
 - **Per-file write lock**: `exiftool::path_lock` (16 striped mutexes) serialises writes to the same image, for both writers.
 
 ## Offline mode and network rule

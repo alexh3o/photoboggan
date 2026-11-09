@@ -34,7 +34,7 @@
   --bg-panel: #1e1e1e;
   --text-light: #e0e0e0;
   --accent: #1e72ad;
-  --accent-text: #4aa3df; /* accent color, replaced with user picked color in options */
+  --accent-text: #4aa3df; /* accent color (links, section titles); the user colors replace --selected-border and --active-button instead (applyAppearance, main.js) */
   --danger-text: #ff6b5b; /* used for errors or deleting actions  */
   --selected-border: #15932a;
   --active-button: #1e72ad;

@@ -133,7 +133,7 @@ Tests du chemin d'écriture ExifTool (exiftool.rs). Rapides : verrous par chemin
 - `orientation_is_written_in_xmp_and_in_the_exif_of_jpeg_only`
 - `lossless_rotation_changes_only_the_orientation_tags` — **ignored**: intégration : lance ExifTool
 
-## faces_db.rs — 3 test(s), tests `src-tauri/src/—`
+## faces_db.rs — 3 test(s), tests `src-tauri/src/faces.rs`
 
 Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée. (La lecture des zones dans les paquets XMP est testée dans le module `tests` de faces.rs.)
 

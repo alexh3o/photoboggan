@@ -1,7 +1,7 @@
 <!-- verified: 444b2ec | sources: AGENTS.md, src/locales/en.json -->
 # Glossary
 
-One line per term, built from the terms used by the other docs. Module docs hold the details (link given when useful). Marked `⚠ unverified` when the definition comes from a single mention.
+One line per term, built from the terms used by the other docs. Module docs hold the details (link given when useful). Each term was checked against the code or the doc it links.
 
 ## Files, metadata, formats
 
@@ -27,9 +27,9 @@ One line per term, built from the terms used by the other docs. Module docs hold
 - **`PREVIEW_VERSION`**: number in the cache key; bump when thumbnail content changes.
 - **`LAYOUT_VERSION` / `ALGO_VERSION`**: versions of the image-data hash (`duplicates.rs`) and of the pHash (`phash.rs`); bump when their rules change, otherwise cached values are wrong.
 - **Scope**: the set of photos a search or task covers: selection, a folder (with or without subfolders), the view on screen, or the whole library.
-- **All photos**: the whole-library view. ⚠ unverified: exact wording and behaviour of the node (see `main-window.md`).
+- **All photos**: first node of the folder tree (`renderFolderTree`, `data-all-photos`): no folder filter (`currentFolderFilter === null`) and no album, i.e. the whole catalogue; also a scope of the context menu (duplicates, rescan).
 - **Album / smart album**: albums live only in the database; a smart album stores a filter state (`albums.md`).
-- **Virtual folder / collection**: ⚠ unverified: used for albums and result lists; see `albums.md`.
+- **Virtual folder**: an album-tree node that only groups other albums (no photos of its own); it may hold manual and smart albums (`albums.md`).
 - **Offline mode**: user setting that forbids every network access from the backend (error `internet_disabled`) and the map tiles of the webview (`architecture.md`).
 
 ## Keywords
@@ -62,7 +62,7 @@ One line per term, built from the terms used by the other docs. Module docs hold
 - **Semantic model / content search**: SigLIP 2 embeddings enabling search by description and keyword suggestions (`semantic.md`).
 - **Relevance cut**: the slider keeps results whose score is within Δ of the best (`relevance_cut`).
 - **Identical / similar / by-name duplicates**: three search kinds; similar uses a 64-bit pHash with Hamming distance (`duplicates.md`).
-- **Burst**: photos taken within milliseconds; excluded from similar groups when asked.
+- **Burst**: photos taken within `burst_ms` of each other (a non-zero gap: same exact time means a copy); left out of similar groups when asked (`similar.rs`).
 - **Map mode**: full map of the grid's photos; positions assigned there stay pending until written.
 - **`pbmap://`**: custom protocol serving every map resource; the only webview network path (`maps-and-geolocation.md`).
 - **Private zone**: place whose tiles are on disk (MBTiles); photos inside use a strict map that never reaches the provider. **Offline map**: a non-private zone.

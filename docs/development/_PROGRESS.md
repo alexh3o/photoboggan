@@ -9,7 +9,7 @@ Update the status column and commit at the end of each session. One session = on
 |---|---|---|---|---|
 | 1 | Generator + skeleton + template | Sonnet | `scripts/gen-docs.mjs`, `generated/`, empty docs | done |
 | 2 | Architecture, code map, invariants, recipes; **validate the module split below** | Opus | `architecture.md`, `code-map.md`, `invariants.md`, `recipes.md`, this table, phase 2 notes in every module skeleton | done |
-| 3 | Module docs, style, configuration, testing, build, troubleshooting, glossary | Sonnet, one session per row | see table below | todo |
+| 3 | Module docs, style, configuration, testing, build, troubleshooting, glossary | Sonnet, one session per row | see table below | done |
 | 4 | Cross-review: contradictions, `⚠` items, spot-check claims against the code | Opus | fixes + `reviewed` status | todo |
 | 5 | Real-task test with a free-tier model using only these docs | any | list of gaps → fixes | todo |
 | 6 | Hook up `AGENTS.md` (one pointer line + "update docs with the code" rule) | Sonnet | AGENTS.md diff, user validates | todo |
@@ -37,29 +37,29 @@ Findings of phase 2, already fixed in `AGENTS.md` (§1 and §5.D):
 | `code-map.md` | 2 | written |
 | `invariants.md` | 2 | written |
 | `recipes.md` | 2 | written |
-| `modules/app-shell.md` | 3 | skeleton |
-| `modules/library-and-database.md` | 3 | skeleton |
-| `modules/main-window.md` | 3 | skeleton |
-| `modules/grid-and-viewer.md` | 3 | skeleton |
-| `modules/thumbnails-and-previews.md` | 3 | skeleton |
-| `modules/metadata-read-write.md` | 3 | skeleton |
-| `modules/keywords.md` | 3 | skeleton |
-| `modules/faces.md` | 3 | skeleton |
-| `modules/face-detection.md` | 3 | skeleton |
-| `modules/semantic.md` | 3 | skeleton |
-| `modules/duplicates.md` | 3 | skeleton |
-| `modules/maps-and-geolocation.md` | 3 | skeleton |
-| `modules/private-zones.md` | 3 | skeleton |
-| `modules/albums.md` | 3 | skeleton |
-| `modules/filters-and-search.md` | 3 | skeleton |
-| `modules/photo-operations.md` | 3 | skeleton |
-| `modules/updates.md` | 3 | skeleton |
-| `style.md` | 3 | skeleton |
-| `configuration.md` | 3 | skeleton |
-| `testing.md` | 3 | skeleton |
-| `build-release.md` | 3 | skeleton |
-| `troubleshooting.md` | 3 | skeleton |
-| `glossary.md` | 3 | skeleton |
+| `modules/app-shell.md` | 3 | written |
+| `modules/library-and-database.md` | 3 | written |
+| `modules/main-window.md` | 3 | written |
+| `modules/grid-and-viewer.md` | 3 | written |
+| `modules/thumbnails-and-previews.md` | 3 | written |
+| `modules/metadata-read-write.md` | 3 | written |
+| `modules/keywords.md` | 3 | written |
+| `modules/faces.md` | 3 | written |
+| `modules/face-detection.md` | 3 | written |
+| `modules/semantic.md` | 3 | written |
+| `modules/duplicates.md` | 3 | written |
+| `modules/maps-and-geolocation.md` | 3 | written |
+| `modules/private-zones.md` | 3 | written |
+| `modules/albums.md` | 3 | written |
+| `modules/filters-and-search.md` | 3 | written |
+| `modules/photo-operations.md` | 3 | written |
+| `modules/updates.md` | 3 | written |
+| `style.md` | 3 | written |
+| `configuration.md` | 3 | written |
+| `testing.md` | 3 | written |
+| `build-release.md` | 3 | written |
+| `troubleshooting.md` | 3 | written |
+| `glossary.md` | 3 | written |
 
 ## Phase 3 in three parallel sessions
 
@@ -170,6 +170,21 @@ Every module prompt below starts with the same instructions; only the last sente
 ### Phase 4 (Opus, one session)
 
 > Review every `written` doc in `docs/development/`: contradictions between docs, claims that do not match the code (check at least 5 per doc against the source), missing sensitive areas, links to generated tables that do not exist, files over the size limit, and the "to change elsewhere" items reported by the phase 3 sessions (added below by the final step). Fix them, mark docs `reviewed`, list what remains uncertain.
+
+### Phase 4 — items reported by the phase 3 sessions
+
+- AGENTS.md §5.D: HEIC written in the container first; `set_keyword_format_order` does not exist (real: `set_metadata_read_order`, kind `keywords`). (A)
+- AGENTS.md §5.J / `update_check.rs` header comment still mentions NSIS while only `.msi` is selected. (A)
+- `keywords.rs`: doc comment of `set_metadata_read_order` lists 5 kinds, the code also accepts `pick`, `gps`, `faces`. (A)
+- AGENTS.md §5.G: `exifPanelWidth`, `lastFolderFilter`, `sidebarWidth` (and UI-state keys `keywordFilterMode`, `sidePanelTab`) are stored without a default in `defaults.jsonc`. (A, B)
+- `architecture.md` "Concurrency model": the frontend thumbnail limit is `MAX_THUMBNAIL_GENERATIONS` = clamp(cores−1, 2, 6), not a flat 6. (B)
+- `src/guide.js`: shortcut list (`Ctrl+R` rotate vs F5 / `Ctrl+R` reload guard) not cross-checked with the keyboard handler. (B)
+- `src/styles.css`: `:root` comment says `--accent-text` is replaced by the user color; `applyAppearance()` does not set it. (B)
+- `generated/config.md`: `—` for keys read through constants (`albumOverwriteWarning`, `checkUpdates`): generator limit. (B)
+- `generated/tests.md`: `faces_db.rs` title shows `src-tauri/src/—`. (A)
+- `code-map.md`: `pumpSemanticQueue` is in the task-queue section of `main.js`, not under "CONTENT SEARCH RESULTS". (C)
+- AGENTS.md §5.L lists `keywordSuggestionsOpen` among semantic settings: check `defaults.jsonc`. (C)
+- `glossary.md`: settle "All photos" and "virtual folder / collection" against `main-window.md` and `albums.md`. (C)
 
 ### Phase 5 (free-tier model)
 

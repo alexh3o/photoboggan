@@ -22,9 +22,9 @@ cd src-tauri && cargo test <module>::          # one module, e.g. keywords::
 cd src-tauri && cargo test exiftool:: -- --ignored --test-threads=1   # ExifTool integration (bundled copy or PATH)
 cd src-tauri && cargo test skipped_exif -- --ignored                  # a global-setting test, run alone
 ```
-- Other ignored tests need something the fast set must not depend on: `SEMANTIC_MODEL_DIR=<folder with vision.onnx, text.onnx, tokenizer.json> cargo test semantic:: -- --ignored` (4 in `semantic.rs`, plus 2 in `semantic_keywords.rs` and 2 in `semantic_search.rs`; their ignore reasons say "needs the SigLIP 2 model"); benchmarks need a real photo or folder (`PHOTOBOGGAN_BENCH_PHOTO`, `PHOTOBOGGAN_BENCH_DIR`, run with `--release --nocapture`, see the doc comments of `marking_check_cost` and `move_cost`).
+- Other ignored tests need something the fast set must not depend on: `SEMANTIC_MODEL_DIR=<folder with vision.onnx, text.onnx, tokenizer.json> cargo test semantic:: -- --ignored` (4 in `semantic.rs`, 1 in `semantic_search.rs`, ignore reason "needs the SigLIP 2 model"; ONNX Runtime from `ORT_DYLIB_PATH`; usage in each file's header comment). The other ignored tests of `semantic_keywords.rs` / `semantic_search.rs` are speed measures or need a catalogue copy (`SEMANTIC_CATALOG`); benchmarks need a real photo or folder (`PHOTOBOGGAN_BENCH_PHOTO`, `PHOTOBOGGAN_BENCH_DIR`, run with `--release --nocapture`, see the doc comments of `marking_check_cost` and `move_cost`).
 - ExifTool prerequisites: `npm run fetch-exiftool` puts the pinned version in `src-tauri/vendor/exiftool/`; on Linux / macOS the system `perl` must exist.
-- The CI (`tests.yml`) runs on `ubuntu-22.04` and `windows-latest`: it builds the frontend first (`npm run build`: Tauri checks at compile time that `frontendDist` exists), installs the same Linux system libraries as the release workflow, runs `cargo test`, and on Windows only fetches ExifTool and runs `cargo test exiftool:: -- --ignored --test-threads=1`. The other ignored tests (including the known-gap test of `exif.rs`) are not run by CI.
+- The CI (`tests.yml`) runs on `ubuntu-22.04` and `windows-latest`: it builds the frontend first (`npm run build`: Tauri checks at compile time that `frontendDist` exists), installs the same Linux system libraries as the release workflow, runs `cargo test`, and on Windows only fetches ExifTool and runs `cargo test exiftool:: -- --ignored --test-threads=1`. The other ignored tests (global-setting test of `exif.rs`, benchmarks, model tests) are not run by CI.
 - A test that fails after being ignored documents a known gap: report it, never weaken the assertion to "fix" it (AGENTS.md §5.I).
 
 ### Helpers (`test_support.rs`)
@@ -53,7 +53,7 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 - Real-world files: tests use synthetic files; vendor-specific RAW, HEIC and video behaviour is checked by hand on real photos.
 - Network code (releases, model downloads, place search, map tiles), `install_update`, `has_trash`.
 - The `resize.rs` module has no test file.
-- ⚠ unverified: the test count per module in `generated/tests.md` is parsed by `scripts/gen-docs.mjs`; its title for `faces_db.rs` shows `src-tauri/src/—` (that module is tested without an in-source `#[path]` include).
+- `tests/faces_db.rs` is included from `faces.rs` (`mod db_tests`), not from a `faces_db` module.
 
 ## Contracts
 - IPC / events / database / settings: none (tests do not touch the app's data folders).
@@ -74,4 +74,4 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 4. Refresh the inventory with `npm run docs:gen`.
 
 ## Open questions
-- ⚠ unverified: whether `cargo test` also builds the frontend automatically; CI runs `npm run build` first, locally `dist/` must already exist (`tauri.conf.json` `frontendDist`).
+none. Note: `cargo test` does not build the frontend; Tauri checks at compile time that `frontendDist` (`dist/`) exists, so run `npm run build` once before the first local `cargo test` (CI does the same).

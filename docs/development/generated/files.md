@@ -7,12 +7,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `AGENTS.md` | 220 |  |
+| `AGENTS.md` | 221 |  |
 | `CLAUDE.md` | 2 |  |
 | `index.html` | 1216 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 65 |  |
+| `TODO.md` | 68 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -38,19 +38,19 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `_PROGRESS.md` | 151 |  |
+| `_PROGRESS.md` | 192 |  |
 | `_TEMPLATE.md` | 62 |  |
 | `architecture.md` | 97 |  |
-| `build-release.md` | 14 |  |
+| `build-release.md` | 87 |  |
 | `code-map.md` | 87 |  |
-| `configuration.md` | 13 |  |
-| `glossary.md` | 9 |  |
+| `configuration.md` | 62 |  |
+| `glossary.md` | 80 |  |
 | `invariants.md` | 81 |  |
 | `README.md` | 56 |  |
 | `recipes.md` | 94 |  |
-| `style.md` | 15 |  |
-| `testing.md` | 14 |  |
-| `troubleshooting.md` | 12 |  |
+| `style.md` | 56 |  |
+| `testing.md` | 78 |  |
+| `troubleshooting.md` | 72 |  |
 
 ## docs/development/generated
 
@@ -60,7 +60,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 507 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 282 |  |
+| `files.md` | 285 |  |
 | `ipc-commands.md` | 176 |  |
 | `module-deps.md` | 93 |  |
 | `symbols-js.md` | 1374 |  |
@@ -71,23 +71,23 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums.md` | 31 |  |
-| `app-shell.md` | 32 |  |
-| `duplicates.md` | 32 |  |
-| `face-detection.md` | 32 |  |
-| `faces.md` | 32 |  |
-| `filters-and-search.md` | 32 |  |
-| `grid-and-viewer.md` | 32 |  |
-| `keywords.md` | 32 |  |
-| `library-and-database.md` | 32 |  |
-| `main-window.md` | 32 |  |
-| `maps-and-geolocation.md` | 32 |  |
-| `metadata-read-write.md` | 32 |  |
-| `photo-operations.md` | 32 |  |
-| `private-zones.md` | 31 |  |
-| `semantic.md` | 32 |  |
-| `thumbnails-and-previews.md` | 32 |  |
-| `updates.md` | 30 |  |
+| `albums.md` | 61 |  |
+| `app-shell.md` | 72 |  |
+| `duplicates.md` | 65 |  |
+| `face-detection.md` | 72 |  |
+| `faces.md` | 69 |  |
+| `filters-and-search.md` | 90 |  |
+| `grid-and-viewer.md` | 85 |  |
+| `keywords.md` | 79 |  |
+| `library-and-database.md` | 72 |  |
+| `main-window.md` | 79 |  |
+| `maps-and-geolocation.md` | 70 |  |
+| `metadata-read-write.md` | 97 |  |
+| `photo-operations.md` | 83 |  |
+| `private-zones.md` | 65 |  |
+| `semantic.md` | 66 |  |
+| `thumbnails-and-previews.md` | 86 |  |
+| `updates.md` | 67 |  |
 
 ## scripts
 
@@ -95,7 +95,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `fetch-exiftool.mjs` | 106 | Télécharge la distribution officielle d'ExifTool dans src-tauri/vendor/exiftool/, embarquée dans l'application (ressource Tauri « exiftool », voir tauri.conf.json et src-tauri/src/exiftool.rs). Les binaires ne sont pas … |
 | `fetch-map-style.mjs` | 58 | Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « dark » (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écri… |
-| `gen-docs.mjs` | 435 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
+| `gen-docs.mjs` | 437 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
 

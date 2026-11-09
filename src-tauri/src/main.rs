@@ -235,7 +235,7 @@ fn restore_window_state(window: &tauri::WebviewWindow, config: &AppConfig) -> Wi
     if let Some(ref saved) = config.window_state {
         if check_window_visibility(window, saved) {
             // Saved sizes are physical pixels while the minimum (tauri.conf.json minWidth /
-            // minHeight, 800x500) is logical: scale it, so a size saved by an older version
+            // minHeight, 900x500) is logical: scale it, so a size saved by an older version
             // without a minimum cannot reopen a window smaller than the OS-enforced one.
             let scale = window.scale_factor().unwrap_or(1.0);
             let width = saved.width.max((MIN_WIDTH_LOGICAL * scale).ceil() as u32);

@@ -5,7 +5,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 ## 1. Photo protection
 
-**1.1 Image data is never rewritten.** Only metadata changes. Internal JPEG writes rebuild the file segment by segment (`jpeg_replace_xmp`, `jpeg_replace_iptc`, `jpeg_replace_comment` in exif.rs) and copy everything else unchanged; no decode / re-encode ever happens on a user file. Other formats get a sidecar; HEIC / HEIF get their XMP updated inside the container (`heif::update_xmp`), with a sidecar fallback when the structure does not allow it (⚠ note: AGENTS.md §5.D lists HEIC under sidecar formats; the code writes in the container first).
+**1.1 Image data is never rewritten.** Only metadata changes. Internal JPEG writes rebuild the file segment by segment (`jpeg_replace_xmp`, `jpeg_replace_iptc`, `jpeg_replace_comment` in exif.rs) and copy everything else unchanged; no decode / re-encode ever happens on a user file. Other formats get a sidecar; HEIC / HEIF get their XMP updated inside the container (`heif::update_xmp`), with a sidecar fallback when the structure does not allow it; ExifTool writes HEIC in the file directly (AGENTS.md §5.D).
 - Tests: `raw_gets_a_sidecar_and_the_original_is_never_modified` (exif), `jpeg_is_written_without_touching_pixels` (exiftool, ignored), `sidecar_rotation_leaves_the_image_file_untouched` (orientation).
 - Broken if violated: quality loss on the user's originals, irreversible.
 
@@ -73,7 +73,7 @@ The backend flag starts false and is set by `set_internet_allowed`; every backen
 
 ## 8. Portability
 
-Code must build and run on Windows and Linux. Platform-specific code is isolated behind `#[cfg(windows)]` / `#[cfg(not(windows))]` pairs, e.g. `hide_console_window` and `bind_to_app_lifetime` (exiftool.rs), `video::system_thumbnail` (Windows Shell; elsewhere an optional `ffmpeg`), installer launch (`msiexec` / `xdg-open`, `install_update`). Paths come from Tauri (`app.path()`) and `PathBuf`; no shell (cmd.exe, PowerShell) and no registry. The `windows` crate is a Windows-only dependency (`Cargo.toml`).
+Code must build and run on Windows and Linux. Platform-specific code is isolated behind `#[cfg(windows)]` / `#[cfg(not(windows))]` pairs, e.g. `hide_console_window` and `bind_to_app_lifetime` (exiftool.rs), `video::system_thumbnail` (Windows Shell; a stub elsewhere, with an optional `ffmpeg` in the PATH as fallback on every platform), installer launch (`msiexec` / `xdg-open`, `install_update`). Paths come from Tauri (`app.path()`) and `PathBuf`; no shell (cmd.exe, PowerShell) and no registry. The `windows` crate is a Windows-only dependency (`Cargo.toml`).
 
 ## 9. Configuration file
 

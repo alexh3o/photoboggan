@@ -7,9 +7,9 @@ How to build and run photoboggan, which assets come from outside the repository,
 ## Files
 | File | Role |
 |---|---|
-| `package.json` | Scripts; app version (`0.6.9`); dependencies (Tauri API / plugins, `maplibre-gl` 6.14.0; dev: Vite 5, Tauri CLI) |
+| `package.json` | Scripts (incl. `prepare-semantic-models`); app version; dependencies (Tauri API / plugins, `maplibre-gl` 6.14.0; dev: Vite 5, Tauri CLI) |
 | `vite.config.js` | Dev server on port 5173 (`strictPort`), `clearScreen: false`, ignores `src-tauri/**` in the watcher (avoids `EBUSY` on Windows) |
-| `src-tauri/Cargo.toml` | Rust dependencies (pure Rust preferred; `rusqlite` bundled; `ort` pinned `=2.0.0-rc.15` with `load-dynamic`); Windows-only `windows` crate; version `0.6.9` |
+| `src-tauri/Cargo.toml` | Rust dependencies (pure Rust preferred; `rusqlite` bundled; `ort` pinned `=2.0.0-rc.15` with `load-dynamic`); Windows-only `windows` crate; app version |
 | `src-tauri/tauri.conf.json` | App identity, window, CSP, bundle (targets, resources, MSI languages), build hooks |
 | `src-tauri/tauri.dev.conf.json` | Overrides for development: identifier `com.alexh3o.photoboggan.dev`, product name `photoboggan-dev` |
 | `src-tauri/build.rs` | Only `tauri_build::build()` |
@@ -49,10 +49,10 @@ Models and ONNX Runtime are never in the installer (AGENTS.md §5.L). `dev_tools
 
 ### CI workflows
 - `tests.yml`: push to `main` and every pull request; `ubuntu-22.04` and `windows-latest`; builds the frontend, `cargo test`, and on Windows the ExifTool integration tests (`testing.md`).
-- `release.yml`: triggered by pushing a tag `v*`. Matrix: `ubuntu-22.04` with `--bundles deb`, and `windows-latest`. Steps: checkout with full history; Node 20; Rust stable; on Linux only, install `git-cliff` (`cargo install git-cliff`) and generate the changelog of the latest tag (`git cliff --latest --strip header`) into an environment variable; Linux system libraries; `npm install`; then `tauri-apps/tauri-action@v0` creates the GitHub release for the tag as a **draft and pre-release** with the binaries attached. The Linux job writes the changelog as the release body; the Windows job sets the body to "Release for Windows". The Linux job passes `appVersion` = `<tag>-beta`, so the `.deb` carries a `-beta` suffix that the updater ignores when comparing versions.
+- `release.yml`: triggered by pushing a tag `v*`. Matrix: `ubuntu-22.04` with `--bundles deb`, and `windows-latest`. Steps: checkout with full history; Node 20; Rust stable; on Linux only, install `git-cliff` (`cargo install git-cliff`) and generate the changelog of the latest tag (`git cliff --latest --strip header`) into an environment variable; Linux system libraries; `npm install`; then `tauri-apps/tauri-action@v0` creates the GitHub release for the tag as a **draft and pre-release** with the binaries attached. The Linux job writes the changelog as the release body; the Windows job sets the body to "Release for Windows". The Linux job passes `appVersion` = `<tag>-beta` (`github.ref_name`, the tag text with its `v`), so the `.deb` carries a `-beta` suffix that the updater ignores when comparing versions.
 
 ### Release procedure (as implied by the files)
-1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (all three currently say 0.6.9; `Cargo.lock` follows `Cargo.toml`). The updater compares the installed version (`app.package_info()`) with release tags.
+1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (they must stay equal; `Cargo.lock` follows `Cargo.toml`). The updater compares the installed version (`app.package_info()`) with release tags.
 2. Commit, tag `v<x>.<y>.<z>` and push the tag; wait for both jobs.
 3. Check the draft: one `.msi` per language, one `.deb`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it) ⚠ unverified: whether the flag is cleared by hand or by some other step.
 4. Tags that are not `v<x>.<y>.<z>` (`face-models-1`, `semantic-models-1`) are model assets and are ignored by the updater.

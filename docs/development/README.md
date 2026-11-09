@@ -3,7 +3,7 @@
 
 Entry point for developers and AI assistants who maintain or extend the application. For the product itself, see `../USER_GUIDE.md`; for the rules AI agents must follow in every session, see `../../AGENTS.md`.
 
-> Status: **skeleton**. Documents marked `verified: none` in their first line are outlines, not yet written. Check `_PROGRESS.md`.
+> Status: every doc is written and was cross-checked against the code (phase 4, see `_PROGRESS.md`). Remaining doubts are marked `⚠ unverified` in each doc.
 
 ## How this documentation is organized
 
