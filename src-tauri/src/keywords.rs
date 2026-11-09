@@ -83,6 +83,8 @@ pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>
         return false;
     }
     let result = store_photo_keywords_in(conn, items).and_then(|_| conn.execute_batch("COMMIT"));
+    // After the commit, never before: a suggestion model built in between would read the old links under the new generation and stay.
+    crate::semantic_keywords::on_keywords_changed();
     if let Err(error) = result {
         eprintln!("Keywords not stored for {} photos: {error}", items.len());
         let _ = conn.execute_batch("ROLLBACK");
@@ -91,8 +93,9 @@ pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>
     true
 }
 
-/// Corps de `store_photo_keywords`, sans transaction : l'appelant fournit la sienne (voir `run_write`).
-fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>)]) -> rusqlite::Result<()> {
+/// Body of `store_photo_keywords`, without a transaction: the caller provides its own (see `run_write`) and calls
+/// `semantic_keywords::on_keywords_changed` once it has committed.
+pub(crate) fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>)]) -> rusqlite::Result<()> {
     for (path, keyword_paths) in items {
         let Some(photo_id) = conn.query_row("SELECT id FROM photos WHERE path = ?1", params![path], |row| row.get::<_, i64>(0)).optional()? else {
             eprintln!("Keywords not stored: {path} is not in the catalog");
@@ -106,8 +109,6 @@ fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>
             conn.execute("INSERT OR IGNORE INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_id, parent_id])?;
         }
     }
-    // Keyword suggestions built from the old links are outdated (even if the caller's transaction is rolled back: a needless rebuild).
-    crate::semantic_keywords::on_keywords_changed();
     Ok(())
 }
 
@@ -475,7 +476,11 @@ fn run_write(
         Ok(())
     });
     let stored = match stored {
-        Ok(()) => tx.commit(),
+        Ok(()) => {
+            let committed = tx.commit();
+            crate::semantic_keywords::on_keywords_changed(); // after the commit (see store_photo_keywords)
+            committed
+        }
         Err(error) => {
             drop(tx); // annule la transaction
             Err(error)

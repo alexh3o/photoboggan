@@ -314,6 +314,41 @@ fn at_most_five_suggestions_best_first() {
 }
 
 #[test]
+fn a_model_built_during_a_keyword_write_is_not_kept_after_its_commit() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let writer = pool.get().unwrap();
+    let cache = SearchCache::new(IDLE_RELEASE);
+    let model = active_model();
+    let sea = keyword(&conn, 0, "sea");
+    let photos: Vec<i64> = (0..4).map(|i| photo(&conn, &cache, &format!("sea{i}"), model_vector(0.0))).collect();
+    tag(&conn, sea, &photos);
+    photo(&conn, &cache, "sea4", model_vector(0.0));
+    let query = photo(&conn, &cache, "query", model_vector(0.01));
+    let fifth_link = [("C:/photos/sea4.jpg".to_string(), vec![vec!["sea".to_string()]])];
+
+    // The write inside the transaction announces nothing (the generation is global: other tests may bump it, so a few attempts; an
+    // announcement before the commit would fail every one of them).
+    let quiet = (0..20).any(|_| {
+        writer.execute_batch("BEGIN").unwrap();
+        let before = keywords_generation();
+        crate::keywords::store_photo_keywords_in(&writer, &fifth_link).unwrap();
+        let after = keywords_generation();
+        writer.execute_batch("ROLLBACK").unwrap();
+        before == after
+    });
+    assert!(quiet, "the generation changed before the commit");
+
+    // A file read stores a fifth link in its transaction; a request builds the model before the commit (it reads the old links).
+    writer.execute_batch("BEGIN").unwrap();
+    crate::keywords::store_photo_keywords_in(&writer, &fifth_link).unwrap();
+    assert!(photo_suggestions(&cache, &conn, model, query, open).unwrap().suggestions.is_empty());
+    writer.execute_batch("COMMIT").unwrap();
+    on_keywords_changed(); // what the callers of store_photo_keywords_in do after their commit
+    assert_eq!(suggested(&photo_suggestions(&cache, &conn, model, query, open).unwrap()), vec![sea], "the model of the old links was kept");
+}
+
+#[test]
 fn suggestions_follow_the_keywords_and_the_analysis() {
     let (_dir, pool) = temp_catalog();
     let conn = pool.get().unwrap();
