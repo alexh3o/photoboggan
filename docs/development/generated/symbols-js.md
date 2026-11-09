@@ -297,19 +297,19 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `formatMegabytes(bytes)` · L1230
 - `refreshModelStatus()` · L1235
 - `renderModelStatus()` · L1247 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
-- `downloadModels()` · L1282
-- `importModels()` · L1297
-- `sendFaceSettings()` · L1310
-- `scheduleReclassify()` · L1315 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
-- `initDetectionSettings()` · L1329
-- `applyDetectionEnabled()` · L1378 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
-- `setDetectionEnabled(enabled)` · L1390
-- `checkbox(label, checked)` · L1397
-- `dialogButton(label, className, onClick)` · L1409
-- `enqueueFaceScan(scope, recursive)` · L1420 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
-- `export openFaceScanDialog(scope)` · L1453 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
-- `applyReadingEnabled()` · L1532 — ==========================================
-- `export initFacesPanel(hostApi)` · L1549 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
+- `downloadModels()` · L1284
+- `importModels()` · L1299
+- `sendFaceSettings()` · L1312
+- `scheduleReclassify()` · L1317 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
+- `initDetectionSettings()` · L1331
+- `applyDetectionEnabled()` · L1380 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
+- `setDetectionEnabled(enabled)` · L1392
+- `checkbox(label, checked)` · L1399
+- `dialogButton(label, className, onClick)` · L1411
+- `enqueueFaceScan(scope, recursive)` · L1422 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
+- `export openFaceScanDialog(scope)` · L1455 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
+- `applyReadingEnabled()` · L1534 — ==========================================
+- `export initFacesPanel(hostApi)` · L1551 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
 
 ## src/filter-suggest.js (2)
 
@@ -1118,19 +1118,19 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `buildOpenWithItem(targets, section)` · L1588 — « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
 - `onMenuKeydown(event)` · L1614
 - `openThumbnailMenu(event, index, source = 'grid')` · L1649
-- `confirmUnrecognizedFilesDialog(folderName, files)` · L1792 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
-- `confirmAndDeleteFolder(path)` · L1816 — Supprime un dossier de l'arborescence : première confirmation habituelle,
-- `openFolderMenu(event, folderItem)` · L1852 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
-- `openAllPhotosMenu(event, item)` · L1899 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
-- `export openContextMenuAt(event, items)` · L1917 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
-- `showContextMenu(menu, event)` · L1933 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
-- `findTargetPhoto(target)` · L1955 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
-- `isTextField(field)` · L1986
-- `fieldExtraItems(field)` · L1989 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
-- `pasteIntoField(field)` · L2012 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
-- `openTextFieldMenu(event, field)` · L2025 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
-- `onContextMenu(event)` · L2054 — Remplace le menu contextuel du navigateur
-- `export initPhotoActions(options)` · L2097 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
+- `confirmUnrecognizedFilesDialog(folderName, files)` · L1808 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
+- `confirmAndDeleteFolder(path)` · L1832 — Supprime un dossier de l'arborescence : première confirmation habituelle,
+- `openFolderMenu(event, folderItem)` · L1868 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
+- `openAllPhotosMenu(event, item)` · L1922 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
+- `export openContextMenuAt(event, items)` · L1940 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
+- `showContextMenu(menu, event)` · L1956 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
+- `findTargetPhoto(target)` · L1978 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
+- `isTextField(field)` · L2009
+- `fieldExtraItems(field)` · L2012 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
+- `pasteIntoField(field)` · L2035 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
+- `openTextFieldMenu(event, field)` · L2048 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
+- `onContextMenu(event)` · L2077 — Remplace le menu contextuel du navigateur
+- `export initPhotoActions(options)` · L2120 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
 
 ## src/place-search.js (6)
 
@@ -1233,23 +1233,23 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `byId(id)` · L104
 - `formatMegabytes(bytes)` · L106
 - `renderModelStatus()` · L112 — Model line: status, Download (greyed in offline mode) / Import buttons, and the list of files to fetch by hand.
-- `modelFilesInstalled()` · L154 — Model files (not counting the ONNX Runtime library shared with the faces) present on disk.
-- `refreshStats()` · L162
-- `renderStats()` · L177
-- `renderSection()` · L192
-- `importModel()` · L200 — Messages of the import: one line per problem (a file missing or with a wrong checksum).
-- `downloadModel()` · L221
-- `deleteAnalysisData()` · L239
-- `deleteModelFiles()` · L258
-- `hasStoredData()` · L282 — ==========================================
-- `setEnabled(wanted)` · L287
-- `bindCheckbox(id, key)` · L329
-- `export analyseContent({ folder = null, recursive = false, photoIds = null } = {})` · L343 — ==========================================
-- `reportAnalysis(report, stopped, error)` · L360 — End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
-- `scanRaw()` · L385 — Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts.
-- `export semanticScanThreads()` · L388 — Scan speed (ONNX Runtime threads): 1, 2 or 4.
-- `export onSemanticOfflineChanged()` · L393 — Offline mode changed (main.js): the Download button follows.
-- `export initSemanticSettings(hostApi)` · L400 — hostApi: enqueueTask(task) and showToast(message), as faces-panel.js; stopTasks() stops the analyses of the queue.
+- `modelFilesInstalled()` · L156 — Model files (not counting the ONNX Runtime library shared with the faces) present on disk.
+- `refreshStats()` · L164
+- `renderStats()` · L179
+- `renderSection()` · L194
+- `importModel()` · L202 — Messages of the import: one line per problem (a file missing or with a wrong checksum).
+- `downloadModel()` · L223
+- `deleteAnalysisData()` · L241
+- `deleteModelFiles()` · L260
+- `hasStoredData()` · L284 — ==========================================
+- `setEnabled(wanted)` · L289
+- `bindCheckbox(id, key)` · L331
+- `export analyseContent({ folder = null, recursive = false, photoIds = null } = {})` · L345 — ==========================================
+- `reportAnalysis(report, stopped, error)` · L362 — End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
+- `scanRaw()` · L387 — Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts.
+- `export semanticScanThreads()` · L390 — Scan speed (ONNX Runtime threads): 1, 2 or 4.
+- `export onSemanticOfflineChanged()` · L395 — Offline mode changed (main.js): the Download button follows.
+- `export initSemanticSettings(hostApi)` · L402 — hostApi: enqueueTask(task) and showToast(message), as faces-panel.js; stopTasks() stops the analyses of the queue.
 
 ## src/semantic-tagging.js (10)
 

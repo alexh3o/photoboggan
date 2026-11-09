@@ -113,7 +113,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.css` | 58 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
 | `duplicates.js` | 263 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1097 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
-| `faces-panel.js` | 1625 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
+| `faces-panel.js` | 1627 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 248 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `filter-suggest.js` | 128 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
 | `filter-tags.js` | 57 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
@@ -141,7 +141,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `metadata-writes.js` | 616 | Écriture des métadonnées éditées dans le panneau de droite (onglets Mots-clés et Description) : un seul circuit pour les deux onglets. Chaque onglet est un « éditeur » qui garde ses modifications en attente (voir regist… |
 | `order-list.js` | 144 | Tableau ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats d'un type de métadonnée (mots-clés, titre, description, note, couleur). Plusieurs tableaux peuvent partager le même élément : seul… |
 | `persons-view.js` | 211 | Vue Personnes (lot 5a) : une grosse vignette par personne, à la place de la grille des photos (bouton « Visages » de la barre du haut). - Vignette : le visage représentatif recadré depuis la photo d'origine, à la résolu… |
-| `photo-actions.js` | 2116 |  |
+| `photo-actions.js` | 2139 |  |
 | `place-search.js` | 69 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `private-zones-modal.js` | 523 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
 | `private-zones.js` | 139 | Zones privées de la carte (côté interface) : liste des zones (lue dans le backend, private_maps.rs), lieux privés, contours à dessiner et niveaux de détail. Partagé par le panneau Info, la fenêtre de gestion des zones e… |
@@ -149,7 +149,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `raw-settings.js` | 154 | Paramètres > Divers > RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js). Chaque utilisateur nomme et range ses RAW et ses JPEG à sa façon : il coche ici ce qui do… |
 | `semantic-exclusions.js` | 154 | Content search: keywords never suggested (Settings > Content search). Camera gear, lenses and other keywords that the content of a photo cannot tell give poor suggestions: the user lists them here, and neither they nor … |
 | `semantic-keywords.js` | 200 | Content search, keyword filter side (SigLIP 2, Phase 5): photos suggested for the keywords of the filter. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestio… |
-| `semantic-settings.js` | 435 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
+| `semantic-settings.js` | 437 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
 | `semantic-tagging.js` | 161 | Content search, tagging help (SigLIP 2, Phase 6): keyword -> photos and photo -> keywords. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§8, §23.5, §26). Nothing here writes anything: accepting a suggestion… |
 | `semantic.css` | 73 | Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. |
 | `semantic.js` | 112 | Content search, search side (SigLIP 2): the toolbar field, its scope toggle and the requests to the backend. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7, §9, §18). Everything here stays idle while the … |
@@ -280,5 +280,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1652 |  |
-| `fr.json` | 1652 |  |
+| `en.json` | 1654 |  |
+| `fr.json` | 1654 |  |
