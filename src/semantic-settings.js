@@ -128,6 +128,8 @@ function renderModelStatus() {
   // Offline mode: the button stays visible but greyed, with the offline explanation; the files to fetch by hand are listed open.
   download.disabled = offline;
   download.title = offline ? t('Offline mode is on (Settings > General)') : '';
+  // The "Installing without Internet" help only matters in offline mode: hidden otherwise.
+  list.closest('details').hidden = !offline;
   if (offline && modelStatus.supported && !modelStatus.installed) list.closest('details').open = true;
   if (!modelStatus.supported) status.textContent = t('Content search is not available on this system');
   else if (modelStatus.installed) status.textContent = t('{name}: installed in {folder}', { name, folder: modelStatus.directory });

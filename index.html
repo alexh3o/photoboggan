@@ -615,10 +615,6 @@
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="all" /><span data-i18n="All photos">Toutes les photos</span></label>
             </section>
             <section class="settings-section">
-              <h4 data-i18n="Albums">Albums</h4>
-              <label class="settings-row settings-check"><input id="album-overwrite-warning-toggle" type="checkbox" /><span data-i18n="Confirm before replacing the filters of a smart album">Confirmer avant d'écraser les filtres d'un album intelligent</span></label>
-            </section>
-            <section class="settings-section">
               <h4>Internet</h4>
               <label class="settings-row settings-check" title="Aucune connexion Internet : le modèle de visages s'installe à la main depuis un dossier (Paramètres > Visages), la carte n'est pas affichée et les mises à jour ne sont pas recherchées. Rien n'est envoyé à des tiers (adresse IP, version de l'application…)." data-i18n-title="Offline mode help"><input id="offline-mode-toggle" type="checkbox" /><span data-i18n="Offline mode (never connect to the Internet)">Mode hors ligne (ne jamais se connecter à Internet)</span></label>
               <!-- Mises à jour (update-check.js) : grisées en mode hors ligne -->
@@ -784,7 +780,7 @@
                   <button id="btn-face-model-download" class="btn-highlight" type="button"></button>
                   <button id="btn-face-model-import" class="btn-secondary" type="button" data-i18n="Install from a folder…">Installer depuis un dossier…</button>
                 </div>
-                <details class="face-model-offline">
+                <details class="face-model-offline" hidden>
                   <summary data-i18n="Installing without Internet">Installation sans Internet</summary>
                   <p class="sort-note" data-i18n="Face model offline help">Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.</p>
                   <ul id="face-model-files" class="face-model-files"></ul>
@@ -847,7 +843,7 @@
                   <button id="btn-semantic-model-download" class="btn-highlight" type="button"></button>
                   <button id="btn-semantic-model-import" class="btn-secondary" type="button" data-i18n="Install from a folder…">Installer depuis un dossier…</button>
                 </div>
-                <details class="semantic-model-offline">
+                <details class="semantic-model-offline" hidden>
                   <summary data-i18n="Installing without Internet">Installation sans Internet</summary>
                   <p class="sort-note" data-i18n="Content search model offline help">Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.</p>
                   <ul id="semantic-model-files" class="semantic-model-files"></ul>
@@ -896,6 +892,10 @@
                 <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
               <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
               <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Albums">Albums</h4>
+              <label class="settings-row settings-check"><input id="album-overwrite-warning-toggle" type="checkbox" /><span data-i18n="Confirm before replacing the filters of a smart album">Confirmer avant d'écraser les filtres d'un album intelligent</span></label>
             </section>
           </div>
         </div>
