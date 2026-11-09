@@ -7,6 +7,8 @@ mod exif;
 mod exiftool;
 mod face_detect;
 mod face_models;
+mod model_files;
+mod onnx_runtime;
 mod phash;
 mod place_search;
 mod similar;

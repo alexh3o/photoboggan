@@ -7,8 +7,8 @@
 //! - Les coordonnées sont converties dans le repère de l'image STOCKÉE (avant orientation EXIF), comme les zones lues dans les fichiers (faces.rs).
 //! - Les détections faibles (score < SCORE_FLOOR) sont ignorées ; au-dessus, tout est gardé avec ses mesures (confiance, netteté, taille) :
 //!   les seuils réglables classent un visage « inconnu » ou « filtré », et un changement de seuil reclasse sans rescan (apply_face_thresholds).
-//! - ONNX Runtime : l'environnement est créé au premier scan puis gardé (la bibliothèque ne peut pas être déchargée) ; la session du modèle,
-//!   qui porte l'essentiel de la mémoire, est libérée à la fin de chaque tâche.
+//! - ONNX Runtime: the environment is shared with the semantic search (onnx_runtime.rs), created on first use and kept (the library cannot be
+//!   unloaded); the model sessions, which hold most of the memory, are dropped at the end of each task.
 
 use ort::environment::Environment;
 use ort::session::Session;
@@ -178,21 +178,6 @@ pub(crate) fn orient_rect(rect: [f64; 4], orientation: u32) -> [f64; 4] {
 // ---------------------------------------------------------------------------
 // Moteur : ONNX Runtime et YuNet
 // ---------------------------------------------------------------------------
-
-/// Environnement ONNX Runtime, créé une seule fois par processus (contrainte de la crate ort) et gardé ensuite.
-fn environment(runtime: &Path) -> Result<Environment, String> {
-    static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
-    static INIT_LOCK: Mutex<()> = Mutex::new(());
-    if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
-    // Un seul essai à la fois, et seul un succès est gardé : un échec (bibliothèque pas encore importée, verrouillée…) peut être retenté.
-    let _guard = INIT_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
-    let built = ort::init_from(runtime)
-        .map_err(|error| format!("ONNX Runtime impossible à charger : {error}"))?
-        .build()
-        .map_err(|error| format!("ONNX Runtime impossible à initialiser : {error}"))?;
-    Ok(ENVIRONMENT.get_or_init(|| built).clone())
-}
 
 /// Visage détecté, en coordonnées normalisées de l'image orientée (la miniature).
 struct Detection {
@@ -754,7 +739,7 @@ pub async fn detect_faces(
             .collect();
         let mut report = DetectionReport::default();
         if targets.is_empty() { return Ok(report); }
-        let environment = environment(&paths.runtime)?;
+        let environment = crate::onnx_runtime::environment(&paths.runtime)?;
         let detector = load_session(&environment, &paths.detector, "Modèle de détection")?;
         let recognizer = load_session(&environment, &paths.recognizer, "Modèle de reconnaissance")?;
         // Moitié des cœurs pour lire les miniatures (le reste pour l'interface) ; l'inférence, rapide, passe une photo à la fois.

@@ -24,7 +24,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::Emitter;
 
-use crate::face_models::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
+use crate::model_files::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
 
 /// Releases les plus récentes d'abord ; 30 suffisent largement pour trouver la dernière version de l'application.
 const RELEASES_URL: &str = "https://api.github.com/repos/alexh3o/photoboggan/releases?per_page=30";
