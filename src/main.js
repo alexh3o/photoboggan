@@ -5689,6 +5689,7 @@ async function runScanTask(task) {
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
     if (task.onResult) await task.onResult(result, task.stopRequested, null, task); // tâche qui traite elle-même son résultat (mots-clés) ; elle peut passer en 'ready' (recherche de doublons)
     else if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
+    else if (task.pauseRequested) await refreshAfterPausedScan();
     else await reloadPhotosAfterRescan();
     if (task.pauseRequested) showWriteToast(t('Task paused: {name}', { name: taskName(task) }));
     else if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
@@ -5738,6 +5739,14 @@ function resumeTask(task) {
   saveResumableTasks();
   syncTaskUI();
   pumpScanQueue();
+}
+
+// After a pause, the photos read so far are added to the grid without the full reload (which redraws the grid from scratch and makes it flash):
+// same in-place refresh as the library synchronisation, keeping scroll, selection and learnt ratios. Albums and search results do not depend on
+// the scan in progress: they are left as they are (the scan reloads everything when it completes).
+async function refreshAfterPausedScan() {
+  if (getSelectedAlbum() || duplicateSearch || semanticSearch) return;
+  await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
 }
 
 // Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
