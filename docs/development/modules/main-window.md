@@ -1,31 +1,78 @@
-<!-- verified: none | sources: src/main.js, index.html -->
+<!-- verified: 999bbb1 | sources: src/main.js, index.html -->
 # Main window: photo loading, folder tree, task queue, settings modal, startup (main.js, part 1)
 
-> Status: **not written** (skeleton). Follow `../_TEMPLATE.md` (rules + sections). Max 150 lines.
-
 ## Purpose
+`main.js` is the frontend's orchestrator. This doc covers its "navigation and background work" half: loading the photo list of the current view, the folder tree, the global **task queue** every long operation goes through, the settings modal shell, the two disk-sync mechanisms and the startup sequence. The grid, selection, full screen, compare and marking are in `grid-and-viewer.md`; filters in `filters-and-search.md`; smart albums in `albums.md`. `main.js` is ~8400 lines of shared module-level state (`loadedPhotos`, `photos`, `folders`, `currentFolderFilter`, `scanTasks`…): never read it whole, search the `// ====` section banners.
 
 ## Files
+| File | Role |
+|---|---|
+| `src/main.js` | Sections: "SYNCHRONISATION « PARESSEUSE »", "CHARGEMENT PHOTOS & DOSSIERS", "ARBORESCENCE & FILTRES" (the tree part), "MODALE PARAMÈTRES" (+ About, Guide), "BOUTONS VUES & SIDEBAR", "REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE", "FILE D'ATTENTE DES TÂCHES", "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES", "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE" (see `app-shell.md`) |
+| `index.html` | The whole DOM: title bar, toolbar, sidebar (`#folder-tree`), modals (`#settings-modal`, `#tasks-modal`, …) |
 
 ## How it works
 
-Entry points and main flow (phase 2 notes, to be replaced by the real section):
+### Loading the photos of the current view (`loadPhotos`)
+1. `loadPhotos` increments `photoLoadGeneration`; every async step compares its generation to the current one and drops its answer if a newer load exists (same stale-response pattern as the semantic counters).
+2. The source depends on the mode, in this priority: `duplicateSearch` (`get_photos_by_paths` on the groups' paths), `semanticSearch` (`loadSemanticPhotos`), a manual album (`get_album_photos`), else the folder view `readDisplayedFolderPhotos`.
+3. Folder view: `queryFolderPhotos` calls `get_photos_paginated` (offset 0, `limit = PHOTO_LOAD_LIMIT` = 50 000, current sort, `includeSubfolders`) for the folder plus the Ctrl+click extra folders (`extraFolderFilters`, merged, deduplicated by path). `countDisplayedPhotos` (`count_photos`) runs in parallel to know whether the scope is **large** (> 50 000).
+4. Large scope: the backend would cut the list, so the filters it can express are sent first as a SQL prefilter (`buildSqlPrefilter` → `prefilterFromState` → `PhotoPrefilter` in `db.rs`; the JS filter remains the authority, the prefilter must be a superset of it — see `filters-and-search.md`). `photoListCap` ({total}) drives the "list is cut" warning; `loadedPrefilterKey` remembers what the list was read with, and `schedulePrefilterReload` (200 ms debounce) rereads when a filter change alters the prefilter.
+5. The result becomes `loadedPhotos`; then `renderFolderTree`, `renderKeywordFilters`, `invalidateKeywordTree`, `applyPhotoFilters` (builds `photos`, the displayed list, see `grid-and-viewer.md`), `refreshFaces`, `scheduleAlbumCounts`. `folderTreePhotos` (whole-catalogue list, never prefiltered) feeds the tree and the keyword / gear suggestions; it is only refreshed from `loadedPhotos` when the whole catalogue is displayed unfiltered.
 
-- Scope: the `main.js` sections "CHARGEMENT PHOTOS & DOSSIERS", "ALBUMS INTELLIGENTS…", "ARBORESCENCE & FILTRES", "FILE D'ATTENTE DES TÂCHES", "MODALE PARAMÈTRES" (+ About, Guide), "BOUTONS VUES & SIDEBAR", sidebar resizing, date / location / content-analysis filters, the two sync sections, "DEMARRAGE", "EMPLACEMENT DES DONNÉES…". The grid and viewer sections are in `grid-and-viewer.md`.
-- Loading: `loadFolders`, `loadPhotos` → `readDisplayedFolderPhotos` / `queryFolderPhotos` (`get_photos_paginated`), SQL prefilter for large folders (`prefilterFromState`, `buildSqlPrefilter`, `schedulePrefilterReload`), then `applyPhotoFilters` (all JS filters, see `filters-and-search.md`).
-- Folder tree: `renderFolderTree`, `selectFolder`, `toggleFolderInSelection`, counts `scheduleFolderCounts` (`get_folder_counts`), disk folders `refreshDiskFolders`.
-- Task queue: `enqueueScanTask` (refusal rules `familyOf`, `taskCoversFolder`, `dedupeKey`), `pumpScanQueue` (one task at a time), `pumpSemanticQueue` (own lane), `runScanTask`, `pauseTask` / `resumeTask` / `restorePausedTasks`, UI `syncTaskUI`, progress `listenToBackend('scan-progress')`, close guard `confirmCloseWithRunningTasks`. Other modules get it injected as `enqueueTask`.
-- Sync and startup: `syncLibraryWithDisk` / `requestLibrarySync`, `checkPhotoMissing` → `flushMissingChecks`; startup `restorePanelsVisibility`, `restoreStartupFolder`, `sendInternetAllowed`, `sendVerifyMoves`; window shown after two animation frames (`DOMContentLoaded` handler at the top).
-- Trap: module-level state (`loadedPhotos`, `folderTreePhotos`, `scanTasks`…) is shared with the grid sections; read `code-map.md` "Inside the large files" first. 150-line limit: describe the flows and link the queue rules in `invariants.md` §6.
+### Folder tree
+- `loadFolders` (`get_folders`) → `folders` (tracked roots) → `renderFolderTree` + `renderSettingsFolderList`.
+- `renderFolderTree` builds a nested map from: `catalogFolders` (every folder with a catalogued photo, from `get_folder_counts`, because the loaded list is capped), the loaded photos' folders, `createdFolders` (empty folders made this session) and, if `showEmptyFolders`, `diskFolders` (`list_disk_folders` via `refreshDiskFolders`). Paths are compared normalized (`/`, no trailing slash, lower case) everywhere.
+- `scheduleFolderCounts` (150 ms debounce) rereads the counts, builds own and sub-tree totals, and redraws only if the JSON signature changed (`renderFolderTree({fromCounts:true})` does not re-request: no loop).
+- `selectFolder(path)` (null = all photos) ends any special mode (`abandonRawSearch`, `abandonDuplicateSearch`, `abandonSemanticSearch`), leaves albums (after `confirmLeaveAlbum` if a smart album is dirty), resets the extra folders, stores `lastFolderFilter` and reloads. `toggleFolderInSelection` (Ctrl+click) adds/removes extra folders; at least one folder always stays selected.
+- Removing a root: `remove_folder`, after `dropScanTasksForFolder` cancels its queued/running tasks.
+
+### Task queue (`scanTasks`, section "FILE D'ATTENTE DES TÂCHES")
+The queue exists **only in the frontend**; the backend only gets a `taskId` and a cancel flag (`architecture.md` "Concurrency model", `invariants.md` §6). A task is `{id, kind, path, command, args, labelKey, status, percent, stopRequested, pauseRequested, onResult, runner, dedupeKey, …}`.
+1. A feature calls `enqueueScanTask({kind, path, command, args, labelKey, onResult, runner, dedupeKey})`. Modules never import it: `main.js` injects `enqueueTask: task => enqueueScanTask(task)` into their `init…` (keywords panel, private zones, faces, semantic, duplicates…).
+2. **Refusal rules** (returns `false` and shows a toast, nothing is queued): (a) same `dedupeKey` as a task that is running or waiting and not stopped nor `ready` (duplicate and content-analysis searches); (b) a **covering** task of the same family: `taskCoversFolder` (same folder, a parent folder, or `path === null` = whole collection) when it is not stopping; a paused covering scan gets its own message. `familyOf(kind)` maps kinds to families: `scan` (add, rescan-all, rescan-folder), `integrity`, `keywords`, `faces`/`faces-selection`, `face-models`, `update`, `semantic-models`, `semantic`, `private-map`, `duplicates`, `files` (move, copy, resize). Kinds `keywords`, `faces-selection`, `private-map`, `duplicates`, `semantic` and the file kinds skip the covering check (never refused as duplicates).
+3. **Trap: families do not run in parallel.** They only decide which tasks are refused. `pumpScanQueue` runs the **main lane strictly one task at a time**, in request order (`runScanTask` is awaited). Content analysis (`kind: 'semantic'`) has its **own lane** (`pumpSemanticQueue`, one analysis at a time) that runs concurrently with the main lane; the backend pauses it itself while other work runs (`semantic::PriorityGuard`).
+4. `runScanTask`: status `running`, then either `task.runner(task, setPercent)` (UI-driven work, e.g. resize; must watch `stopRequested`) or `invoke(task.command, {...args, taskId})`. Then `onResult(result, stopped, error, task)` if the task handles its own result, else the integrity report, else (after a pause) `refreshAfterPausedScan`, else `reloadPhotosAfterRescan`. In `finally` the task is removed from the list, except a paused one (status `paused`) and one that set itself `ready`.
+5. **Statuses**: `waiting` → `running` → removed. `paused` (resumable scans only: kinds `add`, `rescan-all`, `rescan-folder`): `pauseTask` sets `pauseRequested`+`stopRequested` and calls `cancel_scan`; the backend keeps the photos read; `resumeTask` puts it first among waiting tasks and the next run passes `resumeSince` (= `firstStartedAt`) so the scan skips files read since its first start. Unfinished resumable scans are saved in localStorage `pausedScanTasks` (`saveResumableTasks`) and come back **paused** at the next launch (`restorePausedTasks`, only for still-tracked folders). `ready` (duplicate search finished): stays listed until "Show"/"Dismiss"; it does not hold the queue, sync or reload (`activeTaskCount` excludes `ready` and `paused`) but still triggers the close warning.
+6. **Stop**: `removeOrStopTask` removes a waiting/paused task (calling `onResult(null, true, null)` so tasks holding a lock release it) or sets `stopRequested` and calls `cancel_scan` (only for backend-driven tasks and duplicates). Stopped tasks keep what was done.
+7. **UI**: one toast per task + a row per task in the "Running tasks" modal (hourglass button, badge = number of tasks); `syncTaskUI` reconciles both from `scanTasks` without recreating elements (`syncChildren`). Progress comes from the `scan-progress` event (never moves backwards; semantic tasks also get `done`, `total`, `remainingSeconds`, `paused`); `scan-detail` gives the folder shown during integrity checks. `showTaskToast/hideTaskToast` is a separate single "transient" toast for short non-queue operations (data move).
+8. **Guards**: F5 / Ctrl+R are refused while `activeTaskCount() > 0` (a reload would lose the frontend-only queue while the backend keeps working). `confirmCloseWithRunningTasks` runs first in `onCloseRequested` (then smart-album dirty check, then pending metadata edits via `confirmCloseWithPendingEdits`, see `metadata-read-write.md`).
+
+### Disk synchronisation
+- **Lazy** (`checkPhotoMissing` → `flushMissingChecks`): when a thumbnail or image fails to load, the path is queued; after 25 ms the batch goes to `remove_missing_photos`, which only removes files really absent from a reachable tracked folder; removed photos leave the grid keeping the selection.
+- **External changes** (`syncLibraryWithDisk` → `sync_library`, sending `excluded: pausedScanFolders()`): at startup (2 s after the first load) and on window `focus`. Skipped while `foregroundTaskCount() > 0`, a move is running, or before `librarySyncNotBefore` (next allowed = now + max(10 s, 10 × last duration)). `requestLibrarySync` is for the app's own new files: no minimum delay, never lost (`syncAfterTasks`, replayed when the main lane empties). `refreshLibraryAfterSync` rereads the list in place (selection found again by path, learnt aspect ratios kept, caches of modified paths dropped: `photoVersions`, `thumbnailCacheLookups`, `rawPreviewPromises`, `fullscreenImageCache`), aborting if the folder or generation changed.
+
+### Settings modal and window chrome
+Tabs: `.settings-tab-btn[data-tab]` ↔ `#settings-tab-<tab>` panes (generic switcher in `main.js`; each pane's controls are wired by its own module or section). The folders list (`renderSettingsFolderList`) adds nothing itself: adding a folder calls `add_folder` then queues a `kind: 'add'` scan. The title-bar buttons call the Tauri window API (permissions in `capabilities/default.json`). Toolbar hide/labels and the resizable left panel (`sidebarWidth`, `#sidebar-resizer`) are in the "BOUTONS VUES & SIDEBAR" sections.
+
+### Startup (end of `main.js`)
+Order: `restorePanelsVisibility` (panel visibility from `readBool`) → `refreshStorageLocationUI` → `restoreStartupFolder` (`loadFolders`; if `startupView === 'last'` and `lastFolderFilter` is still tracked or still holds photos, select it, unfolding its parents) → `restorePausedTasks` → `loadPhotos` → `setTimeout(syncLibraryWithDisk, 2000)`. In parallel: `sendInternetAllowed`, `sendVerifyMoves`, and the settings modules' own sends (`app-shell.md`). The window is shown after two animation frames (top of the file).
 
 ## Contracts
+- IPC commands: `get_folders`, `list_disk_folders`, `get_folder_counts`, `get_photos_paginated`, `count_photos`, `get_photos_by_paths`, `remove_folder`, `remove_missing_photos`, `sync_library`, `cancel_scan` (+ every `task.command`). See `../generated/ipc-commands.md`.
+- Events: `scan-progress`, `scan-detail` (listened once; `../generated/events.md`).
+- Database: none directly.
+- Settings: `lastFolderFilter`, `startupView`, `pausedScanTasks`, `sidebarWidth`, `showEmptyFolders`, `showFolderCounts`, `includeSubfolders`, `offlineMode`, `verifyCrossDriveMoves` (`../generated/config.md`).
 
 ## Dependencies
+- Uses: nearly every feature module (called with injected services), `settings-defaults.js`, `i18n.js`.
+- Used by: `photo-actions.js` imports `main.js` directly; all other modules only receive callbacks (`enqueueTask`, `showToast`…).
 
 ## Invariants and sensitive areas
+- ⚠ sensitive: the task queue — every long feature depends on it. A new task kind must be added to `familyOf` and, if it must never be refused as a duplicate, to the covering exclusion list; a new task needs `onResult` or the default path reloads the whole grid.
+- ⚠ sensitive: stale-load guards (`photoLoadGeneration`, `stale()` in `refreshLibraryAfterSync`). Any new async load that assigns `loadedPhotos` must check the generation.
+- ⚠ sensitive: the SQL prefilter must never exclude a photo the JS filter would keep (ASCII-only text rule `isAsciiText`).
+- ⚠ sensitive: `activeTaskCount` / `foregroundTaskCount` semantics (`ready`, `paused`, semantic lane) decide when sync runs, reload is refused and the close warning appears.
+- Module state is shared with the grid sections: a change to `loadedPhotos`/`photos` handling can break selection or layout.
 
 ## Tests
+None (no frontend tests, AGENTS.md §5.I). Backend side: `tests/library_sync.rs`, `tests/db.rs`.
 
 ## How to extend
+1. New long operation: `recipes.md` (queued task): backend command with `taskId` + cancel flag, `enqueueScanTask({kind, …, onResult})`, add the kind to `familyOf`, keys in both locale files.
+2. New module needing the queue: pass `enqueueTask` at its `init…` call, do not import `main.js`.
+3. New settings tab: add the button (`data-tab`) and pane (`id="settings-tab-<tab>"`) in `index.html`; the switcher is generic.
+4. New startup step: add it to the chain at the end of `main.js`; keep `loadPhotos` after `restoreStartupFolder`.
 
 ## Open questions
+- ⚠ unverified: complete list of `kind` values in use (read from the injections of `enqueueTask`, not all checked).
+- ⚠ unverified: `add_folder` flow in the settings pane (button handler not read).
