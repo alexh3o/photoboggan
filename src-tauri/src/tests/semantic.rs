@@ -390,6 +390,256 @@ fn commands_refuse_while_the_feature_is_disabled() {
 }
 
 // ---------------------------------------------------------------------------
+// Image key: a file whose metadata alone changed is refreshed, not analysed again (§6.4)
+// ---------------------------------------------------------------------------
+
+use crate::semantic_search::{Index, SearchCache};
+use crate::test_support::with_segment;
+
+/// The JPEG with an XMP packet in APP1, as a rating write adds it (file size and date change, scan data does not).
+fn rated(jpeg: &[u8], rating: u8) -> Vec<u8> {
+    with_segment(jpeg, 0xE1, format!("http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmp:Rating=\"{rating}\"/>").as_bytes())
+}
+
+/// The JPEG with an EXIF APP1 holding only an orientation tag (what a rotation by another program changes).
+fn oriented(jpeg: &[u8], orientation: u16) -> Vec<u8> {
+    let mut exif = b"Exif\0\0II*\0\x08\0\0\0".to_vec();
+    exif.extend_from_slice(&1u16.to_le_bytes());
+    exif.extend_from_slice(&0x0112u16.to_le_bytes());
+    exif.extend_from_slice(&3u16.to_le_bytes());
+    exif.extend_from_slice(&1u32.to_le_bytes());
+    exif.extend_from_slice(&[orientation as u8, 0, 0, 0]);
+    exif.extend_from_slice(&0u32.to_le_bytes());
+    with_segment(jpeg, 0xE1, &exif)
+}
+
+/// Writes the file with a modification date set from `mtime` (so two versions never share a date), and records it in the catalogue with
+/// its real size and `mtime` as the library sync would. Returns the photo id.
+fn write_version(conn: &Connection, path: &Path, bytes: &[u8], mtime: i64, id: Option<i64>) -> i64 {
+    std::fs::write(path, bytes).unwrap();
+    let date = std::time::UNIX_EPOCH + Duration::from_secs(1_700_000_000 + mtime as u64);
+    std::fs::File::options().write(true).open(path).unwrap().set_modified(date).unwrap();
+    let path_text = path.to_string_lossy().into_owned();
+    let id = id.unwrap_or_else(|| insert_photo(conn, &path_text));
+    conn.execute("UPDATE photos SET file_size = ?1, modified = ?2 WHERE id = ?3", params![bytes.len() as i64, mtime, id]).unwrap();
+    id
+}
+
+fn kind(outcome: &Outcome) -> &'static str {
+    match outcome {
+        Outcome::Embedded(_) => "analysed",
+        Outcome::Refreshed => "refreshed",
+        Outcome::Failed(_) => "failed",
+        Outcome::Skipped => "skipped",
+    }
+}
+
+/// One analysis of the pending photos among `ids`, done as the scan worker does (stored keys, cached hashes, decoder side, one batch
+/// transaction, index hook), the encoder being replaced by the fixed `vector`. Returns the outcome of each pending photo.
+fn analyse_pending(conn: &Connection, thumbnails: &Path, cache: Option<&SearchCache>, ids: &[i64], vector: &[f32]) -> Vec<(i64, &'static str)> {
+    let mut pending: Vec<Target> =
+        select_targets(conn, MODEL, Some(ids), None, false).unwrap().into_iter().filter(|target| target.standing == Standing::Pending).collect();
+    load_stored_keys(conn, MODEL, &mut pending).unwrap();
+    let mut cached = crate::duplicates::cached_data_hashes(conn, ids).unwrap();
+    let mut hashes = Vec::new();
+    let mut outcomes = Vec::new();
+    for target in pending.iter_mut() {
+        let job = DecodeJob { path: target.path.clone(), stored_key: target.stored_key, cached_hash: cached.remove(&target.photo_id) };
+        let (key, computed, work) = prepare_job(&job, thumbnails, active_model(), &AtomicBool::new(false));
+        target.key = key;
+        if let Some(data) = computed { hashes.push((target.photo_id, data)); }
+        outcomes.push(match work {
+            Ok(_) => Outcome::Embedded(vector.to_vec()),
+            Err(outcome) => outcome,
+        });
+    }
+    let results: Vec<(&Target, Outcome)> = pending.iter().zip(outcomes).collect();
+    store_batch_with_hashes(conn, MODEL, &results, &hashes).unwrap();
+    if let Some(cache) = cache { cache.on_batch_stored(MODEL, &results); }
+    results.iter().map(|(target, outcome)| (target.photo_id, kind(outcome))).collect()
+}
+
+fn stored_vector(conn: &Connection, id: i64) -> Vec<u8> {
+    conn.query_row("SELECT vec FROM photo_embeddings WHERE photo_id = ?1", [id], |row| row.get(0)).unwrap()
+}
+
+fn stored_hash(conn: &Connection, table: &str, id: i64) -> Option<Vec<u8>> {
+    conn.query_row(&format!("SELECT data_hash FROM {table} WHERE photo_id = ?1"), [id], |row| row.get(0)).unwrap()
+}
+
+fn other_vector() -> Vec<f32> {
+    let mut vector = unit_vector();
+    vector.reverse();
+    vector
+}
+
+#[test]
+fn a_jpeg_whose_metadata_was_rewritten_is_refreshed_without_a_new_analysis() {
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let path = photos.path().join("a.jpg");
+    let original = jpeg_bytes(320, 240);
+    let id = write_version(&conn, &path, &original, 1, None);
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "analysed")]);
+    let vector = stored_vector(&conn, id);
+    assert_eq!(stored_hash(&conn, "photo_embeddings", id).map(|hash| hash.len()), Some(16));
+    // The hash went to the cache of the duplicate search too.
+    assert_eq!(crate::duplicates::cached_data_hashes(&conn, &[id]).unwrap().len(), 1);
+
+    // A rating written into the file: new size and date, same pixels. The counts keep the stamp rule (no hashing while counting).
+    write_version(&conn, &path, &rated(&original, 3), 2, Some(id));
+    assert_eq!(standing(&conn, id), Standing::Pending);
+    assert_eq!(stats(&conn, None, None, false, false).unwrap().pending, 1);
+    // The analysis only refreshes the stamp: the new outcome would have been `other_vector` if it had been inferred.
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &other_vector()), vec![(id, "refreshed")]);
+    assert_eq!(standing(&conn, id), Standing::Analysed);
+    assert_eq!(stored_vector(&conn, id), vector);
+    assert_eq!(stats(&conn, None, None, false, false).unwrap().pending, 0);
+
+    // The pixels change: analysed again.
+    write_version(&conn, &path, &crate::test_support::jpeg_from_rgb(&crate::test_support::blobs_rgb(320, 240, 7), 320, 240, 90), 3, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &other_vector()), vec![(id, "analysed")]);
+    assert_ne!(stored_vector(&conn, id), vector);
+}
+
+#[test]
+fn a_new_orientation_is_analysed_again_although_the_image_data_did_not_change() {
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let path = photos.path().join("a.jpg");
+    let original = jpeg_bytes(320, 240);
+    let id = write_version(&conn, &path, &oriented(&original, 1), 1, None);
+    analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector());
+    // Turned by another program: only the EXIF orientation changed, the displayed picture did.
+    write_version(&conn, &path, &oriented(&original, 6), 2, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "analysed")]);
+    // A rating added afterwards keeps the orientation: refreshed.
+    write_version(&conn, &path, &rated(&oriented(&original, 6), 4), 3, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "refreshed")]);
+}
+
+#[test]
+fn rows_without_a_hash_or_with_another_hash_version_are_analysed_again_then_hashed() {
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let path = photos.path().join("a.jpg");
+    let original = jpeg_bytes(320, 240);
+    let id = write_version(&conn, &path, &original, 1, None);
+    // A row written before Phase 3c: no image key.
+    store_batch(&conn, MODEL, &[(&target(&conn, id), Outcome::Embedded(unit_vector()))]).unwrap();
+    assert_eq!(stored_hash(&conn, "photo_embeddings", id), None);
+    write_version(&conn, &path, &rated(&original, 1), 2, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "analysed")]);
+    assert!(stored_hash(&conn, "photo_embeddings", id).is_some(), "hashed by this analysis");
+    write_version(&conn, &path, &rated(&original, 2), 3, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "refreshed")]);
+
+    // The hashed bytes changed rules (LAYOUT_VERSION bumped): the stored hash no longer counts.
+    conn.execute("UPDATE photo_embeddings SET hash_version = hash_version - 1 WHERE photo_id = ?1", [id]).unwrap();
+    write_version(&conn, &path, &rated(&original, 3), 4, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "analysed")]);
+    let version: i64 = conn.query_row("SELECT hash_version FROM photo_embeddings WHERE photo_id = ?1", [id], |row| row.get(0)).unwrap();
+    assert_eq!(version, crate::duplicates::LAYOUT_VERSION);
+    // An embedding of another model is never refreshed.
+    conn.execute("UPDATE photo_embeddings SET model_id = 'other-model' WHERE photo_id = ?1", [id]).unwrap();
+    write_version(&conn, &path, &rated(&original, 4), 5, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "analysed")]);
+}
+
+#[test]
+fn a_failure_whose_pixels_did_not_change_is_refreshed_and_stays_a_failure() {
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let path = photos.path().join("broken.jpg");
+    // A JPEG the hash can parse (SOI, scan, EOI) but no decoder can read (no frame header).
+    let broken: Vec<u8> = [&[0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02][..], &[0x12; 64], &[0xFF, 0xD9]].concat();
+    let id = write_version(&conn, &path, &broken, 1, None);
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "failed")]);
+    assert!(stored_hash(&conn, "photo_embedding_failures", id).is_some());
+    write_version(&conn, &path, &rated(&broken, 5), 2, Some(id));
+    assert_eq!(standing(&conn, id), Standing::Pending);
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector()), vec![(id, "refreshed")]);
+    assert_eq!((standing(&conn, id), count_rows(&conn, "photo_embeddings")), (Standing::Failed, 0));
+}
+
+#[test]
+fn the_search_index_follows_a_refresh_without_reloading() {
+    let model = active_model();
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let path = photos.path().join("a.jpg");
+    let original = jpeg_bytes(320, 240);
+    let id = write_version(&conn, &path, &original, 1, None);
+    analyse_pending(&conn, thumbnails.path(), None, &[id], &unit_vector());
+    let cache = SearchCache::new(Duration::from_secs(300));
+    let load = || Index::load(&conn, MODEL, model.embed_dim);
+    assert!(cache.with_index(model, load, |index| index.is_up_to_date(id, (original.len() as i64, 1))).unwrap());
+
+    let tagged = rated(&original, 3);
+    write_version(&conn, &path, &tagged, 2, Some(id));
+    assert_eq!(analyse_pending(&conn, thumbnails.path(), Some(&cache), &[id], &other_vector()), vec![(id, "refreshed")]);
+    // Updated in place: no reload, new stamp, same vector.
+    let (up_to_date, vector) = cache
+        .with_index(model, || unreachable!("reloaded"), |index| (index.is_up_to_date(id, (tagged.len() as i64, 2)), index.vector(id)))
+        .unwrap();
+    assert!(up_to_date);
+    assert!(cosine(&vector.unwrap(), &unit_vector()) > 0.999);
+}
+
+#[test]
+fn a_scan_that_only_refreshes_never_loads_the_model() {
+    let (_catalog, pool) = temp_catalog();
+    let (photos, thumbnails) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let conn = pool.get().unwrap();
+    let mut ids = Vec::new();
+    let mut originals = Vec::new();
+    // 20 photos: more than one batch.
+    for seed in 0..20u64 {
+        let path = photos.path().join(format!("p{seed}.jpg"));
+        let bytes = crate::test_support::jpeg_from_rgb(&crate::test_support::blobs_rgb(96, 64, seed), 96, 64, 90);
+        ids.push(write_version(&conn, &path, &bytes, 1, None));
+        originals.push((path, bytes));
+    }
+    analyse_pending(&conn, thumbnails.path(), None, &ids, &unit_vector());
+    for ((path, bytes), &id) in originals.iter().zip(&ids) { write_version(&conn, path, &rated(bytes, 2), 2, Some(id)); }
+
+    // Model files that do not exist: loading them would fail the scan.
+    let missing = photos.path().join("no-model");
+    let paths = crate::semantic_models::ModelPaths { runtime: missing.join("rt"), vision: missing.join("v"), text: missing.join("t"), tokenizer: missing.join("k") };
+    let job = || ScanJob {
+        pool: pool.clone(),
+        models_dir: missing.clone(),
+        thumbnails_dir: thumbnails.path().to_path_buf(),
+        photo_ids: None,
+        folder: None,
+        recursive: true,
+        skip_raw: false,
+        threads: 1,
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+    let scan = || {
+        let targets = select_targets(&conn, MODEL, None, None, true).unwrap();
+        let total = targets.len();
+        let mut pending: Vec<Target> = targets.into_iter().filter(|target| target.standing == Standing::Pending).collect();
+        let report = ScanReport { total, up_to_date: total - pending.len(), ..ScanReport::default() };
+        load_stored_keys(&conn, MODEL, &mut pending).unwrap();
+        scan_pending(job(), &paths, &conn, pending, report, &|_| {})
+    };
+    let report = scan().expect("no inference needed");
+    assert_eq!((report.refreshed, report.analysed, report.failed.len(), report.cancelled), (20, 0, 0, false));
+    assert_eq!(stats(&conn, None, None, false, false).unwrap().pending, 0);
+    // A photo whose pixels changed needs the model: now the scan has to load it, and fails here.
+    let (path, _) = &originals[0];
+    write_version(&conn, path, &jpeg_bytes(96, 64), 3, Some(ids[0]));
+    assert!(scan().is_err());
+}
+
+// ---------------------------------------------------------------------------
 // Parity with the reference model (needs the model files)
 // ---------------------------------------------------------------------------
 

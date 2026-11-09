@@ -238,3 +238,49 @@ fn name_candidates_list_the_scope_then_the_library() {
     assert_eq!(with_library.len(), 2);
     assert!(with_library.contains(&(outside, String::new(), false)));
 }
+
+// ---------------------------------------------------------------------------
+// Image-data hash of one file, shared with the semantic scan (§6.4 of the semantic search spec)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn the_hash_of_one_file_ignores_metadata_and_is_shared_with_the_search_cache() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(64, 48);
+    let a = add(&pool, dir.path(), "a.jpg", &original);
+    let b = add(&pool, dir.path(), "b.jpg", &with_segment(&original, 0xE1, b"http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>"));
+    let c = add(&pool, dir.path(), "c.jpg", &jpeg_bytes(40, 30));
+    let cancel = AtomicBool::new(false);
+    let hash = |path: &str| image_data_hash(Path::new(path), &cancel).expect("hash");
+    let (hash_a, hash_b) = (hash(&a), hash(&b));
+    assert!(hash_a.tolerant);
+    assert_eq!(hash_a.hash, hash_b.hash, "metadata left out");
+    assert_eq!(hash_a.data_len, hash_b.data_len);
+    assert_ne!(hash_a.size, hash_b.size);
+    assert_ne!(hash_a.hash, hash(&c).hash);
+    // Formats without a parser are hashed whole; videos are never hashed.
+    let gif = add(&pool, dir.path(), "d.gif", b"GIF89a not really a gif");
+    assert!(!hash(&gif).tolerant);
+    assert!(is_video(Path::new("clip.MOV")) && !is_video(Path::new("a.jpg")));
+
+    // Stored by another feature, read back for the same ids; a duplicate search then reuses it, keeps it and adds its partial hash.
+    let conn = pool.get().unwrap();
+    let id_of = |path: &str| -> i64 { conn.query_row("SELECT id FROM photos WHERE path = ?1", [path], |row| row.get(0)).unwrap() };
+    remember_data_hash(&conn, id_of(&a), &hash_a).unwrap();
+    let cached = cached_data_hashes(&conn, &[id_of(&a), id_of(&b)]).unwrap();
+    assert_eq!((cached.len(), cached[&id_of(&a)]), (1, hash_a));
+    let report = search(&pool, &request(Scope::All, false, true));
+    assert_eq!(report.groups, vec![vec![a.clone(), b.clone()]]);
+    let partial: Option<Vec<u8>> = conn.query_row("SELECT partial_hash FROM photo_hashes WHERE photo_id = ?1 AND mode = 1", [id_of(&a)], |row| row.get(0)).unwrap();
+    assert!(partial.is_some());
+    assert_eq!(cached_data_hashes(&conn, &[id_of(&b)]).unwrap()[&id_of(&b)].hash, hash_a.hash, "computed by the search, readable by the scan");
+    // Stored again for the same file version: the partial hash is kept; for another version it is cleared.
+    remember_data_hash(&conn, id_of(&a), &hash_a).unwrap();
+    let partial_after = |conn: &rusqlite::Connection| -> Option<Vec<u8>> {
+        conn.query_row("SELECT partial_hash FROM photo_hashes WHERE photo_id = ?1 AND mode = 1", [id_of(&a)], |row| row.get(0)).unwrap()
+    };
+    assert_eq!(partial_after(&conn), partial);
+    remember_data_hash(&conn, id_of(&a), &DataHash { modified: hash_a.modified + 1, ..hash_a }).unwrap();
+    assert_eq!(partial_after(&conn), None);
+}
