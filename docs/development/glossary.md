@@ -1,4 +1,4 @@
-<!-- verified: 444b2ec | sources: AGENTS.md, src/locales/en.json -->
+<!-- verified: a9ca28f | sources: AGENTS.md, src/locales/en.json -->
 # Glossary
 
 One line per term, built from the terms used by the other docs. Module docs hold the details (link given when useful). Each term was checked against the code or the doc it links.

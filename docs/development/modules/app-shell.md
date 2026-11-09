@@ -1,4 +1,4 @@
-<!-- verified: 55b2280 | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
+<!-- verified: a9ca28f | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
 # Application shell: AppState, IPC registry, windows, settings, i18n, startup
 
 ## Purpose

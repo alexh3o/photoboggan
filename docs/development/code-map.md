@@ -1,4 +1,4 @@
-<!-- verified: feb7ab6 | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
+<!-- verified: a9ca28f | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
 # Code map
 
 Where things are and how the big files are organized. Sizes and the leading comment of every file: `generated/files.md`. Functions: `generated/symbols-js.md`, `generated/symbols-rust.md` (search them, do not load them whole).
