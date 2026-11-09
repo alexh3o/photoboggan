@@ -1,4 +1,4 @@
-<!-- verified: 57e578c | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
+<!-- verified: 1a7c61f | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
 # Build, packaging and release
 
 ## Purpose
@@ -84,4 +84,3 @@ CI runs `tests.yml` only. No test covers the build scripts or the release workfl
 ## Open questions
 - ⚠ unverified: there is no `cliff.toml` in the repository root (git-cliff then uses its default configuration); check whether the changelog format depends on it.
 - ⚠ unverified: whether `tauri-action` strips the leading `v` of `<tag>-beta` for `appVersion`.
-- ⚠ unverified: no `LICENSE.rtf` was checked in `src-tauri/` (referenced by `bundle.licenseFile`).
