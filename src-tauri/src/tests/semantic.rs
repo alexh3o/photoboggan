@@ -209,6 +209,21 @@ fn an_unchanged_file_is_skipped_and_a_changed_one_is_analysed_again() {
 }
 
 #[test]
+fn analysed_photo_ids_follow_the_up_to_date_embeddings_of_the_model() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let analysed = add_photo(&conn, "C:/photos/a.jpg", 1000, 50);
+    let changed = add_photo(&conn, "C:/photos/b.jpg", 1000, 50);
+    let _pending = add_photo(&conn, "C:/photos/c.jpg", 1000, 50);
+    store_batch(&conn, MODEL, &[(&target(&conn, analysed), Outcome::Embedded(unit_vector())), (&target(&conn, changed), Outcome::Embedded(unit_vector()))]).unwrap();
+    assert_eq!(analysed_photo_ids(&conn, MODEL).unwrap().len(), 2);
+    // A file modified since its analysis, or an embedding of another model, no longer counts.
+    conn.execute("UPDATE photos SET modified = 51 WHERE id = ?1", [changed]).unwrap();
+    assert_eq!(analysed_photo_ids(&conn, MODEL).unwrap(), vec![analysed]);
+    assert!(analysed_photo_ids(&conn, "other-model").unwrap().is_empty());
+}
+
+#[test]
 fn failures_are_not_retried_until_the_file_changes() {
     let (_dir, pool) = temp_catalog();
     let conn = pool.get().unwrap();

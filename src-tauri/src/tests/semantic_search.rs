@@ -587,3 +587,57 @@ fn text_search_scores_match_the_reference() {
     cache.release();
     assert!(lock(&cache.text).is_none());
 }
+
+#[test]
+fn keyword_photos_are_the_tagged_photos_of_the_scope() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let a = add_photo(&conn, r"C:\photos\a.jpg");
+    let b = add_photo(&conn, r"C:\photos\2024\b.jpg");
+    let c = add_photo(&conn, r"C:\other\c.jpg");
+    add_photo(&conn, r"C:\photos\untagged.jpg");
+    // "Castle" sits under two different parents and is spelled with another case on the second one.
+    let travel = crate::keywords::ensure_node(&conn, 0, "Travel").unwrap();
+    let castle_a = crate::keywords::ensure_node(&conn, travel, "Castle").unwrap();
+    let castle_b = crate::keywords::ensure_node(&conn, 0, "castle").unwrap();
+    let other = crate::keywords::ensure_node(&conn, 0, "Castles").unwrap();
+    for (photo, keyword) in [(a, castle_a), (b, castle_b), (c, castle_b), (c, other)] {
+        conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo, keyword]).unwrap();
+    }
+    let whole_library = SearchScope::default();
+    assert_eq!(keyword_photo_ids(&conn, "  CASTLE ", &whole_library).unwrap(), vec![a, b, c]);
+    // Whole names only: "castle" does not find "Castles"-only photos, and an unknown or empty text finds nothing.
+    assert!(keyword_photo_ids(&conn, "cast", &whole_library).unwrap().is_empty());
+    assert!(keyword_photo_ids(&conn, "  ", &whole_library).unwrap().is_empty());
+    // The scope applies: a folder without its subfolders, then with them.
+    let folder = |recursive| SearchScope { folder: Some("C:/photos".into()), recursive, ..SearchScope::default() };
+    assert_eq!(keyword_photo_ids(&conn, "castle", &folder(false)).unwrap(), vec![a]);
+    assert_eq!(keyword_photo_ids(&conn, "castle", &folder(true)).unwrap(), vec![a, b]);
+    let selection = SearchScope { photo_ids: Some(vec![b, c]), ..SearchScope::default() };
+    assert_eq!(keyword_photo_ids(&conn, "castle", &selection).unwrap(), vec![b, c]);
+}
+
+#[test]
+fn several_typed_keywords_must_all_be_carried() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let a = add_photo(&conn, r"C:\photos\a.jpg");
+    let b = add_photo(&conn, r"C:\photos\b.jpg");
+    let c = add_photo(&conn, r"C:\photos\c.jpg");
+    let castle = crate::keywords::ensure_node(&conn, 0, "Castle").unwrap();
+    let night = crate::keywords::ensure_node(&conn, 0, "Night").unwrap();
+    let new_york = crate::keywords::ensure_node(&conn, 0, "New York").unwrap();
+    for (photo, keyword) in [(a, castle), (a, night), (b, castle), (c, new_york), (c, night)] {
+        conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo, keyword]).unwrap();
+    }
+    let all = SearchScope::default();
+    let find = |text: &str| keyword_photo_ids(&conn, text, &all).unwrap();
+    assert_eq!(find("castle night"), vec![a]); // words: every keyword
+    assert_eq!(find("Castle, Night"), vec![a]); // commas
+    assert_eq!(find("castle"), vec![a, b]);
+    assert_eq!(find("new york"), vec![c]); // a keyword with a space is found whole
+    assert_eq!(find("new york, night"), vec![c]);
+    assert_eq!(find("castle sunset"), vec![a, b]); // a word that is no keyword is ignored
+    assert!(find("sunset").is_empty());
+    assert!(find(" , ").is_empty());
+}

@@ -108,8 +108,8 @@ body { font-family: var(--app-font); background: var(--bg-dark); color: var(--te
 
 #app { position: relative; overflow: hidden; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; } /* position: relative : repère de la barre d'outils en surimpression (.top-bar.peek) ; overflow: hidden : la barre glisse depuis le haut sans passer sur la barre de titre (sans effet sur les fenêtres, en position: fixed) */
 
-.top-bar { display: flex; justify-content: space-between; align-items: center; padding: 0rem 1rem 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
-.actions { display: flex; align-items: center; gap: 0.75rem; }
+.top-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0rem 1rem 0.5rem 1rem; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+.actions { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
 /* Toolbar buttons: icon and label are centered on the same axis (an inline SVG otherwise sits on the text baseline, which pushes it above the label) */
 .top-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; line-height: 1; }
 .top-bar button[hidden] { display: none; }
@@ -129,6 +129,9 @@ svg[width="24"]:not(.titlebar svg) { width: 1.5rem; height: 1.5rem; }
 /* Labels of the central buttons (Settings / Display / Sort): hidden unless "Show all labels" is checked in the toolbar menu */
 .toolbar-label { display: none; }
 .top-bar.show-labels .toolbar-label { display: inline; }
+/* Narrow window (fitToolbar in main.js): icons only. `.measuring` freezes the shrinkable parts at their natural width while the fit is measured. */
+.top-bar.compact button > span:not(.tasks-count-badge), .top-bar.compact .toolbar-label, .top-bar.compact .compare-option > span { display: none; }
+.top-bar.measuring * { flex-shrink: 0 !important; }
 .mode-group > button { border-radius: 0; }
 .mode-group > button:not([hidden]) { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
 .mode-group > button:not([hidden]):not(:has(~ button:not([hidden]))) { border-top-right-radius: 4px; border-bottom-right-radius: 4px; }
@@ -293,7 +296,7 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 /* Pastille des photos géolocalisées (option d'affichage) : coin haut droit de la miniature */
 .geo-badge { display: none; position: absolute; top: 6px; right: 6px; z-index: 2; padding: 3px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; pointer-events: none; }
 body.show-geo-badges .thumbnail.has-gps .geo-badge { display: inline-flex; }
-.filter-tag.tag-location { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
+.filter-tag.tag-location, .filter-tag.tag-analysis { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
 /* Filtre Lieu : trois choix exclusifs, même aspect que les choix segmentés de la fenêtre des zones */
 .location-filter { display: inline-flex; border: 1px solid var(--control-border); border-radius: 4px; overflow: hidden; }
 .location-filter-option { border: 0; border-radius: 0; padding: 4px 10px; background: var(--control-bg); font-size: 0.78rem; }

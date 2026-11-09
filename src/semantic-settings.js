@@ -33,6 +33,20 @@ export function onSemanticChange(listener) {
   return () => changeListeners.delete(listener);
 }
 
+const analysisListeners = new Set();
+
+/** `listener()` is called when the analysis data changed (an analysis ended or was stopped, the data was deleted). Returns the function that removes it. */
+export function onAnalysisChanged(listener) {
+  analysisListeners.add(listener);
+  return () => analysisListeners.delete(listener);
+}
+
+function notifyAnalysisChanged() {
+  for (const listener of analysisListeners) {
+    try { listener(); } catch (error) { console.error('Analysis listener failed', error); }
+  }
+}
+
 /** `no-semantic` on <body> hides every `.semantic-only` element (semantic.css). */
 function applyGate() {
   document.body.classList.toggle('no-semantic', !isSemanticEnabled());
@@ -236,6 +250,7 @@ async function deleteAnalysisData() {
     return;
   }
   await refreshStats();
+  notifyAnalysisChanged();
   host.showToast(t('Analysis data deleted'));
 }
 
@@ -342,6 +357,7 @@ export function analyseContent({ folder = null, recursive = false, photoIds = nu
 
 // End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
 async function reportAnalysis(report, stopped, error) {
+  notifyAnalysisChanged(); // even stopped or failed: the photos analysed so far are stored
   if (error) {
     host.showToast(t('Content analysis failed: {error}', { error: semanticErrorMessage(error) }));
     return;
@@ -385,6 +401,7 @@ export async function initSemanticSettings(hostApi) {
   applyGate();
   byId('semantic-toggle').addEventListener('change', event => setEnabled(event.target.checked));
   bindCheckbox('semantic-in-keyword-search', 'semanticInKeywordSearch');
+  bindCheckbox('semantic-keywords-in-search', 'semanticKeywordsInSearch');
   bindCheckbox('semantic-show-score', 'semanticShowScore');
   bindCheckbox('semantic-scan-raw', 'semanticScanRaw');
   byId('semantic-scan-raw').addEventListener('change', refreshStats); // the counts follow the choice

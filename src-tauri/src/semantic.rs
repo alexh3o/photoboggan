@@ -1185,6 +1185,27 @@ pub fn get_semantic_stats(state: State<'_, AppState>, folder: Option<String>, re
     stats(&conn, photo_ids.as_deref(), folder.as_deref(), recursive, skip_raw.unwrap_or(false))
 }
 
+/// Ids of the photos with an up-to-date embedding of `model_id` (same rule as `Standing::Analysed`), for the "Content analysis" filter.
+pub fn analysed_photo_ids(conn: &Connection, model_id: &str) -> Result<Vec<i64>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT p.id FROM photos p WHERE EXISTS(
+                SELECT 1 FROM photo_embeddings e WHERE e.photo_id = p.id AND e.model_id = ?1
+                AND e.file_size = COALESCE(p.file_size, 0) AND e.file_mtime = COALESCE(p.modified, 0))",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement.query_map(params![model_id], |row| row.get::<_, i64>(0)).map_err(|error| error.to_string())?;
+    crate::keywords::collect_rows(rows)
+}
+
+/// Photos already analysed (filter "Analysed / Not analysed" of "More filters"): the interface keeps the ids and filters the loaded list.
+#[tauri::command(async)]
+pub fn get_analysed_photo_ids(state: State<'_, AppState>) -> Result<Vec<i64>, String> {
+    ensure_enabled()?;
+    let conn = state.pool().get().map_err(|error| error.to_string())?;
+    analysed_photo_ids(&conn, &active_model().id)
+}
+
 /// Deletes every embedding, failure and dismissed suggestion (all models), in one transaction.
 pub fn delete_data(conn: &Connection) -> rusqlite::Result<()> {
     let transaction = conn.unchecked_transaction()?;

@@ -761,6 +761,56 @@ pub async fn semantic_search_image(
     outcome
 }
 
+/// Photos of `scope` that carry a keyword named `query` (whole name, case ignored, at any level of the tree), by increasing id. The toolbar
+/// box shares its text with the keyword search: these photos come before the content results.
+///
+/// Several keywords: with a comma, each part is a keyword ("new york, castle"); without one, the whole text is tried first (keywords can
+/// contain spaces), then each word. Words that are no keyword are ignored (they still feed the content search); a photo must carry every
+/// keyword that exists.
+pub fn keyword_photo_ids(conn: &Connection, query: &str, scope: &SearchScope) -> Result<Vec<i64>, String> {
+    let exists = |key: &str| -> Result<bool, String> {
+        conn.query_row("SELECT EXISTS(SELECT 1 FROM keyword_nodes WHERE name_key = ?1)", params![key], |row| row.get::<_, bool>(0))
+            .map_err(|error| error.to_string())
+    };
+    let keys: Vec<String> = if query.contains(',') {
+        query.split(',').map(crate::keywords::name_key).filter(|key| !key.is_empty()).collect()
+    } else {
+        let whole = crate::keywords::name_key(query);
+        if whole.is_empty() { Vec::new() } else if exists(&whole)? { vec![whole] } else { query.split_whitespace().map(crate::keywords::name_key).collect() }
+    };
+    let mut known = Vec::new();
+    for key in keys {
+        if !known.contains(&key) && exists(&key)? { known.push(key); }
+    }
+    if known.is_empty() { return Ok(Vec::new()); }
+    let mut statement = conn
+        .prepare("SELECT DISTINCT pk.photo_id FROM photo_keywords pk JOIN keyword_nodes k ON k.id = pk.keyword_id WHERE k.name_key = ?1")
+        .map_err(|error| error.to_string())?;
+    let mut tagged: Option<HashSet<i64>> = None;
+    for key in &known {
+        let rows = statement.query_map(params![key], |row| row.get::<_, i64>(0)).map_err(|error| error.to_string())?;
+        let found: HashSet<i64> = crate::keywords::collect_rows(rows)?.into_iter().collect();
+        tagged = Some(match tagged { Some(previous) => previous.intersection(&found).copied().collect(), None => found });
+    }
+    let tagged = tagged.unwrap_or_default();
+    if tagged.is_empty() { return Ok(Vec::new()); }
+    let mut ids: Vec<i64> = scope_photos(conn, scope)?.into_iter().map(|photo| photo.id).filter(|id| tagged.contains(id)).collect();
+    ids.sort_unstable();
+    Ok(ids)
+}
+
+/// Photos of `scope` carrying the keyword typed in the toolbar box (see `keyword_photo_ids`). Needs no model: it only reads the keyword tables.
+#[tauri::command]
+pub async fn semantic_keyword_photos(state: State<'_, AppState>, query: String, scope: SearchScope) -> Result<Vec<i64>, String> {
+    let pool = state.pool();
+    tokio::task::spawn_blocking(move || {
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        keyword_photo_ids(&conn, &query, &scope)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 #[cfg(test)]
 #[path = "tests/semantic_search.rs"]
 mod tests;

@@ -10,7 +10,7 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
-import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
+import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, onAnalysisChanged, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
 import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
 import { fetchKeywordCandidates, rejectKeywordSuggestion } from './semantic-tagging.js';
 import { initKeywordSuggestions, guessedKeywordEntries, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
@@ -31,7 +31,7 @@ import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, 
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
-import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
+import { fillSortButton, initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
@@ -951,7 +951,7 @@ function hasActiveFilters() {
   const hasKeywords = hasKeywordFilters();
   const hasFilename = hasFilenameFilters();
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all'
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all' || analysisFilter !== 'all'
     || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats()
     || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
@@ -1036,6 +1036,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
     && matchesDateFilter(photo)
     && matchesLocationFilter(photo)
+    && matchesAnalysisFilter(photo)
     && shootingFilters.matches(photo)
     && formatFilters.matches(photo)
     && matchesRawSearchScope(photo)
@@ -1158,6 +1159,7 @@ const clearFilterKinds = {
     closeDatePicker();
   },
   location: () => setLocationFilter('all', { apply: false }),
+  analysis: () => setAnalysisFilter('all', { apply: false }),
   gear: () => shootingFilters.clearGear(),
   shot: () => shootingFilters.clearShot(),
   format: () => formatFilters.reset(),
@@ -1171,7 +1173,7 @@ const filterGroupKinds = {
   date: ['date'],
   gear: ['gear'],
   shooting: ['shot'],
-  more: ['format', 'location'],
+  more: ['format', 'location', 'analysis'],
 };
 
 // Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent restent.
@@ -1506,7 +1508,7 @@ function matchesKeywordFilters(photo, included = keywordFilters, excluded = excl
   return (included ?? []).every(keyword => words.includes(keyword)) && !(excluded ?? []).some(keyword => words.includes(keyword));
 }
 
-// Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword search"): every included keyword is
+// Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword filtering"): every included keyword is
 // carried or suggested, nothing excluded is carried. `keywordGuesses` (rebuilt by each filtering) maps a photo id to the included keywords it only
 // has by suggestion; a photo carrying everything is not in it.
 function matchesKeywordFiltersOrSuggested(photo) {
@@ -1828,6 +1830,14 @@ function renderFilterSummaries() {
   })];
   document.getElementById('location-summary').replaceChildren(...locationNodes);
 
+  const analysisNodes = analysisFilter === 'all' ? [] : [createFilterTag({
+    kind: 'analysis',
+    text: t(analysisFilter === 'analysed' ? 'Analysed' : 'Not analysed'),
+    title: t('Content analysis'),
+    onRemove: () => clearFilterKindsAndApply(['analysis']),
+  })];
+  document.getElementById('analysis-summary').replaceChildren(...analysisNodes);
+
   shootingFilters.renderSummaries();
   formatFilters.renderSummaries();
   renderFilterTags();
@@ -1845,7 +1855,7 @@ function updateFilterGroupStates() {
     date: dateFilter !== null,
     gear: shootingFilters.hasGear(),
     shooting: shootingFilters.hasShot(),
-    more: formatFilters.hasFormats() || locationFilter !== 'all',
+    more: formatFilters.hasFormats() || locationFilter !== 'all' || analysisFilter !== 'all',
   };
   for (const group of filterGroups) group.dataset.active = String(Boolean(active[group.dataset.filterGroup]));
 }
@@ -1864,6 +1874,7 @@ function renderActiveFilterBadges() {
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
     [locationFilter !== 'all', 'location', 'Geolocation'],
+    [analysisFilter !== 'all', 'analysis', 'Content analysis'],
     [shootingFilters.hasGear(), 'gear', 'Gear'],
     [shootingFilters.hasShot(), 'shot', 'Shooting'],
     [formatFilters.hasFormats(), 'format', 'Format'],
@@ -2596,6 +2607,19 @@ function renderVisibleItems() {
         if (guessed) div._guessBadge.title = describeGuesses(guessed, photo.id);
       }
       div._guessKey = guessKey;
+    }
+    // Content search shared with the keyword search: a "Keywords" badge (same look as "Suggested") on the photos found by their keywords.
+    const byKeywords = semanticSearch?.carried.has(photo.id) === true;
+    if (div._byKeywords !== byKeywords) {
+      if (byKeywords && !div._keywordBadge) {
+        div._keywordBadge = Object.assign(document.createElement('span'), { className: 'semantic-suggested semantic-only', textContent: t('Keywords') });
+        div.querySelector('.thumbnail-inner').append(div._keywordBadge);
+      }
+      if (div._keywordBadge) {
+        div._keywordBadge.hidden = !byKeywords;
+        if (byKeywords) div._keywordBadge.title = t('Found by its keywords: tagged with the text typed in the search box');
+      }
+      div._byKeywords = byKeywords;
     }
     const hoverTitle = isSemanticSource ? `${photo.path}\n${t('Source photo of the search')}` : duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
     if (div._hoverTitle !== hoverTitle) { div.title = hoverTitle; div._hoverTitle = hoverTitle; }
@@ -3859,8 +3883,27 @@ function setToolbarLabels(show) {
   topBarEl?.classList.toggle('show-labels', show);
   document.body.classList.toggle('show-toolbar-labels', show); // lets views outside the bar (Faces sort button) follow the same choice
   try { localStorage.setItem('toolbarShowLabels', String(show)); } catch { /* storage unavailable: the choice just isn't remembered */ }
+  fitToolbar();
 }
 setToolbarLabels(readBool('toolbarShowLabels'));
+
+// Narrow window: the bar drops every button label and keeps the icons (`.compact`). The decision is "do the buttons, with their labels, fit?",
+// measured with the shrinkable parts frozen at their natural width (`.measuring`): it flips at the same width in both directions, whatever the
+// font size, language or "Show all labels" choice.
+function fitToolbar() {
+  if (!topBarEl || topBarEl.classList.contains('hidden') && !topBarEl.classList.contains('peek')) return;
+  topBarEl.classList.remove('compact');
+  topBarEl.classList.add('measuring');
+  const overflows = topBarEl.scrollWidth > topBarEl.clientWidth;
+  topBarEl.classList.remove('measuring');
+  topBarEl.classList.toggle('compact', overflows);
+}
+if (topBarEl) {
+  new ResizeObserver(() => fitToolbar()).observe(topBarEl);
+  onLanguageChange(fitToolbar);
+  onSemanticChange(fitToolbar); // the content search field appears or disappears
+  new MutationObserver(() => requestAnimationFrame(fitToolbar)).observe(topBarEl, { subtree: true, attributes: true, attributeFilter: ['hidden'] }); // buttons shown or hidden
+}
 if (readBool('toolbarAutoHide')) topBarEl?.classList.add('hidden'); // restored before the first layout: the grid starts at full height
 topBarEl?.addEventListener('contextmenu', event => {
   event.preventDefault();
@@ -4183,8 +4226,20 @@ function comparePhotosForSort(a, b) {
     const guesses = (keywordGuesses.get(a.id)?.length ?? 0) - (keywordGuesses.get(b.id)?.length ?? 0);
     if (guesses) return guesses;
   }
-  // Content search results: by decreasing relevance (the source photo of a similar-content search first).
-  if (semanticSearch) return (semanticSearch.rank.get(a.id) ?? Infinity) - (semanticSearch.rank.get(b.id) ?? Infinity) || 0;
+  if (semanticSearch?.carried.size) {
+    // Photos carrying the typed keyword come first, then the content results by decreasing relevance. Inside the first block: the content score
+    // ("Score"), or the sort options of the toolbar ("Grid", the rest of this function).
+    const carriedA = semanticSearch.carried.has(a.id);
+    if (carriedA !== semanticSearch.carried.has(b.id)) return carriedA ? -1 : 1;
+    if (!carriedA) return semanticRankOrder(a, b);
+    if (semanticSortMode === 'score') {
+      const byScore = semanticRankOrder(a, b); // the answer is already sorted by decreasing score; photos without a score (not analysed) last
+      if (byScore) return byScore;
+    }
+  } else if (semanticSearch) {
+    // Content search results: by decreasing relevance (the source photo of a similar-content search first).
+    return semanticRankOrder(a, b);
+  }
   // Duplicate results: groups in the chosen group order, members best first inside each group.
   if (duplicateSearch) {
     const orderA = duplicateSearch.order.get(a.path);
@@ -6795,6 +6850,50 @@ function setLocationFilter(value, { apply = true } = {}) {
 for (const option of locationFilterOptions) option.addEventListener('click', () => setLocationFilter(option.dataset.value));
 setLocationFilter('all', { apply: false });
 
+// ==========================================
+// CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums)
+// ==========================================
+let analysisFilter = 'all'; // 'all', 'analysed' or 'not-analysed'
+let analysedIds = new Set(); // ids with an up-to-date analysis, read from the backend while the filter is active
+let analysedIdsToken = 0;
+const analysisFilterOptions = [...document.querySelectorAll('#analysis-filter .location-filter-option')];
+
+// With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
+function matchesAnalysisFilter(photo) {
+  if (analysisFilter === 'all' || !isSemanticEnabled()) return true;
+  return analysedIds.has(photo.id) === (analysisFilter === 'analysed');
+}
+
+async function refreshAnalysedIds() {
+  if (analysisFilter === 'all' || !isSemanticEnabled()) return;
+  const token = ++analysedIdsToken;
+  try {
+    const ids = await invoke('get_analysed_photo_ids');
+    if (token === analysedIdsToken) analysedIds = new Set(ids);
+  } catch (error) {
+    console.error('Analysed photos unreadable', error);
+    if (token === analysedIdsToken) analysedIds = new Set();
+  }
+}
+
+async function setAnalysisFilter(value, { apply = true } = {}) {
+  analysisFilter = ['analysed', 'not-analysed'].includes(value) ? value : 'all';
+  for (const option of analysisFilterOptions) option.setAttribute('aria-checked', String(option.dataset.value === analysisFilter));
+  if (!apply) return;
+  await refreshAnalysedIds(); // the ids are known before the list is filtered
+  applyPhotoFilters();
+}
+for (const option of analysisFilterOptions) option.addEventListener('click', () => setAnalysisFilter(option.dataset.value));
+setAnalysisFilter('all', { apply: false });
+
+// An analysis ended or the data was deleted: the filter follows. The feature went off: the filter is reset.
+onAnalysisChanged(async () => {
+  if (analysisFilter === 'all') return;
+  await refreshAnalysedIds();
+  applyPhotoFilters({ keepState: true });
+});
+onSemanticChange(() => { if (analysisFilter !== 'all' && !isSemanticEnabled()) setAnalysisFilter('all'); });
+
 let dateFilter = null; // { from, to } au format AAAAMMJJHHmmss (nombres), ou null = aucun filtre
 const dateFilterInput = document.getElementById('date-filter-input');
 const dateFilterClear = document.getElementById('date-filter-clear');
@@ -7414,6 +7513,14 @@ initSemanticSettings({
 // disabling the feature. The slider is a plain filter (`matchesSemanticCut`): no new request when it moves (spec §18.2).
 const semanticDelta = () => readNumber('semanticRelevance', 0.005, 0.08);
 let semanticSliderFrame = 0;
+let semanticSortMode = readChoice('semanticKeywordSort', ['grid', 'score']); // order of the photos carrying the typed keyword
+
+// Position in the answer (decreasing score); the source photo of a similar-content search is -1, photos outside the answer come last.
+function semanticRankOrder(a, b) {
+  const rankA = semanticSearch.rank.get(a.id) ?? Infinity;
+  const rankB = semanticSearch.rank.get(b.id) ?? Infinity;
+  return rankA === rankB ? 0 : rankA - rankB;
+}
 
 // The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
 function loadSemanticPhotos() {
@@ -7424,7 +7531,7 @@ function loadSemanticPhotos() {
 function matchesSemanticCut(photo) {
   if (!semanticSearch) return true;
   if (semanticSearch.keyword) return true; // keyword candidates: the backend threshold is the rule, the slider is hidden
-  if (photo.id === semanticSearch.sourceId) return true;
+  if (photo.id === semanticSearch.sourceId || semanticSearch.carried.has(photo.id)) return true; // tagged with the typed keyword: always kept
   const cos = semanticSearch.cos.get(photo.id);
   return cos !== undefined && cos >= semanticSearch.best - semanticDelta();
 }
@@ -7438,6 +7545,11 @@ function renderSemanticBanner() {
   const search = semanticSearch;
   const shown = photos.filter(photo => photo.id !== search.sourceId).length;
   const parts = [search.label, tp('{count} result', shown)];
+  const carriedShown = photos.filter(photo => search.carried.has(photo.id)).length;
+  if (carriedShown > 0) parts.push(tp('{count} tagged with this keyword', carriedShown, { count: carriedShown.toLocaleString() }));
+  const sortButton = document.getElementById('semantic-sort');
+  sortButton.hidden = search.carried.size === 0;
+  fillSortButton(sortButton, semanticSortMode);
   if (search.keyword) parts.splice(1, 0, search.keyword.kind === 'examples' ? tp('like your {count} photo tagged with it', search.keyword.examples) : t('from the keyword name'));
   // More than the cap was scored and the cut did not stop before it: say that the list is the best part only.
   const cut = search.best - semanticDelta();
@@ -7457,6 +7569,16 @@ function renderSemanticBanner() {
 }
 
 document.getElementById('semantic-close')?.addEventListener('click', () => exitSemanticSearch());
+// "Grid" / "Score": order of the photos carrying the typed keyword (same button as the Faces view). Sorting again keeps selection and scroll.
+document.getElementById('semantic-sort')?.addEventListener('click', () => {
+  semanticSortMode = semanticSortMode === 'score' ? 'grid' : 'score';
+  try { localStorage.setItem('semanticKeywordSort', semanticSortMode); } catch { /* storage unavailable: the choice is not remembered */ }
+  renderSemanticBanner();
+  if (!semanticSearch) return;
+  fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
+  applyPhotoFilters({ keepState: true });
+});
+onLanguageChange(() => renderSemanticBanner());
 document.getElementById('semantic-relevance')?.addEventListener('input', event => {
   try { localStorage.setItem('semanticRelevance', event.target.value); } catch { /* storage unavailable: the choice is not remembered */ }
   if (!semanticSearch) return;
@@ -7511,7 +7633,7 @@ document.getElementById('semantic-keyword-reject')?.addEventListener('click', as
   if (semanticSearch !== search) return; // the mode was closed or replaced meanwhile
   const gone = new Set(ids);
   search.ids = search.ids.filter(id => !gone.has(id));
-  for (const id of gone) { search.cos.delete(id); search.prob.delete(id); search.rank.delete(id); }
+  for (const id of gone) { search.cos.delete(id); search.prob.delete(id); search.rank.delete(id); search.carried.delete(id); }
   loadedPhotos = loadedPhotos.filter(photo => !gone.has(photo.id));
   fullscreenImageCache.clear();
   applyPhotoFilters({ keepState: true });
@@ -7539,7 +7661,7 @@ async function exitSemanticSearch() {
 
 // Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave a
 // modified smart album. A new search from inside the mode replaces the results and keeps the view to go back to.
-async function showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyword = null }) {
+async function showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyword = null, carriedIds = [] }) {
   if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
@@ -7560,6 +7682,10 @@ async function showSemanticResults({ label, answer, scope, viewScope, sourcePhot
   };
   answer.results.forEach((result, index) => { search.cos.set(result.photoId, result.cos); search.prob.set(result.photoId, result.prob); search.rank.set(result.photoId, index); });
   if (sourceId !== null) { search.ids.push(sourceId); search.rank.set(sourceId, -1); } // the source photo is not in the results: shown first
+  // Photos tagged with the typed keyword (toolbar box): always listed, before the content results; some may be outside the answer (no score).
+  search.carried = new Set(carriedIds);
+  const known = new Set(search.ids);
+  for (const id of carriedIds) if (!known.has(id)) search.ids.push(id);
   semanticSearch = search;
   renderFolderTree();
   await loadPhotos();
@@ -7614,9 +7740,13 @@ initSemanticSearch({
   onSearch: async query => {
     const viewScope = currentViewScope(); // read before the mode changes the view
     const scope = currentSearchScope(viewScope);
-    const answer = await searchText(query, scope);
+    // The box is shared with the keyword search: the photos tagged with the typed text come first, then the content results.
+    const [answer, carriedIds] = await Promise.all([
+      searchText(query, scope),
+      readBool('semanticKeywordsInSearch') ? invoke('semantic_keyword_photos', { query, scope }).catch(() => []) : [],
+    ]);
     if (!answer) return;
-    await showSemanticResults({ label: `“${query}”`, answer, scope, viewScope });
+    await showSemanticResults({ label: `“${query}”`, answer, scope, viewScope, carriedIds });
   },
 });
 onSemanticChange(() => { if (semanticSearch && !isSemanticEnabled()) exitSemanticSearch(); }); // disabled, or the model deleted

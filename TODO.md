@@ -4,21 +4,26 @@
 
 - [ ] *docs*: `dev` technical documentation
 - [ ] *feat*: `scan` allow pausing
-- [x] *fix*: `faces` faces don't obey to sorting options
-- [x] *feat*: `tree` add collapse all and unfold to active photo path on folders tree
-- [x] *fix*: `ui` count badge cut on tasks button since removing the top padding
-- [x] *fix*: `faces` keyboard selction doesn't work in faces review
-- [ ] *feat*: `semantic` add filter for scanned / unscanned photos
+- [x] *feat*: `semantic` add filter for scanned / unscanned photos
+  - [x] done for thumbnails
+  - [ ] to do for faces (add option to generate while recognizing)
 - [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
-- [ ] *feat*: `semantic` share search box with keywords search
-- [ ] *feat*: `semantic` include filters in semantic search
+- [x] *feat*: `semantic` irregular progress of scan, seems stuck at times
+- [x] *feat*: `semantic` share search box with keywords search
+- [ ] *feat*: `semantic` keywords for which suggestion cannot be done under it's keyword path
 - [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
+- [ ] *fix*:  `semantic` `UI` issues with search box when window width is small
+- [ ] *style*:  `semantic` `UI` make search settings view clearer with betterseparation between raw and semantic
+- [ ] *feat*: `editing` rotate
+- [ ] *fix*: `keywords` fail to write keyword
+- [ ] *feat*: `keywords` open keyword panel directly on input zone
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *feat*: `stats` stats in a stat modal from settings
 - [ ] *feat*: `tasks` task to popup action to see progress
+- [ ] *perf*: `thumbnails` more compressed thumbnails
 
 ## ⚖️ Undecided
 

@@ -1,5 +1,5 @@
 // Content search, keyword filter side (SigLIP 2, Phase 5): photos suggested for the keywords of the filter.
-// See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestions in keyword search"
+// See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestions in keyword filtering"
 // is on AND the feature is enabled: no IPC call is made otherwise.
 //
 // Rule (decided with the user): for every included keyword, a photo either carries it or is suggested for it ("carried or suggested" AND).

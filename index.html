@@ -33,7 +33,7 @@
         <!-- Content search (semantic.js): hidden while the feature is off or its model is not installed -->
         <form id="semantic-search" class="semantic-search semantic-only" role="search" autocomplete="off">
           <svg class="semantic-search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
-          <input id="semantic-search-input" type="text" spellcheck="false" placeholder="Rechercher par contenu…" data-i18n-placeholder="Search by content…" aria-label="Rechercher par contenu" data-i18n-aria-label="Search by content" title="Décrivez ce que vous cherchez, puis Entrée (ex. : plage au coucher du soleil)" data-i18n-title="Describe what you are looking for, then press Enter (e.g. beach at sunset)" />
+          <input id="semantic-search-input" type="text" spellcheck="false" placeholder="Rechercher…" data-i18n-placeholder="Search…" aria-label="Rechercher par contenu ou mot-clé" data-i18n-aria-label="Search by content or keyword" title="Décrivez ce que vous cherchez ou tapez un mot-clé, puis Entrée (ex. : plage au coucher du soleil). Les photos portant le mot-clé viennent en premier" data-i18n-title="Describe what you are looking for or type a keyword, then press Enter (e.g. beach at sunset). Photos tagged with the keyword come first" />
           <span id="semantic-search-spinner" class="semantic-spinner" hidden role="status" aria-label="Recherche en cours" data-i18n-aria-label="Searching…"></span>
           <button type="button" id="semantic-scope-toggle" class="semantic-scope-toggle" aria-pressed="false"></button>
         </form>
@@ -243,7 +243,7 @@
             <div class="filter-group-header">
               <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-more" aria-label="Plus de filtres" data-i18n-aria-label="More filters"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span></span>
-              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span><span id="analysis-summary" class="filter-summary"></span></span>
               <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </div>
@@ -263,6 +263,15 @@
                   <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
                   <button type="button" class="location-filter-option" data-value="geolocated" role="radio" data-i18n="Geolocated">Géolocalisées</button>
                   <button type="button" class="location-filter-option" data-value="not-geolocated" role="radio" data-i18n="Not geolocated">Non géolocalisées</button>
+                </div>
+              </div>
+              <!-- Content analysis status (main.js, section "CONTENT ANALYSIS FILTER"): only shown while content search is on -->
+              <div class="filter-subgroup semantic-only">
+                <div class="filter-subtitle" data-i18n="Content analysis">Analyse du contenu</div>
+                <div id="analysis-filter" class="location-filter" role="radiogroup" aria-label="Analyse du contenu" data-i18n-aria-label="Content analysis">
+                  <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
+                  <button type="button" class="location-filter-option" data-value="analysed" role="radio" data-i18n="Analysed">Analysées</button>
+                  <button type="button" class="location-filter-option" data-value="not-analysed" role="radio" data-i18n="Not analysed">Non analysées</button>
                 </div>
               </div>
             </div>
@@ -294,6 +303,8 @@
           <div class="semantic-banner-row">
             <button id="semantic-close" type="button" class="semantic-close" title="Revenir à la vue précédente (Échap)" data-i18n-title="Back to the previous view" data-i18n="Close">Fermer</button>
             <span id="semantic-text" class="semantic-text" role="status"></span>
+            <!-- Only when some results carry the typed keyword: order of those photos (Grid = the sort options, Score = content score) -->
+            <button id="semantic-sort" type="button" class="faces-sort" hidden data-i18n-title="Order of the photos tagged with the typed keyword: as the main grid, or by decreasing content score" title="Ordre des photos portant le mot-clé tapé : comme la grille principale, ou par score de contenu décroissant"></button>
             <label class="semantic-relevance" title="Plus la pertinence est large, plus il y a de résultats" data-i18n-title="A wider relevance keeps more results">
               <span data-i18n="Relevance">Pertinence</span>
               <input id="semantic-relevance" type="range" min="0.005" max="0.08" step="0.005" />
@@ -586,7 +597,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="maps" data-i18n="Maps">Cartes</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
-          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="semantic" data-i18n="Content search">Recherche par contenu</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="semantic" data-i18n="Search tab">Recherche</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="misc" data-i18n="Misc">Divers</button>
         </div>
 
@@ -789,8 +800,35 @@
             </section>
           </div>
 
-          <!-- Onglet Recherche par contenu (semantic-settings.js) : seule la case est toujours visible -->
+          <!-- Onglet Recherche : recherche du RAW (raw-settings.js), puis recherche par contenu (semantic-settings.js, seule la case est toujours visible) -->
           <div id="settings-tab-semantic" class="settings-tab-pane" role="tabpanel" hidden>
+            <!-- Recherche du RAW d'une image raster (« Trouver le RAW ») : raw-settings.js -->
+            <section class="settings-section">
+              <h4>RAW</h4>
+              <p class="sort-note" data-i18n="Find RAW help">Cochez tous les critères qui doivent correspondre pour retrouver le RAW d'une image</p>
+              <label class="settings-row settings-check"><input id="raw-match-name" type="checkbox" /><span data-i18n="Same file name (without extension)">Nom de fichier (sans extension)</span></label>
+              <!-- Motif du nom : libellé et champ sur la même ligne, puis un champ de test dont le résultat s'affiche dessous -->
+              <div class="raw-pattern-grid">
+                <label for="raw-name-pattern" data-i18n="Part of the name to find (regular expression)">Partie du nom à retrouver (expression régulière)</label>
+                <input id="raw-name-pattern" type="text" placeholder="^(IMG_\d+)" autocomplete="off" spellcheck="false" title="Le premier groupe entre parenthèses est cherché dans le nom du RAW. Vide : nom entier." data-i18n-title="Name pattern help" />
+                <label for="raw-pattern-test" data-i18n="Test with a filename">Tester avec un nom</label>
+                <input id="raw-pattern-test" type="text" placeholder="IMG_1234-edit.jpg" autocomplete="off" spellcheck="false" />
+                <p id="raw-pattern-result" class="raw-pattern-result" role="status"></p>
+              </div>
+              <label class="settings-row settings-check"><input id="raw-match-date" type="checkbox" /><span data-i18n="Same date and time taken">Date et heure de prise de vue</span></label>
+              <label class="settings-row settings-check"><input id="raw-match-gear" type="checkbox" /><span data-i18n="Same camera and lens">Appareil photo et objectif</span></label>
+              <label class="settings-row settings-check"><input id="raw-match-shooting" type="checkbox" /><span data-i18n="Same shutter speed, ISO and aperture">Paramètres de prise de vue (vitesse, ISO, ouverture)</span></label>
+              <!-- Dossier de départ de la recherche : une ligne, trois boutons formant un bloc (même style que le filtre Lieu) -->
+              <div class="settings-row raw-scope-row" title="Inclut toujours tous les sous-dossiers du dossier choisi." data-i18n-title="Search from help">
+                <span id="raw-scope-title" data-i18n="Search from">Chercher à partir du dossier</span>
+                <div id="raw-scope" class="location-filter" role="radiogroup" aria-labelledby="raw-scope-title">
+                  <button type="button" class="location-filter-option" role="radio" data-value="parent" data-i18n="Scope parent">Parent</button>
+                  <button type="button" class="location-filter-option" role="radio" data-value="current" data-i18n="Scope current">Courant</button>
+                  <button type="button" class="location-filter-option" role="radio" data-value="children" data-i18n="Scope sub">Enfants</button>
+                </div>
+                <span data-i18n="Scope suffix"></span>
+              </div>
+            </section>
             <section class="settings-section">
               <h4 data-i18n="Content search">Recherche par contenu</h4>
               <label class="settings-row settings-check"><input id="semantic-toggle" type="checkbox" /><span data-i18n="Enable content search (local AI)">Activer la recherche par contenu (IA locale)</span></label>
@@ -821,7 +859,8 @@
                     <option value="4" data-i18n="High">Haute</option>
                   </select></label>
                 <h4 data-i18n="Search">Recherche</h4>
-                <label class="settings-row settings-check"><input id="semantic-in-keyword-search" type="checkbox" /><span data-i18n="Include suggestions in keyword search">Inclure des suggestions dans la recherche par mots-clés</span></label>
+                <label class="settings-row settings-check"><input id="semantic-in-keyword-search" type="checkbox" /><span data-i18n="Include suggestions in keyword filtering">Inclure des suggestions dans le filtrage par mots-clés</span></label>
+                <label class="settings-row settings-check"><input id="semantic-keywords-in-search" type="checkbox" /><span data-i18n="Include keywords in content search">Inclure les mots-clés dans la recherche sémantique</span></label>
                 <label class="settings-row settings-check"><input id="semantic-show-score" type="checkbox" /><span data-i18n="Show the score on results">Afficher le score sur les résultats</span></label>
                 <h4 data-i18n="Storage">Stockage</h4>
                 <p id="semantic-storage-status" class="sort-note"></p>
@@ -841,33 +880,6 @@
                 <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
               <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
               <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
-            </section>
-            <!-- Recherche du RAW d'une image raster (« Trouver le RAW ») : raw-settings.js -->
-            <section class="settings-section">
-              <h4>RAW</h4>
-              <p class="sort-note" data-i18n="Find RAW help">Cochez tous les critères qui doivent correspondre pour retrouver le RAW d'une image</p>
-              <label class="settings-row settings-check"><input id="raw-match-name" type="checkbox" /><span data-i18n="Same file name (without extension)">Nom de fichier (sans extension)</span></label>
-              <!-- Motif du nom : libellé et champ sur la même ligne, puis un champ de test dont le résultat s'affiche dessous -->
-              <div class="raw-pattern-grid">
-                <label for="raw-name-pattern" data-i18n="Part of the name to find (regular expression)">Partie du nom à retrouver (expression régulière)</label>
-                <input id="raw-name-pattern" type="text" placeholder="^(IMG_\d+)" autocomplete="off" spellcheck="false" title="Le premier groupe entre parenthèses est cherché dans le nom du RAW. Vide : nom entier." data-i18n-title="Name pattern help" />
-                <label for="raw-pattern-test" data-i18n="Test with a filename">Tester avec un nom</label>
-                <input id="raw-pattern-test" type="text" placeholder="IMG_1234-edit.jpg" autocomplete="off" spellcheck="false" />
-                <p id="raw-pattern-result" class="raw-pattern-result" role="status"></p>
-              </div>
-              <label class="settings-row settings-check"><input id="raw-match-date" type="checkbox" /><span data-i18n="Same date and time taken">Date et heure de prise de vue</span></label>
-              <label class="settings-row settings-check"><input id="raw-match-gear" type="checkbox" /><span data-i18n="Same camera and lens">Appareil photo et objectif</span></label>
-              <label class="settings-row settings-check"><input id="raw-match-shooting" type="checkbox" /><span data-i18n="Same shutter speed, ISO and aperture">Paramètres de prise de vue (vitesse, ISO, ouverture)</span></label>
-              <!-- Dossier de départ de la recherche : une ligne, trois boutons formant un bloc (même style que le filtre Lieu) -->
-              <div class="settings-row raw-scope-row" title="Inclut toujours tous les sous-dossiers du dossier choisi." data-i18n-title="Search from help">
-                <span id="raw-scope-title" data-i18n="Search from">Chercher à partir du dossier</span>
-                <div id="raw-scope" class="location-filter" role="radiogroup" aria-labelledby="raw-scope-title">
-                  <button type="button" class="location-filter-option" role="radio" data-value="parent" data-i18n="Scope parent">Parent</button>
-                  <button type="button" class="location-filter-option" role="radio" data-value="current" data-i18n="Scope current">Courant</button>
-                  <button type="button" class="location-filter-option" role="radio" data-value="children" data-i18n="Scope sub">Enfants</button>
-                </div>
-                <span data-i18n="Scope suffix"></span>
-              </div>
             </section>
           </div>
         </div>
