@@ -1260,6 +1260,8 @@ function renderModelStatus() {
   importButton.hidden = !modelStatus.supported;
   // Mode hors ligne : pas de téléchargement, la liste des fichiers à récupérer à la main est dépliée.
   download.hidden = offline || !modelStatus.supported || modelStatus.installed;
+  // The "Installing without Internet" help only matters in offline mode: hidden otherwise.
+  list.closest('details').hidden = !offline;
   if (offline && modelStatus.supported && !modelStatus.installed) list.closest('details').open = true;
   if (!modelStatus.supported) status.textContent = t('Face detection is not available on this system');
   else if (modelStatus.installed) status.textContent = t('Face model installed in {folder}', { folder: modelStatus.directory });

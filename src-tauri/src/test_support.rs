@@ -133,3 +133,27 @@ pub fn mirror(rgb: &[u8], width: usize, height: usize) -> Vec<u8> {
     }
     out
 }
+
+/// Folder of the SigLIP 2 model files (vision.onnx, text.onnx, tokenizer.json), from SEMANTIC_MODEL_DIR (parity tests).
+pub fn semantic_model_dir() -> std::path::PathBuf {
+    let dir = std::path::PathBuf::from(std::env::var("SEMANTIC_MODEL_DIR").expect("set SEMANTIC_MODEL_DIR to a folder with vision.onnx, text.onnx, tokenizer.json"));
+    assert!(dir.join("tokenizer.json").is_file(), "{} has no tokenizer.json", dir.display());
+    dir
+}
+
+/// ONNX Runtime library (parity tests): ORT_DYLIB_PATH, otherwise the `models/` folder of an installed application (release, then development build).
+pub fn onnx_runtime_library() -> std::path::PathBuf {
+    if let Ok(path) = std::env::var("ORT_DYLIB_PATH") { return std::path::PathBuf::from(path); }
+    let name = if cfg!(windows) { "onnxruntime.dll" } else { "libonnxruntime.so" };
+    let data_root = if cfg!(windows) {
+        std::env::var("LOCALAPPDATA").map(std::path::PathBuf::from)
+    } else {
+        std::env::var("HOME").map(|home| std::path::PathBuf::from(home).join(".local").join("share"))
+    }
+    .expect("no data folder");
+    ["com.alexh3o.photoboggan", "com.alexh3o.photoboggan.dev"]
+        .iter()
+        .map(|identifier| data_root.join(identifier).join("data").join("models").join(name))
+        .find(|path| path.is_file())
+        .expect("ONNX Runtime library not found: set ORT_DYLIB_PATH")
+}

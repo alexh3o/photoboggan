@@ -250,3 +250,38 @@ fn a_reserved_name_is_never_taken_twice() {
     assert_eq!(reserve_new_file(&dir.path().join("taken.jpg")).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(fs::read(dir.path().join("taken.jpg")).unwrap(), b"photo", "an existing file was truncated");
 }
+
+/// The backend default cache size comes from defaults.jsonc like the frontend's (a new install once generated 512 px thumbnails while the
+/// grid believed they were 1024 px); a valid saved size wins, an invalid one falls back to that default.
+#[test]
+fn thumbnail_cache_size_default_is_shared_with_the_frontend() {
+    let json: String = include_str!("../../../src/defaults.jsonc").lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+    let frontend: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let expected = frontend["thumbnailCacheSize"].as_u64().unwrap() as u32;
+    assert!(THUMBNAIL_CACHE_SIZES.contains(&expected), "defaults.jsonc thumbnailCacheSize must be one of {THUMBNAIL_CACHE_SIZES:?}");
+    assert_eq!(default_thumbnail_cache_size(), expected);
+    assert_eq!(startup_thumbnail_cache_size(None), expected);
+    assert_eq!(startup_thumbnail_cache_size(Some(768)), 768);
+    assert_eq!(startup_thumbnail_cache_size(Some(300)), expected);
+}
+
+/// Changing the storage location carries every data folder, logs included (they may name the only copy of a photo left by ExifTool),
+/// and the old location is then emptied of them.
+#[test]
+fn storage_copy_carries_the_logs_and_cleanup_removes_them() {
+    let from = tempfile::tempdir().unwrap();
+    let to = tempfile::tempdir().unwrap();
+    let pool = crate::db::init_db(&from.path().join("photos_library.db").to_string_lossy());
+    put(&from.path().join("logs").join("write-recovery_2026-01-01_10-00-00.log"), b"recovered");
+    put(&from.path().join("models").join("model.onnx"), b"model");
+
+    copy_storage(&pool, from.path(), to.path()).unwrap();
+    assert!(to.path().join("photos_library.db").is_file());
+    assert_eq!(fs::read(to.path().join("logs").join("write-recovery_2026-01-01_10-00-00.log")).unwrap(), b"recovered");
+    assert!(to.path().join("models").join("model.onnx").is_file());
+
+    drop(pool);
+    remove_storage(from.path());
+    assert!(!from.path().join("logs").exists());
+    assert!(!from.path().join("models").exists());
+}

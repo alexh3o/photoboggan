@@ -2,7 +2,7 @@
 // (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même. main.js appelle ce module depuis closeFullscreen
 // (arrêt), showFullscreenPhoto (armement du minuteur) et le clavier (F10, Espace) ; photo-actions.js y lit les réglages pour le menu contextuel.
 import { t } from './i18n.js';
-import { DEFAULTS } from './settings-defaults.js';
+import { DEFAULTS, readBool, readNumber } from './settings-defaults.js';
 
 // ==========================================
 // RÉGLAGES (mémorisés localement, partagés par le menu contextuel et Paramètres > Général)
@@ -14,14 +14,12 @@ const DEFAULT_DELAY = DEFAULTS.slideshowDelay;
 
 const storageKey = { delay: 'slideshowDelay', loop: 'slideshowLoop', random: 'slideshowRandom' };
 
-function readStored(key) {
-  try { return localStorage.getItem(storageKey[key]); } catch { return null; }
-}
-
-// Flags are saved as "1" / "0"; nothing saved gives the default.
-function storedFlag(key, fallback) {
-  const stored = readStored(key);
-  return stored === null ? fallback : stored === '1';
+// Flags are saved as "true" / "false" and read with readBool like every other setting. Versions up to 0.6.11 saved "1" / "0": still
+// understood, rewritten in the new form the next time the option changes.
+function storedFlag(key) {
+  let legacy = null;
+  try { legacy = localStorage.getItem(storageKey[key]); } catch { /* storage unavailable: default */ }
+  return legacy === '1' ? true : legacy === '0' ? false : readBool(storageKey[key]);
 }
 
 function clampDelay(value) {
@@ -31,16 +29,15 @@ function clampDelay(value) {
 
 // { delay (secondes), loop, random } : toujours lus à la source, les modifier depuis un endroit les met à jour partout.
 export function getSlideshowSettings() {
-  const storedDelay = readStored('delay');
   return {
-    delay: storedDelay === null ? DEFAULT_DELAY : clampDelay(storedDelay),
-    loop: storedFlag('loop', DEFAULTS.slideshowLoop),
-    random: storedFlag('random', DEFAULTS.slideshowRandom),
+    delay: Math.round(readNumber(storageKey.delay, MIN_DELAY, MAX_DELAY)),
+    loop: storedFlag('loop'),
+    random: storedFlag('random'),
   };
 }
 
 export function setSlideshowOption(key, value) {
-  const stored = key === 'delay' ? String(clampDelay(value)) : (value ? '1' : '0');
+  const stored = key === 'delay' ? String(clampDelay(value)) : String(Boolean(value));
   try { localStorage.setItem(storageKey[key], stored); } catch { /* stockage indisponible : le réglage vaut pour cette session seulement */ }
   refreshSettingsControls();
   // Aléatoire activé ou désactivé pendant la lecture : l'ordre est refait à partir de la photo affichée.

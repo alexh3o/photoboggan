@@ -9,6 +9,9 @@
 // main.js fournit la sélection et les services de l'application (initKeywordsPanel) et appelle refreshKeywordsPanel quand la sélection change.
 import './keywords.css';
 import { openContextMenuAt } from './photo-actions.js';
+import { isSemanticEnabled } from './semantic-settings.js';
+import { initPhotoSuggestions, syncPhotoSuggestions, renderPhotoSuggestions } from './semantic-tagging.js';
+import { sortSuggestions } from './filter-suggest.js';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import {
@@ -74,7 +77,6 @@ let applyButton;
 let resetButton;
 let unifyButton;
 
-const compareByUsage = (a, b) => (usageById.get(b.id) || 0) - (usageById.get(a.id) || 0) || nameCollator.compare(a.name, b.name);
 
 function setsEqual(a, b) {
   if (!a || !b || a.size !== b.size) return false;
@@ -139,10 +141,13 @@ export function handleSideTabShortcut(name) {
   if (!initialized) return;
   if (EDITING_TABS.includes(name) && compareActive) return;
   const panelVisible = !exifPanel.classList.contains('hidden');
-  if (!panelVisible) {
-    setTab(name);
+  if (panelVisible && displayedTab() === name) {
     toggleButton.click();
-  } else if (displayedTab() === name) {
+  } else if (name === 'keywords') {
+    // Opening / switching to the Keywords tab puts the cursor in the quick keyword input so the user can type right away.
+    focusSideTabField(name);
+  } else if (!panelVisible) {
+    setTab(name);
     toggleButton.click();
   } else {
     setTab(name);
@@ -172,6 +177,23 @@ export function focusSideTabField(name) {
 export function setKeywordsCompareMode(active) {
   compareActive = active;
   if (initialized) applyTab();
+}
+
+// Content search, "Add keyword" on the selected photos (results of "Find photos that may match", main.js): the keyword becomes a PENDING change of
+// the selection, exactly as a click on its checkbox. The panel is shown on the Keywords tab first (its state is loaded for the selection only while
+// it is visible). Returns the number of photos that received it, 0 when nothing was added (compare mode, selection not loaded in time, unknown keyword).
+export async function addPendingKeyword(keywordId) {
+  if (!initialized || compareActive) return 0;
+  if (exifPanel.classList.contains('hidden')) toggleButton.click();
+  setTab('keywords');
+  const ready = () => canEdit() && sameAsWorking(currentTarget());
+  for (let attempt = 0; attempt < 60 && !ready(); attempt++) await new Promise(resolve => setTimeout(resolve, 50));
+  if (!ready()) return 0;
+  if (!nodeById.has(keywordId)) await refreshTreeAndUsage();
+  if (!nodeById.has(keywordId)) return 0;
+  const count = working.size;
+  activateKeyword(keywordId, false);
+  return count;
 }
 
 // Les fichiers ont pu changer l'arbre (scan, relecture, synchronisation) : il sera relu à la prochaine mise à jour.
@@ -252,6 +274,7 @@ function afterEdit() {
   if (!wasDirty && dirtyIds.size > 0) invoke('exiftool_prewarm').catch(() => {});
   renderTree();
   updateButtons();
+  renderPhotoSuggestions(); // a suggestion now ticked leaves the block
 }
 
 function setKeywordsOnAll(keywordIds, turnOn) {
@@ -499,6 +522,7 @@ const keywordEditor = {
     renderTree();
     updateButtons();
     if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
+    syncPhotoSuggestions({ force: true }); // written keywords are no longer suggested
   },
   discard: photoIds => resetChanges(photoIds),
   // Photo renommée ou déplacée : ses mots-clés en attente seront écrits sous le nouveau chemin.
@@ -555,6 +579,7 @@ export function refreshKeywordsPanel() {
   refreshScheduled = true;
   requestAnimationFrame(() => {
     refreshScheduled = false;
+    syncPhotoSuggestions(); // content search: suggestions of the selected photo (no-op while the feature is off)
     reloadFromDatabase();
   });
 }
@@ -646,7 +671,11 @@ function closeSuggestions() {
 function findKeywordMatches(text, excludeId = null) {
   const query = normalizeSearch(text.trim());
   if (!query) return [];
-  return [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)).sort(compareByUsage).slice(0, MAX_SUGGESTIONS);
+  // Shortest name first (so "michel" comes before a more used "michel-ange"), then the most used.
+  return sortSuggestions(
+    [...nodeById.values()].filter(node => node.id !== excludeId && node.search.includes(query)),
+    node => node.search.length, node => usageById.get(node.id) || 0, node => node.name,
+  ).slice(0, MAX_SUGGESTIONS);
 }
 
 // Liste de correspondances au-dessus d'un champ (saisie rapide et fenêtre de nom) : chemin complet et fréquence de chaque mot-clé, le plus
@@ -754,6 +783,12 @@ function onTreeContextMenu(event) {
   openContextMenuAt(event, [
     { header: node.name },
     { label: t('Create a child keyword…'), title: t('Create a keyword inside “{name}”', { name: node.name }), onSelect: () => createKeywordFlow(node.id) },
+    // Content search (entry absent while the feature is off): photos of the view that may deserve this keyword (leaf or not).
+    ...(isSemanticEnabled() ? [{
+      label: t('Find photos that may match'),
+      title: t('Search the photos that look like those tagged “{name}” (or, with few of them, that match its name), without this keyword', { name: node.name }),
+      onSelect: () => host.findKeywordCandidates?.({ id: node.id, name: node.name }),
+    }] : []),
     {
       label: t('Rename keyword…'),
       title: locked ? lockedReason : t('Rename this keyword in the keyword tree and in the files that carry it'),
@@ -1149,6 +1184,15 @@ export function initKeywordsPanel(hostApi) {
   inputField.addEventListener('blur', closeSuggestions);
   inputField.addEventListener('keydown', onInputKeyDown);
   treeList.addEventListener('contextmenu', onTreeContextMenu);
+
+  initPhotoSuggestions({
+    getSelectedPhotos: () => host.getSelectedPhotos(),
+    keywordLabel: keywordId => { const node = nodeById.get(keywordId); return node ? { name: node.name, path: pathLabel(node) } : null; },
+    ensureTree: () => refreshTreeAndUsage(),
+    isActive: keywordId => (workingCount.get(keywordId) || 0) > 0,
+    addKeyword: keywordId => addPendingKeyword(keywordId),
+    showToast: message => host.showToast(message),
+  });
 
   registerEditor(keywordEditor);
   onLockChange(updateButtons);

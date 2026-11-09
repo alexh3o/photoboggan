@@ -1,4 +1,4 @@
-// Paramètres > Divers > RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js).
+// Paramètres > Recherche > Recherche des RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js).
 // Chaque utilisateur nomme et range ses RAW et ses JPEG à sa façon : il coche ici ce qui doit correspondre.
 //
 // Réglages mémorisés localement (clé `rawSearch`), sous la forme :

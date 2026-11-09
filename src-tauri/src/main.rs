@@ -7,6 +7,12 @@ mod exif;
 mod exiftool;
 mod face_detect;
 mod face_models;
+mod model_files;
+mod onnx_runtime;
+mod semantic;
+mod semantic_models;
+mod semantic_search;
+mod semantic_keywords;
 mod phash;
 mod place_search;
 mod similar;
@@ -19,6 +25,7 @@ mod heif;
 mod integrity;
 mod keywords;
 mod library_sync;
+mod orientation;
 mod resize;
 mod thumbnails;
 mod video;
@@ -110,6 +117,10 @@ pub struct AppState {
 struct AppConfig {
     custom_data_dir: Option<String>,
     thumbnail_cache_size: Option<u32>,
+    /// Thumbnail JPEG quality: "normal" or "high" (see set_thumbnail_quality). Kept here so it applies from startup,
+    /// before the frontend sends anything. None or unknown: normal.
+    #[serde(default)]
+    thumbnail_quality: Option<String>,
     window_state: Option<WindowStateConfig>, // persistance dans config.json
     /// Programs "Open with" may launch (see open_with). None: list not set up yet (first start after the update, see register_existing_programs).
     #[serde(default)]
@@ -224,7 +235,7 @@ fn restore_window_state(window: &tauri::WebviewWindow, config: &AppConfig) -> Wi
     if let Some(ref saved) = config.window_state {
         if check_window_visibility(window, saved) {
             // Saved sizes are physical pixels while the minimum (tauri.conf.json minWidth /
-            // minHeight, 800x500) is logical: scale it, so a size saved by an older version
+            // minHeight, 900x500) is logical: scale it, so a size saved by an older version
             // without a minimum cannot reopen a window smaller than the OS-enforced one.
             let scale = window.scale_factor().unwrap_or(1.0);
             let width = saved.width.max((MIN_WIDTH_LOGICAL * scale).ceil() as u32);
@@ -389,16 +400,9 @@ fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-// Commandes du cache de miniatures en `async` : elles s'exécutent hors du thread principal de Tauri
-// (sinon chaque accès disque bloque la boucle d'événements de la fenêtre).
-#[tauri::command(async)]
-fn get_cached_thumbnail_path(state: State<'_, AppState>, source_path: String) -> Result<Option<String>, String> {
-    let path = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
-    Ok(path.is_file().then(|| path.to_string_lossy().into_owned()))
-}
-
-// Version par lots : un seul aller-retour IPC pour plusieurs miniatures.
-// Le résultat suit l'ordre de `source_paths` (None = pas de miniature en cache).
+// Cached thumbnail lookup, batched: one IPC round trip for many thumbnails. `async` so the disk
+// accesses run off Tauri's main thread (otherwise they block the window's event loop).
+// The result follows the order of `source_paths` (None = no cached thumbnail).
 #[tauri::command(async)]
 fn get_cached_thumbnail_paths(state: State<'_, AppState>, source_paths: Vec<String>) -> Vec<Option<String>> {
     let dir = state.thumbnails_dir();
@@ -436,6 +440,7 @@ async fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max
         let size = if destination.is_file() {
             thumbnails::jpeg_size(&destination)?
         } else {
+            let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the grid needs thumbnails
             thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination, max_side)?
         };
         Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
@@ -466,6 +471,7 @@ impl ImageCacheDirs {
 /// fichier, dont dépend le nom de sa miniature et de son aperçu en cache, si. Ceux-ci sont renommés pour suivre le fichier réécrit, au lieu
 /// d'être régénérés au prochain affichage (redémarrage compris). Un sidecar écrit ne change pas le fichier : rien à faire.
 pub(crate) fn keep_cached_images<T>(dirs: &ImageCacheDirs, path: &str, write: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    let _priority = semantic::PriorityGuard::new(); // every metadata write goes through here: the semantic scan waits meanwhile
     let before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
     let result = write()?;
     let after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
@@ -554,6 +560,7 @@ fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
 // seraient supprimés) ou quand un fichier du catalogue est illisible pour une autre raison qu'une absence.
 fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &Path) -> Result<usize, String> {
     use rayon::prelude::*;
+    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while every catalogue file is checked
     if db::get_folders(pool).iter().any(|folder| !tracked_root_is_reachable(&folder.path)) {
         return Err("Un dossier suivi est injoignable (disque débranché ?) : nettoyage des miniatures reporté".to_string());
     }
@@ -601,6 +608,25 @@ async fn purge_orphan_thumbnails(state: State<'_, AppState>) -> Result<usize, St
 // (une miniature de 256 px ferait manquer les petits visages).
 const THUMBNAIL_CACHE_SIZES: [u32; 3] = [512, 768, 1024];
 
+/// Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
+/// agree, since the grid caps the display size with it and the setter is only called when the user changes the value. 512 if the value is
+/// missing or not one of THUMBNAIL_CACHE_SIZES.
+fn default_thumbnail_cache_size() -> u32 {
+    const DEFAULTS_FILE: &str = include_str!("../../src/defaults.jsonc");
+    // Same parsing rule as the frontend (settings-defaults.js) and face_detect.rs: full-line `//` comments are dropped.
+    let json: String = DEFAULTS_FILE.lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
+    serde_json::from_str::<serde_json::Value>(&json).ok()
+        .and_then(|root| root["thumbnailCacheSize"].as_u64())
+        .and_then(|size| u32::try_from(size).ok())
+        .filter(|size| THUMBNAIL_CACHE_SIZES.contains(size))
+        .unwrap_or(512)
+}
+
+/// Cache size used at startup: the one saved in config.json when it is valid, otherwise the shared default.
+fn startup_thumbnail_cache_size(saved: Option<u32>) -> u32 {
+    saved.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or_else(default_thumbnail_cache_size)
+}
+
 #[tauri::command(async)]
 fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, size: u32) -> Result<(), String> {
     if !THUMBNAIL_CACHE_SIZES.contains(&size) {
@@ -613,6 +639,22 @@ fn set_thumbnail_cache_size(app: tauri::AppHandle, state: State<'_, AppState>, s
     let mut config = load_config(&app)?;
     config.thumbnail_cache_size = Some(size);
     save_config(&app, &config)?;
+    Ok(())
+}
+
+/// Thumbnail quality chosen in Settings > Storage: "normal" or "high". Applies to thumbnails written from now on,
+/// existing ones are kept (the user did not ask for the cache to be rebuilt).
+#[tauri::command(async)]
+fn set_thumbnail_quality(app: tauri::AppHandle, quality: String) -> Result<(), String> {
+    let high = match quality.as_str() {
+        "normal" => false,
+        "high" => true,
+        _ => return Err("Qualité de miniature non valide".into()),
+    };
+    let mut config = load_config(&app)?;
+    config.thumbnail_quality = Some(quality);
+    save_config(&app, &config)?;
+    thumbnails::set_high_quality_thumbnails(high);
     Ok(())
 }
 
@@ -693,9 +735,19 @@ fn cancel_scan(task_id: String) {
 
 // `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
 // `task_id` / `cancel` : identifiant de la tâche pour les événements de progression, et drapeau d'arrêt demandé par l'interface
+// `resume_since`: the scan resumes a paused one first started at this time (ms): files read since then and unchanged are skipped.
 // Renvoie une erreur si le parcours ou l'enregistrement a échoué (tâche en erreur, panique, lots non enregistrés) : un scan n'est jamais
 // annoncé réussi alors que des photos n'ont pas été enregistrées.
-async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>) -> Result<(), String> {
+async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_mode: ScanMode, task_id: String, cancel: Arc<AtomicBool>, resume_since: Option<i64>) -> Result<(), String> {
+    // Files already read by the paused scan (none for a scan that starts from scratch).
+    let already_read = match resume_since {
+        Some(since) => {
+            let conn = pool.get().map_err(|error| format!("Connexion à la base impossible : {error}"))?;
+            library_sync::read_since(&conn, &scan_path, since).map_err(|error| error.to_string())?
+        }
+        None => HashMap::new(),
+    };
+    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the catalogue is read
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
     let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>, faces::PhotoFaces)>(100);
@@ -775,6 +827,8 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             let Ok(metadata) = entry.metadata() else { return; };
             let file_size = metadata.len() as i64;
             let modified = library_sync::modified_millis(&metadata);
+            // Resumed scan: already read before the pause (it still counts in the progress above).
+            if library_sync::already_read(&already_read, &path_str, file_size, modified) { return; }
             // Même lecture que la synchronisation : un fichier illisible ou modifié pendant la lecture est sauté (repris à la synchronisation suivante),
             // jamais enregistré avec des métadonnées vides.
             let (photo, keyword_paths, photo_faces) = match library_sync::read_photo(&path_str, file_size, modified) {
@@ -796,23 +850,24 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
 // Découverte d'un dossier qui vient d'être ajouté (voir add_folder) : lit les métadonnées de ses photos et rend la main quand c'est terminé.
 // La progression est publiée par « scan-progress » (0 à 100 % du dossier) avec l'identifiant de la tâche.
 #[tauri::command]
-async fn scan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<(), String> {
+// `resume_since` (ms): resumes a paused scan first started at that time (see run_scan); absent for a new scan.
+async fn scan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String, resume_since: Option<i64>) -> Result<(), String> {
     let pool = state.pool();
     let cancel = scan_cancel_flag(&task_id);
-    let outcome = run_scan(app, pool, path, ScanMode::FolderScan, task_id.clone(), cancel).await;
+    let outcome = run_scan(app, pool, path, ScanMode::FolderScan, task_id.clone(), cancel, resume_since).await;
     release_scan_cancel_flag(&task_id);
     outcome
 }
 
 #[tauri::command]
-async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, task_id: String) -> Result<(), String> {
+async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, task_id: String, resume_since: Option<i64>) -> Result<(), String> {
     let pool = state.pool();
     let folders = db::get_folders(&pool);
     let count = folders.len();
     let cancel = scan_cancel_flag(&task_id);
     for (index, folder) in folders.into_iter().enumerate() {
         if cancel.load(Ordering::Relaxed) { break; }
-        if let Err(error) = run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone()).await {
+        if let Err(error) = run_scan(app.clone(), pool.clone(), folder.path, ScanMode::Rescan { index, count }, task_id.clone(), cancel.clone(), resume_since).await {
             release_scan_cancel_flag(&task_id);
             return Err(error);
         }
@@ -855,12 +910,12 @@ fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
 // Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
 // fichier sont relues. La progression est publiée par l'événement « scan-progress » (0 à 100 % du dossier) avec l'identifiant de la tâche.
 #[tauri::command]
-async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<(), String> {
+async fn rescan_folder(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String, resume_since: Option<i64>) -> Result<(), String> {
     let pool = state.pool();
     let scan_path = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !scan_path.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
     let cancel = scan_cancel_flag(&task_id);
-    let outcome = run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }, task_id.clone(), cancel).await;
+    let outcome = run_scan(app, pool.clone(), scan_path.to_string_lossy().into_owned(), ScanMode::Rescan { index: 0, count: 1 }, task_id.clone(), cancel, resume_since).await;
     release_scan_cancel_flag(&task_id);
     outcome
 }
@@ -892,6 +947,7 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
         let publish_folder = |folder_label: &str| {
             let _ = app.emit("scan-detail", ScanDetail { task_id: worker_task_id.clone(), detail: folder_label.to_string() });
         };
+        let _priority = semantic::PriorityGuard::new();
         integrity::run(&folder, &thumbnails_dir, max_side, &cancel, &publish, &publish_folder)
     }).await;
     release_scan_cancel_flag(&task_id);
@@ -909,6 +965,7 @@ async fn find_duplicates(app: tauri::AppHandle, state: State<'_, AppState>, requ
         let publish = |fraction: f64| {
             let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
         };
+        let _priority = semantic::PriorityGuard::new();
         duplicates::run(&pool, &request, &cancel, &publish)
     }).await;
     release_scan_cancel_flag(&task_id);
@@ -933,6 +990,7 @@ async fn find_similar_images(app: tauri::AppHandle, state: State<'_, AppState>, 
         let publish = |fraction: f64| {
             let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
         };
+        let _priority = semantic::PriorityGuard::new();
         similar::run(&pool, &thumbnails_dir, &request, &cancel, &publish)
     }).await;
     release_scan_cancel_flag(&task_id);
@@ -1027,6 +1085,15 @@ fn get_photos_by_paths(state: State<'_, AppState>, paths: Vec<String>) -> Vec<Ph
     })
 }
 
+// Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
+#[tauri::command]
+fn get_photos_by_ids(state: State<'_, AppState>, ids: Vec<i64>) -> Vec<Photo> {
+    db::get_photos_by_ids(&state.pool(), &ids).unwrap_or_else(|error| {
+        eprintln!("Photos by id unavailable: {error}");
+        Vec::new()
+    })
+}
+
 // `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
 // `prefilter` (optional): filters applied before the cut on large folders (see `db::PhotoPrefilter`).
 // Async: the query can take a few hundred milliseconds on a large catalogue, and must not freeze the window meanwhile.
@@ -1061,10 +1128,17 @@ fn get_folder_counts(state: State<'_, AppState>) -> std::collections::HashMap<St
 }
 
 /// Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
+/// Optional values of its own (undo, which gives every photo back its previous value): they replace those of the batch for this photo.
 #[derive(serde::Deserialize)]
 struct MarkingTarget {
     id: i64,
     path: String,
+    #[serde(default)]
+    rating: Option<i32>,
+    #[serde(default)]
+    color_flag: Option<String>,
+    #[serde(default)]
+    pick_flag: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -1096,23 +1170,37 @@ async fn update_photos_marking(
     pick_flag: Option<String>,
     task_id: Option<String>,
 ) -> Result<MarkingResult, String> {
-    let rating = rating.map(|value| value.clamp(0, 5));
-    // Valeurs vérifiées avant toute écriture : une valeur invalide refuse tout le lot.
-    let label = color_flag.as_deref().map(exif::label_for_color_flag).transpose()?;
-    let pick = pick_flag.as_deref().map(exif::normalize_pick_flag).transpose()?;
+    // Values of each photo (its own, else those of the batch), all checked before any write: an invalid value refuses the whole batch.
+    struct Prepared {
+        photo: MarkingTarget,
+        rating: Option<i32>,
+        label: Option<Option<&'static str>>,
+        pick: Option<&'static str>,
+        color_flag: Option<String>,
+    }
+    let prepared = photos
+        .into_iter()
+        .map(|photo| -> Result<Prepared, String> {
+            let rating = photo.rating.or(rating).map(|value| value.clamp(0, 5));
+            let color_flag = photo.color_flag.clone().or_else(|| color_flag.clone());
+            let label = color_flag.as_deref().map(exif::label_for_color_flag).transpose()?;
+            let pick = photo.pick_flag.as_deref().or(pick_flag.as_deref()).map(exif::normalize_pick_flag).transpose()?;
+            Ok(Prepared { photo, rating, label, pick, color_flag })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     let pool = state.pool();
     let dirs = ImageCacheDirs::of(&state);
     let cancel = task_id.as_deref().map(scan_cancel_flag);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<MarkingResult, String> {
-        let total = photos.len().max(1);
+        let total = prepared.len().max(1);
         let done = AtomicUsize::new(0);
         let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
         // None : photo non traitée (tâche arrêtée) ; Some(Err(message)) : échec.
         let outcomes: Vec<(MarkingTarget, Option<Result<(), String>>)> = threads.install(|| {
-            photos
+            prepared
                 .into_par_iter()
-                .map(|photo| {
+                .map(|Prepared { photo, rating, label, pick, color_flag }| {
                     if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) { return (photo, None); }
                     let result = write_photo_marking(&pool, &dirs, photo.id, &photo.path, rating, label, pick, color_flag.as_deref());
                     let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
@@ -1175,6 +1263,101 @@ fn write_photo_marking(
         tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
     }
     tx.commit().map_err(|error| error.to_string())
+}
+
+/// Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
+#[derive(serde::Serialize)]
+struct RotatedPhoto {
+    id: i64,
+    view_fix: u32,
+}
+
+#[derive(serde::Serialize)]
+struct RotationResult {
+    written: Vec<RotatedPhoto>,
+    failed: Vec<MarkingFailure>,
+    /// Photos left untouched because the task was stopped.
+    cancelled: usize,
+}
+
+/// Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
+/// (see orientation.rs). Undoing is the opposite rotation, which gives back the exact previous value. Direct command, or task of the queue with
+/// `task_id` (progress and stop), like `update_photos_marking`.
+#[tauri::command]
+async fn rotate_photos(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    photos: Vec<MarkingTarget>,
+    quarter_turns: i32,
+    task_id: Option<String>,
+) -> Result<RotationResult, String> {
+    if quarter_turns.rem_euclid(4) == 0 { return Ok(RotationResult { written: Vec::new(), failed: Vec::new(), cancelled: 0 }); }
+    let pool = state.pool();
+    let dirs = ImageCacheDirs::of(&state);
+    let cancel = task_id.as_deref().map(scan_cancel_flag);
+    let worker_task_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || -> Result<RotationResult, String> {
+        let total = photos.len().max(1);
+        let done = AtomicUsize::new(0);
+        let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
+        let outcomes: Vec<(MarkingTarget, Option<Result<u32, String>>)> = threads.install(|| {
+            photos
+                .into_par_iter()
+                .map(|photo| {
+                    if cancel.as_ref().is_some_and(|flag| flag.load(Ordering::SeqCst)) { return (photo, None); }
+                    let result = rotate_photo(&pool, &dirs, photo.id, &photo.path, quarter_turns);
+                    let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
+                    if let Some(id) = &worker_task_id {
+                        let _ = app.emit("scan-progress", ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
+                    }
+                    (photo, Some(result))
+                })
+                .collect()
+        });
+        let mut result = RotationResult { written: Vec::new(), failed: Vec::new(), cancelled: 0 };
+        for (photo, outcome) in outcomes {
+            match outcome {
+                None => result.cancelled += 1,
+                Some(Ok(view_fix)) => result.written.push(RotatedPhoto { id: photo.id, view_fix }),
+                Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
+            }
+        }
+        Ok(result)
+    })
+    .await;
+    if let Some(id) = &task_id { release_scan_cancel_flag(id); }
+    outcome.map_err(|error| error.to_string())?
+}
+
+/// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `view_fix`.
+fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<u32, String> {
+    let source = Path::new(path);
+    if !orientation::is_rotatable(source) { return Err("Rotation sans perte impossible pour ce format (HEIC, HEIF, vidéo)".into()); }
+    // Internal writer reading the EXIF tag first: the XMP it would write could not change what is displayed. Refused before writing anything.
+    if orientation::kind_of(source) == orientation::Kind::Jpeg && !exiftool::is_enabled() && !exiftool::skip_exif_metadata()
+        && thumbnails::exif_orientation(source).is_some()
+    {
+        return Err("L'orientation EXIF de ce JPEG l'emporte sur le XMP : utilisez ExifTool, ou cochez « Ne pas lire les métadonnées EXIF » (Paramètres > Métadonnées)".into());
+    }
+    let wanted = orientation::rotate(orientation::read(source).stored, quarter_turns);
+    let _priority = semantic::PriorityGuard::new(); // like every metadata write (keep_cached_images): the semantic scan waits meanwhile
+    let cached_before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
+    orientation::write(source, wanted).map_err(|error| error.to_string())?;
+    // The thumbnail and the preview are stored turned: both are dropped, under the old name (file rewritten) and the current one (sidecar
+    // written, same file name), to be generated again on the next display.
+    let cached_after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
+    for file in cached_before.into_iter().chain(cached_after).flatten() { let _ = fs::remove_file(file); }
+    // Read back before the catalog is updated: a value that did not land where it is read is a failure, never shown as written.
+    let after = orientation::read(source);
+    if after.stored != wanted { return Err(format!("Orientation relue différente ({} au lieu de {wanted})", after.stored)); }
+    let metadata = fs::metadata(source).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    conn.execute(
+        "UPDATE photos SET orientation = ?1, view_fix = ?2, file_size = ?3, modified = ?4 WHERE id = ?5",
+        params![after.stored, after.view_fix, metadata.len() as i64, library_sync::modified_millis(&metadata), id],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(after.view_fix)
 }
 
 #[derive(serde::Serialize)]
@@ -1708,9 +1891,13 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
 // Synchronisation incrémentale avec le disque (voir library_sync.rs) : fichiers ajoutés, modifiés ou supprimés hors de l'application.
 // Exécutée hors du thread principal et hors des threads asynchrones ; l'interface la lance au démarrage et au retour de focus.
 #[tauri::command]
-async fn sync_library(state: State<'_, AppState>) -> Result<library_sync::SyncChanges, String> {
+// `excluded`: folders of paused scans, left for the scan to read when it is resumed.
+async fn sync_library(state: State<'_, AppState>, excluded: Option<Vec<String>>) -> Result<library_sync::SyncChanges, String> {
     let pool = state.pool();
-    tokio::task::spawn_blocking(move || library_sync::sync_library(&pool))
+    tokio::task::spawn_blocking(move || {
+        let _priority = semantic::PriorityGuard::new();
+        library_sync::sync_library(&pool, &excluded.unwrap_or_default())
+    })
         .await
         .map_err(|error| error.to_string())?
 }
@@ -1973,6 +2160,8 @@ fn carry_cache_file(old: Option<PathBuf>, new: Option<PathBuf>) {
 // Lancé par la file des tâches (`task_id`) : avancement publié, arrêt possible entre deux fichiers (les fichiers déjà déplacés le restent).
 #[tauri::command(async)]
 fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<MoveResult, String> {
+    // The semantic scan waits: it would read photos at the paths they are leaving.
+    let _priority = semantic::PriorityGuard::new();
     let mut progress = FileTaskProgress::new(app, task_id, &paths);
     let pool = state.pool();
     let destination_dir = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
@@ -2102,6 +2291,7 @@ fn copy_photos_with_progress(
     resolutions: &std::collections::HashMap<String, String>,
     mut progress: FileTaskProgress,
 ) -> Result<CopyResult, String> {
+    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while files are copied (disk bound)
     if !destination.is_dir() { return Err(format!("Dossier de destination introuvable : {}", destination.display())); }
     let destination_segments = lowercase_segments(destination);
     let mut copied = 0;
@@ -2196,7 +2386,10 @@ fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppStat
 // threads asynchrones. Le résultat dit si le fichier a été écrit, s'il existait déjà (politique « Ask ») ou s'il a été passé.
 #[tauri::command]
 async fn resize_photo(path: String, options: resize::ResizeOptions) -> Result<resize::ResizeOutcome, String> {
-    tokio::task::spawn_blocking(move || resize::resize_photo(Path::new(&path), &options))
+    tokio::task::spawn_blocking(move || {
+        let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while photos are resized
+        resize::resize_photo(Path::new(&path), &options)
+    })
         .await
         .map_err(|error| error.to_string())?
 }
@@ -2466,7 +2659,8 @@ fn main() {
             let db_pool = db::init_db(&paths.db_path.to_string_lossy());
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
             let config = load_config_at_startup(handle);
-            let cache_size = config.thumbnail_cache_size.filter(|size| THUMBNAIL_CACHE_SIZES.contains(size)).unwrap_or(512);
+            let cache_size = startup_thumbnail_cache_size(config.thumbnail_cache_size);
+            thumbnails::set_high_quality_thumbnails(config.thumbnail_quality.as_deref() == Some("high"));
 
             // Restauration de la fenêtre au démarrage avec vérification des écrans
             let main_window = app.get_webview_window("main").ok_or("Fenêtre principale introuvable")?;
@@ -2534,6 +2728,7 @@ fn main() {
             change_storage_location,
             clear_thumbnail_cache,
             set_thumbnail_cache_size,
+            set_thumbnail_quality,
             get_folders,
             list_disk_folders,
             get_folder_counts,
@@ -2543,8 +2738,8 @@ fn main() {
             remove_folder,
             get_photos_paginated,
             get_photos_by_paths,
+            get_photos_by_ids,
             count_photos,
-            get_cached_thumbnail_path,
             get_cached_thumbnail_paths,
             generate_thumbnail,
             get_raw_preview_path,
@@ -2563,6 +2758,7 @@ fn main() {
             rename_photo,
             rename_folder,
             update_photos_marking,
+            rotate_photos,
             get_photo_details,
             delete_photos,
             delete_folder,
@@ -2583,7 +2779,6 @@ fn main() {
             write_clipboard_text,
             resize_photo,
             keywords::get_keyword_tree,
-            keywords::get_keyword_counts,
             keywords::get_photo_keyword_ids,
             keywords::get_keyword_usage,
             keywords::apply_metadata_changes,
@@ -2624,6 +2819,21 @@ fn main() {
             face_models::download_face_models,
             face_models::import_face_models,
             face_models::set_internet_allowed,
+            semantic_models::set_semantic_enabled,
+            semantic_models::get_semantic_model_status,
+            semantic_models::download_semantic_model,
+            semantic_models::import_semantic_model,
+            semantic_models::delete_semantic_model,
+            semantic::semantic_scan,
+            semantic::get_semantic_stats,
+            semantic::get_analysed_photo_ids,
+            semantic::delete_semantic_data,
+            semantic_search::semantic_search_text,
+            semantic_search::semantic_search_image,
+            semantic_search::semantic_keyword_photos,
+            semantic_keywords::semantic_keyword_candidates,
+            semantic_keywords::semantic_photo_suggestions,
+            semantic_keywords::reject_keyword_suggestion,
             albums::get_album_tree,
             albums::create_album_node,
             albums::rename_album_node,
@@ -2697,11 +2907,11 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Fichiers et dossiers de données de l'application, dans le dossier de stockage. `models` : fichiers de la détection des visages
-/// (face_models.rs), conservés avec les données pour ne pas les retélécharger. `private_maps` : tuiles et style des zones privées de la carte
-/// (private_maps.rs).
+/// Application data files and folders, in the storage folder. `models`: face detection and content search models (face_models.rs),
+/// kept with the data so they are not downloaded again. `private_maps`: tiles and style of the private map zones (private_maps.rs).
+/// `logs`: write-recovery and sidecar-conflict logs (they may name the only copy of a photo left by ExifTool: never left behind).
 const STORAGE_FILES: [&str; 3] = ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"];
-const STORAGE_DIRS: [&str; 5] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps"];
+const STORAGE_DIRS: [&str; 6] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps", "logs"];
 
 /// `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
 fn copy_dir_recursive(src: &Path, dst: &Path, durable: bool) -> std::io::Result<()> {

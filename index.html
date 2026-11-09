@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>photoboggan</title>
 </head>
-<body>
+<body class="no-semantic">
   <div id="titlebar" class="titlebar">
     <div class="titlebar-drag-region" data-tauri-drag-region>
       <img src="/src-tauri/icons/32x32.png" class="titlebar-icon" alt="Logo photoboggan" data-i18n-alt="photoboggan logo" />
@@ -30,6 +30,13 @@
         </div>
       </div>
       <div class="actions">
+        <!-- Content search (semantic.js): hidden while the feature is off or its model is not installed -->
+        <form id="semantic-search" class="semantic-search semantic-only" role="search" autocomplete="off">
+          <svg class="semantic-search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          <input id="semantic-search-input" type="text" spellcheck="false" placeholder="Rechercher…" data-i18n-placeholder="Search…" aria-label="Rechercher par contenu ou mot-clé" data-i18n-aria-label="Search by content or keyword" title="Décrivez ce que vous cherchez ou tapez un mot-clé, puis Entrée (ex. : plage au coucher du soleil). Les photos portant le mot-clé viennent en premier" data-i18n-title="Describe what you are looking for or type a keyword, then press Enter (e.g. beach at sunset). Photos tagged with the keyword come first" />
+          <span id="semantic-search-spinner" class="semantic-spinner" hidden role="status" aria-label="Recherche en cours" data-i18n-aria-label="Searching…"></span>
+          <button type="button" id="semantic-scope-toggle" class="semantic-scope-toggle" aria-pressed="false"></button>
+        </form>
         <button type="button" id="btn-open-settings" title="Paramètres" aria-label="Paramètres" data-i18n-title="Settings" data-i18n-aria-label="Settings"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings preview-icon"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg> <span class="toolbar-label" data-i18n="Settings">Paramètres</span></button>
         <button id="btn-open-tasks" type="button" hidden title="Actions en cours" aria-label="Actions en cours" aria-haspopup="dialog" data-i18n-title="Running tasks" data-i18n-aria-label="Running tasks"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hourglass preview-icon"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg></button>
         <button id="btn-open-display" type="button" aria-haspopup="dialog" title="Affichage" aria-label="Affichage" data-i18n-title="Display" data-i18n-aria-label="Display"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-grid preview-icon"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg> <span class="toolbar-label" data-i18n="Display">Affichage</span></button>
@@ -121,6 +128,8 @@
                 <input id="filename-filter-input" type="text" placeholder="Texte puis Entrée…" data-i18n-placeholder="Type text then press Enter..." title="Texte contenu dans le nom de fichier, puis Entrée. Alt + Entrée : exclure les fichiers qui le contiennent" data-i18n-title="Filename filter help" aria-label="Nom de fichier" data-i18n-aria-label="Filename" autocomplete="off" spellcheck="false" />
               </div>
               <div id="filter-tags" class="filter-tags" aria-live="polite"></div>
+              <!-- Content search: suggested photos of the keyword filter (semantic-keywords.js) -->
+              <div id="keyword-suggest-status" class="keyword-suggest-status semantic-only" aria-live="polite" hidden></div>
             </div>
           </div>
           <!-- Filtre Personnes (ET) : faces-panel.js ; masqué tant que la lecture des visages est désactivée -->
@@ -234,7 +243,7 @@
             <div class="filter-group-header">
               <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-more" aria-label="Plus de filtres" data-i18n-aria-label="More filters"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span></span>
-              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters">Plus de filtres</span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span><span id="analysis-summary" class="filter-summary"></span></span>
               <button type="button" class="filter-group-clear" title="Effacer ce filtre" aria-label="Effacer ce filtre" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </div>
@@ -254,6 +263,15 @@
                   <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
                   <button type="button" class="location-filter-option" data-value="geolocated" role="radio" data-i18n="Geolocated">Géolocalisées</button>
                   <button type="button" class="location-filter-option" data-value="not-geolocated" role="radio" data-i18n="Not geolocated">Non géolocalisées</button>
+                </div>
+              </div>
+              <!-- Content analysis status (main.js, section "CONTENT ANALYSIS FILTER"): only shown while content search is on -->
+              <div class="filter-subgroup semantic-only">
+                <div class="filter-subtitle" data-i18n="Content analysis">Analyse du contenu</div>
+                <div id="analysis-filter" class="location-filter" role="radiogroup" aria-label="Analyse du contenu" data-i18n-aria-label="Content analysis">
+                  <button type="button" class="location-filter-option" data-value="all" role="radio" data-i18n="All">Toutes</button>
+                  <button type="button" class="location-filter-option" data-value="analysed" role="radio" data-i18n="Analysed">Analysées</button>
+                  <button type="button" class="location-filter-option" data-value="not-analysed" role="radio" data-i18n="Not analysed">Non analysées</button>
                 </div>
               </div>
             </div>
@@ -279,6 +297,29 @@
           <button id="duplicates-keep" type="button" class="duplicates-keep"></button>
           <button id="duplicates-select" type="button" class="duplicates-select"></button>
           <button id="duplicates-sort" type="button" class="duplicates-sort"></button>
+        </div>
+        <!-- Content search results (main.js, section "CONTENT SEARCH RESULTS"): close, summary, relevance slider, and the "not analysed yet" line -->
+        <div id="semantic-banner" class="semantic-banner semantic-only" hidden>
+          <div class="semantic-banner-row">
+            <button id="semantic-close" type="button" class="semantic-close" title="Revenir à la vue précédente (Échap)" data-i18n-title="Back to the previous view" data-i18n="Close">Fermer</button>
+            <span id="semantic-text" class="semantic-text" role="status"></span>
+            <!-- Only when some results carry the typed keyword: order of those photos (Grid = the sort options, Score = content score) -->
+            <button id="semantic-sort" type="button" class="faces-sort" hidden data-i18n-title="Order of the photos tagged with the typed keyword: as the main grid, or by decreasing content score" title="Ordre des photos portant le mot-clé tapé : comme la grille principale, ou par score de contenu décroissant"></button>
+            <label class="semantic-relevance" title="Plus la pertinence est large, plus il y a de résultats" data-i18n-title="A wider relevance keeps more results">
+              <span data-i18n="Relevance">Pertinence</span>
+              <input id="semantic-relevance" type="range" min="0.005" max="0.08" step="0.005" />
+            </label>
+          </div>
+          <!-- Only for the results of "Find photos that may match" (keyword -> photos): actions on the selected photos -->
+          <div id="semantic-keyword-row" class="semantic-banner-row semantic-keyword-actions" hidden>
+            <button id="semantic-keyword-add" type="button" class="active"></button>
+            <button id="semantic-keyword-reject" type="button" title="Ces photos ne seront plus proposées pour ce mot-clé" data-i18n-title="These photos will no longer be suggested for this keyword" data-i18n="Not this keyword">Pas ce mot-clé</button>
+            <span id="semantic-keyword-hint" class="semantic-text semantic-hint"></span>
+          </div>
+          <div id="semantic-pending-row" class="semantic-banner-row semantic-pending-row" hidden>
+            <span id="semantic-pending-text" class="semantic-text"></span>
+            <button id="semantic-analyse" type="button" class="semantic-analyse" data-i18n="Analyse">Analyser</button>
+          </div>
         </div>
         <!-- État vide centré (texte choisi par main.js, updateGridEmptyState) : dossier vide, filtres trop sélectifs, ou autre cas -->
         <p id="grid-empty" class="grid-empty" role="status" hidden></p>
@@ -458,6 +499,13 @@
             <button type="button" id="btn-keyword-filter-mode" class="keyword-filter-mode" aria-pressed="false"></button>
           </div>
           <ul id="keyword-tree" class="keyword-tree" role="tree"></ul>
+          <!-- Keywords suggested by the content analysis for the one selected photo (semantic-tagging.js); never filled while the feature is off -->
+          <details id="keyword-photo-suggestions" class="keyword-photo-suggestions semantic-only" hidden>
+            <summary data-i18n="Suggestions">Suggestions</summary>
+            <ul id="keyword-photo-suggestions-list" class="keyword-photo-suggestions-list"></ul>
+            <p id="keyword-photo-suggestions-note" class="keyword-photo-suggestions-note" hidden></p>
+            <button type="button" id="keyword-photo-suggestions-analyse" hidden data-i18n="Analyse">Analyser</button>
+          </details>
           <div class="keyword-editor">
             <div class="keyword-input-wrap">
               <ul id="keyword-suggestions" class="keyword-suggestions" role="listbox" hidden></ul>
@@ -549,6 +597,7 @@
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="metadata" data-i18n="Metadata">Métadonnées</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="maps" data-i18n="Maps">Cartes</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="faces" data-i18n="Faces">Visages</button>
+          <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="semantic" data-i18n="Search tab">Recherche</button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="misc" data-i18n="Misc">Divers</button>
         </div>
 
@@ -564,10 +613,6 @@
               <h4 id="startup-view-title" data-i18n="At startup, show">Au démarrage, afficher</h4>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="last" /><span data-i18n="The last opened location">Le dernier emplacement ouvert</span></label>
               <label class="settings-row settings-check"><input type="radio" name="startup-view" value="all" /><span data-i18n="All photos">Toutes les photos</span></label>
-            </section>
-            <section class="settings-section">
-              <h4 data-i18n="Albums">Albums</h4>
-              <label class="settings-row settings-check"><input id="album-overwrite-warning-toggle" type="checkbox" /><span data-i18n="Confirm before replacing the filters of a smart album">Confirmer avant d'écraser les filtres d'un album intelligent</span></label>
             </section>
             <section class="settings-section">
               <h4>Internet</h4>
@@ -613,6 +658,13 @@
                   <option value="512">512 px</option>
                   <option value="768">768 px</option>
                   <option value="1024">1024 px</option>
+                </select>
+              </label>
+              <label class="settings-row" for="thumbnail-quality-select" title="La qualité haute améliore très légèrement les détails dans certaines zones (feuillage, textures fines), au prix de miniatures deux fois plus lourdes. Ne s'applique qu'aux nouvelles miniatures." data-i18n-title="Thumbnail quality help">
+                <span data-i18n="Thumbnail quality">Qualité des miniatures</span>
+                <select id="thumbnail-quality-select">
+                  <option value="normal" data-i18n="Normal">Normale</option>
+                  <option value="high" data-i18n="High">Haute</option>
                 </select>
               </label>
               <div class="settings-row">
@@ -728,7 +780,7 @@
                   <button id="btn-face-model-download" class="btn-highlight" type="button"></button>
                   <button id="btn-face-model-import" class="btn-secondary" type="button" data-i18n="Install from a folder…">Installer depuis un dossier…</button>
                 </div>
-                <details class="face-model-offline">
+                <details class="face-model-offline" hidden>
                   <summary data-i18n="Installing without Internet">Installation sans Internet</summary>
                   <p class="sort-note" data-i18n="Face model offline help">Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.</p>
                   <ul id="face-model-files" class="face-model-files"></ul>
@@ -751,18 +803,11 @@
             </section>
           </div>
 
-          <!-- Onglet Divers -->
-          <div id="settings-tab-misc" class="settings-tab-pane" role="tabpanel" hidden>
-            <section class="settings-section">
-              <h4 data-i18n="Slideshow">Diaporama</h4>
-              <label class="settings-row" for="slideshow-delay"><span data-i18n="Delay between photos (seconds)">Durée entre les photos (secondes)</span>
-                <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
-              <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
-              <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
-            </section>
+          <!-- Onglet Recherche : recherche du RAW (raw-settings.js), puis recherche par contenu (semantic-settings.js, seule la case est toujours visible) -->
+          <div id="settings-tab-semantic" class="settings-tab-pane" role="tabpanel" hidden>
             <!-- Recherche du RAW d'une image raster (« Trouver le RAW ») : raw-settings.js -->
             <section class="settings-section">
-              <h4>RAW</h4>
+              <h4 data-i18n="RAW search">Recherche des RAW</h4>
               <p class="sort-note" data-i18n="Find RAW help">Cochez tous les critères qui doivent correspondre pour retrouver le RAW d'une image</p>
               <label class="settings-row settings-check"><input id="raw-match-name" type="checkbox" /><span data-i18n="Same file name (without extension)">Nom de fichier (sans extension)</span></label>
               <!-- Motif du nom : libellé et champ sur la même ligne, puis un champ de test dont le résultat s'affiche dessous -->
@@ -786,6 +831,71 @@
                 </div>
                 <span data-i18n="Scope suffix"></span>
               </div>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Content search">Recherche par contenu</h4>
+              <label class="settings-row settings-check"><input id="semantic-toggle" type="checkbox" /><span data-i18n="Enable content search (local AI)">Activer la recherche par contenu (IA locale)</span></label>
+              <p class="sort-note" data-i18n="Content search help">Trouve les photos par ce qu'elles montrent (« plage au coucher du soleil »), avec un modèle d'IA (SigLIP 2) qui tourne sur cet ordinateur. Le modèle pèse environ 800 Mo à télécharger une fois ; l'analyse des photos est longue (de quelques minutes à plusieurs heures selon la photothèque) mais reprend là où elle s'est arrêtée. Rien n'est envoyé sur Internet et rien n'est écrit dans les fichiers photo. Pas d'identification de personnes (voir Visages) ; les requêtes en anglais marchent mieux qu'en français.</p>
+              <div id="semantic-settings" class="semantic-settings" hidden>
+                <h4 data-i18n="Model">Modèle</h4>
+                <p id="semantic-model-status" class="sort-note"></p>
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-model-download" class="btn-highlight" type="button"></button>
+                  <button id="btn-semantic-model-import" class="btn-secondary" type="button" data-i18n="Install from a folder…">Installer depuis un dossier…</button>
+                </div>
+                <details class="semantic-model-offline" hidden>
+                  <summary data-i18n="Installing without Internet">Installation sans Internet</summary>
+                  <p class="sort-note" data-i18n="Content search model offline help">Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.</p>
+                  <ul id="semantic-model-files" class="semantic-model-files"></ul>
+                </details>
+                <h4 data-i18n="Analysis">Analyse</h4>
+                <p id="semantic-analysis-status" class="sort-note"></p>
+                <label class="settings-row settings-check"><input id="semantic-scan-raw" type="checkbox" /><span data-i18n="Analyse RAW files (embedded preview)">Analyser les RAW (aperçu intégré)</span></label>
+                <label class="settings-row settings-check" title="Les miniatures manquantes sont créées pendant l'analyse, comme dans la grille : chaque photo n'est décodée qu'une fois, et la grille les affiche ensuite sans attendre. Elles occupent de la place dans le cache des miniatures." data-i18n-title="Generate thumbnails during the analysis hint"><input id="semantic-write-thumbnails" type="checkbox" /><span data-i18n="Generate thumbnails during the analysis">Générer les miniatures pendant l'analyse</span></label>
+                <label class="settings-row" for="semantic-threads" title="Nombre de threads utilisés par l'analyse. Plus il est élevé, plus l'analyse est rapide, mais plus elle consomme de processeur. L'analyse cède toujours la place aux autres tâches." data-i18n-title="Content analysis speed hint"><span data-i18n="Analysis speed">Vitesse d'analyse</span>
+                  <select id="semantic-threads">
+                    <option value="1" data-i18n="Low">Basse</option>
+                    <option value="2" data-i18n="Normal">Normale</option>
+                    <option value="4" data-i18n="High">Haute</option>
+                  </select></label>
+                <!-- Launch button last: it uses the two options above (RAW files, speed) -->
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-scan-all" class="btn-highlight" type="button" data-i18n="Analyse the whole library">Analyser toute la photothèque</button>
+                </div>
+                <h4 data-i18n="Search">Recherche</h4>
+                <label class="settings-row settings-check"><input id="semantic-in-keyword-search" type="checkbox" /><span data-i18n="Include suggestions in keyword filtering">Inclure des suggestions dans le filtrage par mots-clés</span></label>
+                <label class="settings-row settings-check"><input id="semantic-keywords-in-search" type="checkbox" /><span data-i18n="Include keywords in content search">Inclure les mots-clés dans la recherche sémantique</span></label>
+                <label class="settings-row settings-check"><input id="semantic-show-score" type="checkbox" /><span data-i18n="Show the score on results">Afficher le score sur les résultats</span></label>
+                <!-- Keywords never suggested (semantic-exclusions.js): a field with the keyword list, the chosen keywords as chips below -->
+                <label class="settings-row" for="semantic-excluded-keyword-input"><span data-i18n="Keywords never suggested">Mots-clés jamais suggérés</span></label>
+                <p class="sort-note semantic-excluded-note" data-i18n="Keywords never suggested hint">Ces mots-clés et tous ceux placés en dessous ne sont jamais suggérés : matériel de prise de vue, objectifs et autres informations que le contenu d'une photo ne montre pas.</p>
+                <div class="keyword-input-wrap semantic-excluded-field">
+                  <input id="semantic-excluded-keyword-input" class="keyword-input" type="text" autocomplete="off" spellcheck="false" placeholder="Ajouter un mot-clé…" data-i18n-placeholder="Add a keyword…" />
+                  <ul id="semantic-excluded-keyword-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                </div>
+                <div id="semantic-excluded-keywords" class="filter-tags semantic-excluded-chips"></div>
+                <h4 data-i18n="Storage">Stockage</h4>
+                <p id="semantic-storage-status" class="sort-note"></p>
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-delete-data" type="button" data-i18n="Delete analysis data">Supprimer les données d'analyse</button>
+                  <button id="btn-semantic-delete-model" type="button" data-i18n="Delete the model files">Supprimer les fichiers du modèle</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Onglet Divers -->
+          <div id="settings-tab-misc" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Slideshow">Diaporama</h4>
+              <label class="settings-row" for="slideshow-delay"><span data-i18n="Delay between photos (seconds)">Durée entre les photos (secondes)</span>
+                <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
+              <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
+              <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Albums">Albums</h4>
+              <label class="settings-row settings-check"><input id="album-overwrite-warning-toggle" type="checkbox" /><span data-i18n="Confirm before replacing the filters of a smart album">Confirmer avant d'écraser les filtres d'un album intelligent</span></label>
             </section>
           </div>
         </div>

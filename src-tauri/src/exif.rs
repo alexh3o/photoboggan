@@ -166,6 +166,19 @@ fn read_embedded_xmp(path: &Path) -> Option<String> {
     if crate::heif::is_heif_path(path) { crate::heif::read_xmp(path) } else { read_embedded_jpeg_xmp(path) }
 }
 
+/// XMP `tiff:Orientation` (1 to 8) of a packet, None if absent or invalid.
+fn xmp_orientation(xml: &str) -> Option<u32> {
+    xmp_value(xml, &["tiff:Orientation"]).and_then(|value| value.trim().parse::<u32>().ok()).filter(|value| (1..=8).contains(value))
+}
+
+/// XMP `tiff:Orientation` of an image: its own packet for a JPEG (where the writers put it), else its sidecar (see orientation.rs).
+pub(crate) fn read_xmp_orientation(path: &Path) -> Option<u32> {
+    if crate::orientation::kind_of(path) == crate::orientation::Kind::Jpeg {
+        if let Some(value) = read_embedded_jpeg_xmp(path).as_deref().and_then(xmp_orientation) { return Some(value); }
+    }
+    read_sidecar(path).as_deref().and_then(xmp_orientation)
+}
+
 /// Champs lus dans les segments d'un JPEG : IPTC (mots-clés 2:25, titre ObjectName 2:05, description Caption 2:120) et commentaire JPEG (COM).
 #[derive(Default)]
 struct JpegFields {
@@ -249,6 +262,8 @@ struct ParsedXmp {
     flash: Option<bool>,
     /// Zones de visage (None : lecture des visages désactivée).
     face_regions: Option<Vec<crate::faces::FaceRegion>>,
+    /// XMP `tiff:Orientation` (see orientation.rs): embedded packet first, then sidecar.
+    orientation: Option<u32>,
 }
 
 fn parse_xmp(path: &Path) -> ParsedXmp {
@@ -263,6 +278,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     let mut descriptions: [Option<String>; 4] = Default::default();
     let mut gps: Option<(f64, f64)> = None;
     let mut flash: Option<bool> = None;
+    let mut orientation: Option<u32> = None;
     // Zones de visage : celles du paquet intégré, sinon celles du sidecar (pas de mélange des deux).
     let read_faces = crate::faces::reading_enabled();
     let mut face_regions: Vec<crate::faces::FaceRegion> = Vec::new();
@@ -285,6 +301,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         }
         if gps.is_none() { gps = xmp_gps(xml); }
         if flash.is_none() { flash = xmp_flash_fired(xml); }
+        if orientation.is_none() { orientation = xmp_orientation(xml); }
     };
     // Le fichier image fait foi quand il contient un paquet XMP.
     if let Some(embedded) = read_embedded_xmp(path) {
@@ -310,6 +327,7 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         gps,
         flash,
         face_regions: read_faces.then_some(face_regions),
+        orientation,
     }
 }
 
@@ -1058,7 +1076,10 @@ fn keep<T>(slot: &mut Option<T>, value: Option<T>) {
 pub fn read_exif(path: &Path) -> ExifMetadata {
     if crate::video::is_video_path(path) { return read_video_metadata(path); }
     let mut meta = ExifMetadata::default();
-    apply_parsed_xmp(&mut meta, parse_xmp(path));
+    let parsed = parse_xmp(path);
+    let xmp_orientation = parsed.orientation;
+    apply_parsed_xmp(&mut meta, parsed);
+    let mut exif_orientation: Option<u32> = None;
     let mut keywords: Vec<String> = meta.keywords.split(", ").filter(|s| !s.is_empty()).map(str::to_string).collect();
     let jpeg = read_jpeg_fields(path);
     for word in jpeg.keywords { if !keywords.contains(&word) { keywords.push(word); } }
@@ -1127,9 +1148,9 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
         if let Some(field) = exif.get_field(Tag::PixelYDimension, In::PRIMARY) {
             if let Some(value) = field.value.get_uint(0) { meta.height = value as i32; }
         }
-        // Orientation EXIF : les zones de visage sont dans le repère de l'image stockée, l'interface l'applique pour les afficher.
-        if let Some(orientation) = exif.get_field(Tag::Orientation, In::PRIMARY).and_then(|field| field.value.get_uint(0)).filter(|value| (1..=8).contains(value)) {
-            meta.faces.orientation = orientation;
+        // EXIF orientation: the first source that has it, as thumbnails::read_orientation (resolved with the XMP one below).
+        if exif_orientation.is_none() {
+            exif_orientation = exif.get_field(Tag::Orientation, In::PRIMARY).and_then(|field| field.value.get_uint(0)).filter(|value| (1..=8).contains(value));
         }
         keep(&mut meta.gps_sources[0], exif_gps(&exif));
         // Le tag EXIF fait foi sur le XMP quand il est présent.
@@ -1145,6 +1166,11 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     }
     add_hierarchical_leaves(&mut meta);
     resolve_values(&mut meta);
+    // Orientation (EXIF tag or XMP tiff:Orientation, see orientation.rs): face areas are in the frame of the stored image and the interface
+    // turns them with it; `view_fix` is what the interface adds on top of the webview, which only knows the EXIF tag.
+    let orientation = crate::orientation::resolve(crate::orientation::kind_of(path), exif_orientation, xmp_orientation, skip_exif_metadata);
+    meta.faces.orientation = orientation.stored;
+    meta.faces.view_fix = orientation.view_fix;
     if crate::heif::is_heif_path(path) {
         // Dimensions affichées (rotation du conteneur appliquée) : celles de l'EXIF sont celles du capteur.
         if let Some((width, height)) = crate::heif::read_dimensions(path) {
@@ -1568,6 +1594,31 @@ pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()
     let output = jpeg_replace_xmp(&data, &xmp_update)?;
     if output == data { return Ok(()); } // rien à modifier (ou rien à retirer d'un fichier sans XMP)
     write_file_atomically(path, &output)
+}
+
+/// XMP `tiff:Orientation` set to `orientation` (packet created when there is none). The MicrosoftPhoto namespace of an old packet is fixed
+/// on the way, as by the other writes (otherwise ExifTool warns about it at every later read or write).
+fn set_xmp_orientation(xml: &str, orientation: u32) -> String {
+    let base = if xml.contains("rdf:Description") { xml.to_string() } else { EMPTY_XMP_PACKET.to_string() };
+    fix_microsoft_namespace(set_description_attribute(&base, &["tiff:Orientation"], ("tiff", TIFF_NS), Some(&orientation.to_string())))
+}
+
+/// Lossless rotation with the internal writer (see orientation.rs): XMP `tiff:Orientation` only, never the EXIF tag nor the image data.
+/// JPEG: packet of the APP1 segment, rewritten without decoding the image. RAW, PNG…: sidecar. HEIC / HEIF and videos: refused.
+pub(crate) fn write_xmp_orientation(path: &Path, orientation: u32) -> std::io::Result<()> {
+    let _guard = crate::exiftool::path_lock(path); // no two writes at once on the same image (see write_xmp_metadata)
+    let update = |xml: &str| set_xmp_orientation(xml, orientation);
+    match crate::orientation::kind_of(path) {
+        crate::orientation::Kind::Jpeg => {
+            let data = fs::read(path)?;
+            if data.len() < 2 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
+            let output = jpeg_replace_xmp(&data, &update)?;
+            if output == data { return Ok(()); }
+            write_file_atomically(path, &output)
+        }
+        crate::orientation::Kind::Raw | crate::orientation::Kind::Sidecar => write_xmp_sidecar_with(path, &update),
+        crate::orientation::Kind::Fixed => Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Rotation not supported for this format")),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2396,8 +2447,13 @@ fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) ->
 /// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles, plus l'EXIF des JPEG : XPKeywords, XPTitle,
 /// ImageDescription, UserComment, XPComment).
 pub fn write_metadata(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
+    if crate::exiftool::is_enabled() { return crate::exiftool::write_metadata(Path::new(image_path), update); }
+    write_metadata_internal(image_path, update)
+}
+
+/// The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
+pub(crate) fn write_metadata_internal(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
     let path = Path::new(image_path);
-    if crate::exiftool::is_enabled() { return crate::exiftool::write_metadata(path, update); }
     let _guard = crate::exiftool::path_lock(path); // écriture interne : voir write_xmp_metadata
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     let xmp_update = |xml: &str| update_xmp_all(xml, update);

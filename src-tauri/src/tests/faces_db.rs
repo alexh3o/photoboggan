@@ -1,11 +1,11 @@
 //! Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée.
-//! (La lecture des zones dans les paquets XMP est testée dans le module `tests` de faces.rs.)
+//! (Reading regions from XMP packets is tested in tests/faces.rs.)
 
 use super::*;
 use crate::test_support::*;
 
 fn faces_of(regions: Option<Vec<FaceRegion>>) -> PhotoFaces {
-    PhotoFaces { orientation: 6, regions }
+    PhotoFaces { orientation: 6, view_fix: 1, regions }
 }
 
 fn region(name: Option<&str>, x: f64) -> FaceRegion {

@@ -2,23 +2,37 @@
 
 ## 🚀 Next in line
 
-- [ ] *docs*: `dev` technical documentation
-- [ ] *docs*: `installation` mention to grab exiftool
-- [ ] *feat*: `scan` allow pausing
-- [x] *fix*: `faces` faces don't obey to sorting options
-- [ ] *feat*: `tree` add collapse all and unfold to active photo path on folders tree
-- [x] *fix*: `ui` count badge cut on tasks button since removing the top padding
-- [x] *fix*: `faces` keyboard selction doesn't work in faces review
+- [x] *docs*: `dev` technical documentation
+- [x] *feat*: `scan` allow pausing
+- [x] *feat*: `semantic` add filter for scanned / unscanned photos
+- [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
+  - [x] done for thumbnails
+  - [x] already in place for face detection & thumbnails
+  - [ ] offer workflow to user ?
+- [x] *feat*: `semantic` irregular progress of scan, seems stuck at times
+- [x] *fix*: `UI`allow exact match without scrolling down in lists
+- [x] *feat*: `semantic` share search box with keywords search
+- [x] *feat*: `semantic` keywords for which suggestion cannot be done under it's keyword path
+- [x] *fix*:  `semantic` `UI` issues with search box when window width is small
+- [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
+- [x] *feat*: `editing` rotate
+- [x] *feat*: `keywords` open keyword panel directly on input zone
+- [x] *refactor*: `settings` `UI` move albums settings from general to misc
+- [x] *style*: `settings` `UI`hide install with internet helps when offline mode is off
+- [x] *refactor*: `semantic` move analyse content to find sub menu, in place of search entry when not analysed ?
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: stats in a stat modal from settings
+- [ ] *feat*: `stats` stats in a stat modal from settings
+- [ ] *feat*: `tasks` task to popup action to see progress
+- [x] *perf*: `thumbnails` more compressed thumbnails
+- [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
-- [ ] *feat*: cancellations everywhere
+- [x] *feat*: cancellations everywhere
 - [ ] *refactor*: `UI` improve toasts placement / visibility
 
 ## ❄️ Cold storage
@@ -32,6 +46,7 @@
 - [ ] *feat*: `duplicates` manage duplicates folder actions like in dupeguru
 - [ ] *perf*: `Safety` improve integrity check - currently gets 10/11 corrupted sample set: solution known but with maintenance impact
 - [ ] *feat*: `people` return button when going into someone's photos from its badge: people button does it
+- [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
 
 ## ❌ Ruled out
 

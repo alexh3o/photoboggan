@@ -75,8 +75,8 @@ const SORT_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16
 
 // Icon, "Sort:" prefix (shown only with "Show all labels", see faces.css) and the current mode. Both modes are laid out in the same grid cell,
 // the inactive one invisible: the button always has the width of the longer one and does not change size on click.
-function renderSortButton() {
-  const button = document.getElementById('btn-faces-sort');
+// Also used by the content search banner (main.js): same button, same "Grid" / "Score" choice.
+export function fillSortButton(button, sortMode) {
   const prefix = document.createElement('span');
   prefix.className = 'faces-sort-prefix';
   prefix.textContent = labelWithColon('Sort');
@@ -90,6 +90,9 @@ function renderSortButton() {
   }
   button.innerHTML = SORT_ICON;
   button.append(prefix, values);
+}
+function renderSortButton() {
+  fillSortButton(document.getElementById('btn-faces-sort'), sortMode);
 }
 const renderedNodes = new Map(); // clé de l'élément de layout -> nœud
 const thumbnailInfo = new Map(); // chemin de la photo -> Promise<{ url, width, height } | null>

@@ -7,6 +7,20 @@ import { t, normalizeSearch } from './i18n.js';
 const MAX_SUGGESTIONS = 200;
 
 /**
+ * Orders matches for a suggestion list: the shortest entry first (typing "michel" must offer "michel" before the more
+ * used "michel-ange"), then the others, most used first. `length` is the entry's text length, `count` its usage,
+ * `name` a text for the alphabetical tie-break.
+ */
+export function sortSuggestions(items, getLength, getCount, getName) {
+  if (items.length === 0) return items;
+  const byUsage = (a, b) => getCount(b) - getCount(a) || getName(a).localeCompare(getName(b));
+  const sorted = [...items].sort(byUsage);
+  let shortest = sorted[0];
+  for (const item of sorted) if (getLength(item) < getLength(shortest)) shortest = item;
+  return [shortest, ...sorted.filter(item => item !== shortest)];
+}
+
+/**
  * Wires a suggestion list to a filter field.
  * - input, list: the field and its `<ul class="keyword-suggestions below">`;
  * - getOptions(): offered entries, [{ value, label, count, search }] (`search`: text already passed through normalizeSearch);
@@ -63,10 +77,10 @@ export function createFilterSuggest({ input, list, getOptions, onPick, emptyText
   function update() {
     const query = normalizeSearch(input.value.trim());
     if (!query) { close(); return; }
-    matches = getOptions()
-      .filter(option => option.search.includes(query))
-      .sort((a, b) => b.count - a.count || a.search.localeCompare(b.search))
-      .slice(0, MAX_SUGGESTIONS);
+    matches = sortSuggestions(
+      getOptions().filter(option => option.search.includes(query)),
+      option => option.search.length, option => option.count, option => option.search,
+    ).slice(0, MAX_SUGGESTIONS);
     highlighted = 0;
     render();
     list.scrollTop = 0;

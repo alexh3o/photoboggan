@@ -4,18 +4,22 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { DEFAULTS, readBool, readChoice, readNumber } from './settings-defaults.js';
+import { DEFAULTS, readBool, readChoice, readNumber, readStored } from './settings-defaults.js';
 import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
+import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, onAnalysisChanged, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
+import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
+import { fetchKeywordCandidates, rejectKeywordSuggestion } from './semantic-tagging.js';
+import { initKeywordSuggestions, guessedKeywordEntries, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
-import { initKeywordsPanel, refreshKeywordsPanel, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
+import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { reloadAllMaps } from './map-view.js';
@@ -27,7 +31,7 @@ import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, 
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
-import { initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
+import { fillSortButton, initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
@@ -178,12 +182,14 @@ let extraFolderFilters = [];
 let rawSearch = null;
 // Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
 let duplicateSearch = null;
+let semanticSearch = null; // content search results mode (see "CONTENT SEARCH RESULTS")
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = readChoice('startupView', ['last', 'all']);
 let includeSubfolders = readBool('includeSubfolders');
 let keywordFilters = [];
 // Keywords a photo must NOT carry (Alt+Enter / Alt+click in the keyword list, or the chip's context menu). A keyword is never in both lists.
 let excludedKeywordFilters = [];
+const keywordGuesses = new Map(); // photo id -> included keywords it only has by content-search suggestion (see matchesKeywordFiltersOrSuggested)
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
 let excludedFilenameFilters = []; // texts the file name must NOT contain (Alt+Enter, or the chip's context menu)
@@ -200,9 +206,32 @@ const fullscreenImageCache = new Map();
 // Version des fichiers modifiés hors de l'application (chemin -> horodatage) : ajoutée à l'URL pour ne pas réafficher une image périmée du cache.
 const photoVersions = new Map();
 function photoUrl(photo) {
-  const version = photoVersions.get(photo.path);
-  return convertFileSrc(photo.path) + (version ? `?v=${version}` : '');
+  return convertFileSrc(photo.path) + versionSuffix(photo.path);
 }
+// Same suffix on the cached images (thumbnail, extracted preview): a lossless rotation written in a sidecar regenerates them under the same name.
+function versionSuffix(path) {
+  const version = photoVersions.get(path);
+  return version ? `?v=${version}` : '';
+}
+
+// LOSSLESS ROTATION (orientation.rs): the webview turns an original it shows by its EXIF tag only. When the orientation that wins is an XMP
+// one (internal writer, sidecar of a PNG…), `photo.view_fix` (1 to 8, same values as the EXIF tag) is what remains to apply on top.
+// Generated previews (RAW, HEIC, videos) and the thumbnails are already turned by the backend: their view_fix is 1.
+// Matrix (CSS / canvas order a, b, c, d, e, f) of an orientation for a box of `width` × `height` px, origin at its top-left corner.
+function orientationMatrix(orientation, width, height) {
+  switch (orientation) {
+    case 2: return [-1, 0, 0, 1, width, 0];
+    case 3: return [-1, 0, 0, -1, width, height];
+    case 4: return [1, 0, 0, -1, 0, height];
+    case 5: return [0, 1, 1, 0, 0, 0];
+    case 6: return [0, 1, -1, 0, height, 0];
+    case 7: return [0, -1, -1, 0, height, width];
+    case 8: return [0, -1, 1, 0, 0, width];
+    default: return null;
+  }
+}
+// Orientations that exchange width and height (quarter turns).
+const swapsSides = orientation => orientation >= 5 && orientation <= 8;
 
 // Ajout extracteur RAW (liste des extensions : format-filters.js)
 export function isRawPath(path) {
@@ -254,7 +283,7 @@ async function getPhotoDisplayUrl(photo) {
   let promise = rawPreviewPromises.get(photo.path);
   if (!promise) {
     promise = invoke('get_raw_preview_path', { sourcePath: photo.path })
-      .then(cachedPath => convertFileSrc(cachedPath))
+      .then(cachedPath => convertFileSrc(cachedPath) + versionSuffix(photo.path))
       .catch(err => {
         console.error('RAW preview extraction failed', photo.path, err);
         rawPreviewPromises.delete(photo.path); // échec non mémorisé : nouvelle tentative au prochain affichage
@@ -602,8 +631,11 @@ function learnPhotoAspectRatio(photo, ratio) {
   }
 }
 
-function updatePhotoAspectRatio(image, photo) {
-  if (image.naturalWidth > 0 && image.naturalHeight > 0) learnPhotoAspectRatio(photo, image.naturalWidth / image.naturalHeight);
+// `original`: the image is the original file shown by the webview, still to be turned by `photo.view_fix` (cached thumbnails already are).
+function updatePhotoAspectRatio(image, photo, original = false) {
+  if (!(image.naturalWidth > 0 && image.naturalHeight > 0)) return;
+  const ratio = image.naturalWidth / image.naturalHeight;
+  learnPhotoAspectRatio(photo, original && swapsSides(photo.view_fix) ? 1 / ratio : ratio);
 }
 
 // Affiche une miniature du cache dans l'image et apprend son ratio réel au chargement.
@@ -613,7 +645,7 @@ function showCachedThumbnail(image, cachedPath, photo) {
     image.classList.add('loaded');
     updatePhotoAspectRatio(image, photo);
   };
-  image.src = convertFileSrc(cachedPath);
+  image.src = convertFileSrc(cachedPath) + versionSuffix(photo.path);
 }
 
 // Repli (PNG, JPEG CMYK, fichier que le backend ne sait pas lire) : ancienne génération dans le webview,
@@ -638,8 +670,8 @@ async function generateThumbnailInWebview(image, sourcePath, photo) {
     image.onerror = null;
     if (!success) return;
     image.classList.add('loaded');
-    updatePhotoAspectRatio(image, photo);
-    await cacheThumbnail(image, sourcePath);
+    updatePhotoAspectRatio(image, photo, true);
+    await cacheThumbnail(image, sourcePath, photo.view_fix);
   } finally {
     activeWebviewThumbnailFallbacks--;
     webviewThumbnailFallbackWaiters.shift()?.();
@@ -685,7 +717,8 @@ function loadThumbnail(image, sourcePath, photo) {
   });
 }
 
-function cacheThumbnail(image, sourcePath) {
+// `viewFix`: orientation still to apply to the image (see orientationMatrix): the cached thumbnail is stored turned, like the backend ones.
+function cacheThumbnail(image, sourcePath, viewFix = 1) {
   if (thumbnailCacheWrites.has(sourcePath)) return thumbnailCacheWrites.get(sourcePath);
   const task = (async () => {
     let bitmap;
@@ -693,10 +726,15 @@ function cacheThumbnail(image, sourcePath) {
       await image.decode();
       bitmap = await createImageBitmap(image);
       const scale = Math.min(1, thumbnailCacheSize / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
       const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      canvas.getContext('2d', { alpha: false }).drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      canvas.width = swapsSides(viewFix) ? height : width;
+      canvas.height = swapsSides(viewFix) ? width : height;
+      const context = canvas.getContext('2d', { alpha: false });
+      const matrix = orientationMatrix(viewFix, width, height);
+      if (matrix) context.setTransform(...matrix);
+      context.drawImage(bitmap, 0, 0, width, height);
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.84));
       if (!blob) return;
       const dataUrl = await new Promise((resolve, reject) => {
@@ -709,7 +747,7 @@ function cacheThumbnail(image, sourcePath) {
       thumbnailCacheLookups.set(sourcePath, Promise.resolve(cachedPath));
       if (image.isConnected && image.dataset.sourcePath === sourcePath) {
         image.onload = null;
-        image.src = convertFileSrc(cachedPath);
+        image.src = convertFileSrc(cachedPath) + versionSuffix(sourcePath);
       }
     } catch (error) {
       console.debug('Thumbnail caching failed', sourcePath, error);
@@ -904,6 +942,9 @@ async function loadPhotos() {
   if (duplicateSearch) {
     // Duplicate results: only the photos of the groups, never the folder or album view (also used when the mode reloads after a rescan).
     result = { list: await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() }), cap: null, large: false, key: '' };
+  } else if (semanticSearch) {
+    // Content search results: only the photos of the answer (the slider cut is a filter, see matchesSemanticCut).
+    result = { list: await loadSemanticPhotos(), cap: null, large: false, key: '' };
   } else if (baseAlbumId) {
     result = { list: await invoke('get_album_photos', { albumId: baseAlbumId }), cap: null, large: false, key: '' }; // never capped
   } else {
@@ -915,7 +956,7 @@ async function loadPhotos() {
   if (duplicateSearch) indexDuplicateGroups();
   photosLoadedOnce = true;
   // The whole-catalogue list feeds the keyword suggestions and gear lists: never a prefiltered one.
-  if (!album && currentFolderFilter === null && !duplicateSearch && !loadedPrefilterKey) folderTreePhotos = loadedPhotos;
+  if (!album && currentFolderFilter === null && !duplicateSearch && !semanticSearch && !loadedPrefilterKey) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
@@ -942,7 +983,7 @@ function hasActiveFilters() {
   const hasKeywords = hasKeywordFilters();
   const hasFilename = hasFilenameFilters();
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
-  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all'
+  return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all' || analysisFilter !== 'all'
     || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats()
     || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
@@ -955,7 +996,8 @@ function updateGridEmptyState() {
   if (!element) return;
   element.hidden = !photosLoadedOnce || photos.length > 0;
   if (element.hidden) return;
-  const key = loadedPhotos.length === 0 ? 'Nothing to show here'
+  const key = semanticSearch ? 'No photo matches this search'
+    : loadedPhotos.length === 0 ? 'Nothing to show here'
     : hasActiveFilters() ? 'A little too selective! Try adjusting your filters'
     : 'Hmm, no photos here...';
   element.textContent = t(key);
@@ -1012,9 +1054,13 @@ function applyPhotoFilters({ keepState = false } = {}) {
   const keptScrollTop = gridContainer.scrollTop;
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
+  // Content search suggestions for the keyword filter (setting off: nothing is requested and the lists below stay empty).
+  syncKeywordSuggestions(keywordFilters, keywordSuggestionViewKey(), keywordSuggestionScope);
+  const suggestedPhotos = suggestedExtraPhotos();
+  keywordGuesses.clear();
   // Photos avant le filtre « Zone visible seulement » du mode Carte : la carte garde tous leurs points, même hors de la zone visible.
-  mapCandidatePhotos = loadedPhotos.filter(photo => matchesRatingFilter(photo)
-    && matchesKeywordFilters(photo)
+  mapCandidatePhotos = (suggestedPhotos.length ? loadedPhotos.concat(suggestedPhotos) : loadedPhotos).filter(photo => matchesRatingFilter(photo)
+    && matchesKeywordFiltersOrSuggested(photo)
     && personFilterMatches(photo)
     && matchesFilenameFilters(photo)
     && (pathFilter === null || pathFilter.has(photo.path))
@@ -1022,11 +1068,14 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && (pickFilters.size === 0 || pickFilters.has(photo.pick_flag || 'none'))
     && matchesDateFilter(photo)
     && matchesLocationFilter(photo)
+    && matchesAnalysisFilter(photo)
     && shootingFilters.matches(photo)
     && formatFilters.matches(photo)
     && matchesRawSearchScope(photo)
+    && matchesSemanticCut(photo)
     && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
+  setSuggestedCount(photos.filter(photo => keywordGuesses.has(photo.id)).length);
   if (activeSmartAlbumId) {
     const dirty = filterStateSignature() !== albumSavedSignature;
     setAlbumDirty(dirty); // disquette de l'album intelligent ouvert
@@ -1060,6 +1109,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   updateFilteredPhotosCount();
   renderRawSearchBanner(); // mode « Trouver le RAW » : le nombre de résultats suit les filtres
   renderDuplicateBanner(); // duplicate search: the counts follow the filters
+  renderSemanticBanner(); // content search: same
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
   // Large folder: the loaded list was prefiltered by the backend; a change of those filters reads it again.
@@ -1141,6 +1191,7 @@ const clearFilterKinds = {
     closeDatePicker();
   },
   location: () => setLocationFilter('all', { apply: false }),
+  analysis: () => setAnalysisFilter('all', { apply: false }),
   gear: () => shootingFilters.clearGear(),
   shot: () => shootingFilters.clearShot(),
   format: () => formatFilters.reset(),
@@ -1154,7 +1205,7 @@ const filterGroupKinds = {
   date: ['date'],
   gear: ['gear'],
   shooting: ['shot'],
-  more: ['format', 'location'],
+  more: ['format', 'location', 'analysis'],
 };
 
 // Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent restent.
@@ -1489,6 +1540,36 @@ function matchesKeywordFilters(photo, included = keywordFilters, excluded = excl
   return (included ?? []).every(keyword => words.includes(keyword)) && !(excluded ?? []).some(keyword => words.includes(keyword));
 }
 
+// Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword filtering"): every included keyword is
+// carried or suggested, nothing excluded is carried. `keywordGuesses` (rebuilt by each filtering) maps a photo id to the included keywords it only
+// has by suggestion; a photo carrying everything is not in it.
+function matchesKeywordFiltersOrSuggested(photo) {
+  if (matchesKeywordFilters(photo)) return true;
+  if (!suggestionsLoaded() || keywordFilters.length === 0) return false;
+  const words = (photo.keywords || '').split(', ');
+  if (excludedKeywordFilters.some(keyword => words.includes(keyword))) return false;
+  const guessed = [];
+  for (const keyword of keywordFilters) {
+    if (words.includes(keyword)) continue;
+    if (!suggestionFor(keyword, photo.id)) return false;
+    guessed.push(keyword);
+  }
+  keywordGuesses.set(photo.id, guessed);
+  return true;
+}
+
+// Cheap key of "the view" for the suggestions: they are searched again only when the filter or this key changes (never null in a plain view).
+function keywordSuggestionViewKey() {
+  if (rawSearch || duplicateSearch || semanticSearch) return null; // results modes: no suggestions
+  return `${currentFolderFilter}|${includeSubfolders}|${getSelectedAlbum()?.id ?? ''}|${extraFolderFilters.join('\n')}`;
+}
+
+// Scope of the suggestions = the view (same as the content search); filters are not part of it, they apply to the suggested photos afterwards.
+function keywordSuggestionScope() {
+  const { folder, recursive, photoIds } = currentViewScope();
+  return { folder: folder ?? null, recursive: Boolean(recursive), photoIds: photoIds ?? null, skipRaw: !readBool('semanticScanRaw') };
+}
+
 // Puts a keyword in the included or excluded list (and out of the other one). Neither re-renders nor filters: the caller does.
 function setKeywordFilter(keyword, exclude) {
   keywordFilters = keywordFilters.filter(item => item !== keyword);
@@ -1781,6 +1862,14 @@ function renderFilterSummaries() {
   })];
   document.getElementById('location-summary').replaceChildren(...locationNodes);
 
+  const analysisNodes = analysisFilter === 'all' ? [] : [createFilterTag({
+    kind: 'analysis',
+    text: t(analysisFilter === 'analysed' ? 'Analysed' : 'Not analysed'),
+    title: t('Content analysis'),
+    onRemove: () => clearFilterKindsAndApply(['analysis']),
+  })];
+  document.getElementById('analysis-summary').replaceChildren(...analysisNodes);
+
   shootingFilters.renderSummaries();
   formatFilters.renderSummaries();
   renderFilterTags();
@@ -1798,7 +1887,7 @@ function updateFilterGroupStates() {
     date: dateFilter !== null,
     gear: shootingFilters.hasGear(),
     shooting: shootingFilters.hasShot(),
-    more: formatFilters.hasFormats() || locationFilter !== 'all',
+    more: formatFilters.hasFormats() || locationFilter !== 'all' || analysisFilter !== 'all',
   };
   for (const group of filterGroups) group.dataset.active = String(Boolean(active[group.dataset.filterGroup]));
 }
@@ -1817,6 +1906,7 @@ function renderActiveFilterBadges() {
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
     [locationFilter !== 'all', 'location', 'Geolocation'],
+    [analysisFilter !== 'all', 'analysis', 'Content analysis'],
     [shootingFilters.hasGear(), 'gear', 'Gear'],
     [shootingFilters.hasShot(), 'shot', 'Shooting'],
     [formatFilters.hasFormats(), 'format', 'Format'],
@@ -1901,7 +1991,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
       folderTreeInitialized = true;
       renderFolderTree();
     });
-    const icon = document.createElement('span'); icon.className = 'folder-tree-icon'; icon.textContent = '📁';
+    const icon = document.createElement('span'); icon.className = `folder-tree-icon${isRoot ? ' folder-tree-icon-root' : ''}`; icon.textContent = '📁';
     const label = document.createElement('span'); label.className = 'folder-tree-name'; label.textContent = node.name; label.title = node.path;
     li.append(toggle, icon, label);
     if (showFolderCounts) {
@@ -2035,6 +2125,7 @@ function selectFolder(path) {
   }
   abandonRawSearch(); // naviguer à la main termine « Trouver le RAW » : les filtres d'avant la recherche reviennent
   abandonDuplicateSearch(); // same for the duplicate search
+  abandonSemanticSearch(); // and the content search
   clearAlbumSelection(); // une seule entrée active dans la barre latérale
   syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
   currentFolderFilter = path;
@@ -2078,7 +2169,7 @@ document.getElementById('folders-toggle').addEventListener('contextmenu', event 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
 function toggleFolderInSelection(path) {
   const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  if (currentFolderFilter === null || getSelectedAlbum() || duplicateSearch || rawSearch) { selectFolder(path); return; }
+  if (currentFolderFilter === null || getSelectedAlbum() || duplicateSearch || rawSearch || semanticSearch) { selectFolder(path); return; }
   if (isSelectedAlbumDirty()) { selectFolder(path); return; }
   if (same(currentFolderFilter, path)) {
     if (extraFolderFilters.length === 0) return; // the only selected folder stays selected
@@ -2111,7 +2202,7 @@ folderTree.addEventListener('mousedown', event => {
 // ==========================================
 // TROUVER LE RAW
 // ==========================================
-// Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Divers > RAW (raw-settings.js) deviennent les filtres
+// Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Recherche > Recherche des RAW (raw-settings.js) deviennent les filtres
 // ordinaires de la barre latérale (nom, date, appareil, objectif, vitesse / ISO / ouverture, plus « RAW uniquement »), la grille s'ouvre sur le
 // dossier de départ choisi avec tous ses sous-dossiers, et une bannière propose de revenir à la vue d'avant (instantané : dossier ou album, filtres,
 // option sous-dossiers, défilement, sélection). Naviguer à la main (dossier, album, option sous-dossiers) termine le mode sans retour.
@@ -2184,13 +2275,26 @@ async function restoreViewSnapshot(snapshot) {
 // « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossier du
 // fichier dans l'arbre, sans aucun filtre, avec le fichier sélectionné et visible dans la grille.
 // Also used from "All photos" (context menu, one photo): there the current filters are kept, since the photo passes them and the user did not leave a search.
-function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch; }
+// What the content search calls "the view" (semantic.js): a folder (with its subfolders when the view includes them), otherwise the photos of the
+// collection on screen (album, several folders, a results mode), otherwise the whole library. Filters are not part of the scope.
+function currentViewScope() {
+  if (semanticSearch) return semanticSearch.viewScope; // a new search from inside the results mode searches the same view
+  const album = getSelectedAlbum();
+  if (!album && !rawSearch && !duplicateSearch && extraFolderFilters.length === 0) {
+    if (currentFolderFilter !== null) return { folder: currentFolderFilter, recursive: includeSubfolders, photoIds: null };
+    return { folder: null, recursive: false, photoIds: null }; // "All photos"
+  }
+  return { folder: null, recursive: false, photoIds: loadedPhotos.map(photo => photo.id) };
+}
+
+function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch && !semanticSearch; }
 async function showPhotoInItsFolder(photo) {
-  const fromResults = rawSearch !== null || duplicateSearch !== null;
+  const fromResults = rawSearch !== null || duplicateSearch !== null || semanticSearch !== null;
   if (!photo || !(fromResults || isAllPhotosView())) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
   abandonDuplicateSearch();
+  abandonSemanticSearch();
   if (fromResults) resetAllFilters(); // aucun filtre dans le dossier du fichier, pas même ceux d'avant la recherche
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
@@ -2233,7 +2337,7 @@ const RAW_CRITERION_LABELS ={ name: 'Filename', date: 'Date', gear: 'Gear', shoo
 async function findRawFor(photo) {
   if (!photo) return;
   if (!hasRawSearchCriteria()) {
-    showWriteToast(t('Tick at least one criterion in Settings > Misc > RAW'));
+    showWriteToast(t('Tick at least one criterion in Settings > Search > RAW search'));
     return;
   }
   const settings = getRawSearchSettings();
@@ -2260,9 +2364,11 @@ async function findRawFor(photo) {
 
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = rawSearch?.snapshot ?? duplicateSearch?.snapshot ?? captureViewSnapshot(album);
+  const snapshot = rawSearch?.snapshot ?? duplicateSearch?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
   duplicateSearch = null; // a duplicate search in progress ends here; the view saved above is the one to go back to
   renderDuplicateBanner();
+  semanticSearch = null; // same for a content search
+  renderSemanticBanner();
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   resetAllFilters();
@@ -2506,7 +2612,48 @@ function renderVisibleItems() {
       if (div._dupMeta.textContent !== text) div._dupMeta.textContent = text;
       div._dupMeta.hidden = !text;
     }
-    const hoverTitle = duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
+    // Content search results: the score of the text query on the thumbnail (setting "Show the score on results"; image queries have none), and a mark
+    // on the source photo of a similar-content search. Created only in this mode.
+    const score = semanticSearch && readBool('semanticShowScore') ? semanticSearch.prob.get(photo.id) : null;
+    if (score != null && !div._semanticScore) {
+      div._semanticScore = Object.assign(document.createElement('span'), { className: 'semantic-score' });
+      div.querySelector('.thumbnail-inner').append(div._semanticScore);
+    }
+    if (div._semanticScore) {
+      const text = score == null ? '' : score > 0 && score < 0.01 ? '<1 %' : `${Math.round(score * 100)} %`;
+      if (div._semanticScore.textContent !== text) div._semanticScore.textContent = text;
+      div._semanticScore.hidden = !text;
+    }
+    const isSemanticSource = semanticSearch !== null && photo.id === semanticSearch.sourceId;
+    if (div._semanticSource !== isSemanticSource) { div.classList.toggle('semantic-source', isSemanticSource); div._semanticSource = isSemanticSource; }
+    // Keyword filter with suggestions: a "suggested" badge on the photos that do not carry every keyword (created only for them).
+    const guessed = keywordGuesses.get(photo.id);
+    const guessKey = guessed ? guessed.join('\n') : '';
+    if (div._guessKey !== guessKey) {
+      if (guessed && !div._guessBadge) {
+        div._guessBadge = Object.assign(document.createElement('span'), { className: 'semantic-suggested semantic-only', textContent: t('Suggested') });
+        div.querySelector('.thumbnail-inner').append(div._guessBadge);
+      }
+      if (div._guessBadge) {
+        div._guessBadge.hidden = !guessed;
+        if (guessed) div._guessBadge.title = describeGuesses(guessed, photo.id);
+      }
+      div._guessKey = guessKey;
+    }
+    // Content search shared with the keyword search: a "Keywords" badge (same look as "Suggested") on the photos found by their keywords.
+    const byKeywords = semanticSearch?.carried.has(photo.id) === true;
+    if (div._byKeywords !== byKeywords) {
+      if (byKeywords && !div._keywordBadge) {
+        div._keywordBadge = Object.assign(document.createElement('span'), { className: 'semantic-suggested semantic-only', textContent: t('Keywords') });
+        div.querySelector('.thumbnail-inner').append(div._keywordBadge);
+      }
+      if (div._keywordBadge) {
+        div._keywordBadge.hidden = !byKeywords;
+        if (byKeywords) div._keywordBadge.title = t('Found by its keywords: tagged with the text typed in the search box');
+      }
+      div._byKeywords = byKeywords;
+    }
+    const hoverTitle = isSemanticSource ? `${photo.path}\n${t('Source photo of the search')}` : duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
     if (div._hoverTitle !== hoverTitle) { div.title = hoverTitle; div._hoverTitle = hoverTitle; }
     const located = hasGps(photo);
     if (div._located !== located) { div.classList.toggle('has-gps', located); div._located = located; }
@@ -2641,12 +2788,9 @@ function showFullscreenPhoto(photo, url) {
   const token = ++fullscreenLoadToken;
   const apply = loaded => {
     if (token !== fullscreenLoadToken) return; // une autre photo a été demandée entre-temps
-    fullscreenSlot.naturalWidth = loaded.naturalWidth;
-    fullscreenSlot.naturalHeight = loaded.naturalHeight;
+    setSlotImageSize(fullscreenSlot, loaded.naturalWidth, loaded.naturalHeight);
     fullscreenSlot.zoom = null;
     fullscreenSlot.center = { x: 0.5, y: 0.5 };
-    fullscreenImg.style.width = `${loaded.naturalWidth}px`;
-    fullscreenImg.style.height = `${loaded.naturalHeight}px`;
     updateFullscreenInfo(); // les informations changent en même temps que l'image affichée
     fullscreenImg.src = url;
     layoutFullscreenSlot();
@@ -2981,6 +3125,7 @@ document.getElementById('btn-clear-selection')?.addEventListener('click', () => 
 
 function updateUIOnSelection() {
   refreshKeywordsPanel();
+  if (semanticSearch?.keyword) renderSemanticKeywordActions();
   refreshDescriptionPanel();
   pruneCompareSubSelection();
   renderVisibleItems(); 
@@ -3210,9 +3355,18 @@ function failureSummary(failures) {
 // dans le verrou d'écriture (fermeture de l'application, renommages et déplacements refusés pendant ce temps). Les écritures de marquage
 // partent l'une après l'autre, dans l'ordre des touches. `apply(photo)` reporte la valeur sur chaque photo écrite ; `refilter()` : un filtre
 // porte sur cette valeur, la grille est refiltrée (une photo qui n'y répond plus disparaît).
+// Undo (Ctrl+Z, "Undo" in the toast): the value each photo had just before the write is kept, and written back to it by `undoMarking`.
+// `restore` (undo itself): Map photo id -> value of `property` to write back, one per photo (`fields` is then empty).
 let markingChain = Promise.resolve();
-function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter }) {
-  const photosArg = targets.map(photo => ({ id: photo.id, path: photo.path }));
+// Photo property of each field of update_photos_marking, and its value when the photo has none. The per-photo values of an undo use the
+// same names (MarkingTarget in main.rs).
+const MARKING_PROPERTIES = { rating: ['rating', 0], colorFlag: ['color_flag', 'none'], pickFlag: ['pick_flag', 'none'] };
+function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter, property = null, restore = null }) {
+  const [markedProperty, emptyValue] = property ? [property, null] : MARKING_PROPERTIES[Object.keys(fields)[0]];
+  const photosArg = targets.map(photo => (restore
+    ? { id: photo.id, path: photo.path, [markedProperty]: restore.get(photo.id) }
+    : { id: photo.id, path: photo.path }));
+  let previous = null; // id -> value before this write (read when the write starts, after the writes queued before it)
   const finish = (result, error) => {
     if (!result) {
       if (error) showWriteToast(t('Metadata writing failed: {error}', { error: String(error) }));
@@ -3224,10 +3378,15 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     forgetCachedImagePaths(successful.map(photo => photo.path));
     if (successful.length && refilter()) applyPhotoFilters({ keepState: true });
     else updateUIOnSelection();
+    if (markedProperty === 'rating') updateFullscreenRatingStars();
+    // Only the photos actually written can be given their previous value back.
+    const undoEntry = !restore && successful.length
+      ? pushUndo(() => undoMarking(markedProperty, successful.map(photo => ({ id: photo.id, path: photo.path, value: previous.get(photo.id) })), refilter))
+      : null;
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
-    // Failures: the toast names the first one, its "Details" button lists them all.
-    const details = failureDetailsAction(t('Metadata could not be written to some files'), result.failed);
-    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`, false, details);
+    // Failures: the toast names the first one, its "Details" button lists them all. Otherwise the button undoes this write.
+    const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed) ?? (undoEntry ? undoToastAction(undoEntry) : null);
+    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`, false, action);
   };
   const run = () => {
     // Photos of a move in progress or waiting would change path while being written (the backend lock makes the write fail cleanly
@@ -3238,12 +3397,55 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
       showWriteToast(t('Wait for the running file task to finish.'));
       return undefined;
     }
+    previous = new Map(targets.map(photo => [photo.id, photo[markedProperty] ?? emptyValue]));
     showWriteToast(startMessage, true);
     return runLocked('update_photos_marking', { photos: photosArg, ...fields }, targets.length, finish);
   };
   markingChain = markingChain.then(run, run);
   return markingChain;
 }
+
+// Gives each photo of an earlier marking write its previous value back (`entries`: { id, path, value }), in one command. The photos are
+// looked up in the whole list: they may have left the view (filter on that value) or be shown in another order.
+function undoMarking(property, entries, refilter) {
+  const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
+  const targets = entries.map(entry => byId.get(entry.id) ?? { id: entry.id, path: entry.path });
+  const values = new Map(entries.map(entry => [entry.id, entry.value]));
+  return writeMarking(targets, {}, {
+    property,
+    restore: values,
+    startMessage: t('Undoing…'),
+    doneMessage: count => tp('Change undone for {count} photo', count),
+    apply: photo => { photo[property] = values.get(photo.id); },
+    refilter,
+  });
+}
+
+// ==========================================
+// UNDO (Ctrl+Z, "Undo" button of the toasts)
+// ==========================================
+// Last actions on the files that can be undone (rating, color, pick flag, lossless rotation), the latest at the end. Each entry knows how to
+// undo itself; an undo is not stacked again. The toast button undoes its own action, Ctrl+Z the latest one.
+const MAX_UNDO = 20;
+const undoStack = [];
+
+function pushUndo(run) {
+  const entry = { run };
+  undoStack.push(entry);
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  return entry;
+}
+
+// Undoes `entry` (default: the latest action), once: it leaves the stack. False if there is nothing (left) to undo.
+function runUndo(entry = undoStack.at(-1)) {
+  const index = entry ? undoStack.lastIndexOf(entry) : -1;
+  if (index < 0) return false;
+  undoStack.splice(index, 1);
+  entry.run();
+  return true;
+}
+
+const undoToastAction = entry => ({ label: t('Undo'), onClick: () => runUndo(entry) });
 
 // `explicitTargets` (menu contextuel) : photos précises à noter, à la place de la sélection.
 async function setSelectionRating(rating, explicitTargets = null) {
@@ -3265,6 +3467,94 @@ async function setSelectionRating(rating, explicitTargets = null) {
   });
   if (isFullscreen && anyWritten) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
+}
+
+// ==========================================
+// LOSSLESS ROTATION (orientation.rs)
+// ==========================================
+// Only the orientation tag changes (EXIF and / or XMP, through the active writer): the image is never decoded nor recompressed.
+// HEIC / HEIF and videos are left out (their container carries the rotation). Ctrl+R turns right, Shift+R left; Ctrl+Z, or "Undo" in the
+// toast, turns the last rotations back (the opposite rotation gives back the exact previous value).
+export function isRotatablePath(path) {
+  const ext = (path || '').split('.').pop()?.toLowerCase();
+  return !VIDEO_EXTENSIONS.has(ext) && !HEIF_EXTENSIONS.has(ext);
+}
+
+// `quarterTurns`: 1 right, -1 left, 2 for 180°. `explicitTargets` (context menu): photos to turn, instead of the selection.
+// `undo`: the rotation turns back a previous one (not stacked again, other toast).
+function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {}) {
+  const selected = explicitTargets ?? commandTargetPhotos(); // compare mode with several photos: the sub-selection only
+  if (!selected.length) {
+    if (!explicitTargets && isCompareMultiple()) notifyNoCompareTarget();
+    return markingChain;
+  }
+  const targets = selected.filter(photo => isRotatablePath(photo.path));
+  if (!targets.length) {
+    showWriteToast(t('Lossless rotation is not possible for HEIC, HEIF and video files'));
+    return markingChain;
+  }
+  const photosArg = targets.map(photo => ({ id: photo.id, path: photo.path }));
+  const finish = (result, error) => {
+    if (!result) {
+      if (error) showWriteToast(t('Metadata writing failed: {error}', { error: String(error) }));
+      return;
+    }
+    const written = new Map(result.written.map(entry => [entry.id, entry.view_fix]));
+    const turned = targets.filter(photo => written.has(photo.id));
+    for (const photo of turned) photo.view_fix = written.get(photo.id);
+    refreshRotatedPhotos(turned, quarterTurns);
+    const turnedEntries = turned.map(photo => ({ id: photo.id, path: photo.path }));
+    const undoEntry = turned.length && !undo ? pushUndo(() => undoRotation(turnedEntries, quarterTurns)) : null;
+    const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
+    const message = `${undo ? tp('Rotation undone for {count} photo', turned.length) : tp('{count} photo turned', turned.length)}${failureSummary(result.failed)}${stopped}`;
+    // Failures take the toast button (their details); otherwise "Undo".
+    const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed)
+      ?? (undoEntry ? undoToastAction(undoEntry) : null);
+    showWriteToast(message, false, action);
+  };
+  const run = () => {
+    // Same rule as the other metadata writes (see writeMarking): photos of a move in progress are not written.
+    const moving = new Set(scanTasks.filter(task => task.kind === 'move').flatMap(task => task.args?.paths ?? []));
+    if (photoMoveRunning || photosArg.some(photo => moving.has(photo.path))) {
+      showWriteToast(t('Wait for the running file task to finish.'));
+      return undefined;
+    }
+    showWriteToast(undo ? t('Undoing rotation…') : tp('Turning {count} photo…', targets.length), true);
+    return runLocked('rotate_photos', { photos: photosArg, quarterTurns }, targets.length, finish);
+  };
+  markingChain = markingChain.then(run, run);
+  return markingChain;
+}
+
+// Undo of a rotation (see runUndo): the opposite rotation, on its photos wherever the view is now.
+function undoRotation(entries, quarterTurns) {
+  const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
+  const targets = entries.map(entry => byId.get(entry.id) ?? entry);
+  return rotatePhotos(-quarterTurns, targets, { undo: true });
+}
+
+// Turned photos: their cached images are regenerated by the backend; the grid, the preview and the fullscreen view load them again.
+function refreshRotatedPhotos(turned, quarterTurns) {
+  if (!turned.length) return;
+  const paths = turned.map(photo => photo.path);
+  const now = Date.now();
+  for (const path of paths) photoVersions.set(path, now); // new URLs: the webview must not show its cached copy
+  forgetCachedImagePaths(paths);
+  // A quarter turn exchanges width and height: the layout follows at once, the new thumbnail confirms the exact ratio.
+  if (quarterTurns % 2 !== 0) {
+    for (const photo of turned) {
+      const ratio = photo.aspectRatio || (photo.width > 0 && photo.height > 0 ? photo.width / photo.height : 0);
+      if (ratio > 0) photo.aspectRatio = 1 / ratio;
+    }
+  }
+  const turnedPaths = new Set(paths);
+  for (const [index, node] of renderedThumbnailNodes) {
+    if (turnedPaths.has(photos[index]?.path)) { node.remove(); renderedThumbnailNodes.delete(index); }
+  }
+  previewSignature = ''; // the preview cells are created again
+  updateVirtualScroller();
+  updateUIOnSelection();
+  if (isFullscreen && turnedPaths.has(photos[lastSelectedIndex]?.path)) loadFullscreenPhoto(photos[lastSelectedIndex]);
 }
 
 // ==========================================
@@ -3293,6 +3583,8 @@ async function setSelectionRating(rating, explicitTargets = null) {
 // N      : panneau Bibliothèque
 // P      : Preview panel
 // R      : Rating bar in fullscreen
+// Ctrl+R : Lossless rotation to the right, Shift+R to the left
+// Ctrl+Z : Undo the latest rating, color, pick flag or lossless rotation
 // S      : Resize
 // T      : Show / Hide the top toolbar
 // X      : Compare mode
@@ -3353,6 +3645,22 @@ window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
     e.preventDefault();
     if (!compareMode && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
+    return;
+  }
+  // Lossless rotation: Ctrl+R to the right, Shift+R to the left (selection, sub-selection in compare mode, or the fullscreen photo). Ctrl+R is
+  // always caught so that it never reloads the window. Handled before R alone (rating bar of the fullscreen view). Not behind an open window.
+  const rotationKey = e.key.toLowerCase() === 'r' && !e.altKey && !e.metaKey
+    && ((e.ctrlKey && !e.shiftKey) || (e.shiftKey && !e.ctrlKey));
+  if (rotationKey) {
+    e.preventDefault();
+    if (!e.repeat && selectedIndices.size > 0 && !document.querySelector('.modal:not(.hidden)')) rotatePhotos(e.ctrlKey ? 1 : -1);
+    return;
+  }
+  // Ctrl+Z: undoes the latest rating, color, pick flag or lossless rotation (text fields keep their own Ctrl+Z: this handler ignores them).
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (document.querySelector('.modal:not(.hidden)')) return;
+    e.preventDefault();
+    if (!e.repeat && !runUndo()) showWriteToast(t('Nothing to undo'));
     return;
   }
   // CTrl+D debug to console
@@ -3578,6 +3886,7 @@ window.addEventListener('keydown', (e) => {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
     else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
     else if (!isFullscreen && duplicateSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
+    else if (!isFullscreen && semanticSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitSemanticSearch(); // content search: same
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (isFullscreen) closeFullscreen();
@@ -3766,8 +4075,27 @@ function setToolbarLabels(show) {
   topBarEl?.classList.toggle('show-labels', show);
   document.body.classList.toggle('show-toolbar-labels', show); // lets views outside the bar (Faces sort button) follow the same choice
   try { localStorage.setItem('toolbarShowLabels', String(show)); } catch { /* storage unavailable: the choice just isn't remembered */ }
+  fitToolbar();
 }
 setToolbarLabels(readBool('toolbarShowLabels'));
+
+// Narrow window: the bar drops every button label and keeps the icons (`.compact`). The decision is "do the buttons, with their labels, fit?",
+// measured with the shrinkable parts frozen at their natural width (`.measuring`): it flips at the same width in both directions, whatever the
+// font size, language or "Show all labels" choice.
+function fitToolbar() {
+  if (!topBarEl || topBarEl.classList.contains('hidden') && !topBarEl.classList.contains('peek')) return;
+  topBarEl.classList.remove('compact');
+  topBarEl.classList.add('measuring');
+  const overflows = topBarEl.scrollWidth > topBarEl.clientWidth;
+  topBarEl.classList.remove('measuring');
+  topBarEl.classList.toggle('compact', overflows);
+}
+if (topBarEl) {
+  new ResizeObserver(() => fitToolbar()).observe(topBarEl);
+  onLanguageChange(fitToolbar);
+  onSemanticChange(fitToolbar); // the content search field appears or disappears
+  new MutationObserver(() => requestAnimationFrame(fitToolbar)).observe(topBarEl, { subtree: true, attributes: true, attributeFilter: ['hidden'] }); // buttons shown or hidden
+}
 if (readBool('toolbarAutoHide')) topBarEl?.classList.add('hidden'); // restored before the first layout: the grid starts at full height
 topBarEl?.addEventListener('contextmenu', event => {
   event.preventDefault();
@@ -4067,6 +4395,7 @@ function separatorText(photo, mode) {
 // Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
 function computePhotoGroups() {
   if (duplicateSearch && photos.length > 0) return computeDuplicateSeparators();
+  if (semanticSearch) return []; // results are sorted by relevance: no separator
   const mode = activeSeparator();
   if (mode === 'none' || photos.length === 0) return [];
   const groups = [];
@@ -4084,6 +4413,25 @@ function computePhotoGroups() {
 }
 
 function comparePhotosForSort(a, b) {
+  // Keyword filter with suggestions: photos carrying every keyword first, then the fewest guessed keywords, the chosen sort inside each block.
+  if (keywordGuesses.size) {
+    const guesses = (keywordGuesses.get(a.id)?.length ?? 0) - (keywordGuesses.get(b.id)?.length ?? 0);
+    if (guesses) return guesses;
+  }
+  if (semanticSearch?.carried.size) {
+    // Photos carrying the typed keyword come first, then the content results by decreasing relevance. Inside the first block: the content score
+    // ("Score"), or the sort options of the toolbar ("Grid", the rest of this function).
+    const carriedA = semanticSearch.carried.has(a.id);
+    if (carriedA !== semanticSearch.carried.has(b.id)) return carriedA ? -1 : 1;
+    if (!carriedA) return semanticRankOrder(a, b);
+    if (semanticSortMode === 'score') {
+      const byScore = semanticRankOrder(a, b); // the answer is already sorted by decreasing score; photos without a score (not analysed) last
+      if (byScore) return byScore;
+    }
+  } else if (semanticSearch) {
+    // Content search results: by decreasing relevance (the source photo of a similar-content search first).
+    return semanticRankOrder(a, b);
+  }
   // Duplicate results: groups in the chosen group order, members best first inside each group.
   if (duplicateSearch) {
     const orderA = duplicateSearch.order.get(a.path);
@@ -4316,6 +4664,22 @@ purgeOrphanThumbnailsButton?.addEventListener('click', async () => {
     purgeOrphanThumbnailsButton.disabled = false;
   }
 });
+// Thumbnail quality (Settings > Storage): only thumbnails written from now on use it, the cache is not cleared.
+// The backend keeps its own copy in config.json so the setting applies from startup.
+const thumbnailQualitySelect = document.getElementById('thumbnail-quality-select');
+if (thumbnailQualitySelect) {
+  thumbnailQualitySelect.value = readChoice('thumbnailQuality', ['normal', 'high']);
+  thumbnailQualitySelect.addEventListener('change', async () => {
+    const quality = thumbnailQualitySelect.value;
+    try {
+      await invoke('set_thumbnail_quality', { quality });
+      localStorage.setItem('thumbnailQuality', quality);
+    } catch (error) {
+      console.error('Thumbnail quality change failed', error);
+      thumbnailQualitySelect.value = readChoice('thumbnailQuality', ['normal', 'high']);
+    }
+  });
+}
 // Gestionnaire du sélecteur de taille des miniatures en cache
 const thumbnailCacheSelect = document.getElementById('thumbnail-cache-size-select');
 if (thumbnailCacheSelect) {
@@ -4822,6 +5186,7 @@ document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
   const wanted = event.target.checked;
   abandonRawSearch(); // la recherche du RAW impose les sous-dossiers : changer l'option la termine
+  abandonSemanticSearch(); // the scope of a "view" search would no longer match what is shown
   includeSubfolders = wanted;
   event.target.checked = wanted;
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
@@ -4834,7 +5199,8 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
 // avec son avancement ; les suivantes au-dessus, « En attente ») et sa ligne dans la fenêtre « Actions en cours » (bouton sablier de la barre du haut), qui permet
 // d'arrêter la tâche en cours ou de retirer une tâche en attente. Le backend publie l'avancement dans « scan-progress » avec l'identifiant de la tâche.
 // { id, kind: 'add' | 'rescan-all' | 'rescan-folder' | 'integrity', path (null = toute la collection), command, args, labelKey, labelParams,
-//   status: 'waiting' | 'running', percent, stopRequested, toastHidden }
+//   status: 'waiting' | 'running' | 'paused' | 'ready', percent, stopRequested, toastHidden,
+//   firstStartedAt (resumable scans: start of their first run), pauseRequested }
 const scanTasks = [];
 let scanTaskCounter = 0;
 let scanPumpActive = false;
@@ -4853,12 +5219,33 @@ const taskPercent = task => Math.max(0, Math.min(100, Math.round(task.percent)))
 
 // A 'ready' task has finished and only waits for the user to show its results: it stays in the list (and warns before quitting) but is not work in
 // progress, so it never holds back the queue, the library synchronisation or the reload shortcut.
-const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready').length;
+const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused').length;
+
+// Content analysis: its own lane, in parallel with the main queue (see pumpSemanticQueue). It counts in activeTaskCount (closing the application,
+// reloading the page) but not in foregroundTaskCount: a library synchronisation never waits for it (the analysis pauses itself instead).
+const isSemanticLaneTask = task => task.kind === 'semantic';
+const foregroundTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused' && !isSemanticLaneTask(task)).length;
+
+// Scans that can be paused: the scan stops (photos already read stay in the catalogue), the task stays in the list without holding back the queue,
+// and resuming puts it first in line; the backend then skips the files read since its first start (`resumeSince`, see run_scan).
+// Unfinished ones are remembered (`pausedScanTasks`) and come back paused at the next launch.
+const RESUMABLE_TASK_KINDS = ['add', 'rescan-all', 'rescan-folder'];
+const isResumableTask = task => RESUMABLE_TASK_KINDS.includes(task.kind);
 
 function taskStatusText(task) {
   if (task.status === 'ready') return tp('Results ready: {count} group', task.groupCount);
   if (task.status === 'waiting') return t('Waiting');
+  if (task.status === 'paused') return `${taskPercent(task)} % · ${t('Paused')}`;
+  if (task.pauseRequested) return t('Pausing…');
   if (task.stopRequested) return t('Stopping…');
+  if (isSemanticLaneTask(task)) {
+    // Paused while another task works; otherwise the progress and the time left estimated by the backend.
+    if (task.paused) return `${taskPercent(task)} % · ${t('Paused (other task running)')}`;
+    const parts = [`${taskPercent(task)} %`];
+    if (task.total > 0) parts.push(`${task.done.toLocaleString()} / ${task.total.toLocaleString()}`);
+    if (task.remainingSeconds != null) parts.push(t('{time} left', { time: `~${formatTaskDuration(task.remainingSeconds * 1000)}` }));
+    return parts.join(' · ');
+  }
   return `${taskPercent(task)} %`;
 }
 
@@ -4885,7 +5272,8 @@ function taskTimingText(task) {
   const elapsed = Date.now() - task.startedAt;
   const parts = [formatTaskDuration(elapsed)];
   const percent = taskPercent(task);
-  if (!task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
+  // The content analysis gives its own estimate (taskStatusText): an extrapolation from the elapsed time would count the pauses.
+  if (!isSemanticLaneTask(task) && !task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
     parts.push(t('{time} left', { time: `~${formatTaskDuration(elapsed * (100 - percent) / percent)}` }));
   }
   return parts.join(' · ');
@@ -4959,9 +5347,14 @@ function buildTaskRow(task) {
   dismiss.type = 'button';
   dismiss.className = 'task-item-dismiss';
   dismiss.addEventListener('click', () => removeReadyTask(task));
+  // Resumable scan: "Pause" (running or waiting) / "Resume" (paused).
+  const pause = document.createElement('button');
+  pause.type = 'button';
+  pause.className = 'task-item-pause';
+  pause.addEventListener('click', () => (task.status === 'paused' ? resumeTask(task) : pauseTask(task)));
   const actions = document.createElement('div');
   actions.className = 'task-item-actions';
-  actions.append(action, dismiss);
+  actions.append(pause, action, dismiss);
   row.append(name, bar, status, time, detail, actions);
   return row;
 }
@@ -4975,7 +5368,7 @@ function syncTaskUI() {
       toast = buildTaskToast(task);
       taskToastElements.set(task, toast);
     }
-    toast.classList.toggle('waiting', task.status === 'waiting');
+    toast.classList.toggle('waiting', task.status === 'waiting' || task.status === 'paused');
     const textElement = toast.querySelector('.task-toast-text');
     textElement.textContent = `${taskName(task)} · ${taskStatusText(task)}`;
     const showButton = toast.querySelector('.task-toast-show');
@@ -5008,7 +5401,7 @@ function syncTaskUI() {
       row = buildTaskRow(task);
       taskRowElements.set(task, row);
     }
-    row.classList.toggle('waiting', task.status === 'waiting');
+    row.classList.toggle('waiting', task.status === 'waiting' || task.status === 'paused');
     const name = row.querySelector('.task-item-name');
     name.textContent = taskName(task);
     name.title = taskName(task);
@@ -5024,8 +5417,12 @@ function syncTaskUI() {
     bar.querySelector('span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
     row.classList.toggle('ready', task.status === 'ready');
     const action = row.querySelector('.task-item-action');
-    action.textContent = task.status === 'ready' ? t('Show') : task.status === 'waiting' ? t('Remove from queue') : t('Stop');
+    action.textContent = task.status === 'ready' ? t('Show') : task.status === 'waiting' || task.status === 'paused' ? t('Remove from queue') : t('Stop');
     action.disabled = task.stopRequested;
+    const pause = row.querySelector('.task-item-pause');
+    pause.hidden = !isResumableTask(task) || !['waiting', 'running', 'paused'].includes(task.status);
+    pause.textContent = task.status === 'paused' ? t('Resume') : t('Pause');
+    pause.disabled = task.stopRequested;
     const dismiss = row.querySelector('.task-item-dismiss');
     dismiss.hidden = task.status !== 'ready';
     dismiss.textContent = t('Dismiss');
@@ -5089,14 +5486,18 @@ function closeTasksModal() {
 // Fermeture de l'application : si des tâches de la file sont actives ou en attente, le dire avant de les interrompre. Renvoie true si l'on peut quitter ;
 // « Afficher les tâches » et « Annuler » gardent l'application ouverte (le premier ouvre en plus la fenêtre des actions).
 async function confirmCloseWithRunningTasks() {
-  if (scanTasks.length === 0) return true;
+  // Paused scans are remembered and come back at the next launch: nothing to warn about.
+  const pending = scanTasks.filter(task => task.status !== 'paused');
+  if (pending.length === 0) return true;
   const active = activeTaskCount();
+  // Interrupted scans are remembered too (saveResumableTasks): they come back paused.
+  const resumableNote = pending.some(isResumableTask) ? ` ${t('Interrupted scans are kept paused and can be resumed at the next launch.')}` : '';
   const choice = await choiceDialog({
     title: t('Tasks in progress'),
     // Only finished searches left: nothing is interrupted, but their results are lost.
     message: active > 0
-      ? tp('{count} task is running. Quitting now interrupts it.', active, { count: active })
-      : tp('{count} search result has not been shown yet. Quitting now discards it.', scanTasks.length, { count: scanTasks.length }),
+      ? `${tp('{count} task is running. Quitting now interrupts it.', active, { count: active })}${resumableNote}`
+      : tp('{count} search result has not been shown yet. Quitting now discards it.', pending.length, { count: pending.length }),
     buttons: [
       { label: t('Quit anyway'), value: 'quit', tone: 'red' },
       { label: t('Show tasks'), value: 'show', primary: true },
@@ -5104,6 +5505,7 @@ async function confirmCloseWithRunningTasks() {
     ],
   });
   if (choice === 'show') openTasksModal();
+  if (choice === 'quit') saveResumableTasks(); // latest progress of the interrupted scans
   return choice === 'quit';
 }
 
@@ -5130,10 +5532,17 @@ window.addEventListener('keydown', event => {
 
 // Avancement des tâches de scan (pourcentage de la tâche, jamais en recul si deux événements arrivent dans le désordre).
 listenToBackend('scan-progress', event => {
-  const { taskId, percent } = event.payload || {};
+  const { taskId, percent, done, total, remainingSeconds, paused } = event.payload || {};
   const task = scanTasks.find(item => item.id === taskId);
   if (!task || task.status !== 'running') return;
   task.percent = Math.max(task.percent, Number(percent) || 0);
+  // Content analysis: photos handled / to handle, time left estimated by the backend (null at first, pauses excluded) and the pause flag.
+  if (isSemanticLaneTask(task)) {
+    task.done = Number(done) || 0;
+    task.total = Number(total) || 0;
+    task.remainingSeconds = Number.isFinite(remainingSeconds) ? remainingSeconds : null;
+    task.paused = paused === true;
+  }
   syncTaskUI();
 }).catch(error => console.debug('Progress tracking unavailable', error));
 
@@ -5163,9 +5572,10 @@ function removeOrStopTask(task) {
     removeReadyTask(task);
     return;
   }
-  if (task.status === 'waiting') {
+  if (task.status === 'waiting' || task.status === 'paused') {
     const position = scanTasks.indexOf(task);
     if (position >= 0) scanTasks.splice(position, 1);
+    saveResumableTasks();
     syncTaskUI();
     // Tâche qui traite elle-même son résultat (écriture de métadonnées…) : prévenue qu'elle ne s'exécutera pas (libère le verrou d'écriture).
     task.onResult?.(null, true, null);
@@ -5195,7 +5605,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   // `dedupeKey` (duplicate search): refused while a task with the same key is running or waiting.
   const sameKey = dedupeKey && scanTasks.find(task => task.dedupeKey === dedupeKey && !task.stopRequested && task.status !== 'ready');
   if (sameKey) {
-    showWriteToast(t('A duplicate search on this is already in progress or waiting: {name}', { name: taskName(sameKey) }));
+    showWriteToast(t(kind === 'semantic' ? 'A content analysis of this is already in progress or waiting: {name}' : 'A duplicate search on this is already in progress or waiting: {name}', { name: taskName(sameKey) }));
     return false;
   }
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
@@ -5205,15 +5615,21 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   // « faces » ; d'une sélection : « faces-selection », jamais refusée comme doublon), téléchargement des modèles de visages (« face-models »).
   const familyOf = taskKind => (taskKind === 'integrity' ? 'integrity' : taskKind === 'keywords' ? 'keywords'
     : taskKind === 'faces' || taskKind === 'faces-selection' ? 'faces' : taskKind === 'face-models' ? 'face-models' : taskKind === 'update' ? 'update'
+    // Content search: model download (main queue) and content analysis (own lane, see pumpSemanticQueue).
+    : taskKind === 'semantic-models' ? 'semantic-models' : taskKind === 'semantic' ? 'semantic'
     // Téléchargement d'une zone privée de la carte : une tâche par zone, jamais refusée comme doublon.
     : taskKind === 'private-map' ? 'private-map'
     // Duplicate search: its own family, never refused as a duplicate of another task (each search is queued).
     : taskKind === 'duplicates' ? 'duplicates'
     : FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan');
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || FILE_TASK_KINDS.includes(kind) ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || kind === 'semantic' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
+  if (covering?.status === 'paused') {
+    showWriteToast(t('Already part of a paused scan: {name}', { name: taskName(covering) }));
+    return false;
+  }
   if (covering) {
     showWriteToast(t(isIntegrity ? 'Already part of an integrity check in progress or waiting: {name}' : 'Already part of a scan in progress or waiting: {name}', { name: taskName(covering) }));
     return false;
@@ -5224,51 +5640,166 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
     kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
+  if (isResumableTask({ kind })) saveResumableTasks();
   syncTaskUI();
-  pumpScanQueue();
+  if (isSemanticLaneTask({ kind })) pumpSemanticQueue();
+  else pumpScanQueue();
   return true;
 }
 
-// Exécute les tâches une par une, dans l'ordre de la file.
+// Exécute les tâches une par une, dans l'ordre de la file. L'analyse du contenu (famille « semantic ») n'en fait pas partie : elle dure des heures et
+// bloquerait toutes les autres tâches, elle a donc sa propre file (pumpSemanticQueue), en parallèle.
 async function pumpScanQueue() {
   if (scanPumpActive) return;
   scanPumpActive = true;
+  const nextWaiting = () => scanTasks.find(item => item.status === 'waiting' && !isSemanticLaneTask(item));
   try {
-    for (let task = scanTasks.find(item => item.status === 'waiting'); task; task = scanTasks.find(item => item.status === 'waiting')) {
+    for (let task = nextWaiting(); task; task = nextWaiting()) {
       await runScanTask(task);
     }
   } finally {
     scanPumpActive = false;
   }
   // File vide : synchronisation demandée pendant qu'elle travaillait (fichiers créés par l'application, voir syncLibrary).
-  if (syncAfterTasks && activeTaskCount() === 0) runRequestedSync();
+  if (syncAfterTasks && foregroundTaskCount() === 0) runRequestedSync();
+}
+
+// File de l'analyse du contenu : une seule analyse à la fois (le backend en refuse une seconde, « semantic_scan_running »), les suivantes attendent.
+// Elle tourne en parallèle de la file principale ; le backend lui-même se met en pause pendant que les autres tâches travaillent.
+let semanticPumpActive = false;
+async function pumpSemanticQueue() {
+  if (semanticPumpActive) return;
+  semanticPumpActive = true;
+  try {
+    for (let task = scanTasks.find(item => item.status === 'waiting' && isSemanticLaneTask(item)); task;
+      task = scanTasks.find(item => item.status === 'waiting' && isSemanticLaneTask(item))) {
+      await runScanTask(task);
+    }
+  } finally {
+    semanticPumpActive = false;
+  }
+}
+
+// Arrête les analyses du contenu : celles en attente quittent la file, celle en cours est interrompue (désactivation de la fonction).
+function stopSemanticTasks() {
+  for (const task of scanTasks.filter(isSemanticLaneTask)) removeOrStopTask(task);
 }
 
 async function runScanTask(task) {
   task.status = 'running';
   task.startedAt = Date.now(); // départ du chronomètre affiché dans la fenêtre des actions
+  // Resumed scan: the files read since its first start are skipped. Taken before the scan reads anything, so every file it reads is dated after it.
+  const resumeSince = isResumableTask(task) ? task.firstStartedAt ?? null : null;
+  if (isResumableTask(task)) {
+    task.firstStartedAt ??= task.startedAt;
+    saveResumableTasks();
+  }
   syncTaskUI();
   try {
+    const args = resumeSince === null ? task.args : { ...task.args, resumeSince };
     const result = task.runner
       ? await task.runner(task, percent => { task.percent = Math.max(task.percent, percent); syncTaskUI(); })
-      : await invoke(task.command, { ...task.args, taskId: task.id });
-    task.percent = 100;
+      : await invoke(task.command, { ...args, taskId: task.id });
+    if (!task.pauseRequested) task.percent = 100; // a paused scan keeps its progress
     syncTaskUI();
     // Vérification d'intégrité : le catalogue n'est pas modifié (seules des miniatures manquantes sont créées), donc pas de rechargement ; le rapport s'affiche à la fin.
     if (task.onResult) await task.onResult(result, task.stopRequested, null, task); // tâche qui traite elle-même son résultat (mots-clés) ; elle peut passer en 'ready' (recherche de doublons)
     else if (task.kind === 'integrity') showIntegrityReport(result, task.stopRequested);
+    else if (task.pauseRequested) await refreshAfterPausedScan();
     else await reloadPhotosAfterRescan();
-    if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
+    if (task.pauseRequested) showWriteToast(t('Task paused: {name}', { name: taskName(task) }));
+    else if (task.stopRequested) showWriteToast(t('Task stopped: {name}', { name: taskName(task) }));
   } catch (error) {
     console.error('Rescan failed', error);
     if (task.onResult) await task.onResult(null, task.stopRequested, error, task);
     else showWriteToast(t(task.kind === 'integrity' ? 'Integrity check failed: {error}' : 'Rescan failed: {error}', { error }));
   } finally {
-    // A task that finished with results to show stays in the list ('ready') until the user shows or dismisses them.
-    const position = scanTasks.indexOf(task);
-    if (position >= 0 && task.status !== 'ready') scanTasks.splice(position, 1);
+    if (task.pauseRequested) {
+      // Paused: stays in the list, out of the queue, until "Resume" (its own toast closes: the list shows it).
+      task.status = 'paused';
+      task.pauseRequested = false;
+      task.stopRequested = false;
+      task.toastHidden = true;
+    } else {
+      // A task that finished with results to show stays in the list ('ready') until the user shows or dismisses them.
+      const position = scanTasks.indexOf(task);
+      if (position >= 0 && task.status !== 'ready') scanTasks.splice(position, 1);
+    }
+    if (isResumableTask(task)) saveResumableTasks();
     syncTaskUI();
   }
+}
+
+// Pauses a resumable scan: a waiting one leaves the queue at once, a running one stops (runScanTask then keeps it as 'paused').
+function pauseTask(task) {
+  if (!isResumableTask(task) || task.stopRequested) return;
+  if (task.status === 'waiting') {
+    task.status = 'paused';
+    saveResumableTasks();
+    syncTaskUI();
+  } else if (task.status === 'running') {
+    task.pauseRequested = true;
+    task.stopRequested = true;
+    syncTaskUI();
+    invoke('cancel_scan', { taskId: task.id }).catch(error => console.debug('Scan pause failed', error));
+  }
+}
+
+// Resumes a paused scan: it goes first among the waiting tasks, so it starts as soon as the running task has finished.
+function resumeTask(task) {
+  if (task.status !== 'paused') return;
+  scanTasks.splice(scanTasks.indexOf(task), 1);
+  const firstWaiting = scanTasks.findIndex(item => item.status === 'waiting' && !isSemanticLaneTask(item));
+  scanTasks.splice(firstWaiting < 0 ? scanTasks.length : firstWaiting, 0, task);
+  task.status = 'waiting';
+  saveResumableTasks();
+  syncTaskUI();
+  pumpScanQueue();
+}
+
+// After a pause, the photos read so far are added to the grid without the full reload (which redraws the grid from scratch and makes it flash):
+// same in-place refresh as the library synchronisation, keeping scroll, selection and learnt ratios. Albums and search results do not depend on
+// the scan in progress: they are left as they are (the scan reloads everything when it completes).
+async function refreshAfterPausedScan() {
+  if (getSelectedAlbum() || duplicateSearch || semanticSearch) return;
+  await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
+}
+
+// Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
+// folder in the background, unseen and unstoppable, holding back the content analysis); the scan reads them when resumed.
+// Paused rescans are not excluded: the synchronisation only reads their new or changed files, as for any folder.
+const pausedScanFolders = () => scanTasks.filter(task => task.kind === 'add' && task.status === 'paused' && task.path).map(task => task.path);
+
+// Remembers the unfinished resumable scans (running, waiting or paused): after a restart they come back paused (restorePausedTasks).
+function saveResumableTasks() {
+  const saved = scanTasks
+    .filter(task => isResumableTask(task) && ['waiting', 'running', 'paused'].includes(task.status))
+    .map(({ kind, path, command, args, labelKey, labelParams, firstStartedAt, percent }) => ({
+      kind, path, command, args, labelKey, labelParams, firstStartedAt: firstStartedAt ?? null, percent: firstStartedAt ? percent : 0,
+    }));
+  try { localStorage.setItem('pausedScanTasks', JSON.stringify(saved)); } catch (error) { console.debug('Paused scans not saved', error); }
+}
+
+// At startup: the scans left unfinished last time come back paused (only those whose folder is still tracked), with a toast to tell so.
+function restorePausedTasks() {
+  let saved;
+  try { saved = JSON.parse(readStored('pausedScanTasks') ?? 'null'); } catch { saved = null; }
+  if (!Array.isArray(saved)) saved = DEFAULTS.pausedScanTasks;
+  const tracked = path => folders.some(folder => taskCoversFolder({ path: folder.path }, path));
+  const restored = saved.filter(item => item && RESUMABLE_TASK_KINDS.includes(item.kind) && typeof item.command === 'string'
+    && (item.path === null ? folders.length > 0 : typeof item.path === 'string' && tracked(item.path)));
+  for (const item of restored) {
+    scanTaskCounter += 1;
+    scanTasks.push({
+      id: `scan-${Date.now()}-${scanTaskCounter}`,
+      kind: item.kind, path: item.path, command: item.command, args: item.args ?? {}, labelKey: item.labelKey, labelParams: item.labelParams,
+      firstStartedAt: Number.isFinite(item.firstStartedAt) ? item.firstStartedAt : null, percent: Number(item.percent) || 0,
+      status: 'paused', stopRequested: false, toastHidden: true,
+    });
+  }
+  saveResumableTasks(); // drops the scans of folders no longer tracked
+  syncTaskUI();
+  if (restored.length) showWriteToast(tp('{count} paused scan can be resumed from the task list.', restored.length, { count: restored.length }));
 }
 
 document.getElementById('btn-rescan-folders').addEventListener('click', () => enqueueScanTask({ kind: 'rescan-all', path: null, command: 'rescan_all_folders', args: {}, labelKey: 'Collection data rescan', labelParams: undefined }));
@@ -5461,7 +5992,8 @@ async function showDuplicateResults(result, titleKey, label, context) {
   if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
+  const snapshot = duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
+  abandonSemanticSearch(); // its filters and sub-folder option are put back, the snapshot above is the view to return to
   abandonRawSearch(); // restores the filters of before "Find the RAW"; the snapshot above is the view to go back to
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
@@ -5759,6 +6291,20 @@ function clampPreviewCenter(slot, x, y) {
   return { x: clampAxis(x, width, slot.cell.clientWidth), y: clampAxis(y, height, slot.cell.clientHeight) };
 }
 
+// Size of the image of a slot (preview cell, comparison, fullscreen). The element keeps the size the webview gives it (`width` × `height`);
+// naturalWidth / naturalHeight are those of the picture as displayed, after the orientation still to apply (`photo.view_fix`, see
+// orientationMatrix), which layoutPreviewSlot adds to the transform. The whole layout (fit, zoom, faces) then works on the displayed picture.
+function setSlotImageSize(slot, width, height) {
+  slot.viewFix = slot.photo?.view_fix ?? 1;
+  slot.rawWidth = width;
+  slot.rawHeight = height;
+  const swapped = swapsSides(slot.viewFix);
+  slot.naturalWidth = swapped ? height : width;
+  slot.naturalHeight = swapped ? width : height;
+  slot.img.style.width = `${width}px`;
+  slot.img.style.height = `${height}px`;
+}
+
 function layoutPreviewSlot(slot) {
   if (!(slot.naturalWidth > 0 && slot.naturalHeight > 0)) return;
   const cellWidth = slot.cell.clientWidth;
@@ -5779,7 +6325,8 @@ function layoutPreviewSlot(slot) {
   slot.ty = snap(height <= cellHeight ? (cellHeight - height) / 2 : cellHeight / 2 - center.y * height);
   slot.displayWidth = width;
   slot.displayHeight = height;
-  slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})`;
+  const matrix = orientationMatrix(slot.viewFix, slot.rawWidth, slot.rawHeight);
+  slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})${matrix ? ` matrix(${matrix.join(', ')})` : ''}`;
   if (slot.clip) { // surcouche d'écrêtage (histogram.js) : mêmes dimensions et même transformation que l'image
     slot.clip.style.width = slot.img.style.width;
     slot.clip.style.height = slot.img.style.height;
@@ -5807,10 +6354,7 @@ function createPreviewSlot(photo) {
   img.addEventListener('load', () => {
     if (!previewSlots.includes(slot)) return;
     if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return;
-    slot.naturalWidth = img.naturalWidth;
-    slot.naturalHeight = img.naturalHeight;
-    img.style.width = `${slot.naturalWidth}px`;
-    img.style.height = `${slot.naturalHeight}px`;
+    setSlotImageSize(slot, img.naturalWidth, img.naturalHeight);
     cell.classList.add('loaded');
     layoutPreviewSlot(slot);
   });
@@ -6583,7 +7127,7 @@ async function copyPhotosToFolder(targets, folderPath) {
       if (!result) return; // removed from the queue before it started: nothing was copied
       if (result.failed.length) console.error('Copy failures', result.failed);
       if (result.copied) {
-        const changes = await invoke('sync_library');
+        const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
         if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
       }
       const renamed = sidecarRenameNotice(result);
@@ -6644,6 +7188,50 @@ function setLocationFilter(value, { apply = true } = {}) {
 }
 for (const option of locationFilterOptions) option.addEventListener('click', () => setLocationFilter(option.dataset.value));
 setLocationFilter('all', { apply: false });
+
+// ==========================================
+// CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums)
+// ==========================================
+let analysisFilter = 'all'; // 'all', 'analysed' or 'not-analysed'
+let analysedIds = new Set(); // ids with an up-to-date analysis, read from the backend while the filter is active
+let analysedIdsToken = 0;
+const analysisFilterOptions = [...document.querySelectorAll('#analysis-filter .location-filter-option')];
+
+// With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
+function matchesAnalysisFilter(photo) {
+  if (analysisFilter === 'all' || !isSemanticEnabled()) return true;
+  return analysedIds.has(photo.id) === (analysisFilter === 'analysed');
+}
+
+async function refreshAnalysedIds() {
+  if (analysisFilter === 'all' || !isSemanticEnabled()) return;
+  const token = ++analysedIdsToken;
+  try {
+    const ids = await invoke('get_analysed_photo_ids');
+    if (token === analysedIdsToken) analysedIds = new Set(ids);
+  } catch (error) {
+    console.error('Analysed photos unreadable', error);
+    if (token === analysedIdsToken) analysedIds = new Set();
+  }
+}
+
+async function setAnalysisFilter(value, { apply = true } = {}) {
+  analysisFilter = ['analysed', 'not-analysed'].includes(value) ? value : 'all';
+  for (const option of analysisFilterOptions) option.setAttribute('aria-checked', String(option.dataset.value === analysisFilter));
+  if (!apply) return;
+  await refreshAnalysedIds(); // the ids are known before the list is filtered
+  applyPhotoFilters();
+}
+for (const option of analysisFilterOptions) option.addEventListener('click', () => setAnalysisFilter(option.dataset.value));
+setAnalysisFilter('all', { apply: false });
+
+// An analysis ended or the data was deleted: the filter follows. The feature went off: the filter is reset.
+onAnalysisChanged(async () => {
+  if (analysisFilter === 'all') return;
+  await refreshAnalysedIds();
+  applyPhotoFilters({ keepState: true });
+});
+onSemanticChange(() => { if (analysisFilter !== 'all' && !isSemanticEnabled()) setAnalysisFilter('all'); });
 
 let dateFilter = null; // { from, to } au format AAAAMMJJHHmmss (nombres), ou null = aucun filtre
 const dateFilterInput = document.getElementById('date-filter-input');
@@ -6964,13 +7552,16 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
 }
 
 initPhotoActions({
+  // "Turn" submenu (lossless rotation, see rotatePhotos): only the HEIC / HEIF and videos of the targets are left out.
+  isRotatablePath,
+  rotatePhotos: (targets, quarterTurns) => rotatePhotos(quarterTurns, targets),
   // Album manuel affiché (nom pour le menu) et retrait de photos de cet album (albums-panel.js).
   getCurrentManualAlbum: () => { const album = getSelectedAlbum(); return album?.kind === 'manual' ? album : null; },
   removeFromAlbum: targets => removePhotosFromSelectedAlbum(targets.map(photo => photo.id)),
   // « Trouver le RAW » (voir la section du même nom) : disponible tant qu'au moins un critère est coché dans les Paramètres.
   findRaw: findRawFor,
   canFindRaw: hasRawSearchCriteria,
-  isRawSearchActive: () => rawSearch !== null || duplicateSearch !== null, // results views, where "Show in its folder" is offered
+  isRawSearchActive: () => rawSearch !== null || duplicateSearch !== null || semanticSearch !== null, // results views, where "Show in its folder" is offered
   findDuplicates: findDuplicateImages,
   openDuplicatesDialog,
   showInItsFolder: showPhotoInItsFolder,
@@ -7015,6 +7606,16 @@ initPhotoActions({
   faceDetectionEnabled: isFaceDetectionEnabled,
   openFaceScan: scope => openFaceScanDialog(scope),
   eraseFaces: photoIds => eraseFaceData(photoIds),
+  // Entrées « Analyser le contenu » (voir semantic-settings.js) : seulement quand la recherche par contenu est active et son modèle installé.
+  semanticEnabled: isSemanticEnabled,
+  analyseContent: scope => analyseContent(scope),
+  // Ids with an up-to-date analysis (context menu: hides "Analyse content" when nothing is left to analyse); empty set on error.
+  getAnalysedIds: async () => {
+    try { return new Set(await invoke('get_analysed_photo_ids')); } catch { return new Set(); }
+  },
+  findSimilarContent: photo => findSimilarContent(photo),
+  // Photo shown only because the content analysis suggests it for the keyword filter ("Suggested" badge): accept / dismiss entries.
+  guessedKeywordEntries: photo => guessedKeywordEntries(keywordGuesses.get(photo.id) ?? [], photo.id),
   // Géolocalisation : effacer (danger) ou restaurer les coordonnées sauvegardées (voir geo-tools.js).
   eraseGeolocation: targets => eraseGeolocation(targets),
   restoreGeolocation: targets => restoreGeolocation(targets),
@@ -7025,13 +7626,13 @@ initPhotoActions({
 initMetadataSettings();
 initDuplicatesModal(); // window "Find duplicates > More…"
 initToolbarAria(); // aria-pressed on the toolbar toggle buttons
-initRawSettings(); // Paramètres > Divers > RAW : critères de « Trouver le RAW »
+initRawSettings(); // Settings > Search > RAW search: criteria of "Find the RAW"
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
-  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
+  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); abandonSemanticSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
   onTreeChanged: () => scheduleAlbumCounts(),
   // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».
@@ -7149,6 +7750,8 @@ initKeywordsPanel({
   showToast: message => showWriteToast(message),
   // Mot-clé supprimé qui était relié à des personnes : proposer de les supprimer aussi (voir faces-panel.js).
   onPersonsUnlinked: unlinked => proposeDeletePersons(unlinked),
+  // Content search: "Find photos that may match" in the context menu of a keyword (see CONTENT SEARCH RESULTS).
+  findKeywordCandidates: keyword => findKeywordCandidates(keyword),
 });
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
@@ -7218,7 +7821,7 @@ async function thumbnailUrlFor(sourcePath, isWanted = () => true) {
       resolve(generated);
     }, () => resolve(null)));
   }
-  return cachedPath ? convertFileSrc(cachedPath) : '';
+  return cachedPath ? convertFileSrc(cachedPath) + versionSuffix(sourcePath) : '';
 }
 
 // Visages (voir faces-panel.js) : section Personnes, filtre Personnes, zones en plein écran. Vignettes des personnes découpées dans les miniatures en cache.
@@ -7239,6 +7842,267 @@ initFacesPanel({
   // Renommer une personne reliée : c'est son mot-clé qui est renommé, avec réécriture des fichiers qui le portent (même circuit que le panneau
   // Mots-clés). Renvoie un message d'erreur si le renommage n'est pas lancé, sinon null.
   renameKeyword: (keywordId, name, after) => renameKeywordById(keywordId, name, after),
+});
+
+// Recherche par contenu (voir semantic-settings.js) : réglage, gating et section des Paramètres.
+initSemanticSettings({
+  showToast: message => showWriteToast(message),
+  enqueueTask: task => enqueueScanTask(task),
+  stopTasks: () => stopSemanticTasks(), // disabling the feature: the analyses of the queue are stopped
+});
+
+// ==========================================
+// CONTENT SEARCH RESULTS
+// ==========================================
+// Mode `semanticSearch`, built like `duplicateSearch` / `rawSearch`: the grid shows the photos of the backend answer sorted by relevance, a banner
+// gives the query, the count, the relevance slider and "Close". Navigating by hand (folder, album, sub-folder option) ends it, and so does
+// disabling the feature. The slider is a plain filter (`matchesSemanticCut`): no new request when it moves (spec §18.2).
+const semanticDelta = () => readNumber('semanticRelevance', 0.005, 0.08);
+let semanticSliderFrame = 0;
+let semanticSortMode = readChoice('semanticKeywordSort', ['grid', 'score']); // order of the photos carrying the typed keyword
+
+// Position in the answer (decreasing score); the source photo of a similar-content search is -1, photos outside the answer come last.
+function semanticRankOrder(a, b) {
+  const rankA = semanticSearch.rank.get(a.id) ?? Infinity;
+  const rankB = semanticSearch.rank.get(b.id) ?? Infinity;
+  return rankA === rankB ? 0 : rankA - rankB;
+}
+
+// The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
+function loadSemanticPhotos() {
+  return invoke('get_photos_by_ids', { ids: semanticSearch.ids });
+}
+
+// Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
+function matchesSemanticCut(photo) {
+  if (!semanticSearch) return true;
+  if (semanticSearch.keyword) return true; // keyword candidates: the backend threshold is the rule, the slider is hidden
+  if (photo.id === semanticSearch.sourceId || semanticSearch.carried.has(photo.id)) return true; // tagged with the typed keyword: always kept
+  const cos = semanticSearch.cos.get(photo.id);
+  return cos !== undefined && cos >= semanticSearch.best - semanticDelta();
+}
+
+function renderSemanticBanner() {
+  // Elements read at each call: the function can run before this section of the module has been executed.
+  const banner = document.getElementById('semantic-banner');
+  if (!banner) return;
+  banner.hidden = !semanticSearch;
+  if (!semanticSearch) return;
+  const search = semanticSearch;
+  const shown = photos.filter(photo => photo.id !== search.sourceId).length;
+  const parts = [search.label, tp('{count} result', shown)];
+  const carriedShown = photos.filter(photo => search.carried.has(photo.id)).length;
+  if (carriedShown > 0) parts.push(tp('{count} tagged with this keyword', carriedShown, { count: carriedShown.toLocaleString() }));
+  const sortButton = document.getElementById('semantic-sort');
+  sortButton.hidden = search.carried.size === 0;
+  fillSortButton(sortButton, semanticSortMode);
+  if (search.keyword) parts.splice(1, 0, search.keyword.kind === 'examples' ? tp('like your {count} photo tagged with it', search.keyword.examples) : t('from the keyword name'));
+  // More than the cap was scored and the cut did not stop before it: say that the list is the best part only.
+  const cut = search.best - semanticDelta();
+  if (!search.keyword && search.capped && search.lastCos >= cut) parts.push(t('The {count} best results only', { count: search.ids.length - (search.sourceId === null ? 0 : 1) }));
+  document.getElementById('semantic-text').textContent = parts.join(' · ');
+  const slider = document.getElementById('semantic-relevance');
+  slider.closest('.semantic-relevance').hidden = Boolean(search.keyword); // the slider counts text cosines: not for keyword candidates
+  renderSemanticKeywordActions();
+  if (Number(slider.value) !== semanticDelta()) slider.value = String(semanticDelta());
+  // Photos of the scope the analysis would still handle (never analysed, or changed since): the answer's `pending`, no other call.
+  const pendingRow = document.getElementById('semantic-pending-row');
+  pendingRow.hidden = !(search.pending > 0);
+  if (search.pending > 0) {
+    const where = t(search.scopeKind === 'folder' ? 'this folder' : search.scopeKind === 'library' ? 'the library' : 'the current view');
+    document.getElementById('semantic-pending-text').textContent = tp('{count} photo of {where} is not analysed yet, or changed since its analysis', search.pending, { count: search.pending.toLocaleString(), where });
+  }
+}
+
+document.getElementById('semantic-close')?.addEventListener('click', () => exitSemanticSearch());
+// "Grid" / "Score": order of the photos carrying the typed keyword (same button as the Faces view). Sorting again keeps selection and scroll.
+document.getElementById('semantic-sort')?.addEventListener('click', () => {
+  semanticSortMode = semanticSortMode === 'score' ? 'grid' : 'score';
+  try { localStorage.setItem('semanticKeywordSort', semanticSortMode); } catch { /* storage unavailable: the choice is not remembered */ }
+  renderSemanticBanner();
+  if (!semanticSearch) return;
+  fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
+  applyPhotoFilters({ keepState: true });
+});
+onLanguageChange(() => renderSemanticBanner());
+document.getElementById('semantic-relevance')?.addEventListener('input', event => {
+  try { localStorage.setItem('semanticRelevance', event.target.value); } catch { /* storage unavailable: the choice is not remembered */ }
+  if (!semanticSearch) return;
+  // One refresh per frame while the slider is dragged.
+  cancelAnimationFrame(semanticSliderFrame);
+  semanticSliderFrame = requestAnimationFrame(() => {
+    fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
+    applyPhotoFilters({ keepState: true });
+  });
+});
+// "Analyse": the same scope as the search, in the semantic lane of the queue. The results are not refreshed by themselves: the user searches again.
+document.getElementById('semantic-analyse')?.addEventListener('click', () => {
+  if (!semanticSearch) return;
+  const { folder, recursive, photoIds } = semanticSearch.scope;
+  analyseContent({ folder, recursive, photoIds });
+});
+
+// Keyword -> photos: actions on the selected photos. Disabled while nothing is selected.
+function renderSemanticKeywordActions() {
+  const row = document.getElementById('semantic-keyword-row');
+  if (!row) return;
+  const keyword = semanticSearch?.keyword ?? null;
+  row.hidden = !keyword;
+  if (!keyword) return;
+  const count = getSelectedPhotos().length;
+  const add = document.getElementById('semantic-keyword-add');
+  add.textContent = t('Add keyword “{name}”', { name: keyword.name });
+  add.title = t('Add the keyword to the selected photos as a pending change (nothing is written until “Write to files”)');
+  add.disabled = count === 0;
+  document.getElementById('semantic-keyword-reject').disabled = count === 0;
+  document.getElementById('semantic-keyword-hint').textContent = count === 0 ? t('Select photos to tag them') : tp('{count} photo selected', count, { count: count.toLocaleString() });
+}
+
+// "Add keyword": a pending keyword on the selection through the Keywords panel; the photos stay in the list until the user writes it.
+document.getElementById('semantic-keyword-add')?.addEventListener('click', async () => {
+  const keyword = semanticSearch?.keyword;
+  if (!keyword) return;
+  const count = await addPendingKeyword(keyword.id);
+  showWriteToast(count > 0
+    ? tp('Keyword “{name}” added to {count} photo: click “Write to files” to save it', count, { name: keyword.name })
+    : t('The keyword could not be added to the selection'));
+});
+
+// "Not this keyword": the selected photos are never suggested for it again; they leave the list at once (no new request).
+document.getElementById('semantic-keyword-reject')?.addEventListener('click', async () => {
+  const search = semanticSearch;
+  if (!search?.keyword) return;
+  const ids = getSelectedPhotos().map(photo => photo.id).filter(id => Number.isFinite(id) && id > 0);
+  if (ids.length === 0) return;
+  const { error } = await rejectKeywordSuggestion(ids, search.keyword.id);
+  if (error) { showWriteToast(semanticErrorMessage(error)); return; }
+  if (semanticSearch !== search) return; // the mode was closed or replaced meanwhile
+  const gone = new Set(ids);
+  search.ids = search.ids.filter(id => !gone.has(id));
+  for (const id of gone) { search.cos.delete(id); search.prob.delete(id); search.rank.delete(id); search.carried.delete(id); }
+  loadedPhotos = loadedPhotos.filter(photo => !gone.has(photo.id));
+  fullscreenImageCache.clear();
+  applyPhotoFilters({ keepState: true });
+  showWriteToast(tp('{count} photo will no longer be suggested for “{name}”', ids.length, { name: search.keyword.name }));
+});
+
+// Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
+function abandonSemanticSearch() {
+  if (!semanticSearch) return;
+  const { snapshot } = semanticSearch;
+  semanticSearch = null;
+  setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
+  resetAllFilters();
+  if (snapshot.albumKind !== 'smart') applyFilterState(snapshot.filterState);
+  renderSemanticBanner();
+}
+
+// "Close" and Escape.
+async function exitSemanticSearch() {
+  if (!semanticSearch) return;
+  const { snapshot } = semanticSearch;
+  abandonSemanticSearch();
+  await restoreViewSnapshot(snapshot);
+}
+
+// Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave a
+// modified smart album. A new search from inside the mode replaces the results and keeps the view to go back to.
+async function showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyword = null, carriedIds = [] }) {
+  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
+  if (isFullscreen) closeFullscreen();
+  const album = getSelectedAlbum();
+  const snapshot = semanticSearch?.snapshot ?? duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
+  abandonDuplicateSearch();
+  abandonRawSearch(); // both put back the filters of before their search; the snapshot above is the view to go back to
+  clearAlbumSelection();
+  syncSmartAlbumWithSelection();
+  resetAllFilters();
+  // A search over a folder keeps it highlighted in the tree (the list itself no longer depends on it); other scopes show "All photos".
+  currentFolderFilter = scope.folder ?? null; extraFolderFilters = [];
+  const sourceId = sourcePhoto?.id ?? null;
+  const search = {
+    label, snapshot, scope, viewScope, sourceId, keyword, scopeKind: scope.folder ? 'folder' : semanticScope() === 'library' ? 'library' : 'view',
+    best: answer.best, capped: answer.capped, pending: answer.pending, total: answer.total,
+    lastCos: answer.results.length ? answer.results[answer.results.length - 1].cos : Infinity,
+    ids: answer.results.map(result => result.photoId), cos: new Map(), prob: new Map(), rank: new Map(),
+  };
+  answer.results.forEach((result, index) => { search.cos.set(result.photoId, result.cos); search.prob.set(result.photoId, result.prob); search.rank.set(result.photoId, index); });
+  if (sourceId !== null) { search.ids.push(sourceId); search.rank.set(sourceId, -1); } // the source photo is not in the results: shown first
+  // Photos tagged with the typed keyword (toolbar box): always listed, before the content results; some may be outside the answer (no score).
+  search.carried = new Set(carriedIds);
+  const known = new Set(search.ids);
+  for (const id of carriedIds) if (!known.has(id)) search.ids.push(id);
+  semanticSearch = search;
+  renderFolderTree();
+  await loadPhotos();
+  return true;
+}
+
+// "Find similar content" (menu of one photo). The interface does not know whether the photo has an embedding: the backend says so, and the user is
+// offered to analyse it. The photo itself is not in the results: it is shown first, marked as the source.
+async function findSimilarContent(photo) {
+  if (!photo || !isSemanticEnabled()) return;
+  const viewScope = currentViewScope();
+  const scope = currentSearchScope(viewScope);
+  const { answer, error } = await searchImage(photo.id, scope);
+  if (error === 'semantic_photo_not_analysed') {
+    const analyse = await confirmDialog({
+      title: t('Photo not analysed'),
+      message: t('This photo has not been analysed yet, so similar content cannot be found. Analyse it now? It only takes a moment; search again once the analysis is done.'),
+      confirmLabel: t('Analyse'),
+      cancelLabel: t('Cancel'),
+    });
+    if (analyse) analyseContent({ photoIds: [photo.id] });
+    return;
+  }
+  if (error) { showWriteToast(semanticErrorMessage(error)); return; }
+  if (!answer) return; // a newer search made this answer stale
+  // Image-to-image cosines are not on the scale of text ones (spec §18.3, §14-5): the values the relevance slider has to work with, for tuning.
+  const at = rank => answer.results[rank - 1]?.cos;
+  console.debug('Similar content cosines', { best: answer.best, rank10: at(10), rank50: at(50), rank200: at(200), count: answer.results.length });
+  await showSemanticResults({ label: t('Content similar to {name}', { name: photo.path.split(/[\\/]/).pop() }), answer, scope, viewScope, sourcePhoto: photo });
+}
+
+// "Find photos that may match" (menu of a keyword): the candidates of the backend (examples or name score, threshold already applied, never the
+// photos that carry the keyword nor the dismissed ones) in the results mode, with the scope of the search toggle like the other entries.
+async function findKeywordCandidates({ id, name }) {
+  if (!isSemanticEnabled()) return;
+  const viewScope = currentViewScope();
+  const scope = currentSearchScope(viewScope);
+  const { answer, error } = await fetchKeywordCandidates(id, scope);
+  if (error) { showWriteToast(semanticErrorMessage(error)); return; }
+  if (!answer) return; // a newer request made this answer stale
+  await showSemanticResults({
+    label: t('Photos that may deserve “{name}”', { name }), answer, scope, viewScope,
+    keyword: { id, name, kind: answer.kind, examples: answer.examples },
+  });
+}
+
+// Content search field of the toolbar (see semantic.js).
+initSemanticSearch({
+  getViewScope: () => currentViewScope(),
+  showToast: message => showWriteToast(message),
+  errorMessage: semanticErrorMessage,
+  onSearch: async query => {
+    const viewScope = currentViewScope(); // read before the mode changes the view
+    const scope = currentSearchScope(viewScope);
+    // The box is shared with the keyword search: the photos tagged with the typed text come first, then the content results.
+    const [answer, carriedIds] = await Promise.all([
+      searchText(query, scope),
+      readBool('semanticKeywordsInSearch') ? invoke('semantic_keyword_photos', { query, scope }).catch(() => []) : [],
+    ]);
+    if (!answer) return;
+    await showSemanticResults({ label: `“${query}”`, answer, scope, viewScope, carriedIds });
+  },
+});
+onSemanticChange(() => { if (semanticSearch && !isSemanticEnabled()) exitSemanticSearch(); }); // disabled, or the model deleted
+
+// Suggestions in the keyword filter (see semantic-keywords.js): a new answer filters the grid again, keeping selection and scroll.
+initKeywordSuggestions({
+  loadedIds: () => new Set(loadedPhotos.map(photo => photo.id)),
+  onChange: () => { fullscreenImageCache.clear(); applyPhotoFilters({ keepState: true }); },
+  addKeyword: keywordId => addPendingKeyword(keywordId),
+  showToast: message => showWriteToast(message),
 });
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
@@ -7329,11 +8193,11 @@ let librarySyncRunning = false;
 let librarySyncNotBefore = 0;
 
 async function syncLibraryWithDisk() {
-  if (librarySyncRunning || activeTaskCount() > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
+  if (librarySyncRunning || foregroundTaskCount() > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
   librarySyncRunning = true;
   const startedAt = Date.now();
   try {
-    const changes = await invoke('sync_library');
+    const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   } catch (error) {
     console.debug('Disk synchronization failed', error);
@@ -7341,7 +8205,7 @@ async function syncLibraryWithDisk() {
     librarySyncNotBefore = Date.now() + Math.max(LIBRARY_SYNC_MIN_INTERVAL_MS, (Date.now() - startedAt) * 10);
     librarySyncRunning = false;
   }
-  if (syncAfterTasks && activeTaskCount() === 0 && !photoMoveRunning) runRequestedSync();
+  if (syncAfterTasks && foregroundTaskCount() === 0 && !photoMoveRunning) runRequestedSync();
 }
 
 // Synchronisation demandée par l'application elle-même (fichiers qu'elle vient de créer) : sans délai minimal, et jamais perdue : si une tâche
@@ -7349,7 +8213,7 @@ async function syncLibraryWithDisk() {
 let syncAfterTasks = false;
 function requestLibrarySync() {
   syncAfterTasks = true;
-  if (!librarySyncRunning && activeTaskCount() === 0 && !photoMoveRunning) return runRequestedSync();
+  if (!librarySyncRunning && foregroundTaskCount() === 0 && !photoMoveRunning) return runRequestedSync();
   return Promise.resolve();
 }
 function runRequestedSync() {
@@ -7455,6 +8319,7 @@ refreshStorageLocationUI();
 onLanguageChange(refreshStorageLocationUI); // « Par défaut » suit la langue (un chemin personnalisé reste tel quel)
 restoreStartupFolder()
   .catch(error => console.error('Startup folder restore failed', error))
+  .then(() => restorePausedTasks())
   .then(() => loadPhotos())
   .then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
 
@@ -7479,6 +8344,7 @@ offlineModeToggle.addEventListener('change', () => {
   localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
   sendInternetAllowed();
   onOfflineModeChanged();
+  onSemanticOfflineChanged(); // content search model: Download greyed in offline mode
   onUpdateAccessChanged(); // mises à jour : cases grisées en mode hors ligne
   onMapAccessChanged();
   onMapModeAccessChanged();

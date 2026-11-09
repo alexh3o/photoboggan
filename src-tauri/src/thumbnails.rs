@@ -12,14 +12,29 @@
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use exif::{In, Reader, Tag};
 use jpeg_decoder::{Decoder, PixelFormat};
 use jpeg_encoder::{ColorType, Encoder};
 
-/// Qualité JPEG des miniatures et des aperçus écrits dans le cache.
-const THUMBNAIL_JPEG_QUALITY: u8 = 84;
+/// JPEG quality of cache thumbnails, chosen in Settings > Storage. "Normal" files are about half the size of "High" ones,
+/// with very slightly softer fine textures (measured on library photos at 1024 px). Huffman tables are always optimized:
+/// about 3 % smaller files at the same image quality, for about 1.5 ms more per thumbnail.
+pub const THUMBNAIL_QUALITY_NORMAL: u8 = 60;
+pub const THUMBNAIL_QUALITY_HIGH: u8 = 84;
+
+/// Thumbnail quality in use (false = normal, the default). Set at startup from config.json and by set_thumbnail_quality;
+/// existing thumbnails are not rewritten when it changes.
+static HIGH_QUALITY_THUMBNAILS: AtomicBool = AtomicBool::new(false);
+
+pub fn set_high_quality_thumbnails(high: bool) {
+    HIGH_QUALITY_THUMBNAILS.store(high, Ordering::Relaxed);
+}
+
+fn thumbnail_quality() -> u8 {
+    if HIGH_QUALITY_THUMBNAILS.load(Ordering::Relaxed) { THUMBNAIL_QUALITY_HIGH } else { THUMBNAIL_QUALITY_NORMAL }
+}
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -32,18 +47,24 @@ pub struct ThumbnailSize {
 
 /// Génère la miniature JPEG de `source` dans `destination` à la taille maximale spécifiée.
 pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) -> Result<ThumbnailSize, String> {
+    let (rgb, width, height) = render_thumbnail(source, max_side)?;
+    write_jpeg(destination, &rgb, width, height)?;
+    Ok(ThumbnailSize { width: width as u32, height: height as u32 })
+}
+
+/// Pixels of the thumbnail of `source` (RGB, oriented, longest side at most `max_side`), before JPEG encoding: shared by the grid
+/// (`generate_thumbnail`) and the semantic scan, which also writes the thumbnails it decodes when asked to.
+pub(crate) fn render_thumbnail(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     if crate::video::is_video_path(source) {
-        // Vidéo : pas d'orientation EXIF (l'image fournie est déjà dans le bon sens).
+        // Video: no EXIF orientation (the frame is already upright).
         let (rgb, width, height) = decode_video_frame(source, max_side)?;
-        let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
-        write_jpeg(destination, &rgb, width, height)?;
-        return Ok(ThumbnailSize { width: width as u32, height: height as u32 });
+        return Ok(resize_to_fit(rgb, width, height, max_side));
     }
     // RAW : l'aperçu n'est extrait qu'une fois, pour le décodage et pour choisir l'orientation (la même que celle de l'aperçu plein écran).
     let mut raw_orientation_value = None;
     let (rgb, width, height) = if is_raw_path(source) {
         let jpeg = extract_raw_preview(source)?;
-        raw_orientation_value = Some(raw_orientation(source, &jpeg));
+        raw_orientation_value = Some(raw_display_orientation(source, &jpeg));
         decode_scaled_jpeg_reader(Cursor::new(jpeg), max_side)?
     } else {
         decode_scaled_rgb(source, max_side)?
@@ -51,9 +72,7 @@ pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) ->
     let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
     // HEIC / HEIF : le décodeur a déjà appliqué la rotation du conteneur, l'orientation EXIF ne doit pas l'être une seconde fois.
     let orientation = raw_orientation_value.unwrap_or_else(|| if crate::heif::is_heif_path(source) { 1 } else { read_orientation(source) });
-    let (rgb, width, height) = apply_orientation(rgb, width, height, orientation);
-    write_jpeg(destination, &rgb, width, height)?;
-    Ok(ThumbnailSize { width: width as u32, height: height as u32 })
+    Ok(apply_orientation(rgb, width, height, orientation))
 }
 
 /// Image fixe d'une vidéo en RGB : vignette du système (Windows), à défaut `ffmpeg` s'il est installé.
@@ -68,11 +87,12 @@ fn decode_video_frame(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize,
     }
 }
 
-/// Image de l'aperçu d'une vidéo, plus grande que la miniature de la grille (même cache que les aperçus RAW et HEIC).
+/// Preview image of a video, larger than the grid thumbnail (same cache as RAW and HEIC previews). Shown full screen:
+/// always written in high quality, whatever the thumbnail quality setting.
 pub fn generate_video_preview(source: &Path, destination: &Path, max_side: usize) -> Result<(), String> {
     let (rgb, width, height) = decode_video_frame(source, max_side)?;
     let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
-    write_jpeg(destination, &rgb, width, height)
+    write_jpeg_with_quality(destination, &rgb, width, height, THUMBNAIL_QUALITY_HIGH)
 }
 
 /// Nombre maximal de pixels d'une image décodée en pleine résolution (PNG, WebP) : un en-tête abîmé ou hostile ne doit pas provoquer l'allocation
@@ -399,7 +419,7 @@ pub(crate) fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     
     // Si c'est un format RAW, on extrait la prévisualisation JPEG intégrée
-    let is_raw = matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw");
+    let is_raw = is_raw_extension(&ext);
     if is_raw {
         let jpeg_bytes = extract_raw_preview(source)?;
         return decode_scaled_jpeg_reader(Cursor::new(jpeg_bytes), max_side);
@@ -428,17 +448,41 @@ fn lenient_exif(result: Result<exif::Exif, exif::Error>) -> Option<exif::Exif> {
     result.or_else(|error| error.distill_partial_result(|_| {})).ok()
 }
 
-/// Orientation EXIF (1 à 8), 1 si absente ou illisible. Pour un RAW, c'est l'orientation à appliquer à son aperçu JPEG (voir `raw_orientation`).
+/// Orientation to apply to the decoded pixels (1 to 8), 1 if absent or unreadable: EXIF tag or XMP `tiff:Orientation`, whichever wins
+/// (see orientation.rs). For a RAW, the orientation to apply to its JPEG preview (see `raw_display_orientation`).
+/// HEIC / HEIF keep their EXIF tag only: the callers that decode them already skip it (the container rotation is applied by the decoder).
 pub(crate) fn read_orientation(source: &Path) -> u32 {
     if is_raw_path(source) {
-        return extract_raw_preview(source).map(|jpeg| raw_orientation(source, &jpeg)).unwrap_or(1);
+        return extract_raw_preview(source).map(|jpeg| raw_display_orientation(source, &jpeg)).unwrap_or(1);
     }
-    container_orientation(source).unwrap_or(1)
+    match crate::orientation::kind_of(source) {
+        crate::orientation::Kind::Fixed => container_orientation(source).unwrap_or(1),
+        _ => crate::orientation::read(source).stored,
+    }
+}
+
+/// EXIF orientation tag of the file itself (the one the webview applies to an image it shows), None if absent.
+pub(crate) fn exif_orientation(source: &Path) -> Option<u32> {
+    container_orientation(source)
+}
+
+/// Orientation of a RAW preview, sidecar `tiff:Orientation` included (a lossless rotation writes it there, see orientation.rs).
+pub(crate) fn raw_display_orientation(source: &Path, jpeg: &[u8]) -> u32 {
+    let preview = raw_orientation(source, jpeg);
+    crate::orientation::raw_preview_orientation(preview, container_orientation(source).unwrap_or(1), crate::exif::read_xmp_orientation(source))
+}
+
+/// RAW extensions (lowercase): the single backend list, used by the catalogue (library_sync), previews, faces, resize, content search.
+/// The frontend has its own copy (`RAW_EXTENSIONS` in src/format-filters.js), kept equal by the test `raw_extensions_match_the_frontend`.
+pub(crate) const RAW_EXTENSIONS: [&str; 11] = ["arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "pef", "raw"];
+
+/// `extension` without the dot, any case.
+pub(crate) fn is_raw_extension(extension: &str) -> bool {
+    RAW_EXTENSIONS.iter().any(|raw| raw.eq_ignore_ascii_case(extension))
 }
 
 pub(crate) fn is_raw_path(source: &Path) -> bool {
-    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw")
+    source.extension().and_then(|e| e.to_str()).is_some_and(is_raw_extension)
 }
 
 /// Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).
@@ -535,7 +579,7 @@ pub(crate) fn raw_orientation(source: &Path, jpeg: &[u8]) -> u32 {
 /// Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme la miniature.
 /// Les octets de l'image ne sont pas retouchés : seul le segment EXIF APP1 est remplacé par un segment minimal ne contenant que l'orientation.
 pub(crate) fn preview_with_orientation(source: &Path, jpeg: Vec<u8>) -> Vec<u8> {
-    let wanted = raw_orientation(source, &jpeg);
+    let wanted = raw_display_orientation(source, &jpeg);
     let own = lenient_exif(Reader::new().continue_on_error(true).read_from_container(&mut Cursor::new(&jpeg[..]))).as_ref().and_then(orientation_of);
     if wanted == own.unwrap_or(1) || jpeg.len() < 4 { return jpeg; }
     // Segments avant l'image : tout APP1 « Exif » est retiré, le nouveau est inséré après un éventuel APP0 (JFIF).
@@ -650,13 +694,22 @@ pub(crate) fn apply_orientation(rgb: Vec<u8>, width: usize, height: usize, orien
     (output, out_width, out_height)
 }
 
+/// Writes a cache thumbnail at the quality chosen in the settings.
 pub(crate) fn write_jpeg(destination: &Path, rgb: &[u8], width: usize, height: usize) -> Result<(), String> {
+    write_jpeg_with_quality(destination, rgb, width, height, thumbnail_quality())
+}
+
+/// Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
+pub(crate) fn write_jpeg_with_quality(destination: &Path, rgb: &[u8], width: usize, height: usize, quality: u8) -> Result<(), String> {
     let parent = destination.parent().ok_or("Dossier de cache invalide")?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let temp = parent.join(format!("thumb-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
-    let encoded = Encoder::new_file(&temp, THUMBNAIL_JPEG_QUALITY)
+    let encoded = Encoder::new_file(&temp, quality)
         .map_err(|error| error.to_string())
-        .and_then(|encoder| encoder.encode(rgb, width as u16, height as u16, ColorType::Rgb).map_err(|error| error.to_string()));
+        .and_then(|mut encoder| {
+            encoder.set_optimized_huffman_tables(true);
+            encoder.encode(rgb, width as u16, height as u16, ColorType::Rgb).map_err(|error| error.to_string())
+        });
     if let Err(error) = encoded {
         let _ = fs::remove_file(&temp);
         return Err(error);

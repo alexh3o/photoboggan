@@ -8,11 +8,11 @@ fn installed(text: &str) -> Version {
 
 /// Réponse GitHub inspirée de celle du dépôt : release de modèles de visages, pré-releases, brouillon, stable récente.
 const BODY: &str = r###"[
-    {"tag_name": "v0.7.0-rc1", "draft": false, "prerelease": true, "body": "rc", "html_url": "https://x/v0.7.0-rc1", "published_at": "2026-11-06T10:00:00Z"},
-    {"tag_name": "v0.8.0", "draft": true, "prerelease": false, "body": "brouillon", "html_url": "https://x/v0.8.0", "published_at": ""},
-    {"tag_name": "v0.6.2", "draft": false, "prerelease": false, "body": "## Notes\n- correctif", "html_url": "https://x/v0.6.2", "published_at": "2026-11-04T23:09:14Z"},
-    {"tag_name": "face-models-1", "draft": false, "prerelease": false, "body": "modèles", "html_url": "https://x/models", "published_at": ""},
-    {"tag_name": "v0.5.0", "draft": false, "prerelease": false, "body": "", "html_url": "https://x/v0.5.0", "published_at": ""}
+    {"tag_name": "v0.7.0-rc1", "draft": false, "prerelease": true, "body": "rc", "html_url": "https://github.com/alexh3o/photoboggan/releases/tag/v0.7.0-rc1", "published_at": "2026-11-06T10:00:00Z"},
+    {"tag_name": "v0.8.0", "draft": true, "prerelease": false, "body": "brouillon", "html_url": "https://github.com/alexh3o/photoboggan/releases/tag/v0.8.0", "published_at": ""},
+    {"tag_name": "v0.6.2", "draft": false, "prerelease": false, "body": "## Notes\n- correctif", "html_url": "https://github.com/alexh3o/photoboggan/releases/tag/v0.6.2", "published_at": "2026-11-04T23:09:14Z"},
+    {"tag_name": "face-models-1", "draft": false, "prerelease": false, "body": "modèles", "html_url": "https://github.com/alexh3o/photoboggan/releases/tag/models", "published_at": ""},
+    {"tag_name": "v0.5.0", "draft": false, "prerelease": false, "body": "", "html_url": "https://github.com/alexh3o/photoboggan/releases/tag/v0.5.0", "published_at": ""}
 ]"###;
 
 #[test]
@@ -21,6 +21,7 @@ fn versions_are_parsed_from_tags_and_package_versions() {
     assert_eq!(parse_version("0.6.2-beta"), Some(Version { numbers: (0, 6, 2), pre: Some("beta".to_string()) }));
     assert_eq!(parse_version("1.2.3-rc.1+build5"), Some(Version { numbers: (1, 2, 3), pre: Some("rc.1".to_string()) }));
     assert_eq!(parse_version("face-models-1"), None);
+    assert_eq!(parse_version("semantic-models-1"), None);
     assert_eq!(parse_version("v1.2"), None);
     assert_eq!(parse_version("v1.2.3.4"), None);
 }
@@ -37,7 +38,7 @@ fn stable_installation_ignores_prereleases_drafts_and_non_app_releases() {
     assert_eq!(info.latest, "0.6.2");
     assert!(info.update_available);
     assert!(!info.prerelease);
-    assert_eq!(info.url, "https://x/v0.6.2");
+    assert_eq!(info.url, "https://github.com/alexh3o/photoboggan/releases/tag/v0.6.2");
     assert!(info.notes.contains("correctif"));
 }
 
@@ -161,4 +162,13 @@ fn cancelled_download_leaves_nothing() {
     let error = copy_verified(&mut std::io::Cursor::new(&data), &target, 1000, &sha_of(&data), &cancel, &mut |_| {}).unwrap_err();
     assert_eq!(error, "cancelled");
     assert!(!target.exists() && !target.with_extension("part").exists());
+}
+
+/// The release page passed to the interface (opened in the browser) is kept only on the repository; another address is dropped.
+#[test]
+fn release_page_outside_the_repository_is_dropped() {
+    let body = r#"[{"tag_name": "v0.6.2", "draft": false, "prerelease": false, "body": "", "html_url": "https://evil.example/v0.6.2", "published_at": ""}]"#;
+    let info = pick_latest(body.as_bytes(), &installed("0.6.0"), "0.6.0", false).unwrap();
+    assert!(info.update_available);
+    assert_eq!(info.url, "");
 }

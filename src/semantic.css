@@ -1,0 +1,72 @@
+/* Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. */
+body.no-semantic .semantic-only { display: none !important; }
+
+/* Settings > Content search */
+.semantic-settings[hidden], #btn-semantic-model-download[hidden], #btn-semantic-model-import[hidden] { display: none !important; }
+
+/* Settings > Search: two blocks of the same level (RAW search, content search), each in its own frame with a prominent title.
+   The sub-sections of the content search (Model, Analysis…) are one level lower: plain bold titles, no rule, no capitals. */
+#settings-tab-semantic > .settings-section { padding: 0.9rem 1rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; }
+#settings-tab-semantic > .settings-section > h4 { margin-bottom: 0.8rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--text-strong); }
+#settings-tab-semantic .semantic-settings h4 { margin: 1.1rem 0 0.4rem; padding: 0; border: 0; font-size: 0.8rem; text-transform: none; letter-spacing: 0; color: var(--text-strong); }
+#settings-tab-semantic .semantic-settings h4:first-child { margin-top: 0.8rem; }
+.semantic-model-offline { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
+.semantic-model-offline summary { cursor: pointer; }
+.semantic-model-files { list-style: none; margin-top: 0.4rem; }
+.semantic-model-files li { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 0.5rem; }
+.semantic-model-files code { font-size: 0.65rem; overflow-wrap: anywhere; user-select: text; }
+
+/* Toolbar field "Search by content" (semantic.js): rem for sizes, thin borders in px */
+.semantic-search { position: relative; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.3rem 0 0.6rem; min-width: 0; background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; }
+.semantic-search:focus-within { border-color: var(--accent); }
+.semantic-search-icon { flex: none; color: var(--text-muted); }
+.semantic-search input { flex: 1 1 auto; width: 14rem; min-width: 3rem; padding: 0.4rem 0; color: var(--text-strong); background: transparent; border: 0; outline: 0; font-size: 0.8rem; }
+.semantic-search input.busy { opacity: 0.7; }
+.semantic-scope-toggle { flex: none; white-space: nowrap; padding: 0.2rem 0.5rem; font-size: 0.7rem; color: var(--text-muted); background: transparent; border: 1px solid var(--control-border); border-radius: 3px; cursor: pointer; }
+.semantic-scope-toggle[aria-pressed="true"] { color: var(--text-strong); border-color: var(--accent); }
+.semantic-spinner { flex: none; width: 0.9rem; height: 0.9rem; border: 2px solid var(--control-border); border-top-color: var(--accent); border-radius: 50%; animation: semantic-spin 0.8s linear infinite; }
+.semantic-spinner[hidden] { display: none; }
+@keyframes semantic-spin { to { transform: rotate(360deg); } }
+
+/* Results banner (main.js, "CONTENT SEARCH RESULTS"): sticky at the top of the grid, like the duplicates banner */
+.semantic-banner { position: sticky; top: 0; z-index: 5; display: flex; flex-direction: column; gap: 0.35rem; padding: 0.4rem 0.75rem; background: var(--control-bg); color: var(--text-strong); border-bottom: 1px solid var(--control-border); font-size: 0.8rem; }
+.semantic-banner[hidden] { display: none; }
+.semantic-banner-row { display: flex; align-items: center; gap: 0.75rem; }
+.semantic-banner-row[hidden] { display: none; }
+.semantic-close, .semantic-analyse { flex: 0 0 auto; padding: 0.32rem 0.7rem; font-size: 0.8rem; }
+.semantic-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.semantic-relevance { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); }
+.semantic-relevance[hidden] { display: none; }
+.semantic-relevance input { width: 8rem; accent-color: var(--accent); }
+
+/* Score badge (setting "Show the score on results") and the source photo of a similar-content search */
+.semantic-score { position: absolute; left: 4px; bottom: 4px; z-index: 1; padding: 1px 5px; background: #000a; color: #fff; border-radius: 3px; font-size: 0.68rem; pointer-events: none; }
+.semantic-score[hidden] { display: none; }
+/* Keyword filter: "suggested" badge (a guess, not a keyword of the file) and the discreet status line under the chips */
+.semantic-suggested { position: absolute; left: 4px; top: 4px; z-index: 1; padding: 1px 5px; background: #000a; color: #fff; border: 1px dashed #fffa; border-radius: 3px; font-size: 0.68rem; }
+.semantic-suggested[hidden] { display: none; }
+.keyword-suggest-status { margin-top: 0.3rem; font-size: 0.7rem; color: var(--text-muted); }
+.keyword-suggest-status[hidden] { display: none; }
+.keyword-suggest-status.loading { font-style: italic; }
+.thumbnail.semantic-source { outline: 2px dashed var(--accent); outline-offset: -2px; }
+
+/* Keyword -> photos results: the row of actions under the banner (main.js, renderSemanticKeywordActions) */
+.semantic-keyword-actions button { flex: 0 0 auto; padding: 0.32rem 0.7rem; font-size: 0.8rem; }
+.semantic-keyword-actions .semantic-hint { font-size: 0.72rem; }
+
+/* "Suggestions" block of the Keywords tab (semantic-tagging.js): rem for sizes, thin borders in px */
+.keyword-photo-suggestions { flex: 0 0 auto; margin: 0.4rem 0; padding: 0.3rem 0.5rem; border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; }
+.keyword-photo-suggestions[hidden] { display: none; }
+.keyword-photo-suggestions summary { cursor: pointer; color: var(--text-strong); }
+.keyword-photo-suggestions.loading .keyword-photo-suggestion button { pointer-events: none; opacity: 0.5; }
+.keyword-photo-suggestions-list { list-style: none; margin: 0.3rem 0 0; padding: 0; }
+.keyword-photo-suggestion { display: flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0; }
+.keyword-photo-suggestion-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.keyword-photo-suggestion button, .keyword-photo-suggestions > button { flex: 0 0 auto; padding: 0.15rem 0.5rem; font-size: 0.72rem; }
+.keyword-photo-suggestions-note { margin: 0.3rem 0 0; font-size: 0.72rem; color: var(--text-muted); }
+.keyword-photo-suggestions-note[hidden], .keyword-photo-suggestions > button[hidden] { display: none; }
+
+/* Settings > Content search: keywords never suggested (semantic-exclusions.js). Field with its list opened below, chips under it. */
+.semantic-excluded-note { margin-left: 0; }
+.semantic-excluded-field { max-width: 26rem; }
+.semantic-excluded-chips { max-width: 26rem; margin-bottom: 0.75rem; }

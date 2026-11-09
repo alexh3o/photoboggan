@@ -1,0 +1,68 @@
+{
+  "release": "semantic-models-1",
+  "base_url": "https://github.com/alexh3o/photoboggan/releases/download/semantic-models-1/",
+  "models": [
+    {
+      "id": "siglip2-base-p16-224",
+      "label": "SigLIP 2 base (224 px)",
+      "image_size": 224,
+      "embed_dim": 768,
+      "mean": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "std": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "max_text_tokens": 64,
+      "lowercase": true,
+      "logit_scale": 112.6689,
+      "logit_bias": -16.7717,
+      "template": "this is a photo of {}.",
+      "template_max_words": 3,
+      "pad_id": 0,
+      "eos_id": 1,
+      "files": [
+        {
+          "role": "vision",
+          "asset": "siglip2-base-p16-224-vision-fp16.onnx",
+          "local": "vision.onnx",
+          "size": 186039516,
+          "sha256": "a1959f7bd3993a607e48839f6d01e25b876fe76afda301b028b78eef68aabd95",
+          "license": "Apache-2.0",
+          "source_url": "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/ba1f3b0843f24bc5417d38e19c37b287d719b2f4/onnx/vision_model_fp16.onnx"
+        },
+        {
+          "role": "text",
+          "asset": "siglip2-base-p16-224-text-fp16.onnx",
+          "local": "text.onnx",
+          "size": 564862230,
+          "sha256": "711da56ada0a4aa11c7dd3320df741081a3cae4f0ae1b5e5c6d5b294738d0eb0",
+          "license": "Apache-2.0",
+          "source_url": "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/ba1f3b0843f24bc5417d38e19c37b287d719b2f4/onnx/text_model_fp16.onnx"
+        },
+        {
+          "role": "tokenizer",
+          "asset": "siglip2-base-p16-224-tokenizer.json",
+          "local": "tokenizer.json",
+          "size": 34363039,
+          "sha256": "cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322",
+          "license": "Apache-2.0",
+          "source_url": "https://huggingface.co/google/siglip2-base-patch16-224/resolve/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2/tokenizer.json"
+        },
+        {
+          "role": "notice",
+          "asset": "siglip2-base-p16-224-NOTICE.txt",
+          "local": "NOTICE.txt",
+          "size": 1651,
+          "sha256": "79d1dd3ec8701c76a0f7019f4610f07e912ae8352ffa26709d2eebb2a7a3e826",
+          "license": "Apache-2.0",
+          "source_url": "https://huggingface.co/google/siglip2-base-patch16-224/tree/75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2"
+        }
+      ]
+    }
+  ]
+}

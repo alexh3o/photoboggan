@@ -93,3 +93,127 @@ fn name_validation() {
     for bad in ["", "   ", "a/b", "a|b", "a,b"] { assert_eq!(validate_name(bad), Err("invalid_name".to_string()), "{bad:?}"); }
     assert_eq!(name_key("  ÉTÉ "), "été");
 }
+
+// ---------------------------------------------------------------------------
+// Batch writes (run_write, run_rename, run_delete) on real synthetic JPEG files, with the internal writer: the global writer setting is
+// never changed (WriteEnv carries the writer).
+// ---------------------------------------------------------------------------
+
+fn write_env(dir: &Path) -> WriteEnv {
+    let cache_dirs = crate::ImageCacheDirs { thumbnails: dir.join("thumbnails"), raw_previews: dir.join("raw_previews") };
+    std::fs::create_dir_all(&cache_dirs.thumbnails).unwrap();
+    std::fs::create_dir_all(&cache_dirs.raw_previews).unwrap();
+    WriteEnv { cache_dirs, progress: Box::new(|_| {}), write: crate::exif::write_metadata_internal }
+}
+
+/// A synthetic JPEG in `dir`, catalogued: (photo id, path).
+fn catalogued_jpeg(conn: &Connection, dir: &Path, name: &str) -> (i64, String) {
+    let path = dir.join(name);
+    std::fs::write(&path, jpeg_bytes(32, 24)).unwrap();
+    let path = path.to_string_lossy().into_owned();
+    (insert_photo(conn, &path), path)
+}
+
+fn file_paths(path: &str) -> Vec<String> {
+    let mut result: Vec<String> = crate::exif::read_exif(Path::new(path)).keyword_paths.iter().map(|segments| segments.join(" > ")).collect();
+    result.sort();
+    result
+}
+
+fn item(photo_id: i64, path: &str, keyword_ids: Option<Vec<i64>>) -> KeywordWriteItem {
+    KeywordWriteItem { photo_id, path: path.to_string(), keyword_ids, title: None, description: None, faces: None, gps: None }
+}
+
+#[test]
+fn run_write_writes_the_file_then_stores_what_it_reads_back() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let (photo, path) = catalogued_jpeg(&conn, dir.path(), "a.jpg");
+    let paris = ensure_node(&conn, ensure_node(&conn, 0, "Lieux").unwrap(), "Paris").unwrap();
+    let pixels = scan_data(&std::fs::read(&path).unwrap()).to_vec();
+
+    // Keywords only: the title check (text_mismatch) follows the global writer setting, which a fast test must not change.
+    let result = run_write(&write_env(dir.path()), &pool, vec![item(photo, &path, Some(vec![paris]))], None).unwrap();
+    assert!(result.failed.is_empty(), "{:?}", result.failed.iter().map(|f| &f.error).collect::<Vec<_>>());
+    assert_eq!(result.written.len(), 1);
+    assert_eq!(result.written[0].keyword_ids, vec![paris]);
+    assert_eq!(file_paths(&path), ["Lieux > Paris"]);
+    assert_eq!(active_paths(&conn, photo), ["Lieux > Paris"]);
+    let stored: String = conn.query_row("SELECT keywords FROM photos WHERE id = ?1", params![photo], |row| row.get(0)).unwrap();
+    assert!(stored.contains("Paris"), "photos.keywords comes from the re-read file");
+    assert_eq!(scan_data(&std::fs::read(&path).unwrap()), pixels.as_slice(), "image data untouched");
+}
+
+#[test]
+fn run_write_fails_a_photo_with_an_unknown_keyword_or_outside_the_catalogue() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let (photo, path) = catalogued_jpeg(&conn, dir.path(), "a.jpg");
+    let before = std::fs::read(&path).unwrap();
+
+    let result = run_write(&write_env(dir.path()), &pool, vec![item(photo, &path, Some(vec![9999])), item(4242, "C:/absent.jpg", Some(Vec::new()))], None).unwrap();
+    assert!(result.written.is_empty());
+    assert_eq!(result.failed.len(), 2);
+    assert_eq!(std::fs::read(&path).unwrap(), before, "an unknown keyword must not silently drop the others from the file");
+}
+
+#[test]
+fn rename_updates_the_tree_then_rewrites_every_file_carrying_the_keyword_or_a_descendant() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let (photo, path) = catalogued_jpeg(&conn, dir.path(), "a.jpg");
+    let (other, other_path) = catalogued_jpeg(&conn, dir.path(), "b.jpg");
+    let places = ensure_node(&conn, 0, "Lieux").unwrap();
+    let paris = ensure_node(&conn, places, "Paris").unwrap();
+    let env = write_env(dir.path());
+    run_write(&env, &pool, vec![item(photo, &path, Some(vec![paris])), item(other, &other_path, Some(vec![places]))], None).unwrap();
+
+    let result = run_rename(&env, &pool, places, "Endroits".into(), None).unwrap();
+    assert!(result.failed.is_empty());
+    assert_eq!(result.written.len(), 2);
+    assert_eq!(file_paths(&path), ["Endroits > Paris"]);
+    assert_eq!(file_paths(&other_path), ["Endroits"]);
+    assert_eq!(active_paths(&conn, photo), ["Endroits > Paris"]);
+    assert_eq!(run_rename(&env, &pool, places, "a/b".into(), None).err().as_deref(), Some("invalid_name"));
+    ensure_node(&conn, 0, "Autre").unwrap();
+    assert_eq!(run_rename(&env, &pool, places, " autre ".into(), None).err().as_deref(), Some("duplicate"));
+}
+
+#[test]
+fn delete_removes_the_subtree_from_the_files_and_the_tree() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let (photo, path) = catalogued_jpeg(&conn, dir.path(), "a.jpg");
+    let places = ensure_node(&conn, 0, "Lieux").unwrap();
+    let paris = ensure_node(&conn, places, "Paris").unwrap();
+    let animals = ensure_node(&conn, 0, "Animaux").unwrap();
+    let env = write_env(dir.path());
+    run_write(&env, &pool, vec![item(photo, &path, Some(vec![paris, animals]))], None).unwrap();
+
+    let result = run_delete(&env, &pool, places, None).unwrap();
+    assert!(result.deleted);
+    assert_eq!(file_paths(&path), ["Animaux"]);
+    assert_eq!(count(&conn, "SELECT COUNT(*) FROM keyword_nodes"), 1, "the keyword and its descendants leave the tree");
+    assert_eq!(run_delete(&env, &pool, places, None).err().as_deref(), Some("unknown_keyword"));
+}
+
+#[test]
+fn delete_keeps_the_keyword_when_a_file_could_not_be_rewritten() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let (photo, path) = catalogued_jpeg(&conn, dir.path(), "a.jpg");
+    let places = ensure_node(&conn, 0, "Lieux").unwrap();
+    let env = write_env(dir.path());
+    run_write(&env, &pool, vec![item(photo, &path, Some(vec![places]))], None).unwrap();
+    // A second photo carries the keyword but its file is gone: its write fails.
+    let gone = insert_photo(&conn, &dir.path().join("gone.jpg").to_string_lossy());
+    assert!(store_photo_keywords(&conn, &[(dir.path().join("gone.jpg").to_string_lossy().into_owned(), paths(&[&["Lieux"]]))]));
+
+    let result = run_delete(&env, &pool, places, None).unwrap();
+    assert!(!result.deleted);
+    assert_eq!(result.failed.len(), 1);
+    assert_eq!(result.failed[0].photo_id, gone);
+    assert_eq!(count(&conn, "SELECT COUNT(*) FROM keyword_nodes"), 1, "kept: a file still carries it");
+    assert!(file_paths(&path).is_empty(), "the file that could be rewritten no longer carries it");
+}
+

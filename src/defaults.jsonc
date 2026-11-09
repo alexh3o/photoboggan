@@ -88,6 +88,8 @@
   "verifyCrossDriveMoves": true,
   // Thumbnail cache resolution in px: 512 | 768 | 1024.
   "thumbnailCacheSize": 1024,
+  // Thumbnail JPEG quality: "normal" (q60, about half the size) | "high" (q84). Mirrored in config.json by the backend.
+  "thumbnailQuality": "normal",
 
   // ---------------------------------------------------------------- Settings: Metadata, Maps
   // Metadata writer: "exiftool" | "internal".
@@ -120,6 +122,34 @@
   "facePersonRoot": "",
   // Order of the faces inside a group of the Faces view: "grid" (as the photos of the main grid) | "score" (most similar first).
   "facesViewSort": "grid",
+
+  // ---------------------------------------------------------------- Settings: Content search
+  // Content search (local AI, SigLIP 2): off until the user enables it and installs the model.
+  "semanticSearch": false,
+  // Analyse the RAW files too (through their embedded preview); false leaves them out of every analysis and of the counts.
+  "semanticScanRaw": true,
+  // Write the missing thumbnails to the cache while the analysis decodes their photo (JPEG, RAW, HEIC): true | false.
+  "semanticWriteThumbnails": false,
+  // ONNX Runtime threads of the content analysis: 1 (low) | 2 (normal) | 4 (high).
+  "semanticScanThreads": 1,
+  // Relative relevance threshold of the results (0.005 to 0.08): kept when cosine >= best - this value.
+  "semanticRelevance": 0.03,
+  // Also return photos matching a keyword by content when filtering by keyword (shown after the tagged ones).
+  "semanticInKeywordSearch": false,
+  // Content search from the toolbar box also lists the photos tagged with the typed keyword(s) first.
+  "semanticKeywordsInSearch": true,
+  // Show the match score on the results of a content search.
+  "semanticShowScore": false,
+  // Scope of a content search: "view" (current view) | "library".
+  "semanticScope": "view",
+  // Order of the photos tagged with the keyword typed in the toolbar search box: "grid" (the sort options) | "score" (content score, best first).
+  "semanticKeywordSort": "grid",
+  // Keywords never suggested by the content search, nor any keyword below them: ids of keyword_nodes, e.g. [12, 40] (set in Settings > Content search).
+  "semanticExcludedKeywords": [],
+  // "Suggestions" block of the Keywords tab (keywords suggested for the selected photo): unfolded (true) | folded (false).
+  "keywordSuggestionsOpen": true,
+  // Scans left unfinished (paused, or interrupted by quitting): they come back paused at the next launch. List of tasks, empty on a new installation.
+  "pausedScanTasks": [],
 
   // ---------------------------------------------------------------- Settings: Slideshow, Find RAW
   // Delay between photos in seconds: integer 1 to 60.

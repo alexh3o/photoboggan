@@ -29,13 +29,6 @@ pub struct KeywordNode {
     pub name: String,
 }
 
-/// Nombre de photos de la sélection qui portent un mot-clé (seuls les mots-clés portés par au moins une photo sont listés).
-#[derive(Serialize)]
-pub struct KeywordCount {
-    pub keyword_id: i64,
-    pub count: i64,
-}
-
 /// Crée les tables à l'ouverture de la base (sans toucher aux données existantes). Appelée par `db::init_db`, après la création de `photos`.
 /// Une erreur est renvoyée à l'appelant : sans ces tables, aucune commande de mots-clés ne peut fonctionner.
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
@@ -83,6 +76,8 @@ pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>
         return false;
     }
     let result = store_photo_keywords_in(conn, items).and_then(|_| conn.execute_batch("COMMIT"));
+    // After the commit, never before: a suggestion model built in between would read the old links under the new generation and stay.
+    crate::semantic_keywords::on_keywords_changed();
     if let Err(error) = result {
         eprintln!("Keywords not stored for {} photos: {error}", items.len());
         let _ = conn.execute_batch("ROLLBACK");
@@ -91,8 +86,9 @@ pub fn store_photo_keywords(conn: &Connection, items: &[(String, Vec<Vec<String>
     true
 }
 
-/// Corps de `store_photo_keywords`, sans transaction : l'appelant fournit la sienne (voir `run_write`).
-fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>)]) -> rusqlite::Result<()> {
+/// Body of `store_photo_keywords`, without a transaction: the caller provides its own (see `run_write`) and calls
+/// `semantic_keywords::on_keywords_changed` once it has committed.
+pub(crate) fn store_photo_keywords_in(conn: &Connection, items: &[(String, Vec<Vec<String>>)]) -> rusqlite::Result<()> {
     for (path, keyword_paths) in items {
         let Some(photo_id) = conn.query_row("SELECT id FROM photos WHERE path = ?1", params![path], |row| row.get::<_, i64>(0)).optional()? else {
             eprintln!("Keywords not stored: {path} is not in the catalog");
@@ -131,27 +127,6 @@ pub fn get_keyword_tree(state: State<'_, AppState>) -> Result<Vec<KeywordNode>, 
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| Ok(KeywordNode { id: row.get(0)?, parent_id: row.get(1)?, name: row.get(2)? }))
-        .map_err(|error| error.to_string())?;
-    collect_rows(rows)
-}
-
-/// Pour une sélection de photos : combien de photos portent chaque mot-clé.
-#[tauri::command(async)]
-pub fn get_keyword_counts(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Result<Vec<KeywordCount>, String> {
-    if photo_ids.is_empty() { return Ok(Vec::new()); }
-    let pool = state.pool();
-    let conn = pool.get().map_err(|error| error.to_string())?;
-    // Liste des identifiants passée en JSON : une seule requête, quel que soit le nombre de photos sélectionnées.
-    let ids_json = serde_json::to_string(&photo_ids).map_err(|error| error.to_string())?;
-    let mut statement = conn
-        .prepare(
-            "SELECT keyword_id, COUNT(*) FROM photo_keywords
-             WHERE photo_id IN (SELECT value FROM json_each(?1))
-             GROUP BY keyword_id",
-        )
-        .map_err(|error| error.to_string())?;
-    let rows = statement
-        .query_map(params![ids_json], |row| Ok(KeywordCount { keyword_id: row.get(0)?, count: row.get(1)? }))
         .map_err(|error| error.to_string())?;
     collect_rows(rows)
 }
@@ -289,16 +264,40 @@ fn push_failure(failed: &mut Vec<KeywordFailure>, photo_id: i64, path: String, e
     failed.push(KeywordFailure { photo_id, path, error });
 }
 
+/// What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
+/// run_delete) can be tested without an AppHandle.
+pub(crate) struct WriteEnv {
+    /// Thumbnail and preview caches, renamed to follow the rewritten files.
+    pub cache_dirs: crate::ImageCacheDirs,
+    /// Progress of the queued task (percent); does nothing for a direct command.
+    pub progress: Box<dyn Fn(u32) + Send + Sync>,
+    /// File writer: `exif::write_metadata` (ExifTool or internal, by setting); tests pass the internal writer.
+    pub write: fn(&str, &crate::exif::MetadataUpdate) -> std::io::Result<()>,
+}
+
+impl WriteEnv {
+    fn of(app: &tauri::AppHandle, task_id: Option<String>) -> Self {
+        let emitter = app.clone();
+        Self {
+            cache_dirs: crate::ImageCacheDirs::of(&app.state::<AppState>()),
+            progress: Box::new(move |percent| {
+                if let Some(id) = &task_id { let _ = emitter.emit("scan-progress", crate::ScanProgress { task_id: id.clone(), percent }); }
+            }),
+            write: crate::exif::write_metadata,
+        }
+    }
+}
+
 fn run_write(
-    app: &tauri::AppHandle,
+    env: &WriteEnv,
     pool: &DbPool,
     items: Vec<KeywordWriteItem>,
-    task_id: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     let _write_guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while files are written
     let conn = pool.get().map_err(|error| error.to_string())?;
-    let cache_dirs = crate::ImageCacheDirs::of(&app.state::<AppState>()); // miniatures et aperçus qui suivent les fichiers réécrits
+    let cache_dirs = &env.cache_dirs; // miniatures et aperçus qui suivent les fichiers réécrits
     let mut nodes: HashMap<i64, (i64, String)> = HashMap::new();
     {
         let mut statement = conn.prepare("SELECT id, parent_id, name FROM keyword_nodes").map_err(|error| error.to_string())?;
@@ -392,14 +391,12 @@ fn run_write(
                     gps: item.gps.map(Some),
                 };
                 // Métadonnées seules : la miniature et l'aperçu en cache sont renommés pour suivre le fichier, pas régénérés.
-                let result = crate::keep_cached_images(&cache_dirs, &item.path, || {
-                    crate::exif::write_metadata(&item.path, &update).map_err(|error| error.to_string())
+                let result = crate::keep_cached_images(cache_dirs, &item.path, || {
+                    (env.write)(&item.path, &update).map_err(|error| error.to_string())
                 })
                 .map(|_| update);
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
-                if let Some(id) = &task_id {
-                    let _ = app.emit("scan-progress", crate::ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
-                }
+                (env.progress)((finished * 100 / total) as u32);
                 (item, Some(result))
             })
             .collect()
@@ -472,7 +469,11 @@ fn run_write(
         Ok(())
     });
     let stored = match stored {
-        Ok(()) => tx.commit(),
+        Ok(()) => {
+            let committed = tx.commit();
+            crate::semantic_keywords::on_keywords_changed(); // after the commit (see store_photo_keywords)
+            committed
+        }
         Err(error) => {
             drop(tx); // annule la transaction
             Err(error)
@@ -503,7 +504,7 @@ pub async fn apply_metadata_changes(
     let pool = state.pool();
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
-    let outcome = tokio::task::spawn_blocking(move || run_write(&app, &pool, items, worker_task_id, cancel)).await;
+    let outcome = tokio::task::spawn_blocking(move || run_write(&WriteEnv::of(&app, worker_task_id), &pool, items, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }
@@ -542,7 +543,9 @@ pub fn create_keyword(state: State<'_, AppState>, parent_id: i64, name: String) 
     if duplicate { return Err("duplicate".to_string()); }
     conn.execute("INSERT INTO keyword_nodes (parent_id, name, name_key) VALUES (?1, ?2, ?3)", params![parent_id, name, key])
         .map_err(|error| error.to_string())?;
-    Ok(KeywordNode { id: conn.last_insert_rowid(), parent_id, name })
+    let id = conn.last_insert_rowid();
+    crate::semantic_keywords::on_keywords_changed(); // the parent may no longer be a leaf: keyword suggestions are rebuilt
+    Ok(KeywordNode { id, parent_id, name })
 }
 
 /// Le mot-clé et tous ses descendants.
@@ -638,21 +641,25 @@ fn restore_person_links(pool: &DbPool, linked: &[PersonLink]) {
 }
 
 /// Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
-fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), String> {
+pub(crate) fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), String> {
     let conn = pool.get().map_err(|error| error.to_string())?;
     let ids = subtree_ids(&conn, keyword_id)?;
     let ids_json = serde_json::to_string(&ids).map_err(|error| error.to_string())?;
     let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM photo_keywords WHERE keyword_id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|error| error.to_string())?;
+    // Dismissed semantic suggestions of these keywords (semantic.rs) go with them.
+    tx.execute("DELETE FROM keyword_suggestion_rejections WHERE keyword_id IN (SELECT value FROM json_each(?1))", params![ids_json])
+        .map_err(|error| error.to_string())?;
     tx.execute("DELETE FROM keyword_nodes WHERE id IN (SELECT value FROM json_each(?1))", params![ids_json]).map_err(|error| error.to_string())?;
-    tx.commit().map_err(|error| error.to_string())
+    let committed = tx.commit().map_err(|error| error.to_string());
+    crate::semantic_keywords::on_keywords_changed(); // the tree changed: keyword suggestions are rebuilt
+    committed
 }
 
 fn run_delete(
-    app: &tauri::AppHandle,
+    env: &WriteEnv,
     pool: &DbPool,
     keyword_id: i64,
-    task_id: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     // Pour chaque photo qui porte le mot-clé ou l'un de ses descendants : ses mots-clés actifs moins ceux-là.
@@ -680,7 +687,7 @@ fn run_delete(
     };
 
     // Écriture des fichiers (même mécanisme que l'application des modifications : écriture atomique, relecture, base mise à jour).
-    let mut result = match run_write(app, pool, items, task_id, cancel) {
+    let mut result = match run_write(env, pool, items, cancel) {
         Ok(result) => result,
         Err(error) => {
             restore_person_links(pool, &linked);
@@ -714,17 +721,16 @@ pub async fn delete_keyword(
     let pool = state.pool();
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
-    let outcome = tokio::task::spawn_blocking(move || run_delete(&app, &pool, keyword_id, worker_task_id, cancel)).await;
+    let outcome = tokio::task::spawn_blocking(move || run_delete(&WriteEnv::of(&app, worker_task_id), &pool, keyword_id, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }
 
 fn run_rename(
-    app: &tauri::AppHandle,
+    env: &WriteEnv,
     pool: &DbPool,
     keyword_id: i64,
     name: String,
-    task_id: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     let name = validate_name(&name)?;
@@ -747,6 +753,8 @@ fn run_rename(
         if current_name != name {
             conn.execute("UPDATE keyword_nodes SET name = ?1, name_key = ?2 WHERE id = ?3", params![name, key, keyword_id])
                 .map_err(|error| error.to_string())?;
+            // The name is read at each keyword → photos request (no stored text embedding); the suggestion model is rebuilt anyway.
+            crate::semantic_keywords::on_keywords_changed();
         }
         // Personne reliée à ce mot-clé : ses zones de visage portent le nom du mot-clé, elles sont à réécrire (avec cette écriture pour les photos
         // qui portent le mot-clé, à la prochaine écriture des visages pour les autres).
@@ -759,7 +767,7 @@ fn run_rename(
         let ids = subtree_ids(&conn, keyword_id)?;
         photos_carrying(&conn, &ids, &HashSet::new())?
     };
-    run_write(app, pool, items, task_id, cancel)
+    run_write(env, pool, items, cancel)
 }
 
 /// Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'application
@@ -776,14 +784,14 @@ pub async fn rename_keyword(
     let pool = state.pool();
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
-    let outcome = tokio::task::spawn_blocking(move || run_rename(&app, &pool, keyword_id, name, worker_task_id, cancel)).await;
+    let outcome = tokio::task::spawn_blocking(move || run_rename(&WriteEnv::of(&app, worker_task_id), &pool, keyword_id, name, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }
 
-/// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating » ou « color ») :
-/// `order` liste une fois chacun des identifiants de ses sources, du plus au moins prioritaire (voir exif::set_read_priority). Il s'applique
-/// aux prochaines lectures de fichiers (scan, relecture, synchronisation).
+/// Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps" or "faces"):
+/// `order` lists each of its source ids once, most important first (see exif::set_read_priority). It applies to the next file reads
+/// (scan, rescan, sync).
 #[tauri::command]
 pub fn set_metadata_read_order(kind: String, order: Vec<String>) -> Result<(), String> {
     crate::exif::set_read_priority(&kind, &order)

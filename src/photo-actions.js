@@ -1552,11 +1552,6 @@ function buildDuplicatesItem(spec) {
   return buildSubmenuItem(t('Find duplicates'), duplicateEntries(spec, true));
 }
 
-// "Find" submenu: the RAW of an image, then the duplicates. `rawEntry` = a submenu entry of the RAW search.
-function buildFindItem(spec, rawEntry) {
-  return buildSubmenuItem(t('Find'), [rawEntry, { separator: true }, ...duplicateEntries(spec, false)]);
-}
-
 // Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (faces-panel.js).
 // `source` : 'preview' ou 'fullscreen' pour le menu d'une photo affichée (où existent les zones : ajouter un visage, modes et zones écartées) ;
 // sans, dans la grille et pour un dossier, le sous-menu ne propose que la reconnaissance (et l'effacement pour des photos).
@@ -1649,8 +1644,11 @@ function onMenuKeydown(event) {
   }
 }
 
-function openThumbnailMenu(event, index, source = 'grid') {
+let thumbnailMenuToken = 0; // a newer right-click supersedes a menu still waiting for the analysed ids
+
+async function openThumbnailMenu(event, index, source = 'grid') {
   closeContextMenu();
+  const token = ++thumbnailMenuToken;
   const photos = api.getPhotos();
   const photo = photos[index];
   if (!photo) return;
@@ -1665,6 +1663,13 @@ function openThumbnailMenu(event, index, source = 'grid') {
   const targets = isDirectView
     ? [photo]
     : [...api.getSelectedIndices()].sort((a, b) => a - b).map(selectedIndex => photos[selectedIndex]).filter(Boolean);
+
+  // Content search on: which photos of the target are already analysed (decides the "Analyse content" entry). Read before the menu is built.
+  let analysedIds = null;
+  if (api.semanticEnabled?.() && api.getAnalysedIds) {
+    analysedIds = await api.getAnalysedIds();
+    if (token !== thumbnailMenuToken) return;
+  }
 
   // Vérifie si la sélection contient au moins une photo (les vidéos ne sont pas redimensionnables)
   const hasResizablePhotos = targets.some(target => !isVideoPath(target.path));
@@ -1695,6 +1700,17 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (hasResizablePhotos) {
     menuItems.push(menuButton(t('Resize…'), () => resizePhotos(targets), { shortcut: 'S' }));
   }
+  // "Turn >" (lossless rotation: orientation tag only). Absent when no target can be turned (HEIC / HEIF, videos); a multiple selection
+  // shows how many photos will be turned.
+  const rotatable = api.isRotatablePath ? targets.filter(target => api.isRotatablePath(target.path)) : [];
+  if (rotatable.length) {
+    const rotateLabel = targets.length > 1 ? `${t('Turn')} (${rotatable.length})` : t('Turn');
+    menuItems.push(buildSubmenuItem(rotateLabel, [
+      { label: t('Turn right'), shortcut: 'Ctrl+R', onSelect: () => api.rotatePhotos(rotatable, 1) },
+      { label: t('Turn left'), shortcut: 'Shift+R', onSelect: () => api.rotatePhotos(rotatable, -1) },
+      { label: t('Turn 180°'), onSelect: () => api.rotatePhotos(rotatable, 2) },
+    ]));
+  }
   menuItems.push(
     menuSeparator(),
     menuButton(t('Show in file explorer'), () => revealInFileManager(photo), { shortcut: 'E' }),
@@ -1706,7 +1722,7 @@ function openThumbnailMenu(event, index, source = 'grid') {
   menuItems.push(
     buildOpenWithItem(targets, programSection(photo.path)),
   );
-  // « Trouver le RAW » : une image raster à la fois ; grisé tant qu'aucun critère n'est coché (Paramètres > Divers > RAW).
+  // « Trouver le RAW » : une image raster à la fois ; grisé tant qu'aucun critère n'est coché (Settings > Search > RAW search).
   // Grille de résultats de « Trouver le RAW » : sortir de la recherche et ouvrir le dossier du fichier, sans filtre.
   if (api.showInItsFolder && api.isRawSearchActive() && targets.length === 1) {
     menuItems.push(menuButton(t('Show in its folder'), () => api.showInItsFolder(photo), { title: t('Leave the search and show this file in its folder, without any filter') }));
@@ -1722,14 +1738,51 @@ function openThumbnailMenu(event, index, source = 'grid') {
     const available = api.canFindRaw();
     return {
       label: 'RAW', onSelect: () => api.findRaw(photo), disabled: !available,
-      title: available ? t('Find the RAW file of this image with the criteria set in Settings > Misc > RAW') : t('Tick at least one criterion in Settings > Misc > RAW'),
+      title: available ? t('Find the RAW file of this image with the criteria set in Settings > Search > RAW search') : t('Tick at least one criterion in Settings > Search > RAW search'),
     };
   })() : null;
-  if (rawEntry && duplicateSpec) menuItems.push(buildFindItem(duplicateSpec, rawEntry));
-  else if (duplicateSpec) menuItems.push(buildDuplicatesItem(duplicateSpec));
+  // Content search (entries absent while the feature is off or its model is not installed). One "content" entry in the "Find" submenu:
+  // - one photo already analysed: "Similar content" (it needs the analysis);
+  // - one photo not analysed: "Analyse content" in its place (nothing to search with yet);
+  // - several photos: "Analyse content" with the number of photos still to analyse, hidden when all are analysed.
+  // `analysedIds` unknown (null): the photo is assumed analysed, so the search stays available.
+  const semanticOn = Boolean(api.semanticEnabled?.());
+  const notAnalysed = analysedIds ? targets.filter(target => !analysedIds.has(target.id)).length : 0;
+  let contentEntry = null;
+  if (semanticOn && targets.length === 1 && notAnalysed === 0) {
+    contentEntry = {
+      label: t('Similar content'), onSelect: () => api.findSimilarContent(photo),
+      title: t('Search the photos that look like this one: same subject or scene'),
+    };
+  } else if (semanticOn && notAnalysed > 0) {
+    contentEntry = {
+      label: notAnalysed < targets.length ? `${t('Analyse content')} (${notAnalysed})` : t('Analyse content'),
+      onSelect: () => api.analyseContent({ photoIds: targets.map(target => target.id) }),
+      title: t('Compute the content analysis of these photos (low priority, in the background)'),
+    };
+  }
+  const findGroups = [];
+  if (rawEntry) findGroups.push([rawEntry]);
+  if (duplicateSpec) {
+    // With a "content" group next to them, the duplicates get a heading and short labels (the heading says "Duplicates").
+    findGroups.push(contentEntry
+      ? [{ heading: t('Duplicates') }, ...duplicateEntries(duplicateSpec, true)]
+      : duplicateEntries(duplicateSpec, false));
+  }
+  if (contentEntry) findGroups.push(duplicateSpec ? [{ heading: t('Content') }, contentEntry] : [contentEntry]);
+  if (findGroups.length > 1) {
+    const findItems = findGroups.flatMap((group, groupIndex) => (groupIndex ? [{ separator: true }, ...group] : group));
+    menuItems.push(buildSubmenuItem(t('Find'), findItems));
+  } else if (duplicateSpec) menuItems.push(buildDuplicatesItem(duplicateSpec));
   else if (rawEntry) menuItems.push(menuButton(t('Find the RAW'), rawEntry.onSelect, { disabled: rawEntry.disabled, title: rawEntry.title }));
+  // Alone (e.g. a video): no submenu to join.
+  else if (contentEntry) menuItems.push(menuButton(contentEntry.label, contentEntry.onSelect, { title: contentEntry.title }));
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
+  }
+  // The "Suggested" badge of the keyword filter (content search on; grid only: the selection is then the photo under the click).
+  if (semanticOn && source === 'grid' && targets.length === 1) {
+    for (const entry of api.guessedKeywordEntries?.(photo) ?? []) menuItems.push(menuButton(entry.label, entry.onSelect, { title: entry.title }));
   }
   // Géolocalisation (geo-tools.js) : restaurer les coordonnées sauvegardées, effacer celles des photos géolocalisées (danger).
   const withCount = (label, list) => (targets.length > 1 ? `${label} (${list.length})` : label);
@@ -1836,7 +1889,21 @@ function openFolderMenu(event, folderItem) {
     menuButton(t('Rescan folder data'), () => api.rescanFolder(path), { title: t('Read the files of this folder again to update the list and the metadata') }),
     menuButton(t('Integrity check'), () => api.checkFolderIntegrity(path), { title: t('Check that the files of this folder can be read (detects corrupted files)') }),
   );
-  if (api.findDuplicates) menu.append(buildDuplicatesItem({ scope: { kind: 'folder', path, recursive: true }, label: baseName(path), compareWithLibrary: true }));
+  // "Find": the duplicates of the folder, plus (content search on) the analysis of this folder, with or without its subfolders. Same layout as the
+  // photo menu; without content search it stays the plain "Find duplicates" submenu.
+  const folderDuplicates = api.findDuplicates
+    ? { scope: { kind: 'folder', path, recursive: true }, label: baseName(path), compareWithLibrary: true }
+    : null;
+  if (folderDuplicates && api.semanticEnabled?.()) {
+    menu.append(buildSubmenuItem(t('Find'), [
+      { heading: t('Duplicates') },
+      ...duplicateEntries(folderDuplicates, true),
+      { separator: true },
+      { heading: t('Analyse content') },
+      { label: t('This folder only'), onSelect: () => api.analyseContent({ folder: path, recursive: false }) },
+      { label: t('With its subfolders'), onSelect: () => api.analyseContent({ folder: path, recursive: true }) },
+    ]));
+  } else if (folderDuplicates) menu.append(buildDuplicatesItem(folderDuplicates));
   if (api.faceDetectionEnabled?.()) menu.append(buildFacesItem({ folder: path }));
   menu.append(
     menuSeparator(),

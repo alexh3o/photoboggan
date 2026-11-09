@@ -1,18 +1,18 @@
-//! Mises à jour (Paramètres > Général > Internet, et fenêtre « Mise à jour disponible ») : recherche, téléchargement et lancement de l'installeur.
+//! Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer.
 //!
-//! Source : les releases GitHub du dépôt de l'application. Les requêtes partent du backend (jamais de la WebView), n'envoient rien d'autre que le nom
-//! et la version de l'application (User-Agent) et sont refusées en mode hors ligne, comme les autres accès au réseau.
+//! Source: the GitHub releases of the application repository. Requests are made by the backend (never by the WebView), send nothing but the
+//! application name and version (User-Agent) and are refused in offline mode, like every other network access.
 //!
-//! Règles de choix de la version proposée :
-//! * brouillons ignorés, ainsi que les releases dont le tag n'est pas `v<x>.<y>.<z>` (ex. `face-models-1`, qui ne contient pas l'application) ;
-//! * pré-releases proposées seulement si l'utilisateur l'a demandé, ou si la version installée est elle-même une beta (suffixe `-beta`, `-rc`…) ;
-//! * comparaison sur les trois nombres seuls : le suffixe `-beta` du .deb Linux est ignoré, la version Windows correspondante n'en a pas.
-//! La version vient toujours du tag, jamais du nom des fichiers (la release v0.4.2 contient des fichiers nommés 0.4.1).
+//! Which version is offered:
+//! * drafts are ignored, and so are releases whose tag is not `v<x>.<y>.<z>` (e.g. `face-models-1`, which does not hold the application);
+//! * pre-releases are offered only if the user asked for them, or if the installed version is itself a beta (suffix `-beta`, `-rc`…);
+//! * comparison on the three numbers only: the `-beta` suffix of the Linux .deb is ignored, the matching Windows version has none.
+//! The version always comes from the tag, never from file names (release v0.4.2 holds files named 0.4.1).
 //!
-//! Téléchargement et installation : l'interface ne fournit jamais d'adresse ni de chemin. Le backend retrouve lui-même l'installeur dans la release
-//! (adresse du dépôt, somme SHA-256 publiée par GitHub exigée), le télécharge dans le dossier temporaire, vérifie taille et somme, puis ne lance que ce
-//! fichier vérifié (somme recalculée juste avant). Windows : installeur NSIS (ou MSI) lancé, puis l'application se ferme. Linux : le .deb est confié
-//! au gestionnaire de paquets du système (`xdg-open`), l'installation demandant des droits que l'application n'a pas.
+//! Download and install: the interface never provides a URL or a path. The backend finds the installer in the release itself (repository
+//! address, SHA-256 published by GitHub required), downloads it to the temp folder, checks size and hash, then launches only that verified
+//! file (hash computed again just before). Windows: the MSI is run with `msiexec`, then the application closes. Linux: the .deb is handed
+//! to the system package manager (`xdg-open`), since installing needs rights the application does not have.
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -24,13 +24,17 @@ use std::sync::Mutex;
 use std::time::Duration;
 use tauri::Emitter;
 
-use crate::face_models::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
+use crate::model_files::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
 
-/// Releases les plus récentes d'abord ; 30 suffisent largement pour trouver la dernière version de l'application.
-const RELEASES_URL: &str = "https://api.github.com/repos/alexh3o/photoboggan/releases?per_page=30";
+/// The application repository: the only place it is written (the interface receives the release page already checked, see RELEASE_PAGE_PREFIX).
+macro_rules! repository { () => { "alexh3o/photoboggan" }; }
+/// Most recent releases first; 30 are plenty to find the latest version of the application.
+const RELEASES_URL: &str = concat!("https://api.github.com/repos/", repository!(), "/releases?per_page=30");
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
-/// Seules adresses de téléchargement acceptées (fichiers joints aux releases du dépôt).
-const DOWNLOAD_URL_PREFIX: &str = "https://github.com/alexh3o/photoboggan/releases/download/";
+/// Only download addresses accepted (files attached to the repository releases).
+const DOWNLOAD_URL_PREFIX: &str = concat!("https://github.com/", repository!(), "/releases/download/");
+/// Only release page passed to the interface (which opens it in the browser); any other address read from the network is dropped.
+const RELEASE_PAGE_PREFIX: &str = concat!("https://github.com/", repository!(), "/");
 /// Un installeur plus gros que cela n'est pas celui de l'application.
 const MAX_INSTALLER_BYTES: u64 = 500 * 1024 * 1024;
 
@@ -146,7 +150,7 @@ fn pick_latest(body: &[u8], installed: &Version, installed_text: &str, include_p
         update_available,
         prerelease: release.get("prerelease").and_then(|value| value.as_bool()).unwrap_or(false),
         notes: text(release, "body"),
-        url: text(release, "html_url"),
+        url: Some(text(release, "html_url")).filter(|url| url.starts_with(RELEASE_PAGE_PREFIX)).unwrap_or_default(),
         published_at: text(release, "published_at"),
         asset: if update_available { pick_asset(release, current_platform()) } else { None },
     })
@@ -302,14 +306,11 @@ pub fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     }
     #[cfg(windows)]
     {
-        let mut command = if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("msi")) {
-            let mut command = std::process::Command::new("msiexec");
-            command.arg("/i").arg(&path);
-            command
-        } else {
-            std::process::Command::new(&path)
-        };
-        command.spawn().map_err(|error| format!("Installeur impossible à lancer : {error}"))?;
+        // Only an .msi can be downloaded on Windows (pick_asset): it is run by msiexec, never executed directly.
+        if !path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("msi")) {
+            return Err("update_no_installer".to_string());
+        }
+        std::process::Command::new("msiexec").arg("/i").arg(&path).spawn().map_err(|error| format!("Installeur impossible à lancer : {error}"))?;
         app.exit(0);
         Ok(true)
     }

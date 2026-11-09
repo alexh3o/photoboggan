@@ -40,12 +40,14 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
 
 - 🛡️ **Files are SAFE**: only metadata is ever written; photoboggan never modifies the image content. Every write goes through a temporary file before replacing the original, so a file is never left half-written. Moves between drives are **verified by checksum** before the original is deleted (can be turned off in the settings). An **integrity check** detects corrupted files (JPEG, HEIC, WebP, PNG, RAW).
 
-  💾 Your photos stay **local, no cloud**. Optional online features, such as map data, geocoding, the face model download and update checks, may connect to external services (nominatim, openfreemap, github). Offline mode (Settings > General) disables all of these connections.
+  💾 Your photos stay **local, no cloud**. Optional online features, such as map data, geocoding, the face model download and update checks, may connect to external services (nominatim, openfreemap, github). Offline mode (Settings > General) disables all of these connections. AI features such as face detection & recognition, content analysis and search run entirely locally.
 
 - ⚡ **Built for SPEED**: fast thumbnail generation, nothing stops you from scrolling as fast as you want. All heavy tasks run in the background without lag.
   **Fast RAW previews**: instead of CPU-heavy demosaicing, the embedded JPEG is extracted in milliseconds. It can be low resolution, but it makes browsing instant.
 
 - 🧬 **Duplicates finder**: search a folder, a selection or the whole library for **identical** photos (image data hash, so metadata changes don't matter), **similar** photos (perceptual hash, tolerant to resizing, rotations and mirroring, with burst detection) or photos with **similar names** (regex). Results appear in the main grid, grouped and sorted, with a configurable "best copy" criteria.
+
+- 🔎 ********Content search********: optional, 100% local. Find photos by describing them ("beach at sunset") or by similarity to another photo, using the SigLIP 2 model. It also suggests keywords from your own vocabulary for a selected photo, and photos that may deserve a given keyword. Suggestions are never written to files until you accept them, and nothing is downloaded or computed unless you enable the feature.
 
 - ⭐ **ORGANISE (sort, compare, rate, filter, move...)** in a breeze
 
@@ -68,7 +70,7 @@ Downloads are on the [Releases page](https://github.com/alexh3o/photoboggan/rele
 
 - 🖥️ **Flexible UI**: choose text, thumbnails and panels size, thumbnails layout (square, justified, masonry), the panels to display, fullscreen infos (including titles and descriptions), histogram & clipped shadows/highlights or an unobstructed view. Dark or light theme.
 
-- 🛠️ **Comprehensive toolkit**: batch resizing, moving and copying, quickly "open with" your chosen external programs specifically for images, RAW, videos, EXIF viewer, clipboard support, system trash integration, a **task manager** with progress, time spent and remaining, cancellation and a warning when you quit while tasks are running, exhaustive shortcuts (with a built-in guide)...
+- 🛠️ **Comprehensive toolkit**: batch resizing, rotating, moving and copying, quickly "open with" your chosen external programs specifically for images, RAW, videos, EXIF viewer, clipboard support, system trash integration, a **task manager** with progress, time spent and remaining, cancellation and a warning when you quit while tasks are running, exhaustive shortcuts (with a built-in guide)...
 
 See <a href="#screenshots">Screenshots</a> for more detail.
 
@@ -79,6 +81,19 @@ Available languages: 🇬🇧 *English* and 🇫🇷 *French*, more to come if t
 ### License & Disclaimer
 
 Distributed under the **GNU General Public License v3.0** (GPL-3.0). See the [LICENSE](LICENSE) file.
+
+Optional components downloaded on request (never bundled in the installer), under their own licenses:
+
+- **YuNet** (face detection, OpenCV Zoo): MIT License.
+- **SFace** (face recognition, OpenCV Zoo): Apache License 2.0.
+- **SigLIP 2** (`google/siglip2-base-patch16-224`, ONNX export by `onnx-community`), content search model: Apache License 2.0.
+- **ONNX Runtime** (Microsoft), runs the face and content search models: MIT License.
+
+Maps and places:
+
+- Map tiles and style from [OpenFreeMap](https://openfreemap.org) (MIT), vector tiles by [OpenMapTiles](https://openmaptiles.org) (code BSD 3-Clause, design CC BY 4.0), map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL). The style is based on `maputnik/osm-liberty` and `openmaptiles/dark-matter-gl-style` (BSD 3-Clause code, CC BY 4.0 design), with Maki icons (CC0) and Noto Sans glyphs (SIL OFL 1.1). Details in [`LICENSES.md`](src-tauri/resources/map-style/LICENSES.md).
+- Place search by Nominatim, on OpenStreetMap data (ODbL).
+
 Photos from Lorem Picsum / Unsplash.
 
 Designed and developed by alexh3o, sped up with the precious help of Claude & Gemini.

@@ -7,8 +7,8 @@
 //! - Les coordonnées sont converties dans le repère de l'image STOCKÉE (avant orientation EXIF), comme les zones lues dans les fichiers (faces.rs).
 //! - Les détections faibles (score < SCORE_FLOOR) sont ignorées ; au-dessus, tout est gardé avec ses mesures (confiance, netteté, taille) :
 //!   les seuils réglables classent un visage « inconnu » ou « filtré », et un changement de seuil reclasse sans rescan (apply_face_thresholds).
-//! - ONNX Runtime : l'environnement est créé au premier scan puis gardé (la bibliothèque ne peut pas être déchargée) ; la session du modèle,
-//!   qui porte l'essentiel de la mémoire, est libérée à la fin de chaque tâche.
+//! - ONNX Runtime: the environment is shared with the semantic search (onnx_runtime.rs), created on first use and kept (the library cannot be
+//!   unloaded); the model sessions, which hold most of the memory, are dropped at the end of each task.
 
 use ort::environment::Environment;
 use ort::session::Session;
@@ -179,21 +179,6 @@ pub(crate) fn orient_rect(rect: [f64; 4], orientation: u32) -> [f64; 4] {
 // Moteur : ONNX Runtime et YuNet
 // ---------------------------------------------------------------------------
 
-/// Environnement ONNX Runtime, créé une seule fois par processus (contrainte de la crate ort) et gardé ensuite.
-fn environment(runtime: &Path) -> Result<Environment, String> {
-    static ENVIRONMENT: OnceLock<Environment> = OnceLock::new();
-    static INIT_LOCK: Mutex<()> = Mutex::new(());
-    if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
-    // Un seul essai à la fois, et seul un succès est gardé : un échec (bibliothèque pas encore importée, verrouillée…) peut être retenté.
-    let _guard = INIT_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    if let Some(environment) = ENVIRONMENT.get() { return Ok(environment.clone()); }
-    let built = ort::init_from(runtime)
-        .map_err(|error| format!("ONNX Runtime impossible à charger : {error}"))?
-        .build()
-        .map_err(|error| format!("ONNX Runtime impossible à initialiser : {error}"))?;
-    Ok(ENVIRONMENT.get_or_init(|| built).clone())
-}
-
 /// Visage détecté, en coordonnées normalisées de l'image orientée (la miniature).
 struct Detection {
     score: f32,
@@ -354,8 +339,7 @@ struct Target {
 }
 
 fn is_raw_path(path: &str) -> bool {
-    let extension = Path::new(path).extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
-    matches!(extension.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw")
+    crate::thumbnails::is_raw_path(Path::new(path))
 }
 
 /// Photos visées : une sélection (`photo_ids`) ou un dossier (`folder`, sous-dossiers compris si `recursive`). Les vidéos sont exclues, les RAW
@@ -745,6 +729,7 @@ pub async fn detect_faces(
     let cancel = crate::scan_cancel_flag(&task_id);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<DetectionReport, String> {
+        let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while faces are scanned
         let paths = crate::face_models::installed_paths(&models_dir)?;
         let conn = pool.get().map_err(|error| error.to_string())?;
         let targets: Vec<Target> = select_targets(&conn, photo_ids.as_deref(), folder.as_deref(), recursive)?
@@ -754,7 +739,7 @@ pub async fn detect_faces(
             .collect();
         let mut report = DetectionReport::default();
         if targets.is_empty() { return Ok(report); }
-        let environment = environment(&paths.runtime)?;
+        let environment = crate::onnx_runtime::environment(&paths.runtime)?;
         let detector = load_session(&environment, &paths.detector, "Modèle de détection")?;
         let recognizer = load_session(&environment, &paths.recognizer, "Modèle de reconnaissance")?;
         // Moitié des cœurs pour lire les miniatures (le reste pour l'interface) ; l'inférence, rapide, passe une photo à la fois.
@@ -812,48 +797,5 @@ pub async fn detect_faces(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn orientation_round_trip() {
-        let rect = [0.7116, 0.2423, 0.0995, 0.1441];
-        for orientation in 1..=8 {
-            let shown = orient_rect(rect, orientation);
-            let back = orient_rect(shown, inverse_orientation(orientation));
-            for index in 0..4 { assert!((back[index] - rect[index]).abs() < 1e-9, "orientation {orientation}"); }
-        }
-        // Orientation 8 (Explorateur Windows) : même zone que celle recalculée par digiKam après sa rotation des pixels.
-        let shown = orient_rect(rect, 8);
-        assert!((shown[0] - 0.2423).abs() < 1e-4 && (shown[1] - 0.1889).abs() < 1e-4);
-    }
-
-    /// The shared defaults file must stay parseable by both readers (comment-line stripping, then JSON).
-    fn defaults_json() -> serde_json::Value {
-        let json: String = DEFAULTS_FILE.lines().filter(|line| !line.trim_start().starts_with("//")).collect::<Vec<_>>().join("\n");
-        serde_json::from_str(&json).expect("src/defaults.jsonc is valid JSON once comment lines are dropped")
-    }
-
-    #[test]
-    fn default_face_settings_come_from_the_shared_file_and_are_in_range() {
-        let defaults = FaceSettings::default();
-        assert!((0.0..=500.0).contains(&defaults.min_size_permille));
-        assert!((0.5..=1.0).contains(&defaults.min_confidence));
-        assert!((0.0..=2000.0).contains(&defaults.min_sharpness));
-        assert!((0.2..=1.0).contains(&defaults.auto_threshold));
-        assert!((0.2..=1.0).contains(&defaults.suggestion_threshold));
-        assert!(defaults.suggestion_threshold <= defaults.auto_threshold);
-        assert!((0.0..=0.5).contains(&defaults.margin));
-    }
-
-    #[test]
-    fn the_defaults_file_has_every_key_the_frontend_reads() {
-        let root = defaults_json();
-        for key in [
-            "sidebarVisible", "toolbarShowLabels", "thumbnailLayout", "thumbnailSize", "appLanguage", "checkUpdates",
-            "faceReading", "slideshowDelay", "rawScope", "mapDefaultZoom", "selectionColor",
-        ] {
-            assert!(!root[key].is_null(), "missing default: {key}");
-        }
-    }
-}
+#[path = "tests/face_detect.rs"]
+mod tests;
