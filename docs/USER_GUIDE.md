@@ -43,7 +43,7 @@ Other useful startup choices (**Settings > General**): the language (English or 
 | Type   | Formats                                                |
 | ------ | ------------------------------------------------------ |
 | Images | JPG, JPEG, JFIF, PNG, WebP, AVIF, GIF, BMP, HEIC, HEIF |
-| RAW    | ARW, CR2, CR3, NEF, NRW, DNG, RAF, ORF, RW2, RAW       |
+| RAW    | ARW, CR2, CR3, NEF, NRW, DNG, RAF, ORF, RW2, RAW, PEF  |
 | Videos | MP4, MOV, AVI, MKV                                     |
 
 - **RAW files** are never developed. Photoboggan shows the JPEG preview embedded in the file by the camera, which is quick but can be lower resolution than the real photo.
@@ -94,13 +94,13 @@ Panels can be shown or hidden (see [shortcuts](#9-keyboard-shortcuts)) and resiz
 
 Filters are in the left panel and **combine with each other**. The grid shows the number of matching photos; the cross button next to **Filters** clears everything.
 
-| Filter               | How it works                                                                                                                                        |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Filter               | How it works                                                                                                                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ratings & Colors** | Five clickable stars (click the active star again to clear), a *∅* chip for unrated photos, a *≥ / =* toggle (at least / exactly N stars), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
-| **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter.                                |
-| **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                                                    |
-| **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                                                            |
-| **Date taken**       | Type a date or range, or use the calendar button.                                                                                                   |
+| **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter.                                                                                                                                |
+| **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                                                                                                                                                    |
+| **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                                                                                                                                                            |
+| **Date taken**       | Type a date or range, or use the calendar button.                                                                                                                                                                                                   |
 
 **Date filter examples** (formats `YYYY`, `YYYYMM`, `YYYYMMDD`, `YYYYMMDDHH`, `YYYYMMDDHHmm`):
 
@@ -137,14 +137,14 @@ Press `X` or click **Compare** to view up to 4 photos side by side.
 
 Right-click a photo or selection for the context menu:
 
-| Action                          | Notes                                                           |
-| ------------------------------- | --------------------------------------------------------------- |
-| **Photo info** (`I`)            | Information sheet.                                              |
-| **Delete** (`Del`)              | Moves to the system trash after confirmation.                   |
-| **Copy** (`Ctrl`+`C`)           | Copies the files to the clipboard.                              |
-| **Copy to…** (`C`)              | Copies to a folder you choose.                                  |
-| **Resize…** (`S`)               | Batch resize into new files (see below).                        |
-| **Show in file explorer** (`E`) |                                                                 |
+| Action                          | Notes                                                                                                                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Photo info** (`I`)            | Information sheet.                                                                                                                            |
+| **Delete** (`Del`)              | Moves to the system trash after confirmation.                                                                                                 |
+| **Copy** (`Ctrl`+`C`)           | Copies the files to the clipboard.                                                                                                            |
+| **Copy to…** (`C`)              | Copies to a folder you choose.                                                                                                                |
+| **Resize…** (`S`)               | Batch resize into new files (see below).                                                                                                      |
+| **Show in file explorer** (`E`) |                                                                                                                                               |
 | **Open with** (`O`)             | Programs of **Settings > Open with** for the file type (rendered images, RAW, videos), in your order, or **Choose…**. `O` uses the first one. |
 
 You can also **drag** photos onto a folder in the tree: `Shift`+drag to **move**, `Ctrl`+drag to **copy**. When photos are copied or moved, their `.xmp` sidecar file goes with them.
