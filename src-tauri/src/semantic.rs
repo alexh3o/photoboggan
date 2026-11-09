@@ -663,6 +663,8 @@ struct ScanJob {
     photo_ids: Option<Vec<i64>>,
     folder: Option<String>,
     recursive: bool,
+    /// Leave the RAW files out (the face scan has the same choice).
+    skip_raw: bool,
     threads: usize,
     cancel: Arc<AtomicBool>,
 }
@@ -691,7 +693,8 @@ fn run_scan(job: ScanJob, emit: &dyn Fn(ScanProgress)) -> Result<ScanReport, Str
     let model = active_model();
     let conn = job.pool.get().map_err(|error| error.to_string())?;
     remove_orphans(&conn).map_err(|error| error.to_string())?;
-    let targets = select_targets(&conn, &model.id, job.photo_ids.as_deref(), job.folder.as_deref(), job.recursive)?;
+    let mut targets = select_targets(&conn, &model.id, job.photo_ids.as_deref(), job.folder.as_deref(), job.recursive)?;
+    if job.skip_raw { targets.retain(|target| !crate::thumbnails::is_raw_path(Path::new(&target.path))); }
     let mut report = ScanReport { total: targets.len(), ..ScanReport::default() };
     let pending: Vec<Target> = targets.into_iter().filter(|target| target.standing == Standing::Pending).collect();
     report.up_to_date = report.total - pending.len();
@@ -824,6 +827,7 @@ pub async fn semantic_scan(
     recursive: bool,
     photo_ids: Option<Vec<i64>>,
     threads: Option<usize>,
+    skip_raw: Option<bool>,
 ) -> Result<ScanReport, String> {
     ensure_enabled()?;
     let cancel = crate::scan_cancel_flag(&task_id);
@@ -838,6 +842,7 @@ pub async fn semantic_scan(
             photo_ids,
             folder,
             recursive,
+            skip_raw: skip_raw.unwrap_or(false),
             threads: threads.unwrap_or(1).clamp(1, 4),
             cancel: cancel.clone(),
         };
@@ -885,9 +890,10 @@ pub struct Stats {
 const ROW_OVERHEAD: u64 = 60;
 
 /// Counts of a scope (`folder` / `photo_ids` / whole library, as for the scan) and storage used.
-pub fn stats(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&str>, recursive: bool) -> Result<Stats, String> {
+pub fn stats(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&str>, recursive: bool, skip_raw: bool) -> Result<Stats, String> {
     let model = active_model();
-    let targets = select_targets(conn, &model.id, photo_ids, folder, recursive)?;
+    let mut targets = select_targets(conn, &model.id, photo_ids, folder, recursive)?;
+    if skip_raw { targets.retain(|target| !crate::thumbnails::is_raw_path(Path::new(&target.path))); }
     let count = |standing: Standing| targets.iter().filter(|target| target.standing == standing).count();
     // Rows per model through the index (the vectors are not read). A model no longer in the manifest is counted with the active size.
     let mut statement = conn.prepare("SELECT model_id, COUNT(*) FROM photo_embeddings GROUP BY model_id").map_err(|error| error.to_string())?;
@@ -902,10 +908,10 @@ pub fn stats(conn: &Connection, photo_ids: Option<&[i64]>, folder: Option<&str>,
 
 /// "x of y photos analysed" and storage (Settings; "not analysed yet" line of the searches).
 #[tauri::command(async)]
-pub fn get_semantic_stats(state: State<'_, AppState>, folder: Option<String>, recursive: bool, photo_ids: Option<Vec<i64>>) -> Result<Stats, String> {
+pub fn get_semantic_stats(state: State<'_, AppState>, folder: Option<String>, recursive: bool, photo_ids: Option<Vec<i64>>, skip_raw: Option<bool>) -> Result<Stats, String> {
     ensure_enabled()?;
     let conn = state.pool().get().map_err(|error| error.to_string())?;
-    stats(&conn, photo_ids.as_deref(), folder.as_deref(), recursive)
+    stats(&conn, photo_ids.as_deref(), folder.as_deref(), recursive, skip_raw.unwrap_or(false))
 }
 
 /// Deletes every embedding, failure and dismissed suggestion (all models), in one transaction.

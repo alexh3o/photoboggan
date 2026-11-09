@@ -1539,5 +1539,7 @@
   "Analyse content": "Analyser le contenu",
   "Compute the content analysis of these photos (low priority, in the background)": "Calcule l'analyse du contenu de ces photos (basse priorité, en arrière-plan)",
   "This folder only": "Ce dossier seulement",
-  "With its subfolders": "Avec ses sous-dossiers"
+  "With its subfolders": "Avec ses sous-dossiers",
+  "Analyse RAW files (embedded preview)": "Analyser les RAW (aperçu intégré)",
+  "Downloading the content search model ({size})…": "Téléchargement du modèle de recherche par contenu ({size})…"
 }

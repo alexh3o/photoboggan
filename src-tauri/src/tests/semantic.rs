@@ -254,6 +254,17 @@ fn scopes_select_a_folder_with_or_without_subfolders_or_a_selection() {
 }
 
 #[test]
+fn raw_files_can_be_left_out_of_the_counts() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    add_photo(&conn, "C:/photos/a.jpg", 1, 1);
+    add_photo(&conn, "C:/photos/b.CR2", 1, 1);
+    add_photo(&conn, "C:/photos/c.dng", 1, 1);
+    assert_eq!(stats(&conn, None, None, false, false).unwrap().total, 3);
+    assert_eq!(stats(&conn, None, None, false, true).unwrap().total, 1);
+}
+
+#[test]
 fn rows_of_removed_photos_and_keywords_are_cleaned_up() {
     let (_dir, pool) = temp_catalog();
     let conn = pool.get().unwrap();
@@ -292,10 +303,10 @@ fn stats_count_the_scope_and_deleting_data_empties_the_tables() {
     let (target_a, target_b) = (target(&conn, a), target(&conn, b));
     store_batch(&conn, MODEL, &[(&target_a, Outcome::Embedded(unit_vector())), (&target_b, Outcome::Failed("x".to_string()))]).unwrap();
     let dim = active_model().embed_dim as u64;
-    assert_eq!(stats(&conn, None, None, false).unwrap(), Stats { total: 3, analysed: 1, failed: 1, pending: 1, bytes: dim * 2 + ROW_OVERHEAD });
-    assert_eq!(stats(&conn, Some(&[a]), None, false).unwrap().total, 1);
+    assert_eq!(stats(&conn, None, None, false, false).unwrap(), Stats { total: 3, analysed: 1, failed: 1, pending: 1, bytes: dim * 2 + ROW_OVERHEAD });
+    assert_eq!(stats(&conn, Some(&[a]), None, false, false).unwrap().total, 1);
     delete_data(&conn).unwrap();
-    assert_eq!(stats(&conn, None, None, false).unwrap(), Stats { total: 3, analysed: 0, failed: 0, pending: 3, bytes: 0 });
+    assert_eq!(stats(&conn, None, None, false, false).unwrap(), Stats { total: 3, analysed: 0, failed: 0, pending: 3, bytes: 0 });
 }
 
 #[test]
@@ -312,6 +323,7 @@ fn a_scan_with_nothing_to_do_does_not_need_the_model_and_a_missing_model_is_repo
         photo_ids: None,
         folder: None,
         recursive: true,
+        skip_raw: false,
         threads: 1,
         cancel: Arc::new(AtomicBool::new(false)),
     };
@@ -497,6 +509,7 @@ fn a_scan_stores_what_the_encoder_computes_and_stops_when_asked() {
         photo_ids: None,
         folder: None,
         recursive: true,
+        skip_raw: false,
         threads: 2,
         cancel,
     };
@@ -528,7 +541,7 @@ fn a_scan_stores_what_the_encoder_computes_and_stops_when_asked() {
     assert!(!report.cancelled);
     assert_eq!(report.up_to_date, 16);
     assert_eq!(report.analysed + report.skipped + report.failed.len(), 6);
-    assert_eq!(stats(&conn, None, None, false).unwrap(), Stats { total: 22, analysed: 20, failed: 1, pending: 1, bytes: 20 * (768 * 2 + ROW_OVERHEAD) });
+    assert_eq!(stats(&conn, None, None, false, false).unwrap(), Stats { total: 22, analysed: 20, failed: 1, pending: 1, bytes: 20 * (768 * 2 + ROW_OVERHEAD) });
 
     // Stored vectors are those of the encoder on the same pixels.
     let environment = crate::onnx_runtime::environment(&runtime_library()).unwrap();

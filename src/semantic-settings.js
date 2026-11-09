@@ -145,7 +145,7 @@ async function refreshStats() {
   if (!enabled) return null;
   const token = ++statsToken;
   try {
-    const stats = await invoke('get_semantic_stats', { folder: null, recursive: false, photoIds: null });
+    const stats = await invoke('get_semantic_stats', { folder: null, recursive: false, photoIds: null, skipRaw: !scanRaw() });
     if (token !== statsToken) return null;
     lastStats = stats;
   } catch (error) {
@@ -201,7 +201,7 @@ async function importModel() {
 }
 
 function downloadModel() {
-  host.enqueueTask({
+  const queued = host.enqueueTask({
     kind: 'semantic-models',
     path: null,
     command: 'download_semantic_model',
@@ -214,6 +214,8 @@ function downloadModel() {
       if (!error && !stopped && modelStatus?.installed) host.showToast(t('Content search model installed'));
     },
   });
+  // Immediate feedback: the progress toast of the task is not always seen behind the Settings window.
+  if (queued) host.showToast(t('Downloading the content search model ({size})…', { size: formatMegabytes(modelStatus?.missingSize ?? 0) }));
 }
 
 async function deleteAnalysisData() {
@@ -327,7 +329,7 @@ export function analyseContent({ folder = null, recursive = false, photoIds = nu
     kind: 'semantic',
     path: folder,
     command: 'semantic_scan',
-    args: { folder, recursive, photoIds, threads: semanticScanThreads() },
+    args: { folder, recursive, photoIds, threads: semanticScanThreads(), skipRaw: !scanRaw() },
     labelKey: folder ? 'Content analysis: {folder}' : photoIds ? 'Content analysis ({count} photos)' : 'Content analysis: whole library',
     labelParams: folder ? { folder: baseName } : photoIds ? { count: photoIds.length } : undefined,
     dedupeKey: scopeKey ? `semantic:${scopeKey}` : undefined,
@@ -353,6 +355,9 @@ async function reportAnalysis(report, stopped, error) {
   refreshStats();
 }
 
+/** Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts. */
+const scanRaw = () => readBool('semanticScanRaw');
+
 /** Scan speed (ONNX Runtime threads): 1, 2 or 4. */
 export function semanticScanThreads() {
   return Number(readChoice('semanticScanThreads', ['1', '2', '4']));
@@ -372,6 +377,8 @@ export async function initSemanticSettings(hostApi) {
   byId('semantic-toggle').addEventListener('change', event => setEnabled(event.target.checked));
   bindCheckbox('semantic-in-keyword-search', 'semanticInKeywordSearch');
   bindCheckbox('semantic-show-score', 'semanticShowScore');
+  bindCheckbox('semantic-scan-raw', 'semanticScanRaw');
+  byId('semantic-scan-raw').addEventListener('change', refreshStats); // the counts follow the choice
   const threads = byId('semantic-threads');
   threads.value = String(semanticScanThreads());
   threads.addEventListener('change', () => {

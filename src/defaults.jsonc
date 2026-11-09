@@ -124,6 +124,8 @@
   // ---------------------------------------------------------------- Settings: Content search
   // Content search (local AI, SigLIP 2): off until the user enables it and installs the model.
   "semanticSearch": false,
+  // Analyse the RAW files too (through their embedded preview); false leaves them out of every analysis and of the counts.
+  "semanticScanRaw": true,
   // ONNX Runtime threads of the content analysis: 1 (low) | 2 (normal) | 4 (high).
   "semanticScanThreads": 1,
   // Relative relevance threshold of the results (0.005 to 0.08): kept when cosine >= best - this value.
