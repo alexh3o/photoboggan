@@ -25,9 +25,9 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 
 **ExifTool left a `<file>_exiftool_tmp` or the original seems gone (network share, FAT32 / exFAT).** Cause: ExifTool can delete the original before its final rename fails. `recover_after_failure` restores the only copy and never deletes it; the dialog lists the recoveries and the `logs/write-recovery_*.log` file names the files. If the original still exists the temp is removed; if the state is unclear the temp is kept (tests in `invariants.md` §1.3). Fix: check the log, keep the file it names.
 
-**Keywords / title written to the wrong place, or a sidecar next to a RAW looks unexpected.** Cause: sidecar targeting (`sidecar_target`): `photo.ext.xmp`, or an existing `photo.xmp` that is the image's own; a `photo.xmp` shared by two sidecar-writing images (RAW + DNG, HEIC + MOV) is never written. Check `logs/sidecar-conflicts_*.log` (renames made to avoid conflicts) and `modules/metadata-read-write.md`. HEIC / HEIF are written inside the container (sidecar only as an internal-writer fallback, AGENTS.md §5.D).
+**Keywords / title written to the wrong place, or a sidecar next to a RAW looks unexpected.** Cause: sidecar targeting (`sidecar_target`): `photo.ext.xmp`, or an existing `photo.xmp` that is the image's own; a `photo.xmp` shared by two sidecar-writing images (RAW + DNG, HEIC + MOV) is never written. Check `logs/sidecar-conflicts_*.log` (renames made to avoid conflicts) and `modules/metadata-read-write.md`. HEIC / HEIF are written inside the container (sidecar only as an internal-writer fallback, AGENTS.md §5.C).
 
-**Thumbnail or preview looks stale or wrong after a code change.** Cause: the cache name is a hash of path, size, mtime and `PREVIEW_VERSION` (`thumbnail_cache_file`). After changing what a thumbnail contains, bump `PREVIEW_VERSION` (see `modules/thumbnails-and-previews.md`). To rebuild without losing data, clear the thumbnail cache (`clear_thumbnail_cache`, called only when the cache size is changed in Settings > Storage, after a confirmation; "Remove orphan thumbnails" in the same tab only removes old names, `purge_orphan_cache`); the cache holds only derived files. Never use a flat `read_dir` on the cache (256 subfolders, AGENTS.md §5.B).
+**Thumbnail or preview looks stale or wrong after a code change.** Cause: the cache name is a hash of path, size, mtime and `PREVIEW_VERSION` (`thumbnail_cache_file`). After changing what a thumbnail contains, bump `PREVIEW_VERSION` (see `modules/thumbnails-and-previews.md`). To rebuild without losing data, clear the thumbnail cache (`clear_thumbnail_cache`, called only when the cache size is changed in Settings > Storage, after a confirmation; "Remove orphan thumbnails" in the same tab only removes old names, `purge_orphan_cache`); the cache holds only derived files. Never use a flat `read_dir` on the cache (256 subfolders, AGENTS.md §5.A).
 
 **PNG / CMYK JPEG thumbnails drawn by the webview.** Not a bug: the backend fails on some formats and the webview draws the thumbnail and stores it with `save_thumbnail_cache` (`architecture.md`, flow 2).
 
@@ -64,7 +64,7 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 1. Point the app to a new data folder (Settings, "Application data location", or a fresh OS user profile): the catalogue, caches, models and zones start empty; photo folders are untouched (the files on disk are the source of truth).
 2. Or delete only derived data: thumbnails / previews (change the cache size in Settings > Storage, or delete `thumbnails/` and `raw_previews/` while the app is closed). Do **not** delete `photos_library.db` casually: albums, keyword nodes absent from files, private zone definitions and erased-GPS backups are not rebuildable (`architecture.md`, "Where state lives").
 3. For ExifTool tests use `cargo test exiftool:: -- --ignored --test-threads=1`; for semantic parity tests `SEMANTIC_MODEL_DIR=<dir> cargo test semantic:: -- --ignored`.
-4. Use copies of photos, never real ones (AGENTS.md §5.I).
+4. Use copies of photos, never real ones (AGENTS.md §5.H).
 
 ## Known issues
 

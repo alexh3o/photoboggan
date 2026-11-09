@@ -11,7 +11,7 @@ Example: `set_thumbnail_quality` (main.rs) called from `main.js` (search `thumbn
 3. Register it in `generate_handler![…]` in `fn main` (main.rs), next to its module's other commands. Forgetting this compiles fine and fails only at `invoke` time.
 4. Call it from JS: `invoke('my_command', { camelCaseArg })`. Rust `snake_case` arguments are passed in camelCase (`max_side` → `maxSide`).
 5. Errors meant for the user: return a stable code (`"internet_disabled"`, `"invalid_name"`) and translate it in JS (e.g. `update-check.js` maps `internet_disabled` to a message). Raw French/English strings reach the user as-is.
-6. Test the inner function (not the command) in `src-tauri/src/tests/<module>.rs`; IPC is not tested (AGENTS.md §5.I).
+6. Test the inner function (not the command) in `src-tauri/src/tests/<module>.rs`; IPC is not tested (AGENTS.md §5.H).
 7. Run `npm run docs:gen`: the command appears in `generated/ipc-commands.md`.
 - Trap: plain `#[tauri::command] fn` runs on the main thread and freezes the window while it works (listed as "main thread" in `generated/ipc-commands.md`). Several old commands (`get_folders`, `cancel_scan`, `set_internet_allowed`) are deliberately trivial.
 - Trap: app commands need no entry in `capabilities/default.json` (it only lists core and plugin permissions); a new **core / plugin** API used from JS (window, dialog, opener…) does (e.g. `core:window:allow-destroy` for closing).
@@ -38,7 +38,7 @@ Example: **title** (`MetadataUpdate.title`). Read `invariants.md` §1–2 first.
 5. **Verification after write**: extend `text_mismatch` (or add a `*_mismatch`) so a value the file did not keep is a failure.
 6. **Frontend**: pending value in the editor (`description-panel.js` for title), sent through `applyPending` / `apply_metadata_changes` (`metadata-writes.js`). Never write outside that circuit.
 7. Tests: internal path in `tests/exif.rs` calling `write_jpeg_metadata` / `write_xmp_sidecar_with` directly (e.g. `empty_title_and_description_remove_them`); ExifTool path in `tests/exiftool.rs` with `#[ignore = "intégration : lance ExifTool"]`. Never toggle the global writer setting in a fast test.
-- Trap: forgetting one writer gives files that differ by setting; AGENTS.md §5.D requires both.
+- Trap: forgetting one writer gives files that differ by setting; AGENTS.md §5.C requires both.
 
 ## 4. Add a file format
 
@@ -50,7 +50,7 @@ Lists to update (search the extension `"cr2"` to find them all, there is no sing
 5. Metadata target: `exif::write_metadata` / `exiftool::target_of` decide in-file vs sidecar; a new non-JPEG format defaults to a sidecar.
 6. Duplicates: decide which bytes `duplicates::layout_of` hashes; changing it requires `LAYOUT_VERSION` + 1.
 7. Integrity check (`integrity.rs`) and resize (`resize.rs`): check what they do with the extension.
-8. AGENTS.md §5.C list; test `supported_extensions_ignore_case_and_sidecars` (library_sync).
+8. Test `supported_extensions_ignore_case_and_sidecars` (library_sync); the user-facing list of formats is `docs/USER_GUIDE.md`.
 
 ## 5. Add a database column or table
 

@@ -12,7 +12,7 @@ Update the status column and commit at the end of each session. One session = on
 | 3 | Module docs, style, configuration, testing, build, troubleshooting, glossary | Sonnet, one session per row | see table below | done |
 | 4 | Cross-review: contradictions, `⚠` items, spot-check claims against the code | Opus | fixes + `reviewed` status | done |
 | 5 | Real-task test with a free-tier model using only these docs | any | list of gaps → fixes | todo |
-| 6 | Hook up `AGENTS.md` (one pointer line + "update docs with the code" rule) | Sonnet | AGENTS.md diff, user validates | todo |
+| 6 | Hook up `AGENTS.md` (one pointer line + "update docs with the code" rule) | Opus | AGENTS.md §3 rewritten, file shortened from 220 to 110 lines (details moved to the docs) | done |
 
 ## Module split (validated in phase 2)
 
@@ -178,7 +178,7 @@ Every module prompt below starts with the same instructions; only the last sente
 - `keywords.rs` doc comment of `set_metadata_read_order`: now lists the 8 kinds (English).
 - Keys without a default (`exifPanelWidth`, `lastFolderFilter`, `sidebarWidth`, `keywordFilterMode`, `sidePanelTab`, `keywordsAutoApplyAsked`, `albumsExpanded`, `albumsCollapsed`, `rawSearch`): UI state, documented in `configuration.md`. **Open**: AGENTS.md §5.G could say "every remembered *setting*" (state keys exempt); user decision.
 - `architecture.md` thumbnail throttle: fixed (frontend 2–6, backend cap 6).
-- `src/guide.js` shortcuts vs keyboard handler (`Ctrl+R`): **not checked**, left open.
+- `src/guide.js` shortcuts vs keyboard handler (`Ctrl+R`): checked, Ctrl+R (rotate right) is always caught by the keydown handler and never reloads the window; Shift+R rotates left.
 - `styles.css` `--accent-text` comment: fixed.
 - `generated/config.md` `—` for keys read through constants: generator limit, documented in `configuration.md`.
 - `generated/tests.md` `faces_db.rs` owner: generator fixed; it now also lists inline `mod tests` of `face_detect.rs`, `face_recognize.rs`, `faces.rs` (9 tests).

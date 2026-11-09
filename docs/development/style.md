@@ -1,7 +1,7 @@
 <!-- verified: a9ca28f | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/raw-settings.css, src/shooting-filters.css, index.html, src/app-fonts.js -->
 # Style and UI conventions
 
-The tables (every CSS variable and where it is defined, the z-index stack, the commented sections of each stylesheet) are generated in `generated/css.md`: search it, do not copy it. This doc gives the rules and the mechanisms. Layout invariants of the grid (px vs rem) are in AGENTS.md §5.A / §5.B / §7 and `modules/grid-and-viewer.md`.
+The tables (every CSS variable and where it is defined, the z-index stack, the commented sections of each stylesheet) are generated in `generated/css.md`: search it, do not copy it. This doc gives the rules and the mechanisms. Layout invariants of the grid (px vs rem) are in AGENTS.md §5.A / §7 and `modules/grid-and-viewer.md`.
 
 ## Stylesheets: who owns what
 - `src/styles.css` (~1050 lines): **the global stylesheet**: `@font-face` rules (Fredoka for the title, then Inter, Manrope, Geist, Raleway from `src/assets/fonts/`, all embedded: no network, AGENTS.md §1), `:root` tokens, the `:root[data-theme="light"]` overrides, title bar, toolbar, sidebar, filter accordion, grid, preview, full screen, modals, toasts, context menu, settings controls. It is loaded from `main.js` (`import './styles.css'`).
@@ -33,7 +33,7 @@ The tables (every CSS variable and where it is defined, the z-index stack, the c
 - **Filter chips**: `createFilterTag` (`filter-tags.js`), one colour per filter kind through `--tag-*` variables; excluded entries are faded.
 - **Icons**: inline SVG in the HTML/JS (Lucide-style strokes, `currentColor`), never an icon font or a network resource.
 - **Fonts**: choose in Settings; adding one takes four steps (header of `app-fonts.js`). Font names are not translated.
-- **Disabled-by-feature elements**: `body.no-semantic .semantic-only { display: none !important }` (`semantic.css`) is the pattern for optional features (AGENTS.md §5.L); `no-color-labels` / `no-pick-labels` classes work the same for marking.
+- **Disabled-by-feature elements**: `body.no-semantic .semantic-only { display: none !important }` (`semantic.css`) is the pattern for optional features (AGENTS.md §5.I); `no-color-labels` / `no-pick-labels` classes work the same for marking.
 
 ## z-index policy
 Full stack in `generated/css.md`. Bands in use (as found): 1–10 local stacking inside a component (badges, resizers, hover lift), 20 floating widgets (`.histogram-widget`, keyword suggestions), 900 revealed toolbar, 1000 `.write-toast`, 5000 date picker, 9999 full-screen view (and the histogram in full screen), 10000 modals, 11000 context menu, 12000 task toasts, 13000 drag ghosts. A new overlay picks the band of what it must sit above; do not invent values between bands.

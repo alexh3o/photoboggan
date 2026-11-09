@@ -7,7 +7,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `AGENTS.md` | 221 |  |
+| `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
 | `index.html` | 1216 |  |
 | `package.json` | 29 |  |
@@ -64,8 +64,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `ipc-commands.md` | 176 |  |
 | `module-deps.md` | 93 |  |
 | `symbols-js.md` | 1374 |  |
-| `symbols-rust.md` | 1253 |  |
-| `tests.md` | 422 |  |
+| `symbols-rust.md` | 1255 |  |
+| `tests.md` | 423 |  |
 
 ## docs/development/modules
 
@@ -82,7 +82,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `library-and-database.md` | 72 |  |
 | `main-window.md` | 78 |  |
 | `maps-and-geolocation.md` | 69 |  |
-| `metadata-read-write.md` | 96 |  |
+| `metadata-read-write.md` | 101 |  |
 | `photo-operations.md` | 82 |  |
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 65 |  |

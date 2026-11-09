@@ -2,7 +2,7 @@
 # Duplicates (identical, similar, by name)
 
 ## Purpose
-Finds groups of photos that are the same picture: identical image data (metadata ignored), visually similar (resized, recompressed, lightly edited, optionally rotated), or sharing a file-name key. Results open in the main grid as a results mode; the user decides what to do. Nothing runs and the cache tables stay empty until a search is started (AGENTS.md §5.K).
+Finds groups of photos that are the same picture: identical image data (metadata ignored), visually similar (resized, recompressed, lightly edited, optionally rotated), or sharing a file-name key. Results open in the main grid as a results mode; the user decides what to do. Nothing runs and the cache tables stay empty until a search is started (AGENTS.md §5.I).
 
 ## Files
 | File | Role |

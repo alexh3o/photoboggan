@@ -2,7 +2,7 @@
 # Semantic search and automatic keywords
 
 ## Purpose
-Optional "content search" (Settings > Search, off by default): a local SigLIP 2 model turns every photo into an embedding so the user can search by describing a scene, find similar photos, and get keyword help (photos that may deserve a keyword; keywords that may suit a photo). Everything is derived data in the catalogue; nothing is ever written to photo files except by the normal keyword Apply. Rules: AGENTS.md §5.L.
+Optional "content search" (Settings > Search, off by default): a local SigLIP 2 model turns every photo into an embedding so the user can search by describing a scene, find similar photos, and get keyword help (photos that may deserve a keyword; keywords that may suit a photo). Everything is derived data in the catalogue; nothing is ever written to photo files except by the normal keyword Apply. Rules: AGENTS.md §5.I.
 
 ## Files
 | File | Role |
@@ -22,7 +22,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 
 **1. The gate (zero cost when disabled).** The setting `semanticSearch` is sent as `set_semantic_enabled` at startup and on change. Backend: `semantic_models::ensure_enabled` makes every command return `semantic_disabled`; disabling also calls `semantic::on_disabled` (stop the scan, `semantic_search::release_all`) and stops a model download. Frontend: `isSemanticEnabled()` = setting on **and** model installed; every function returns before `invoke` when false; body class `no-semantic` hides `.semantic-only` elements; context-menu entries are not created. No model, thread or computation exists before the first scan or search.
 
-**2. Model files.** Manifest entry (image size, embedding size, normalisation, logit scale / bias, template) + files `vision`, `text`, `tokenizer`, `notice` in `<data dir>/models/semantic/<model_id>/`; ONNX Runtime comes from the faces manifest in `models/` (`face_models::runtime_file`). `download_semantic_model` (queued task) refuses with `internet_disabled` in offline mode; `import_semantic_model(directory)` works offline; checks via `model_files` (SHA-256). `active_model()` is the first manifest entry.
+**2. Model files.** Manifest entry (image size, embedding size, normalisation, logit scale / bias, template) + files `vision`, `text`, `tokenizer`, `notice` in `<data dir>/models/semantic/<model_id>/`; ONNX Runtime comes from the faces manifest in `models/` (`face_models::runtime_file`). `download_semantic_model` (queued task) refuses with `internet_disabled` in offline mode; `import_semantic_model(directory)` works offline; checks via `model_files` (SHA-256). `active_model()` is the first manifest entry. The SigLIP 2 files weigh about 785 MB; model (Apache-2.0) and ONNX Runtime (MIT) are downloaded on demand, never in the installer (licences in the manifests).
 
 **3. Analysis (`semantic_scan`).** Queued by `analyseContent` as `kind: 'semantic'` and run by **its own lane** (`pumpSemanticQueue`, one at a time, parallel to the main queue; the backend also refuses a second one: `semantic_scan_running`, `ScanSlot`). Steps in `run_scan`:
 1. `select_targets` (scope: selection / folder / library; `skip_raw`), `Standing` per photo: `Analysed` (same model, size and mtime), `Failed` (not retried until the file changes), `Pending`.
@@ -45,7 +45,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 - Used by: `main.js` (queue lane, results mode, context menus), `keywords-panel.js` (Suggestions block); other tasks call `PriorityGuard::new()`.
 
 ## Invariants and sensitive areas
-- ⚠ sensitive: **never write on a suggestion click.** Only `addPendingKeyword`; no other write path (AGENTS.md §5.L).
+- ⚠ sensitive: **never write on a suggestion click.** Only `addPendingKeyword`; no other write path (AGENTS.md §5.I).
 - ⚠ sensitive: **stale answers.** The backend cancels nothing; each request does `++counter` and ignores its answer when a newer one exists (`requestCounter` in semantic.js / semantic-keywords.js, `candidatesCounter`, `suggestionCounter` in semantic-tagging.js). A new async call must follow it.
 - ⚠ sensitive: embeddings carry `model_id`; changing model invalidates them. The refresh shortcut depends on `duplicates::LAYOUT_VERSION`: when it is bumped, `hash_version` differs and every row is analysed again, then re-hashed (test `rows_without_a_hash_or_with_another_hash_version_are_analysed_again_then_hashed`). See `duplicates.md`.
 - ⚠ sensitive: a loaded model file cannot be deleted on Windows: `delete_semantic_model` / disabling must release sessions first (`release_all`, `stop_scan_and_wait`).

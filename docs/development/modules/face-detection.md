@@ -30,7 +30,7 @@ Finds faces in photos (YuNet), computes a 128-value fingerprint for each (SFace)
 4. `store_detections` runs in one transaction per photo (a failure only marks that photo in `report.failed`): a detection matching an existing face (IoU ≥ 0.5, or similarity ≥ 0.80 on a `needs_review` photo) keeps its identity and state and receives measures + embedding; imported / manual / confirmed / ignored faces are always kept; unconfirmed `detected` faces without match are replaced; new ones start `unknown`, or `filtered` under the thresholds. Existing faces without fingerprint (imported regions, drawn ones) get one (`pending_embeddings`).
 5. After the loop `attribute_faces` runs on the scanned photos; the report gives scanned / faces / auto / suggested / failed / cancelled. Cancel (`cancel_scan` flag) stops between chunks; processed photos stay saved.
 
-**Why 512 px minimum.** The thumbnail cache is the detector input (already oriented, always current: the cache is keyed by path, size and mtime). The cache resolution setting (512 / 768 / 1024) has a floor of 512 because below it faces become too small to detect; see AGENTS.md §5.B.
+**Why 512 px minimum.** The thumbnail cache is the detector input (already oriented, always current: the cache is keyed by path, size and mtime). The cache resolution setting (512 / 768 / 1024) has a floor of 512 because below it faces become too small to detect; see AGENTS.md §5.A.
 
 **Recognition** (`face_recognize.rs`):
 1. `align`: least-squares similarity maps the 5 YuNet landmarks onto the 112×112 SFace template, bilinear resampling; `None` if landmarks are degenerate or less than 75 % of the aligned face lies inside the image.
@@ -60,7 +60,7 @@ Finds faces in photos (YuNet), computes a 128-value fingerprint for each (SFace)
 - Defaults must stay in `defaults.jsonc`; test `default_face_settings_come_from_the_shared_file_and_are_in_range` guards the parse.
 
 ## Tests
-Inline `mod tests` (an exception to AGENTS.md §5.I, listed in `generated/tests.md`) in `face_detect.rs` (orientation round trip, defaults file, every key the frontend reads) and `face_recognize.rs` (alignment identity, blob round trip); `tests/faces_db.rs` for the database side. No test runs the models, downloads, `attribute_faces` or `select_targets`.
+Inline `mod tests` (an exception to AGENTS.md §5.H, listed in `generated/tests.md`) in `face_detect.rs` (orientation round trip, defaults file, every key the frontend reads) and `face_recognize.rs` (alignment identity, blob round trip); `tests/faces_db.rs` for the database side. No test runs the models, downloads, `attribute_faces` or `select_targets`.
 
 ## How to extend
 1. New recognition model: new manifest entries and release assets (`scripts/prepare-face-models.mjs`), new `MODEL_ID`; old embeddings become unusable by design.

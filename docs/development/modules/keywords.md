@@ -41,7 +41,7 @@ Result `KeywordWriteResult { written (with the keyword ids stored after re-read)
 - State: `baseline` (stored ids per selected photo, from `get_photo_keyword_ids`) and `working` (pending copy). Checkbox: all selected photos carry it = checked, some = partial. Click toggles for all selected photos; Shift also activates ancestors / deactivates descendants (`toggleKeyword`); "Unify" gives every photo the union (`unifySelection`); "Reset" returns to `baseline`. `dirtyIds` lists photos to write.
 - `refreshKeywordsPanel` is called on selection change (deferred to one per frame, only when the tab is visible). With edits pending, `resolvePendingSelection` (`metadata-writes.js`) asks Apply / Ignore / Cancel. Counter `reloadToken` drops stale answers; `writeEpoch` redoes a read that overlapped a write. After files are re-read by a sync, `invalidateKeywordTree` bumps `treeVersion`; the saved state is reloaded and pending edits are rebased on it (`rebase`), so Apply does not erase what another program added.
 - Registers `keywordEditor` in `metadata-writes.js`: `pendingItems` sends the full final id set per dirty photo; `afterWrite` → `adoptWritten` makes the re-read ids the new baseline and keeps edits made since sending as pending.
-- `addPendingKeyword(keywordId)` is the **only** way content-search suggestions add a keyword: it opens the tab, waits until the selection is loaded, then `activateKeyword`; nothing is written until Apply (AGENTS.md §5.L).
+- `addPendingKeyword(keywordId)` is the **only** way content-search suggestions add a keyword: it opens the tab, waits until the selection is loaded, then `activateKeyword`; nothing is written until Apply (AGENTS.md §5.I).
 - Compare mode: `setKeywordsCompareMode` makes the Keywords and Description tabs unavailable. Last tab: `sidePanelTab`.
 - Context menu and dialogs: create / rename / delete (`createKeywordFlow`, `renameKeywordFlow`, `deleteKeywordFlow`, homonym confirmation `confirmHomonyms`). `renameKeywordById` is used by the faces panel.
 
@@ -63,7 +63,7 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 - ⚠ sensitive: rename must update the tree before computing paths, and delete must keep the node when any file failed; tests do not cover these two functions (see below).
 - ⚠ sensitive: `WRITE_LOCK` and the 3 threads: do not add another path that writes keywords without it.
 - Names may not contain `/`, `|`, `,` (hierarchy separators and filter separator): enforced in `validate_name`; the UI repeats the check (`validateKeywordName`).
-- Format and field rules (`dc:subject`, `digiKam:TagsList`, `acdsee:categories`, IPTC, XPKeywords): AGENTS.md §5.D and `metadata-read-write.md`.
+- Format and field rules (`dc:subject`, `digiKam:TagsList`, `acdsee:categories`, IPTC, XPKeywords): `metadata-read-write.md` ("Written fields").
 
 ## Tests
 `tests/keywords.rs` (6): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation. Gaps: `run_write` (needs an `AppHandle`), `run_rename` and `run_delete` have no test; the frontend is not tested.

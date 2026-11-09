@@ -21,7 +21,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 2. `layoutPhotoRange` does one group: **square/framed** (columns from `thumbnailSize` capped by `devicePixelRatio`), **justified** (rows filled until the row height fits under the ceiling `thumbnailSize / ratio`; the last row of a group is **not stretched**, left-aligned, height capped), **masonry** (shortest column first, ratio clamped 0.2–5, height capped by the cache resolution `thumbnailCacheSize`, `object-fit: cover`). A photo is never displayed larger than its cached thumbnail (the cap is on the longest side).
 3. `renderVisibleItems` binary-searches `photoLayouts` for the visible window plus one screen of overscan (`THUMBNAIL_OVERSCAN_SCREENS`), creates missing DOM nodes (cached in `renderedThumbnailNodes`) and only writes style/class when a value changed (`div._transform`, `_width`…). Nodes are positioned with `translate3d`; selection is a class and an outline-like `.selection-ring` element, never a size change (AGENTS.md §7: no reflow).
 4. `photoAspectRatio` = ratio learnt from the loaded image, else EXIF width/height from the catalogue, else 1. When a thumbnail loads with a different ratio, `learnPhotoAspectRatio` → `scheduleJustifiedRelayout` (80 ms debounce, ignored for masonry except videos, whose size is not in the catalogue).
-5. Layout rules in px are in AGENTS.md §5.A / §5.B / §7: use `rem` only outside these calculations.
+5. Layout rules in px are in AGENTS.md §5.A / §7: use `rem` only outside these calculations.
 
 ### Thumbnail pipeline of the grid
 1. `loadThumbnail(image, path, photo)` → `lookupCachedThumbnail`: all paths requested in one render are collected and sent in batches of 128 to `get_cached_thumbnail_paths` (memoised per path in `thumbnailCacheLookups`).
@@ -50,7 +50,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 ### Marking, rotation, undo
 1. `setSelectionRating / ColorFlag / PickFlag` pick targets, compute the final value (same value on all targets = clear it; pick buttons use `toggle:false`), then call `writeMarking(targets, fields, {apply, refilter,…})`.
 2. `writeMarking` chains onto `markingChain` (writes run one after another, in key order), refuses photos of a running move, remembers the previous values, and calls `runLocked('update_photos_marking', …)` (direct under 20 photos, queued task from 20, see `metadata-read-write.md`). Only photos in `result.written` are updated in memory and in the grid (`apply`), `forgetCachedImagePaths` drops stale caches, `refilter()` re-runs the filters if one concerns the changed value. Failures are listed in the toast ("Details"), never reported as written.
-3. `rotatePhotos` follows the same shape with `rotate_photos`; the backend returns each photo's new `view_fix`; `isRotatablePath` excludes video and HEIC/HEIF.
+3. `rotatePhotos` (Ctrl+R right, Shift+R left; Ctrl+R is always caught so it never reloads the window) follows the same shape with `rotate_photos`; the backend returns each photo's new `view_fix`; `isRotatablePath` excludes video and HEIC/HEIF.
 4. Undo: `pushUndo(run)` keeps 20 entries (`MAX_UNDO`); the toast button undoes its own entry, Ctrl+Z the latest; an undo is not stacked again. `undoMarking` writes the stored previous value back; `undoRotation` applies the opposite rotation.
 
 ### Dragging
@@ -69,7 +69,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 - Used by: all panels read `photos`, `selectedIndices`, `lastSelectedIndex`.
 
 ## Invariants and sensitive areas
-- ⚠ sensitive: virtual grid layout is pixel-exact (AGENTS.md §5.A/§5.B/§7); a fractional width or a size change on hover/selection creates gaps or reflows.
+- ⚠ sensitive: virtual grid layout is pixel-exact (AGENTS.md §5.A/§7); a fractional width or a size change on hover/selection creates gaps or reflows.
 - ⚠ sensitive: `photos` indices are positional: `fullscreenImageCache`, `renderedThumbnailNodes` and selection all break if the list is re-sorted without clearing/re-finding them.
 - ⚠ sensitive: `view_fix` must not be applied to a thumbnail or generated preview (double rotation).
 - Compare mode: selection limited to 4 only while it is active (`limitSelectionForCompare` when entering it).

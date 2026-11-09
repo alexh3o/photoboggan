@@ -2,7 +2,7 @@
 # Testing
 
 ## Purpose
-The only automated tests are Rust unit and integration tests of the backend. They exist to catch regressions in the places where a bug damages the user's files or catalogue (metadata writes, sidecars, atomic replacement, scan and sync, cache names, duplicate hashes, updates). There is no frontend test suite and the IPC commands themselves are not tested (they need a Tauri `AppHandle` / `State`): logic that must be tested lives in plain functions that tests can call. The per-module inventory is generated: `generated/tests.md` (293 tests, 20 ignored at the time of writing). The rules are AGENTS.md §5.I.
+The only automated tests are Rust unit and integration tests of the backend. They exist to catch regressions in the places where a bug damages the user's files or catalogue (metadata writes, sidecars, atomic replacement, scan and sync, cache names, duplicate hashes, updates). There is no frontend test suite and the IPC commands themselves are not tested (they need a Tauri `AppHandle` / `State`): logic that must be tested lives in plain functions that tests can call. The per-module inventory is generated: `generated/tests.md` (293 tests, 20 ignored at the time of writing). The rules are AGENTS.md §5.H.
 
 ## Files
 | File | Role |
@@ -25,7 +25,7 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 - Other ignored tests need something the fast set must not depend on: `SEMANTIC_MODEL_DIR=<folder with vision.onnx, text.onnx, tokenizer.json> cargo test semantic:: -- --ignored` (4 in `semantic.rs`, 1 in `semantic_search.rs`, ignore reason "needs the SigLIP 2 model"; ONNX Runtime from `ORT_DYLIB_PATH`; usage in each file's header comment). The other ignored tests of `semantic_keywords.rs` / `semantic_search.rs` are speed measures or need a catalogue copy (`SEMANTIC_CATALOG`); benchmarks need a real photo or folder (`PHOTOBOGGAN_BENCH_PHOTO`, `PHOTOBOGGAN_BENCH_DIR`, run with `--release --nocapture`, see the doc comments of `marking_check_cost` and `move_cost`).
 - ExifTool prerequisites: `npm run fetch-exiftool` puts the pinned version in `src-tauri/vendor/exiftool/`; on Linux / macOS the system `perl` must exist.
 - The CI (`tests.yml`) runs on `ubuntu-22.04` and `windows-latest`: it builds the frontend first (`npm run build`: Tauri checks at compile time that `frontendDist` exists), installs the same Linux system libraries as the release workflow, runs `cargo test`, and on Windows only fetches ExifTool and runs `cargo test exiftool:: -- --ignored --test-threads=1`. The other ignored tests (global-setting test of `exif.rs`, benchmarks, model tests) are not run by CI.
-- A test that fails after being ignored documents a known gap: report it, never weaken the assertion to "fix" it (AGENTS.md §5.I).
+- A test that fails after being ignored documents a known gap: report it, never weaken the assertion to "fix" it (AGENTS.md §5.H).
 
 ### Helpers (`test_support.rs`)
 `jpeg_bytes(w, h)` and `png_bytes(w, h)` (synthetic gradients, never a real photo), `scan_data` (the bytes after the JPEG SOS marker: must be identical before and after a metadata write), `with_segment` (insert an APPn segment), `decoded_pixels`, `contains`, `paths` (keyword paths), `temp_catalog()` (a real catalogue through `db::init_db` in a `tempfile` folder: same schema and pragmas as the app, deleted when dropped) and `insert_photo`. Further helpers in the same file build synthetic pictures for the similarity and semantic tests. Tests create files only in a `tempfile` folder; no network, no face or semantic model in the fast set.
@@ -68,7 +68,7 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 - Never use a real photo and never the network.
 
 ## How to extend
-1. Mandatory: any fix touching metadata writing, the database or synchronisation comes with a test that would have caught it (AGENTS.md §5.I).
+1. Mandatory: any fix touching metadata writing, the database or synchronisation comes with a test that would have caught it (AGENTS.md §5.H).
 2. New module: add `tests/<module>.rs`, and at the end of the module `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;`; build files with `test_support` and a `tempfile` folder.
 3. Slow or tool-dependent test: `#[ignore = "reason"]` and document the command in the file's header comment.
 4. Refresh the inventory with `npm run docs:gen`.

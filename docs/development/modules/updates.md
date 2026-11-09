@@ -2,7 +2,7 @@
 # Update check and installer
 
 ## Purpose
-Tells the user when a newer release exists on GitHub, and (optionally) downloads and launches its installer. It is opt-in and network-gated: nothing is contacted unless the user enabled "Check for updates" and offline mode is off. All requests are made by the backend, never by the webview, and the UI can never tell the backend which URL or file to use. Rules summary: AGENTS.md §5.J; offline rule: `../architecture.md` "Offline mode".
+Tells the user when a newer release exists on GitHub, and (optionally) downloads and launches its installer. It is opt-in and network-gated: nothing is contacted unless the user enabled "Check for updates" and offline mode is off. All requests are made by the backend, never by the webview, and the UI can never tell the backend which URL or file to use. Rules summary: AGENTS.md §5.I; offline rule: `../architecture.md` "Offline mode".
 
 ## Files
 | File | Role |

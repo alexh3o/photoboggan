@@ -49,6 +49,11 @@ Details worth knowing:
 - Regions: MWG and Microsoft RegionInfo (`update_xmp_regions` / `region_args`); ACDSee is read but not written. Rotation rewrites them (`rotate_xmp_regions`).
 - Pick: `pick_values` maps `picked` / `rejected` / `pending` / `none` to `digiKam:PickLabel`, `xmpDM:pick`, `xmpDM:good`. Colour is written to `xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`.
 
+### Written fields (reference)
+- Rating: `xmp:Rating` (0–5), `MicrosoftPhoto:Rating`, `acdsee:rating`. Colour: `xmp:Label` (Red, Orange, Yellow, Green, Blue, Magenta, Grey, Black, White or empty), `photoshop:Urgency`, `digiKam:ColorLabel`.
+- Pick (`pick_flag`): `none`, `pending` (digiKam only: `PickLabel=2`, `pick=0`, no `good`), `picked`, `rejected`, written to `digiKam:PickLabel` (0 none, 1 rejected, 2 pending, 3 picked), `xmpDM:pick` (−1, 0, 1), `xmpDM:good` (True / False, removed without flag). The first source of the pick read order decides the buttons offered (digiKam: none / pending / picked / rejected; `xmpDM:*`: none / picked / rejected), shown as a white / yellow / green / red flag.
+- Keywords: active paths replace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP`, `acdsee:categories` (XML tree as text, `Assigned="1"` = active) and IPTC 2:25 of JPEGs. XPKeywords is read, and written only by ExifTool (JPEG; names containing `;` left out). Reading: embedded XMP before sidecar, default hierarchy order digiKam > Lightroom > Media Pro > Microsoft > ACDSee; the flat fields never change the tree.
+
 ### ExifTool (`exiftool.rs`)
 - **Settings** (`set_metadata_writer`: mode `exiftool` / `internal`, custom path, `skip_exif`): Rust statics, resent by `initMetadataSettings` at startup. Changing mode or path clears the detected launcher and calls `shutdown`; changing only `skip_exif` does not.
 - **Detection** (`detect`, `probe` = `exiftool -ver`): the custom path alone if set (no silent fallback), else the bundled copy (`exiftool.exe` on Windows, `perl exiftool` elsewhere), else `PATH`. The result is cached until a setting change or `get_exiftool_status`, which re-detects (the Settings tab calls it on opening).
@@ -79,12 +84,12 @@ Marking (rating / colour / pick) does not use this circuit: it goes through `upd
 ## Invariants and sensitive areas
 - ⚠ sensitive: any new written field must be added to both writers (`metadata_args` / `update_xmp_all` / `jpeg_replace_iptc`) and to the read-back checks, or one writer silently diverges (`../recipes.md`).
 - ⚠ sensitive: `sidecar_target` / `read_sidecar` / `sidecar_candidates` are the only place sidecar names are built; reading and writing must stay in step (`../invariants.md` §2.2).
-- ⚠ sensitive: read priorities, `skip_exif`, and the writer mode are process-wide statics; a test touching them must be the only one (AGENTS.md §5.I).
+- ⚠ sensitive: read priorities, `skip_exif`, and the writer mode are process-wide statics; a test touching them must be the only one (AGENTS.md §5.H).
 - ⚠ sensitive: `jpeg_replace_*` parse JPEG segments by hand; `check_jpeg_structure` rejects broken files rather than guessing.
 - Marking writes verify only the sources the file can hold: a RAW whose EXIF rating comes first in the order is not checked on that source (doc of `read_marking`).
 
 ## Tests
-`tests/exif.rs` (46 fast tests: internal writer, sidecars, markings, atomic write, IPTC, regions) and `tests/exiftool.rs` (19, mostly `#[ignore]`: run `cargo test exiftool:: -- --ignored --test-threads=1`; the recovery tests are fast). Lists: `../generated/tests.md`. Gap: no test of the frontend circuit (AGENTS.md §5.I), nor of `order-list.js`.
+`tests/exif.rs` (46 fast tests: internal writer, sidecars, markings, atomic write, IPTC, regions) and `tests/exiftool.rs` (19, mostly `#[ignore]`: run `cargo test exiftool:: -- --ignored --test-threads=1`; the recovery tests are fast). Lists: `../generated/tests.md`. Gap: no test of the frontend circuit (AGENTS.md §5.H), nor of `order-list.js`.
 
 ## How to extend
 1. New written field: add it in `MetadataUpdate` / `XmpEdit`, in `update_xmp_all` (+ IPTC if relevant) and in `exiftool::metadata_args`, then verify it in `keywords::run_write` read-back and add a test in `tests/exif.rs` (`../recipes.md`).
@@ -92,4 +97,4 @@ Marking (rating / colour / pick) does not use this circuit: it goes through `upd
 3. New editor tab: `registerEditor` with `pendingItems` returning items for `apply_metadata_changes`.
 
 ## Open questions
-none (HEIC: written in the container, AGENTS.md §5.D now says so; `read_marking` and `read_exif` read the same HEIC XMP).
+none (HEIC: written in the container, AGENTS.md §5.C now says so; `read_marking` and `read_exif` read the same HEIC XMP).

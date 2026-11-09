@@ -39,11 +39,11 @@ npm run build            # frontend only (Vite, output dist/)
 | Map style (OpenFreeMap "liberty" and "dark", sprites, fonts) | `node scripts/fetch-map-style.mjs` | `src-tauri/resources/map-style/` (**versioned**), bundled as resource `map-style/` | Not run by any build; run by hand to renew, then commit the result. `STYLES`, `GLYPH_RANGES` and `PROVIDER` must match `private_maps.rs`; `LICENSES.md` is maintained by hand |
 | Face models and ONNX Runtime | Files published on the GitHub release tagged `face-models-1`, downloaded by the app on demand | `<data dir>/models/` | `scripts/prepare-face-models.mjs` downloads the official files, checks pinned SHA-256, copies them to `dev_tools/face-models-release/` and rewrites `src-tauri/face_models.json` (compiled into the app). Then create the release and upload the 4 files by hand; a published release must never change (change `RELEASE_TAG` instead) |
 | Semantic model (SigLIP 2) | Release `semantic-models-1` | `<data dir>/models/semantic/<id>/` | `scripts/prepare-semantic-models.mjs`, same procedure, rewrites `src-tauri/semantic_models.json`; ONNX Runtime is shared with the face models |
-Models and ONNX Runtime are never in the installer (AGENTS.md §5.L). `dev_tools/` is ignored by Git.
+Models and ONNX Runtime are never in the installer (AGENTS.md §5.I). `dev_tools/` is ignored by Git.
 
 ### Production build and packages
 `npm run tauri build` runs `beforeBuildCommand` (`npm run fetch-exiftool && npm run build`) then compiles and bundles for `targets: ["msi", "deb"]` (a `.msi` on Windows, a `.deb` on Linux). Bundled resources: `vendor/exiftool/` → `exiftool/` and `resources/map-style/` → `map-style/`; `LICENSE.rtf` as licence file. The webview CSP (`tauri.conf.json`): only `'self'`, IPC and asset protocol, plus `https://tiles.openfreemap.org` in `connect-src` for map tiles (the one webview network access, `../architecture.md`); the asset protocol scope is `**` (the webview reads image files directly).
-- Windows MSI (WiX): one MSI per language, English default (`wix/en-US.wxl`, `wix/fr-FR.wxl` hold the installer texts); images `icons/msibanner.bmp` and `icons/msidialog.bmp` (the left panel is 164 px wide, AGENTS.md §5.J). Installer file names end in `_en-US.msi` and `_fr-FR.msi`; the updater picks `_en-US.msi` first.
+- Windows MSI (WiX): one MSI per language, English default (`wix/en-US.wxl`, `wix/fr-FR.wxl` hold the installer texts); images `icons/msibanner.bmp` and `icons/msidialog.bmp` (the left panel is 164 px wide, AGENTS.md §5.I). Installer file names end in `_en-US.msi` and `_fr-FR.msi`; the updater picks `_en-US.msi` first.
 - Linux `.deb` depends on `perl`.
 - The release must keep one `.msi` and one `.deb`, otherwise the update dialog sends the user to the GitHub page.
 

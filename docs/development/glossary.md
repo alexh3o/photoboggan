@@ -35,7 +35,7 @@ One line per term, built from the terms used by the other docs. Module docs hold
 ## Keywords
 
 - **Keyword tree**: hierarchical keywords in `keyword_nodes`; one node is a name under one parent; links in `photo_keywords`.
-- **Active keyword**: only the last level of a path is active on a photo; ancestors are written but not "active" (AGENTS.md §5.D, `keywords.md`).
+- **Active keyword**: only the last level of a path is active on a photo; ancestors are written but not "active" (AGENTS.md §5.C, `keywords.md`).
 - **Pending keyword**: a keyword edit not yet written to the files; written by Apply, Ctrl+Enter, selection change or closing.
 - **Hierarchical formats**: digiKam `TagsList`, Lightroom `hierarchicalSubject`, Media Pro `CatalogSets`, Microsoft `LastKeywordXMP`, ACDSee `categories`; read in user-chosen order.
 - **`name_key`**: trimmed lowercase name used to compare names ignoring case.

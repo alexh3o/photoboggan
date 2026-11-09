@@ -42,7 +42,7 @@ The queue exists **only in the frontend**; the backend only gets a `taskId` and 
 - **External changes** (`syncLibraryWithDisk` → `sync_library`, sending `excluded: pausedScanFolders()`): at startup (2 s after the first load) and on window `focus`. Skipped while `foregroundTaskCount() > 0`, a move is running, or before `librarySyncNotBefore` (next allowed = now + max(10 s, 10 × last duration)). `requestLibrarySync` is for the app's own new files: no minimum delay, never lost (`syncAfterTasks`, replayed when the main lane empties). `refreshLibraryAfterSync` rereads the list in place (selection found again by path, learnt aspect ratios kept, caches of modified paths dropped: `photoVersions`, `thumbnailCacheLookups`, `rawPreviewPromises`, `fullscreenImageCache`), aborting if the folder or generation changed.
 
 ### Settings modal and window chrome
-Tabs: `.settings-tab-btn[data-tab]` ↔ `#settings-tab-<tab>` panes (generic switcher in `main.js`; each pane's controls are wired by its own module or section). The folders list (`renderSettingsFolderList`) adds nothing itself: adding a folder calls `add_folder` then queues a `kind: 'add'` scan. The title-bar buttons call the Tauri window API (permissions in `capabilities/default.json`). Toolbar hide/labels and the resizable left panel (`sidebarWidth`, `#sidebar-resizer`) are in the "BOUTONS VUES & SIDEBAR" sections.
+Tabs: `.settings-tab-btn[data-tab]` ↔ `#settings-tab-<tab>` panes (generic switcher in `main.js`; each pane's controls are wired by its own module or section). The folders list (`renderSettingsFolderList`) adds nothing itself: adding a folder calls `add_folder` then queues a `kind: 'add'` scan. The title-bar buttons call the Tauri window API (permissions in `capabilities/default.json`). Toolbar (right-click menu: immersive mode, auto-hide, show all labels, panels): auto-hide (key T, `toolbarAutoHide`) and labels (`toolbarShowLabels`) are remembered; a hidden toolbar reappears when the pointer reaches the top of the window. These and the resizable left panel (`sidebarWidth`, `#sidebar-resizer`) are in the "BOUTONS VUES & SIDEBAR" sections.
 
 ### Startup (end of `main.js`)
 Order: `restorePanelsVisibility` (panel visibility from `readBool`) → `refreshStorageLocationUI` → `restoreStartupFolder` (`loadFolders`; if `startupView === 'last'` and `lastFolderFilter` is still tracked or still holds photos, select it, unfolding its parents) → `restorePausedTasks` → `loadPhotos` → `setTimeout(syncLibraryWithDisk, 2000)`. In parallel: `sendInternetAllowed`, `sendVerifyMoves`, and the settings modules' own sends (`app-shell.md`). The window is shown after two animation frames (top of the file).
@@ -65,7 +65,7 @@ Order: `restorePanelsVisibility` (panel visibility from `readBool`) → `refresh
 - Module state is shared with the grid sections: a change to `loadedPhotos`/`photos` handling can break selection or layout.
 
 ## Tests
-None (no frontend tests, AGENTS.md §5.I). Backend side: `tests/library_sync.rs`, `tests/db.rs`.
+None (no frontend tests, AGENTS.md §5.H). Backend side: `tests/library_sync.rs`, `tests/db.rs`.
 
 ## How to extend
 1. New long operation: `recipes.md` (queued task): backend command with `taskId` + cancel flag, `enqueueScanTask({kind, …, onResult})`, add the kind to `familyOf`, keys in both locale files.

@@ -55,7 +55,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - "SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE" (`checkPhotoMissing` → `remove_missing_photos`).
 - "CHARGEMENT PHOTOS & DOSSIERS" (`loadedPhotos`, `get_photos_paginated`), smart-album filter state.
 - "ARBORESCENCE & FILTRES" (folder tree), "TROUVER LE RAW".
-- "VIRTUAL SCROLLING" — ⚠ sensitive: pixel-exact layout (AGENTS.md §5.A/B).
+- "VIRTUAL SCROLLING" — ⚠ sensitive: pixel-exact layout (AGENTS.md §5.A).
 - "GESTION DU PLEIN ÉCRAN ET NAVIGATION", "SELECTION MULTIPLE", "UNDO", "LOSSLESS ROTATION", shortcuts memo.
 - "MODALE PARAMÈTRES" (+ folder management, About, Guide), "BOUTONS VUES & SIDEBAR", sidebar resizing.
 - "TRI DES MINIATURES" (sort; also the settings controls such as thumbnail quality live around here), "MARQUAGE".
