@@ -1542,6 +1542,8 @@
   "This folder only": "Ce dossier seulement",
   "With its subfolders": "Avec ses sous-dossiers",
   "Analyse RAW files (embedded preview)": "Analyser les RAW (aperçu intégré)",
+  "Generate thumbnails during the analysis": "Générer les miniatures pendant l'analyse",
+  "Generate thumbnails during the analysis hint": "Les miniatures manquantes sont créées pendant l'analyse, comme dans la grille : chaque photo n'est décodée qu'une fois, et la grille les affiche ensuite sans attendre. Elles occupent de la place dans le cache des miniatures.",
   "Downloading the content search model ({size})…": "Téléchargement du modèle de recherche par contenu ({size})…",
   "Search by content…": "Rechercher par contenu…",
   "Search by content": "Rechercher par contenu",

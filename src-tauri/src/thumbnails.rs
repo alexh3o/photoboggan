@@ -32,12 +32,18 @@ pub struct ThumbnailSize {
 
 /// Génère la miniature JPEG de `source` dans `destination` à la taille maximale spécifiée.
 pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) -> Result<ThumbnailSize, String> {
+    let (rgb, width, height) = render_thumbnail(source, max_side)?;
+    write_jpeg(destination, &rgb, width, height)?;
+    Ok(ThumbnailSize { width: width as u32, height: height as u32 })
+}
+
+/// Pixels of the thumbnail of `source` (RGB, oriented, longest side at most `max_side`), before JPEG encoding: shared by the grid
+/// (`generate_thumbnail`) and the semantic scan, which also writes the thumbnails it decodes when asked to.
+pub(crate) fn render_thumbnail(source: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usize), String> {
     if crate::video::is_video_path(source) {
-        // Vidéo : pas d'orientation EXIF (l'image fournie est déjà dans le bon sens).
+        // Video: no EXIF orientation (the frame is already upright).
         let (rgb, width, height) = decode_video_frame(source, max_side)?;
-        let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
-        write_jpeg(destination, &rgb, width, height)?;
-        return Ok(ThumbnailSize { width: width as u32, height: height as u32 });
+        return Ok(resize_to_fit(rgb, width, height, max_side));
     }
     // RAW : l'aperçu n'est extrait qu'une fois, pour le décodage et pour choisir l'orientation (la même que celle de l'aperçu plein écran).
     let mut raw_orientation_value = None;
@@ -51,9 +57,7 @@ pub fn generate_thumbnail(source: &Path, destination: &Path, max_side: usize) ->
     let (rgb, width, height) = resize_to_fit(rgb, width, height, max_side);
     // HEIC / HEIF : le décodeur a déjà appliqué la rotation du conteneur, l'orientation EXIF ne doit pas l'être une seconde fois.
     let orientation = raw_orientation_value.unwrap_or_else(|| if crate::heif::is_heif_path(source) { 1 } else { read_orientation(source) });
-    let (rgb, width, height) = apply_orientation(rgb, width, height, orientation);
-    write_jpeg(destination, &rgb, width, height)?;
-    Ok(ThumbnailSize { width: width as u32, height: height as u32 })
+    Ok(apply_orientation(rgb, width, height, orientation))
 }
 
 /// Image fixe d'une vidéo en RGB : vignette du système (Windows), à défaut `ffmpeg` s'il est installé.

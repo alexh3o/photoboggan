@@ -555,6 +555,20 @@ fn current_key(path: &Path, cached: Option<&crate::duplicates::DataHash>, cancel
 /// Longest side of the fallback decode when no thumbnail is cached (the size of a cached thumbnail, §4.1).
 const FALLBACK_SIDE: usize = 512;
 
+thread_local! {
+    /// Photos of this thread decoded from the file itself (no usable cached thumbnail): read and reset by the decoder for each batch,
+    /// for the per-batch trace of the scan.
+    static FILE_DECODES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Thumbnails written to the cache by this thread ("Generate thumbnails during the analysis"), counted the same way.
+    static THUMBNAILS_WRITTEN: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Formats whose thumbnail the backend renders itself (`thumbnails::render_thumbnail`): the only ones the scan writes to the cache. PNG,
+/// WebP and the others keep the in-memory decode (their grid thumbnail comes from the webview); videos keep needing a cached thumbnail.
+fn renders_thumbnail(source: &Path, extension: &str) -> bool {
+    matches!(extension, "jpg" | "jpeg" | "jfif" | "heic" | "heif") || crate::thumbnails::is_raw_path(source)
+}
+
 /// Result of the analysis of one photo.
 pub enum Outcome {
     Embedded(Vec<f32>),
@@ -569,8 +583,10 @@ pub enum Outcome {
 }
 
 /// RGB pixels of the photo as displayed: the cached thumbnail (oriented) when it exists, otherwise a reduced decode of the file in memory.
-/// Nothing is ever written to the thumbnail cache (§4.1). Err(None): skipped; Err(Some(reason)): failed.
-fn load_pixels(path: &str, thumbnails_dir: &Path) -> Result<(Vec<u8>, usize, usize), Option<String>> {
+/// Nothing is written to the thumbnail cache (§4.1), unless `write_side` is given ("Generate thumbnails during the analysis"): a missing
+/// thumbnail is then rendered at that size, as the grid does, written to the cache and used for the analysis, so the file is decoded only
+/// once for both. Err(None): skipped; Err(Some(reason)): failed.
+fn load_pixels(path: &str, thumbnails_dir: &Path, write_side: Option<usize>) -> Result<(Vec<u8>, usize, usize), Option<String>> {
     use crate::thumbnails;
     let source = Path::new(path);
     // A file that is not there (moved or deleted while the scan runs, catalogue not synchronised yet) is skipped, never recorded as a
@@ -582,7 +598,19 @@ fn load_pixels(path: &str, thumbnails_dir: &Path) -> Result<(Vec<u8>, usize, usi
     if cached.is_file() {
         if let Ok(decoded) = thumbnails::decode_scaled_rgb(&cached, FALLBACK_SIDE) { return Ok(decoded); }
     }
+    FILE_DECODES.with(|count| count.set(count.get() + 1)); // per-batch trace of the scan
+
     let extension = source.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+    if let Some(side) = write_side.filter(|_| renders_thumbnail(source, &extension)) {
+        let (rgb, width, height) = thumbnails::render_thumbnail(source, side).map_err(Some)?;
+        // Written atomically (temporary file, then rename), like the grid's: a grid generating the same thumbnail meanwhile is harmless.
+        // A thumbnail that cannot be written (disk full, cache read-only) does not stop the analysis: its pixels are used anyway.
+        match thumbnails::write_jpeg(&cached, &rgb, width, height) {
+            Ok(()) => THUMBNAILS_WRITTEN.with(|count| count.set(count.get() + 1)),
+            Err(error) => eprintln!("Thumbnail not written during the semantic analysis for {path}: {error}"),
+        }
+        return Ok(thumbnails::resize_to_fit(rgb, width, height, FALLBACK_SIDE));
+    }
     let (rgb, width, height) = match extension.as_str() {
         "jpg" | "jpeg" | "jfif" => {
             let (rgb, width, height) = thumbnails::decode_scaled_rgb(source, FALLBACK_SIDE).map_err(Some)?;
@@ -603,8 +631,8 @@ fn load_pixels(path: &str, thumbnails_dir: &Path) -> Result<(Vec<u8>, usize, usi
 }
 
 /// Input tensor of one photo, or why there is none.
-fn prepare(path: &str, thumbnails_dir: &Path, model: &ModelSpec) -> Result<Vec<f32>, Outcome> {
-    match load_pixels(path, thumbnails_dir) {
+fn prepare(path: &str, thumbnails_dir: &Path, write_side: Option<usize>, model: &ModelSpec) -> Result<Vec<f32>, Outcome> {
+    match load_pixels(path, thumbnails_dir, write_side) {
         Ok((rgb, width, height)) if width > 0 && height > 0 => Ok(image_tensor(&rgb, width, height, model)),
         Ok(_) => Err(Outcome::Failed("empty image".to_string())),
         Err(None) => Err(Outcome::Skipped),
@@ -786,6 +814,8 @@ struct ScanJob {
     /// Leave the RAW files out (the face scan has the same choice).
     skip_raw: bool,
     threads: usize,
+    /// "Generate thumbnails during the analysis": size of the thumbnail cache, the missing thumbnails being written there (`load_pixels`).
+    write_thumbnail_side: Option<usize>,
     cancel: Arc<AtomicBool>,
 }
 
@@ -816,7 +846,16 @@ struct Prepared {
     work: Result<Vec<f32>, Outcome>,
 }
 
-type PreparedBatch = Vec<Prepared>;
+/// One batch from the decoder, with what it cost (for the per-batch trace).
+struct PreparedBatch {
+    photos: Vec<Prepared>,
+    /// Time the decoder spent hashing and decoding this batch (its own pauses excluded).
+    decode_time: Duration,
+    /// Photos decoded from the file because no cached thumbnail could be used.
+    file_decodes: usize,
+    /// Thumbnails written to the cache meanwhile (option "Generate thumbnails during the analysis").
+    thumbnails_written: usize,
+}
 
 /// What the decoder needs to know about one pending photo.
 struct DecodeJob {
@@ -827,7 +866,7 @@ struct DecodeJob {
 
 /// Decoder side of one photo (§6.4): image key first; same key as the stored row → refreshed without decoding the pixels; otherwise the
 /// tensor (or why there is none).
-fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, model: &ModelSpec, cancel: &AtomicBool) -> PreparedWork {
+fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, write_side: Option<usize>, model: &ModelSpec, cancel: &AtomicBool) -> PreparedWork {
     let (key, computed_hash) = match current_key(Path::new(&job.path), job.cached_hash.as_ref(), cancel) {
         Some((key, computed)) => (Some(key), computed),
         None => (None, None),
@@ -835,7 +874,7 @@ fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, model: &ModelSpec, cancel
     if key.is_some() && key == job.stored_key {
         return (key, computed_hash, Err(Outcome::Refreshed));
     }
-    (key, computed_hash, prepare(&job.path, thumbnails_dir, model))
+    (key, computed_hash, prepare(&job.path, thumbnails_dir, write_side, model))
 }
 
 /// Runs the decoder work of one photo, turning a panic (a decoder crate failing on a damaged file) into a failure of that photo, so the
@@ -895,6 +934,7 @@ fn scan_pending(
     let (sender, batches) = std::sync::mpsc::sync_channel::<PreparedBatch>(1);
     let decoder_cancel = job.cancel.clone();
     let thumbnails_dir = job.thumbnails_dir.clone();
+    let write_side = job.write_thumbnail_side;
     let decoder = std::thread::Builder::new()
         .name("semantic-decode".to_string())
         .spawn(move || {
@@ -902,15 +942,24 @@ fn scan_pending(
             for (chunk_index, chunk) in jobs.chunks(BATCH).enumerate() {
                 // Reading and hashing files competes with foreground work too: the decoder pauses with the worker (stop checked).
                 if !wait_for_foreground(&decoder_cancel, &mut || {}) { break; }
-                let batch = chunk
+                let started = Instant::now();
+                FILE_DECODES.with(|count| count.set(0));
+                THUMBNAILS_WRITTEN.with(|count| count.set(0));
+                let photos = chunk
                     .iter()
                     .enumerate()
                     .map(|(offset, decode_job)| {
                         let (key, computed_hash, work) =
-                            guard_panic(|| prepare_job(decode_job, &thumbnails_dir, active_model(), &decoder_cancel));
+                            guard_panic(|| prepare_job(decode_job, &thumbnails_dir, write_side, active_model(), &decoder_cancel));
                         Prepared { index: chunk_index * BATCH + offset, key, computed_hash, work }
                     })
                     .collect();
+                let batch = PreparedBatch {
+                    photos,
+                    decode_time: started.elapsed(),
+                    file_decodes: FILE_DECODES.with(|count| count.get()),
+                    thumbnails_written: THUMBNAILS_WRITTEN.with(|count| count.get()),
+                };
                 if sender.send(batch).is_err() { break; }
             }
         })
@@ -928,10 +977,17 @@ fn scan_pending(
     };
     let mut failure: Option<String> = None;
     let mut since = Instant::now();
-    for batch in batches.iter() {
+    let batch_count = total.div_ceil(BATCH);
+    for batch_number in 1.. {
+        // Per-batch trace (stderr, one line per batch): where the time goes when the progress seems to stall.
+        let receive_started = Instant::now();
+        let Ok(PreparedBatch { photos: batch, decode_time, file_decodes, thumbnails_written }) = batches.recv() else { break };
+        let decoder_wait = receive_started.elapsed();
         // Give way to foreground work before using the CPU and the database.
         busy += since.elapsed();
+        let pause_started = Instant::now();
         let go_on = wait_for_foreground(&job.cancel, &mut || emit(progress(done, busy, true)));
+        let paused = pause_started.elapsed();
         since = Instant::now();
         // Disabling the feature stops the scan through the same flag (on_disabled).
         if !go_on {
@@ -958,6 +1014,8 @@ fn scan_pending(
                 Err(other) => results.push((&pending[prepared.index], other)),
             }
         }
+        let inferred = embedded_slots.len();
+        let inference_started = Instant::now();
         if !embedded_slots.is_empty() {
             // An inference error is not caused by one photo (memory, damaged model): the scan stops instead of marking photos as failed.
             let embedded = (|| {
@@ -976,10 +1034,23 @@ fn scan_pending(
             };
             for (slot, vector) in embedded_slots.into_iter().zip(embeddings) { results[slot].1 = Outcome::Embedded(vector); }
         }
+        let inference = inference_started.elapsed();
+        let store_started = Instant::now();
         if let Err(error) = store_batch_with_hashes(conn, &model.id, &results, &hashes) {
             failure = Some(format!("database: {error}"));
             break;
         }
+        let store = store_started.elapsed();
+        eprintln!(
+            "Semantic batch {batch_number}/{batch_count}: {} photos, {inferred} inferred, {file_decodes} decoded without thumbnail ({thumbnails_written} thumbnails written) | \
+             decode {:.2} s, waited for decoder {:.2} s, paused {:.2} s, inference {:.2} s, store {:.2} s",
+            results.len(),
+            decode_time.as_secs_f64(),
+            decoder_wait.as_secs_f64(),
+            paused.as_secs_f64(),
+            inference.as_secs_f64(),
+            store.as_secs_f64(),
+        );
         // A loaded search index takes the new rows at once (no reload, no stale results).
         crate::semantic_search::on_batch_stored(&model.id, &results);
         for (target, result) in &results {
@@ -1013,8 +1084,10 @@ fn scan_pending(
 /// Content analysis of a selection (`photo_ids`), a folder (`folder`, subfolders if `recursive`) or the whole library (neither): computes
 /// the missing embeddings of the active model. Queue task: progress through "scan-progress" (with `done`, `total`, `remainingSeconds`,
 /// `paused`), stop through cancel_scan (photos already stored stay). `threads`: ONNX Runtime threads, 1 (default), 2 or 4.
+/// `write_thumbnails`: missing thumbnails are written to the cache while their photo is decoded (off by default).
 /// Errors: `semantic_disabled`, `semantic_scan_running`, `semantic_model_missing`, `semantic_unsupported_platform`, or a message.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn semantic_scan(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -1024,6 +1097,7 @@ pub async fn semantic_scan(
     photo_ids: Option<Vec<i64>>,
     threads: Option<usize>,
     skip_raw: Option<bool>,
+    write_thumbnails: Option<bool>,
 ) -> Result<ScanReport, String> {
     ensure_enabled()?;
     let cancel = crate::scan_cancel_flag(&task_id);
@@ -1040,6 +1114,7 @@ pub async fn semantic_scan(
             recursive,
             skip_raw: skip_raw.unwrap_or(false),
             threads: threads.unwrap_or(1).clamp(1, 4),
+            write_thumbnail_side: write_thumbnails.unwrap_or(false).then(|| state.thumbnail_cache_size()),
             cancel: cancel.clone(),
         };
         let (sender, receiver) = tokio::sync::oneshot::channel();

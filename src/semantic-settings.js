@@ -332,7 +332,7 @@ export function analyseContent({ folder = null, recursive = false, photoIds = nu
     kind: 'semantic',
     path: folder,
     command: 'semantic_scan',
-    args: { folder, recursive, photoIds, threads: semanticScanThreads(), skipRaw: !scanRaw() },
+    args: { folder, recursive, photoIds, threads: semanticScanThreads(), skipRaw: !scanRaw(), writeThumbnails: readBool('semanticWriteThumbnails') },
     labelKey: folder ? 'Content analysis: {folder}' : photoIds ? 'Content analysis ({count} photos)' : 'Content analysis: whole library',
     labelParams: folder ? { folder: baseName } : photoIds ? { count: photoIds.length } : undefined,
     dedupeKey: scopeKey ? `semantic:${scopeKey}` : undefined,
@@ -388,6 +388,7 @@ export async function initSemanticSettings(hostApi) {
   bindCheckbox('semantic-show-score', 'semanticShowScore');
   bindCheckbox('semantic-scan-raw', 'semanticScanRaw');
   byId('semantic-scan-raw').addEventListener('change', refreshStats); // the counts follow the choice
+  bindCheckbox('semantic-write-thumbnails', 'semanticWriteThumbnails'); // read when an analysis is queued
   const threads = byId('semantic-threads');
   threads.value = String(semanticScanThreads());
   threads.addEventListener('change', () => {
