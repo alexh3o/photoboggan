@@ -115,7 +115,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `fill_hashes` · L609 — Computes the missing hashes of the files still in a group, in parallel.
 - `pub run` · L658 — Finds groups of identical images. `progress` receives a fraction between 0 and 1. A cancelled run returns what it has found so far (no grou…
 
-## exif.rs (144)
+## exif.rs (145)
 
 - *struct* `pub ExifMetadata` · L7
 - `xmp_value` · L48
@@ -248,19 +248,20 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub sidecar_candidates` · L2423 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
 - `write_xmp_sidecar_with` · L2429 — XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
 - `pub write_metadata` · L2449 — Écrit les modifications `update` (mots-clés, titre, description) dans le fichier, en une seule écriture :
-- `pub text_mismatch` · L2470 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
-- *struct* `pub MetadataEntry` · L2506
-- *struct* `pub MetadataDetails` · L2512
-- `detail_entry` · L2521
-- `read_exif_entries` · L2531
-- `read_xmp_packet` · L2547 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
-- `pub xml_tag_end` · L2553 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
-- `xml_attributes` · L2566
-- `list_xmp_properties` · L2583 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
-- `iptc_dataset_name` · L2641
-- `collect_iptc_datasets` · L2655 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
-- `read_iptc_entries` · L2684
-- `pub read_metadata_details` · L2699 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
+- `pub write_metadata_internal` · L2455 — The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
+- `pub text_mismatch` · L2475 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
+- *struct* `pub MetadataEntry` · L2511
+- *struct* `pub MetadataDetails` · L2517
+- `detail_entry` · L2526
+- `read_exif_entries` · L2536
+- `read_xmp_packet` · L2552 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
+- `pub xml_tag_end` · L2558 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
+- `xml_attributes` · L2571
+- `list_xmp_properties` · L2588 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
+- `iptc_dataset_name` · L2646
+- `collect_iptc_datasets` · L2660 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
+- `read_iptc_entries` · L2689
+- `pub read_metadata_details` · L2704 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
 
 ## exiftool.rs (54)
 
@@ -568,7 +569,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `csv_field` · L528 — Champ CSV entre guillemets. Une valeur qui commence par = + - @ est précédée d'une apostrophe : sinon Excel la prendrait pour une formule.
 - `pub write_report` · L538 — Écrit le rapport dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.txt », jamais d'écrasement) et renvoie le chemin du fichier.
 
-## keywords.rs (34)
+## keywords.rs (36)
 
 - *struct* `pub KeywordNode` · L26 — Nœud de l'arbre envoyé à l'interface (`parent_id` 0 = premier niveau).
 - `pub init_schema` · L34 — Crée les tables à l'ouverture de la base (sans toucher aux données existantes). Appelée par `db::init_db`, après la création de `photos`.
@@ -589,21 +590,23 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `regions_mismatch` · L242 — Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
 - `normalized_paths` · L253
 - `push_failure` · L262 — Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
-- `run_write` · L267
-- `pub apply_metadata_changes` · L477 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
-- `validate_name` · L499 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
-- `pub create_keyword` · L508 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
-- `subtree_ids` · L531 — Le mot-clé et tous ses descendants.
-- *struct* `pub KeywordDeleteInfo` · L548
-- `pub get_keyword_delete_info` · L557 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
-- `photos_carrying` · L576 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
-- `restore_person_links` · L608 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
-- `pub delete_subtree` · L623 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
-- `run_delete` · L638
-- `pub delete_keyword` · L695 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
-- `run_rename` · L709
-- `pub rename_keyword` · L758 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
-- `pub set_metadata_read_order` · L777 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps" or "faces"):
+- *struct* `pub WriteEnv` · L269 — What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
+- `WriteEnv::of` · L279
+- `run_write` · L291
+- `pub apply_metadata_changes` · L498 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
+- `validate_name` · L520 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
+- `pub create_keyword` · L529 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
+- `subtree_ids` · L552 — Le mot-clé et tous ses descendants.
+- *struct* `pub KeywordDeleteInfo` · L569
+- `pub get_keyword_delete_info` · L578 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
+- `photos_carrying` · L597 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
+- `restore_person_links` · L629 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
+- `pub delete_subtree` · L644 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
+- `run_delete` · L659
+- `pub delete_keyword` · L715 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
+- `run_rename` · L729
+- `pub rename_keyword` · L777 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
+- `pub set_metadata_read_order` · L796 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps" or "faces"):
 
 ## library_sync.rs (17)
 
@@ -1228,21 +1231,21 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 
 ## update_check.rs (15)
 
-- *struct* `Version` · L39 — Version `x.y.z` avec un éventuel suffixe de pré-version (la partie après le premier « - »).
-- `parse_version` · L45 — Lit « 1.2.3 », « v1.2.3 » ou « 1.2.3-beta.1 » ; None si le texte n'a pas cette forme (« face-models-1 »).
-- *struct* `pub UpdateAsset` · L60 — Installeur joint à la release pour ce système. Seuls le nom et la taille vont à l'interface.
-- *struct* `pub UpdateInfo` · L72
-- `current_platform` · L90 — Système pour lequel la release publie un installeur.
-- `is_safe_file_name` · L95 — Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
-- `pick_asset` · L101 — Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du…
-- `pick_latest` · L125 — Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
-- `fetch_info` · L156 — Interroge GitHub (bloquant : à appeler hors du fil principal).
-- `pub check_for_update` · L176 — Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
-- `update_dir` · L188
-- `copy_verified` · L194 — Copie `reader` dans `<target>.part` en calculant la somme SHA-256, puis renomme le fichier si taille et somme sont celles attendues.
-- `file_sha256` · L228 — Somme SHA-256 d'un fichier.
-- `pub download_update` · L243 — Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
-- `pub install_update` · L297 — Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'ins…
+- *struct* `Version` · L43 — Version `x.y.z` avec un éventuel suffixe de pré-version (la partie après le premier « - »).
+- `parse_version` · L49 — Lit « 1.2.3 », « v1.2.3 » ou « 1.2.3-beta.1 » ; None si le texte n'a pas cette forme (« face-models-1 »).
+- *struct* `pub UpdateAsset` · L64 — Installeur joint à la release pour ce système. Seuls le nom et la taille vont à l'interface.
+- *struct* `pub UpdateInfo` · L76
+- `current_platform` · L94 — Système pour lequel la release publie un installeur.
+- `is_safe_file_name` · L99 — Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
+- `pick_asset` · L105 — Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du…
+- `pick_latest` · L129 — Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
+- `fetch_info` · L160 — Interroge GitHub (bloquant : à appeler hors du fil principal).
+- `pub check_for_update` · L180 — Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
+- `update_dir` · L192
+- `copy_verified` · L198 — Copie `reader` dans `<target>.part` en calculant la somme SHA-256, puis renomme le fichier si taille et somme sont celles attendues.
+- `file_sha256` · L232 — Somme SHA-256 d'un fichier.
+- `pub download_update` · L247 — Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
+- `pub install_update` · L301 — Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'ins…
 
 ## video.rs (6)
 

@@ -26,11 +26,15 @@ use tauri::Emitter;
 
 use crate::model_files::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
 
-/// Releases les plus récentes d'abord ; 30 suffisent largement pour trouver la dernière version de l'application.
-const RELEASES_URL: &str = "https://api.github.com/repos/alexh3o/photoboggan/releases?per_page=30";
+/// The application repository: the only place it is written (the interface receives the release page already checked, see RELEASE_PAGE_PREFIX).
+macro_rules! repository { () => { "alexh3o/photoboggan" }; }
+/// Most recent releases first; 30 are plenty to find the latest version of the application.
+const RELEASES_URL: &str = concat!("https://api.github.com/repos/", repository!(), "/releases?per_page=30");
 const MAX_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
-/// Seules adresses de téléchargement acceptées (fichiers joints aux releases du dépôt).
-const DOWNLOAD_URL_PREFIX: &str = "https://github.com/alexh3o/photoboggan/releases/download/";
+/// Only download addresses accepted (files attached to the repository releases).
+const DOWNLOAD_URL_PREFIX: &str = concat!("https://github.com/", repository!(), "/releases/download/");
+/// Only release page passed to the interface (which opens it in the browser); any other address read from the network is dropped.
+const RELEASE_PAGE_PREFIX: &str = concat!("https://github.com/", repository!(), "/");
 /// Un installeur plus gros que cela n'est pas celui de l'application.
 const MAX_INSTALLER_BYTES: u64 = 500 * 1024 * 1024;
 
@@ -146,7 +150,7 @@ fn pick_latest(body: &[u8], installed: &Version, installed_text: &str, include_p
         update_available,
         prerelease: release.get("prerelease").and_then(|value| value.as_bool()).unwrap_or(false),
         notes: text(release, "body"),
-        url: text(release, "html_url"),
+        url: Some(text(release, "html_url")).filter(|url| url.starts_with(RELEASE_PAGE_PREFIX)).unwrap_or_default(),
         published_at: text(release, "published_at"),
         asset: if update_available { pick_asset(release, current_platform()) } else { None },
     })
@@ -302,14 +306,11 @@ pub fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     }
     #[cfg(windows)]
     {
-        let mut command = if path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("msi")) {
-            let mut command = std::process::Command::new("msiexec");
-            command.arg("/i").arg(&path);
-            command
-        } else {
-            std::process::Command::new(&path)
-        };
-        command.spawn().map_err(|error| format!("Installeur impossible à lancer : {error}"))?;
+        // Only an .msi can be downloaded on Windows (pick_asset): it is run by msiexec, never executed directly.
+        if !path.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("msi")) {
+            return Err("update_no_installer".to_string());
+        }
+        std::process::Command::new("msiexec").arg("/i").arg(&path).spawn().map_err(|error| format!("Installeur impossible à lancer : {error}"))?;
         app.exit(0);
         Ok(true)
     }

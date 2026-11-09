@@ -49,10 +49,9 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 
 ### Known gaps (covered only by hand)
 - All frontend code (grid layout, selection, dialogs, task queue, write circuit, panels).
-- IPC commands and anything needing an `AppHandle` / `State`: `run_scan`, `run_write` (keywords), `update_photos_marking`, `rotate_photos`, `delete_photos`, `rename_*`, `get_photos_paginated` wrapper, config load / save.
+- IPC commands and anything needing an `AppHandle` / `State`: `run_scan`, `update_photos_marking`, `rotate_photos`, `delete_photos`, `rename_*`, `get_photos_paginated` wrapper, config load / save.
 - Real-world files: tests use synthetic files; vendor-specific RAW, HEIC and video behaviour is checked by hand on real photos.
 - Network code (releases, model downloads, place search, map tiles), `install_update`, `has_trash`.
-- The `resize.rs` module has no test file.
 
 ## Contracts
 - IPC / events / database / settings: none (tests do not touch the app's data folders).

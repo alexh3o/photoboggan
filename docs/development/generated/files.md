@@ -38,7 +38,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `_PROGRESS.md` | 200 |  |
+| `_PROGRESS.md` | 202 |  |
 | `_TEMPLATE.md` | 62 |  |
 | `architecture.md` | 98 |  |
 | `build-release.md` | 87 |  |
@@ -49,23 +49,23 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `README.md` | 56 |  |
 | `recipes.md` | 94 |  |
 | `style.md` | 56 |  |
-| `testing.md` | 77 |  |
+| `testing.md` | 76 |  |
 | `troubleshooting.md` | 72 |  |
 
 ## docs/development/generated
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `config.md` | 143 |  |
+| `config.md` | 150 |  |
 | `css.md` | 507 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 285 |  |
+| `files.md` | 288 |  |
 | `ipc-commands.md` | 176 |  |
 | `module-deps.md` | 93 |  |
-| `symbols-js.md` | 1374 |  |
+| `symbols-js.md` | 1373 |  |
 | `symbols-rust.md` | 1255 |  |
-| `tests.md` | 423 |  |
+| `tests.md` | 431 |  |
 
 ## docs/development/modules
 
@@ -87,7 +87,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 65 |  |
 | `thumbnails-and-previews.md` | 85 |  |
-| `updates.md` | 67 |  |
+| `updates.md` | 66 |  |
 
 ## scripts
 
@@ -95,7 +95,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `fetch-exiftool.mjs` | 106 | Télécharge la distribution officielle d'ExifTool dans src-tauri/vendor/exiftool/, embarquée dans l'application (ressource Tauri « exiftool », voir tauri.conf.json et src-tauri/src/exiftool.rs). Les binaires ne sont pas … |
 | `fetch-map-style.mjs` | 58 | Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « dark » (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écri… |
-| `gen-docs.mjs` | 440 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
+| `gen-docs.mjs` | 445 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
 
@@ -159,7 +159,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `slideshow.js` | 311 | Diaporama : un état du plein écran (pas un mode à part). Un minuteur fait passer le plein écran à la photo suivante ; tout le reste (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même.… |
 | `styles.css` | 1046 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
-| `update-check.js` | 323 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
+| `update-check.js` | 324 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
 
 ## src-tauri
@@ -206,7 +206,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 393 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `db.rs` | 604 |  |
 | `duplicates.rs` | 756 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
-| `exif.rs` | 2722 |  |
+| `exif.rs` | 2727 |  |
 | `exiftool.rs` | 905 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
 | `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
@@ -215,7 +215,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 225 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `heif.rs` | 509 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
-| `keywords.rs` | 784 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
+| `keywords.rs` | 803 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
 | `library_sync.rs` | 340 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
 | `main.rs` | 3091 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
@@ -224,7 +224,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `phash.rs` | 201 | Perceptual hash (pHash) of an image, for the "similar images" search (similar.rs). The image is reduced to 32x32 grey levels, a 2D DCT keeps its 8x8 lowest frequencies, and each of the 63 AC coefficients becomes one bit… |
 | `place_search.rs` | 74 | Recherche d'un lieu par son nom (mode Carte, champ de recherche de la barre de la carte), pour aller y placer la carte. Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propr… |
 | `private_maps.rs` | 1156 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
-| `resize.rs` | 556 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
+| `resize.rs` | 560 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into … |
 | `semantic_models.rs` | 339 | Files of the semantic search (SigLIP 2, spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by scripts… |
 | `semantic_search.rs` | 817 | Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - Index … |
@@ -232,7 +232,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `similar.rs` | 351 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
 | `thumbnails.rs` | 719 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
-| `update_check.rs` | 327 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
+| `update_check.rs` | 328 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
 | `video.rs` | 210 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
 ## src-tauri/src/tests
@@ -251,20 +251,21 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 60 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 165 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
 | `integrity.rs` | 209 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
-| `keywords.rs` | 96 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
+| `keywords.rs` | 220 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
 | `library_sync.rs` | 168 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
 | `main.rs` | 288 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
 | `orientation.rs` | 162 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs. |
 | `phash.rs` | 62 | Tests of the perceptual hash: stability under resizing and recompression, difference between pictures, rotations, mirrors and flat pictures. |
 | `place_search.rs` | 25 | Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |
 | `private_maps.rs` | 358 | Tests des zones privées (private_maps.rs) : géométrie des zones et des tuiles, fichiers MBTiles, règle par tuile, import, refus hors ligne. Aucune requête réseau : les téléchargements sont testés avec Internet refusé (r… |
+| `resize.rs` | 111 | Tests of resize.rs: output size (never enlarged), formats, metadata copy, conflict policies, refusals. Synthetic files only; the "Replace" policy is not tested here because it sends the existing file to the real trash. |
 | `semantic_keywords.rs` | 1069 | Tests of the keyword suggestions: scores, thresholds, exclusions, invalidation, gating. Fake vectors only, no model. The measure that chose the score and the thresholds (§23) reads a copy of a real catalogue and needs t… |
 | `semantic_models.rs` | 80 | Tests of the semantic model files: manifest, status, deletion, gating. No download, no real model: empty or fake files only. |
 | `semantic_search.rs` | 644 | Tests of the semantic searches: ranking, relative threshold and cap, stable order, scopes, index updates and release. Fake vectors only, no model. Parity of the text search with the reference model is `#[ignore]`: run i… |
 | `semantic.rs` | 848 | Tests of the semantic search, model side: fp16 storage, image preprocessing (parity with PIL on the Phase 0 fixtures), query normalisation. Synthetic images only (the PNG fixtures are generated by dev_tools/semantic/mak… |
 | `similar.rs` | 162 | Tests of the similar-image search: grouping, rotations, bursts, flat pictures, cache and cancellation. Synthetic files in a temporary folder only. |
 | `thumbnails.rs` | 128 | Tests de non-régression de l'orientation et de l'EXIF des RAW (thumbnails.rs). Aucun vrai RAW : un CR3 minimal (boîtes CMT1 / CMT2) et des JPEG synthétiques sont fabriqués à la main. |
-| `update_check.rs` | 166 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
+| `update_check.rs` | 175 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
 
 ## src-tauri/src/tests/fixtures
 

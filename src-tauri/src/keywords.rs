@@ -264,17 +264,40 @@ fn push_failure(failed: &mut Vec<KeywordFailure>, photo_id: i64, path: String, e
     failed.push(KeywordFailure { photo_id, path, error });
 }
 
+/// What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
+/// run_delete) can be tested without an AppHandle.
+pub(crate) struct WriteEnv {
+    /// Thumbnail and preview caches, renamed to follow the rewritten files.
+    pub cache_dirs: crate::ImageCacheDirs,
+    /// Progress of the queued task (percent); does nothing for a direct command.
+    pub progress: Box<dyn Fn(u32) + Send + Sync>,
+    /// File writer: `exif::write_metadata` (ExifTool or internal, by setting); tests pass the internal writer.
+    pub write: fn(&str, &crate::exif::MetadataUpdate) -> std::io::Result<()>,
+}
+
+impl WriteEnv {
+    fn of(app: &tauri::AppHandle, task_id: Option<String>) -> Self {
+        let emitter = app.clone();
+        Self {
+            cache_dirs: crate::ImageCacheDirs::of(&app.state::<AppState>()),
+            progress: Box::new(move |percent| {
+                if let Some(id) = &task_id { let _ = emitter.emit("scan-progress", crate::ScanProgress { task_id: id.clone(), percent }); }
+            }),
+            write: crate::exif::write_metadata,
+        }
+    }
+}
+
 fn run_write(
-    app: &tauri::AppHandle,
+    env: &WriteEnv,
     pool: &DbPool,
     items: Vec<KeywordWriteItem>,
-    task_id: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     let _write_guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while files are written
     let conn = pool.get().map_err(|error| error.to_string())?;
-    let cache_dirs = crate::ImageCacheDirs::of(&app.state::<AppState>()); // miniatures et aperçus qui suivent les fichiers réécrits
+    let cache_dirs = &env.cache_dirs; // miniatures et aperçus qui suivent les fichiers réécrits
     let mut nodes: HashMap<i64, (i64, String)> = HashMap::new();
     {
         let mut statement = conn.prepare("SELECT id, parent_id, name FROM keyword_nodes").map_err(|error| error.to_string())?;
@@ -368,14 +391,12 @@ fn run_write(
                     gps: item.gps.map(Some),
                 };
                 // Métadonnées seules : la miniature et l'aperçu en cache sont renommés pour suivre le fichier, pas régénérés.
-                let result = crate::keep_cached_images(&cache_dirs, &item.path, || {
-                    crate::exif::write_metadata(&item.path, &update).map_err(|error| error.to_string())
+                let result = crate::keep_cached_images(cache_dirs, &item.path, || {
+                    (env.write)(&item.path, &update).map_err(|error| error.to_string())
                 })
                 .map(|_| update);
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
-                if let Some(id) = &task_id {
-                    let _ = app.emit("scan-progress", crate::ScanProgress { task_id: id.clone(), percent: (finished * 100 / total) as u32 });
-                }
+                (env.progress)((finished * 100 / total) as u32);
                 (item, Some(result))
             })
             .collect()
@@ -483,7 +504,7 @@ pub async fn apply_metadata_changes(
     let pool = state.pool();
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
-    let outcome = tokio::task::spawn_blocking(move || run_write(&app, &pool, items, worker_task_id, cancel)).await;
+    let outcome = tokio::task::spawn_blocking(move || run_write(&WriteEnv::of(&app, worker_task_id), &pool, items, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }
@@ -636,10 +657,9 @@ pub(crate) fn delete_subtree(pool: &DbPool, keyword_id: i64) -> Result<(), Strin
 }
 
 fn run_delete(
-    app: &tauri::AppHandle,
+    env: &WriteEnv,
     pool: &DbPool,
     keyword_id: i64,
-    task_id: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     // Pour chaque photo qui porte le mot-clé ou l'un de ses descendants : ses mots-clés actifs moins ceux-là.
@@ -667,7 +687,7 @@ fn run_delete(
     };
 
     // Écriture des fichiers (même mécanisme que l'application des modifications : écriture atomique, relecture, base mise à jour).
-    let mut result = match run_write(app, pool, items, task_id, cancel) {
+    let mut result = match run_write(env, pool, items, cancel) {
         Ok(result) => result,
         Err(error) => {
             restore_person_links(pool, &linked);
@@ -701,17 +721,16 @@ pub async fn delete_keyword(
     let pool = state.pool();
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
-    let outcome = tokio::task::spawn_blocking(move || run_delete(&app, &pool, keyword_id, worker_task_id, cancel)).await;
+    let outcome = tokio::task::spawn_blocking(move || run_delete(&WriteEnv::of(&app, worker_task_id), &pool, keyword_id, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }
 
 fn run_rename(
-    app: &tauri::AppHandle,
+    env: &WriteEnv,
     pool: &DbPool,
     keyword_id: i64,
     name: String,
-    task_id: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     let name = validate_name(&name)?;
@@ -748,7 +767,7 @@ fn run_rename(
         let ids = subtree_ids(&conn, keyword_id)?;
         photos_carrying(&conn, &ids, &HashSet::new())?
     };
-    run_write(app, pool, items, task_id, cancel)
+    run_write(env, pool, items, cancel)
 }
 
 /// Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'application
@@ -765,7 +784,7 @@ pub async fn rename_keyword(
     let pool = state.pool();
     let cancel = task_id.as_deref().map(crate::scan_cancel_flag);
     let worker_task_id = task_id.clone();
-    let outcome = tokio::task::spawn_blocking(move || run_rename(&app, &pool, keyword_id, name, worker_task_id, cancel)).await;
+    let outcome = tokio::task::spawn_blocking(move || run_rename(&WriteEnv::of(&app, worker_task_id), &pool, keyword_id, name, cancel)).await;
     if let Some(id) = &task_id { crate::release_scan_cancel_flag(id); }
     outcome.map_err(|error| error.to_string())?
 }

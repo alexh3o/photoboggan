@@ -553,3 +553,7 @@ fn patch_xmp_orientation(segment: &[u8]) -> Vec<u8> {
     }
     updated.into_bytes()
 }
+
+#[cfg(test)]
+#[path = "tests/resize.rs"]
+mod tests;

@@ -70,7 +70,7 @@ Queued task (`kind: 'integrity'`), events `scan-progress` and `scan-detail` (cur
 - `has_trash` changes the wording of the deletion dialog: a new delete path must call `count_permanent_deletions` first.
 
 ## Tests
-`tests/main.rs` (10: durable copy keeps attributes, replacing copy leaves no temp, move cost between drives, sidecar adoption, rename onto the same file, reserved names, cache follow), `tests/integrity.rs` (12). Gaps: no `tests/resize.rs`; no test of `delete_photos`, `has_trash`, `rename_photo`, `rename_folder`, `update_photos_marking` (they need an `AppHandle` / `State`), nor of the frontend.
+`tests/main.rs` (10: durable copy keeps attributes, replacing copy leaves no temp, move cost between drives, sidecar adoption, rename onto the same file, reserved names, cache follow), `tests/integrity.rs` (12), `tests/resize.rs` (5: longest side, never enlarged, PNG output, metadata copied only when asked, conflict policies ask / skip / increment, refusals; "Replace" untested because it uses the real trash). Gaps: no test of `delete_photos`, `has_trash`, `rename_photo`, `rename_folder`, `update_photos_marking` (they need an `AppHandle` / `State`), nor of the frontend.
 
 ## How to extend
 1. New file operation: queue it (`../invariants.md` §6) with `FileTaskProgress`, lock the file with `exiftool::path_lock`, reserve names with `reserve_destination`, carry the sidecar and the cache files, update the catalogue in one transaction, and report failures per file.

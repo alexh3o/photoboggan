@@ -174,13 +174,13 @@ Every module prompt below starts with the same instructions; only the last sente
 ### Phase 4 — items reported by the phase 3 sessions, and what was done
 
 - AGENTS.md §5.D (HEIC in container, `set_metadata_read_order`): already fixed in AGENTS.md; doc notes updated.
-- `update_check.rs` header mentioned NSIS: header rewritten in English (MSI via `msiexec`).
+- `update_check.rs` header mentioned NSIS: header rewritten in English (MSI via `msiexec`); the unreachable non-MSI branch now refuses (`update_no_installer`); the repository slug is written once (`repository!()`), the release page is filtered by the backend.
 - `keywords.rs` doc comment of `set_metadata_read_order`: now lists the 8 kinds (English).
 - Keys without a default (`exifPanelWidth`, `lastFolderFilter`, `sidebarWidth`, `keywordFilterMode`, `sidePanelTab`, `keywordsAutoApplyAsked`, `albumsExpanded`, `albumsCollapsed`, `rawSearch`): UI state, documented in `configuration.md`. **Open**: AGENTS.md §5.G could say "every remembered *setting*" (state keys exempt); user decision.
 - `architecture.md` thumbnail throttle: fixed (frontend 2–6, backend cap 6).
 - `src/guide.js` shortcuts vs keyboard handler (`Ctrl+R`): checked, Ctrl+R (rotate right) is always caught by the keydown handler and never reloads the window; Shift+R rotates left.
 - `styles.css` `--accent-text` comment: fixed.
-- `generated/config.md` `—` for keys read through constants: generator limit, documented in `configuration.md`.
+- `generated/config.md` `—` for keys read through constants: **fixed** in the generator (quoted key literals in storage files, aliased `DEFAULTS`).
 - `generated/tests.md` `faces_db.rs` owner: generator fixed; it now also lists inline `mod tests` of `face_detect.rs`, `face_recognize.rs`, `faces.rs` (9 tests).
 - `code-map.md` `pumpSemanticQueue` location and section order: fixed.
 - AGENTS.md §5.L `keywordSuggestionsOpen`: present in `defaults.jsonc`, nothing to change.
@@ -191,6 +191,8 @@ Found during phase 4 (code, not fixed):
 - Inline test modules in three face files contradicted AGENTS.md §5.I: **fixed**, moved to `tests/face_detect.rs`, `tests/face_recognize.rs`, `tests/faces.rs`.
 - `logs/` was left in the old folder on a storage change: **fixed** (added to `STORAGE_DIRS`, test `storage_copy_carries_the_logs_and_cleanup_removes_them`).
 - `slideshow.js` saved flags as "1" / "0" with its own reader: **fixed**, `readBool` / `readNumber`, old values still read.
+
+Tests added after phase 4: `run_write`, `run_rename`, `run_delete` (`tests/keywords.rs`, via `WriteEnv`), `tests/resize.rs`.
 
 Remaining `⚠ unverified` (low risk): `build-release.md` (git-cliff config, `appVersion` with `v`), `configuration.md` (dev identifier isolation, tested only by reading), `style.md` (`--tag-*` audit), `albums.md` (context-menu builders), `grid-and-viewer.md` (separator keys), `maps-and-geolocation.md` (pending-position UI flow).
 

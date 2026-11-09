@@ -324,7 +324,12 @@ function genConfig() {
     const src = read(f);
     for (const m of src.matchAll(/localStorage\.(?:get|set|remove)Item\(\s*['"`]([\w.-]+)['"`]/g)) addKey(m[1], f);
     for (const m of src.matchAll(/\bread(?:Bool|Choice|Number)\(\s*['"`]([\w.-]+)['"`]/g)) addKey(m[1], f);
-    for (const m of src.matchAll(/\bDEFAULTS\.(\w+)/g)) addKey(m[1], f);
+    for (const m of src.matchAll(/\b\w*DEFAULTS\.(\w+)/g)) addKey(m[1], f);
+    // Keys read through a constant or an object (`const COLOR_STORAGE_KEY = 'colorLabelEnabled'`, `storageKey.loop`): in a file that
+    // touches the storage, any quoted literal equal to a defaults.jsonc key counts as a use.
+    if (/localStorage\.|\bread(?:Bool|Choice|Number|Stored)\(/.test(src)) {
+      for (const m of src.matchAll(/['"`]([\w.-]+)['"`]/g)) if (m[1] in defaults) addKey(m[1], f);
+    }
   }
   function addKey(k, f) { keyFiles.set(k, new Set([...(keyFiles.get(k) ?? []), basename(f)])); }
   let cfg = '| Key | Default (`defaults.jsonc`) | Read / written in |\n|---|---|---|\n';
@@ -354,7 +359,7 @@ function genConfig() {
   const scripts = Object.entries(pkg.scripts).map(([k, v]) => `- \`npm run ${k}\` → \`${v}\``).join('\n');
   const npmDeps = Object.entries({ ...pkg.dependencies, ...pkg.devDependencies }).map(([k, v]) => `- \`${k}\` ${v}`).join('\n');
 
-  write('config.md', 'Configuration, i18n coverage, dependencies', 'Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`), translation coverage, and declared dependencies. Keys read through a variable are not detected.', `## Remembered settings\n\n${cfg}\n## Translations\n\n${i18n}\n## npm scripts\n\n${scripts}\n\n## npm dependencies\n\n${npmDeps}\n\n## Rust dependencies (Cargo.toml)\n\n${deps}`);
+  write('config.md', 'Configuration, i18n coverage, dependencies', 'Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`), translation coverage, and declared dependencies. Keys read through a variable are detected only when their name is written as a quoted literal in a file that touches the storage.', `## Remembered settings\n\n${cfg}\n## Translations\n\n${i18n}\n## npm scripts\n\n${scripts}\n\n## npm dependencies\n\n${npmDeps}\n\n## Rust dependencies (Cargo.toml)\n\n${deps}`);
 }
 
 /** tests.md : inventory of backend tests. */

@@ -1341,31 +1341,31 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/update-check.js (25)
 
-- `read(key)` · L25
-- `write(key, value)` · L26
-- `remove(key)` · L27
-- `isOffline()` · L29
-- `isEnabled()` · L31 — Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
-- `includesPrereleases()` · L32
-- `savedInfo()` · L34
-- `isActive()` · L51 — Active seulement si Internet est autorisé et la vérification demandée.
-- `statusText()` · L54 — Ligne d'état sous les cases : versions installée et distante, ou état de la vérification.
-- `render()` · L64
-- `export onUpdateAccessChanged()` · L84 — Appelé par main.js quand le mode hors ligne ou la langue change.
-- `plainText(markdown)` · L89 — Notes de version : Markdown de git-cliff réduit à des titres, listes et paragraphes, construits en texte (jamais de HTML injecté).
-- `renderNotes(container, markdown)` · L93
-- `formatMegabytes(bytes)` · L120
-- `updateErrorMessage(error)` · L126 — Codes d'erreur du backend (update_check.rs) traduits ; les autres messages sont affichés tels quels.
-- `renderDownloadButton()` · L136 — Bouton principal de la fenêtre : Télécharger, puis Installer ; absent quand la release n'a pas d'installeur pour ce système.
-- `openDialog()` · L149 — ---- Fenêtre « Mise à jour disponible » ----
-- `closeDialog()` · L159
-- `downloadUpdate()` · L163
-- `installUpdate()` · L198
-- `onDownloadButton()` · L212
-- `openReleasePage()` · L217
-- `runCheck({ announce = null } = {})` · L230
-- `forgetResult()` · L255 — Une nouvelle recherche est nécessaire (réglage modifié ou version installée changée) : oublie le résultat mémorisé.
-- `export initUpdateCheck({ showToast: toast, enqueueTask: enqueue, canQuit: quitAllo…)` · L262
+- `read(key)` · L26
+- `write(key, value)` · L27
+- `remove(key)` · L28
+- `isOffline()` · L30
+- `isEnabled()` · L32 — Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
+- `includesPrereleases()` · L33
+- `savedInfo()` · L35
+- `isActive()` · L52 — Active seulement si Internet est autorisé et la vérification demandée.
+- `statusText()` · L55 — Ligne d'état sous les cases : versions installée et distante, ou état de la vérification.
+- `render()` · L65
+- `export onUpdateAccessChanged()` · L85 — Appelé par main.js quand le mode hors ligne ou la langue change.
+- `plainText(markdown)` · L90 — Notes de version : Markdown de git-cliff réduit à des titres, listes et paragraphes, construits en texte (jamais de HTML injecté).
+- `renderNotes(container, markdown)` · L94
+- `formatMegabytes(bytes)` · L121
+- `updateErrorMessage(error)` · L127 — Codes d'erreur du backend (update_check.rs) traduits ; les autres messages sont affichés tels quels.
+- `renderDownloadButton()` · L137 — Bouton principal de la fenêtre : Télécharger, puis Installer ; absent quand la release n'a pas d'installeur pour ce système.
+- `openDialog()` · L150 — ---- Fenêtre « Mise à jour disponible » ----
+- `closeDialog()` · L160
+- `downloadUpdate()` · L164
+- `installUpdate()` · L199
+- `onDownloadButton()` · L213
+- `openReleasePage()` · L218
+- `runCheck({ announce = null } = {})` · L231
+- `forgetResult()` · L256 — Une nouvelle recherche est nécessaire (réglage modifié ou version installée changée) : oublie le résultat mémorisé.
+- `export initUpdateCheck({ showToast: toast, enqueueTask: enqueue, canQuit: quitAllo…)` · L263
 
 ## src/zone-drawing.js (1)
 

@@ -2447,8 +2447,13 @@ fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) ->
 /// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles, plus l'EXIF des JPEG : XPKeywords, XPTitle,
 /// ImageDescription, UserComment, XPComment).
 pub fn write_metadata(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
+    if crate::exiftool::is_enabled() { return crate::exiftool::write_metadata(Path::new(image_path), update); }
+    write_metadata_internal(image_path, update)
+}
+
+/// The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
+pub(crate) fn write_metadata_internal(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
     let path = Path::new(image_path);
-    if crate::exiftool::is_enabled() { return crate::exiftool::write_metadata(path, update); }
     let _guard = crate::exiftool::path_lock(path); // écriture interne : voir write_xmp_metadata
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     let xmp_update = |xml: &str| update_xmp_all(xml, update);

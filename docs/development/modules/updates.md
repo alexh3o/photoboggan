@@ -28,14 +28,14 @@ Tells the user when a newer release exists on GitHub, and (optionally) downloads
 
 ### Installing (`install_update`)
 Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re-checks size and recomputes the SHA-256** just before launching (mismatch clears the record and returns `update_corrupted`), then:
-- Windows: `msiexec /i <file>` for `.msi` (any other extension would be executed directly), then `app.exit(0)`; returns `true` (the app closes so the installer can replace files).
+- Windows: `msiexec /i <file>` (anything but an `.msi` is refused with `update_no_installer`, never executed), then `app.exit(0)`; returns `true` (the app closes so the installer can replace files).
 - Other systems: `xdg-open <file>` (the `.deb` goes to the package manager, which needs rights the app lacks); returns `false`, the app stays open.
 
 ### Frontend (`update-check.js`)
 - `initUpdateCheck({ showToast, enqueueTask, canQuit })` (services injected by `main.js`): reads the saved result (`updateInfo`), drops it if it was for another installed version (the app was just updated), binds the checkboxes `checkUpdates` and `includePrereleases` (changing either forgets the result and rechecks).
 - Scheduling: a check at startup after a 3 s delay (so the offline setting has reached the backend), at most once per 24 h (`lastUpdateCheck`), silent on failure; a manual "Check now" always opens the dialog; a toast (with "Details") announces a new version unless the user chose Ignore for that version (`ignoredUpdateVersion`). `isActive() = checkUpdates && !offlineMode`; `onUpdateAccessChanged()` is called when offline mode changes.
 - Download button → `enqueueTask({ kind: 'update', command: 'download_update', … })`; state `idle → downloading → ready`; when ready for the shown version the same button runs `installUpdate`. On Windows (`asset.restarts`) it first calls `canQuit()`, the same guards as closing the window (unwritten keywords, changed album, running writes).
-- The release page is opened only if its URL starts with `https://github.com/alexh3o/photoboggan/`. Release notes (Markdown, capped at 8000 characters) are rendered as plain text by `plainText` / `renderNotes`.
+- The release page: the backend keeps the release's `html_url` only if it starts with `RELEASE_PAGE_PREFIX` (the repository), else sends an empty URL; the UI also refuses anything outside `https://github.com/`. Release notes (Markdown, capped at 8000 characters) are rendered as plain text by `plainText` / `renderNotes`.
 
 ## Contracts
 - IPC: `check_for_update`, `download_update`, `install_update` (`../generated/ipc-commands.md`). Error codes: `internet_disabled`, `update_changed`, `update_no_installer`, `update_corrupted`, `update_not_downloaded`, `cancelled` (swallowed).
@@ -62,5 +62,4 @@ Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re
 3. New UI text: keys in `en.json` and `fr.json`; error codes go through `updateErrorMessage`.
 
 ## Open questions
-- The non-`.msi` branch of `install_update` (Windows) is unreachable since `pick_asset` only selects `.msi`; kept as a safety net.
-- The repository slug `alexh3o/photoboggan` is written in both `update_check.rs` (`RELEASES_URL`, `DOWNLOAD_URL_PREFIX`) and `update-check.js` (`RELEASE_URL_PREFIX`): change both together.
+none. The repository slug is written once, in the `repository!()` macro of `update_check.rs` (all URLs and prefixes are built from it with `concat!`); test `release_page_outside_the_repository_is_dropped`.

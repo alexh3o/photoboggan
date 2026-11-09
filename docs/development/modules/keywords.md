@@ -60,13 +60,13 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: `run_write` is the single place where write → re-read → verify → catalogue happens; every new writable field must be verified there (a failed write must never show as success, `../invariants.md` §1.5).
-- ⚠ sensitive: rename must update the tree before computing paths, and delete must keep the node when any file failed; tests do not cover these two functions (see below).
+- ⚠ sensitive: rename must update the tree before computing paths, and delete must keep the node when any file failed (tests `rename_updates_the_tree_then_rewrites_every_file_carrying_the_keyword_or_a_descendant`, `delete_keeps_the_keyword_when_a_file_could_not_be_rewritten`).
 - ⚠ sensitive: `WRITE_LOCK` and the 3 threads: do not add another path that writes keywords without it.
 - Names may not contain `/`, `|`, `,` (hierarchy separators and filter separator): enforced in `validate_name`; the UI repeats the check (`validateKeywordName`).
 - Format and field rules (`dc:subject`, `digiKam:TagsList`, `acdsee:categories`, IPTC, XPKeywords): `metadata-read-write.md` ("Written fields").
 
 ## Tests
-`tests/keywords.rs` (6): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation. Gaps: `run_write` (needs an `AppHandle`), `run_rename` and `run_delete` have no test; the frontend is not tested.
+`tests/keywords.rs` (11): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation; and on synthetic JPEGs: `run_write` writes then stores the re-read (pixels untouched), unknown keyword or photo fails without touching the file, rename rewrites every file of the subtree, delete removes the subtree, delete keeps the node when a file fails. `run_write` / `run_rename` / `run_delete` take a `WriteEnv` (cache dirs, progress callback, writer function; built from the `AppHandle` by `WriteEnv::of`), so tests pass the internal writer (`exif::write_metadata_internal`) without touching the global setting. Gaps: title / description / faces / GPS through `run_write` (their check follows the global writer setting), the frontend.
 
 ## How to extend
 1. New field written with the keywords (like title): add it to `KeywordWriteItem`, `MetadataUpdate`, both writers, the verification step in `run_write`, and a pending editor in the frontend (`registerEditor`); see `../recipes.md`.

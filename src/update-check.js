@@ -19,7 +19,8 @@ const KEY_INFO = 'updateInfo';
 const KEY_IGNORED = 'ignoredUpdateVersion';
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const STARTUP_DELAY_MS = 3000; // laisse le temps à l'interface d'envoyer le réglage « hors ligne » au backend et de finir son premier affichage
-const RELEASE_URL_PREFIX = 'https://github.com/alexh3o/photoboggan/'; // seule adresse ouverte depuis la réponse du réseau
+// The backend only passes a release page of the repository (RELEASE_PAGE_PREFIX in update_check.rs); this check only refuses anything that is not HTTPS on GitHub.
+const RELEASE_URL_PREFIX = 'https://github.com/';
 const MAX_NOTES_LENGTH = 8000;
 
 const read = key => { try { return localStorage.getItem(key); } catch { return null; } };
