@@ -348,7 +348,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 ### src/raw-settings.css (15 lines)
 
-- L1 Paramètres > Divers > RAW (raw-settings.js)
+- L1 Settings > Search > RAW search (raw-settings.js)
 - L3 Motif du nom : deux lignes « libellé | champ », le résultat du test sous le second champ.
 - L12 Dossier de départ : « Chercher à partir du dossier [Parent][Courant][Enfants] », le bloc de boutons garde sa largeur.
 

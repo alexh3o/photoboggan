@@ -1722,7 +1722,7 @@ async function openThumbnailMenu(event, index, source = 'grid') {
   menuItems.push(
     buildOpenWithItem(targets, programSection(photo.path)),
   );
-  // « Trouver le RAW » : une image raster à la fois ; grisé tant qu'aucun critère n'est coché (Paramètres > Divers > RAW).
+  // « Trouver le RAW » : une image raster à la fois ; grisé tant qu'aucun critère n'est coché (Settings > Search > RAW search).
   // Grille de résultats de « Trouver le RAW » : sortir de la recherche et ouvrir le dossier du fichier, sans filtre.
   if (api.showInItsFolder && api.isRawSearchActive() && targets.length === 1) {
     menuItems.push(menuButton(t('Show in its folder'), () => api.showInItsFolder(photo), { title: t('Leave the search and show this file in its folder, without any filter') }));
@@ -1738,7 +1738,7 @@ async function openThumbnailMenu(event, index, source = 'grid') {
     const available = api.canFindRaw();
     return {
       label: 'RAW', onSelect: () => api.findRaw(photo), disabled: !available,
-      title: available ? t('Find the RAW file of this image with the criteria set in Settings > Misc > RAW') : t('Tick at least one criterion in Settings > Misc > RAW'),
+      title: available ? t('Find the RAW file of this image with the criteria set in Settings > Search > RAW search') : t('Tick at least one criterion in Settings > Search > RAW search'),
     };
   })() : null;
   // Content search (entries absent while the feature is off or its model is not installed). One "content" entry in the "Find" submenu:

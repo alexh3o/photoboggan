@@ -50,17 +50,17 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `selectionItems(album)` · L536 — Entrées d'un album manuel qui agissent sur la sélection de la grille (grisées quand rien n'est sélectionné).
 - `smartItems(album)` · L547 — Entrées d'un album intelligent : enregistrer les modifications de l'album ouvert (grisé sans modification), ou écraser ses critères par la …
 - `openNodeMenu(event, node)` · L555
-- `openBackgroundMenu(event)` · L570
-- `openAddMenu(event)` · L577 — Bouton « + » de l'en-tête : le même menu de création, à la racine, sous le bouton.
-- `startDrag(event, node)` · L588
-- `onDragKey(event)` · L596
-- `targetUnder(event)` · L600
-- `onDragMove(event)` · L608
-- `onDragEnd(event)` · L634
-- `stopDrag()` · L655
-- `askMoveOrCopy(node)` · L672 — Question Déplacer / Copier / Annuler. Renvoie 'move', 'copy' ou null.
-- `applyCollapsed()` · L701 — ==========================================
-- `export initAlbumsPanel(options)` · L713 — `options` : showToast(message), onSelectAlbum(node | null).
+- `openBackgroundMenu(event)` · L571
+- `openAddMenu(event)` · L578 — Bouton « + » de l'en-tête : le même menu de création, à la racine, sous le bouton.
+- `startDrag(event, node)` · L589
+- `onDragKey(event)` · L597
+- `targetUnder(event)` · L601
+- `onDragMove(event)` · L609
+- `onDragEnd(event)` · L635
+- `stopDrag()` · L656
+- `askMoveOrCopy(node)` · L673 — Question Déplacer / Copier / Annuler. Renvoie 'move', 'copy' ou null.
+- `applyCollapsed()` · L702 — ==========================================
+- `export initAlbumsPanel(options)` · L714 — `options` : showToast(message), onSelectAlbum(node | null).
 
 ## src/app-fonts.js (1)
 

@@ -1,5 +1,5 @@
 // « Trouver le RAW » : fonctions pures qui préparent la recherche du RAW d'une image raster (le mode lui-même, la bannière et le retour sont dans
-// main.js, section « TROUVER LE RAW »). Les critères cochés dans Paramètres > Divers > RAW (raw-settings.js) deviennent un état de filtres ordinaire,
+// main.js, section « TROUVER LE RAW »). Les critères cochés dans Paramètres > Recherche > Recherche des RAW (raw-settings.js) deviennent un état de filtres ordinaire,
 // celui que savent appliquer les filtres de la barre latérale : la recherche est donc visible, retouchable et enregistrable comme n'importe quelle vue.
 import './find-raw.css';
 import { extractNameKey } from './raw-settings.js';

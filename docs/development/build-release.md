@@ -29,7 +29,7 @@ cd src-tauri && cargo check
 npm run build            # frontend only (Vite, output dist/)
 ```
 - `tauri.conf.json` `beforeDevCommand` = `npm run fetch-exiftool -- --optional && npm run dev`: a failed ExifTool download only warns (the app then looks for ExifTool on `PATH`). The dev CSP (`devCsp`) additionally allows `ws://localhost:5173` and `http://localhost:5173` for hot reload.
-- `npm run tauri:dev` exists to run a development build next to an installed one: the different identifier gives it its own app data and `config.json` folders and a different window class, so it does not clash with the installed app (the app is single-instance: `modules/app-shell.md`). ⚠ unverified: which OS folders change exactly; check `app.path()` use in `main.rs`.
+- `npm run tauri:dev` exists to run a development build next to an installed one: the different identifier gives it its own app data and `config.json` folders and a different window class, so it does not clash with the installed app (the app is single-instance: `modules/app-shell.md`). Tauri derives the app config, local data (data directory, catalogue, caches) and WebView data folders from the identifier, so nothing is shared with the installed app; the single-instance lock is also per identifier.
 - Frontend changes hot-reload through Vite; Rust changes restart the app. `src-tauri/target/` and `dist/` are build outputs (ignored by Git).
 
 ### External assets (not in the installer, or not versioned)
@@ -49,12 +49,12 @@ Models and ONNX Runtime are never in the installer (AGENTS.md §5.I). `dev_tools
 
 ### CI workflows
 - `tests.yml`: push to `main` and every pull request; `ubuntu-22.04` and `windows-latest`; builds the frontend, `cargo test`, and on Windows the ExifTool integration tests (`testing.md`).
-- `release.yml`: triggered by pushing a tag `v*`. Matrix: `ubuntu-22.04` with `--bundles deb`, and `windows-latest`. Steps: checkout with full history; Node 20; Rust stable; on Linux only, install `git-cliff` (`cargo install git-cliff`) and generate the changelog of the latest tag (`git cliff --latest --strip header`) into an environment variable; Linux system libraries; `npm install`; then `tauri-apps/tauri-action@v0` creates the GitHub release for the tag as a **draft and pre-release** with the binaries attached. The Linux job writes the changelog as the release body; the Windows job sets the body to "Release for Windows". The Linux job passes `appVersion` = `<tag>-beta` (`github.ref_name`, the tag text with its `v`), so the `.deb` carries a `-beta` suffix that the updater ignores when comparing versions.
+- `release.yml`: triggered by pushing a tag `v*`. Matrix: `ubuntu-22.04` with `--bundles deb`, and `windows-latest`. Steps: checkout with full history; Node 20; Rust stable; on Linux only, install `git-cliff` (`cargo install git-cliff`) and generate the changelog of the latest tag (`git cliff --latest --strip header`) into an environment variable; Linux system libraries; `npm install`; then `tauri-apps/tauri-action@v0` creates the GitHub release for the tag as a **draft and pre-release** with the binaries attached. The Linux job writes the changelog as the release body; the Windows job sets the body to "Release for Windows". The Linux job passes `appVersion` = `<tag>-beta`, but it has no visible effect: the published `.deb` names follow the version of `tauri.conf.json` (`photoboggan_0.6.10_amd64.deb`; older releases had `-alpha` / `-beta` suffixes). The updater ignores suffixes anyway (three numbers only).
 
 ### Release procedure (as implied by the files)
 1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (they must stay equal; `Cargo.lock` follows `Cargo.toml`). The updater compares the installed version (`app.package_info()`) with release tags.
 2. Commit, tag `v<x>.<y>.<z>` and push the tag; wait for both jobs.
-3. Check the draft: one `.msi` per language, one `.deb`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it) ⚠ unverified: whether the flag is cleared by hand or by some other step.
+3. Check the draft: one `.msi` per language, one `.deb`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it); the flag is cleared by hand when publishing (no workflow step does it; the published v0.6.4–v0.6.10 are stable).
 4. Tags that are not `v<x>.<y>.<z>` (`face-models-1`, `semantic-models-1`) are model assets and are ignored by the updater.
 
 ### Platform differences
@@ -82,5 +82,4 @@ CI runs `tests.yml` only. No test covers the build scripts or the release workfl
 3. New downloadable asset: follow the model scripts (pinned hash and size, manifest compiled in, release never modified).
 
 ## Open questions
-- ⚠ unverified: there is no `cliff.toml` in the repository root (git-cliff then uses its default configuration); check whether the changelog format depends on it.
-- ⚠ unverified: whether `tauri-action` strips the leading `v` of `<tag>-beta` for `appVersion`.
+none. The changelog uses git-cliff's built-in default configuration (there is no `cliff.toml`). Possible cleanup: drop the ineffective `appVersion` line of `release.yml`.

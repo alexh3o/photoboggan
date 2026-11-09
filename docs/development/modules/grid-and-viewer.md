@@ -85,4 +85,4 @@ None for this module (no frontend tests). Backend counterparts: `tests/thumbnail
 4. New viewable format: extension list in `format-filters.js` (`recipes.md` §4) and, if the webview cannot show it, `needsGeneratedPreview` + backend preview.
 
 ## Open questions
-- ⚠ unverified: `computeDuplicateSeparators` and separator key logic (`separatorGroupKey`) only skimmed; the context-menu section (`photo-actions.js` side in `photo-operations.md`).
+none. Separators (`computePhotoGroups`): duplicate mode → one group per duplicate group (`computeDuplicateSeparators`: label = group number, image count, total size, and the criteria that found it); content search → none (sorted by relevance); otherwise the active separator: by folder (key = lower-cased folder path) or by year / month / ISO week / day of the date used for sorting (`separatorGroupKey`, "Unknown date" group). A group starts each time the key changes, so the separators follow the current sort.

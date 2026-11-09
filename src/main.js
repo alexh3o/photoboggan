@@ -2202,7 +2202,7 @@ folderTree.addEventListener('mousedown', event => {
 // ==========================================
 // TROUVER LE RAW
 // ==========================================
-// Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Divers > RAW (raw-settings.js) deviennent les filtres
+// Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Recherche > Recherche des RAW (raw-settings.js) deviennent les filtres
 // ordinaires de la barre latérale (nom, date, appareil, objectif, vitesse / ISO / ouverture, plus « RAW uniquement »), la grille s'ouvre sur le
 // dossier de départ choisi avec tous ses sous-dossiers, et une bannière propose de revenir à la vue d'avant (instantané : dossier ou album, filtres,
 // option sous-dossiers, défilement, sélection). Naviguer à la main (dossier, album, option sous-dossiers) termine le mode sans retour.
@@ -2337,7 +2337,7 @@ const RAW_CRITERION_LABELS ={ name: 'Filename', date: 'Date', gear: 'Gear', shoo
 async function findRawFor(photo) {
   if (!photo) return;
   if (!hasRawSearchCriteria()) {
-    showWriteToast(t('Tick at least one criterion in Settings > Misc > RAW'));
+    showWriteToast(t('Tick at least one criterion in Settings > Search > RAW search'));
     return;
   }
   const settings = getRawSearchSettings();
@@ -7626,7 +7626,7 @@ initPhotoActions({
 initMetadataSettings();
 initDuplicatesModal(); // window "Find duplicates > More…"
 initToolbarAria(); // aria-pressed on the toolbar toggle buttons
-initRawSettings(); // Paramètres > Divers > RAW : critères de « Trouver le RAW »
+initRawSettings(); // Settings > Search > RAW search: criteria of "Find the RAW"
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
 initAlbumsPanel({

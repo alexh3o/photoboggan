@@ -30,7 +30,7 @@ The tables (every CSS variable and where it is defined, the z-index stack, the c
 - **Buttons**: plain `button` with control tokens; `.btn-primary` for the default action in confirmation dialogs; toggled toolbar buttons use `.active` (and `aria-pressed`, kept in sync by `toolbar-a11y.js`).
 - **Toasts**: `showWriteToast(message, isWriting, action, duration)` for results (optional action button such as Undo / Details), per-task toasts in `#task-toasts` (`main-window.md`).
 - **Context menu**: `openContextMenuAt(event, items)` (`photo-actions.js`), items `{label, title, onSelect, disabled, header}`.
-- **Filter chips**: `createFilterTag` (`filter-tags.js`), one colour per filter kind through `--tag-*` variables; excluded entries are faded.
+- **Filter chips**: `createFilterTag` (`filter-tags.js`) sets the class `tag-<kind>`; each kind has `--tag-<kind>-bg` / `-border` (and `-hover` for clickable chips), defined in `:root` of `styles.css` for the core kinds (rating, colour, keyword, date, file name…) and in the feature stylesheet for the others (gear and shot: `shooting-filters.css`, format: `format-filters.css`, person: `faces.css`). They have no light-theme override: chips keep the same colours in both themes. Excluded entries are faded.
 - **Icons**: inline SVG in the HTML/JS (Lucide-style strokes, `currentColor`), never an icon font or a network resource.
 - **Fonts**: choose in Settings; adding one takes four steps (header of `app-fonts.js`). Font names are not translated.
 - **Disabled-by-feature elements**: `body.no-semantic .semantic-only { display: none !important }` (`semantic.css`) is the pattern for optional features (AGENTS.md §5.I); `no-color-labels` / `no-pick-labels` classes work the same for marking.
@@ -52,4 +52,4 @@ Full stack in `generated/css.md`. Bands in use (as found): 1–10 local stacking
 - ⚠ sensitive: `:root[data-theme="light"]` must define every themeable token; a token added only to `:root` shows dark colours on the light theme.
 
 ## Open questions
-- ⚠ unverified: exact set of `--tag-*` and layout variables, and the modal/button class names beyond those named here, were taken from `generated/css.md` and `index.html` samples, not audited.
+none.

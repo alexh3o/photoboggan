@@ -194,7 +194,7 @@ Found during phase 4 (code, not fixed):
 
 Tests added after phase 4: `run_write`, `run_rename`, `run_delete` (`tests/keywords.rs`, via `WriteEnv`), `tests/resize.rs`.
 
-Remaining `⚠ unverified` (low risk): `build-release.md` (git-cliff config, `appVersion` with `v`), `configuration.md` (dev identifier isolation, tested only by reading), `style.md` (`--tag-*` audit), `albums.md` (context-menu builders), `grid-and-viewer.md` (separator keys), `maps-and-geolocation.md` (pending-position UI flow).
+Remaining `⚠ unverified`: none (settled after phase 4 by reading the code and the published releases). Found then: the Find RAW criteria live in Settings > **Search**, while UI texts and the user guide said Settings > Misc > RAW: fixed.
 
 ### Phase 5 (free-tier model)
 

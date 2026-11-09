@@ -41,7 +41,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `_PROGRESS.md` | 202 |  |
 | `_TEMPLATE.md` | 62 |  |
 | `architecture.md` | 98 |  |
-| `build-release.md` | 87 |  |
+| `build-release.md` | 86 |  |
 | `code-map.md` | 87 |  |
 | `configuration.md` | 61 |  |
 | `glossary.md` | 80 |  |
@@ -103,7 +103,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums-panel.js` | 740 | Section « Albums » du panneau de gauche : arborescence d'albums virtuels (dossiers virtuels, albums manuels, albums intelligents), qui n'existent que dans la base (albums.rs). Gère l'arbre (création, renommage, suppress… |
+| `albums-panel.js` | 741 | Section « Albums » du panneau de gauche : arborescence d'albums virtuels (dossiers virtuels, albums manuels, albums intelligents), qui n'existent que dans la base (albums.rs). Gère l'arbre (création, renommage, suppress… |
 | `albums.css` | 47 | SECTION ALBUMS DU PANNEAU DE GAUCHE (albums virtuels) : voir albums-panel.js. Les lignes réutilisent le style des dossiers (.folder-tree-item). |
 | `app-fonts.js` | 30 | Interface fonts offered in Settings > Appearance. This list is the single place to register a font: the select is built from it and main.js applies the chosen stack to --app-font. To add a font (all four steps are requi… |
 | `defaults.jsonc` | 187 |  |
@@ -145,8 +145,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `place-search.js` | 69 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `private-zones-modal.js` | 523 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
 | `private-zones.js` | 139 | Zones privées de la carte (côté interface) : liste des zones (lue dans le backend, private_maps.rs), lieux privés, contours à dessiner et niveaux de détail. Partagé par le panneau Info, la fenêtre de gestion des zones e… |
-| `raw-settings.css` | 15 | Paramètres > Divers > RAW (raw-settings.js) |
-| `raw-settings.js` | 154 | Paramètres > Divers > RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js). Chaque utilisateur nomme et range ses RAW et ses JPEG à sa façon : il coche ici ce qui do… |
+| `raw-settings.css` | 15 | Settings > Search > RAW search (raw-settings.js) |
+| `raw-settings.js` | 154 | Paramètres > Recherche > Recherche des RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js). Chaque utilisateur nomme et range ses RAW et ses JPEG à sa façon : il co… |
 | `semantic-exclusions.js` | 154 | Content search: keywords never suggested (Settings > Content search). Camera gear, lenses and other keywords that the content of a photo cannot tell give poor suggestions: the user lists them here, and neither they nor … |
 | `semantic-keywords.js` | 200 | Content search, keyword filter side (SigLIP 2, Phase 5): photos suggested for the keywords of the filter. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestio… |
 | `semantic-settings.js` | 437 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |

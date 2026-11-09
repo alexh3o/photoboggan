@@ -56,4 +56,4 @@ Albums organise photos **without touching the files**: virtual folders to group 
 4. New column/table: `recipes.md` §5, in `albums::init_schema` with `IF NOT EXISTS`.
 
 ## Open questions
-- ⚠ unverified: the album context-menu builders (`selectionItems`, `smartItems`) were only skimmed.
+none. Context menu (`openNodeMenu`): a manual album offers "Add selection to this album (n)" and "Replace content with selection…" (`selectionItems`) but no creation under it; a smart album offers creation of a smart child plus "Save changes" (greyed without changes) and "Save current view in this album…" (`smartItems`); every node offers Rename and Delete. A smart album can still be dropped into a manual album (`canContain`).

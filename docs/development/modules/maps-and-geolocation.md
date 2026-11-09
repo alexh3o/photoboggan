@@ -65,4 +65,4 @@ Result `GeoWriteResult` = `updated`, `refused`, `failed`, `cancelled`.
 3. New GPS write path: reuse `apply_metadata_changes` with `gps` items so the re-read check and the database update apply; mark it pending as in map mode.
 
 ## Open questions
-- ⚠ unverified: the full pending-position flow after "Write to files" (UI side of `map-mode.js` beyond the header) was only skimmed.
+none. "Write to files" (`writeNow` in `map-mode.js`): if some photos already had a position, a dialog asks to replace them; then the pending items go through `writeMetadataItems` (the normal circuit). `afterWrite` removes a pending position only if the re-read coordinates match it (`SAME_PLACE`); a failure keeps it pending. Leaving the mode with pending positions asks Write / Discard / Cancel (`requestCloseMapMode`); after a write with failures the mode stays open. Pending positions follow moved photos (`photosMoved`) and disappear with removed ones (`photosRemoved`).

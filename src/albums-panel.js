@@ -555,7 +555,8 @@ function smartItems(album) {
 function openNodeMenu(event, node) {
   event.preventDefault();
   event.stopPropagation();
-  // Un album manuel n'a pas d'enfant : aucune création n'est possible dessous ; il propose à la place d'y verser la sélection de la grille.
+  // Under a manual album the menu creates nothing (it offers to add the grid selection instead); a smart album can still be dropped into it
+  // (canContain), where it filters the manual album's content.
   const creatable = node.kind === KIND_MANUAL ? [{ header: node.name }, ...selectionItems(node)]
     : node.kind === KIND_SMART ? [{ header: node.name }, ...createItems(node), { separator: true }, ...smartItems(node)]
     : [{ header: node.name }, ...createItems(node)];
