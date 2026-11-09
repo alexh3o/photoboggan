@@ -1601,5 +1601,6 @@
   "Never suggest this keyword for this photo again": "Never suggest this keyword for this photo again",
   "This photo has not been analysed yet, so no keyword can be suggested.": "This photo has not been analysed yet, so no keyword can be suggested.",
   "To get suggestions, tag at least 5 analysed photos with a keyword.": "To get suggestions, tag at least 5 analysed photos with a keyword.",
-  "No keyword to suggest for this photo.": "No keyword to suggest for this photo."
+  "No keyword to suggest for this photo.": "No keyword to suggest for this photo.",
+  "Not the keyword “{name}”": "Not the keyword “{name}”"
 }

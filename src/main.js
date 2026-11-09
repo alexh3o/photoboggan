@@ -13,7 +13,7 @@ import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metada
 import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
 import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
 import { fetchKeywordCandidates, rejectKeywordSuggestion } from './semantic-tagging.js';
-import { initKeywordSuggestions, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
+import { initKeywordSuggestions, guessedKeywordEntries, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -7169,6 +7169,8 @@ initPhotoActions({
   semanticEnabled: isSemanticEnabled,
   analyseContent: scope => analyseContent(scope),
   findSimilarContent: photo => findSimilarContent(photo),
+  // Photo shown only because the content analysis suggests it for the keyword filter ("Suggested" badge): accept / dismiss entries.
+  guessedKeywordEntries: photo => guessedKeywordEntries(keywordGuesses.get(photo.id) ?? [], photo.id),
   // Géolocalisation : effacer (danger) ou restaurer les coordonnées sauvegardées (voir geo-tools.js).
   eraseGeolocation: targets => eraseGeolocation(targets),
   restoreGeolocation: targets => restoreGeolocation(targets),
@@ -7623,6 +7625,8 @@ onSemanticChange(() => { if (semanticSearch && !isSemanticEnabled()) exitSemanti
 initKeywordSuggestions({
   loadedIds: () => new Set(loadedPhotos.map(photo => photo.id)),
   onChange: () => { fullscreenImageCache.clear(); applyPhotoFilters({ keepState: true }); },
+  addKeyword: keywordId => addPendingKeyword(keywordId),
+  showToast: message => showWriteToast(message),
 });
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.

@@ -1733,6 +1733,10 @@ function openThumbnailMenu(event, index, source = 'grid') {
   }
   // Content search (entries absent while the feature is off or its model is not installed): similar content of one photo, analyse the selection.
   if (api.semanticEnabled?.()) {
+    // The "Suggested" badge of the keyword filter (grid only: the selection is then the photo under the click).
+    if (source === 'grid' && targets.length === 1) {
+      for (const entry of api.guessedKeywordEntries?.(photo) ?? []) menuItems.push(menuButton(entry.label, entry.onSelect, { title: entry.title }));
+    }
     if (targets.length === 1) {
       menuItems.push(menuButton(t('Find similar content'), () => api.findSimilarContent(photo), { title: t('Search the photos that look like this one: same subject or scene') }));
     }
