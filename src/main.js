@@ -12,6 +12,7 @@ import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
 import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
+import { initKeywordSuggestions, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -187,6 +188,7 @@ let includeSubfolders = readBool('includeSubfolders');
 let keywordFilters = [];
 // Keywords a photo must NOT carry (Alt+Enter / Alt+click in the keyword list, or the chip's context menu). A keyword is never in both lists.
 let excludedKeywordFilters = [];
+const keywordGuesses = new Map(); // photo id -> included keywords it only has by content-search suggestion (see matchesKeywordFiltersOrSuggested)
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
 let excludedFilenameFilters = []; // texts the file name must NOT contain (Alt+Enter, or the chip's context menu)
@@ -1019,9 +1021,13 @@ function applyPhotoFilters({ keepState = false } = {}) {
   const keptScrollTop = gridContainer.scrollTop;
   for (const node of renderedThumbnailNodes.values()) node.remove();
   renderedThumbnailNodes.clear();
+  // Content search suggestions for the keyword filter (setting off: nothing is requested and the lists below stay empty).
+  syncKeywordSuggestions(keywordFilters, keywordSuggestionViewKey(), keywordSuggestionScope);
+  const suggestedPhotos = suggestedExtraPhotos();
+  keywordGuesses.clear();
   // Photos avant le filtre « Zone visible seulement » du mode Carte : la carte garde tous leurs points, même hors de la zone visible.
-  mapCandidatePhotos = loadedPhotos.filter(photo => matchesRatingFilter(photo)
-    && matchesKeywordFilters(photo)
+  mapCandidatePhotos = (suggestedPhotos.length ? loadedPhotos.concat(suggestedPhotos) : loadedPhotos).filter(photo => matchesRatingFilter(photo)
+    && matchesKeywordFiltersOrSuggested(photo)
     && personFilterMatches(photo)
     && matchesFilenameFilters(photo)
     && (pathFilter === null || pathFilter.has(photo.path))
@@ -1035,6 +1041,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && matchesSemanticCut(photo)
     && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
+  setSuggestedCount(photos.filter(photo => keywordGuesses.has(photo.id)).length);
   if (activeSmartAlbumId) {
     const dirty = filterStateSignature() !== albumSavedSignature;
     setAlbumDirty(dirty); // disquette de l'album intelligent ouvert
@@ -1496,6 +1503,36 @@ function matchesKeywordFilters(photo, included = keywordFilters, excluded = excl
   if (!included?.length && !excluded?.length) return true;
   const words = (photo.keywords || '').split(', ');
   return (included ?? []).every(keyword => words.includes(keyword)) && !(excluded ?? []).some(keyword => words.includes(keyword));
+}
+
+// Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword search"): every included keyword is
+// carried or suggested, nothing excluded is carried. `keywordGuesses` (rebuilt by each filtering) maps a photo id to the included keywords it only
+// has by suggestion; a photo carrying everything is not in it.
+function matchesKeywordFiltersOrSuggested(photo) {
+  if (matchesKeywordFilters(photo)) return true;
+  if (!suggestionsLoaded() || keywordFilters.length === 0) return false;
+  const words = (photo.keywords || '').split(', ');
+  if (excludedKeywordFilters.some(keyword => words.includes(keyword))) return false;
+  const guessed = [];
+  for (const keyword of keywordFilters) {
+    if (words.includes(keyword)) continue;
+    if (!suggestionFor(keyword, photo.id)) return false;
+    guessed.push(keyword);
+  }
+  keywordGuesses.set(photo.id, guessed);
+  return true;
+}
+
+// Cheap key of "the view" for the suggestions: they are searched again only when the filter or this key changes (never null in a plain view).
+function keywordSuggestionViewKey() {
+  if (rawSearch || duplicateSearch || semanticSearch) return null; // results modes: no suggestions
+  return `${currentFolderFilter}|${includeSubfolders}|${getSelectedAlbum()?.id ?? ''}|${extraFolderFilters.join('\n')}`;
+}
+
+// Scope of the suggestions = the view (same as the content search); filters are not part of it, they apply to the suggested photos afterwards.
+function keywordSuggestionScope() {
+  const { folder, recursive, photoIds } = currentViewScope();
+  return { folder: folder ?? null, recursive: Boolean(recursive), photoIds: photoIds ?? null, skipRaw: !readBool('semanticScanRaw') };
 }
 
 // Puts a keyword in the included or excluded list (and out of the other one). Neither re-renders nor filters: the caller does.
@@ -2545,6 +2582,20 @@ function renderVisibleItems() {
     }
     const isSemanticSource = semanticSearch !== null && photo.id === semanticSearch.sourceId;
     if (div._semanticSource !== isSemanticSource) { div.classList.toggle('semantic-source', isSemanticSource); div._semanticSource = isSemanticSource; }
+    // Keyword filter with suggestions: a "suggested" badge on the photos that do not carry every keyword (created only for them).
+    const guessed = keywordGuesses.get(photo.id);
+    const guessKey = guessed ? guessed.join('\n') : '';
+    if (div._guessKey !== guessKey) {
+      if (guessed && !div._guessBadge) {
+        div._guessBadge = Object.assign(document.createElement('span'), { className: 'semantic-suggested semantic-only', textContent: t('Suggested') });
+        div.querySelector('.thumbnail-inner').append(div._guessBadge);
+      }
+      if (div._guessBadge) {
+        div._guessBadge.hidden = !guessed;
+        if (guessed) div._guessBadge.title = describeGuesses(guessed, photo.id);
+      }
+      div._guessKey = guessKey;
+    }
     const hoverTitle = isSemanticSource ? `${photo.path}\n${t('Source photo of the search')}` : duplicateSearch ? (isBest ? `${photo.path}\n${t('Best copy of the group, according to the order set in "Best copy…"')}` : photo.path) : '';
     if (div._hoverTitle !== hoverTitle) { div.title = hoverTitle; div._hoverTitle = hoverTitle; }
     const located = hasGps(photo);
@@ -4125,6 +4176,11 @@ function computePhotoGroups() {
 }
 
 function comparePhotosForSort(a, b) {
+  // Keyword filter with suggestions: photos carrying every keyword first, then the fewest guessed keywords, the chosen sort inside each block.
+  if (keywordGuesses.size) {
+    const guesses = (keywordGuesses.get(a.id)?.length ?? 0) - (keywordGuesses.get(b.id)?.length ?? 0);
+    if (guesses) return guesses;
+  }
   // Content search results: by decreasing relevance (the source photo of a similar-content search first).
   if (semanticSearch) return (semanticSearch.rank.get(a.id) ?? Infinity) - (semanticSearch.rank.get(b.id) ?? Infinity) || 0;
   // Duplicate results: groups in the chosen group order, members best first inside each group.
@@ -7495,6 +7551,12 @@ initSemanticSearch({
   },
 });
 onSemanticChange(() => { if (semanticSearch && !isSemanticEnabled()) exitSemanticSearch(); }); // disabled, or the model deleted
+
+// Suggestions in the keyword filter (see semantic-keywords.js): a new answer filters the grid again, keeping selection and scroll.
+initKeywordSuggestions({
+  loadedIds: () => new Set(loadedPhotos.map(photo => photo.id)),
+  onChange: () => { fullscreenImageCache.clear(); applyPhotoFilters({ keepState: true }); },
+});
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
 initPersonsView({
