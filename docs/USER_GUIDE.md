@@ -46,7 +46,7 @@ Other useful startup choices (**Settings > General**): the language (English or 
 | RAW    | ARW, CR2, CR3, NEF, NRW, DNG, RAF, ORF, RW2, RAW, PEF  |
 | Videos | MP4, MOV, AVI, MKV                                     |
 
-- **RAW files** are never developed. Photoboggan shows the JPEG preview embedded in the file by the camera, which is quick but can be lower resolution than the real photo.
+- **RAW files** are never developed. Photoboggan shows the JPEG preview embedded in the file by the camera, which is quick but can be lower resolution than the real photo. To open them, set an application of your choice in Settings / Applications / RAW: shortcut O will use the first app in your list.
 - **Videos** show a still thumbnail only. Double-click opens the video in your system's default player. Thumbnails come from Windows' own thumbnailer, or from `ffmpeg` if it is installed.
 
 ---
@@ -56,10 +56,10 @@ Other useful startup choices (**Settings > General**): the language (English or 
 | Area            | What it does                                                                                                                                                                                                      |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Top bar**     | Toggles for the **Filters** panel, **People** view, **Preview** and **Info** panels<br/>**Compare** mode<br/>Buttons for **Settings**, **Running tasks**, **Display** (grid, layout, appearance...) and **Sort**. |
-| **Left panel**  | **Folders** tree<br/>**Albums**<br/>**People** list (if face reading is on)<br/>**Filters**<br/>**Selection** box (rating and color of the selected photos).                                                                     |
+| **Left panel**  | **Folders** tree<br/>**Albums**<br/>**People** list (if face reading is on)<br/>**Filters**<br/>**Selection** box (rating and color of the selected photos).                                                      |
 | **Center**      | The thumbnail grid.                                                                                                                                                                                               |
 | **Preview**     | Larger view of the selected photo(s).                                                                                                                                                                             |
-| **Right panel** | Three tabs: **Info** (file and camera data, location map, histogram), **Keywords**, **Description** (title and description).                                                                                                               |
+| **Right panel** | Three tabs: **Info** (file and camera data, location map, histogram), **Keywords**, **Description** (title and description).                                                                                      |
 
 Panels can be shown or hidden (see [shortcuts](#9-keyboard-shortcuts)) and resized by dragging their edges. Press `F11` for immersive mode, which hides the title bar and taskbar.
 
@@ -83,7 +83,7 @@ Panels can be shown or hidden (see [shortcuts](#9-keyboard-shortcuts)) and resiz
 - `Ctrl`+`A` selects all.
 - **Deselect all** is the cross button in the Selection box.
 
-### Display and sorting
+### Display and sorting>
 
 **Display** (grid icon):
 
@@ -97,16 +97,16 @@ Panels can be shown or hidden (see [shortcuts](#9-keyboard-shortcuts)) and resiz
 
 Filters are in the left panel and **combine with each other**. The grid shows the number of matching photos; the cross button next to **Filters** clears everything.
 
-| Filter               | How it works                                                                                                                                                                                                                                        |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Ratings & Colors** | Five clickable stars (click the active star again to clear), a *∅* chip for unrated photos, a *≥ / =* toggle (at least / exactly N stars), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
-| **Keywords (&)**     | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter.                                                                                                                                |
-| **Filename**         | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                                                                                                                                                    |
-| **People (&)**       | Choose people; photos must show **all** of them. Only available when face reading is on.                                                                                                                                                            |
-| **Camera / Lens**    | Choose a camera or a lens from the suggestions.                                                                                                                                                                                                     |
-| **Shooting settings** | Shutter speed, ISO and aperture.                                                                                                                                                                                                                   |
-| **File format**      | File format and type (image, RAW, video).                                                                                                                                                                                                           |
-| **Date taken**       | Type a date or range, or use the calendar button.                                                                                                                                                                                                   |
+| Filter                | How it works                                                                                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ratings & Colors**  | Five clickable stars (click the active star again to clear), a *∅* chip for unrated photos, a *≥ / =* toggle (at least / exactly N stars), plus one or more color labels (a photo matches any selected color) and, if enabled, pick / reject flags. |
+| **Keywords (&)**      | Choose keywords; photos must have **all** of them. Ctrl+click a keyword in the Keywords tab to add it to the filter.                                                                                                                                |
+| **Filename**          | Type text (3 characters minimum) and press Enter. Several words must **all** appear in the name.                                                                                                                                                    |
+| **People (&)**        | Choose people; photos must show **all** of them. Only available when face reading is on.                                                                                                                                                            |
+| **Camera / Lens**     | Choose a camera or a lens from the suggestions.                                                                                                                                                                                                     |
+| **Shooting settings** | Shutter speed, ISO and aperture.                                                                                                                                                                                                                    |
+| **File format**       | File format and type (image, RAW, video).                                                                                                                                                                                                           |
+| **Date taken**        | Type a date or range, or use the calendar button.                                                                                                                                                                                                   |
 
 **Date filter examples** (formats `YYYY`, `YYYYMM`, `YYYYMMDD`, `YYYYMMDDHH`, `YYYYMMDDHHmm`):
 
@@ -127,7 +127,7 @@ Right-click a photo, a selection or a folder > **Find** (or **Find duplicates**)
 
 ### Content search
 
-An optional feature (**Settings > Search**, off by default) lets you search photos by what they show. Everything runs on your computer, and the search never writes to your photos.
+An optional feature (**Settings > Search**, off by default) lets you analyse photos with a local AI model so you can search them by what they show. Everything runs on your computer, and the search never writes to your photos.
 
 1. In **Settings > Search**, enable it and download the model (about 785 MB), or use **Install from a folder…** in offline mode.
 2. Right-click a photo, folder or selection > **Find** > **Analyse content** (or **Analyse the whole library** in the settings). The analysis runs in the background at low priority, pauses while other tasks run, and only re-analyses photos whose pixels changed. RAW files can be left out, and the analysis can create missing thumbnails.
@@ -141,6 +141,7 @@ An optional feature (**Settings > Search**, off by default) lets you search phot
 Optional (**Settings > Maps**). The Info panel shows the shooting place on a small map, and **Map** mode shows the photos on a larger one, with a filter on the visible area. Hold `Shift` and drag photos onto the map (or right-click > place the selection here) to set their location; it is written with **Write to files**. **Erase geolocation** / **Restore geolocation** (context menu) remove or put back GPS data.
 
 Map tiles come from OpenFreeMap, so the location of displayed photos is sent to it, except in **private zones**: areas you draw (or import as an MBTiles file) whose map is stored locally, so photos taken there are never sent to the provider. Manage them with the padlock in the Location group or in **Settings > Maps**. Nothing is sent in **Offline mode**.
+
 ---
 
 ## 4. Organizing photos
@@ -164,7 +165,7 @@ The **Albums** block in the left panel organizes photos without touching files: 
 
 ### Rotating photos
 
-Context menu, or `Ctrl`+`R` (right) / `Shift`+`R` (left). Rotation is **lossless**: only the orientation tag changes, never the pixels. Not available for HEIC, HEIF and videos.
+Context menu, or `Ctrl`+`R` (right) / `Shift`+`R` (left). Rotation is **lossless**: only the orientation tag in the metadata changes, never the pixels, there is no re-compression. Not available for HEIC, HEIF and videos.
 
 ### Compare mode
 
@@ -253,7 +254,7 @@ Photoboggan notices new, modified or deleted files when it starts and when you r
 
 ### Read-only operations
 
-Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity check and face detection do **not** modify your files. Thumbnails and the database live in a separate data folder.
+Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity check, face detection, content analysis do **not** modify your files. Thumbnails and the database live in a separate data folder.
 
 ### Operations that modify or create files
 
@@ -261,6 +262,7 @@ Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity che
 | ------------------------------------------------------ | -------------------------------------------------------------------- |
 | Rating, color, pick flag, keywords, title, description | Changes metadata only (inside the file or its sidecar).              |
 | Writing faces / **Erase face data…**                   | Changes face-region metadata (and keywords set by face recognition). |
+| Rotating                                               | Changes metadata only                                                |
 | Move, Copy to…, drag and drop                          | Moves or copies files (and their sidecars).                          |
 | Resize                                                 | Creates new files; it cannot replace the original files.             |
 | Delete                                                 | Trash (or permanent on drives without one).                          |
@@ -300,8 +302,10 @@ Photoboggan can read face areas already stored by other software, and can detect
 
 ### Detecting and recognizing faces
 
+Face detection is done through Yunet model, recognition with SFace model.
+
 1. In **Settings > Faces**, tick **Enable face detection and recognition**.
-2. Click **Download** to get the model (about 56 MB on Windows). Offline? Use **Offline mode** and **Install from a folder…** with the files listed under *Installing without Internet*.
+2. Click **Download** to get the model (about 56 MB on Windows) from github,it will be stored in your chosen data folder, as set in Settings / Storage screen. Offline? Use **Offline mode** and **Install from a folder…** with the files listed under *Installing without Internet*.
 3. Right-click a folder or a selection > **Faces** > **Detect and recognize faces (unscanned photos)** or **(all photos)**, then **Start**.
 
 RAW files are scanned only if **Scan RAW files (embedded preview)** is ticked. Detection uses the cached thumbnails (512 px minimum, so the thumbnail cache cannot be set lower, and higher is better).
@@ -314,17 +318,35 @@ The detection and recognition thresholds in **Settings > Faces** have sensible h
 
 Open the **People** view (top bar) for one tile per person, then **Review faces** to open the faces view. Each face has a status (filter them at the top):
 
-| Status            | Meaning                                                                                                    |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Confirmed**     | You confirmed the person. Confirmed faces improve recognition immediately, so more suggestions can appear. |
-| **Automatic**     | Attributed automatically (high similarity).                                                                |
-| **To confirm**    | Suggested person, needs your approval.                                                                     |
-| **Unknown faces** | Not recognized; name them yourself. **Group unknown** clusters similar ones.                               |
-| **Ignored**       | A real face you don't care about (e.g. a stranger in a crowd).                                             |
-| **Not faces**     | False detection (pattern, statue…). Never offered again.                                                   |
-| **Filtered**      | Below the detection thresholds.                                                                            |
+| Status            | Meaning                                                                                                                            |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Confirmed**     | You confirmed the person. Confirmed faces improve recognition immediately, so more suggestions can appear.                         |
+| **Automatic**     | Attributed automatically (high similarity) in database but confirmation is still needed to write to files and update the face data |
+| **To confirm**    | Suggested person, needs your approval.                                                                                             |
+| **Unknown faces** | Not recognized; name them yourself. **Group unknown** clusters similar ones.                                                       |
+| **Ignored**       | A real face you don't care about (e.g. a stranger in a crowd).                                                                     |
+| **Not faces**     | False detection (pattern, statue…). Never offered again.                                                                           |
+| **Filtered**      | Below the detection thresholds.                                                                                                    |
 
-Select faces and use the bottom bar: **Confirm** (`Enter`), **Name…** (or just type a letter), **Unknown** (`-`), **Ignore** (`/`), **Not a face** (`Del`), **Profile** (use as the person's picture). `Ctrl`+`A` selects all, `Esc` clears.
+Suggested faces are sorted by person and by decreasing probability, so focus more toward the end.
+
+**Only confirmed faces are written to files.**
+
+Select faces thumbnail and use the bottom bar or keyboard :
+
+- **Confirm** (`Enter`) to confirm the recognized suggestion
+
+- **Name…** (or just type a letter),
+
+- **Unknown** (`-`),
+
+- **Ignore** (`/`),
+
+- **Not a face** (`Del`),
+
+- **Profile** (use as the person's cover picture).
+
+`Ctrl`+`A` selects all, `Esc` clears.
 
 In fullscreen you can also draw a face area with `Shift`+drag, and right-click an area to name or delete it.
 
@@ -340,16 +362,16 @@ Faces and names are only written to your files when you click **Write to files**
 
 Open with the gear icon. The keyboard icon shows the shortcut guide; the *i* icon shows the version and links.
 
-| Tab              | Main options                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **General**      | **Language** choice; <br/>**At startup, show** all photos or last folder<br/>**Offline mode** (never connect to the Internet)<br/>**Check for updates** (at startup, at most once a day; GitHub then receives your IP address and version number)<br/>**Library**:<br/> - **+ Add folder**, remove folders,<br/> - **Rescan all collection** re-reads every file; it can be long. It also cleans up orphan thumbnails.                                                                                                                                                                                      |
+| Tab              | Main options                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **General**      | **Language** choice; <br/>**At startup, show** all photos or last folder<br/>**Offline mode** (never connect to the Internet)<br/>**Check for updates** (at startup, at most once a day; GitHub then receives your IP address and version number)<br/>**Library**:<br/> - **+ Add folder**, remove folders,<br/> - **Rescan all collection** re-reads every file; it can be long. It also cleans up orphan thumbnails.                                                                                                                                               |
 | **Storage**      | **Thumbnail quality** (high doubles the size of new thumbnails on disk);<br/>**Application data location** (database, thumbnails, face models; moving it moves the files; a fast SSD is best). <br/>**Thumbnail cache size**: 512, 768 or 1024 px. Higher is better for face recognition's display in faces review page. Changing it deletes thumbnails, which are rebuilt as you browse. <br/>**Remove orphan thumbnails** deletes potential useless thumbnails<br/>**Verify moves between drives** (checksum)**: on by default, see [File safety](#6-file-safety). |
-| **Applications** | **Open with** programs shown in the context menu.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Labels**: use color labels, use pick / reject flags (off by default);<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder).                                                                                                                                                                         |
-| **Maps**         | Show the map, default zoom, geolocation badge, offline / private zones.                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Faces**        | Face reading, detection, model, thresholds (see [section 7](#7-people-and-face-recognition)).                                                                                                                                                                                                                                                                                                                                                                                           |
-| **Search**       | **RAW search** (Find-the-RAW criteria); content search: model, analysis options, search and keyword suggestion options, delete analysis data (see [Content search](#content-search)).                                                                                                                                                                                                                                                                                                                                           |
-| **Misc**         | Slideshow, albums.                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Applications** | **Open with** programs shown in the context menu.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Labels**: use color labels, use pick / reject flags (off by default);<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder).                                                                                                                                                                                                                                                      |
+| **Maps**         | Show the map, default zoom, geolocation badge, offline / private zones.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Faces**        | Face reading, detection, model, thresholds (see [section 7](#7-people-and-face-recognition)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Search**       | **RAW search** (Find-the-RAW criteria); content search: model, analysis options, search and keyword suggestion options, delete analysis data (see [Content search](#content-search)).                                                                                                                                                                                                                                                                                                                                                                                |
+| **Misc**         | Slideshow, albums.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 **ExifTool vs Internal:** ExifTool is bundled with Photoboggan (on Linux it needs `perl`) and also writes the Windows/EXIF fields of JPEGs (Windows keywords, title and comment fields). The *Internal* method should be faster but writes only XMP and IPTC. Both write the same core data.
 
@@ -378,7 +400,7 @@ Press `G` for the full searchable in-app guide.
 | **No People section / face options**             | Enable **Read face data** and/or **face detection** in **Settings > Faces**.                                                                                                                                                                                                            |
 | **Face model won't download**                    | Check that **Offline mode** is off, or install the model manually from a folder.                                                                                                                                                                                                        |
 | **RAW photo looks low-res**                      | Photoboggan displays the embedded camera preview, by design.                                                                                                                                                                                                                            |
-| **Faces in faces review look low-res**           | The faces in that view are a crop from the photo's thumbnail. photoboggan does not create higher-resolution face thumbnails to keep performance smooth and avoid using too much storage.                                                                                      |
+| **Faces in faces review look low-res**           | The faces in that view are a crop from the photo's thumbnail. photoboggan does not create higher-resolution face thumbnails to keep performance smooth and avoid using too much storage.                                                                                                |
 | **Faces are not written as they're confirmed**   | It is not offered to apply faces after a modification on each face, to limit disk writes, as there are often several faces on a photo. It has to be written by user through "Write photos" button in faces review, or by choosing to apply on the dialog displayed when closing the app |
 | **External drive or network share disconnected** | Photos on it are kept in the catalog, not treated as deleted. Reconnect it and they are back.                                                                                                                                                                                           |
 

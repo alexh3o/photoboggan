@@ -2,7 +2,7 @@
 
 ## 🚀 Next in line
 
-- [ ] *docs*: `dev` technical documentation
+- [x] *docs*: `dev` technical documentation
 - [x] *feat*: `scan` allow pausing
 - [x] *feat*: `semantic` add filter for scanned / unscanned photos
 - [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
@@ -17,13 +17,16 @@
 - [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
 - [x] *feat*: `editing` rotate
 - [x] *feat*: `keywords` open keyword panel directly on input zone
+- [x] *refactor*: `settings` `UI` move albums settings from general to misc
+- [x] *style*: `settings` `UI`hide install with internet helps when offline mode is off
+- [x] *refactor*: `semantic` move analyse content to find sub menu, in place of search entry when not analysed ?
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *feat*: `stats` stats in a stat modal from settings
 - [ ] *feat*: `tasks` task to popup action to see progress
-- [ ] *perf*: `thumbnails` more compressed thumbnails
+- [x] *perf*: `thumbnails` more compressed thumbnails
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 
 ## ⚖️ Undecided
