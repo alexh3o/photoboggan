@@ -7,7 +7,7 @@ The only automated tests are Rust unit and integration tests of the backend. The
 ## Files
 | File | Role |
 |---|---|
-| `src-tauri/src/tests/<module>.rs` | One test file per tested module, included at the end of the module with `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` (nothing is compiled into the app). Exceptions: `face_detect.rs`, `face_recognize.rs` and `faces.rs` still hold an inline `#[cfg(test)] mod tests` (9 tests, listed in `generated/tests.md`); move them to `tests/` when editing those modules |
+| `src-tauri/src/tests/<module>.rs` | One test file per tested module, included at the end of the module with `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` (nothing is compiled into the app). `faces.rs` has a second one, `tests/faces_db.rs` (`mod db_tests`) |
 | `src-tauri/src/tests/fixtures/` | Small data files (5), including `semantic_reference.json`, the reference output of the SigLIP 2 model used by ignored parity tests |
 | `src-tauri/src/test_support.rs` | Helpers compiled only for tests: synthetic images and a temporary catalogue |
 | `.github/workflows/tests.yml` | CI: runs the tests on every push to `main` and every pull request |
@@ -45,7 +45,7 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 | Albums, geolocation backup, place search, private zones | `tests/albums.rs`, `tests/geolocation.rs`, `tests/place_search.rs`, `tests/private_maps.rs` |
 | Semantic search (index, search, keyword suggestions, model files) | `tests/semantic*.rs` |
 | Update logic and download verification | `tests/update_check.rs` |
-| Faces: database, detection settings, alignment | `tests/faces_db.rs`; inline tests of `faces.rs`, `face_detect.rs`, `face_recognize.rs` |
+| Faces: region parsing, database, detection settings, alignment | `tests/faces.rs`, `tests/faces_db.rs`, `tests/face_detect.rs`, `tests/face_recognize.rs` |
 
 ### Known gaps (covered only by hand)
 - All frontend code (grid layout, selection, dialogs, task queue, write circuit, panels).
@@ -53,7 +53,6 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 - Real-world files: tests use synthetic files; vendor-specific RAW, HEIC and video behaviour is checked by hand on real photos.
 - Network code (releases, model downloads, place search, map tiles), `install_update`, `has_trash`.
 - The `resize.rs` module has no test file.
-- `tests/faces_db.rs` is included from `faces.rs` (`mod db_tests`), not from a `faces_db` module.
 
 ## Contracts
 - IPC / events / database / settings: none (tests do not touch the app's data folders).

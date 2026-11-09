@@ -1,5 +1,5 @@
 //! Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée.
-//! (La lecture des zones dans les paquets XMP est testée dans le module `tests` de faces.rs.)
+//! (Reading regions from XMP packets is tested in tests/faces.rs.)
 
 use super::*;
 use crate::test_support::*;

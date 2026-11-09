@@ -60,7 +60,7 @@ Finds faces in photos (YuNet), computes a 128-value fingerprint for each (SFace)
 - Defaults must stay in `defaults.jsonc`; test `default_face_settings_come_from_the_shared_file_and_are_in_range` guards the parse.
 
 ## Tests
-Inline `mod tests` (an exception to AGENTS.md §5.H, listed in `generated/tests.md`) in `face_detect.rs` (orientation round trip, defaults file, every key the frontend reads) and `face_recognize.rs` (alignment identity, blob round trip); `tests/faces_db.rs` for the database side. No test runs the models, downloads, `attribute_faces` or `select_targets`.
+`tests/face_detect.rs` (orientation round trip, defaults file, every key the frontend reads) and `tests/face_recognize.rs` (alignment identity, blob round trip); `tests/faces_db.rs` for the database side. No test runs the models, downloads, `attribute_faces` or `select_targets`.
 
 ## How to extend
 1. New recognition model: new manifest entries and release assets (`scripts/prepare-face-models.mjs`), new `MODEL_ID`; old embeddings become unusable by design.

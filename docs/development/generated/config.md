@@ -73,8 +73,8 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `sidebarWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
 | `skipExifWithInternalWriter` | `true` | metadata-settings.js |
 | `slideshowDelay` | `5` | slideshow.js |
-| `slideshowLoop` | `true` | slideshow.js |
-| `slideshowRandom` | `false` | slideshow.js |
+| `slideshowLoop` | `true` | — |
+| `slideshowRandom` | `false` | — |
 | `startupView` | `"all"` | main.js |
 | `textSize` | `100` | main.js |
 | `thumbnailCacheSize` | `1024` | main.js |

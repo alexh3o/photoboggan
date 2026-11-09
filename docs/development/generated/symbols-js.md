@@ -1306,35 +1306,34 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `byId(id)` · L253
 - `export initShootingFilters({ getPhotos, onChange })` · L260
 
-## src/slideshow.js (27)
+## src/slideshow.js (26)
 
-- `readStored(key)` · L17
-- `storedFlag(key, fallback)` · L22 — Flags are saved as "1" / "0"; nothing saved gives the default.
-- `clampDelay(value)` · L27
-- `export getSlideshowSettings()` · L33 — { delay (secondes), loop, random } : toujours lus à la source, les modifier depuis un endroit les met à jour partout.
-- `export setSlideshowOption(key, value)` · L42
-- `shuffle(list)` · L54 — ==========================================
-- `export buildSlideshowOrder(pool, start, random)` · L65 — Ordre de lecture de `pool` (photos, sans vidéo) à partir de `start`. Normal : l'ordre de la vue, `pos` repérant `start`.
-- `export isSlideshowActive()` · L95
-- `export isSlideshowPaused()` · L99
-- `export initSlideshow(options)` · L104 — deps : getPhotos, getSelectedIndices, getCurrentIndex, isVideo(photo), isZoomed(), openFullscreen(index), isFullscreen(), goToIndex(index),…
-- `arm()` · L113
-- `disarm()` · L120
-- `viewIndexOf(photo)` · L126 — Photo `photo` de la vue : index courant dans `photos` (-1 si elle n'y est plus, par exemple après une suppression).
-- `tick()` · L131 — Le délai est écoulé : photo suivante, ou pause si l'utilisateur a zoomé pour examiner un détail.
-- `advance()` · L138
-- `finish()` · L166 — Fin sans bouclage : le diaporama s'arrête, la dernière photo reste affichée en plein écran.
-- `export peekNextSlideshowPhoto()` · L172 — Photo à précharger après celle qui s'affiche (null si inconnue : la prochaine permutation n'existe pas encore).
-- `export notifySlideshowPhotoShown(photo)` · L179 — Appelé quand le plein écran vient d'afficher `photo` (ou n'a pas pu la charger) : le délai compte à partir de maintenant.
-- `rebuildFrom(photo, pool)` · L192 — Reconstruit l'ordre autour de `photo` (ordre aléatoire basculé, ou photo hors de la sélection d'origine).
-- `export startSlideshow()` · L203 — ==========================================
-- `export stopSlideshow(options)` · L232 — Arrête le diaporama et affiche un instant l'icône ■ au même endroit que ▶ / ⏸, sauf `{ silent: true }` (sortie du plein écran : rien à mont…
-- `setPaused(paused)` · L255
-- `export toggleSlideshowPause()` · L265 — Espace : pause / lecture. Sans effet si le diaporama n'est pas lancé.
-- `renderIndicator(flash)` · L273 — ==========================================
-- `wakeCursor()` · L283
-- `bindSettingsControls()` · L293 — ==========================================
-- `refreshSettingsControls()` · L305 — Remet les champs de Paramètres d'accord avec les réglages (modifiés aussi par le menu contextuel).
+- `storedFlag(key)` · L19 — Flags are saved as "true" / "false" and read with readBool like every other setting. Versions up to 0.6.11 saved "1" / "0": still
+- `clampDelay(value)` · L25
+- `export getSlideshowSettings()` · L31 — { delay (secondes), loop, random } : toujours lus à la source, les modifier depuis un endroit les met à jour partout.
+- `export setSlideshowOption(key, value)` · L39
+- `shuffle(list)` · L51 — ==========================================
+- `export buildSlideshowOrder(pool, start, random)` · L62 — Ordre de lecture de `pool` (photos, sans vidéo) à partir de `start`. Normal : l'ordre de la vue, `pos` repérant `start`.
+- `export isSlideshowActive()` · L92
+- `export isSlideshowPaused()` · L96
+- `export initSlideshow(options)` · L101 — deps : getPhotos, getSelectedIndices, getCurrentIndex, isVideo(photo), isZoomed(), openFullscreen(index), isFullscreen(), goToIndex(index),…
+- `arm()` · L110
+- `disarm()` · L117
+- `viewIndexOf(photo)` · L123 — Photo `photo` de la vue : index courant dans `photos` (-1 si elle n'y est plus, par exemple après une suppression).
+- `tick()` · L128 — Le délai est écoulé : photo suivante, ou pause si l'utilisateur a zoomé pour examiner un détail.
+- `advance()` · L135
+- `finish()` · L163 — Fin sans bouclage : le diaporama s'arrête, la dernière photo reste affichée en plein écran.
+- `export peekNextSlideshowPhoto()` · L169 — Photo à précharger après celle qui s'affiche (null si inconnue : la prochaine permutation n'existe pas encore).
+- `export notifySlideshowPhotoShown(photo)` · L176 — Appelé quand le plein écran vient d'afficher `photo` (ou n'a pas pu la charger) : le délai compte à partir de maintenant.
+- `rebuildFrom(photo, pool)` · L189 — Reconstruit l'ordre autour de `photo` (ordre aléatoire basculé, ou photo hors de la sélection d'origine).
+- `export startSlideshow()` · L200 — ==========================================
+- `export stopSlideshow(options)` · L229 — Arrête le diaporama et affiche un instant l'icône ■ au même endroit que ▶ / ⏸, sauf `{ silent: true }` (sortie du plein écran : rien à mont…
+- `setPaused(paused)` · L252
+- `export toggleSlideshowPause()` · L262 — Espace : pause / lecture. Sans effet si le diaporama n'est pas lancé.
+- `renderIndicator(flash)` · L270 — ==========================================
+- `wakeCursor()` · L280
+- `bindSettingsControls()` · L290 — ==========================================
+- `refreshSettingsControls()` · L302 — Remet les champs de Paramètres d'accord avec les réglages (modifiés aussi par le menu contextuel).
 
 ## src/toolbar-a11y.js (1)
 

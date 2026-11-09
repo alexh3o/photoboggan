@@ -264,3 +264,24 @@ fn thumbnail_cache_size_default_is_shared_with_the_frontend() {
     assert_eq!(startup_thumbnail_cache_size(Some(768)), 768);
     assert_eq!(startup_thumbnail_cache_size(Some(300)), expected);
 }
+
+/// Changing the storage location carries every data folder, logs included (they may name the only copy of a photo left by ExifTool),
+/// and the old location is then emptied of them.
+#[test]
+fn storage_copy_carries_the_logs_and_cleanup_removes_them() {
+    let from = tempfile::tempdir().unwrap();
+    let to = tempfile::tempdir().unwrap();
+    let pool = crate::db::init_db(&from.path().join("photos_library.db").to_string_lossy());
+    put(&from.path().join("logs").join("write-recovery_2026-01-01_10-00-00.log"), b"recovered");
+    put(&from.path().join("models").join("model.onnx"), b"model");
+
+    copy_storage(&pool, from.path(), to.path()).unwrap();
+    assert!(to.path().join("photos_library.db").is_file());
+    assert_eq!(fs::read(to.path().join("logs").join("write-recovery_2026-01-01_10-00-00.log")).unwrap(), b"recovered");
+    assert!(to.path().join("models").join("model.onnx").is_file());
+
+    drop(pool);
+    remove_storage(from.path());
+    assert!(!from.path().join("logs").exists());
+    assert!(!from.path().join("models").exists());
+}

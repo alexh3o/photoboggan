@@ -11,7 +11,7 @@ Faces are the face regions of a photo and the people they belong to. photoboggan
 | `faces-panel.js` | Settings > Faces, People section of the sidebar, person filter (AND / exclude), face overlays in full screen and preview (`layoutFullscreenFaces`, `layoutPreviewFaces`), person menu, detection settings and scan dialog (`openFaceScanDialog`), `initFacesPanel`. |
 | `faces-grid.js` | "Faces" management view: virtual grid of face tiles grouped by status, actions, undo, pending-write mode (`openFacesView`, `initFacesGrid`). |
 | `persons-view.js` | People view: one big tile per person, search, size slider (`openPersonsView`, `initPersonsView`). |
-| `tests/faces_db.rs` | Import and write-plan tests. |
+| `tests/faces.rs`, `tests/faces_db.rs` | Region parsing; import and write-plan tests. |
 
 ## How it works
 
@@ -55,7 +55,7 @@ Then `auto_link_person` links each touched person to the keyword node of the sam
 - A database error in `store_photo_faces` is reported by `false` and nothing is stored half-way (`database_failure_is_reported`).
 
 ## Tests
-`tests/faces_db.rs`: three tests (error reporting, re-reading without duplicates, auto faces not written); `faces.rs` also keeps an inline `mod tests` (4 tests, region parsing; see `generated/tests.md`). Not covered: merge / undo, `restore_faces`, conflicts, `discard_pending_face_writes`, clustering, covers.
+`tests/faces_db.rs`: three tests (error reporting, re-reading without duplicates, auto faces not written); `tests/faces.rs` (4 tests, region parsing). Not covered: merge / undo, `restore_faces`, conflicts, `discard_pending_face_writes`, clustering, covers.
 
 ## How to extend
 1. New face state: add it to the `STATUSES` list of `faces-grid.js`, to the filters of `get_photo_faces` / `get_faces_for_photos`, and decide whether `plan_face_write` writes it.

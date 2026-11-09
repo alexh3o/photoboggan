@@ -56,7 +56,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 ### Dragging
 - **Grid drag-scroll** ("DÉFILEMENT DE LA GRILLE AU GLISSER"): beyond `GRID_DRAG_THRESHOLD` (5 px) a press-and-drag scrolls the grid, with exponential inertia on release (`GRID_INERTIA_*` constants); `suppressGridClick` stops the release from also selecting.
 - **Drag to the folder tree** (next section): Shift + drag moves the selected photos to a folder (files moved on disk), Ctrl + drag copies them; only the grabbed photo if it is not selected; Esc cancels. Dropping on a manual album adds (or moves between manual albums), never moves files into an album. Mode follows the keys held at each instant (`dragModeFrom`).
-- `slideshow.js` saves its flags as `"1"` / `"0"` with its own `readStored` (not `readBool`); delays 1–60 s, the context menu offers `SLIDESHOW_DELAYS`.
+- `slideshow.js` reads its settings with `readBool` / `readNumber` (delay 1–60 s; values `"1"` / `"0"` saved by versions up to 0.6.11 still understood); the context menu offers `SLIDESHOW_DELAYS`.
 
 ## Contracts
 - IPC commands: `get_cached_thumbnail_paths`, `generate_thumbnail`, `save_thumbnail_cache`, `get_raw_preview_path`, `update_photos_marking`, `rotate_photos`, `open_video_externally`, `remove_missing_photos` (`../generated/ipc-commands.md`).

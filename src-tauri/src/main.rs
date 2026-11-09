@@ -2907,11 +2907,11 @@ fn move_file_or_copy(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Fichiers et dossiers de données de l'application, dans le dossier de stockage. `models` : fichiers de la détection des visages
-/// (face_models.rs), conservés avec les données pour ne pas les retélécharger. `private_maps` : tuiles et style des zones privées de la carte
-/// (private_maps.rs).
+/// Application data files and folders, in the storage folder. `models`: face detection and content search models (face_models.rs),
+/// kept with the data so they are not downloaded again. `private_maps`: tiles and style of the private map zones (private_maps.rs).
+/// `logs`: write-recovery and sidecar-conflict logs (they may name the only copy of a photo left by ExifTool: never left behind).
 const STORAGE_FILES: [&str; 3] = ["photos_library.db", "photos_library.db-wal", "photos_library.db-shm"];
-const STORAGE_DIRS: [&str; 5] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps"];
+const STORAGE_DIRS: [&str; 6] = ["thumbnails", "raw_previews", "models", "person_covers", "private_maps", "logs"];
 
 /// `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
 fn copy_dir_recursive(src: &Path, dst: &Path, durable: bool) -> std::io::Result<()> {

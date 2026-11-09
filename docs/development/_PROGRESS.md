@@ -188,7 +188,9 @@ Every module prompt below starts with the same instructions; only the last sente
 
 Found during phase 4 (code, not fixed):
 - New install: backend thumbnail cache size 512 (`config.json` empty) vs frontend default 1024. **Fixed**: the backend reads `thumbnailCacheSize` from `defaults.jsonc` (`startup_thumbnail_cache_size`, test in `tests/main.rs`).
-- Inline test modules in three face files contradict AGENTS.md §5.I.
+- Inline test modules in three face files contradicted AGENTS.md §5.I: **fixed**, moved to `tests/face_detect.rs`, `tests/face_recognize.rs`, `tests/faces.rs`.
+- `logs/` was left in the old folder on a storage change: **fixed** (added to `STORAGE_DIRS`, test `storage_copy_carries_the_logs_and_cleanup_removes_them`).
+- `slideshow.js` saved flags as "1" / "0" with its own reader: **fixed**, `readBool` / `readNumber`, old values still read.
 
 Remaining `⚠ unverified` (low risk): `build-release.md` (git-cliff config, `appVersion` with `v`), `configuration.md` (dev identifier isolation, tested only by reading), `style.md` (`--tag-*` audit), `albums.md` (context-menu builders), `grid-and-viewer.md` (separator keys), `maps-and-geolocation.md` (pending-position UI flow).
 
