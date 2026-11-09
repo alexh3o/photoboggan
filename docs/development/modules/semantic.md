@@ -1,4 +1,4 @@
-<!-- verified: d1a290d | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js -->
+<!-- verified: ad666bb | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js -->
 # Semantic search and automatic keywords
 
 ## Purpose

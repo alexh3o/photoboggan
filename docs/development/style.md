@@ -1,4 +1,4 @@
-<!-- verified: d1a290d | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/raw-settings.css, src/shooting-filters.css, index.html, src/app-fonts.js -->
+<!-- verified: ad666bb | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/raw-settings.css, src/shooting-filters.css, index.html, src/app-fonts.js -->
 # Style and UI conventions
 
 The tables (every CSS variable and where it is defined, the z-index stack, the commented sections of each stylesheet) are generated in `generated/css.md`: search it, do not copy it. This doc gives the rules and the mechanisms. Layout invariants of the grid (px vs rem) are in AGENTS.md §5.A / §7 and `modules/grid-and-viewer.md`.
@@ -17,6 +17,7 @@ The tables (every CSS variable and where it is defined, the z-index stack, the c
 
 ## Units rule
 - **`rem` for everything typographic and spatial** (font sizes, paddings, margins, button and modal sizes, icons): the whole UI scales through one setting. `main.js` `applyTextSize()` sets `html { font-size }` to `textSize × 110 %` (`textSize` 80–140 in steps of 5, default 100, so 100 % = 17.6 px, stored as `textSize`).
+- **Scrollbars** are styled globally at the top of `styles.css` (slim, themed, no arrow buttons) with `::-webkit-scrollbar*` only: never add `scrollbar-color` / `scrollbar-width`, which disable these rules in Chromium and bring the arrows back.
 - **`px` only for**: hairline borders and fine shadows, and **all virtual-grid maths in `main.js`** (`clientWidth`, `scrollTop`, layout sizes), exact to the pixel to avoid gaps in the justified view. Example of each: `.settings-row { gap: 0.75rem; font-size: 0.8rem }` vs `border: 1px solid var(--control-border)` and `GRID_SIDE_MARGIN = 8`.
 - Inline SVG icons carry `width`/`height` attributes in px; `styles.css` has rules `svg[width="14"|"16"|"20"|"22"|"24"]` that convert those sizes to rem (except the title bar's 10 px icons and the 12 px thumbnail badges). **A new SVG size needs a new line there.**
 - Settings and other modals are sized in rem, so they resize with the text: this is why text size uses − / + buttons and not a slider (comment in `main.js`).

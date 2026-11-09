@@ -71,6 +71,7 @@ Panels can be shown or hidden (see [shortcuts](#9-keyboard-shortcuts)) and resiz
 
 - Click a folder to see its photos. Turn **Include subfolders** on or off in **Display**. The **fold** button next to the **Folders** title folds or unfolds the whole tree, and root folders are shown differently from their subfolders.
 - **Click** a thumbnail to select it and see it in the preview. **Double-click** (or press `F`) for fullscreen.
+- In the grid, `←` / `→` select the previous/next photo and `↑` / `↓` the photo above/below (any layout).
 - In preview and fullscreen: `←` / `→` for previous/next, `+` / `-` to zoom, `*` to switch between actual size and fit-to-window.
 - Fullscreen extras: `D` shows photo info, `R` shows a rating bar.
 - **Histogram:** `H` cycles *off*, *displayed* and *displayed with clippings* (clipped shadows and highlights are colored on the image). It shows at the bottom right of the grid, the preview or fullscreen. For RAW files it is computed from the embedded JPEG preview. The clipping range is set in **Display**.

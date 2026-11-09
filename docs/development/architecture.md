@@ -1,4 +1,4 @@
-<!-- verified: d1a290d | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
+<!-- verified: ad666bb | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
 # Architecture
 
 ## Purpose and philosophy

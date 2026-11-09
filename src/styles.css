@@ -102,6 +102,13 @@
 
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* Scrollbars (whole app): slim, themed, without the arrow buttons at both ends. Only the ::-webkit-scrollbar pseudo-elements are used:
+   a standard `scrollbar-color` / `scrollbar-width` would disable them in Chromium and bring the arrows back. */
+::-webkit-scrollbar { width: 0.7rem; height: 0.7rem; background: transparent; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--control-border); border-radius: 0.35rem; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); background-clip: content-box; }
 /* Form controls do not inherit the page font by default: force it so the body font applies everywhere */
 button, input, select, textarea { font-family: inherit; }
 body { font-family: var(--app-font); background: var(--bg-dark); color: var(--text-light); overflow: hidden; user-select: none; display: flex; flex-direction: column; height: 100vh; }

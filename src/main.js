@@ -2832,6 +2832,50 @@ function navigatePhoto(direction) {
   navigateToPhotoIndex(lastSelectedIndex + direction);
 }
 
+// Up / Down arrow in the grid: selects the photo above (step -1) or below (step 1) the current one. Works with every layout (square, justified,
+// masonry) from the computed boxes: among the photos entirely past the current one's middle, keep those whose facing edge is nearest (the next row,
+// or the next photos of the neighbouring columns), then take the one horizontally closest to the current photo. Without selection, the first
+// photo is selected. Nothing happens on the first / last row.
+function navigateGridRow(step) {
+  if (photos.length === 0) return;
+  const current = photoLayouts.find(item => item.index === lastSelectedIndex);
+  if (!current || selectedIndices.size === 0) { navigateToPhotoIndex(0); scrollPhotoIntoView(0); return; }
+  const centerX = current.x + current.width / 2;
+  const middleY = current.y + current.height / 2;
+  const candidates = [];
+  for (const item of photoLayouts) {
+    if (item.index === current.index) continue;
+    // Gap between the facing edges (negative when the boxes overlap vertically).
+    const edge = step > 0 ? item.y - (current.y + current.height) : current.y - (item.y + item.height);
+    const beyond = step > 0 ? item.y >= middleY : item.y + item.height <= middleY;
+    if (beyond) candidates.push({ item, edge: Math.max(0, edge) });
+  }
+  if (candidates.length === 0) return;
+  const nearest = Math.min(...candidates.map(candidate => candidate.edge));
+  let best = null;
+  let bestDistance = Infinity;
+  for (const { item, edge } of candidates) {
+    if (edge > nearest + current.height * 0.5) continue; // a farther row
+    const distance = Math.abs(item.x + item.width / 2 - centerX);
+    if (distance < bestDistance) { best = item; bestDistance = distance; }
+  }
+  if (!best) return;
+  navigateToPhotoIndex(best.index);
+  scrollPhotoIntoView(best.index);
+}
+
+// Scrolls the grid the minimum needed to show the whole thumbnail of photo `index`.
+function scrollPhotoIntoView(index) {
+  const layout = photoLayouts.find(item => item.index === index);
+  if (!layout) return;
+  const viewTop = gridContainer.scrollTop;
+  const viewBottom = viewTop + gridContainer.clientHeight;
+  if (layout.y < viewTop) gridContainer.scrollTop = Math.max(0, layout.y - 4);
+  else if (layout.y + layout.height > viewBottom) gridContainer.scrollTop = layout.y + layout.height - gridContainer.clientHeight + 4;
+  else return;
+  renderVisibleItems();
+}
+
 function navigateToPhotoIndex(index) {
   if (photos.length === 0) return;
   const newIndex = Math.max(0, Math.min(photos.length - 1, index));
@@ -3882,6 +3926,11 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault();
     navigatePhoto(-1);
+  } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+    && !isFullscreen && !compareMode && !document.querySelector('.modal:not(.hidden)')) {
+    // Up / Down: the photo above / below in the thumbnail grid (any layout), scrolled into view.
+    e.preventDefault();
+    navigateGridRow(e.key === 'ArrowDown' ? 1 : -1);
   } else if (e.key === 'Escape') {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
     else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant

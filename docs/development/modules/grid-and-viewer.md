@@ -1,4 +1,4 @@
-<!-- verified: d1a290d | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, index.html -->
+<!-- verified: ad666bb | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, index.html -->
 # Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, slideshow (main.js, part 2)
 
 ## Purpose
@@ -36,7 +36,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 - Extension lists (`RAW_EXTENSIONS`, `HEIF_EXTENSIONS`, `VIDEO_EXTENSIONS`) come from `format-filters.js`. Videos are never played inside the app: `openFullscreen` sends them to `open_video_externally`.
 
 ### Full screen
-`openFullscreen(index)` → selects that photo only, `loadFullscreenPhoto` → `showFullscreenPhoto` (probes the image off-screen, then applies size/zoom in one step so no stretched frame appears; `fullscreenLoadToken` discards stale loads), `preloadFullscreenImages` (±2 neighbours + the next slideshow photo, `fullscreenImageCache` keyed **by index**, so it is cleared on any re-sort). Navigation (`navigateToPhotoIndex`, arrows, wheel) just changes the selection; `updateUIOnSelection` then reloads. Zoom/pan share the preview's slot logic (`layoutPreviewSlot`, `fullscreenSlot`). An image error calls `checkPhotoMissing`. Closing stops the slideshow.
+`openFullscreen(index)` → selects that photo only, `loadFullscreenPhoto` → `showFullscreenPhoto` (probes the image off-screen, then applies size/zoom in one step so no stretched frame appears; `fullscreenLoadToken` discards stale loads), `preloadFullscreenImages` (±2 neighbours + the next slideshow photo, `fullscreenImageCache` keyed **by index**, so it is cleared on any re-sort). Navigation (`navigateToPhotoIndex`, arrows, wheel) just changes the selection; Up/Down in the grid (`navigateGridRow`) pick the photo above/below from `photoLayouts` boxes (nearest facing edge, then closest centre; works in every layout) and `scrollPhotoIntoView` keeps it visible; `updateUIOnSelection` then reloads. Zoom/pan share the preview's slot logic (`layoutPreviewSlot`, `fullscreenSlot`). An image error calls `checkPhotoMissing`. Closing stops the slideshow.
 
 ### Selection and Info panel
 `handleSelection(index, event)`: Shift = range from `lastSelectedIndex` (stops at the compare limit), Ctrl = toggle, plain = replace. `canAddToSelection` enforces `MAX_COMPARE` = 4 **only in compare mode**. `updateUIOnSelection` is the single fan-out after a selection change: keywords/description/location panels, `renderVisibleItems`, rating/colour bars, `renderPreview`, Info panel fields, map, histogram.
