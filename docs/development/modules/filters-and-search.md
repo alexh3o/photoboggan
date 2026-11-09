@@ -1,4 +1,4 @@
-<!-- verified: a9ca28f | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
+<!-- verified: d1a290d | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
 # Filters and search (sidebar filters, SQL prefilter, "Find the RAW", histogram)
 
 ## Purpose

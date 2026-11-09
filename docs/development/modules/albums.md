@@ -1,4 +1,4 @@
-<!-- verified: a9ca28f | sources: src-tauri/src/albums.rs, src/albums-panel.js, src/main.js -->
+<!-- verified: d1a290d | sources: src-tauri/src/albums.rs, src/albums-panel.js, src/main.js -->
 # Albums (virtual folders, manual albums, smart albums)
 
 ## Purpose

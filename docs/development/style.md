@@ -1,4 +1,4 @@
-<!-- verified: d9de6cb | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/raw-settings.css, src/shooting-filters.css, index.html, src/app-fonts.js -->
+<!-- verified: d1a290d | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/raw-settings.css, src/shooting-filters.css, index.html, src/app-fonts.js -->
 # Style and UI conventions
 
 The tables (every CSS variable and where it is defined, the z-index stack, the commented sections of each stylesheet) are generated in `generated/css.md`: search it, do not copy it. This doc gives the rules and the mechanisms. Layout invariants of the grid (px vs rem) are in AGENTS.md §5.A / §7 and `modules/grid-and-viewer.md`.
