@@ -8,11 +8,17 @@
 - [x] *feat*: `tree` add collapse all and unfold to active photo path on folders tree
 - [x] *fix*: `ui` count badge cut on tasks button since removing the top padding
 - [x] *fix*: `faces` keyboard selction doesn't work in faces review
+- [ ] *feat*: `semantic` add filter for scanned / unscanned photos
+- [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
+- [ ] *feat*: `semantic` share search box with keywords search
+- [ ] *feat*: `semantic` include filters in semantic search
+- [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: stats in a stat modal from settings
+- [ ] *feat*: `stats` stats in a stat modal from settings
+- [ ] *feat*: `tasks` task to popup action to see progress
 
 ## ⚖️ Undecided
 
