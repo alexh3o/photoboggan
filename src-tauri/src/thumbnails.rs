@@ -419,7 +419,7 @@ pub(crate) fn decode_scaled_rgb(source: &Path, max_side: usize) -> Result<(Vec<u
     let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     
     // Si c'est un format RAW, on extrait la prévisualisation JPEG intégrée
-    let is_raw = matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw");
+    let is_raw = is_raw_extension(&ext);
     if is_raw {
         let jpeg_bytes = extract_raw_preview(source)?;
         return decode_scaled_jpeg_reader(Cursor::new(jpeg_bytes), max_side);
@@ -472,9 +472,17 @@ pub(crate) fn raw_display_orientation(source: &Path, jpeg: &[u8]) -> u32 {
     crate::orientation::raw_preview_orientation(preview, container_orientation(source).unwrap_or(1), crate::exif::read_xmp_orientation(source))
 }
 
+/// RAW extensions (lowercase): the single backend list, used by the catalogue (library_sync), previews, faces, resize, content search.
+/// The frontend has its own copy (`RAW_EXTENSIONS` in src/format-filters.js), kept equal by the test `raw_extensions_match_the_frontend`.
+pub(crate) const RAW_EXTENSIONS: [&str; 11] = ["arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "pef", "raw"];
+
+/// `extension` without the dot, any case.
+pub(crate) fn is_raw_extension(extension: &str) -> bool {
+    RAW_EXTENSIONS.iter().any(|raw| raw.eq_ignore_ascii_case(extension))
+}
+
 pub(crate) fn is_raw_path(source: &Path) -> bool {
-    let ext = source.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
-    matches!(ext.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw")
+    source.extension().and_then(|e| e.to_str()).is_some_and(is_raw_extension)
 }
 
 /// Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).

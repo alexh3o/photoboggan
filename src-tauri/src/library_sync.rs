@@ -129,16 +129,14 @@ fn delete_photos(conn: &rusqlite::Connection, paths: &[String]) -> rusqlite::Res
     tx.commit()
 }
 
-// Formats pris en charge (scan initial et synchronisation).
+// Supported formats (first scan and sync), besides RAW (`thumbnails::RAW_EXTENSIONS`) and videos (`video::VIDEO_EXTENSIONS`).
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
-    // Formats standards
+    // Standard formats
     "jpg", "jpeg", "png", "webp", "avif", "gif", "bmp", "jfif",
-    // HEIC / HEIF (décodage et métadonnées : heif.rs)
+    // HEIC / HEIF (decoding and metadata: heif.rs)
     "heic", "heif", "hif",
-    // Formats RAW
-    "arw", "cr2", "cr3", "nef", "nrw", "dng", "raf", "orf", "rw2", "pef", "raw",
-    // Essayés puis retirés :
-    // jp2 (ne fonctionne pas), svg (miniature seulement)
+    // Tried then removed:
+    // jp2 (does not work), svg (thumbnail only)
 ];
 pub fn is_photo_file(path: &Path) -> bool {
     // Les vidéos (video.rs) sont cataloguées comme les photos : même scan, même synchronisation incrémentale.
@@ -146,7 +144,7 @@ pub fn is_photo_file(path: &Path) -> bool {
         .and_then(|ext| ext.to_str())
         .map(|ext| {
             let ext_lower = ext.to_ascii_lowercase();
-            SUPPORTED_EXTENSIONS.contains(&ext_lower.as_str())
+            SUPPORTED_EXTENSIONS.contains(&ext_lower.as_str()) || crate::thumbnails::is_raw_extension(&ext_lower)
         })
         .unwrap_or(false)
 }

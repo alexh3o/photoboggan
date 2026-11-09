@@ -53,7 +53,7 @@
 ### B. Formats
 - **RAW** : ne jamais dématricer ; toujours l'aperçu JPEG intégré (`extract_raw_preview`), plein écran par `get_raw_preview_path`. **Vidéos** : image fixe uniquement, lecture dans le lecteur de l'OS.
 - Les miniatures non gérées côté Rust (ex. PNG) retombent sur la génération du webview : ne pas casser ce repli.
-- Ajouter un format : les listes d'extensions sont multiples (`recipes.md` §4).
+- Ajouter un format : `recipes.md` §4. RAW : une seule liste côté Rust (`thumbnails::RAW_EXTENSIONS`), sa copie JS (`format-filters.js`) est vérifiée par un test.
 
 ### C. Métadonnées
 - **Deux chemins d'écriture** (`metadataWriter`) : **ExifTool** (défaut) ou **interne**. Mêmes champs dans les deux ; tout nouveau champ écrit va dans les deux et dans la relecture de vérification (`recipes.md` §3). ExifTool introuvable : écriture refusée, **jamais de repli** sur l'autre chemin.

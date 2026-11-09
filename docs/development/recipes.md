@@ -43,14 +43,14 @@ Example: **title** (`MetadataUpdate.title`). Read `invariants.md` §1–2 first.
 ## 4. Add a file format
 
 Lists to update (search the extension `"cr2"` to find them all, there is no single list):
-1. Backend catalogue: `SUPPORTED_EXTENSIONS` (library_sync.rs); videos: `VIDEO_EXTENSIONS` (video.rs) and its copy in duplicates.rs.
-2. RAW only: `thumbnails::is_raw_path`, `face_detect.rs` and `resize.rs` have their own `matches!` lists.
+1. Backend catalogue: `SUPPORTED_EXTENSIONS` (library_sync.rs) for standard formats; videos: `VIDEO_EXTENSIONS` (video.rs, also used by duplicates.rs).
+2. RAW: the single backend list `thumbnails::RAW_EXTENSIONS` (`is_raw_extension`, `is_raw_path`), used by the catalogue, previews, faces, resize and content search.
 3. Frontend: `RAW_EXTENSIONS` / `HEIF_EXTENSIONS` / `VIDEO_EXTENSIONS` / `RASTER_EXTENSIONS` (format-filters.js), used by `isRawPath` / `isVideoPath` (main.js).
 4. Thumbnail: `thumbnails::render_thumbnail` must decode it, or return an error so the webview fallback (`save_thumbnail_cache`) is used. Full screen: if the webview cannot show it, route it through `get_raw_preview_path`.
 5. Metadata target: `exif::write_metadata` / `exiftool::target_of` decide in-file vs sidecar; a new non-JPEG format defaults to a sidecar.
 6. Duplicates: decide which bytes `duplicates::layout_of` hashes; changing it requires `LAYOUT_VERSION` + 1.
 7. Integrity check (`integrity.rs`) and resize (`resize.rs`): check what they do with the extension.
-8. Test `supported_extensions_ignore_case_and_sidecars` (library_sync); the user-facing list of formats is `docs/USER_GUIDE.md`.
+8. Tests `supported_extensions_ignore_case_and_sidecars` (library_sync) and `raw_extensions_match_the_frontend` (thumbnails: backend and frontend RAW lists must be equal); the user-facing list of formats is `docs/USER_GUIDE.md`.
 
 ## 5. Add a database column or table
 

@@ -125,3 +125,22 @@ fn thumbnail_quality_levels_write_valid_jpegs() {
     // No temporary file left behind.
     assert_eq!(std::fs::read_dir(dir.path().join("ab")).unwrap().count(), 2);
 }
+
+/// The backend RAW list and the frontend one (format filter, `isRawPath`) must be the same: a RAW known to only one side is catalogued but
+/// not shown as RAW, or the reverse. Every RAW is also accepted by the catalogue.
+#[test]
+fn raw_extensions_match_the_frontend() {
+    let source = include_str!("../../../src/format-filters.js");
+    let line = source.lines().find(|line| line.contains("export const RAW_EXTENSIONS")).expect("RAW_EXTENSIONS in format-filters.js");
+    let mut frontend: Vec<&str> = line.split('\'').skip(1).step_by(2).collect();
+    frontend.sort_unstable();
+    let mut backend = RAW_EXTENSIONS.to_vec();
+    backend.sort_unstable();
+    assert_eq!(frontend, backend);
+    for extension in RAW_EXTENSIONS {
+        assert!(is_raw_path(Path::new(&format!("a.{}", extension.to_uppercase()))));
+        assert!(crate::library_sync::is_photo_file(Path::new(&format!("a.{extension}"))), "{extension} not catalogued");
+    }
+    assert!(!is_raw_path(Path::new("a.jpg")) && !is_raw_path(Path::new("raw")));
+}
+

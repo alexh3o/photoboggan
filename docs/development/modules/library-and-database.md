@@ -63,7 +63,7 @@ Called by the `sync_library` command (blocking thread, `PriorityGuard`) at start
 
 ## How to extend
 1. New file-derived column: `../recipes.md` recipe 5, then rescan note in the UI changelog if existing photos need it.
-2. New supported format: add to `SUPPORTED_EXTENSIONS` **and** `format-filters.js` (`../recipes.md` recipe 4); thumbnails / metadata handling per format is in other docs.
+2. New supported format: add to `SUPPORTED_EXTENSIONS` (RAW: `thumbnails::RAW_EXTENSIONS`) **and** `format-filters.js` (`../recipes.md` recipe 4); thumbnails / metadata handling per format is in other docs.
 3. New listing criterion: add to `PhotoPrefilter` + `prefilter_condition` and mirror it in the JS filter (`filters-and-search.md`).
 4. New long task: queue it (`../invariants.md` §6) with `scan_cancel_flag` / `release_scan_cancel_flag`.
 

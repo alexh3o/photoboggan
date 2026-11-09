@@ -339,23 +339,23 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `decode_thumbnail` · L310 — Miniature JPEG du cache décodée en RGB.
 - *struct* `Target` · L331 — Photo visée par un scan : chemin, dimensions de l'image stockée (EXIF), orientation, date de modification du fichier, et « à revérifier »
 - `is_raw_path` · L341
-- `select_targets` · L350 — Photos visées : une sélection (`photo_ids`) ou un dossier (`folder`, sous-dossiers compris si `recursive`). Les vidéos sont exclues, les RAW
-- *struct* `pub ScanTargetCount` · L401
-- `pub count_face_scan_targets` · L408 — Nombre de photos visées (fenêtre de lancement) : toutes, et celles qui n'ont pas encore été scannées avec le détecteur actuel.
-- *struct* `MeasuredFace` · L420 — Visage mesuré, en coordonnées de l'image STOCKÉE, avec son empreinte (None si elle n'a pas pu être calculée).
-- *struct* `PendingFace` · L431 — Visage déjà en base sans empreinte (zone importée, visage du lot 2) : repère de l'image stockée, points de repère s'ils sont connus.
-- *struct* `Analysis` · L438 — Résultat de l'analyse d'une photo : visages détectés, et empreintes calculées pour des visages déjà en base.
-- *struct* `EmbeddingSources` · L447 — Images d'où tirer les empreintes : la miniature (orientée), et l'original décodé à la demande (repère stocké), une fois par photo.
-- `EmbeddingSources::embedding` · L456 — Empreinte d'un visage connu par ses points de repère normalisés dans le repère STOCKÉ et son plus grand côté dans la miniature.
-- `analyse` · L491 — Analyse d'une photo : miniature (générée si absente), détection, mesures, empreintes, conversion vers le repère de l'image stockée.
-- `landmarks_blob` · L541
-- `landmarks_from_blob` · L545
-- `pending_faces` · L553 — Visages sans empreinte du modèle actuel (zones importées, visages du lot 2) des photos visées, par photo.
-- `store_detections` · L587 — Enregistre les visages détectés d'une photo, fusionnés avec ceux déjà en base (spec §7.1) :
-- *struct* `pub ScanFailure` · L687
-- *struct* `pub DetectionReport` · L693
-- `load_session` · L704 — Charge un modèle ONNX (session libérée à la fin de la tâche).
-- `pub detect_faces` · L717 — Détection et reconnaissance des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ;
+- `select_targets` · L349 — Photos visées : une sélection (`photo_ids`) ou un dossier (`folder`, sous-dossiers compris si `recursive`). Les vidéos sont exclues, les RAW
+- *struct* `pub ScanTargetCount` · L400
+- `pub count_face_scan_targets` · L407 — Nombre de photos visées (fenêtre de lancement) : toutes, et celles qui n'ont pas encore été scannées avec le détecteur actuel.
+- *struct* `MeasuredFace` · L419 — Visage mesuré, en coordonnées de l'image STOCKÉE, avec son empreinte (None si elle n'a pas pu être calculée).
+- *struct* `PendingFace` · L430 — Visage déjà en base sans empreinte (zone importée, visage du lot 2) : repère de l'image stockée, points de repère s'ils sont connus.
+- *struct* `Analysis` · L437 — Résultat de l'analyse d'une photo : visages détectés, et empreintes calculées pour des visages déjà en base.
+- *struct* `EmbeddingSources` · L446 — Images d'où tirer les empreintes : la miniature (orientée), et l'original décodé à la demande (repère stocké), une fois par photo.
+- `EmbeddingSources::embedding` · L455 — Empreinte d'un visage connu par ses points de repère normalisés dans le repère STOCKÉ et son plus grand côté dans la miniature.
+- `analyse` · L490 — Analyse d'une photo : miniature (générée si absente), détection, mesures, empreintes, conversion vers le repère de l'image stockée.
+- `landmarks_blob` · L540
+- `landmarks_from_blob` · L544
+- `pending_faces` · L552 — Visages sans empreinte du modèle actuel (zones importées, visages du lot 2) des photos visées, par photo.
+- `store_detections` · L586 — Enregistre les visages détectés d'une photo, fusionnés avec ceux déjà en base (spec §7.1) :
+- *struct* `pub ScanFailure` · L686
+- *struct* `pub DetectionReport` · L692
+- `load_session` · L703 — Charge un modèle ONNX (session libérée à la fin de la tâche).
+- `pub detect_faces` · L716 — Détection et reconnaissance des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ;
 
 ## face_models.rs (18)
 
@@ -623,10 +623,10 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub already_read` · L96 — The file was read by the scan being resumed and has not changed since (same size and modification date): it can be skipped.
 - `pub store_read_batch` · L103 — Enregistre un lot de photos lues : lignes, mots-clés, visages, puis dates de modification. Les dates ne sont écrites que si tout le reste
 - `delete_photos` · L126 — Retire des photos du catalogue, par chemin (une transaction : tout ou rien).
-- `pub is_photo_file` · L143
-- `pub read_photo` · L157 — Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et fac…
-- `is_excluded` · L196 — The path is one of the `excluded` folders or lies inside one.
-- `pub sync_library` · L210 — Compare les dossiers suivis au catalogue :
+- `pub is_photo_file` · L141
+- `pub read_photo` · L155 — Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et fac…
+- `is_excluded` · L194 — The path is one of the `excluded` folders or lies inside one.
+- `pub sync_library` · L208 — Compare les dossiers suivis au catalogue :
 
 ## main.rs (166)
 
@@ -1189,7 +1189,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub semantic_model_dir` · L138 — Folder of the SigLIP 2 model files (vision.onnx, text.onnx, tokenizer.json), from SEMANTIC_MODEL_DIR (parity tests).
 - `pub onnx_runtime_library` · L145 — ONNX Runtime library (parity tests): ORT_DYLIB_PATH, otherwise the `models/` folder of an installed application (release, then development …
 
-## thumbnails.rs (37)
+## thumbnails.rs (38)
 
 - `pub set_high_quality_thumbnails` · L31
 - `thumbnail_quality` · L35
@@ -1215,19 +1215,20 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub read_orientation` · L454 — Orientation to apply to the decoded pixels (1 to 8), 1 if absent or unreadable: EXIF tag or XMP `tiff:Orientation`, whichever wins
 - `pub exif_orientation` · L465 — EXIF orientation tag of the file itself (the one the webview applies to an image it shows), None if absent.
 - `pub raw_display_orientation` · L470 — Orientation of a RAW preview, sidecar `tiff:Orientation` included (a lossless rotation writes it there, see orientation.rs).
-- `pub is_raw_path` · L475
-- `container_orientation` · L481 — Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).
-- `cr3_box` · L486 — Contenu d'une boîte du conteneur ISO BMFF d'un CR3 (nom de 4 octets) : ici un bloc TIFF autonome.
-- `tiff_as_exif_ifd` · L501 — Bloc TIFF de la boîte CMT2 d'un CR3 : son IFD0 est directement l'IFD Exif, que kamadak-exif classerait alors comme IFD TIFF (ISO, ouverture,
-- `pub read_exif_sources` · L525 — EXIF d'un fichier, une ou plusieurs sources à lire dans l'ordre (la dernière l'emporte pour une même valeur) :
-- `pub raw_orientation` · L557 — Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
-- `pub preview_with_orientation` · L573 — Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme l…
-- `pub resize_to_fit` · L602
-- `axis_weights` · L612 — Pour chaque pixel de destination : premier pixel source concerné et poids normalisés (recouvrement exact).
-- `pub resize_area` · L629 — Réduction par moyenne des aires (séparable : horizontal puis vertical).
-- `pub apply_orientation` · L666 — Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
-- `pub write_jpeg` · L690 — Writes a cache thumbnail at the quality chosen in the settings.
-- `pub write_jpeg_with_quality` · L695 — Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
+- `pub is_raw_extension` · L480 — `extension` without the dot, any case.
+- `pub is_raw_path` · L484
+- `container_orientation` · L489 — Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).
+- `cr3_box` · L494 — Contenu d'une boîte du conteneur ISO BMFF d'un CR3 (nom de 4 octets) : ici un bloc TIFF autonome.
+- `tiff_as_exif_ifd` · L509 — Bloc TIFF de la boîte CMT2 d'un CR3 : son IFD0 est directement l'IFD Exif, que kamadak-exif classerait alors comme IFD TIFF (ISO, ouverture,
+- `pub read_exif_sources` · L533 — EXIF d'un fichier, une ou plusieurs sources à lire dans l'ordre (la dernière l'emporte pour une même valeur) :
+- `pub raw_orientation` · L565 — Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
+- `pub preview_with_orientation` · L581 — Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme l…
+- `pub resize_to_fit` · L610
+- `axis_weights` · L620 — Pour chaque pixel de destination : premier pixel source concerné et poids normalisés (recouvrement exact).
+- `pub resize_area` · L637 — Réduction par moyenne des aires (séparable : horizontal puis vertical).
+- `pub apply_orientation` · L674 — Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
+- `pub write_jpeg` · L698 — Writes a cache thumbnail at the quality chosen in the settings.
+- `pub write_jpeg_with_quality` · L703 — Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
 
 ## update_check.rs (15)
 

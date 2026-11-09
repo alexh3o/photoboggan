@@ -11,7 +11,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 |---|---|---|
 | `albums` | db, main | db |
 | `db` | albums, duplicates, faces, geolocation, keywords, main, private_maps, semantic, similar | albums, duplicates, faces, geolocation, keywords, library_sync, private_maps, semantic, similar, test_support |
-| `duplicates` | db | db, semantic, similar |
+| `duplicates` | db, video | db, semantic, similar |
 | `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, heif, keywords, library_sync, orientation, place_search, resize, thumbnails |
 | `exiftool` | exif, main | exif, geolocation, orientation |
 | `face_detect` | face_models, face_recognize, faces, heif, keywords, main, onnx_runtime, semantic, thumbnails, video | exif, faces |
@@ -22,7 +22,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `heif` | exif | exif, face_detect, integrity, orientation, resize, thumbnails |
 | `integrity` | heif, main | semantic |
 | `keywords` | db, exif, faces, geolocation, library_sync, main, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, semantic, semantic_keywords, semantic_search |
-| `library_sync` | db, exif, faces, keywords, main, video | exif, geolocation, keywords |
+| `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, keywords |
 | `main` | — | albums, db, exiftool, face_detect, face_models, faces, geolocation, integrity, keywords, library_sync, phash, private_maps, resize, semantic, semantic_keywords, semantic_models, semantic_search, update_check |
 | `model_files` | — | face_models, semantic_models, update_check |
 | `onnx_runtime` | — | face_detect, semantic, semantic_search |
@@ -37,9 +37,9 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic_search` | face_models, keywords, main, onnx_runtime, semantic, semantic_keywords, semantic_models, thumbnails | semantic, semantic_keywords, semantic_models |
 | `similar` | db, duplicates, phash, thumbnails | db |
 | `test_support` | db | — |
-| `thumbnails` | exif, heif, orientation, video | exif, face_detect, faces, orientation, resize, semantic, semantic_search, similar |
+| `thumbnails` | exif, heif, orientation, video | exif, face_detect, faces, library_sync, orientation, resize, semantic, semantic_search, similar |
 | `update_check` | face_models, main, model_files | — |
-| `video` | — | exif, face_detect, library_sync, orientation, thumbnails |
+| `video` | — | duplicates, exif, face_detect, library_sync, orientation, thumbnails |
 
 ## Frontend (`import` of `./x.js`)
 

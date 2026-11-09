@@ -76,7 +76,7 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 `tests/thumbnails.rs` (CR3 boxes, preview orientation, DNG without JPEG, quality levels), `tests/orientation.rs` (algebra, reading order, `view_fix`, sidecar RAW preview, internal / sidecar rotation, HEIF and video refused), `tests/heif.rs` (synthetic container XMP read / write, refused rewrites, box-walker limits), `tests/main.rs` (cache subfolders, clearing, `cached_images_follow_a_rewritten_file`). Gaps: `generate_thumbnail` end to end on real JPEGs, `purge_orphan_cache`, video frames, and `get_raw_preview_path` are not tested.
 
 ## How to extend
-1. New RAW family: try `extract_raw_preview` first on a sample; add a branch before the generic scan only if the container needs it; add the extension to `thumbnails::is_raw_path`, `decode_scaled_rgb`, `library_sync::SUPPORTED_EXTENSIONS` and `format-filters.js` (`../recipes.md` recipe 4).
+1. New RAW family: try `extract_raw_preview` first on a sample; add a branch before the generic scan only if the container needs it; add the extension to `thumbnails::RAW_EXTENSIONS` and to `RAW_EXTENSIONS` of `format-filters.js` (test `raw_extensions_match_the_frontend` keeps them equal; `../recipes.md` recipe 4).
 2. Change thumbnail content (size policy, colour handling): bump `PREVIEW_VERSION`.
 3. New format decoded in Rust: add to `decode_scaled_rgb`, decide its `orientation::Kind`, and keep the webview fallback for anything that errors.
 

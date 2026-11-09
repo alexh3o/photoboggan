@@ -60,12 +60,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 507 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 288 |  |
+| `files.md` | 289 |  |
 | `ipc-commands.md` | 176 |  |
 | `module-deps.md` | 93 |  |
 | `symbols-js.md` | 1373 |  |
-| `symbols-rust.md` | 1255 |  |
-| `tests.md` | 431 |  |
+| `symbols-rust.md` | 1258 |  |
+| `tests.md` | 446 |  |
 
 ## docs/development/modules
 
@@ -208,7 +208,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.rs` | 756 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 2727 |  |
 | `exiftool.rs` | 905 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
-| `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
+| `face_detect.rs` | 802 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
 | `face_recognize.rs` | 320 | Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère de … |
 | `faces.rs` | 1826 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
@@ -216,7 +216,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `heif.rs` | 509 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 803 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
-| `library_sync.rs` | 340 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
+| `library_sync.rs` | 338 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
 | `main.rs` | 3091 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
@@ -231,7 +231,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic.rs` | 1237 | Semantic search with SigLIP 2 (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan task.… |
 | `similar.rs` | 351 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
-| `thumbnails.rs` | 719 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
+| `thumbnails.rs` | 727 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
 | `update_check.rs` | 328 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
 | `video.rs` | 210 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
@@ -264,7 +264,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic_search.rs` | 644 | Tests of the semantic searches: ranking, relative threshold and cap, stable order, scopes, index updates and release. Fake vectors only, no model. Parity of the text search with the reference model is `#[ignore]`: run i… |
 | `semantic.rs` | 848 | Tests of the semantic search, model side: fp16 storage, image preprocessing (parity with PIL on the Phase 0 fixtures), query normalisation. Synthetic images only (the PNG fixtures are generated by dev_tools/semantic/mak… |
 | `similar.rs` | 162 | Tests of the similar-image search: grouping, rotations, bursts, flat pictures, cache and cancellation. Synthetic files in a temporary folder only. |
-| `thumbnails.rs` | 128 | Tests de non-régression de l'orientation et de l'EXIF des RAW (thumbnails.rs). Aucun vrai RAW : un CR3 minimal (boîtes CMT1 / CMT2) et des JPEG synthétiques sont fabriqués à la main. |
+| `thumbnails.rs` | 147 | Tests de non-régression de l'orientation et de l'EXIF des RAW (thumbnails.rs). Aucun vrai RAW : un CR3 minimal (boîtes CMT1 / CMT2) et des JPEG synthétiques sont fabriqués à la main. |
 | `update_check.rs` | 175 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
 
 ## src-tauri/src/tests/fixtures

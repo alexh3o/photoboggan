@@ -339,8 +339,7 @@ struct Target {
 }
 
 fn is_raw_path(path: &str) -> bool {
-    let extension = Path::new(path).extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
-    matches!(extension.as_str(), "arw" | "cr2" | "cr3" | "nef" | "nrw" | "dng" | "raf" | "orf" | "rw2" | "pef" | "raw")
+    crate::thumbnails::is_raw_path(Path::new(path))
 }
 
 /// Photos visées : une sélection (`photo_ids`) ou un dossier (`folder`, sous-dossiers compris si `recursive`). Les vidéos sont exclues, les RAW

@@ -32,8 +32,8 @@ pub(crate) const LAYOUT_VERSION: i64 = 1;
 /// Bytes hashed at each end of the image data in the partial stage.
 const PARTIAL_BYTES: u64 = 64 * 1024;
 const READ_CHUNK: usize = 256 * 1024;
-/// Videos only have a still frame here: they are not compared.
-const VIDEO_EXTENSIONS: [&str; 4] = ["mp4", "mov", "avi", "mkv"];
+// Videos only have a still frame here: they are not compared.
+use crate::video::VIDEO_EXTENSIONS;
 
 /// 128 bits of a SHA-256 digest: plenty to tell files apart once length and partial hash already agree.
 pub(crate) type Hash = [u8; 16];
