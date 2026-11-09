@@ -10,7 +10,7 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
-import { initSemanticSettings, onSemanticOfflineChanged } from './semantic-settings.js';
+import { initSemanticSettings, onSemanticOfflineChanged, isSemanticEnabled, analyseContent } from './semantic-settings.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -4856,10 +4856,23 @@ const taskPercent = task => Math.max(0, Math.min(100, Math.round(task.percent)))
 // progress, so it never holds back the queue, the library synchronisation or the reload shortcut.
 const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready').length;
 
+// Content analysis: its own lane, in parallel with the main queue (see pumpSemanticQueue). It counts in activeTaskCount (closing the application,
+// reloading the page) but not in foregroundTaskCount: a library synchronisation never waits for it (the analysis pauses itself instead).
+const isSemanticLaneTask = task => task.kind === 'semantic';
+const foregroundTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && !isSemanticLaneTask(task)).length;
+
 function taskStatusText(task) {
   if (task.status === 'ready') return tp('Results ready: {count} group', task.groupCount);
   if (task.status === 'waiting') return t('Waiting');
   if (task.stopRequested) return t('Stopping…');
+  if (isSemanticLaneTask(task)) {
+    // Paused while another task works; otherwise the progress and the time left estimated by the backend.
+    if (task.paused) return `${taskPercent(task)} % · ${t('Paused (other task running)')}`;
+    const parts = [`${taskPercent(task)} %`];
+    if (task.total > 0) parts.push(`${task.done.toLocaleString()} / ${task.total.toLocaleString()}`);
+    if (task.remainingSeconds != null) parts.push(t('{time} left', { time: `~${formatTaskDuration(task.remainingSeconds * 1000)}` }));
+    return parts.join(' · ');
+  }
   return `${taskPercent(task)} %`;
 }
 
@@ -4886,7 +4899,8 @@ function taskTimingText(task) {
   const elapsed = Date.now() - task.startedAt;
   const parts = [formatTaskDuration(elapsed)];
   const percent = taskPercent(task);
-  if (!task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
+  // The content analysis gives its own estimate (taskStatusText): an extrapolation from the elapsed time would count the pauses.
+  if (!isSemanticLaneTask(task) && !task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
     parts.push(t('{time} left', { time: `~${formatTaskDuration(elapsed * (100 - percent) / percent)}` }));
   }
   return parts.join(' · ');
@@ -5131,10 +5145,17 @@ window.addEventListener('keydown', event => {
 
 // Avancement des tâches de scan (pourcentage de la tâche, jamais en recul si deux événements arrivent dans le désordre).
 listenToBackend('scan-progress', event => {
-  const { taskId, percent } = event.payload || {};
+  const { taskId, percent, done, total, remainingSeconds, paused } = event.payload || {};
   const task = scanTasks.find(item => item.id === taskId);
   if (!task || task.status !== 'running') return;
   task.percent = Math.max(task.percent, Number(percent) || 0);
+  // Content analysis: photos handled / to handle, time left estimated by the backend (null at first, pauses excluded) and the pause flag.
+  if (isSemanticLaneTask(task)) {
+    task.done = Number(done) || 0;
+    task.total = Number(total) || 0;
+    task.remainingSeconds = Number.isFinite(remainingSeconds) ? remainingSeconds : null;
+    task.paused = paused === true;
+  }
   syncTaskUI();
 }).catch(error => console.debug('Progress tracking unavailable', error));
 
@@ -5196,7 +5217,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
   // `dedupeKey` (duplicate search): refused while a task with the same key is running or waiting.
   const sameKey = dedupeKey && scanTasks.find(task => task.dedupeKey === dedupeKey && !task.stopRequested && task.status !== 'ready');
   if (sameKey) {
-    showWriteToast(t('A duplicate search on this is already in progress or waiting: {name}', { name: taskName(sameKey) }));
+    showWriteToast(t(kind === 'semantic' ? 'A content analysis of this is already in progress or waiting: {name}' : 'A duplicate search on this is already in progress or waiting: {name}', { name: taskName(sameKey) }));
     return false;
   }
   // Les vérifications d'intégrité ont leur propre famille : elles ne se bloquent qu'entre elles (pas avec les scans ni les relectures de métadonnées).
@@ -5214,7 +5235,7 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
     : taskKind === 'duplicates' ? 'duplicates'
     : FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan');
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || FILE_TASK_KINDS.includes(kind) ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || kind === 'semantic' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering) {
@@ -5228,23 +5249,47 @@ function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onR
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
   });
   syncTaskUI();
-  pumpScanQueue();
+  if (isSemanticLaneTask({ kind })) pumpSemanticQueue();
+  else pumpScanQueue();
   return true;
 }
 
-// Exécute les tâches une par une, dans l'ordre de la file.
+// Exécute les tâches une par une, dans l'ordre de la file. L'analyse du contenu (famille « semantic ») n'en fait pas partie : elle dure des heures et
+// bloquerait toutes les autres tâches, elle a donc sa propre file (pumpSemanticQueue), en parallèle.
 async function pumpScanQueue() {
   if (scanPumpActive) return;
   scanPumpActive = true;
+  const nextWaiting = () => scanTasks.find(item => item.status === 'waiting' && !isSemanticLaneTask(item));
   try {
-    for (let task = scanTasks.find(item => item.status === 'waiting'); task; task = scanTasks.find(item => item.status === 'waiting')) {
+    for (let task = nextWaiting(); task; task = nextWaiting()) {
       await runScanTask(task);
     }
   } finally {
     scanPumpActive = false;
   }
   // File vide : synchronisation demandée pendant qu'elle travaillait (fichiers créés par l'application, voir syncLibrary).
-  if (syncAfterTasks && activeTaskCount() === 0) runRequestedSync();
+  if (syncAfterTasks && foregroundTaskCount() === 0) runRequestedSync();
+}
+
+// File de l'analyse du contenu : une seule analyse à la fois (le backend en refuse une seconde, « semantic_scan_running »), les suivantes attendent.
+// Elle tourne en parallèle de la file principale ; le backend lui-même se met en pause pendant que les autres tâches travaillent.
+let semanticPumpActive = false;
+async function pumpSemanticQueue() {
+  if (semanticPumpActive) return;
+  semanticPumpActive = true;
+  try {
+    for (let task = scanTasks.find(item => item.status === 'waiting' && isSemanticLaneTask(item)); task;
+      task = scanTasks.find(item => item.status === 'waiting' && isSemanticLaneTask(item))) {
+      await runScanTask(task);
+    }
+  } finally {
+    semanticPumpActive = false;
+  }
+}
+
+// Arrête les analyses du contenu : celles en attente quittent la file, celle en cours est interrompue (désactivation de la fonction).
+function stopSemanticTasks() {
+  for (const task of scanTasks.filter(isSemanticLaneTask)) removeOrStopTask(task);
 }
 
 async function runScanTask(task) {
@@ -7018,6 +7063,9 @@ initPhotoActions({
   faceDetectionEnabled: isFaceDetectionEnabled,
   openFaceScan: scope => openFaceScanDialog(scope),
   eraseFaces: photoIds => eraseFaceData(photoIds),
+  // Entrées « Analyser le contenu » (voir semantic-settings.js) : seulement quand la recherche par contenu est active et son modèle installé.
+  semanticEnabled: isSemanticEnabled,
+  analyseContent: scope => analyseContent(scope),
   // Géolocalisation : effacer (danger) ou restaurer les coordonnées sauvegardées (voir geo-tools.js).
   eraseGeolocation: targets => eraseGeolocation(targets),
   restoreGeolocation: targets => restoreGeolocation(targets),
@@ -7248,6 +7296,7 @@ initFacesPanel({
 initSemanticSettings({
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
+  stopTasks: () => stopSemanticTasks(), // disabling the feature: the analyses of the queue are stopped
 });
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
@@ -7338,7 +7387,7 @@ let librarySyncRunning = false;
 let librarySyncNotBefore = 0;
 
 async function syncLibraryWithDisk() {
-  if (librarySyncRunning || activeTaskCount() > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
+  if (librarySyncRunning || foregroundTaskCount() > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
   librarySyncRunning = true;
   const startedAt = Date.now();
   try {
@@ -7350,7 +7399,7 @@ async function syncLibraryWithDisk() {
     librarySyncNotBefore = Date.now() + Math.max(LIBRARY_SYNC_MIN_INTERVAL_MS, (Date.now() - startedAt) * 10);
     librarySyncRunning = false;
   }
-  if (syncAfterTasks && activeTaskCount() === 0 && !photoMoveRunning) runRequestedSync();
+  if (syncAfterTasks && foregroundTaskCount() === 0 && !photoMoveRunning) runRequestedSync();
 }
 
 // Synchronisation demandée par l'application elle-même (fichiers qu'elle vient de créer) : sans délai minimal, et jamais perdue : si une tâche
@@ -7358,7 +7407,7 @@ async function syncLibraryWithDisk() {
 let syncAfterTasks = false;
 function requestLibrarySync() {
   syncAfterTasks = true;
-  if (!librarySyncRunning && activeTaskCount() === 0 && !photoMoveRunning) return runRequestedSync();
+  if (!librarySyncRunning && foregroundTaskCount() === 0 && !photoMoveRunning) return runRequestedSync();
   return Promise.resolve();
 }
 function runRequestedSync() {

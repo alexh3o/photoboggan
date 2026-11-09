@@ -1525,5 +1525,19 @@
   "{analysed} of {count} photo analysed|other": "{analysed} of {count} photos analysed",
   "{count} could not be read": "{count} could not be read",
   "{count} could not be read|other": "{count} could not be read",
-  "Space used by the analysis data: {size}": "Space used by the analysis data: {size}"
+  "Space used by the analysis data: {size}": "Space used by the analysis data: {size}",
+  "A content analysis of this is already in progress or waiting: {name}": "A content analysis of this is already in progress or waiting: {name}",
+  "Paused (other task running)": "Paused (other task running)",
+  "Content analysis: {folder}": "Content analysis: {folder}",
+  "Content analysis ({count} photos)": "Content analysis ({count} photos)",
+  "Content analysis: whole library": "Content analysis: whole library",
+  "Content analysis failed: {error}": "Content analysis failed: {error}",
+  "{count} photo analysed": "{count} photo analysed",
+  "{count} photo analysed|other": "{count} photos analysed",
+  "{count} already up to date": "{count} already up to date",
+  "{count} skipped (no thumbnail yet)": "{count} skipped (no thumbnail yet)",
+  "Analyse content": "Analyse content",
+  "Compute the content analysis of these photos (low priority, in the background)": "Compute the content analysis of these photos (low priority, in the background)",
+  "This folder only": "This folder only",
+  "With its subfolders": "With its subfolders"
 }

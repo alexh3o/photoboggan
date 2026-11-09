@@ -1731,6 +1731,10 @@ function openThumbnailMenu(event, index, source = 'grid') {
   if (hasResizablePhotos && api.faceDetectionEnabled?.()) {
     menuItems.push(buildFacesItem({ photoIds: targets.filter(target => !isVideoPath(target.path)).map(target => target.id) }, { source }));
   }
+  // Content search: analyse the selection (entry absent while the feature is off or its model is not installed).
+  if (api.semanticEnabled?.()) {
+    menuItems.push(menuButton(t('Analyse content'), () => api.analyseContent({ photoIds: targets.map(target => target.id) }), { title: t('Compute the content analysis of these photos (low priority, in the background)') }));
+  }
   // Géolocalisation (geo-tools.js) : restaurer les coordonnées sauvegardées, effacer celles des photos géolocalisées (danger).
   const withCount = (label, list) => (targets.length > 1 ? `${label} (${list.length})` : label);
   const erased = targets.filter(target => api.hasErasedLocation?.(target));
@@ -1838,6 +1842,13 @@ function openFolderMenu(event, folderItem) {
   );
   if (api.findDuplicates) menu.append(buildDuplicatesItem({ scope: { kind: 'folder', path, recursive: true }, label: baseName(path), compareWithLibrary: true }));
   if (api.faceDetectionEnabled?.()) menu.append(buildFacesItem({ folder: path }));
+  // Content search: analysis of this folder, with or without its subfolders (entry absent while the feature is off).
+  if (api.semanticEnabled?.()) {
+    menu.append(buildSubmenuItem(t('Analyse content'), [
+      { label: t('This folder only'), onSelect: () => api.analyseContent({ folder: path, recursive: false }) },
+      { label: t('With its subfolders'), onSelect: () => api.analyseContent({ folder: path, recursive: true }) },
+    ]));
+  }
   menu.append(
     menuSeparator(),
     menuButton(t('Delete folder…'), () => confirmAndDeleteFolder(path), {

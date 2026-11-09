@@ -1525,5 +1525,19 @@
   "{analysed} of {count} photo analysed|other": "{analysed} sur {count} photos analysées",
   "{count} could not be read": "{count} illisible",
   "{count} could not be read|other": "{count} illisibles",
-  "Space used by the analysis data: {size}": "Espace utilisé par les données d'analyse : {size}"
+  "Space used by the analysis data: {size}": "Espace utilisé par les données d'analyse : {size}",
+  "A content analysis of this is already in progress or waiting: {name}": "Une analyse du contenu de ceci est déjà en cours ou en attente : {name}",
+  "Paused (other task running)": "En pause (autre tâche en cours)",
+  "Content analysis: {folder}": "Analyse du contenu : {folder}",
+  "Content analysis ({count} photos)": "Analyse du contenu ({count} photos)",
+  "Content analysis: whole library": "Analyse du contenu : toute la photothèque",
+  "Content analysis failed: {error}": "Échec de l'analyse du contenu : {error}",
+  "{count} photo analysed": "{count} photo analysée",
+  "{count} photo analysed|other": "{count} photos analysées",
+  "{count} already up to date": "{count} déjà à jour",
+  "{count} skipped (no thumbnail yet)": "{count} ignorée(s) (pas encore de miniature)",
+  "Analyse content": "Analyser le contenu",
+  "Compute the content analysis of these photos (low priority, in the background)": "Calcule l'analyse du contenu de ces photos (basse priorité, en arrière-plan)",
+  "This folder only": "Ce dossier seulement",
+  "With its subfolders": "Avec ses sous-dossiers"
 }

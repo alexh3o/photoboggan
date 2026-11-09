@@ -313,6 +313,46 @@ function bindCheckbox(id, key) {
   });
 }
 
+// ==========================================
+// ANALYSIS LAUNCH
+// ==========================================
+// `scope`: { folder, recursive } (a folder, with or without its subfolders), { photoIds } (a selection) or {} (the whole library).
+// The task is of kind "semantic": main.js runs it in its own lane, in parallel with the main queue, and relays the backend progress
+// (done, total, remainingSeconds, paused) to its toast. Never refused as a duplicate unless the same scope is already queued.
+export function analyseContent({ folder = null, recursive = false, photoIds = null } = {}) {
+  if (!isSemanticEnabled()) return false;
+  const baseName = folder ? folder.split(/[\\/]/).filter(Boolean).pop() || folder : '';
+  const scopeKey = folder ? `folder:${folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()}:${recursive}` : photoIds ? null : 'library';
+  return host.enqueueTask({
+    kind: 'semantic',
+    path: folder,
+    command: 'semantic_scan',
+    args: { folder, recursive, photoIds, threads: semanticScanThreads() },
+    labelKey: folder ? 'Content analysis: {folder}' : photoIds ? 'Content analysis ({count} photos)' : 'Content analysis: whole library',
+    labelParams: folder ? { folder: baseName } : photoIds ? { count: photoIds.length } : undefined,
+    dedupeKey: scopeKey ? `semantic:${scopeKey}` : undefined,
+    onResult: (report, stopped, error) => reportAnalysis(report, stopped, error),
+  });
+}
+
+// End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
+async function reportAnalysis(report, stopped, error) {
+  if (error) {
+    host.showToast(t('Content analysis failed: {error}', { error: semanticErrorMessage(error) }));
+    return;
+  }
+  if (!report || report.cancelled || stopped) return; // the queue announces the stop
+  const parts = [tp('{count} photo analysed', report.analysed)];
+  if (report.upToDate > 0) parts.push(t('{count} already up to date', { count: report.upToDate }));
+  if (report.skipped > 0) parts.push(t('{count} skipped (no thumbnail yet)', { count: report.skipped }));
+  if (report.failed.length > 0) {
+    parts.push(tp('{count} unreadable photo', report.failed.length));
+    console.warn('Photos not analysed', report.failed);
+  }
+  host.showToast(parts.join(' · '));
+  refreshStats();
+}
+
 /** Scan speed (ONNX Runtime threads): 1, 2 or 4. */
 export function semanticScanThreads() {
   return Number(readChoice('semanticScanThreads', ['1', '2', '4']));
@@ -339,6 +379,7 @@ export async function initSemanticSettings(hostApi) {
   });
   byId('btn-semantic-model-download').addEventListener('click', downloadModel);
   byId('btn-semantic-model-import').addEventListener('click', importModel);
+  byId('btn-semantic-scan-all').addEventListener('click', () => analyseContent());
   byId('btn-semantic-delete-data').addEventListener('click', deleteAnalysisData);
   byId('btn-semantic-delete-model').addEventListener('click', deleteModelFiles);
   document.querySelector('.settings-tab-btn[data-tab="semantic"]').addEventListener('click', () => {
