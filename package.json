@@ -8,7 +8,9 @@
     "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
     "prepare-semantic-models": "node scripts/prepare-semantic-models.mjs",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json"
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "docs:gen": "node scripts/gen-docs.mjs",
+    "docs:stale": "node scripts/gen-docs.mjs --stale"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.3",

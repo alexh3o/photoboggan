@@ -400,16 +400,9 @@ fn decode_thumbnail_base64(encoded: &str) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-// Commandes du cache de miniatures en `async` : elles s'exécutent hors du thread principal de Tauri
-// (sinon chaque accès disque bloque la boucle d'événements de la fenêtre).
-#[tauri::command(async)]
-fn get_cached_thumbnail_path(state: State<'_, AppState>, source_path: String) -> Result<Option<String>, String> {
-    let path = thumbnail_cache_file(&state.thumbnails_dir(), &source_path)?;
-    Ok(path.is_file().then(|| path.to_string_lossy().into_owned()))
-}
-
-// Version par lots : un seul aller-retour IPC pour plusieurs miniatures.
-// Le résultat suit l'ordre de `source_paths` (None = pas de miniature en cache).
+// Cached thumbnail lookup, batched: one IPC round trip for many thumbnails. `async` so the disk
+// accesses run off Tauri's main thread (otherwise they block the window's event loop).
+// The result follows the order of `source_paths` (None = no cached thumbnail).
 #[tauri::command(async)]
 fn get_cached_thumbnail_paths(state: State<'_, AppState>, source_paths: Vec<String>) -> Vec<Option<String>> {
     let dir = state.thumbnails_dir();
@@ -2728,7 +2721,6 @@ fn main() {
             get_photos_by_paths,
             get_photos_by_ids,
             count_photos,
-            get_cached_thumbnail_path,
             get_cached_thumbnail_paths,
             generate_thumbnail,
             get_raw_preview_path,
@@ -2768,7 +2760,6 @@ fn main() {
             write_clipboard_text,
             resize_photo,
             keywords::get_keyword_tree,
-            keywords::get_keyword_counts,
             keywords::get_photo_keyword_ids,
             keywords::get_keyword_usage,
             keywords::apply_metadata_changes,

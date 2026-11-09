@@ -29,13 +29,6 @@ pub struct KeywordNode {
     pub name: String,
 }
 
-/// Nombre de photos de la sélection qui portent un mot-clé (seuls les mots-clés portés par au moins une photo sont listés).
-#[derive(Serialize)]
-pub struct KeywordCount {
-    pub keyword_id: i64,
-    pub count: i64,
-}
-
 /// Crée les tables à l'ouverture de la base (sans toucher aux données existantes). Appelée par `db::init_db`, après la création de `photos`.
 /// Une erreur est renvoyée à l'appelant : sans ces tables, aucune commande de mots-clés ne peut fonctionner.
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
@@ -134,27 +127,6 @@ pub fn get_keyword_tree(state: State<'_, AppState>) -> Result<Vec<KeywordNode>, 
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| Ok(KeywordNode { id: row.get(0)?, parent_id: row.get(1)?, name: row.get(2)? }))
-        .map_err(|error| error.to_string())?;
-    collect_rows(rows)
-}
-
-/// Pour une sélection de photos : combien de photos portent chaque mot-clé.
-#[tauri::command(async)]
-pub fn get_keyword_counts(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Result<Vec<KeywordCount>, String> {
-    if photo_ids.is_empty() { return Ok(Vec::new()); }
-    let pool = state.pool();
-    let conn = pool.get().map_err(|error| error.to_string())?;
-    // Liste des identifiants passée en JSON : une seule requête, quel que soit le nombre de photos sélectionnées.
-    let ids_json = serde_json::to_string(&photo_ids).map_err(|error| error.to_string())?;
-    let mut statement = conn
-        .prepare(
-            "SELECT keyword_id, COUNT(*) FROM photo_keywords
-             WHERE photo_id IN (SELECT value FROM json_each(?1))
-             GROUP BY keyword_id",
-        )
-        .map_err(|error| error.to_string())?;
-    let rows = statement
-        .query_map(params![ids_json], |row| Ok(KeywordCount { keyword_id: row.get(0)?, count: row.get(1)? }))
         .map_err(|error| error.to_string())?;
     collect_rows(rows)
 }
