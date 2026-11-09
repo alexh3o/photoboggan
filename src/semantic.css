@@ -3,7 +3,13 @@ body.no-semantic .semantic-only { display: none !important; }
 
 /* Settings > Content search */
 .semantic-settings[hidden], #btn-semantic-model-download[hidden], #btn-semantic-model-import[hidden] { display: none !important; }
-.semantic-settings h4 { margin-top: 0.75rem; }
+
+/* Settings > Search: two blocks of the same level (RAW search, content search), each in its own frame with a prominent title.
+   The sub-sections of the content search (Model, Analysis…) are one level lower: plain bold titles, no rule, no capitals. */
+#settings-tab-semantic > .settings-section { padding: 0.9rem 1rem 1rem; border: 1px solid var(--border); border-radius: 0.5rem; }
+#settings-tab-semantic > .settings-section > h4 { margin-bottom: 0.8rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: var(--text-strong); }
+#settings-tab-semantic .semantic-settings h4 { margin: 1.1rem 0 0.4rem; padding: 0; border: 0; font-size: 0.8rem; text-transform: none; letter-spacing: 0; color: var(--text-strong); }
+#settings-tab-semantic .semantic-settings h4:first-child { margin-top: 0.8rem; }
 .semantic-model-offline { margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted); }
 .semantic-model-offline summary { cursor: pointer; }
 .semantic-model-files { list-style: none; margin-top: 0.4rem; }

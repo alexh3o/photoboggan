@@ -1496,6 +1496,7 @@
   "Content search model offline help": "Download these files on another computer, put them in one folder, then choose that folder with \"Install from a folder…\". Each file is checked by its SHA-256 sum.",
   "Analysis": "Analysis",
   "Search tab": "Search",
+  "RAW search": "RAW search",
   "Content analysis": "Content analysis",
   "Analysed": "Analysed",
   "Not analysed": "Not analysed",

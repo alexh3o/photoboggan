@@ -794,7 +794,7 @@ body.immersive .titlebar { display: none; }
 .modal-header-actions { display: flex; align-items: center; gap: 4px; }
 .modal-header-actions .close-x { display: inline-flex; align-items: center; padding: 4px 8px; }
 /* Taille de la fenêtre */
-#settings-modal .modal-card { width: min(70vw, 60rem); min-width: min(35rem, calc(100vw - 2.5rem)); height: min(44rem, 80vh); display: flex; flex-direction: column; }
+#settings-modal .modal-card { width: min(90vw, 60rem); min-width: min(35rem, calc(100vw - 2.5rem)); height: min(44rem, 80vh); display: flex; flex-direction: column; }
 #settings-modal .modal-body {  flex: 1 1 auto;  min-height: 0;  max-height: none;  overflow-y: auto; }
 /* Choix de dossier de l'application */
 .settings-path-label { display: block; padding: 8px 10px; margin-bottom: 8px; background: var(--row-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.75rem; color: var(--text-strong); word-break: break-all;  user-select: text; }
@@ -810,8 +810,8 @@ body.immersive .titlebar { display: none; }
 .btn-secondary:hover { background: var(--control-hover); }
 /* Barre d'onglets */
 /* Onglets de la modale des paramètres */
-.settings-tabs { display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 0 1rem; gap: 0.5rem; }
-.settings-tab-btn { padding: 0.5rem 0.875rem; background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.settings-tabs { display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border); padding: 0 1rem; gap: 0.25rem; }
+.settings-tab-btn { padding: 0.5rem 0.6rem; background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
 .settings-tab-btn:hover { background: transparent; color: var(--text-strong); }
 .settings-tab-btn.active { background: transparent; color: var(--text-strong); border-bottom-color: var(--active-button); }
 .settings-tab-pane { display: block; }

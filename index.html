@@ -804,7 +804,7 @@
           <div id="settings-tab-semantic" class="settings-tab-pane" role="tabpanel" hidden>
             <!-- Recherche du RAW d'une image raster (« Trouver le RAW ») : raw-settings.js -->
             <section class="settings-section">
-              <h4>RAW</h4>
+              <h4 data-i18n="RAW search">Recherche des RAW</h4>
               <p class="sort-note" data-i18n="Find RAW help">Cochez tous les critères qui doivent correspondre pour retrouver le RAW d'une image</p>
               <label class="settings-row settings-check"><input id="raw-match-name" type="checkbox" /><span data-i18n="Same file name (without extension)">Nom de fichier (sans extension)</span></label>
               <!-- Motif du nom : libellé et champ sur la même ligne, puis un champ de test dont le résultat s'affiche dessous -->
@@ -847,9 +847,6 @@
                 </details>
                 <h4 data-i18n="Analysis">Analyse</h4>
                 <p id="semantic-analysis-status" class="sort-note"></p>
-                <div class="settings-storage-actions">
-                  <button id="btn-semantic-scan-all" class="btn-highlight" type="button" data-i18n="Analyse the whole library">Analyser toute la photothèque</button>
-                </div>
                 <label class="settings-row settings-check"><input id="semantic-scan-raw" type="checkbox" /><span data-i18n="Analyse RAW files (embedded preview)">Analyser les RAW (aperçu intégré)</span></label>
                 <label class="settings-row settings-check" title="Les miniatures manquantes sont créées pendant l'analyse, comme dans la grille : chaque photo n'est décodée qu'une fois, et la grille les affiche ensuite sans attendre. Elles occupent de la place dans le cache des miniatures." data-i18n-title="Generate thumbnails during the analysis hint"><input id="semantic-write-thumbnails" type="checkbox" /><span data-i18n="Generate thumbnails during the analysis">Générer les miniatures pendant l'analyse</span></label>
                 <label class="settings-row" for="semantic-threads" title="Nombre de threads utilisés par l'analyse. Plus il est élevé, plus l'analyse est rapide, mais plus elle consomme de processeur. L'analyse cède toujours la place aux autres tâches." data-i18n-title="Content analysis speed hint"><span data-i18n="Analysis speed">Vitesse d'analyse</span>
@@ -858,6 +855,10 @@
                     <option value="2" data-i18n="Normal">Normale</option>
                     <option value="4" data-i18n="High">Haute</option>
                   </select></label>
+                <!-- Launch button last: it uses the two options above (RAW files, speed) -->
+                <div class="settings-storage-actions">
+                  <button id="btn-semantic-scan-all" class="btn-highlight" type="button" data-i18n="Analyse the whole library">Analyser toute la photothèque</button>
+                </div>
                 <h4 data-i18n="Search">Recherche</h4>
                 <label class="settings-row settings-check"><input id="semantic-in-keyword-search" type="checkbox" /><span data-i18n="Include suggestions in keyword filtering">Inclure des suggestions dans le filtrage par mots-clés</span></label>
                 <label class="settings-row settings-check"><input id="semantic-keywords-in-search" type="checkbox" /><span data-i18n="Include keywords in content search">Inclure les mots-clés dans la recherche sémantique</span></label>

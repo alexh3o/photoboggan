@@ -1496,6 +1496,7 @@
   "Content search model offline help": "Téléchargez ces fichiers sur un autre ordinateur, placez-les dans un même dossier, puis choisissez ce dossier avec « Installer depuis un dossier… ». Chaque fichier est vérifié par sa somme SHA-256.",
   "Analysis": "Analyse",
   "Search tab": "Recherche",
+  "RAW search": "Recherche des RAW",
   "Content analysis": "Analyse du contenu",
   "Analysed": "Analysées",
   "Not analysed": "Non analysées",
