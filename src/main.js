@@ -7385,7 +7385,7 @@ function renderSemanticBanner() {
   const pendingRow = document.getElementById('semantic-pending-row');
   pendingRow.hidden = !(search.pending > 0);
   if (search.pending > 0) {
-    const where = t(search.scopeKind === 'library' ? 'the library' : 'the current view');
+    const where = t(search.scopeKind === 'folder' ? 'this folder' : search.scopeKind === 'library' ? 'the library' : 'the current view');
     document.getElementById('semantic-pending-text').textContent = tp('{count} photo of {where} is not analysed yet, or changed since its analysis', search.pending, { count: search.pending.toLocaleString(), where });
   }
 }
@@ -7439,10 +7439,11 @@ async function showSemanticResults({ label, answer, scope, viewScope, sourcePhot
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   resetAllFilters();
-  currentFolderFilter = null; extraFolderFilters = [];
+  // A search over a folder keeps it highlighted in the tree (the list itself no longer depends on it); other scopes show "All photos".
+  currentFolderFilter = scope.folder ?? null; extraFolderFilters = [];
   const sourceId = sourcePhoto?.id ?? null;
   const search = {
-    label, snapshot, scope, viewScope, sourceId, scopeKind: semanticScope() === 'library' ? 'library' : 'view',
+    label, snapshot, scope, viewScope, sourceId, scopeKind: scope.folder ? 'folder' : semanticScope() === 'library' ? 'library' : 'view',
     best: answer.best, capped: answer.capped, pending: answer.pending, total: answer.total,
     lastCos: answer.results.length ? answer.results[answer.results.length - 1].cos : Infinity,
     ids: answer.results.map(result => result.photoId), cos: new Map(), prob: new Map(), rank: new Map(),
