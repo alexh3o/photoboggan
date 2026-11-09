@@ -24,10 +24,10 @@ Changes from the draft, and why:
 - `main.rs` is listed in four docs (app-shell, library-and-database, thumbnails-and-previews, photo-operations) and `main.js` in four (main-window, grid-and-viewer, duplicates, semantic) because each holds a region of them; `code-map.md` lists the regions. A change to those files flags all four docs in `docs:stale`: check only the region of each.
 - Kept as is: library-and-database, thumbnails-and-previews, metadata-read-write (dense but one subject; if it exceeds 150 lines, split "reading" and "writing"), keywords, semantic (may split search / suggestions if too long), duplicates, albums, filters-and-search, photo-operations, updates, app-shell.
 
-Findings for later phases (do not fix in phase 3 docs, report them):
-- `AGENTS.md` §5.D names a `set_keyword_format_order` command; the code uses `set_metadata_read_order` (kind `keywords`). Fix in phase 6.
-- `AGENTS.md` §5.D lists HEIC among sidecar formats; both writers first write XMP inside the HEIC container (`heif::update_xmp`, ExifTool `Target::Heif`), sidecar only as internal fallback.
-- `AGENTS.md` §1 says every network access starts in the backend; map tiles are fetched by the webview (`map-tile-protocol.js`), gated by `isMapNetworkAllowed()`.
+Findings of phase 2, already fixed in `AGENTS.md` (§1 and §5.D):
+- the keyword format order is sent with `set_metadata_read_order` (kind `keywords`), not `set_keyword_format_order` (which does not exist);
+- HEIC / HEIF metadata is written inside the container (`heif::update_xmp`, ExifTool `Target::Heif`), sidecar only as internal fallback;
+- map tiles are the one network access made by the webview (`map-tile-protocol.js`, gated by `isMapNetworkAllowed()`).
 
 ## Document status
 
@@ -61,7 +61,33 @@ Findings for later phases (do not fix in phase 3 docs, report them):
 | `troubleshooting.md` | 3 | skeleton |
 | `glossary.md` | 3 | skeleton |
 
-Suggested order: metadata-read-write, keywords, library-and-database, thumbnails-and-previews, main-window, grid-and-viewer, then the rest; glossary and troubleshooting last.
+## Phase 3 in three parallel sessions
+
+The 23 phase 3 docs are grouped in three sessions that can run **at the same time in this checkout**: they write disjoint files. Balanced by source volume (about 13k, 13k and 16k lines of source; B reads `main.js` by sections, A and B read regions of `main.rs`) and grouped by subject so that one session reuses what it has already read.
+
+| Session | Docs, in this order | Theme |
+|---|---|---|
+| A | metadata-read-write, keywords, library-and-database, thumbnails-and-previews, photo-operations, updates, testing, build-release | Backend core: files, metadata, catalogue, caches |
+| B | app-shell, main-window, grid-and-viewer, filters-and-search, albums, configuration, style | Frontend shell and main window (`main.js`, `index.html`, CSS) |
+| C | faces, face-detection, semantic, duplicates, maps-and-geolocation, private-zones, troubleshooting, glossary | Optional features and the two cross-reading docs (last) |
+
+Rules for parallel runs (already in each prompt): do not edit `_PROGRESS.md` and do not run `npm run docs:gen` (shared files); commit only your own docs with `git commit -m "…" -- <paths>`; if git reports `index.lock`, wait a few seconds and retry. Once the three sessions are done, one short step sets the 23 statuses to `written` here, runs `npm run docs:gen` and `npm run docs:stale`, and commits.
+
+**Session A (Sonnet)**
+
+> You are writing part of the developer documentation of photoboggan, in parallel with two other sessions working in the same checkout. Read `docs/development/_TEMPLATE.md`, `docs/development/architecture.md`, `docs/development/code-map.md` and `docs/development/invariants.md` once. Then write these docs, one after the other, each by following its own prompt in `docs/development/_PROGRESS.md` (section "Session prompts"): `modules/metadata-read-write.md`, `modules/keywords.md`, `modules/library-and-database.md`, `modules/thumbnails-and-previews.md`, `modules/photo-operations.md`, `modules/updates.md`, then `testing.md` and `build-release.md` (shared prompt "other docs"). Overrides for parallel work: do NOT edit `_PROGRESS.md` (skip the "set its row" step), do NOT run `npm run docs:gen`, and after stamping each doc commit only that doc with `git commit -m "docs(dev): write <doc>" -- <doc path>` (retry after a few seconds if git reports `index.lock`). Never touch files outside your list; if you find something to change elsewhere (AGENTS.md, another doc, code), list it in your final message instead. End with a summary: docs written, `⚠ unverified` items left, size of each doc.
+
+**Session B (Sonnet)**
+
+> You are writing part of the developer documentation of photoboggan, in parallel with two other sessions working in the same checkout. Read `docs/development/_TEMPLATE.md`, `docs/development/architecture.md`, `docs/development/code-map.md` (especially "Inside the large files": `main.js` is ~8400 lines, never read it whole) once. Then write these docs, one after the other, each by following its own prompt in `docs/development/_PROGRESS.md` (section "Session prompts"): `modules/app-shell.md`, `modules/main-window.md`, `modules/grid-and-viewer.md`, `modules/filters-and-search.md`, `modules/albums.md`, then `configuration.md` and `style.md` (shared prompt "other docs"). Overrides for parallel work: do NOT edit `_PROGRESS.md` (skip the "set its row" step), do NOT run `npm run docs:gen`, and after stamping each doc commit only that doc with `git commit -m "docs(dev): write <doc>" -- <doc path>` (retry after a few seconds if git reports `index.lock`). Never touch files outside your list; if you find something to change elsewhere (AGENTS.md, another doc, code), list it in your final message instead. End with a summary: docs written, `⚠ unverified` items left, size of each doc.
+
+**Session C (Sonnet)**
+
+> You are writing part of the developer documentation of photoboggan, in parallel with two other sessions working in the same checkout. Read `docs/development/_TEMPLATE.md`, `docs/development/architecture.md`, `docs/development/code-map.md` once. Then write these docs, one after the other, each by following its own prompt in `docs/development/_PROGRESS.md` (section "Session prompts"): `modules/faces.md`, `modules/face-detection.md`, `modules/semantic.md`, `modules/duplicates.md`, `modules/maps-and-geolocation.md`, `modules/private-zones.md`, then `troubleshooting.md` and `glossary.md` (shared prompt "other docs"). Write these two last: use the docs already written by all sessions (`git log --oneline -- docs/development` shows them) and `AGENTS.md`; for areas still missing, read the code and mark the entries `⚠ unverified` so phase 4 completes them. Overrides for parallel work: do NOT edit `_PROGRESS.md` (skip the "set its row" step), do NOT run `npm run docs:gen`, and after stamping each doc commit only that doc with `git commit -m "docs(dev): write <doc>" -- <doc path>` (retry after a few seconds if git reports `index.lock`). Never touch files outside your list; if you find something to change elsewhere (AGENTS.md, another doc, code), list it in your final message instead. End with a summary: docs written, `⚠ unverified` items left, size of each doc.
+
+**After the three sessions (any model, a few minutes)**
+
+> In `docs/development/_PROGRESS.md`, set to `written` the row of every doc whose first line has a `verified:` hash other than `none`. Run `npm run docs:gen` and `npm run docs:stale` (report any stale doc or uncovered source file). Collect the "to change elsewhere" lists from the three session reports if I paste them, add them to the phase 4 section. Commit.
 
 ## Session prompts (copy, paste as is)
 
@@ -143,7 +169,7 @@ Every module prompt below starts with the same instructions; only the last sente
 
 ### Phase 4 (Opus, one session)
 
-> Review every `written` doc in `docs/development/`: contradictions between docs, claims that do not match the code (check at least 5 per doc against the source), missing sensitive areas, links to generated tables that do not exist, files over the size limit, and the "Findings for later phases" list in `_PROGRESS.md`. Fix them, mark docs `reviewed`, list what remains uncertain.
+> Review every `written` doc in `docs/development/`: contradictions between docs, claims that do not match the code (check at least 5 per doc against the source), missing sensitive areas, links to generated tables that do not exist, files over the size limit, and the "to change elsewhere" items reported by the phase 3 sessions (added below by the final step). Fix them, mark docs `reviewed`, list what remains uncertain.
 
 ### Phase 5 (free-tier model)
 
