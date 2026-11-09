@@ -86,6 +86,12 @@ fn is_installed(dir: &Path, file: &ModelFile) -> bool {
     model_files::is_installed(dir, &file.expected())
 }
 
+/// ONNX Runtime library of this platform: (base address of the release, expected file). Shared with the semantic search
+/// (semantic_models.rs), which installs it in the same `models/` folder when faces never did. None: no library published for this system.
+pub(crate) fn runtime_file() -> Option<(&'static str, Expected<'static>)> {
+    platform_files().into_iter().find(|file| file.role == "runtime").map(|file| (manifest().base_url.as_str(), file.expected()))
+}
+
 /// Chemins des fichiers installés, utilisés par face_detect.rs.
 pub struct ModelPaths {
     pub runtime: PathBuf,

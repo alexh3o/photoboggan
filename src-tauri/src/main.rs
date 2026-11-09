@@ -9,6 +9,7 @@ mod face_detect;
 mod face_models;
 mod model_files;
 mod onnx_runtime;
+mod semantic_models;
 mod phash;
 mod place_search;
 mod similar;
@@ -2626,6 +2627,11 @@ fn main() {
             face_models::download_face_models,
             face_models::import_face_models,
             face_models::set_internet_allowed,
+            semantic_models::set_semantic_enabled,
+            semantic_models::get_semantic_model_status,
+            semantic_models::download_semantic_model,
+            semantic_models::import_semantic_model,
+            semantic_models::delete_semantic_model,
             albums::get_album_tree,
             albums::create_album_node,
             albums::rename_album_node,

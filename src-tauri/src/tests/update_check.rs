@@ -21,6 +21,7 @@ fn versions_are_parsed_from_tags_and_package_versions() {
     assert_eq!(parse_version("0.6.2-beta"), Some(Version { numbers: (0, 6, 2), pre: Some("beta".to_string()) }));
     assert_eq!(parse_version("1.2.3-rc.1+build5"), Some(Version { numbers: (1, 2, 3), pre: Some("rc.1".to_string()) }));
     assert_eq!(parse_version("face-models-1"), None);
+    assert_eq!(parse_version("semantic-models-1"), None);
     assert_eq!(parse_version("v1.2"), None);
     assert_eq!(parse_version("v1.2.3.4"), None);
 }
