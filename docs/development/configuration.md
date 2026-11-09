@@ -1,4 +1,4 @@
-<!-- verified: a9ca28f | sources: src/defaults.jsonc, src/settings-defaults.js, src/i18n.js, src-tauri/src/main.rs, src-tauri/src/face_detect.rs, src-tauri/tauri.conf.json, src-tauri/tauri.dev.conf.json -->
+<!-- verified: 36a5686 | sources: src/defaults.jsonc, src/settings-defaults.js, src/i18n.js, src-tauri/src/main.rs, src-tauri/src/face_detect.rs, src-tauri/tauri.conf.json, src-tauri/tauri.dev.conf.json -->
 # Configuration
 
 Where each kind of setting or data lives, how a setting is read and defaulted, and how backend settings get their value. The key/default table is generated: `generated/config.md` (never copy it). Step-by-step for adding a setting: `recipes.md` §2. Application shell code (config file, storage move): `modules/app-shell.md`.
