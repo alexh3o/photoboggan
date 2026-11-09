@@ -6,14 +6,13 @@
 //! (ONNX Runtime library: ORT_DYLIB_PATH, otherwise the `models/` folder of an installed application). The speed measure on 100,000
 //! vectors is ignored too: `cargo test --release semantic_search::tests::speed -- --ignored --nocapture`.
 
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use rusqlite::{params, Connection};
 
 use super::*;
 use crate::semantic::{select_targets, stats, store_batch, vector_to_blob};
-use crate::test_support::{insert_photo, temp_catalog};
+use crate::test_support::{insert_photo, onnx_runtime_library, semantic_model_dir, temp_catalog};
 
 const DIM: usize = 4;
 
@@ -140,6 +139,18 @@ fn probability_follows_the_model_constants() {
     assert!((probability(0.10, model) - 0.0040).abs() < 2e-4, "{}", probability(0.10, model));
     assert!((probability(0.14, model) - 0.27).abs() < 0.01, "{}", probability(0.14, model));
     assert!(probability(0.14, model) > probability(0.10, model));
+}
+
+#[test]
+fn queries_with_nothing_to_search_for_are_refused() {
+    let model = active_model();
+    for query in ["", "   ", "?!", " ... ", "« … »", "-_-"] {
+        assert_eq!(prepare_query(query, model).unwrap_err(), EMPTY_QUERY_ERROR, "{query:?}");
+    }
+    assert_eq!(prepare_query("  Plage  ", model).unwrap(), "this is a photo of plage.");
+    assert_eq!(prepare_query("🎂", model).unwrap(), "this is a photo of 🎂.");
+    assert_eq!(prepare_query("été", model).unwrap(), "this is a photo of été.");
+    assert_eq!(prepare_query("people eating at a table", model).unwrap(), "people eating at a table");
 }
 
 // ---------------------------------------------------------------------------
@@ -479,9 +490,63 @@ fn speed_of_a_search_on_100000_photos() {
 // Parity with the reference model (needs the model files)
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
-fn model_dir() -> PathBuf {
-    let dir = PathBuf::from(std::env::var("SEMANTIC_MODEL_DIR").expect("set SEMANTIC_MODEL_DIR to a folder with text.onnx, tokenizer.json"));
-    assert!(dir.join("tokenizer.json").is_file(), "{} has no tokenizer.json", dir.display());
-    dir
+fn reference() -> serde_json::Value {
+    serde_json::from_str(include_str!("fixtures/semantic_reference.json")).expect("semantic_reference.json")
+}
+
+fn floats(value: &serde_json::Value) -> Vec<f32> {
+    value.as_array().expect("array").iter().map(|item| item.as_f64().expect("number") as f32).collect()
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f64 {
+    let dot: f64 = a.iter().zip(b).map(|(x, y)| *x as f64 * *y as f64).sum();
+    let norm = |v: &[f32]| v.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+    dot / (norm(a) * norm(b))
+}
+
+/// The text search computes the same embeddings as the reference model, and its scores against the reference images (stored as half
+/// floats, as in the application) are the reference cosines. Tolerance: 1e-3, the error bound of a dot product of unit vectors when one of
+/// them is rounded to half precision (relative error 2^-11 per component).
+#[test]
+#[ignore = "needs the SigLIP 2 model"]
+fn text_search_scores_match_the_reference() {
+    let model = active_model();
+    let dir = semantic_model_dir();
+    let reference = reference();
+    let images: Vec<Vec<f32>> = reference["images"].as_array().unwrap().iter().map(|image| floats(&image["embedding"])).collect();
+    let mut index = Index::new(&model.id, model.embed_dim);
+    for (id, embedding) in images.iter().enumerate() { index.upsert(id as i64, embedding, (1, 1)); }
+
+    let cache = SearchCache::new(IDLE_RELEASE);
+    let load = || {
+        let environment = crate::onnx_runtime::environment(&onnx_runtime_library())?;
+        TextEncoder::load(&environment, &dir.join("text.onnx"), &dir.join("tokenizer.json"), model, text_threads())
+    };
+    let started = Instant::now();
+    cache.embed_text(load, "warm-up").expect("text encoder");
+    println!("text encoder loaded in {:?} (tokenizer and model in parallel)", started.elapsed());
+
+    for text in reference["texts"].as_array().unwrap() {
+        let fed = prepare_query(text["raw"].as_str().unwrap(), model).expect("query");
+        assert_eq!(fed, text["fed"].as_str().unwrap());
+        let started = Instant::now();
+        let vector = cache.embed_text(|| unreachable!("already loaded"), &fed).expect("embedding");
+        let elapsed = started.elapsed();
+        let expected = floats(&text["embedding"]);
+        let similarity = cosine(&vector, &expected);
+        assert!(similarity >= 0.999, "{fed:?}: cos = {similarity}");
+        let ranking = index.rank(&vector, ALL, 10);
+        assert_eq!(ranking.hits.len(), images.len());
+        for hit in &ranking.hits {
+            let reference_cos = cosine(&expected, &images[hit.photo_id as usize]);
+            assert!((hit.cos as f64 - reference_cos).abs() <= 1e-3, "{fed:?} / image {}: {} vs {reference_cos}", hit.photo_id, hit.cos);
+        }
+        println!("{fed:?}: cos with the reference {similarity:.6}, encoded in {elapsed:?}, best image {} ({:.4})", ranking.hits[0].photo_id, ranking.hits[0].cos);
+    }
+    // §15.7: the red disc (image 2) is the best match of "a red circle".
+    let vector = cache.embed_text(|| unreachable!(), &prepare_query("a red circle", model).unwrap()).unwrap();
+    assert_eq!(index.rank(&vector, ALL, 1).hits[0].photo_id, 2);
+    // Released with the index: the encoder is loaded again by the next query.
+    cache.release();
+    assert!(lock(&cache.text).is_none());
 }

@@ -41,7 +41,7 @@ impl ModelFile {
 
 /// Constants of one model (spec §3.3). Values come from the checkpoint (Phase 0, §15.1).
 #[derive(Deserialize)]
-#[allow(dead_code)] // logit scale / bias: searches (phase 3a); eos_id: documents the tokenizer, which appends it itself
+#[allow(dead_code)] // eos_id: documents the tokenizer, which appends it itself
 pub struct ModelSpec {
     pub id: String,
     pub label: String,
@@ -130,7 +130,6 @@ pub fn model_dir(models_dir: &Path, model: &ModelSpec) -> PathBuf {
 }
 
 /// Paths of the installed files, used by the scan and the searches.
-#[allow(dead_code)] // text and tokenizer: text search (phase 3a)
 pub struct ModelPaths {
     pub runtime: PathBuf,
     pub vision: PathBuf,

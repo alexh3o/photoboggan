@@ -393,29 +393,7 @@ fn commands_refuse_while_the_feature_is_disabled() {
 // Parity with the reference model (needs the model files)
 // ---------------------------------------------------------------------------
 
-/// Folder of the model files, from SEMANTIC_MODEL_DIR.
-fn model_dir() -> PathBuf {
-    let dir = PathBuf::from(std::env::var("SEMANTIC_MODEL_DIR").expect("set SEMANTIC_MODEL_DIR to a folder with vision.onnx, text.onnx, tokenizer.json"));
-    assert!(dir.join("tokenizer.json").is_file(), "{} has no tokenizer.json", dir.display());
-    dir
-}
-
-/// ONNX Runtime library: ORT_DYLIB_PATH, otherwise the `models/` folder of an installed application (release, then development build).
-fn runtime_library() -> PathBuf {
-    if let Ok(path) = std::env::var("ORT_DYLIB_PATH") { return PathBuf::from(path); }
-    let name = if cfg!(windows) { "onnxruntime.dll" } else { "libonnxruntime.so" };
-    let data_root = if cfg!(windows) {
-        std::env::var("LOCALAPPDATA").map(PathBuf::from)
-    } else {
-        std::env::var("HOME").map(|home| PathBuf::from(home).join(".local").join("share"))
-    }
-    .expect("no data folder");
-    ["com.alexh3o.photoboggan", "com.alexh3o.photoboggan.dev"]
-        .iter()
-        .map(|identifier| data_root.join(identifier).join("data").join("models").join(name))
-        .find(|path| path.is_file())
-        .expect("ONNX Runtime library not found: set ORT_DYLIB_PATH")
-}
+use crate::test_support::{onnx_runtime_library as runtime_library, semantic_model_dir as model_dir};
 
 #[test]
 #[ignore = "needs the SigLIP 2 model"]

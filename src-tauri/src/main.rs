@@ -2646,6 +2646,7 @@ fn main() {
             semantic::semantic_scan,
             semantic::get_semantic_stats,
             semantic::delete_semantic_data,
+            semantic_search::semantic_search_text,
             semantic_search::semantic_search_image,
             albums::get_album_tree,
             albums::create_album_node,

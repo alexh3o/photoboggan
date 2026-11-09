@@ -1,13 +1,16 @@
 //! Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of
-//! the embeddings, ranking, relative relevance threshold, idle release.
+//! the embeddings, text encoder, ranking, relative relevance threshold, idle release.
 //!
 //! - Index (§5.2): built on the first search from every embedding of the active model (fresh or not: a file whose metadata changed keeps
 //!   its embedding until the next analysis), kept as half floats in one contiguous array. Scores are dot products (the vectors are
 //!   L2-normalised, so this is the cosine) with the half → float conversion inside the loop, computed by `rayon` over blocks of rows.
 //! - Updates: the scan hands each stored batch to `on_batch_stored`, which updates the loaded index in place; any other change of the
 //!   tables (data deleted) drops it. A generation counter catches a batch stored while the index was being built: the next search rebuilds.
+//! - Text queries (§4.2, §15.4): lowercased, spaces collapsed, wrapped in the template when they have at most 3 words; the tokenizer and
+//!   the text model are loaded together (two threads) by the first text query, inside its blocking task, and kept with the index.
 //! - Release: nothing exists before the first search. After `IDLE_RELEASE` without a search, a single `tokio` sleeping task (armed by the
-//!   first use, re-checking the last use when it wakes) drops the index; the feature being disabled, its data or model deleted drop it too.
+//!   first use, re-checking the last use when it wakes) drops the index and the text encoder; the feature being disabled, its data or
+//!   model deleted drop them too (a loaded model file could not be deleted on Windows).
 //! - Results: the best `MAX_RESULTS` photos of the scope, sorted by decreasing cosine (ties by photo id). The relevance slider of the
 //!   interface keeps `cos >= best − Δ` among them (`relevance_cut`): moving it needs no new search (§18).
 
@@ -21,7 +24,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, RwLoc
 use std::time::{Duration, Instant};
 use tauri::State;
 
-use crate::semantic::{f16_to_f32, f32_to_f16, Outcome, Target};
+use crate::semantic::{f16_to_f32, f32_to_f16, normalise_query, Outcome, Target, TextEncoder};
 use crate::semantic_models::{active_model, ensure_enabled, ModelSpec};
 use crate::AppState;
 
@@ -33,6 +36,9 @@ pub const IDLE_RELEASE: Duration = Duration::from_secs(5 * 60);
 
 /// Error key: "find similar content" on a photo that has no embedding of the active model.
 pub const PHOTO_NOT_ANALYSED_ERROR: &str = "semantic_photo_not_analysed";
+
+/// Error key: a text query with nothing to search for (empty, or only spaces and punctuation).
+pub const EMPTY_QUERY_ERROR: &str = "semantic_empty_query";
 
 /// Rows scored by one rayon task: large enough to amortise the task, small enough to spread 100,000 rows over every core.
 const ROWS_PER_BLOCK: usize = 2048;
@@ -226,6 +232,29 @@ pub fn probability(cos: f32, model: &ModelSpec) -> f32 {
     (1.0 / (1.0 + (-logit).exp())) as f32
 }
 
+/// Text fed to the text encoder: `normalise_query` (lowercase, spaces, template for short queries), or `semantic_empty_query` when
+/// the query holds nothing to search for: no letter, digit or other non-ASCII symbol (emoji…), only spaces and punctuation.
+pub fn prepare_query(query: &str, model: &ModelSpec) -> Result<String, String> {
+    const PUNCTUATION: &[char] = &['«', '»', '…', '–', '—', '‘', '’', '“', '”', '¿', '¡', '·', '•'];
+    let meaningful = |c: char| c.is_alphanumeric() || (!c.is_ascii() && !c.is_whitespace() && !PUNCTUATION.contains(&c));
+    if !query.chars().any(meaningful) { return Err(EMPTY_QUERY_ERROR.to_string()); }
+    Ok(normalise_query(query, model))
+}
+
+/// ONNX Runtime threads of the text encoder: a query is interactive (~55 ms), but a few threads are enough for one sentence.
+fn text_threads() -> usize {
+    std::thread::available_parallelism().map_or(2, |count| count.get()).clamp(1, 4)
+}
+
+/// Loads the text encoder of the installed model (errors: `semantic_disabled`, `semantic_model_missing`, `semantic_unsupported_platform`).
+fn load_text_encoder(models_dir: &Path, model: &ModelSpec) -> Result<TextEncoder, String> {
+    // Checked again here: a disable arriving since the command started must not load a model (release() would wait, then drop it).
+    ensure_enabled()?;
+    let paths = crate::semantic_models::installed_paths(models_dir, model)?;
+    let environment = crate::onnx_runtime::environment(&paths.runtime)?;
+    TextEncoder::load(&environment, &paths.text, &paths.tokenizer, model, text_threads())
+}
+
 // ---------------------------------------------------------------------------
 // Cache: index, idle release
 // ---------------------------------------------------------------------------
@@ -249,6 +278,9 @@ pub struct SearchCache {
     timer: Mutex<Timer>,
     /// Index builds since creation (tests: an update in place does not reload).
     loads: AtomicUsize,
+    /// Text encoder, loaded by the first text query. Held for the whole encoding of a query, so a release waits for it to end and the
+    /// model file is really closed when `release` returns.
+    text: Mutex<Option<TextEncoder>>,
 }
 
 impl SearchCache {
@@ -260,6 +292,7 @@ impl SearchCache {
             building: Mutex::new(()),
             timer: Mutex::new(Timer { last_use: Instant::now(), armed: false }),
             loads: AtomicUsize::new(0),
+            text: Mutex::new(None),
         })
     }
 
@@ -301,10 +334,21 @@ impl SearchCache {
         self.release();
     }
 
-    /// Drops everything held in memory (the next search loads it again).
+    /// Drops everything held in memory (the next search loads it again). Waits for a search in progress.
     pub fn release(&self) {
-        let _building = lock(&self.building);
-        *write(&self.index) = None;
+        {
+            let _building = lock(&self.building);
+            *write(&self.index) = None;
+        }
+        *lock(&self.text) = None;
+    }
+
+    /// Embedding of an already normalised query (`prepare_query`), with the encoder loaded by `load` if needed (one load at a time).
+    pub fn embed_text(&self, load: impl FnOnce() -> Result<TextEncoder, String>, text: &str) -> Result<Vec<f32>, String> {
+        let mut slot = lock(&self.text);
+        if slot.is_none() { *slot = Some(load()?); }
+        let encoder = slot.as_mut().expect("loaded above");
+        encoder.embed(&[text.to_string()])?.pop().ok_or_else(|| "text encoder: no embedding".to_string())
     }
 
     /// The embedding tables changed outside a scan batch (data deleted): the index is dropped.
@@ -520,6 +564,34 @@ pub fn search(
     }
     if let Some(delta) = relevance.filter(|delta| delta.is_finite()) { relevance_cut(&mut results, delta); }
     Ok(SearchResults { best: ranking.best, results, capped: ranking.capped, total, pending })
+}
+
+/// Free-text search (§7.1): photos of `scope` whose content best matches `query`, with their probability. The first query loads the text
+/// encoder (~1.5 s); the next ones take ~55 ms plus the search. `relevance`: optional Δ (see `search`). Errors: `semantic_disabled`,
+/// `semantic_empty_query`, `semantic_model_missing`, `semantic_unsupported_platform`, or a message.
+#[tauri::command]
+pub async fn semantic_search_text(
+    state: State<'_, AppState>,
+    query: String,
+    scope: SearchScope,
+    relevance: Option<f32>,
+) -> Result<SearchResults, String> {
+    ensure_enabled()?;
+    let model = active_model();
+    let fed = prepare_query(&query, model)?;
+    let pool = state.pool();
+    let models_dir = crate::face_models::models_dir(&state);
+    let cache = cache();
+    cache.touch();
+    let outcome = tokio::task::spawn_blocking(move || {
+        let vector = cache.embed_text(|| load_text_encoder(&models_dir, model), &fed)?;
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        search(cache, &conn, model, Query::Vector(&vector), &scope, relevance, ensure_enabled)
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+    cache.touch();
+    outcome
 }
 
 /// "Find similar content" (§7.2): photos of `scope` whose content is closest to the photo `photoId` (left out of the results).

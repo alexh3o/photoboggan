@@ -208,7 +208,6 @@ pub fn image_tensor(rgb: &[u8], width: usize, height: usize, model: &ModelSpec) 
 
 /// Text actually fed to the tokenizer: lowercased (if the model says so), spaces collapsed, wrapped in the template when it has at most
 /// `template_max_words` words (same rule as `normalise_query` in dev_tools/semantic/common.py).
-#[allow(dead_code)] // first user in the application: the text search (phase 3a)
 pub fn normalise_query(text: &str, model: &ModelSpec) -> String {
     let lowered = if model.lowercase { text.to_lowercase() } else { text.to_string() };
     let words: Vec<&str> = lowered.split_whitespace().collect();
@@ -216,7 +215,6 @@ pub fn normalise_query(text: &str, model: &ModelSpec) -> String {
     if words.len() <= model.template_max_words { model.template.replacen("{}", &cleaned, 1) } else { cleaned }
 }
 
-#[allow(dead_code)] // see normalise_query
 /// Gemma tokenizer of the model, truncating to `max_text_tokens` (EOS kept last) and padding with the pad id.
 pub struct TextTokenizer {
     tokenizer: tokenizers::Tokenizer,
@@ -224,7 +222,6 @@ pub struct TextTokenizer {
     pad_id: u32,
 }
 
-#[allow(dead_code)] // see normalise_query
 impl TextTokenizer {
     /// Loads `tokenizer.json` (~1.3 s in a release build: call it off the main thread).
     pub fn load(path: &Path, model: &ModelSpec) -> Result<Self, String> {
@@ -289,19 +286,21 @@ impl VisionEncoder {
 }
 
 /// Text encoder (`input_ids` i64 [N, length] → `pooler_output` f32 [N, dim]) with its tokenizer.
-#[allow(dead_code)] // first user in the application: the text search (phase 3a); the parity tests use it now
 pub struct TextEncoder {
     session: Session,
     tokenizer: TextTokenizer,
     dim: usize,
 }
 
-#[allow(dead_code)] // see TextEncoder
 impl TextEncoder {
+    /// Loads the tokenizer (~1.3 s) and the text model (~1 s) at the same time, each on its own thread (§15.2). Call it off the main thread.
     pub fn load(environment: &Environment, model_path: &Path, tokenizer_path: &Path, model: &ModelSpec, threads: usize) -> Result<Self, String> {
-        let tokenizer = TextTokenizer::load(tokenizer_path, model)?;
-        let session = crate::onnx_runtime::background_session(environment, model_path, threads).map_err(|error| format!("text.onnx : {error}"))?;
-        Ok(TextEncoder { session, tokenizer, dim: model.embed_dim })
+        let (tokenizer, session) = std::thread::scope(|scope| {
+            let tokenizer = scope.spawn(|| TextTokenizer::load(tokenizer_path, model));
+            let session = crate::onnx_runtime::background_session(environment, model_path, threads).map_err(|error| format!("text.onnx : {error}"));
+            (tokenizer.join().unwrap_or_else(|_| Err("tokenizer.json : loading stopped unexpectedly".to_string())), session)
+        });
+        Ok(TextEncoder { session: session?, tokenizer: tokenizer?, dim: model.embed_dim })
     }
 
     /// Embeddings of already normalised texts (`normalise_query`).
