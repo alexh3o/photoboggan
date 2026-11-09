@@ -81,6 +81,7 @@ impl Index {
         Index { model_id: model_id.to_string(), dim, ids: Vec::new(), vectors: Vec::new(), stamps: Vec::new(), rows: HashMap::new(), generation: 0 }
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.ids.len()
     }
