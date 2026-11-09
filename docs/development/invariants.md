@@ -1,4 +1,4 @@
-<!-- verified: 17dd383 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: a5e965e | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
 # Business rules and invariants
 
 Cross-cutting rules only: module-specific rules live in the "Invariants" section of each `modules/` doc. Each rule says why it exists, where it is enforced (by name), which test covers it (`generated/tests.md`) and what breaks if it is violated. The short form of these rules is in `AGENTS.md`; this file explains them.
