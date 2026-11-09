@@ -1991,7 +1991,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
       folderTreeInitialized = true;
       renderFolderTree();
     });
-    const icon = document.createElement('span'); icon.className = 'folder-tree-icon'; icon.textContent = '📁';
+    const icon = document.createElement('span'); icon.className = `folder-tree-icon${isRoot ? ' folder-tree-icon-root' : ''}`; icon.textContent = '📁';
     const label = document.createElement('span'); label.className = 'folder-tree-name'; label.textContent = node.name; label.title = node.path;
     li.append(toggle, icon, label);
     if (showFolderCounts) {

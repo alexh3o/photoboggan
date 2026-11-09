@@ -226,6 +226,9 @@ button.active { background: var(--active-button); border-color: var(--active-but
 /* Dossier sans photo (option « Afficher les dossiers sans photo ») : icône estompée, texte atténué. */
 .folder-tree-item.folder-empty { color: var(--text-muted); }
 .folder-tree-item.folder-empty .folder-tree-icon { opacity: 0.35; filter: grayscale(1); }
+/* Tracked (root) folders: a black dot at the centre of the folder icon tells them apart from subfolders */
+.folder-tree-icon-root { position: relative; display: inline-block; }
+.folder-tree-icon-root::after { content: ''; position: absolute; left: 50%; top: 58%; width: 0.32em; height: 0.32em; transform: translate(-50%, -50%); border-radius: 50%; background: #000; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7); }
 /* Élément actif : fond teinté et filet d'accent à gauche, repérable même au défilement */
 .folder-tree-item.active { background: color-mix(in srgb, var(--active-button) 50%, transparent); box-shadow: inset 3px 0 0 var(--accent); color: var(--text-muted); font-weight: bold; }
 /* Dossier visé par le menu contextuel ouvert */
