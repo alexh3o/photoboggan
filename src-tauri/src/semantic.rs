@@ -64,7 +64,6 @@ pub fn f32_to_f16(value: f32) -> u16 {
 }
 
 /// Exact f32 value of an IEEE half float.
-#[allow(dead_code)] // first user in the application: the search index (phase 3a)
 pub fn f16_to_f32(half: u16) -> f32 {
     let sign = ((half & 0x8000) as u32) << 16;
     let exponent = ((half >> 10) & 0x1f) as u32;
@@ -85,7 +84,7 @@ pub fn vector_to_blob(vector: &[f32]) -> Vec<u8> {
 }
 
 /// BLOB → embedding; None when its length is not `dim × 2` (other model, damaged row).
-#[allow(dead_code)] // see f16_to_f32
+#[cfg(test)]
 pub fn blob_to_vector(blob: &[u8], dim: usize) -> Option<Vec<f32>> {
     (blob.len() == dim * 2).then(|| blob.chunks_exact(2).map(|pair| f16_to_f32(u16::from_le_bytes([pair[0], pair[1]]))).collect())
 }

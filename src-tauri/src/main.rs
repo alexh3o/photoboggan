@@ -11,6 +11,7 @@ mod model_files;
 mod onnx_runtime;
 mod semantic;
 mod semantic_models;
+mod semantic_search;
 mod phash;
 mod place_search;
 mod similar;
@@ -2645,6 +2646,7 @@ fn main() {
             semantic::semantic_scan,
             semantic::get_semantic_stats,
             semantic::delete_semantic_data,
+            semantic_search::semantic_search_image,
             albums::get_album_tree,
             albums::create_album_node,
             albums::rename_album_node,
