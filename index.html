@@ -287,6 +287,21 @@
           <button id="duplicates-select" type="button" class="duplicates-select"></button>
           <button id="duplicates-sort" type="button" class="duplicates-sort"></button>
         </div>
+        <!-- Content search results (main.js, section "CONTENT SEARCH RESULTS"): close, summary, relevance slider, and the "not analysed yet" line -->
+        <div id="semantic-banner" class="semantic-banner semantic-only" hidden>
+          <div class="semantic-banner-row">
+            <button id="semantic-close" type="button" class="semantic-close" title="Revenir à la vue précédente (Échap)" data-i18n-title="Back to the previous view" data-i18n="Close">Fermer</button>
+            <span id="semantic-text" class="semantic-text" role="status"></span>
+            <label class="semantic-relevance" title="Plus la pertinence est large, plus il y a de résultats" data-i18n-title="A wider relevance keeps more results">
+              <span data-i18n="Relevance">Pertinence</span>
+              <input id="semantic-relevance" type="range" min="0.005" max="0.08" step="0.005" />
+            </label>
+          </div>
+          <div id="semantic-pending-row" class="semantic-banner-row semantic-pending-row" hidden>
+            <span id="semantic-pending-text" class="semantic-text"></span>
+            <button id="semantic-analyse" type="button" class="semantic-analyse" data-i18n="Analyse">Analyser</button>
+          </div>
+        </div>
         <!-- État vide centré (texte choisi par main.js, updateGridEmptyState) : dossier vide, filtres trop sélectifs, ou autre cas -->
         <p id="grid-empty" class="grid-empty" role="status" hidden></p>
         <div id="virtual-scroll-container">

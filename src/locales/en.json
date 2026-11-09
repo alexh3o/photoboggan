@@ -1549,5 +1549,16 @@
   "Scope: view": "View",
   "Scope: library": "Library",
   "Searching the whole library. Click to search only the current folder or collection.": "Searching the whole library. Click to search only the current folder or collection.",
-  "Searching the current folder or collection. Click to search the whole library.": "Searching the current folder or collection. Click to search the whole library."
+  "Searching the current folder or collection. Click to search the whole library.": "Searching the current folder or collection. Click to search the whole library.",
+  "Relevance": "Relevance",
+  "Analyse": "Analyse",
+  "A wider relevance keeps more results": "A wider relevance keeps more results",
+  "{count} result": "{count} result",
+  "{count} result|other": "{count} results",
+  "The {count} best results only": "The {count} best results only",
+  "the current view": "the current view",
+  "the library": "the library",
+  "{count} photo of {where} is not analysed yet, or changed since its analysis": "{count} photo of {where} is not analysed yet, or changed since its analysis",
+  "{count} photo of {where} is not analysed yet, or changed since its analysis|other": "{count} photos of {where} are not analysed yet, or changed since their analysis",
+  "No photo matches this search": "No photo matches this search"
 }

@@ -1549,5 +1549,16 @@
   "Scope: view": "Vue",
   "Scope: library": "Photothèque",
   "Searching the whole library. Click to search only the current folder or collection.": "Recherche dans toute la photothèque. Cliquer pour chercher seulement dans le dossier ou la collection affichés.",
-  "Searching the current folder or collection. Click to search the whole library.": "Recherche dans le dossier ou la collection affichés. Cliquer pour chercher dans toute la photothèque."
+  "Searching the current folder or collection. Click to search the whole library.": "Recherche dans le dossier ou la collection affichés. Cliquer pour chercher dans toute la photothèque.",
+  "Relevance": "Pertinence",
+  "Analyse": "Analyser",
+  "A wider relevance keeps more results": "Plus la pertinence est large, plus il y a de résultats",
+  "{count} result": "{count} résultat",
+  "{count} result|other": "{count} résultats",
+  "The {count} best results only": "Les {count} meilleurs résultats seulement",
+  "the current view": "la vue actuelle",
+  "the library": "la photothèque",
+  "{count} photo of {where} is not analysed yet, or changed since its analysis": "{count} photo de {where} n'est pas encore analysée, ou a changé depuis son analyse",
+  "{count} photo of {where} is not analysed yet, or changed since its analysis|other": "{count} photos de {where} ne sont pas encore analysées, ou ont changé depuis leur analyse",
+  "No photo matches this search": "Aucune photo ne correspond à cette recherche"
 }

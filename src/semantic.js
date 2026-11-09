@@ -24,10 +24,9 @@ export function semanticScope() {
  * "view" asks main.js what is on screen (a folder, or the photo ids of the collection shown); "library" is {} plus skipRaw.
  * `skipRaw` only changes the `pending` count of the answer (RAW already analysed are always searched).
  */
-export function currentSearchScope() {
+export function currentSearchScope(view = host.getViewScope()) {
   const skipRaw = !readBool('semanticScanRaw');
   if (semanticScope() === 'library') return { folder: null, recursive: false, photoIds: null, skipRaw };
-  const view = host.getViewScope();
   return { folder: view.folder ?? null, recursive: Boolean(view.recursive), photoIds: view.photoIds ?? null, skipRaw };
 }
 
@@ -68,6 +67,21 @@ export async function searchText(query, scope = currentSearchScope()) {
   } catch (error) {
     if (request === requestCounter) host.showToast(host.errorMessage(error));
     return null;
+  } finally {
+    if (request === requestCounter) setBusy(false);
+  }
+}
+
+/** Similar-content search from a photo (`prob` is null in the answer). Same contract as `searchText`; the error is translated by the caller. */
+export async function searchImage(photoId, scope = currentSearchScope()) {
+  if (!isSemanticEnabled()) return { answer: null, error: null };
+  const request = ++requestCounter;
+  setBusy(true);
+  try {
+    const answer = await invoke('semantic_search_image', { photoId, scope });
+    return { answer: request === requestCounter ? answer : null, error: null };
+  } catch (error) {
+    return { answer: null, error: request === requestCounter ? String(error) : null };
   } finally {
     if (request === requestCounter) setBusy(false);
   }

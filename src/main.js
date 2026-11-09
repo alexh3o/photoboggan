@@ -10,8 +10,8 @@ import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWit
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
-import { initSemanticSettings, onSemanticOfflineChanged, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
-import { initSemanticSearch, searchText } from './semantic.js';
+import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
+import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -180,6 +180,7 @@ let extraFolderFilters = [];
 let rawSearch = null;
 // Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
 let duplicateSearch = null;
+let semanticSearch = null; // content search results mode (see "CONTENT SEARCH RESULTS")
 // Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
 let startupView = readChoice('startupView', ['last', 'all']);
 let includeSubfolders = readBool('includeSubfolders');
@@ -906,6 +907,9 @@ async function loadPhotos() {
   if (duplicateSearch) {
     // Duplicate results: only the photos of the groups, never the folder or album view (also used when the mode reloads after a rescan).
     result = { list: await invoke('get_photos_by_paths', { paths: duplicateSearch.groupPaths.flat() }), cap: null, large: false, key: '' };
+  } else if (semanticSearch) {
+    // Content search results: only the photos of the answer (the slider cut is a filter, see matchesSemanticCut).
+    result = { list: await loadSemanticPhotos(), cap: null, large: false, key: '' };
   } else if (baseAlbumId) {
     result = { list: await invoke('get_album_photos', { albumId: baseAlbumId }), cap: null, large: false, key: '' }; // never capped
   } else {
@@ -917,7 +921,7 @@ async function loadPhotos() {
   if (duplicateSearch) indexDuplicateGroups();
   photosLoadedOnce = true;
   // The whole-catalogue list feeds the keyword suggestions and gear lists: never a prefiltered one.
-  if (!album && currentFolderFilter === null && !duplicateSearch && !loadedPrefilterKey) folderTreePhotos = loadedPhotos;
+  if (!album && currentFolderFilter === null && !duplicateSearch && !semanticSearch && !loadedPrefilterKey) folderTreePhotos = loadedPhotos;
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
@@ -957,7 +961,8 @@ function updateGridEmptyState() {
   if (!element) return;
   element.hidden = !photosLoadedOnce || photos.length > 0;
   if (element.hidden) return;
-  const key = loadedPhotos.length === 0 ? 'Nothing to show here'
+  const key = semanticSearch ? 'No photo matches this search'
+    : loadedPhotos.length === 0 ? 'Nothing to show here'
     : hasActiveFilters() ? 'A little too selective! Try adjusting your filters'
     : 'Hmm, no photos here...';
   element.textContent = t(key);
@@ -1027,6 +1032,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     && shootingFilters.matches(photo)
     && formatFilters.matches(photo)
     && matchesRawSearchScope(photo)
+    && matchesSemanticCut(photo)
     && matchesAlbumCriteria(photo));
   photos = mapCandidatePhotos.filter(passesMapFilter);
   if (activeSmartAlbumId) {
@@ -1062,6 +1068,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
   updateFilteredPhotosCount();
   renderRawSearchBanner(); // mode « Trouver le RAW » : le nombre de résultats suit les filtres
   renderDuplicateBanner(); // duplicate search: the counts follow the filters
+  renderSemanticBanner(); // content search: same
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
   // Large folder: the loaded list was prefiltered by the backend; a change of those filters reads it again.
@@ -2037,6 +2044,7 @@ function selectFolder(path) {
   }
   abandonRawSearch(); // naviguer à la main termine « Trouver le RAW » : les filtres d'avant la recherche reviennent
   abandonDuplicateSearch(); // same for the duplicate search
+  abandonSemanticSearch(); // and the content search
   clearAlbumSelection(); // une seule entrée active dans la barre latérale
   syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
   currentFolderFilter = path;
@@ -2080,7 +2088,7 @@ document.getElementById('folders-toggle').addEventListener('contextmenu', event 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
 function toggleFolderInSelection(path) {
   const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  if (currentFolderFilter === null || getSelectedAlbum() || duplicateSearch || rawSearch) { selectFolder(path); return; }
+  if (currentFolderFilter === null || getSelectedAlbum() || duplicateSearch || rawSearch || semanticSearch) { selectFolder(path); return; }
   if (isSelectedAlbumDirty()) { selectFolder(path); return; }
   if (same(currentFolderFilter, path)) {
     if (extraFolderFilters.length === 0) return; // the only selected folder stays selected
@@ -2189,6 +2197,7 @@ async function restoreViewSnapshot(snapshot) {
 // What the content search calls "the view" (semantic.js): a folder (with its subfolders when the view includes them), otherwise the photos of the
 // collection on screen (album, several folders, a results mode), otherwise the whole library. Filters are not part of the scope.
 function currentViewScope() {
+  if (semanticSearch) return semanticSearch.viewScope; // a new search from inside the results mode searches the same view
   const album = getSelectedAlbum();
   if (!album && !rawSearch && !duplicateSearch && extraFolderFilters.length === 0) {
     if (currentFolderFilter !== null) return { folder: currentFolderFilter, recursive: includeSubfolders, photoIds: null };
@@ -2197,13 +2206,14 @@ function currentViewScope() {
   return { folder: null, recursive: false, photoIds: loadedPhotos.map(photo => photo.id) };
 }
 
-function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch; }
+function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch && !semanticSearch; }
 async function showPhotoInItsFolder(photo) {
-  const fromResults = rawSearch !== null || duplicateSearch !== null;
+  const fromResults = rawSearch !== null || duplicateSearch !== null || semanticSearch !== null;
   if (!photo || !(fromResults || isAllPhotosView())) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
   abandonDuplicateSearch();
+  abandonSemanticSearch();
   if (fromResults) resetAllFilters(); // aucun filtre dans le dossier du fichier, pas même ceux d'avant la recherche
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
@@ -2273,9 +2283,11 @@ async function findRawFor(photo) {
 
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = rawSearch?.snapshot ?? duplicateSearch?.snapshot ?? captureViewSnapshot(album);
+  const snapshot = rawSearch?.snapshot ?? duplicateSearch?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
   duplicateSearch = null; // a duplicate search in progress ends here; the view saved above is the one to go back to
   renderDuplicateBanner();
+  semanticSearch = null; // same for a content search
+  renderSemanticBanner();
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
   resetAllFilters();
@@ -3591,6 +3603,7 @@ window.addEventListener('keydown', (e) => {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
     else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
     else if (!isFullscreen && duplicateSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
+    else if (!isFullscreen && semanticSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitSemanticSearch(); // content search: same
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
     if (isFullscreen) closeFullscreen();
@@ -4080,6 +4093,7 @@ function separatorText(photo, mode) {
 // Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
 function computePhotoGroups() {
   if (duplicateSearch && photos.length > 0) return computeDuplicateSeparators();
+  if (semanticSearch) return []; // results are sorted by relevance: no separator
   const mode = activeSeparator();
   if (mode === 'none' || photos.length === 0) return [];
   const groups = [];
@@ -4097,6 +4111,8 @@ function computePhotoGroups() {
 }
 
 function comparePhotosForSort(a, b) {
+  // Content search results: by decreasing relevance (the source photo of a similar-content search first).
+  if (semanticSearch) return (semanticSearch.rank.get(a.id) ?? Infinity) - (semanticSearch.rank.get(b.id) ?? Infinity) || 0;
   // Duplicate results: groups in the chosen group order, members best first inside each group.
   if (duplicateSearch) {
     const orderA = duplicateSearch.order.get(a.path);
@@ -4835,6 +4851,7 @@ document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
   const wanted = event.target.checked;
   abandonRawSearch(); // la recherche du RAW impose les sous-dossiers : changer l'option la termine
+  abandonSemanticSearch(); // the scope of a "view" search would no longer match what is shown
   includeSubfolders = wanted;
   event.target.checked = wanted;
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
@@ -5521,7 +5538,8 @@ async function showDuplicateResults(result, titleKey, label, context) {
   if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
+  const snapshot = duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
+  abandonSemanticSearch(); // its filters and sub-folder option are put back, the snapshot above is the view to return to
   abandonRawSearch(); // restores the filters of before "Find the RAW"; the snapshot above is the view to go back to
   clearAlbumSelection();
   syncSmartAlbumWithSelection();
@@ -7030,7 +7048,7 @@ initPhotoActions({
   // « Trouver le RAW » (voir la section du même nom) : disponible tant qu'au moins un critère est coché dans les Paramètres.
   findRaw: findRawFor,
   canFindRaw: hasRawSearchCriteria,
-  isRawSearchActive: () => rawSearch !== null || duplicateSearch !== null, // results views, where "Show in its folder" is offered
+  isRawSearchActive: () => rawSearch !== null || duplicateSearch !== null || semanticSearch !== null, // results views, where "Show in its folder" is offered
   findDuplicates: findDuplicateImages,
   openDuplicatesDialog,
   showInItsFolder: showPhotoInItsFolder,
@@ -7094,7 +7112,7 @@ initLocationPanel({ showToast: message => showWriteToast(message) });
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
-  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
+  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); abandonSemanticSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
   onTreeChanged: () => scheduleAlbumCounts(),
   // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».
@@ -7311,16 +7329,131 @@ initSemanticSettings({
   stopTasks: () => stopSemanticTasks(), // disabling the feature: the analyses of the queue are stopped
 });
 
+// ==========================================
+// CONTENT SEARCH RESULTS
+// ==========================================
+// Mode `semanticSearch`, built like `duplicateSearch` / `rawSearch`: the grid shows the photos of the backend answer sorted by relevance, a banner
+// gives the query, the count, the relevance slider and "Close". Navigating by hand (folder, album, sub-folder option) ends it, and so does
+// disabling the feature. The slider is a plain filter (`matchesSemanticCut`): no new request when it moves (spec §18.2).
+const semanticDelta = () => readNumber('semanticRelevance', 0.005, 0.08);
+let semanticSliderFrame = 0;
+
+// The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
+function loadSemanticPhotos() {
+  return invoke('get_photos_by_ids', { ids: semanticSearch.ids });
+}
+
+// Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
+function matchesSemanticCut(photo) {
+  if (!semanticSearch) return true;
+  if (photo.id === semanticSearch.sourceId) return true;
+  const cos = semanticSearch.cos.get(photo.id);
+  return cos !== undefined && cos >= semanticSearch.best - semanticDelta();
+}
+
+function renderSemanticBanner() {
+  // Elements read at each call: the function can run before this section of the module has been executed.
+  const banner = document.getElementById('semantic-banner');
+  if (!banner) return;
+  banner.hidden = !semanticSearch;
+  if (!semanticSearch) return;
+  const search = semanticSearch;
+  const shown = photos.filter(photo => photo.id !== search.sourceId).length;
+  const parts = [search.label, tp('{count} result', shown)];
+  // More than the cap was scored and the cut did not stop before it: say that the list is the best part only.
+  const cut = search.best - semanticDelta();
+  if (search.capped && search.lastCos >= cut) parts.push(t('The {count} best results only', { count: search.ids.length - (search.sourceId === null ? 0 : 1) }));
+  document.getElementById('semantic-text').textContent = parts.join(' · ');
+  const slider = document.getElementById('semantic-relevance');
+  if (Number(slider.value) !== semanticDelta()) slider.value = String(semanticDelta());
+  // Photos of the scope the analysis would still handle (never analysed, or changed since): the answer's `pending`, no other call.
+  const pendingRow = document.getElementById('semantic-pending-row');
+  pendingRow.hidden = !(search.pending > 0);
+  if (search.pending > 0) {
+    const where = t(search.scopeKind === 'library' ? 'the library' : 'the current view');
+    document.getElementById('semantic-pending-text').textContent = tp('{count} photo of {where} is not analysed yet, or changed since its analysis', search.pending, { count: search.pending.toLocaleString(), where });
+  }
+}
+
+document.getElementById('semantic-close')?.addEventListener('click', () => exitSemanticSearch());
+document.getElementById('semantic-relevance')?.addEventListener('input', event => {
+  try { localStorage.setItem('semanticRelevance', event.target.value); } catch { /* storage unavailable: the choice is not remembered */ }
+  if (!semanticSearch) return;
+  // One refresh per frame while the slider is dragged.
+  cancelAnimationFrame(semanticSliderFrame);
+  semanticSliderFrame = requestAnimationFrame(() => {
+    fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
+    applyPhotoFilters({ keepState: true });
+  });
+});
+// "Analyse": the same scope as the search, in the semantic lane of the queue. The results are not refreshed by themselves: the user searches again.
+document.getElementById('semantic-analyse')?.addEventListener('click', () => {
+  if (!semanticSearch) return;
+  const { folder, recursive, photoIds } = semanticSearch.scope;
+  analyseContent({ folder, recursive, photoIds });
+});
+
+// Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
+function abandonSemanticSearch() {
+  if (!semanticSearch) return;
+  const { snapshot } = semanticSearch;
+  semanticSearch = null;
+  setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
+  resetAllFilters();
+  if (snapshot.albumKind !== 'smart') applyFilterState(snapshot.filterState);
+  renderSemanticBanner();
+}
+
+// "Close" and Escape.
+async function exitSemanticSearch() {
+  if (!semanticSearch) return;
+  const { snapshot } = semanticSearch;
+  abandonSemanticSearch();
+  await restoreViewSnapshot(snapshot);
+}
+
+// Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave a
+// modified smart album. A new search from inside the mode replaces the results and keeps the view to go back to.
+async function showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null }) {
+  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
+  if (isFullscreen) closeFullscreen();
+  const album = getSelectedAlbum();
+  const snapshot = semanticSearch?.snapshot ?? duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
+  abandonDuplicateSearch();
+  abandonRawSearch(); // both put back the filters of before their search; the snapshot above is the view to go back to
+  clearAlbumSelection();
+  syncSmartAlbumWithSelection();
+  resetAllFilters();
+  currentFolderFilter = null; extraFolderFilters = [];
+  const sourceId = sourcePhoto?.id ?? null;
+  const search = {
+    label, snapshot, scope, viewScope, sourceId, scopeKind: semanticScope() === 'library' ? 'library' : 'view',
+    best: answer.best, capped: answer.capped, pending: answer.pending, total: answer.total,
+    lastCos: answer.results.length ? answer.results[answer.results.length - 1].cos : Infinity,
+    ids: answer.results.map(result => result.photoId), cos: new Map(), prob: new Map(), rank: new Map(),
+  };
+  answer.results.forEach((result, index) => { search.cos.set(result.photoId, result.cos); search.prob.set(result.photoId, result.prob); search.rank.set(result.photoId, index); });
+  if (sourceId !== null) { search.ids.push(sourceId); search.rank.set(sourceId, -1); } // the source photo is not in the results: shown first
+  semanticSearch = search;
+  renderFolderTree();
+  await loadPhotos();
+  return true;
+}
+
 // Content search field of the toolbar (see semantic.js).
 initSemanticSearch({
   getViewScope: () => currentViewScope(),
   showToast: message => showWriteToast(message),
   errorMessage: semanticErrorMessage,
   onSearch: async query => {
-    const answer = await searchText(query);
-    if (answer) console.debug('Content search', answer.results.length, 'results'); // results mode: next commit
+    const viewScope = currentViewScope(); // read before the mode changes the view
+    const scope = currentSearchScope(viewScope);
+    const answer = await searchText(query, scope);
+    if (!answer) return;
+    await showSemanticResults({ label: `“${query}”`, answer, scope, viewScope });
   },
 });
+onSemanticChange(() => { if (semanticSearch && !isSemanticEnabled()) exitSemanticSearch(); }); // disabled, or the model deleted
 
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
 initPersonsView({
