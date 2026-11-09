@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
+    "prepare-semantic-models": "node scripts/prepare-semantic-models.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json"
   },
