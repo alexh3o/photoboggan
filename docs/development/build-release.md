@@ -1,4 +1,4 @@
-<!-- verified: a9ca28f | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
+<!-- verified: 20af680 | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
 # Build, packaging and release
 
 ## Purpose
@@ -48,6 +48,7 @@ Models and ONNX Runtime are never in the installer (AGENTS.md §5.I). `dev_tools
 - The release must keep one `.msi` and one `.deb`, otherwise the update dialog sends the user to the GitHub page.
 
 ### CI workflows
+The release workflow passes the `TAURI_PRIVATE_KEY` and `TAURI_PRIVATE_KEY_PASSWORD` GitHub secrets to Tauri as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; `bundle.createUpdaterArtifacts` must remain enabled so signed updater bundles are produced.
 - `tests.yml`: push to `main` and every pull request; `ubuntu-22.04` and `windows-latest`; builds the frontend, `cargo test`, and on Windows the ExifTool integration tests (`testing.md`).
 - `release.yml`: triggered by pushing a tag `v*`. Matrix: `ubuntu-22.04` with `--bundles deb`, and `windows-latest`. Steps: checkout with full history; Node 20; Rust stable; on Linux only, install `git-cliff` (`cargo install git-cliff`) and generate the changelog of the latest tag (`git cliff --latest --strip header`) into an environment variable; Linux system libraries; `npm install`; then `tauri-apps/tauri-action@v0` creates the GitHub release for the tag as a **draft and pre-release** with the binaries attached. The Linux job writes the changelog as the release body; the Windows job sets the body to "Release for Windows". The Linux job passes `appVersion` = `<tag>-beta`, but it has no visible effect: the published `.deb` names follow the version of `tauri.conf.json` (`photoboggan_0.6.10_amd64.deb`; older releases had `-alpha` / `-beta` suffixes). The updater ignores suffixes anyway (three numbers only).
 

@@ -19,7 +19,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 86 |  |
+| `release.yml` | 89 |  |
 | `tests.yml` | 77 |  |
 
 ## .vscode
@@ -170,7 +170,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `Cargo.toml` | 70 |  |
 | `face_models.json` | 44 |  |
 | `semantic_models.json` | 69 |  |
-| `tauri.conf.json` | 87 |  |
+| `tauri.conf.json` | 93 |  |
 | `tauri.dev.conf.json` | 5 |  |
 
 ## src-tauri/capabilities
