@@ -26,7 +26,7 @@
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: `stats` stats in a stat modal from settings
+- [x] *feat*: `stats` stats in a stat modal from settings
 - [ ] *feat*: `tasks` task to popup action to see progress
 - [x] *perf*: `thumbnails` more compressed thumbnails
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)

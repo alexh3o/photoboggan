@@ -36,7 +36,6 @@ function presetRange(name) {
   const start = new Date(today.getFullYear(), today.getMonth() - (name === 'month' ? 1 : 12), 1);
   return { since: dayKey(start), until: dayKey(end) };
 }
-const PRESETS = ['month', 'year', 'all'];
 const DEFAULT_PRESET = 'year';
 
 // Granularities of the time chart, from finest to coarsest, with the average length of their unit in days.

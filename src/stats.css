@@ -1,8 +1,8 @@
-/* Collection statistics window (stats.js): toolbar, rankings with a background bar, per-month / per-day chart. */
+/* Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. */
 
 .stats-card {
   width: min(56rem, calc(100vw - 4rem));
-  height: min(46rem, 90vh);
+  height: min(48rem, 92vh);
   display: flex;
   flex-direction: column;
 }
@@ -22,48 +22,116 @@
   gap: 1rem;
 }
 
-.stats-toolbar {
+/* ---- Filters ---- */
+
+.stats-filters {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.stats-filter-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  align-items: start;
   gap: 0.75rem;
 }
 
-.stats-summary {
-  margin-left: auto;
-  color: var(--text-muted);
+.stats-filter-label {
+  padding-top: 0.3rem;
+  color: var(--text-soft);
 }
+
+/* Input with its suggestion list below, then the chips already chosen */
+.stats-filter-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.stats-suggest-box {
+  position: relative;
+  flex: 0 1 16rem;
+  min-width: 10rem;
+}
+
+.stats-suggest-box input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.stats-period {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.stats-presets {
+  display: inline-flex;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.stats-preset {
+  padding: 0.3rem 0.75rem;
+  border: 0;
+  border-right: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text-light);
+  cursor: pointer;
+}
+
+.stats-preset:last-child {
+  border-right: 0;
+}
+
+.stats-preset[aria-pressed="true"] {
+  background: var(--accent-text);
+  color: var(--bg-panel);
+}
+
+/* ---- Data blocks ---- */
 
 .stats-message {
   margin: 0;
   padding: 2rem 0;
   text-align: center;
   color: var(--text-muted);
+  border-top: 1px solid var(--border);
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
-}
-
-/* display:grid above would win over the hidden attribute */
-.stats-grid[hidden] {
+#stats-content[hidden] {
   display: none;
 }
 
-.stats-wide {
-  grid-column: 1 / -1;
+.stats-section {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
 }
 
-.stats-section {
-  min-width: 0;
+.stats-section[hidden] {
+  display: none;
 }
 
 .stats-section-title {
   margin: 0 0 0.5rem;
   font-size: 1rem;
   color: var(--text-strong);
+}
+
+.stats-subtitle {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.stats-column > .stats-subtitle {
+  margin-top: 0;
 }
 
 /* Title and a selector on one line (shooting setting). */
@@ -89,7 +157,46 @@
   display: none;
 }
 
-/* Rankings: the background bar is the share of the first entry (--share set by stats.js). */
+/* Big figures: number of photos and total size */
+.stats-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5rem;
+}
+
+.stats-figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-figure-value {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-figure-label {
+  color: var(--text-muted);
+}
+
+/* Rating, colour and pick lists side by side (they wrap on a narrow window) */
+.stats-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.stats-column {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.stats-column[hidden] {
+  display: none;
+}
+
+/* Lists: the background bar is the share of the largest row (--share set by stats.js). */
 .stats-ranking {
   list-style: none;
   margin: 0;
@@ -109,6 +216,11 @@
   background:
     linear-gradient(to right, color-mix(in srgb, var(--accent-text) 22%, transparent) var(--share), transparent var(--share)),
     var(--row-bg);
+}
+
+.stats-rank-empty {
+  padding: 0.35rem 0.6rem;
+  color: var(--text-muted);
 }
 
 .stats-rank-number {
@@ -140,7 +252,28 @@
   white-space: nowrap;
 }
 
-/* Chart: one column per month (or day); wide periods scroll sideways instead of squeezing the columns. */
+/* Colour flag swatch before the name */
+.stats-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  vertical-align: -0.05rem;
+}
+.stats-swatch.red { background: #e5484d; }
+.stats-swatch.orange { background: #f76b15; }
+.stats-swatch.yellow { background: #f5d90a; }
+.stats-swatch.green { background: #30a46c; }
+.stats-swatch.blue { background: #3e63dd; }
+.stats-swatch.magenta { background: #d6409f; }
+.stats-swatch.grey { background: #8b8d98; }
+.stats-swatch.black { background: #1a1a1a; }
+.stats-swatch.white { background: #f5f5f5; }
+
+/* ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ---- */
+
 .stats-chart {
   position: relative;
   padding-top: 1.1rem;
@@ -205,7 +338,8 @@
 }
 
 @media (max-width: 40rem) {
-  .stats-grid {
+  .stats-filter-row {
     grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
   }
 }
