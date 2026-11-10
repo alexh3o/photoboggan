@@ -1171,50 +1171,53 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `find` · L185
 - `pub run` · L194 — Finds groups of similar photos. `progress` receives a fraction between 0 and 1. A cancelled run returns no group, flagged `cancelled`.
 
-## stats.rs (42)
+## stats.rs (45)
 
-- *struct* `pub StatsFilter` · L30 — What to count. Every list empty and no period = the whole catalogue.
-- *struct* `pub RankedItem` · L47 — A name and the number of photos it appears on.
-- *struct* `pub RankedKeyword` · L55 — A keyword: its own name (the last level of its path), the path of its ancestors (empty at the first level) and its photo count.
-- *struct* `pub Bucket` · L64 — Photos of one day: `key` is YYYYMMDD.
-- *struct* `pub ExtensionStat` · L72 — Photos and bytes of one file extension ("" = no extension).
-- *struct* `pub Distribution` · L81 — Photos per range of one shooting parameter. `known`: photos that have the parameter (the others are in no range).
-- *struct* `pub ShootingStats` · L88
-- *struct* `pub CollectionStats` · L97
-- *struct* `pub FilterOptions` · L128 — Values offered by the filters of the window, over the whole catalogue.
-- *struct* `pub FolderOption` · L136
-- `days_in_month` · L143 — Days of a month (Gregorian leap years).
-- `date_key` · L156 — Date taken of a photo as YYYYMMDD, or None when the text holds no usable date.
-- *struct* `Scale` · L178 — Fixed ranges of a shooting parameter, in display order. `edges` are the lower bounds (included) of every range but the first, ascending,
-- *struct* `Histogram` · L211 — Counts of the photos counted per range of a scale.
-- `Histogram::new` · L218
-- `Histogram::add` · L224 — A photo without the parameter (None) is in no range.
-- `Histogram::finish` · L230
-- `parse_decimal` · L240 — `^\d+(?:[.,]\d+)?$` as a number (the interface's `parseDecimal`).
-- `without_spaces` · L252
-- `parse_focal` · L257 — Focal length in mm: the leading number of "50 mm", "50.0 mm" (like the filter's `parseFloat`).
-- `parse_aperture` · L275 — F-number of "f/2.8", "F2.8" or "2.8".
-- `parse_shutter` · L285 — Exposure time in seconds: "1/250" (also unreduced, "10/2500"), or "2" / "2.5" above one second; a trailing "s" is accepted.
-- `camera_label` · L304 — Camera label of the interface (`cameraLabel`, shooting-filters.js): make and model, the make dropped when the model already starts with it
-- `extension_of` · L317 — Lower-case extension of a path without the dot ("" when it has none).
-- `normalize_path` · L326 — Path compared without regard to case or separator kind (Windows paths may mix them).
-- `folder_prefix` · L331 — Prefix every photo below a root folder starts with: the folder, normalised, ending with one separator.
-- `ids_json` · L336 — A JSON array of ids, for `json_each` (one bound parameter instead of thousands).
-- `period_scope` · L342 — SQL condition restricting `column` (a photo id) to the photos counted, and its bound parameter. `ids`: those photos passed as one JSON arra…
-- `face_stats` · L353 — Faces, distinct people and the people with the most faces, on the photos counted. Only faces the interface shows count: not ignored, not
-- `analysed_count` · L375 — Photos analysed by the content search (embedding of the active model), among the photos counted.
-- `keyword_name_and_path` · L387 — Name and ancestors path of a keyword node, or None if the node no longer exists.
-- `keyword_stats` · L410 — Most given keywords and the number of photos with at least one keyword. `ids`: the photos counted; None: the whole catalogue.
-- *struct* `Selection` · L435 — The filters of a request, ready to test a photo against.
-- `Selection::dated` · L446
-- `Selection::restricts` · L451 — True when some filter narrows the catalogue (then the keyword, face and analysis queries are limited to the photos kept).
-- `selection_of` · L456
-- `compute` · L478
-- `compute_with` · L483
-- `filter_options` · L593
-- `filter_options_with` · L598
-- `pub get_collection_stats` · L652 — Statistics of the collection for a set of filters (see `StatsFilter`).
-- `pub get_stats_filter_options` · L659 — Cameras, root folders and extensions of the catalogue, with their photo counts: what the filters of the window offer.
+- *struct* `pub StatsFilter` · L32 — What to count. Every list empty and no period = the whole catalogue.
+- *struct* `pub RankedItem` · L49 — A name and the number of photos it appears on.
+- *struct* `pub RankedKeyword` · L57 — A keyword: its own name (the last level of its path), the path of its ancestors (empty at the first level) and its photo count.
+- *struct* `pub Bucket` · L66 — Photos of one day: `key` is YYYYMMDD.
+- *struct* `pub ExtensionStat` · L74 — Photos and bytes of one file extension ("" = no extension).
+- *struct* `pub Distribution` · L83 — Photos per range of one shooting parameter. `known`: photos that have the parameter (the others are in no range).
+- *struct* `pub ShootingStats` · L90
+- *struct* `pub CollectionStats` · L99
+- *struct* `pub FilterOptions` · L138 — Values offered by the filters of the window, over the whole catalogue.
+- *struct* `pub FolderOption` · L146
+- `days_in_month` · L153 — Days of a month (Gregorian leap years).
+- `date_key` · L166 — Date taken of a photo as YYYYMMDD, or None when the text holds no usable date.
+- *struct* `Scale` · L188 — Fixed ranges of a shooting parameter, in display order. `edges` are the lower bounds (included) of every range but the first, ascending,
+- *struct* `Histogram` · L221 — Counts of the photos counted per range of a scale.
+- `Histogram::new` · L228
+- `Histogram::add` · L234 — A photo without the parameter (None) is in no range.
+- `Histogram::finish` · L240
+- `parse_decimal` · L250 — `^\d+(?:[.,]\d+)?$` as a number (the interface's `parseDecimal`).
+- `without_spaces` · L262
+- `parse_focal` · L267 — Focal length in mm: the leading number of "50 mm", "50.0 mm" (like the filter's `parseFloat`).
+- `parse_aperture` · L285 — F-number of "f/2.8", "F2.8" or "2.8".
+- `parse_shutter` · L295 — Exposure time in seconds: "1/250" (also unreduced, "10/2500"), or "2" / "2.5" above one second; a trailing "s" is accepted.
+- `camera_label` · L314 — Camera label of the interface (`cameraLabel`, shooting-filters.js): make and model, the make dropped when the model already starts with it
+- *struct* `NameCounts` · L328 — Counts of names, grouped without regard to case; the first spelling met is the one shown.
+- `NameCounts::add` · L331
+- `NameCounts::top` · L336 — The most frequent names first (ties by name), at most `GEAR_TOP_COUNT`, and how many different names there were.
+- `extension_of` · L346 — Lower-case extension of a path without the dot ("" when it has none).
+- `normalize_path` · L355 — Path compared without regard to case or separator kind (Windows paths may mix them).
+- `folder_prefix` · L360 — Prefix every photo below a root folder starts with: the folder, normalised, ending with one separator.
+- `ids_json` · L365 — A JSON array of ids, for `json_each` (one bound parameter instead of thousands).
+- `period_scope` · L371 — SQL condition restricting `column` (a photo id) to the photos counted, and its bound parameter. `ids`: those photos passed as one JSON arra…
+- `face_stats` · L382 — Faces, distinct people and the people with the most faces, on the photos counted. Only faces the interface shows count: not ignored, not
+- `analysed_count` · L404 — Photos analysed by the content search (embedding of the active model), among the photos counted.
+- `keyword_name_and_path` · L416 — Name and ancestors path of a keyword node, or None if the node no longer exists.
+- `keyword_stats` · L439 — Most given keywords and the number of photos with at least one keyword. `ids`: the photos counted; None: the whole catalogue.
+- *struct* `Selection` · L464 — The filters of a request, ready to test a photo against.
+- `Selection::dated` · L475
+- `Selection::restricts` · L480 — True when some filter narrows the catalogue (then the keyword, face and analysis queries are limited to the photos kept).
+- `selection_of` · L485
+- `compute` · L507
+- `compute_with` · L512
+- `filter_options` · L640
+- `filter_options_with` · L645
+- `pub get_collection_stats` · L699 — Statistics of the collection for a set of filters (see `StatsFilter`).
+- `pub get_stats_filter_options` · L706 — Cameras, root folders and extensions of the catalogue, with their photo counts: what the filters of the window offer.
 
 ## test_support.rs (15)
 

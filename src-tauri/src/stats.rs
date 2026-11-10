@@ -23,6 +23,8 @@ use crate::AppState;
 const KEYWORD_TOP_COUNT: usize = 15;
 /// Length of the ranking of people (by number of faces).
 const PERSON_TOP_COUNT: usize = 5;
+/// Length of the lens and camera rankings.
+const GEAR_TOP_COUNT: usize = 5;
 
 /// What to count. Every list empty and no period = the whole catalogue.
 #[derive(Deserialize, Default)]
@@ -100,6 +102,14 @@ pub struct CollectionStats {
     pub total_size: i64,
     /// Per extension, most photos first.
     pub extensions: Vec<ExtensionStat>,
+    /// Most used cameras and lenses (camera labels as the filters show them), how many different ones the photos counted have, and how many
+    /// photos carry the information. The interface hides a ranking when there is a single camera or lens.
+    pub cameras: Vec<RankedItem>,
+    pub distinct_cameras: i64,
+    pub camera_photos: i64,
+    pub lenses: Vec<RankedItem>,
+    pub distinct_lenses: i64,
+    pub lens_photos: i64,
     /// Photos per rating: index = number of stars, 0 = unrated.
     pub ratings: Vec<i64>,
     /// Photos per colour flag and per pick flag, as stored ("none" included); the interface decides which to show.
@@ -313,6 +323,25 @@ fn camera_label(make: &str, model: &str) -> String {
     }
 }
 
+/// Counts of names, grouped without regard to case; the first spelling met is the one shown.
+#[derive(Default)]
+struct NameCounts(HashMap<String, (String, i64)>);
+
+impl NameCounts {
+    fn add(&mut self, name: &str) {
+        self.0.entry(name.to_lowercase()).or_insert_with(|| (name.to_string(), 0)).1 += 1;
+    }
+
+    /// The most frequent names first (ties by name), at most `GEAR_TOP_COUNT`, and how many different names there were.
+    fn top(self) -> (Vec<RankedItem>, i64) {
+        let distinct = self.0.len() as i64;
+        let mut items: Vec<RankedItem> = self.0.into_values().map(|(name, count)| RankedItem { name, count }).collect();
+        items.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
+        items.truncate(GEAR_TOP_COUNT);
+        (items, distinct)
+    }
+}
+
 /// Lower-case extension of a path without the dot ("" when it has none).
 fn extension_of(path: &str) -> String {
     let name = path.rsplit(|c| c == '/' || c == '\\').next().unwrap_or(path);
@@ -487,6 +516,8 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
     let mut photos = 0i64;
     let mut total_size = 0i64;
     let mut dated_photos = 0i64;
+    let (mut cameras, mut lenses) = (NameCounts::default(), NameCounts::default());
+    let (mut camera_photos, mut lens_photos) = (0i64, 0i64);
     let mut geolocated_photos = 0i64;
     let (mut focal, mut aperture, mut shutter, mut iso) = (Histogram::new(&FOCAL), Histogram::new(&APERTURE), Histogram::new(&SHUTTER), Histogram::new(&ISO));
     let mut by_extension: HashMap<String, (i64, i64)> = HashMap::new();
@@ -499,7 +530,7 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
 
     let mut statement = conn.prepare(
         "SELECT id, date_taken, manufacturer, camera_model, gps_lat IS NOT NULL AND gps_lon IS NOT NULL, aperture, shutter_speed, focal_length, iso,
-                path, file_size, rating, color_flag, pick_flag FROM photos",
+                path, file_size, rating, color_flag, pick_flag, lens_model FROM photos",
     )?;
     let mut rows = statement.query([])?;
     while let Some(row) = rows.next()? {
@@ -514,12 +545,11 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
                 continue;
             }
         }
-        if !selection.cameras.is_empty() {
-            let make = row.get::<_, Option<String>>(2)?.unwrap_or_default();
-            let model = row.get::<_, Option<String>>(3)?.unwrap_or_default();
-            if !selection.cameras.contains(&camera_label(&make, &model).to_lowercase()) {
-                continue;
-            }
+        let make = row.get::<_, Option<String>>(2)?.unwrap_or_default();
+        let model = row.get::<_, Option<String>>(3)?.unwrap_or_default();
+        let camera = camera_label(&make, &model);
+        if !selection.cameras.is_empty() && !selection.cameras.contains(&camera.to_lowercase()) {
+            continue;
         }
         let key = row.get::<_, Option<String>>(1)?.as_deref().and_then(date_key);
         if selection.dated() {
@@ -542,6 +572,15 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
         if let Some(key) = key {
             dated_photos += 1;
             *days.entry(key).or_insert(0) += 1;
+        }
+        if !camera.is_empty() {
+            camera_photos += 1;
+            cameras.add(&camera);
+        }
+        let lens = row.get::<_, Option<String>>(14)?.unwrap_or_default();
+        if !lens.trim().is_empty() {
+            lens_photos += 1;
+            lenses.add(lens.trim());
         }
         if row.get::<_, bool>(4)? {
             geolocated_photos += 1;
@@ -570,10 +609,18 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
         items.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.cmp(&b.name)));
         items
     };
+    let (cameras, distinct_cameras) = cameras.top();
+    let (lenses, distinct_lenses) = lenses.top();
     Ok(CollectionStats {
         photos,
         total_size,
         extensions,
+        cameras,
+        distinct_cameras,
+        camera_photos,
+        lenses,
+        distinct_lenses,
+        lens_photos,
         ratings,
         colors: ranked(colors),
         picks: ranked(picks),

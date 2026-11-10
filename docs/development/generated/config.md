@@ -95,7 +95,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Keys: 1690 (en) / 1690 (fr)
+- Keys: 1692 (en) / 1692 (fr)
 - In en.json but missing from fr.json: none
 - In fr.json but missing from en.json: none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none

@@ -1283,6 +1283,21 @@
               <div id="stats-chart" class="stats-chart" role="img"></div>
               <p id="stats-chart-note" class="stats-note"></p>
             </section>
+            <!-- Each column is hidden when there is a single camera or lens among the photos counted; the section when both are (stats.js) -->
+            <section id="stats-gear-section" class="stats-section">
+              <div class="stats-columns">
+                <div id="stats-cameras-column" class="stats-column">
+                  <h4 class="stats-section-title" data-i18n="Top cameras">Appareils les plus utilisés</h4>
+                  <ol id="stats-cameras" class="stats-ranking"></ol>
+                  <p id="stats-cameras-note" class="stats-note"></p>
+                </div>
+                <div id="stats-lenses-column" class="stats-column">
+                  <h4 class="stats-section-title" data-i18n="Top lenses">Objectifs les plus utilisés</h4>
+                  <ol id="stats-lenses" class="stats-ranking"></ol>
+                  <p id="stats-lenses-note" class="stats-note"></p>
+                </div>
+              </div>
+            </section>
             <section class="stats-section">
               <h4 class="stats-section-title" data-i18n="By file type">Par type de fichier</h4>
               <ol id="stats-extensions" class="stats-ranking"></ol>

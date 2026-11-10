@@ -1,5 +1,15 @@
 /* Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. */
 
+
+/* test for labels style */
+:root {
+  --tag-camera-bg: #2000d8; --tag-camera-border: #0a042b; --tag-camera-hover: #5862f1;
+  --tag-folder-bg: #0a0334; --tag-folder-border: #392d7b; --tag-folder-hover: #2e2f3d;
+}
+.filter-tag.tag-camera { background: var(--tag-camera-bg); border-color: var(--tag-camera-border); }
+.filter-tag.tag-folder { background: var(--tag-folder-bg); border-color: var(--tag-folder-border); }
+
+
 .stats-card {
   width: min(56rem, calc(100vw - 4rem));
   height: min(48rem, 92vh);

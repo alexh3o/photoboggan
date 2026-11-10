@@ -9,7 +9,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1361 |  |
+| `index.html` | 1376 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
 | `TODO.md` | 70 |  |
@@ -57,14 +57,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 150 |  |
-| `css.md` | 508 |  |
+| `css.md` | 523 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 289 |  |
-| `ipc-commands.md` | 176 |  |
-| `module-deps.md` | 93 |  |
-| `symbols-js.md` | 1375 |  |
-| `symbols-rust.md` | 1259 |  |
+| `files.md` | 293 |  |
+| `ipc-commands.md` | 178 |  |
+| `module-deps.md` | 95 |  |
+| `symbols-js.md` | 1399 |  |
+| `symbols-rust.md` | 1304 |  |
 | `tests.md` | 447 |  |
 
 ## docs/development/modules
@@ -158,8 +158,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `shooting-filters.css` | 22 | Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `shooting-filters.js` | 474 | Filtres « Matériel » (appareil photo, objectif) et « Prise de vue » (focale, vitesse, ouverture, ISO, flash) du panneau de filtres. Les valeurs viennent des champs déjà chargés avec chaque photo (manufacturer, camera_mo… |
 | `slideshow.js` | 311 | Diaporama : un état du plein écran (pas un mode à part). Un minuteur fait passer le plein écran à la photo suivante ; tout le reste (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même.… |
-| `stats.css` | 346 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
-| `stats.js` | 600 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
+| `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
+| `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `styles.css` | 1053 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `update-check.js` | 324 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
@@ -233,7 +233,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic_search.rs` | 817 | Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - Index … |
 | `semantic.rs` | 1237 | Semantic search with SigLIP 2 (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan task.… |
 | `similar.rs` | 351 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
-| `stats.rs` | 663 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
+| `stats.rs` | 710 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
 | `thumbnails.rs` | 727 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
 | `update_check.rs` | 328 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
@@ -288,5 +288,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1694 |  |
-| `fr.json` | 1694 |  |
+| `en.json` | 1696 |  |
+| `fr.json` | 1696 |  |

@@ -222,7 +222,8 @@ export function initStats() {
   const ids = ['stats-modal', 'btn-open-stats', 'btn-close-stats', 'stats-from', 'stats-to', 'stats-granularity', 'stats-message', 'stats-content',
     'stats-camera-input', 'stats-camera-suggestions', 'stats-camera-tags', 'stats-folder-input', 'stats-folder-suggestions', 'stats-folder-tags',
     'stats-format-input', 'stats-format-suggestions', 'stats-format-tags', 'stats-total-photos', 'stats-total-size', 'stats-chart-title', 'stats-chart',
-    'stats-chart-note', 'stats-extensions', 'stats-ratings', 'stats-colors-column', 'stats-colors', 'stats-picks-column', 'stats-picks', 'stats-keywords',
+    'stats-chart-note', 'stats-gear-section', 'stats-cameras-column', 'stats-cameras', 'stats-cameras-note', 'stats-lenses-column', 'stats-lenses',
+    'stats-lenses-note', 'stats-extensions', 'stats-ratings', 'stats-colors-column', 'stats-colors', 'stats-picks-column', 'stats-picks', 'stats-keywords',
     'stats-keywords-note', 'stats-geo', 'stats-faces-section', 'stats-faces', 'stats-top-persons', 'stats-param', 'stats-shooting', 'stats-shooting-note',
     'stats-analysis-section', 'stats-analysis'];
   const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
@@ -418,6 +419,20 @@ export function initStats() {
     el['stats-chart'].append(axis, scroller);
   }
 
+  // Top cameras and lenses. A ranking of one entry says nothing, so each is hidden when the photos counted have a single camera / lens
+  // (typically after filtering on one camera); the section goes when both are.
+  function renderGear(stats) {
+    const rank = (list, noteElement, items, known, distinct, column) => {
+      column.hidden = distinct <= 1;
+      const top = items[0]?.count || 1;
+      list.replaceChildren(...items.map((item, index) => listRow(item.name, photoCount(item.count), (item.count / top) * 100, { rank: index + 1, title: item.name })));
+      noteElement.textContent = coverageNote(known, stats.photos);
+    };
+    rank(el['stats-cameras'], el['stats-cameras-note'], stats.cameras, stats.cameraPhotos, stats.distinctCameras, el['stats-cameras-column']);
+    rank(el['stats-lenses'], el['stats-lenses-note'], stats.lenses, stats.lensPhotos, stats.distinctLenses, el['stats-lenses-column']);
+    el['stats-gear-section'].hidden = stats.distinctCameras <= 1 && stats.distinctLenses <= 1;
+  }
+
   function renderExtensions(stats) {
     const top = stats.extensions[0]?.count || 1;
     el['stats-extensions'].replaceChildren(...stats.extensions.map(item => listRow(
@@ -514,6 +529,7 @@ export function initStats() {
     showMessage('');
     renderTotals(stats);
     renderChart(stats);
+    renderGear(stats);
     renderExtensions(stats);
     renderFlags(stats);
     renderKeywords(stats);

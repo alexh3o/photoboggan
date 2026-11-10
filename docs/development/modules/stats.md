@@ -22,6 +22,7 @@ Combined with AND; nothing chosen = no filter.
 ## Blocks (in order)
 1. Number of photos and total size.
 2. Time chart (the granularity above applies to it). The backend returns non-empty days only; `stats.js` groups them (weeks start on Monday), so changing the granularity needs no request.
+2b. Top 5 cameras and top 5 lenses, side by side. Each is hidden when the photos counted have a single camera (or lens), as after filtering on one camera; the whole block goes when both are hidden. Camera labels are those of the camera filter; names are grouped without regard to case.
 3. Photos and size per file extension.
 4. Photos per rating (always), per colour flag (only if colour labels are on in Settings) and per pick flag (only if pick labels are on).
 5. The 15 most given keywords (link table, last level of each path, with the path of their ancestors).
@@ -39,5 +40,4 @@ A note under a list says how many of the photos counted have the information.
 
 ## Gotchas
 - Dates are read like `extractTimeKey` in `main.js` (first `YYYY?MM?DD` of the text) but a month or day that does not exist, or a year outside 1900-2200, is no date.
-- Lens and camera rankings of the first version were dropped: the spec does not list them, and the camera became a filter.
 - Changing a range of a shooting setting means editing its `Scale` constant only.

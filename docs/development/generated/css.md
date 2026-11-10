@@ -107,6 +107,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--side-row-size` | styles.css · `:root` · `0.8rem` | 6 | — |
 | `--side-title-size` | styles.css · `:root` · `0.85rem` | 1 | — |
 | `--star-off` | styles.css · `:root` · `#666`<br>styles.css · (light) `:root[data-theme="light"]` · `#b8b8b8` | 1 | — |
+| `--tag-camera-bg` | stats.css · `:root` · `#2000d8` | 1 | — |
+| `--tag-camera-border` | stats.css · `:root` · `#0a042b` | 1 | — |
+| `--tag-camera-hover` | stats.css · `:root` · `#5862f1` | 0 | — |
 | `--tag-color-bg` | styles.css · `:root` · `#575757` | 2 | — |
 | `--tag-color-border` | styles.css · `:root` · `#9a9a9a` | 2 | — |
 | `--tag-date-bg` | styles.css · `:root` · `#5b4888` | 2 | — |
@@ -115,6 +118,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-filename-bg` | styles.css · `:root` · `#367a46` | 1 | — |
 | `--tag-filename-border` | styles.css · `:root` · `#52a868` | 1 | — |
 | `--tag-filename-hover` | styles.css · `:root` · `#418e53` | 1 | — |
+| `--tag-folder-bg` | stats.css · `:root` · `#0a0334` | 1 | — |
+| `--tag-folder-border` | stats.css · `:root` · `#392d7b` | 1 | — |
+| `--tag-folder-hover` | stats.css · `:root` · `#2e2f3d` | 0 | — |
 | `--tag-format-bg` | format-filters.css · `:root` · `#5c4d9a` | 1 | — |
 | `--tag-format-border` | format-filters.css · `:root` · `#8677d0` | 1 | — |
 | `--tag-format-hover` | format-filters.css · `:root` · `#6b5bae` | 1 | — |
@@ -372,18 +378,19 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L1 Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les au…
 - L13 Une ligne par critère : libellé fixe, champ qui occupe le reste ; le message d'erreur se place sous le champ.
 
-### src/stats.css (346 lines)
+### src/stats.css (355 lines)
 
 - L1 Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines.
-- L25 ---- Filters ----
-- L45 Input with its suggestion list below, then the chips already chosen
-- L97 ---- Data blocks ----
-- L137 Title and a selector on one line (shooting setting).
-- L160 Big figures: number of photos and total size
-- L183 Rating, colour and pick lists side by side (they wrap on a narrow window)
-- L199 Lists: the background bar is the share of the largest row (--share set by stats.js).
-- L255 Colour flag swatch before the name
-- L275 ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ----
+- L4 test for labels style
+- L35 ---- Filters ----
+- L55 Input with its suggestion list below, then the chips already chosen
+- L107 ---- Data blocks ----
+- L147 Title and a selector on one line (shooting setting).
+- L170 Big figures: number of photos and total size
+- L193 Rating, colour and pick lists side by side (they wrap on a narrow window)
+- L209 Lists: the background bar is the share of the largest row (--share set by stats.js).
+- L265 Colour flag swatch before the name
+- L285 ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ----
 
 ### src/styles.css (1053 lines)
 
