@@ -10,7 +10,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | Module | Uses | Used by |
 |---|---|---|
 | `albums` | db, main | db |
-| `db` | albums, duplicates, faces, geolocation, keywords, main, private_maps, semantic, similar | albums, duplicates, faces, geolocation, keywords, library_sync, private_maps, semantic, similar, test_support |
+| `db` | albums, duplicates, faces, geolocation, keywords, main, private_maps, semantic, similar | albums, duplicates, faces, geolocation, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
 | `duplicates` | db, video | db, semantic, similar |
 | `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, heif, keywords, library_sync, orientation, place_search, resize, thumbnails |
 | `exiftool` | exif, main | exif, geolocation, orientation |
@@ -23,7 +23,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `integrity` | heif, main | semantic |
 | `keywords` | db, exif, faces, geolocation, library_sync, main, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, semantic, semantic_keywords, semantic_search |
 | `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, keywords |
-| `main` | — | albums, db, exiftool, face_detect, face_models, faces, geolocation, integrity, keywords, library_sync, phash, private_maps, resize, semantic, semantic_keywords, semantic_models, semantic_search, update_check |
+| `main` | — | albums, db, exiftool, face_detect, face_models, faces, geolocation, integrity, keywords, library_sync, phash, private_maps, resize, semantic, semantic_keywords, semantic_models, semantic_search, stats, update_check |
 | `model_files` | — | face_models, semantic_models, update_check |
 | `onnx_runtime` | — | face_detect, semantic, semantic_search |
 | `orientation` | exif, exiftool, heif, thumbnails, video | exif, thumbnails |
@@ -33,9 +33,10 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `resize` | exif, heif, main, thumbnails | — |
 | `semantic` | db, duplicates, face_models, integrity, keywords, main, onnx_runtime, semantic_models, semantic_search, thumbnails | db, face_detect, keywords, semantic_models, semantic_search |
 | `semantic_keywords` | face_models, keywords, main, semantic_models, semantic_search | keywords, semantic_search |
-| `semantic_models` | face_models, main, model_files, semantic, semantic_search | semantic, semantic_keywords, semantic_search |
+| `semantic_models` | face_models, main, model_files, semantic, semantic_search | semantic, semantic_keywords, semantic_search, stats |
 | `semantic_search` | face_models, keywords, main, onnx_runtime, semantic, semantic_keywords, semantic_models, thumbnails | semantic, semantic_keywords, semantic_models |
 | `similar` | db, duplicates, phash, thumbnails | db |
+| `stats` | db, main, semantic_models | — |
 | `test_support` | db | — |
 | `thumbnails` | exif, heif, orientation, video | exif, face_detect, faces, library_sync, orientation, resize, semantic, semantic_search, similar |
 | `update_check` | face_models, main, model_files | — |
@@ -52,24 +53,24 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `duplicates` | i18n | duplicates-modal, main, photo-actions |
 | `duplicates-modal` | duplicates, i18n, raw-settings | main |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults | main |
-| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults | faces-grid, main, persons-view |
-| `filter-suggest` | i18n | faces-panel, format-filters, keywords-panel, main, semantic-exclusions, shooting-filters |
-| `filter-tags` | i18n, photo-actions | faces-panel, format-filters, main, shooting-filters |
+| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults | faces-grid, main, persons-view, stats |
+| `filter-suggest` | i18n | faces-panel, format-filters, keywords-panel, main, semantic-exclusions, shooting-filters, stats |
+| `filter-tags` | i18n, photo-actions | faces-panel, format-filters, main, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | main |
-| `format-filters` | filter-suggest, filter-tags, i18n | main |
+| `format-filters` | filter-suggest, filter-tags, i18n | main, stats |
 | `geo-tools` | i18n, metadata-writes, photo-actions | main |
 | `guide` | i18n | main |
 | `histogram` | i18n, settings-defaults | main |
-| `i18n` | settings-defaults | albums-panel, description-panel, duplicates, duplicates-modal, faces-grid, faces-panel, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, slideshow, update-check |
+| `i18n` | settings-defaults | albums-panel, description-panel, duplicates, duplicates-modal, faces-grid, faces-panel, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, slideshow, stats, update-check |
 | `keywords-panel` | filter-suggest, i18n, metadata-writes, photo-actions, semantic-settings, semantic-tagging | main |
 | `location-panel` | i18n, map-config, map-view, maps-settings, private-zones, private-zones-modal, settings-defaults | main, map-mode |
-| `main` | albums-panel, app-fonts, description-panel, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, persons-view, photo-actions, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, slideshow, toolbar-a11y, update-check | photo-actions |
+| `main` | albums-panel, app-fonts, description-panel, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, persons-view, photo-actions, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, slideshow, stats, toolbar-a11y, update-check | photo-actions |
 | `map-config` | settings-defaults | location-panel, map-tile-protocol, map-view, private-zones-modal |
 | `map-mode` | i18n, location-panel, map-view, maps-settings, metadata-writes, place-search, private-zones, private-zones-modal, settings-defaults | main |
 | `map-tile-protocol` | map-config | map-view |
 | `map-view` | i18n, map-config, map-tile-protocol | location-panel, main, map-mode, maps-settings, private-zones-modal |
 | `maps-settings` | i18n, map-view, settings-defaults | location-panel, main, map-mode, private-zones-modal |
-| `marking-settings` | settings-defaults | main |
+| `marking-settings` | settings-defaults | main, stats |
 | `metadata-settings` | i18n, order-list, settings-defaults | main, photo-actions |
 | `metadata-writes` | i18n, settings-defaults | description-panel, faces-grid, faces-panel, geo-tools, keywords-panel, main, map-mode, photo-actions, semantic-settings |
 | `order-list` | i18n | metadata-settings |
@@ -82,11 +83,12 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic` | i18n, semantic-settings, settings-defaults | main, semantic-tagging |
 | `semantic-exclusions` | filter-suggest, i18n, settings-defaults | semantic-keywords, semantic-settings, semantic-tagging |
 | `semantic-keywords` | i18n, semantic-exclusions, semantic-settings, semantic-tagging, settings-defaults | main |
-| `semantic-settings` | i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, main, semantic, semantic-keywords, semantic-tagging |
+| `semantic-settings` | i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, main, semantic, semantic-keywords, semantic-tagging, stats |
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, main, semantic-keywords |
 | `settings-defaults` | — | albums-panel, faces-grid, faces-panel, histogram, i18n, location-panel, main, map-config, map-mode, maps-settings, marking-settings, metadata-settings, metadata-writes, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, slideshow, update-check |
 | `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, main |
 | `slideshow` | i18n, settings-defaults | main, photo-actions |
+| `stats` | faces-panel, filter-suggest, filter-tags, format-filters, i18n, marking-settings, semantic-settings | main |
 | `toolbar-a11y` | — | main |
 | `update-check` | i18n, settings-defaults | main |
 | `zone-drawing` | private-zones | private-zones-modal |

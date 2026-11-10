@@ -8,13 +8,14 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 42 | — |
-| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 10 | — |
+| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
 | `--active-button` | styles.css · `:root` · `#1e72ad` | 25 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
+| `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 1 | — |
-| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 8 | — |
-| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 15 | — |
+| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 9 | — |
+| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 19 | — |
 | `--btn-text` | styles.css · `:root` · `#fff`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 12 | — |
 | `--card-bg` | styles.css · `:root` · `#222`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 12 | — |
 | `--clipping-bw-blur` | histogram.css · `:root` · `20px` | 1 | — |
@@ -25,8 +26,8 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--clipping-pulse-max-opacity` | histogram.css · `:root` · `0.5` | 1 | — |
 | `--clipping-pulse-min-opacity` | histogram.css · `:root` · `0.05` | 1 | — |
 | `--clipping-shadow-color` | histogram.css · `:root` · `rgba(0, 90, 255, 0.9)` | 0 | — |
-| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 50 | — |
-| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 58 | — |
+| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 51 | — |
+| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 60 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 19 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
@@ -95,10 +96,11 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--pill-color` | keywords.css · `.format-source-xmp` · `#4d94e0`<br>keywords.css · `.format-source-iptc` · `#d9993a`<br>keywords.css · `.format-source-exif` · `#4fb37c`<br>keywords.css · `.format-source-jpeg` · `#a37fd6` | 3 | — |
 | `--preview-bg` | styles.css · `:root` · `#111`<br>styles.css · (light) `:root[data-theme="light"]` · `#dadada` | 3 | — |
 | `--resizer-bg` | styles.css · `:root` · `#292929`<br>styles.css · (light) `:root[data-theme="light"]` · `#cfcfcf` | 3 | — |
-| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 13 | — |
+| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 14 | — |
 | `--selected-border` | styles.css · `:root` · `#15932a` | 8 | main.js |
 | `--selected-contrast` | — | 1 | main.js |
 | `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 27 | — |
+| `--share` | — | 2 | stats.js |
 | `--side-block-gap` | styles.css · `:root` · `1rem` | 2 | — |
 | `--side-meta-size` | styles.css · `:root` · `0.7rem` | 11 | — |
 | `--side-row-height` | styles.css · `:root` · `1.9rem` | 2 | — |
@@ -136,10 +138,10 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
 | `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 25 | — |
 | `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 30 | — |
-| `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 2 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 55 | — |
-| `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 3 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 65 | — |
+| `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 3 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 63 | — |
+| `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 67 | — |
 | `--thumb-bg` | styles.css · `:root` · `#1a1a1a`<br>styles.css · (light) `:root[data-theme="light"]` · `#d4d4d4` | 3 | — |
 | `--thumb-corner-size` | styles.css · `:root` · `1.75rem` | 4 | — |
 | `--thumb-hover-scale` | styles.css · `:root` · `1.03` | 1 | — |
@@ -369,6 +371,19 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 - L1 Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les au…
 - L13 Une ligne par critère : libellé fixe, champ qui occupe le reste ; le message d'erreur se place sous le champ.
+
+### src/stats.css (346 lines)
+
+- L1 Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines.
+- L25 ---- Filters ----
+- L45 Input with its suggestion list below, then the chips already chosen
+- L97 ---- Data blocks ----
+- L137 Title and a selector on one line (shooting setting).
+- L160 Big figures: number of photos and total size
+- L183 Rating, colour and pick lists side by side (they wrap on a narrow window)
+- L199 Lists: the background bar is the share of the largest row (--share set by stats.js).
+- L255 Colour flag swatch before the name
+- L275 ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ----
 
 ### src/styles.css (1053 lines)
 
