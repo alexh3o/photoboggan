@@ -44,6 +44,7 @@ Findings of phase 2, already fixed in `AGENTS.md` (§1 and §5.D):
 | `modules/thumbnails-and-previews.md` | 3 | reviewed |
 | `modules/metadata-read-write.md` | 3 | reviewed |
 | `modules/keywords.md` | 3 | reviewed |
+| `modules/stats.md` | 3 | draft |
 | `modules/faces.md` | 3 | reviewed |
 | `modules/face-detection.md` | 3 | reviewed |
 | `modules/semantic.md` | 3 | reviewed |

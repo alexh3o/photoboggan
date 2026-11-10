@@ -1,0 +1,345 @@
+/* Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. */
+
+.stats-card {
+  width: min(56rem, calc(100vw - 4rem));
+  height: min(48rem, 92vh);
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-card .modal-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stats-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* ---- Filters ---- */
+
+.stats-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.stats-filter-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.stats-filter-label {
+  padding-top: 0.3rem;
+  color: var(--text-soft);
+}
+
+/* Input with its suggestion list below, then the chips already chosen */
+.stats-filter-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.stats-suggest-box {
+  position: relative;
+  flex: 0 1 16rem;
+  min-width: 10rem;
+}
+
+.stats-suggest-box input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.stats-period {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.stats-presets {
+  display: inline-flex;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+}
+
+.stats-preset {
+  padding: 0.3rem 0.75rem;
+  border: 0;
+  border-right: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text-light);
+  cursor: pointer;
+}
+
+.stats-preset:last-child {
+  border-right: 0;
+}
+
+.stats-preset[aria-pressed="true"] {
+  background: var(--accent-text);
+  color: var(--bg-panel);
+}
+
+/* ---- Data blocks ---- */
+
+.stats-message {
+  margin: 0;
+  padding: 2rem 0;
+  text-align: center;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+#stats-content[hidden] {
+  display: none;
+}
+
+.stats-section {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.stats-section[hidden] {
+  display: none;
+}
+
+.stats-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: var(--text-strong);
+}
+
+.stats-subtitle {
+  margin: 0.75rem 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.stats-column > .stats-subtitle {
+  margin-top: 0;
+}
+
+/* Title and a selector on one line (shooting setting). */
+.stats-section-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.stats-section-head .stats-section-title {
+  margin: 0;
+}
+
+.stats-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.stats-note:empty {
+  display: none;
+}
+
+/* Big figures: number of photos and total size */
+.stats-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5rem;
+}
+
+.stats-figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-figure-value {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-figure-label {
+  color: var(--text-muted);
+}
+
+/* Rating, colour and pick lists side by side (they wrap on a narrow window) */
+.stats-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.stats-column {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.stats-column[hidden] {
+  display: none;
+}
+
+/* Lists: the background bar is the share of the largest row (--share set by stats.js). */
+.stats-ranking {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.stats-rank-item {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  background:
+    linear-gradient(to right, color-mix(in srgb, var(--accent-text) 22%, transparent) var(--share), transparent var(--share)),
+    var(--row-bg);
+}
+
+.stats-rank-empty {
+  padding: 0.35rem 0.6rem;
+  color: var(--text-muted);
+}
+
+.stats-rank-number {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.stats-rank-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stats-rank-name,
+.stats-rank-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-rank-path {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stats-rank-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+/* Colour flag swatch before the name */
+.stats-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  vertical-align: -0.05rem;
+}
+.stats-swatch.red { background: #e5484d; }
+.stats-swatch.orange { background: #f76b15; }
+.stats-swatch.yellow { background: #f5d90a; }
+.stats-swatch.green { background: #30a46c; }
+.stats-swatch.blue { background: #3e63dd; }
+.stats-swatch.magenta { background: #d6409f; }
+.stats-swatch.grey { background: #8b8d98; }
+.stats-swatch.black { background: #1a1a1a; }
+.stats-swatch.white { background: #f5f5f5; }
+
+/* ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ---- */
+
+.stats-chart {
+  position: relative;
+  padding-top: 1.1rem;
+}
+
+.stats-axis-max {
+  position: absolute;
+  top: 0;
+  left: 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.stats-chart-scroll {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.stats-bars,
+.stats-labels {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.stats-bars {
+  height: 10rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.stats-bar {
+  flex: 1 0 var(--bar-width);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.stats-bar-fill {
+  width: 70%;
+  min-height: 2px;
+  border-radius: 0.2rem 0.2rem 0 0;
+  background: var(--accent-text);
+}
+
+.stats-bar-fill.empty {
+  min-height: 0;
+  background: none;
+}
+
+.stats-label {
+  flex: 1 0 var(--bar-width);
+  position: relative;
+  height: 1.3rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.stats-label span {
+  position: absolute;
+  top: 0.2rem;
+  left: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 40rem) {
+  .stats-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+}

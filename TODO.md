@@ -20,11 +20,13 @@
 - [x] *refactor*: `settings` `UI` move albums settings from general to misc
 - [x] *style*: `settings` `UI`hide install with internet helps when offline mode is off
 - [x] *refactor*: `semantic` move analyse content to find sub menu, in place of search entry when not analysed ?
+- [ ] *feat*: `semantic` offer a way to reanalyse content already analyzed ?
+- [ ] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: `stats` stats in a stat modal from settings
+- [x] *feat*: `stats` stats in a stat modal from settings
 - [ ] *feat*: `tasks` task to popup action to see progress
 - [x] *perf*: `thumbnails` more compressed thumbnails
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)

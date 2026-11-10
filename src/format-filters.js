@@ -43,7 +43,7 @@ const RAW_BRANDS = [
 const upper = list => list.map(extension => extension.toUpperCase()).join(', ');
 
 // Les libellés dépendent de la langue : le catalogue est reconstruit à chaque ouverture de la liste (voir refreshOptions).
-function buildCatalog() {
+export function buildCatalog() {
   const entries = [
     { id: 'raw', label: 'RAW', extensions: RAW_EXTENSIONS, keys: ['raw'] },
     { id: 'raster', label: t('Raster'), extensions: RASTER_EXTENSIONS, keys: ['raster'] },
@@ -72,7 +72,7 @@ const extensionOf = photo => {
 };
 
 // Extensions of a list of identifiers (union). The catalogue is only used for its extensions here: its language does not matter.
-function extensionsOf(ids) {
+export function extensionsOf(ids) {
   const wanted = new Set(ids);
   const extensions = new Set();
   for (const entry of buildCatalog()) if (wanted.has(entry.id)) for (const extension of entry.extensions) extensions.add(extension);

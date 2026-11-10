@@ -19,6 +19,7 @@ import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './fi
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
+import { initStats } from './stats.js';
 import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
@@ -4037,7 +4038,7 @@ for (const link of document.querySelectorAll('#about-modal a[href^="http"]')) {
 
 // Fenêtres de l'interface (Paramètres, À propos, Guide, Affichage, Tri, Tâches) : Tab reste dans la fenêtre du dessus (sinon Tab puis Entrée
 // activerait un bouton de l'interface derrière elle). Les fenêtres créées en JavaScript gèrent Tab elles-mêmes.
-const STATIC_MODALS = '#settings-modal, #about-modal, #update-modal, #guide-modal, #display-modal, #sort-modal, #tasks-modal';
+const STATIC_MODALS = '#settings-modal, #about-modal, #update-modal, #guide-modal, #stats-modal, #display-modal, #sort-modal, #tasks-modal';
 document.addEventListener('keydown', event => {
   const top = [...document.querySelectorAll('.modal:not(.hidden)')].at(-1);
   if (top?.matches(STATIC_MODALS)) keepFocusInModal(top, event);
@@ -4061,6 +4062,7 @@ window.addEventListener('keydown', event => {
 // ==========================================
 const guideModal = document.getElementById('guide-modal');
 initGuide();
+initStats();
 function openGuide() {
   guideModal.classList.remove('hidden');
 }
