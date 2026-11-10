@@ -27,6 +27,7 @@ mod keywords;
 mod library_sync;
 mod orientation;
 mod resize;
+mod stats;
 mod thumbnails;
 mod video;
 
@@ -2787,6 +2788,8 @@ fn main() {
             keywords::delete_keyword,
             keywords::rename_keyword,
             keywords::set_metadata_read_order,
+            stats::get_collection_stats,
+            stats::get_stats_filter_options,
             faces::set_face_reading,
             faces::get_persons,
             faces::get_face_index,
