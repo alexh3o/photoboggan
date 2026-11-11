@@ -8,7 +8,7 @@
 - [x] *feat*: `infos` add folder in infos when all photos is selected
 - [ ] *feat*: `tree` reorder root folders
 - [ ] *feat*: `tree` add folder search
-- [ ] *fix*: `faces` cannot pass faces from filtered to unknown
+- [x] *fix*: `faces` cannot pass faces from filtered to unknown
 - [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
 - [ ] *feat*: `keywords` write keywords when typing enter in empty keyword input field
 - [ ] *fix*: `keywords` keywords fail dialog shows No/Retry/Show: "No" is unclear

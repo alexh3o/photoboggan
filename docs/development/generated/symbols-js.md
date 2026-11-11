@@ -194,19 +194,19 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `selectedFaces()` · L758
 - `renderStatusFilters()` · L765 — ==========================================
 - `updateToolbar()` · L791
-- `useAsCover()` · L815 — « Visage représentatif » : ce visage devient l'image de sa personne (section et vue Personnes ; vignette régénérée depuis la photo d'origin…
-- `updateWriteButton()` · L830 — « Écrire dans les fichiers » (toujours présent, grisé pendant une écriture ou sans rien à écrire) suivi, s'il y a des visages en attente de
-- `setPendingMode(enabled)` · L841 — Bouton « N photos » : bascule entre les visages à écrire de toute la photothèque et ceux des photos affichées.
-- `writeFaces()` · L855
-- `viewPhotoIds()` · L861 — Photos de la vue : celles dont les visages sont à écrire (mode « Visages en attente »), sinon celles de la grille des photos.
-- `recognizeAndRefresh(photoIds)` · L865 — Réattribution des autres visages des photos de la vue (après une action), puis rechargement de la section Personnes et de cette vue.
-- `snapshotFaces(targets)` · L893 — State of the faces before an action (null if it cannot be read: the action then simply cannot be undone).
-- `singleName(targets)` · L903 — The only person named by the faces, or null when there are none or several.
-- `announceAction(command, targets, snapshots, name)` · L909 — Toast "Face of Alex confirmed on 32 photos" with an Undo button, and the action is pushed on the undo stack.
-- `undoLastAction()` · L921 — Puts the faces of the last review action back in their previous state.
-- `runAction(command, extraArgs = {})` · L942 — Action de révision sur les visages sélectionnés, puis réattribution des autres visages et rechargement.
-- `nameSelection(typed = null)` · L967 — Nommer les visages sélectionnés (fenêtre partagée avec le plein écran : faces-panel.js, promptPersonName). `typed` : premier caractère tapé
-- `export initFacesGrid(hostApi)` · L997 — ==========================================
+- `useAsCover()` · L816 — « Visage représentatif » : ce visage devient l'image de sa personne (section et vue Personnes ; vignette régénérée depuis la photo d'origin…
+- `updateWriteButton()` · L831 — « Écrire dans les fichiers » (toujours présent, grisé pendant une écriture ou sans rien à écrire) suivi, s'il y a des visages en attente de
+- `setPendingMode(enabled)` · L842 — Bouton « N photos » : bascule entre les visages à écrire de toute la photothèque et ceux des photos affichées.
+- `writeFaces()` · L856
+- `viewPhotoIds()` · L862 — Photos de la vue : celles dont les visages sont à écrire (mode « Visages en attente »), sinon celles de la grille des photos.
+- `recognizeAndRefresh(photoIds)` · L866 — Réattribution des autres visages des photos de la vue (après une action), puis rechargement de la section Personnes et de cette vue.
+- `snapshotFaces(targets)` · L894 — State of the faces before an action (null if it cannot be read: the action then simply cannot be undone).
+- `singleName(targets)` · L904 — The only person named by the faces, or null when there are none or several.
+- `announceAction(command, targets, snapshots, name)` · L910 — Toast "Face of Alex confirmed on 32 photos" with an Undo button, and the action is pushed on the undo stack.
+- `undoLastAction()` · L922 — Puts the faces of the last review action back in their previous state.
+- `runAction(command, extraArgs = {})` · L943 — Action de révision sur les visages sélectionnés, puis réattribution des autres visages et rechargement.
+- `nameSelection(typed = null)` · L968 — Nommer les visages sélectionnés (fenêtre partagée avec le plein écran : faces-panel.js, promptPersonName). `typed` : premier caractère tapé
+- `export initFacesGrid(hostApi)` · L998 — ==========================================
 
 ## src/faces-panel.js (106)
 

@@ -1015,18 +1015,23 @@ pub fn assign_faces(
 }
 
 /// Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
-/// personne, tant que l'utilisateur ne l'a pas nommé.
+/// personne, tant que l'utilisateur ne l'a pas nommé. Un visage « filtré » (sous les seuils de détection) peut aussi être promu « inconnu »
+/// depuis la vue Visages. Renvoie le nombre de visages passés à « inconnu ».
+fn set_faces_unknown_in(conn: &Connection, face_ids: &[i64]) -> Result<usize, String> {
+    conn.execute(
+        "UPDATE faces SET rejected_person_id = COALESCE(person_id, suggested_person_id, rejected_person_id), person_id = NULL,
+                suggested_person_id = NULL, state = 'unknown', unknown_locked = 1, dirty = CASE WHEN person_id IS NOT NULL AND state = 'confirmed' THEN 1 ELSE dirty END
+         WHERE id IN (SELECT value FROM json_each(?1))",
+        params![ids_json(face_ids)?],
+    )
+    .map_err(|error| error.to_string())
+}
+
 #[tauri::command(async)]
 pub fn set_faces_unknown(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<usize, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
-    conn.execute(
-        "UPDATE faces SET rejected_person_id = COALESCE(person_id, suggested_person_id, rejected_person_id), person_id = NULL,
-                suggested_person_id = NULL, state = 'unknown', unknown_locked = 1, dirty = CASE WHEN person_id IS NOT NULL AND state = 'confirmed' THEN 1 ELSE dirty END
-         WHERE id IN (SELECT value FROM json_each(?1)) AND state <> 'filtered'",
-        params![ids_json(&face_ids)?],
-    )
-    .map_err(|error| error.to_string())
+    set_faces_unknown_in(&conn, &face_ids)
 }
 
 /// Ignorer : visage écarté volontairement (inconnu dans la foule, faux visage) ; il n'est plus attribué ni proposé.

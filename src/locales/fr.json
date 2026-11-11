@@ -851,7 +851,7 @@
   "No folder yet. Add a folder to start.": "Aucun dossier pour l’instant. Ajoutez un dossier pour commencer.",
   "Confirm faces help": "Valider (Entrée) : confirmer les visages sélectionnés pour la personne attribuée ou proposée",
   "Name faces help": "Nommer… : choisir une personne existante ou saisir un nouveau nom (ou taper directement une lettre)",
-  "Unknown faces help": "Inconnu (-) : retirer la personne attribuée ou proposée ; le visage ne sera plus proposé",
+  "Unknown faces help": "Inconnu (-) : retirer la personne attribuée ou proposée, ou passer un visage filtré en inconnu ; le visage ne sera plus proposé",
   "Ignore faces help": "Ignorer (/) : écarter un vrai visage sans intérêt (inconnu dans la foule) ; il n’est plus attribué, proposé ni écrit dans les fichiers",
   "Stop ignoring help": "Ne plus ignorer : ces visages pourront de nouveau être attribués",
   "Not a face help": "Pas un visage (Suppr) : fausse détection (motif, statue…), jamais attribuée, proposée ni écrite ; une zone déjà écrite est retirée à la prochaine écriture",

@@ -851,7 +851,7 @@
   "No folder yet. Add a folder to start.": "No folder yet. Add a folder to start.",
   "Confirm faces help": "Confirm (Enter): confirm the selected faces for the person assigned or suggested",
   "Name faces help": "Name…: pick an existing person or type a new name (or just start typing)",
-  "Unknown faces help": "Unknown (-): remove the assigned or suggested person; the face is not suggested again",
+  "Unknown faces help": "Unknown (-): remove the assigned or suggested person, or promote a filtered face to unknown; the face is not suggested again",
   "Ignore faces help": "Ignore (/): set aside a real face you do not care about (stranger in the crowd); never assigned, suggested or written to the files",
   "Stop ignoring help": "Stop ignoring: these faces can be assigned again",
   "Not a face help": "Not a face (Del): false detection (pattern, statue…); never assigned, suggested or written to the files; an area already written is removed at the next write",

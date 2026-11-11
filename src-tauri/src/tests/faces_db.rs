@@ -42,6 +42,30 @@ fn rereading_a_file_updates_faces_without_duplicating_them() {
 }
 
 #[test]
+fn filtered_faces_can_be_set_to_unknown() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let photo = insert_photo(&conn, "C:/P/a.jpg");
+    conn.execute(
+        "INSERT INTO faces (photo_id, x, y, w, h, origin, state) VALUES (?1, 0.1, 0.1, 0.2, 0.2, 'detected', 'filtered')",
+        params![photo],
+    )
+    .unwrap();
+    let face = conn.last_insert_rowid();
+
+    // A filtered face (below the detection thresholds) is promoted to "unknown" from the Faces view.
+    assert_eq!(set_faces_unknown_in(&conn, &[face]).unwrap(), 1);
+    let (state, locked, dirty): (String, i64, i64) = conn
+        .query_row("SELECT state, unknown_locked, dirty FROM faces WHERE id = ?1", params![face], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .unwrap();
+    assert_eq!(state, "unknown");
+    assert_eq!(locked, 1); // recognition no longer proposes it
+    assert_eq!(dirty, 0); // never a confirmed face: nothing to write back to the file
+}
+
+#[test]
 fn auto_faces_are_not_written_until_confirmed() {
     let (_dir, pool) = temp_catalog();
     let conn = pool.get().unwrap();

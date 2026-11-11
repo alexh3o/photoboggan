@@ -798,7 +798,8 @@ function updateToolbar() {
   const hasConfirmable = targets.some(face => face.state === 'suggested' || face.state === 'auto');
   document.getElementById('btn-faces-confirm').disabled = !hasConfirmable;
   document.getElementById('btn-faces-name').disabled = targets.length === 0;
-  document.getElementById('btn-faces-unknown').disabled = !targets.some(face => face.person_id != null || face.suggested_person_id != null);
+  // A filtered face (below the detection thresholds) can also be promoted to "unknown".
+  document.getElementById('btn-faces-unknown').disabled = !targets.some(face => face.person_id != null || face.suggested_person_id != null || face.state === 'filtered');
   const ignored = targets.filter(face => face.state === 'ignored');
   document.getElementById('btn-faces-ignore').disabled = targets.length === ignored.length;
   document.getElementById('btn-faces-unignore').hidden = ignored.length === 0;
