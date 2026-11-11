@@ -3211,12 +3211,12 @@ function updateUIOnSelection() {
   syncHistogram(); // histogramme de la photo courante
 }
 
-// Info tab "Folder" row: the folder of the active photo, shown only when the folder view does not already tell it ("All photos", or the
-// option to include subfolders is on). Outside those cases the text stays "-" and refreshInfoRows hides the row. The tooltip is the full
-// folder path (file name excluded, same separators as the catalogue); a click opens that folder in the tree (see showPhotoInItsFolder).
+// Info tab "Folder" row: the folder of the active photo, shown when the folder view does not already tell it ("All photos", subfolders
+// included, or an album view). Otherwise the text stays "-" and refreshInfoRows hides the row. The tooltip is the full folder path (file name
+// excluded, same separators as the catalogue); a click opens that folder in the tree (see showPhotoInItsFolder).
 function updateInfoFolder(photo) {
   const button = document.getElementById('exif-folder');
-  const folder = photo && (currentFolderFilter === null || includeSubfolders) ? folderOf(photo.path) : '';
+  const folder = photo && (currentFolderFilter === null || includeSubfolders || getSelectedAlbum()) ? folderOf(photo.path) : '';
   const name = folder.split(/[\\/]/).filter(Boolean).pop() || '';
   button.textContent = name || '-';
   button.title = name ? folder : '';

@@ -653,7 +653,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `handleSelection(index, event)` · L3127 — ==========================================
 - `toggleSelectAllPhotos()` · L3155 — Ctrl+A (hors mode Comparer) : sélectionne toutes les photos affichées dans la grille, ou les désélectionne toutes si elles le sont déjà.
 - `updateUIOnSelection()` · L3173
-- `updateInfoFolder(photo)` · L3217 — Info tab "Folder" row: the folder of the active photo, shown only when the folder view does not already tell it ("All photos", or the
+- `updateInfoFolder(photo)` · L3217 — Info tab "Folder" row: the folder of the active photo, shown when the folder view does not already tell it ("All photos", subfolders
 - `refreshInfoRows()` · L3235 — Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
 - `formatAperture(value)` · L3247 — Normalise ouverture (« f/4 ») et vitesse (« 1/100 s »), y compris les valeurs déjà en base avec un préfixe ou un suffixe en double.
 - `formatShutterSpeed(value)` · L3252
