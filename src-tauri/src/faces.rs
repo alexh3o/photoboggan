@@ -710,6 +710,23 @@ pub fn get_face_index(state: State<'_, AppState>) -> Result<Vec<(i64, i64)>, Str
     crate::keywords::collect_rows(rows)
 }
 
+/// Number of faces per photo (every photo of the catalogue that has at least one; a photo absent from the list has none): feeds the face-count
+/// filter of the Photos view. Counts the faces of the database whatever their state (confirmed, auto, suggested, unknown, ignored) and whether or
+/// not they are written in the file (pending faces included). `filtered` (rejected by the detection thresholds) and `not_face` (false detection)
+/// are not faces and are left out.
+#[tauri::command(async)]
+pub fn get_face_counts(state: State<'_, AppState>) -> Result<Vec<(i64, i64)>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare("SELECT photo_id, COUNT(*) FROM faces WHERE state NOT IN ('filtered', 'not_face') GROUP BY photo_id")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+        .map_err(|error| error.to_string())?;
+    crate::keywords::collect_rows(rows)
+}
+
 #[derive(Serialize)]
 pub struct FaceInfo {
     pub id: i64,

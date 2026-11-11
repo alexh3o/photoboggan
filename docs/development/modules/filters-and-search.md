@@ -33,7 +33,7 @@ On a scope of more than 50 000 photos (`largeScope`), `buildSqlPrefilter` sends 
 | Rating | `matchesRatingFilter` (`unrated` = 0, `eq` = exact, else ≥ stars) | `rating_min` / `rating_eq` / `unrated` | same |
 | Colour / pick | `color_flag \|\| 'none'` | `COALESCE(NULLIF(col,''),'none') IN (…)` | same |
 | Keywords (included) | whole-keyword match on `photo.keywords.split(', ')` | `instr(keywords, text) > 0` | SQL is a substring: superset. Excluded never sent |
-| People | `personFilterMatches` → `photoMatchesPersonIds` (`faces-panel.js`: every included person on the photo, no excluded one) | `id IN (SELECT photo_id FROM faces WHERE person_id=…)` | excluded persons and the face-scan status filter (unscanned / to review / scanned) not sent |
+| People | `personFilterMatches` → `photoMatchesPersonIds` (`faces-panel.js`: every included person on the photo, no excluded one) | `id IN (SELECT photo_id FROM faces WHERE person_id=…)` | excluded persons, the face-scan status filter (unscanned / to review / scanned) and the face-count filter (min / max, `get_face_counts`, counted in `personFilterMatches`) not sent |
 | Date | exact instants (`dateFilter.from/to`) | years only (`year_from`/`year_to`), odd formats kept | SQL coarser |
 | Location | GPS finite | `gps_lat/gps_lon IS (NOT) NULL` | same |
 | File names | substring of file name | `instr(lower(filename or path), text)` | ASCII-only texts sent (`isAsciiText`); path searched: superset; excluded not sent |

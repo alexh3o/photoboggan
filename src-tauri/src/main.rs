@@ -2793,6 +2793,7 @@ fn main() {
             faces::set_face_reading,
             faces::get_persons,
             faces::get_face_index,
+            faces::get_face_counts,
             faces::get_photo_faces,
             faces::link_person_keyword,
             faces::get_faces_for_photos,

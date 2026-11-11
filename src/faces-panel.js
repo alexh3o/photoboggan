@@ -6,7 +6,7 @@
 import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { t, tp, onLanguageChange, normalizeSearch } from './i18n.js';
+import { t, tp, onLanguageChange, normalizeSearch, labelWithColon } from './i18n.js';
 import { DEFAULTS, readBool } from './settings-defaults.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
@@ -52,6 +52,11 @@ let excludedPersonFilters = [];
 let personFilterSuggest = null; // suggestion list of the people filter field (filter-suggest.js)
 let scanIndex = new Map(); // identifiant de photo scannée -> à revérifier ? (get_face_scan_index)
 let scanFilter = 'all';
+// Face-count filter (min and max included, null = no bound) and the number of faces of each photo (get_face_counts: every face of the database
+// that is not filtered / not a face; a photo missing from the map has none). Not remembered between sessions, like the people filter.
+let faceCountFilter = { min: null, max: null };
+let faceCounts = new Map();
+let faceCountTimer = null;
 let refreshToken = 0;
 // Calques de zones (plein écran et cases de l'aperçu) : visages de la photo affichée, chargés une fois par photo.
 const overlayStates = new WeakMap(); // calque -> { photoId, faces: { orientation, faces } ou null pendant le chargement, token }
@@ -120,7 +125,17 @@ export function faceCropStyle(face, orientation, width, height, zoom) {
 // FILTRES PERSONNES (ET) ET STATUT DU SCAN : utilisés par applyPhotoFilters dans main.js
 // ==========================================
 export function hasPersonFilters() {
-  return readingEnabled && (personFilters.length > 0 || excludedPersonFilters.length > 0 || (detectionEnabled && scanFilter !== 'all'));
+  return readingEnabled && (personFilters.length > 0 || excludedPersonFilters.length > 0 || hasFaceCountFilter() || (detectionEnabled && scanFilter !== 'all'));
+}
+
+function hasFaceCountFilter() {
+  return faceCountFilter.min !== null || faceCountFilter.max !== null;
+}
+
+// Integer >= 0 typed in a bound field; empty or anything else = no bound.
+function parseFaceBound(value) {
+  const text = String(value).trim();
+  return /^\d{1,4}$/.test(text) ? Number(text) : null;
 }
 
 export function personFilterMatches(photo) {
@@ -129,6 +144,11 @@ export function personFilterMatches(photo) {
     const review = scanIndex.get(photo.id);
     const status = review === undefined ? 'unscanned' : review ? 'review' : 'scanned';
     if (status !== scanFilter) return false;
+  }
+  if (hasFaceCountFilter()) {
+    const count = faceCounts.get(photo.id) ?? 0;
+    if (faceCountFilter.min !== null && count < faceCountFilter.min) return false;
+    if (faceCountFilter.max !== null && count > faceCountFilter.max) return false;
   }
   return photoMatchesPersonIds(photo, personFilters, excludedPersonFilters);
 }
@@ -161,6 +181,7 @@ export function clearPersonFilters() {
   excludedPersonFilters = [];
   scanFilter = 'all';
   writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+  resetFaceCountFilter();
   const input = document.getElementById('person-filter-input');
   if (input) input.value = '';
   const scanSelect = document.getElementById('face-scan-filter');
@@ -319,8 +340,85 @@ function renderPersonFilterTags() {
     const tag = createFilterTag({ kind: 'person', text: label(entry), onRemove: () => remove(entry) });
     addMenu(tag, entry);
     return tag;
-  }));
+  }), ...statusTags());
   personFilterSuggest?.refresh();
+}
+
+// Chips of the face scan status and of the face-count filter, after the people chips on the collapsed line (same violet as the people chips).
+function statusTags() {
+  const tags = [];
+  if (readingEnabled && detectionEnabled && scanFilter !== 'all') {
+    const status = { unscanned: t('Not scanned'), scanned: t('Scanned'), review: t('To check again') }[scanFilter];
+    tags.push(createFilterTag({
+      kind: 'person',
+      text: status,
+      title: `${labelWithColon('Face scan')} ${status}`,
+      onRemove: () => {
+        scanFilter = 'all';
+        writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+        const scanSelect = document.getElementById('face-scan-filter');
+        if (scanSelect) scanSelect.value = scanFilter;
+        renderPersonFilterTags();
+        host.onFilterChange();
+      },
+    }));
+  }
+  if (readingEnabled && hasFaceCountFilter()) {
+    tags.push(createFilterTag({
+      kind: 'person',
+      text: faceCountLabel(),
+      title: t('Number of faces on the photo'),
+      onRemove: () => {
+        resetFaceCountFilter();
+        renderPersonFilterTags();
+        host.onFilterChange();
+      },
+    }));
+  }
+  return tags;
+}
+
+// Chip text: "👤≤3" (maximum only), "👤≥2" (minimum only), "👤=0" (same bound twice), "1≤👤≤4" (both). The text-presentation selector (U+FE0E)
+// asks for the monochrome glyph, which takes the colour of the text instead of the colour emoji.
+function faceCountLabel() {
+  const { min, max } = faceCountFilter;
+  const icon = '\u{1F464}\uFE0E';
+  if (min !== null && max !== null) return min === max ? `${icon}=${min}` : `${min}≤${icon}≤${max}`;
+  return max !== null ? `${icon}≤${max}` : `${icon}≥${min}`;
+}
+
+// Empties the face-count filter and its two fields (the caller renders the chips and filters again).
+function resetFaceCountFilter() {
+  clearTimeout(faceCountTimer);
+  faceCountFilter = { min: null, max: null };
+  for (const id of ['face-count-min', 'face-count-max']) {
+    const input = document.getElementById(id);
+    if (input) input.value = '';
+  }
+}
+
+// The two bound fields: typing filters after a short pause (the list is filtered again each time), leaving the field or Enter at once.
+function initFaceCountFilter() {
+  const minInput = document.getElementById('face-count-min');
+  const maxInput = document.getElementById('face-count-max');
+  const apply = () => {
+    clearTimeout(faceCountTimer);
+    const next = { min: parseFaceBound(minInput.value), max: parseFaceBound(maxInput.value) };
+    if (next.min === faceCountFilter.min && next.max === faceCountFilter.max) return;
+    faceCountFilter = next;
+    renderPersonFilterTags();
+    host.onFilterChange();
+  };
+  for (const input of [minInput, maxInput]) {
+    input.addEventListener('input', () => {
+      clearTimeout(faceCountTimer);
+      faceCountTimer = setTimeout(apply, 300);
+    });
+    input.addEventListener('change', apply);
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter') apply();
+    });
+  }
 }
 
 // People offered by the filter field: listed people not already in the filter, with their photo count. Searched by name and alias.
@@ -346,13 +444,15 @@ export async function refreshFaces() {
   let pairs;
   let scans;
   let pending;
+  let counts;
   try {
     // Visages en attente d'écriture lus avec le reste : une seule lecture, protégée par le même jeton (pas de liste d'une lecture plus ancienne).
-    [loadedPersons, pairs, scans, pending] = await Promise.all([
+    [loadedPersons, pairs, scans, pending, counts] = await Promise.all([
       invoke('get_persons'),
       invoke('get_face_index'),
       detectionEnabled ? invoke('get_face_scan_index') : Promise.resolve([]),
       invoke('get_pending_face_writes'),
+      invoke('get_face_counts'),
     ]);
   } catch (error) {
     console.error('Lecture des personnes impossible', error);
@@ -363,6 +463,7 @@ export async function refreshFaces() {
   pendingFaceWrites = pending; // bouton de la vue Visages, confirmation à la fermeture
   avatarStyles.clear(); // couvertures et miniatures ont pu changer
   scanIndex = new Map(scans);
+  faceCounts = new Map(counts);
   faceIndex = new Map();
   for (const [photoId, personId] of pairs) {
     if (!faceIndex.has(photoId)) faceIndex.set(photoId, new Set());
@@ -1372,6 +1473,7 @@ function initDetectionSettings() {
   scanSelect.addEventListener('change', () => {
     scanFilter = scanSelect.value;
     writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+    renderPersonFilterTags();
     host.onFilterChange();
   });
 }
@@ -1383,6 +1485,7 @@ function applyDetectionEnabled() {
   document.getElementById('face-scan-filter-row').hidden = !isFaceDetectionEnabled();
   if (!isFaceDetectionEnabled()) host.closeFacesView?.();
   renderPersons();
+  renderPersonFilterTags(); // the face scan chip only exists while the detection is on
   if (detectionEnabled) {
     refreshModelStatus();
     refreshFaces();
@@ -1537,8 +1640,10 @@ function applyReadingEnabled() {
   if (!readingEnabled) {
     persons = [];
     faceIndex = new Map();
+    faceCounts = new Map();
     personFilters = [];
     excludedPersonFilters = [];
+    resetFaceCountFilter();
     pendingFaceWrites = [];
     renderPersons();
     renderPersonFilterTags();
@@ -1567,6 +1672,7 @@ export function initFacesPanel(hostApi) {
     }
   });
   initDetectionSettings();
+  initFaceCountFilter();
   applyDetectionEnabled();
 
   const toggle = document.getElementById('face-reading-toggle');

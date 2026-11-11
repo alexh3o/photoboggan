@@ -56,6 +56,11 @@ button.filter-tag.tag-person:hover { background: var(--tag-person-hover); }
 .face-scan-filter-row[hidden], #btn-toggle-faces[hidden] { display: none !important; }
 .face-scan-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.5rem; }
 .face-person-root { width: 10rem; }
+/* Face-count filter: label on the left, "min to max" fields on the right (same row layout as the face scan filter) */
+.face-count-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.5rem; }
+.face-count-fields { display: inline-flex; align-items: center; gap: 0.4rem; }
+#filter-body-persons .face-count-fields input { width: 4.5rem; }
+.face-count-separator { color: var(--text-dim); }
 
 /* VUE VISAGES (faces-grid.js) : barre d'outils (filtre par statut, actions) et grille virtuelle des visages */
 .faces-view[hidden] { display: none !important; }

@@ -156,6 +156,15 @@
                   <option value="review" data-i18n="To check again">À revérifier</option>
                 </select>
               </label>
+              <!-- Filtre sur le nombre de visages de la photo (faces-panel.js) : minimum et maximum inclus, l'un des deux peut rester vide -->
+              <div class="face-count-filter-row">
+                <span data-i18n="Face count">Nombre de visages</span>
+                <span class="face-count-fields">
+                  <input id="face-count-min" type="number" min="0" step="1" inputmode="numeric" placeholder="0" aria-label="Nombre minimal de visages" data-i18n-aria-label="Minimum number of faces" title="Nombre minimal de visages sur la photo (inclus). Vide : pas de minimum" data-i18n-title="Minimum number of faces help" autocomplete="off" />
+                  <span class="face-count-separator" data-i18n="to">à</span>
+                  <input id="face-count-max" type="number" min="0" step="1" inputmode="numeric" placeholder="∞" aria-label="Nombre maximal de visages" data-i18n-aria-label="Maximum number of faces" title="Nombre maximal de visages sur la photo (inclus). Vide : pas de maximum" data-i18n-title="Maximum number of faces help" autocomplete="off" />
+                </span>
+              </div>
             </div>
           </div>
           <div class="filter-group" data-filter-group="date">

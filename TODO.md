@@ -2,39 +2,19 @@
 
 ## 🚀 Next in line
 
-- [x] *docs*: `dev` technical documentation
-- [x] *feat*: `scan` allow pausing
-- [x] *feat*: `semantic` add filter for scanned / unscanned photos
-- [ ] *perf*: `semantic``thumbnails``faces`organize workflow and synergies
-  - [x] done for thumbnails
-  - [x] already in place for face detection & thumbnails
-  - [ ] offer workflow to user ?
-- [x] *feat*: `semantic` irregular progress of scan, seems stuck at times
-- [x] *fix*: `UI`allow exact match without scrolling down in lists
-- [x] *feat*: `semantic` share search box with keywords search
-- [x] *feat*: `semantic` keywords for which suggestion cannot be done under it's keyword path
-- [x] *fix*:  `semantic` `UI` issues with search box when window width is small
-- [x] *style*:  `semantic` `UI` make search settings view clearer with better separation between raw and semantic
-- [x] *feat*: `editing` rotate
-- [x] *feat*: `keywords` open keyword panel directly on input zone
-- [x] *refactor*: `settings` `UI` move albums settings from general to misc
-- [x] *style*: `settings` `UI`hide install with internet helps when offline mode is off
-- [x] *refactor*: `semantic` move analyse content to find sub menu, in place of search entry when not analysed ?
 - [ ] *feat*: `semantic` offer a way to reanalyse content already analyzed ?
-- [ ] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
+- [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
+- [ ] *feat*: `infos` add folder in infos when all photos is selected
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [x] *feat*: `stats` stats in a stat modal from settings
 - [ ] *feat*: `tasks` task to popup action to see progress
-- [x] *perf*: `thumbnails` more compressed thumbnails
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
-- [x] *feat*: cancellations everywhere
 - [ ] *refactor*: `UI` improve toasts placement / visibility
 
 ## ❄️ Cold storage
