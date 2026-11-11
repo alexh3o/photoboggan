@@ -464,6 +464,7 @@ let layoutContentHeight = 0;
 let maximumPhotoHeight = thumbnailSize;
 const gridContainer = document.getElementById('grid-view');
 const scrollContent = document.getElementById('virtual-scroll-content');
+const gridScrollPosition = document.getElementById('grid-scroll-position');
 const previewStage = document.getElementById('preview-stage');
 const fullscreenView = document.getElementById('fullscreen-view');
 const fullscreenImg = document.getElementById('fullscreen-image');
@@ -989,7 +990,7 @@ async function loadPhotos() {
   renderFolderTree();
   renderKeywordFilters();
   invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
-  applyPhotoFilters();
+  applyPhotoFilters({ keepState: false });
   refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
   scheduleAlbumCounts(); // les photos ont pu changer : compteurs des albums
 }
@@ -1076,8 +1077,8 @@ function updateFilteredPhotosCount() {
 }
 
 let mapCandidatePhotos = [];
-function applyPhotoFilters({ keepState = false } = {}) {
-  // keepState : mise à jour en arrière-plan (synchronisation), la sélection et le défilement sont conservés.
+function applyPhotoFilters({ keepState = true } = {}) {
+  // A filter only narrows the current view: keep the selected photos that are still present. Loading a different source explicitly resets this state.
   const keptPaths = keepState ? [...selectedIndices].map(index => photos[index]?.path).filter(Boolean) : [];
   const keptLastPath = keepState ? photos[lastSelectedIndex]?.path : null;
   const keptScrollTop = gridContainer.scrollTop;
@@ -2728,7 +2729,50 @@ function renderVisibleSeparators(top, bottom) {
   }
 }
 
+let gridScrollPositionTimeout = null;
+
+function formatGridScrollPosition(photo) {
+  if (!photo) return t('Unknown date');
+  if (sortKey === 'name') return photo.filename || photo.path.split(/[\\/]/).pop() || t('Unknown');
+  if (sortKey === 'modified') {
+    if (!(photo.modified > 0)) return t('Unknown date');
+    return new Date(photo.modified).toLocaleDateString(getLanguage(), { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  const key = photoTimeKey(photo);
+  if (key === null || key === undefined) return t('Unknown date');
+  const text = String(key).padStart(14, '0');
+  return new Date(Number(text.slice(0, 4)), Number(text.slice(4, 6)) - 1, Number(text.slice(6, 8))).toLocaleDateString(getLanguage(), { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function updateGridScrollPosition() {
+  const scrollTop = gridContainer.scrollTop;
+  const viewBottom = scrollTop + gridContainer.clientHeight;
+  let low = 0, high = photoLayouts.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (photoLayouts[middle].y < scrollTop) low = middle + 1; else high = middle;
+  }
+  let text = '';
+  for (let index = low; index < photoLayouts.length && photoLayouts[index].y < viewBottom; index++) {
+    text = formatGridScrollPosition(photos[photoLayouts[index].index]);
+    if (text) break;
+  }
+  for (let index = low - 1; !text && index >= 0 && photoLayouts[index].y + maximumPhotoHeight > scrollTop; index--) {
+    if (photoLayouts[index].y + photoLayouts[index].height <= scrollTop) continue;
+    text = formatGridScrollPosition(photos[photoLayouts[index].index]);
+  }
+  gridScrollPosition.textContent = text;
+  const bounds = gridContainer.getBoundingClientRect();
+  const scrollbarWidth = gridContainer.offsetWidth - gridContainer.clientWidth;
+  gridScrollPosition.style.top = `${Math.round(bounds.top + 12)}px`;
+  gridScrollPosition.style.right = `${Math.round(window.innerWidth - bounds.right + scrollbarWidth + 16)}px`;
+  gridScrollPosition.hidden = !text;
+  clearTimeout(gridScrollPositionTimeout);
+  if (text) gridScrollPositionTimeout = setTimeout(() => { gridScrollPosition.hidden = true; }, 2000);
+}
+
 gridContainer.addEventListener('scroll', () => {
+  updateGridScrollPosition();
   if (scrollRenderPending) return;
   scrollRenderPending = true;
   requestAnimationFrame(() => { scrollRenderPending = false; renderVisibleItems(); });
@@ -2916,6 +2960,7 @@ function navigateToPhotoIndex(index) {
   selectedIndices.clear();
   selectedIndices.add(newIndex);
   updateUIOnSelection();
+  if (!isFullscreen) scrollPhotoIntoView(newIndex);
   preloadFullscreenImages(newIndex);
 }
 

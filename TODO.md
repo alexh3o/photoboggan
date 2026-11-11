@@ -6,7 +6,7 @@
 - [ ] *feat*: `grid` implement pages for 50k+ views
 - [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
 - [x] *feat*: `infos` add folder in infos when all photos is selected
-- [ ] *feat*: `tree` reorder root folders
+- [x] *feat*: `tree` reorder root folders
 - [ ] *feat*: `tree` add folder search
 - [x] *fix*: `faces` cannot pass faces from filtered to unknown
 - [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail

@@ -1,4 +1,4 @@
-<!-- verified: ad666bb | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
+<!-- verified: 60164db | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
 # Filters and search (sidebar filters, SQL prefilter, "Find the RAW", histogram)
 
 ## Purpose
@@ -22,7 +22,7 @@ The Filters block of the sidebar narrows the displayed photos by rating, colour,
 ### Filter pipeline (`applyPhotoFilters`)
 1. Any control change updates its own state variable (`ratingFilter`, `colorFilters`, `pickFilters`, `keywordFilters` + `excludedKeywordFilters`, `filenameFilters` + excluded, `dateFilter`, `locationFilter`, person filter, module states) and calls `applyPhotoFilters()`.
 2. It starts from `loadedPhotos` (plus photos suggested by the content search when "include suggestions in keyword filtering" is on), keeps the photos satisfying **all** predicates (AND), in this order: rating, keywords (or suggested), people, file names, `pathFilter` (a fixed set of paths, e.g. failed-files list), colour, pick, date, location, content-analysis state, gear/shooting, format, Find-RAW scope (`matchesRawSearchScope`), content-search cut (`matchesSemanticCut`), smart-album inherited criteria (`matchesAlbumCriteria`) → `mapCandidatePhotos`; then "visible map area only" (`passesMapFilter`) → `photos`; then sort.
-3. Selection and scroll reset (unless `keepState`), grid re-laid out (`grid-and-viewer.md`), banners and the "N of M photos" counter updated, faces and map views refreshed.
+3. A filter change keeps the selected paths and active path when they still pass the new criteria (and preserves the scroll position); loading a different source explicitly passes `keepState:false`. The grid is re-laid out (`grid-and-viewer.md`), banners and the "N of M photos" counter updated, faces and map views refreshed.
 4. Inside a filter type, included values of the **same** field are AND for keywords / file names / people, OR for gear entries and formats; an **excluded** value always removes the photo. Different filter types combine with AND.
 
 ### JS filter and SQL prefilter must agree

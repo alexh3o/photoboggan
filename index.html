@@ -332,6 +332,8 @@
         </div>
         <!-- État vide centré (texte choisi par main.js, updateGridEmptyState) : dossier vide, filtres trop sélectifs, ou autre cas -->
         <p id="grid-empty" class="grid-empty" role="status" hidden></p>
+        <!-- Repère temporaire pendant le défilement : la valeur suit le tri actif. -->
+        <output id="grid-scroll-position" class="grid-scroll-position" aria-live="polite" hidden></output>
         <div id="virtual-scroll-container">
           <div id="virtual-scroll-content"></div>
         </div>

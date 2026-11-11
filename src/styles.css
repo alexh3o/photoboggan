@@ -410,6 +410,9 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 /* Grille vide : message centré, de la taille des textes de la barre d'outils */
 .grid-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; text-align: center; pointer-events: none; }
 .grid-empty[hidden] { display: none; }
+/* The scroll position stays above virtual items without intercepting the scrollbar or thumbnails. */
+.grid-scroll-position { display: block; position: fixed; z-index: 20; max-width: calc(100% - 2rem); overflow: hidden; padding: 0.35rem 0.65rem; border: 1px solid var(--control-border); border-radius: 999px; background: var(--card-bg); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); color: var(--text-strong); font-size: 0.8rem; font-variant-numeric: tabular-nums; pointer-events: none; text-overflow: ellipsis; white-space: nowrap; }
+.grid-scroll-position[hidden] { display: none; }
 #virtual-scroll-content { position: absolute; top: 0; left: 0; width: 100%; }
 
 /* Thumbnail visual tokens */
