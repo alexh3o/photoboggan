@@ -239,6 +239,7 @@
   "Program name": "Nom du programme",
   "Opening with {program}": "Ouverture avec {program}",
   "Open with help": "Chaque type de fichier a sa liste : le menu contextuel la propose dans cet ordre, et la touche O ouvre la sélection avec le premier programme. Glissez les lignes pour réordonner.",
+  "Folder order help": "Glissez les lignes pour réordonner les dossiers racines dans l'arborescence.",
   "File type": "Type de fichier",
   "Rendered images": "Images rendues",
   "RAW images": "Images RAW",

@@ -9,7 +9,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 42 | — |
 | `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
-| `--active-button` | styles.css · `:root` · `#1e72ad` | 25 | main.js |
+| `--active-button` | styles.css · `:root` · `#1e72ad` | 26 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
@@ -393,7 +393,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L265 Colour flag swatch before the name
 - L285 ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ----
 
-### src/styles.css (1057 lines)
+### src/styles.css (1060 lines)
 
 - L1 Fredoka Font (title, about) embedded : no connection to Google Fonts.
 - L20 Selectable interface fonts (Settings > Appearance), registered in src/app-fonts.js (steps to add one are listed there).
@@ -507,25 +507,26 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L857 Une ligne : les touches à gauche (colonne de largeur fixe, pour que l'œil les suive), l'action à droite avec son détail en gris d…
 - L864 Contexte où la ligne s'applique (une même touche peut avoir un autre sens ailleurs : D, Ctrl + A, Entrée…)
 - L868 MODALE À PROPOS
-- L885 MODALE REDIMENSIONNER (et question « fichier existant »)
-- L904 VIDÉOS (voir video.rs et main.js) : tout se règle ici, les variables ci-dessous suffisent pour l'essentiel.
-- L921 RAW sans JPEG intégré (ex. Panasonic / Leica .RAW) : (::before, car ::after sert au coin de sélection) les lettres de l'extension…
-- L929 Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier
-- L933 Onglet Info : titres de groupe
-- L935 Zones de clic d'au moins 1,5 rem pour les boutons d'icône
-- L938 Voile des fenêtres : un peu plus dense en thème clair, où le fond blanc ressort davantage
-- L940 Fenêtre Affichage : assez large pour les sélecteurs de couleurs
-- L943 MARQUAGE : note et couleur de la sélection (main.js, « MARQUAGE »), en bas du panneau Info et/ou en barre flottante sur la grille
-- L947 Section du panneau Info : épinglée en bas de l'onglet (l'onglet est une colonne dont la liste prend la place libre) et visible mê…
-- L954 Groupe Lieu (location-panel.js) : coordonnées et lien, message éventuel, puis carte de hauteur fixe sur toute la largeur du panne…
-- L959 isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas
-- L962 Titre et cadenas (lieu privé : fermé et accentué ; sinon ouvert et discret), qui ouvre la fenêtre des zones privées
-- L970 Coordonnées : un clic les copie dans le presse-papiers
-- L974 FENÊTRE DES ZONES PRIVÉES (private-zones-modal.js) : liste à gauche, détail ou création à droite (texte puis carte)
-- L1017 Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans …
-- L1021 Légèrement translucide au repos (la grille reste visible dessous), entièrement opaque au survol et au clavier
-- L1024 Grille étroite (aperçu ouvert, fenêtre réduite) : la barre passe sur deux lignes, le nombre de photos sous les étoiles.
-- L1037 Réserve en bas de la grille pour que la dernière rangée ne reste pas sous la barre ; l'ancre « sticky » se cale au-dessus de ce r…
-- L1040 Pastille multicolore : ouvre la bulle des couleurs ; prend la couleur de la photo quand elle en a une
-- L1046 Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la…
-- L1051 Finished duplicate search waiting to be shown: "Show" button in the toast, and "Show" / "Dismiss" in the tasks window.
+- L881 Une ligne par dossier racine : poignée | rang | chemin | ↑ ↓ | Supprimer (mêmes classes que les programmes « Ouvrir avec »).
+- L888 MODALE REDIMENSIONNER (et question « fichier existant »)
+- L907 VIDÉOS (voir video.rs et main.js) : tout se règle ici, les variables ci-dessous suffisent pour l'essentiel.
+- L924 RAW sans JPEG intégré (ex. Panasonic / Leica .RAW) : (::before, car ::after sert au coin de sélection) les lettres de l'extension…
+- L932 Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier
+- L936 Onglet Info : titres de groupe
+- L938 Zones de clic d'au moins 1,5 rem pour les boutons d'icône
+- L941 Voile des fenêtres : un peu plus dense en thème clair, où le fond blanc ressort davantage
+- L943 Fenêtre Affichage : assez large pour les sélecteurs de couleurs
+- L946 MARQUAGE : note et couleur de la sélection (main.js, « MARQUAGE »), en bas du panneau Info et/ou en barre flottante sur la grille
+- L950 Section du panneau Info : épinglée en bas de l'onglet (l'onglet est une colonne dont la liste prend la place libre) et visible mê…
+- L957 Groupe Lieu (location-panel.js) : coordonnées et lien, message éventuel, puis carte de hauteur fixe sur toute la largeur du panne…
+- L962 isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas
+- L965 Titre et cadenas (lieu privé : fermé et accentué ; sinon ouvert et discret), qui ouvre la fenêtre des zones privées
+- L973 Coordonnées : un clic les copie dans le presse-papiers
+- L977 FENÊTRE DES ZONES PRIVÉES (private-zones-modal.js) : liste à gauche, détail ou création à droite (texte puis carte)
+- L1020 Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans …
+- L1024 Légèrement translucide au repos (la grille reste visible dessous), entièrement opaque au survol et au clavier
+- L1027 Grille étroite (aperçu ouvert, fenêtre réduite) : la barre passe sur deux lignes, le nombre de photos sous les étoiles.
+- L1040 Réserve en bas de la grille pour que la dernière rangée ne reste pas sous la barre ; l'ancre « sticky » se cale au-dessus de ce r…
+- L1043 Pastille multicolore : ouvre la bulle des couleurs ; prend la couleur de la photo quand elle en a une
+- L1049 Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la…
+- L1054 Finished duplicate search waiting to be shown: "Show" button in the toast, and "Show" / "Dismiss" in the tasks window.

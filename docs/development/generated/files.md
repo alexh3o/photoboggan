@@ -9,10 +9,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1387 |  |
+| `index.html` | 1388 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 60 |  |
+| `TODO.md` | 65 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -64,8 +64,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `ipc-commands.md` | 179 |  |
 | `module-deps.md` | 95 |  |
 | `symbols-js.md` | 1406 |  |
-| `symbols-rust.md` | 1308 |  |
-| `tests.md` | 447 |  |
+| `symbols-rust.md` | 1309 |  |
+| `tests.md` | 448 |  |
 
 ## docs/development/modules
 
@@ -80,7 +80,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `grid-and-viewer.md` | 89 |  |
 | `keywords.md` | 78 |  |
 | `library-and-database.md` | 72 |  |
-| `main-window.md` | 78 |  |
+| `main-window.md` | 79 |  |
 | `maps-and-geolocation.md` | 69 |  |
 | `metadata-read-write.md` | 101 |  |
 | `photo-operations.md` | 82 |  |
@@ -107,7 +107,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums-panel.js` | 741 | Section « Albums » du panneau de gauche : arborescence d'albums virtuels (dossiers virtuels, albums manuels, albums intelligents), qui n'existent que dans la base (albums.rs). Gère l'arbre (création, renommage, suppress… |
 | `albums.css` | 47 | SECTION ALBUMS DU PANNEAU DE GAUCHE (albums virtuels) : voir albums-panel.js. Les lignes réutilisent le style des dossiers (.folder-tree-item). |
 | `app-fonts.js` | 30 | Interface fonts offered in Settings > Appearance. This list is the single place to register a font: the select is built from it and main.js applies the chosen stack to --app-font. To add a font (all four steps are requi… |
-| `defaults.jsonc` | 187 |  |
+| `defaults.jsonc` | 189 |  |
 | `description-panel.js` | 260 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
 | `duplicates-modal.js` | 310 | Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are applied to this search only, unless "Save these settings as default" is tick… |
@@ -130,7 +130,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1241 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 253 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 8496 |  |
+| `main.js` | 8596 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -160,7 +160,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `slideshow.js` | 311 | Diaporama : un état du plein écran (pas un mode à part). Un minuteur fait passer le plein écran à la photo suivante ; tout le reste (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même.… |
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
-| `styles.css` | 1057 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1060 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `update-check.js` | 324 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
@@ -288,5 +288,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1703 |  |
-| `fr.json` | 1703 |  |
+| `en.json` | 1704 |  |
+| `fr.json` | 1704 |  |

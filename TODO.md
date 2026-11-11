@@ -14,6 +14,11 @@
 - [ ] *fix*: `keywords` keywords fail dialog shows No/Retry/Show: "No" is unclear
 - [x] *feat*: `infos` add folder info in album photos too
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
+- [ ] *feat*: `files` retain and offer last folder for resize action
+- [ ] *feat*: `files` resize and copy with directory structure
+- [ ] *refactor*: `grid` stay on the current photo when undoing filters
+- [ ] *feat*: `grid` scrollbar should give a date / filename indication
+- [ ] *fix*: `grid` moving selection with arrows should put the view back on seleciton
 
 ## 💡 Ideas / Longer term / On hold
 

@@ -878,8 +878,11 @@ body.immersive .titlebar { display: none; }
 .about-link:hover { filter: brightness(1.2); }
 .modal-body { padding: 1rem; max-height: 70vh; overflow-y: auto; }
 #settings-folder-list { list-style: none; }
-.settings-folder-item { display: flex; justify-content: space-between; align-items: center; background: var(--row-bg); padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75rem; }
-.btn-remove-folder { background: #471ba5; color: #fff; border: none; padding: 4px 8px; font-size: 0.7rem; border-radius: 3px; }
+/* Une ligne par dossier racine : poignée | rang | chemin | ↑ ↓ | Supprimer (mêmes classes que les programmes « Ouvrir avec »). */
+.settings-folder-item { display: flex; align-items: center; gap: 0.75rem; background: var(--row-bg); padding: 6px 12px; border-radius: 4px; margin-bottom: 6px; font-size: 0.75rem; }
+.settings-folder-item.dragging { box-shadow: inset 2px 0 0 var(--active-button); }
+.settings-folder-path { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-remove-folder { flex: 0 0 auto; white-space: nowrap; background: #471ba5; color: #fff; border: none; padding: 4px 8px; font-size: 0.7rem; border-radius: 3px; }
 .btn-remove-folder:hover { background: #e74c3c; }
 
 /* MODALE REDIMENSIONNER (et question « fichier existant ») */

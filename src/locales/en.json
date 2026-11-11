@@ -239,6 +239,7 @@
   "Program name": "Program name",
   "Opening with {program}": "Opening with {program}",
   "Open with help": "Each file type has its own list: the context menu offers it in this order, and the O key opens the selection with the first program. Drag the rows to reorder.",
+  "Folder order help": "Drag the rows to reorder the root folders in the tree.",
   "File type": "File type",
   "Rendered images": "Rendered images",
   "RAW images": "RAW images",

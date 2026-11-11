@@ -800,8 +800,36 @@ async function flushMissingChecks() {
 // ==========================================
 // CHARGEMENT PHOTOS & DOSSIERS
 // ==========================================
+// Display order of the root folders in the tree: list of folder paths kept in localStorage, reorderable in Settings > General
+// (drag handle and arrows, like the "Open with" programs). Empty (default) = database order (by path).
+const FOLDER_ORDER_KEY = 'folderOrder';
+const normalizeFolderPath = path => path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+// Saved order (normalized paths): array of strings, the default when absent or unreadable.
+function readFolderOrder() {
+  const stored = readStored(FOLDER_ORDER_KEY);
+  if (stored !== null) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) return parsed.filter(path => typeof path === 'string' && path).map(normalizeFolderPath);
+    } catch {
+      // unreadable value: default order
+    }
+  }
+  return [...DEFAULTS.folderOrder].map(normalizeFolderPath);
+}
+// `list` (folders returned by the backend) in display order: the saved order first, then the folders unknown to it (added since),
+// at the end in database order. Stable sort: equal ranks keep the order of `list`.
+function applyFolderOrder(list) {
+  const rank = new Map(readFolderOrder().map((path, index) => [path, index]));
+  return [...list].sort((a, b) => (rank.get(normalizeFolderPath(a.path)) ?? rank.size) - (rank.get(normalizeFolderPath(b.path)) ?? rank.size));
+}
+// Saves the current order of `folders`; called only after an explicit reorder (adding/removing a folder keeps the saved order as is).
+function saveFolderOrder() {
+  localStorage.setItem(FOLDER_ORDER_KEY, JSON.stringify(folders.map(folder => folder.path)));
+}
+
 async function loadFolders() {
-  folders = await invoke('get_folders');
+  folders = applyFolderOrder(await invoke('get_folders'));
   renderFolderTree();
   renderSettingsFolderList();
 }
@@ -3991,20 +4019,60 @@ document.querySelectorAll('.settings-tab-btn').forEach(button => {
 // ==========================================
 function renderSettingsFolderList() {
   settingsFolderList.innerHTML = '';
-  for (let f of folders) {
+  const moveButton = (symbol, label, disabled, action) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'keyword-format-move';
+    button.textContent = symbol;
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.disabled = disabled;
+    button.addEventListener('click', action);
+    return button;
+  };
+  // Reorders `folders`, saves the order and redraws the tree and the list.
+  const move = (index, delta) => {
+    const target = index + delta;
+    if (target < 0 || target >= folders.length) return;
+    const reordered = [...folders];
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    folders = reordered;
+    saveFolderOrder();
+    renderFolderTree();
+    renderSettingsFolderList();
+  };
+  for (let index = 0; index < folders.length; index++) {
+    const f = folders[index];
     const li = document.createElement('li');
     li.className = 'settings-folder-item';
+    li.dataset.folderPath = f.path;
+    const handle = document.createElement('span');
+    handle.className = 'keyword-format-handle';
+    handle.textContent = '⠿';
+    handle.title = t('Drag to reorder');
+    handle.addEventListener('pointerdown', event => startFolderDrag(event, li, handle));
+    const rank = document.createElement('span');
+    rank.className = 'keyword-format-rank';
+    rank.textContent = `${index + 1}.`;
     // Built as elements: a folder path is text, never markup (a folder may be named "<img …>").
     const label = document.createElement('span');
+    label.className = 'settings-folder-path';
     label.title = f.path;
     label.textContent = f.path;
     const remove = document.createElement('button');
     remove.className = 'btn-remove-folder';
     remove.textContent = t('Remove');
-    li.append(label, remove);
+    li.append(
+      handle,
+      rank,
+      label,
+      moveButton('↑', t('Move up'), index === 0, () => move(index, -1)),
+      moveButton('↓', t('Move down'), index === folders.length - 1, () => move(index, 1)),
+      remove,
+    );
     remove.addEventListener('click', async () => {
       dropScanTasksForFolder(f.path); // un dossier retiré ne doit plus être scanné
-      folders = await invoke('remove_folder', { id: f.id, path: f.path });
+      folders = applyFolderOrder(await invoke('remove_folder', { id: f.id, path: f.path }));
       if (currentFolderFilter === f.path) { currentFolderFilter = null; rememberCurrentFolder(); }
       renderFolderTree();
       renderSettingsFolderList();
@@ -4012,6 +4080,38 @@ function renderSettingsFolderList() {
     });
     settingsFolderList.appendChild(li);
   }
+}
+
+// Dragging the handle: the row changes place as soon as the pointer passes the middle of a neighbour; the order is saved on release
+// (same pointer events as photo-actions.js: HTML5 drag-and-drop is intercepted by the Tauri window's file drop).
+function startFolderDrag(event, item, handle) {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  handle.setPointerCapture(event.pointerId);
+  item.classList.add('dragging');
+  const onMove = moveEvent => {
+    const previous = item.previousElementSibling;
+    const next = item.nextElementSibling;
+    if (previous && moveEvent.clientY < previous.getBoundingClientRect().top + previous.offsetHeight / 2) settingsFolderList.insertBefore(item, previous);
+    if (next && moveEvent.clientY > next.getBoundingClientRect().top + next.offsetHeight / 2) settingsFolderList.insertBefore(next, item);
+  };
+  const onEnd = () => {
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onEnd);
+    handle.removeEventListener('pointercancel', onEnd);
+    item.classList.remove('dragging');
+    const newOrder = [...settingsFolderList.children].map(child => child.dataset.folderPath);
+    const changed = newOrder.length === folders.length && newOrder.some((path, index) => path !== folders[index].path);
+    if (changed) {
+      folders = newOrder.map(path => folders.find(folder => folder.path === path)).filter(Boolean);
+      saveFolderOrder();
+      renderFolderTree();
+    }
+    renderSettingsFolderList();
+  };
+  handle.addEventListener('pointermove', onMove);
+  handle.addEventListener('pointerup', onEnd);
+  handle.addEventListener('pointercancel', onEnd);
 }
 
 document.getElementById('btn-open-settings').addEventListener('click', () => {
@@ -4115,7 +4215,7 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
 
     // Le dossier est ajouté tout de suite à la liste (arborescence et Paramètres) ; son scan passe par la file d'attente des tâches.
     try {
-      folders = await invoke('add_folder', { path: dir });
+      folders = applyFolderOrder(await invoke('add_folder', { path: dir }));
       renderFolderTree();
       renderSettingsFolderList();
     } catch (error) {

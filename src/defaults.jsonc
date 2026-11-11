@@ -76,6 +76,8 @@
   "appLanguage": "en",
   // At startup: "all" (all photos) | "last" (last opened location).
   "startupView": "all",
+  // Display order of the root folders in the tree: list of folder paths, reordered in Settings > General. Empty = order of the database (by path).
+  "folderOrder": [],
   // Ask before replacing the filters of a smart album.
   "albumOverwriteWarning": true,
   // Offline mode: never connects to the Internet.
