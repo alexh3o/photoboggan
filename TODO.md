@@ -20,6 +20,7 @@
 - [x] *refactor*: `grid` stay on the current photo when undoing filters
 - [x] *feat*: `grid` scrollbar should give a date / filename indication
 - [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
+- [ ] *refactor*: `files` remember "keep marks" setting in resize
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -63,3 +64,4 @@
 - [ ] `linux` Test Linux Release
 - [ ] `backup` restoring data from data folder
 - [ ] `thumbnails` Some thumbnails don't load, but passing mouse over them instantly displays them: dev only ?
+- [ ] *fix to reproduce*: `files` choose button from resize modal opens folder pick window much later
