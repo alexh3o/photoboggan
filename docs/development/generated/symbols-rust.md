@@ -940,36 +940,36 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *enum* `pub PngCompression` · L46
 - *enum* `pub ConflictPolicy` · L54
 - *struct* `pub ResizeOptions` · L64
-- *enum* `pub ResizeOutcome` · L83
-- *struct* `Raster` · L91 — Image décodée : RGB 8 bits (+ canal alpha éventuel), dans l'orientation stockée dans le fichier.
-- *struct* `SourceMetadata` · L100 — Ce qui est repris du JPEG source quand il est converti en JPEG.
-- `pub resize_photo` · L107
-- `validate_options` · L161
-- `path_text` · L173
-- `target_path` · L176 — Chemin de sortie : dossier choisi (ou dossier source) + nom d'origine sans extension + suffixe + extension du format.
-- `is_same_file` · L192 — Les deux chemins désignent-ils le même fichier ? Fichiers existants : comparaison des chemins canoniques. Cible pas encore créée : même dos…
-- *enum* `Resolution` · L203
-- `incremented_name` · L210 — « photo_s.jpg » existe : « photo_s_1.jpg », « photo_s_2.jpg »… (premier nom libre).
-- `resolve_conflict` · L222
-- `is_raw_extension` · L236
-- `target_size` · L241 — Dimensions finales pour des dimensions sources données (jamais plus grandes que la source).
-- `render` · L254 — Renvoie les octets du fichier de sortie et ses dimensions.
-- `decode_jpeg` · L296
-- `decode_png` · L319
-- `resize_raster` · L324
-- `orient_raster` · L344
-- `encode_jpeg` · L356 — `pixel_orientation` : rotation appliquée aux pixels (les zones de visage du XMP la suivent, voir patch_xmp).
-- `encode_png` · L397
-- `read_jpeg_metadata` · L433 — Parcourt les segments de l'en-tête (jusqu'au début des données image) : EXIF, XMP, IPTC et profil ICC (reconstitué s'il est en plusieurs mo…
-- `read_u16` · L455
-- `read_u32` · L460
-- `write_u16` · L465
-- `write_u32` · L469
-- `patch_exif` · L476 — Adapte l'EXIF copié à l'image redimensionnée, en place (la structure et les autres tags ne bougent pas) :
-- `clear_exif_rating` · L508 — Note Windows de l'EXIF (Rating 0x4746, RatingPercent 0x4749, IFD0) remise à 0 en place : la structure du segment ne change pas.
-- `clear_xmp_marks` · L523 — Retire du paquet XMP (précédé de son en-tête `http://ns.adobe.com/xap/1.0/\0`) les marquages : note, couleur, fanions.
-- `patch_xmp` · L531 — XMP recopié : orientation remise à 1 et, si les pixels ont été tournés, zones de visage (MWG, Microsoft) tournées de la même façon, avec les
-- `patch_xmp_orientation` · L541 — Un paquet XMP peut contenir tiff:Orientation : remis à 1 (les pixels sont déjà pivotés), sinon l'image serait pivotée deux fois.
+- *enum* `pub ResizeOutcome` · L88
+- *struct* `Raster` · L96 — Image décodée : RGB 8 bits (+ canal alpha éventuel), dans l'orientation stockée dans le fichier.
+- *struct* `SourceMetadata` · L105 — Ce qui est repris du JPEG source quand il est converti en JPEG.
+- `pub resize_photo` · L112
+- `validate_options` · L167
+- `path_text` · L179
+- `target_path` · L182 — Chemin de sortie : dossier choisi (ou dossier source) + nom d'origine sans extension + suffixe + extension du format.
+- `is_same_file` · L207 — Les deux chemins désignent-ils le même fichier ? Fichiers existants : comparaison des chemins canoniques. Cible pas encore créée : même dos…
+- *enum* `Resolution` · L218
+- `incremented_name` · L225 — « photo_s.jpg » existe : « photo_s_1.jpg », « photo_s_2.jpg »… (premier nom libre).
+- `resolve_conflict` · L237
+- `is_raw_extension` · L251
+- `target_size` · L256 — Dimensions finales pour des dimensions sources données (jamais plus grandes que la source).
+- `render` · L269 — Renvoie les octets du fichier de sortie et ses dimensions.
+- `decode_jpeg` · L311
+- `decode_png` · L334
+- `resize_raster` · L339
+- `orient_raster` · L359
+- `encode_jpeg` · L371 — `pixel_orientation` : rotation appliquée aux pixels (les zones de visage du XMP la suivent, voir patch_xmp).
+- `encode_png` · L412
+- `read_jpeg_metadata` · L448 — Parcourt les segments de l'en-tête (jusqu'au début des données image) : EXIF, XMP, IPTC et profil ICC (reconstitué s'il est en plusieurs mo…
+- `read_u16` · L470
+- `read_u32` · L475
+- `write_u16` · L480
+- `write_u32` · L484
+- `patch_exif` · L491 — Adapte l'EXIF copié à l'image redimensionnée, en place (la structure et les autres tags ne bougent pas) :
+- `clear_exif_rating` · L523 — Note Windows de l'EXIF (Rating 0x4746, RatingPercent 0x4749, IFD0) remise à 0 en place : la structure du segment ne change pas.
+- `clear_xmp_marks` · L538 — Retire du paquet XMP (précédé de son en-tête `http://ns.adobe.com/xap/1.0/\0`) les marquages : note, couleur, fanions.
+- `patch_xmp` · L546 — XMP recopié : orientation remise à 1 et, si les pixels ont été tournés, zones de visage (MWG, Microsoft) tournées de la même façon, avec les
+- `patch_xmp_orientation` · L556 — Un paquet XMP peut contenir tiff:Orientation : remis à 1 (les pixels sont déjà pivotés), sinon l'image serait pivotée deux fois.
 
 ## semantic.rs (67)
 

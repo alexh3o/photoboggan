@@ -720,6 +720,16 @@ const RESIZE_SIDE_LIMITS = { min: 16, max: 30000 };
 const FORM_FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled])';
 const FORBIDDEN_SUFFIX_CHARACTERS = /[\\/:*?"<>|\u0000-\u001f]/;
 
+function trackedRootForPath(path) {
+  const normalizedPath = path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return (api.getRootFolders?.() ?? [])
+    .map(folder => typeof folder === 'string' ? folder : folder.path)
+    .filter(Boolean)
+    .map(root => root.replace(/\\/g, '/').replace(/\/+$/, ''))
+    .filter(root => normalizedPath === root.toLowerCase() || normalizedPath.startsWith(`${root.toLowerCase()}/`))
+    .sort((first, second) => second.length - first.length)[0] ?? null;
+}
+
 const makeElement = (tag, className = '', text = '') => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -738,7 +748,7 @@ const labelled = (input, text) => {
   return label;
 };
 
-// Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le dossier de destination n'en fait pas partie : par défaut, c'est le dossier de chaque photo.
+// Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le chemin de destination reste une action explicite, initialement le dossier source.
 function loadResizeSettings() {
   let stored = {};
   try {
@@ -760,6 +770,7 @@ function loadResizeSettings() {
     pngCompression: ['fast', 'balanced', 'best'].includes(stored.pngCompression) ? stored.pngCompression : 'balanced',
     keepMetadata: stored.keepMetadata !== false,
     keepMarks: stored.keepMarks === true, // désactivé par défaut
+    preserveFolderStructure: stored.preserveFolderStructure === true,
     suffix: typeof stored.suffix === 'string' ? stored.suffix : '_s',
   };
 }
@@ -771,6 +782,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     let destination = null; // null = dossier d'origine de chaque photo
     let keepMetadata = saved.keepMetadata;
     let keepMarks = saved.keepMarks;
+    let preserveFolderStructure = saved.preserveFolderStructure;
     // L'option n'existe que sur le chemin d'écriture ExifTool ; en écriture interne, les marquages sont recopiés tels quels.
     const exiftoolWriter = getWriterMode() === 'exiftool';
     let result = null;
@@ -825,10 +837,13 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     const pathLabel = makeElement('div', 'settings-path-label');
     const chooseButton = makeElement('button', 'btn-secondary', t('Choose…'));
     chooseButton.type = 'button';
+    const lastDestinationButton = makeElement('button', 'btn-secondary', t('Last destination'));
+    lastDestinationButton.type = 'button';
     const resetButton = makeElement('button', 'btn-secondary', t('Original folder'));
     resetButton.type = 'button';
     const folderActions = makeElement('div', 'resize-folder-actions');
-    folderActions.append(chooseButton, resetButton);
+    folderActions.append(chooseButton, lastDestinationButton, resetButton);
+    const preserveFoldersCheck = makeInput('checkbox', { checked: preserveFolderStructure });
     const suffixInput = makeInput('text', { value: saved.suffix, autocomplete: 'off', spellcheck: false });
     suffixInput.className = 'resize-field resize-text';
     const preview = makeElement('p', 'resize-preview');
@@ -839,6 +854,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
       makeElement('h4', '', t('Destination folder')),
       pathLabel,
       folderActions,
+      optionRow(labelled(preserveFoldersCheck, t('Preserve relative folder structure'))),
       optionRow(makeElement('span', 'resize-label', t('File name suffix')), suffixInput),
       preview,
       error,
@@ -871,6 +887,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
       marksRow.title = marksCheck.disabled ? t('Marks are only copied with the metadata') : '';
       pathLabel.textContent = destination ?? t('Original folder of each photo');
       pathLabel.title = destination ?? '';
+      lastDestinationButton.disabled = !localStorage.getItem(LAST_RESIZE_FOLDER_KEY);
       resetButton.hidden = destination === null;
       preview.textContent = t('Example: {name}', { name: sampleName() });
       error.textContent = '';
@@ -903,6 +920,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
         pngCompression: compressionSelect.value,
         keepMetadata,
         keepMarks,
+        preserveFolderStructure: preserveFoldersCheck.checked,
         suffix: suffixInput.value,
       }));
       result = {
@@ -914,6 +932,7 @@ function resizeOptionsDialog(count, firstPhotoPath) {
         keepMetadata: jpeg && keepMetadata,
         clearMarks: exiftoolWriter && !keepMarks,
         destination,
+        preserveFolderStructure: preserveFoldersCheck.checked,
         suffix: suffixInput.value,
       };
       modal.close();
@@ -944,6 +963,13 @@ function resizeOptionsDialog(count, firstPhotoPath) {
         console.error('Folder selection failed', failure);
       }
     });
+    lastDestinationButton.addEventListener('click', () => {
+      const lastDestination = localStorage.getItem(LAST_RESIZE_FOLDER_KEY);
+      if (!lastDestination) return;
+      destination = lastDestination;
+      refresh();
+    });
+    preserveFoldersCheck.addEventListener('change', () => { preserveFolderStructure = preserveFoldersCheck.checked; });
     resetButton.addEventListener('click', () => {
       destination = null;
       refresh();
@@ -1012,10 +1038,11 @@ async function runResizeBatch(targets, options, task, setPercent) {
 
   const processPhoto = async photo => {
     let conflict = appliedPolicy ?? 'ask';
+    const sourceRoot = options.preserveFolderStructure ? trackedRootForPath(photo.path) : null;
     for (;;) {
       let outcome;
       try {
-        outcome = await invoke('resize_photo', { path: photo.path, options: { ...options, conflict } });
+        outcome = await invoke('resize_photo', { path: photo.path, options: { ...options, sourceRoot, conflict } });
       } catch (failure) {
         failures.push({ path: photo.path, error: String(failure) });
         return;

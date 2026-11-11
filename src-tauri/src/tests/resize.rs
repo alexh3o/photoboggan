@@ -7,7 +7,7 @@ use crate::test_support::*;
 fn options(mode: ResizeMode, value: u32, format: OutputFormat) -> ResizeOptions {
     ResizeOptions {
         mode, value, format, jpeg_quality: 85, png_compression: PngCompression::Fast, keep_metadata: true, clear_marks: false,
-        destination: None, suffix: "_s".into(), conflict: ConflictPolicy::Ask,
+        destination: None, preserve_folder_structure: false, source_root: None, suffix: "_s".into(), conflict: ConflictPolicy::Ask,
     }
 }
 
@@ -55,6 +55,26 @@ fn a_photo_is_never_enlarged_and_percent_scales_both_sides() {
     let (output, width, height) = done(resize_photo(&path, &options(ResizeMode::Percent, 50, OutputFormat::Png)).unwrap());
     assert_eq!((width, height), (32, 24));
     assert!(fs::read(output).unwrap().starts_with(&[0x89, b'P', b'N', b'G']));
+}
+
+#[test]
+fn chosen_destination_can_recreate_the_source_folder_hierarchy() {
+    let root = tempfile::tempdir().unwrap();
+    let source_dir = root.path().join("un").join("deux");
+    fs::create_dir_all(&source_dir).unwrap();
+    let source = source_dir.join("photo.jpg");
+    fs::write(&source, jpeg_bytes(64, 48)).unwrap();
+    let destination = root.path().join("output");
+    fs::create_dir(&destination).unwrap();
+
+    let mut configured = options(ResizeMode::MaxSide, 16, OutputFormat::Jpeg);
+    configured.destination = Some(destination.to_string_lossy().into_owned());
+    configured.preserve_folder_structure = true;
+    configured.source_root = Some(root.path().to_string_lossy().into_owned());
+
+    let output = done(resize_photo(&source, &configured).unwrap()).0;
+    assert_eq!(output, destination.join("un").join("deux").join("photo_s.jpg"));
+    assert!(output.is_file());
 }
 
 #[test]

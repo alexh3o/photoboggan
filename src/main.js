@@ -7785,6 +7785,7 @@ initPhotoActions({
   showInItsFolder: showPhotoInItsFolder,
   isAllPhotosView, // "Show in its own folder" in the menu of one photo of "All photos"
   getPhotos: () => photos,
+  getRootFolders: () => folders,
   getSelectedIndices: () => selectedIndices,
   getActiveIndex: () => lastSelectedIndex,
   selectOnly: index => {

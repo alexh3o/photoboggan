@@ -74,6 +74,11 @@ pub struct ResizeOptions {
     pub clear_marks: bool,
     /// Dossier de destination ; absent ou vide = dossier de la photo source.
     pub destination: Option<String>,
+    /// Recreate the source folder hierarchy below the chosen destination.
+    #[serde(default)]
+    pub preserve_folder_structure: bool,
+    /// Tracked root containing this source photo, when folder hierarchy preservation is enabled.
+    pub source_root: Option<String>,
     pub suffix: String,
     pub conflict: ConflictPolicy,
 }
@@ -122,6 +127,7 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
     let (bytes, width, height) = render(source, options)?;
 
     let directory = target.parent().ok_or("Dossier de destination invalide")?;
+    fs::create_dir_all(directory).map_err(|error| format!("Création du dossier de destination impossible : {error}"))?;
     let temp = directory.join(format!(".photoboggan-resize-{}-{}.tmp", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
     // Flushed to the disk before the rename: with "Replace", the rename takes the place of an existing file, which must never become an
     // empty or partial file after a power cut.
@@ -174,7 +180,8 @@ fn path_text(path: &Path) -> String { path.to_string_lossy().into_owned() }
 
 /// Chemin de sortie : dossier choisi (ou dossier source) + nom d'origine sans extension + suffixe + extension du format.
 fn target_path(source: &Path, options: &ResizeOptions) -> Result<PathBuf, String> {
-    let directory = match options.destination.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    let destination = options.destination.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    let mut directory = match destination {
         Some(destination) => {
             let directory = PathBuf::from(destination);
             if !directory.is_dir() { return Err(format!("Dossier de destination introuvable : {destination}")); }
@@ -182,6 +189,14 @@ fn target_path(source: &Path, options: &ResizeOptions) -> Result<PathBuf, String
         }
         None => source.parent().ok_or("Dossier source invalide")?.to_path_buf(),
     };
+    if options.preserve_folder_structure && destination.is_some() {
+        let root = options.source_root.as_deref().map(str::trim).filter(|value| !value.is_empty())
+            .ok_or("Dossier racine source introuvable : impossible de préserver l'arborescence")?;
+        let relative = source.strip_prefix(Path::new(root))
+            .map_err(|_| "La photo n'appartient pas au dossier racine suivi indiqué".to_string())?;
+        let relative_parent = relative.parent().ok_or("Chemin relatif de la photo invalide")?;
+        directory.push(relative_parent);
+    }
     let stem = source.file_stem().map(|value| value.to_string_lossy().into_owned()).ok_or("Nom de fichier invalide")?;
     let extension = match options.format { OutputFormat::Jpeg => "jpg", OutputFormat::Png => "png" };
     Ok(directory.join(format!("{stem}{}.{extension}", options.suffix)))

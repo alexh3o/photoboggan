@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1390 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 65 |  |
+| `TODO.md` | 66 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -63,9 +63,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `files.md` | 293 |  |
 | `ipc-commands.md` | 179 |  |
 | `module-deps.md` | 95 |  |
-| `symbols-js.md` | 1413 |  |
+| `symbols-js.md` | 1414 |  |
 | `symbols-rust.md` | 1309 |  |
-| `tests.md` | 448 |  |
+| `tests.md` | 449 |  |
 
 ## docs/development/modules
 
@@ -130,7 +130,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1241 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 253 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 8642 |  |
+| `main.js` | 8643 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -142,7 +142,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `metadata-writes.js` | 616 | Écriture des métadonnées éditées dans le panneau de droite (onglets Mots-clés et Description) : un seul circuit pour les deux onglets. Chaque onglet est un « éditeur » qui garde ses modifications en attente (voir regist… |
 | `order-list.js` | 144 | Tableau ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats d'un type de métadonnée (mots-clés, titre, description, note, couleur). Plusieurs tableaux peuvent partager le même élément : seul… |
 | `persons-view.js` | 211 | Vue Personnes (lot 5a) : une grosse vignette par personne, à la place de la grille des photos (bouton « Visages » de la barre du haut). - Vignette : le visage représentatif recadré depuis la photo d'origine, à la résolu… |
-| `photo-actions.js` | 2139 |  |
+| `photo-actions.js` | 2166 |  |
 | `place-search.js` | 69 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `private-zones-modal.js` | 523 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
 | `private-zones.js` | 139 | Zones privées de la carte (côté interface) : liste des zones (lue dans le backend, private_maps.rs), lieux privés, contours à dessiner et niveaux de détail. Partagé par le panneau Info, la fenêtre de gestion des zones e… |
@@ -227,7 +227,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `phash.rs` | 201 | Perceptual hash (pHash) of an image, for the "similar images" search (similar.rs). The image is reduced to 32x32 grey levels, a 2D DCT keeps its 8x8 lowest frequencies, and each of the 63 AC coefficients becomes one bit… |
 | `place_search.rs` | 74 | Recherche d'un lieu par son nom (mode Carte, champ de recherche de la barre de la carte), pour aller y placer la carte. Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propr… |
 | `private_maps.rs` | 1156 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
-| `resize.rs` | 560 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
+| `resize.rs` | 575 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into … |
 | `semantic_models.rs` | 339 | Files of the semantic search (SigLIP 2, spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by scripts… |
 | `semantic_search.rs` | 817 | Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - Index … |
@@ -262,7 +262,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `phash.rs` | 62 | Tests of the perceptual hash: stability under resizing and recompression, difference between pictures, rotations, mirrors and flat pictures. |
 | `place_search.rs` | 25 | Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |
 | `private_maps.rs` | 358 | Tests des zones privées (private_maps.rs) : géométrie des zones et des tuiles, fichiers MBTiles, règle par tuile, import, refus hors ligne. Aucune requête réseau : les téléchargements sont testés avec Internet refusé (r… |
-| `resize.rs` | 111 | Tests of resize.rs: output size (never enlarged), formats, metadata copy, conflict policies, refusals. Synthetic files only; the "Replace" policy is not tested here because it sends the existing file to the real trash. |
+| `resize.rs` | 131 | Tests of resize.rs: output size (never enlarged), formats, metadata copy, conflict policies, refusals. Synthetic files only; the "Replace" policy is not tested here because it sends the existing file to the real trash. |
 | `semantic_keywords.rs` | 1069 | Tests of the keyword suggestions: scores, thresholds, exclusions, invalidation, gating. Fake vectors only, no model. The measure that chose the score and the thresholds (§23) reads a copy of a real catalogue and needs t… |
 | `semantic_models.rs` | 80 | Tests of the semantic model files: manifest, status, deletion, gating. No download, no real model: empty or fake files only. |
 | `semantic_search.rs` | 644 | Tests of the semantic searches: ranking, relative threshold and cap, stable order, scopes, index updates and release. Fake vectors only, no model. Parity of the text search with the reference model is `#[ignore]`: run i… |
@@ -288,5 +288,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1704 |  |
-| `fr.json` | 1704 |  |
+| `en.json` | 1706 |  |
+| `fr.json` | 1706 |  |

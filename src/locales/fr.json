@@ -345,6 +345,8 @@
   "Keep marks (rating, color, flags)": "Conserver les marquages (note, couleur, fanions)",
   "Marks are only copied with the metadata": "Les marquages ne sont recopiés qu'avec les métadonnées",
   "Destination folder": "Dossier de destination",
+  "Last destination": "Dernier emplacement",
+  "Preserve relative folder structure": "Conserver l’arborescence relative",
   "Original folder": "Dossier d'origine",
   "Original folder of each photo": "Dossier d'origine de chaque photo",
   "File name suffix": "Suffixe du nom de fichier",
