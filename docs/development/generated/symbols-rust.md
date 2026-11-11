@@ -394,7 +394,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub AttributionSummary` · L208
 - `pub attribute_faces` · L216 — Attribue les visages non confirmés qui ont une empreinte (« inconnu », « suggéré », « auto ») : ceux des photos `photo_ids`, ou tous.
 
-## faces.rs (90)
+## faces.rs (91)
 
 - *struct* `pub FaceRegion` · L22 — Zone de visage lue dans un fichier : coin haut-gauche et taille normalisés, repère de l'image stockée. `name` : None pour un visage sans no…
 - *struct* `pub PhotoFaces` · L31 — Ce que la lecture d'un fichier apprend sur ses visages : orientation EXIF (1 à 8) et zones (None : lecture des visages désactivée).
@@ -427,65 +427,66 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub PersonInfo` · L626
 - `pub get_persons` · L642 — Toutes les personnes, avec leur nombre de photos au catalogue (0 pour une personne en attente d'attribution) et leur visage représentatif
 - `pub get_face_index` · L701 — Paires (photo, personne) de tout le catalogue : sert au filtre « Personnes » de la grille.
-- *struct* `pub FaceInfo` · L714
-- *struct* `pub PhotoFacesInfo` · L726
-- `pub get_photo_faces` · L735 — Visages d'une photo (repère de l'image stockée) et son orientation EXIF. Les visages « filtrés » ne sont jamais renvoyés ; les « ignorés » …
-- `pub link_person_keyword` · L781 — Relie une personne à un nœud de l'arbre des mots-clés (None : la délie). Un nœud ne peut être lié qu'à une seule personne
-- *struct* `pub FaceItem` · L806 — Visage de la vue Visages : de quoi découper sa vignette (chemin de la photo, orientation), son état et son nom (personne attribuée,
-- `pub get_faces_for_photos` · L829 — Visages des photos `photo_ids` (celles affichées dans la vue Photos). Les photos « à revérifier » sont écartées jusqu'à leur rescan (§4.2).
-- `pub get_face_scan_index` · L875 — Statut de scan des photos (filtre de la vue Photos) : (photo, à revérifier ?) pour les photos scannées avec le modèle actuel ou à revérifie…
-- `pub in_transaction` · L889 — Exécute `body` dans une transaction : validée si `body` réussit, annulée sinon (y compris en cas de panique). Une erreur de validation est
-- `ids_json` · L896
-- `pub confirm_faces` · L902 — Valider : les visages attribués automatiquement ou suggérés deviennent « confirmés » pour leur personne. Renvoie le nombre de visages valid…
-- `valid_person_name` · L916 — Caractères refusés dans un nom de personne (mêmes règles que les mots-clés : séparateurs de niveaux et de liste).
-- `resolve_person` · L925 — Personne désignée pour « Nommer » : une personne existante (`person_id`), la personne d'un mot-clé de l'arbre (`keyword_id` : créée et reli…
-- `pub assign_faces` · L978 — Nommer : les visages deviennent « confirmés » pour la personne désignée (voir resolve_person). Renvoie l'identifiant de la personne.
-- `pub set_faces_unknown` · L1003 — Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
-- `pub ignore_faces` · L1017 — Ignorer : visage écarté volontairement (inconnu dans la foule, faux visage) ; il n'est plus attribué ni proposé.
-- `pub unignore_faces` · L1031 — Ne plus ignorer : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
-- `pub mark_faces_not_a_face` · L1044 — N'est pas un visage : fausse détection. Comme « ignoré », le visage n'est ni attribué, ni proposé, ni écrit dans les fichiers (une zone déjà
-- `pub unmark_faces_not_a_face` · L1058 — Annule « N'est pas un visage » : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
-- *struct* `pub FaceSnapshot` · L1070 — Review state of one face, as captured before an action so that the action can be undone (Ctrl+Z in the Faces view).
-- `pub snapshot_faces` · L1082 — Captures the review state of `face_ids` (see `restore_faces`).
-- `pub restore_faces` · L1111 — Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped. `dirty` returns to its captured value
-- `pub recognize_faces` · L1143 — Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.
-- *struct* `pub FaceWritePlan` · L1154 — Ce qu'une écriture doit mettre dans un fichier pour ses visages : zones nommées et mots-clés actifs qui en découlent.
-- `pub has_pending_face_write` · L1167 — La photo a des visages à écrire (visage modifié, ou zone à retirer).
-- `id_set` · L1176
-- `pub plan_face_write` · L1186 — Plan d'écriture des visages d'une photo :
-- `pub finish_face_write` · L1222 — Après une écriture vérifiée : mots-clés posés par la reconnaissance notés (ou oubliés), visages de la photo écrits.
-- `pub mark_photo_for_write` · L1235 — Photo dont un visage nommé disparaît de la base (rescan, effacement) : sa zone est à retirer du fichier.
-- `pub get_pending_face_writes` · L1241 — Photos dont les visages attendent d'être écrits dans les fichiers : (identifiant, chemin).
-- `pub discard_pending_face_writes` · L1252 — Abandonner les visages en attente d'écriture : chaque photo concernée retrouve les visages que son fichier contient. Les modifications
-- `pending_face_writes` · L1291 — Photos dont les visages attendent d'être écrits : (identifiant, chemin).
-- *struct* `pub KeywordChange` · L1303
-- *struct* `pub FaceKeywordConflict` · L1310 — Mot-clé d'une personne retiré à la main d'une photo alors qu'un de ses visages nommés y reste (spec §6.3).
-- `pub face_keyword_conflicts` · L1320 — Avant d'appliquer des mots-clés modifiés : retraits qui contredisent un visage nommé (mot-clé présent sur la photo, absent de la nouvelle l…
-- `pub erase_face_data` · L1353 — « Effacer les données de visages » : les visages des photos sont supprimés de la base, les photos redeviennent « non scannées » et sont
-- `pub cluster_unknown_faces` · L1378 — Groupes de visages inconnus qui se ressemblent, parmi ceux des photos `photo_ids` (vue de gestion) : DBSCAN sur leurs empreintes. Deux visa…
-- `pub rename_person` · L1405 — Renomme une personne non reliée à un mot-clé (pour une personne reliée, le nom affiché et écrit est celui du mot-clé : c'est lui qu'on reno…
-- `pub set_person_alias` · L1429 — Alias d'une personne (None ou texte vide : retiré). Affichage seulement : les fichiers et le filtre Personnes gardent le nom du mot-clé.
-- `pub set_person_hidden` · L1439 — Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (face_recognize::attribute_faces), et l'interface la cache.
-- `pub set_person_cover` · L1448 — Visage représentatif choisi par l'utilisateur (vue de gestion) : il doit être attribué à cette personne.
-- *struct* `pub PersonDeleteInfo` · L1461 — Ce que la suppression d'une personne touche (fenêtre d'alerte) : visages encore rattachés et photos qui les portent.
-- `pub person_delete_info` · L1468
-- `pub delete_person` · L1488 — Supprime une personne et ses caractéristiques de reconnaissance (ses visages confirmés ne servent plus de référence). Ses visages restants
-- `delete_person_rows` · L1497 — Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
-- `merge_rows` · L1516 — Fusion en base (voir merge_persons), dans la transaction de l'appelant.
-- `undo_merge_rows` · L1549 — Annulation en base (voir undo_person_merge), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentat…
-- *struct* `pub MergeResult` · L1584 — Résultat d'une fusion : identifiant du journal (pour l'annuler) et nombre de visages passés à la personne gardée.
-- `pub merge_persons` · L1593 — Fusionne `from_person_id` dans `into_person_id` : les visages de la première passent à la seconde (à réécrire : nom des zones et mot-clé
-- *struct* `pub MergeInfo` · L1608 — Fusion annulable, absorbée par une personne (menu de cette personne).
-- `pub get_person_merges` · L1616
-- `pub undo_person_merge` · L1637 — Annule une fusion : la personne absorbée est recréée (même identifiant, nom, masquage ; mot-clé lié s'il existe encore et n'a pas été relié
-- `pub get_persons_without_faces` · L1659 — Personnes sans aucun visage attribué (« Nettoyer les personnes sans visage », Paramètres > Visages) : (identifiant, nom affiché).
-- `pub delete_persons` · L1674 — Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
-- `pub add_manual_face` · L1692 — Ajoute une zone dessinée à la main sur une photo (`rect` : x, y, w, h normalisés, repère de l'image STOCKÉE) pour la personne désignée
-- `pub delete_faces` · L1725 — Supprime des zones de visage (plein écran) : les photos dont une zone nommée disparaît sont à réécrire. Un visage détecté supprimé peut
-- `pub person_covers_dir` · L1741 — Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).
-- `remove_person_covers` · L1746 — Supprime les vignettes d'une personne, sauf `keep` (la vignette à jour).
-- `pub get_person_cover` · L1761 — Vignette d'une personne pour la vue Personnes : son visage représentatif (choisi, à défaut le plus grand), recadré en carré autour du visage
-- `render_face_cover` · L1791 — Recadre le visage `rect` (normalisé, repère de l'image stockée) dans un carré de 1,6 fois son plus grand côté, depuis l'original décodé à u…
+- `pub get_face_counts` · L718 — Number of faces per photo (every photo of the catalogue that has at least one; a photo absent from the list has none): feeds the face-count
+- *struct* `pub FaceInfo` · L731
+- *struct* `pub PhotoFacesInfo` · L743
+- `pub get_photo_faces` · L752 — Visages d'une photo (repère de l'image stockée) et son orientation EXIF. Les visages « filtrés » ne sont jamais renvoyés ; les « ignorés » …
+- `pub link_person_keyword` · L798 — Relie une personne à un nœud de l'arbre des mots-clés (None : la délie). Un nœud ne peut être lié qu'à une seule personne
+- *struct* `pub FaceItem` · L823 — Visage de la vue Visages : de quoi découper sa vignette (chemin de la photo, orientation), son état et son nom (personne attribuée,
+- `pub get_faces_for_photos` · L846 — Visages des photos `photo_ids` (celles affichées dans la vue Photos). Les photos « à revérifier » sont écartées jusqu'à leur rescan (§4.2).
+- `pub get_face_scan_index` · L892 — Statut de scan des photos (filtre de la vue Photos) : (photo, à revérifier ?) pour les photos scannées avec le modèle actuel ou à revérifie…
+- `pub in_transaction` · L906 — Exécute `body` dans une transaction : validée si `body` réussit, annulée sinon (y compris en cas de panique). Une erreur de validation est
+- `ids_json` · L913
+- `pub confirm_faces` · L919 — Valider : les visages attribués automatiquement ou suggérés deviennent « confirmés » pour leur personne. Renvoie le nombre de visages valid…
+- `valid_person_name` · L933 — Caractères refusés dans un nom de personne (mêmes règles que les mots-clés : séparateurs de niveaux et de liste).
+- `resolve_person` · L942 — Personne désignée pour « Nommer » : une personne existante (`person_id`), la personne d'un mot-clé de l'arbre (`keyword_id` : créée et reli…
+- `pub assign_faces` · L995 — Nommer : les visages deviennent « confirmés » pour la personne désignée (voir resolve_person). Renvoie l'identifiant de la personne.
+- `pub set_faces_unknown` · L1020 — Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
+- `pub ignore_faces` · L1034 — Ignorer : visage écarté volontairement (inconnu dans la foule, faux visage) ; il n'est plus attribué ni proposé.
+- `pub unignore_faces` · L1048 — Ne plus ignorer : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
+- `pub mark_faces_not_a_face` · L1061 — N'est pas un visage : fausse détection. Comme « ignoré », le visage n'est ni attribué, ni proposé, ni écrit dans les fichiers (une zone déjà
+- `pub unmark_faces_not_a_face` · L1075 — Annule « N'est pas un visage » : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
+- *struct* `pub FaceSnapshot` · L1087 — Review state of one face, as captured before an action so that the action can be undone (Ctrl+Z in the Faces view).
+- `pub snapshot_faces` · L1099 — Captures the review state of `face_ids` (see `restore_faces`).
+- `pub restore_faces` · L1128 — Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped. `dirty` returns to its captured value
+- `pub recognize_faces` · L1160 — Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.
+- *struct* `pub FaceWritePlan` · L1171 — Ce qu'une écriture doit mettre dans un fichier pour ses visages : zones nommées et mots-clés actifs qui en découlent.
+- `pub has_pending_face_write` · L1184 — La photo a des visages à écrire (visage modifié, ou zone à retirer).
+- `id_set` · L1193
+- `pub plan_face_write` · L1203 — Plan d'écriture des visages d'une photo :
+- `pub finish_face_write` · L1239 — Après une écriture vérifiée : mots-clés posés par la reconnaissance notés (ou oubliés), visages de la photo écrits.
+- `pub mark_photo_for_write` · L1252 — Photo dont un visage nommé disparaît de la base (rescan, effacement) : sa zone est à retirer du fichier.
+- `pub get_pending_face_writes` · L1258 — Photos dont les visages attendent d'être écrits dans les fichiers : (identifiant, chemin).
+- `pub discard_pending_face_writes` · L1269 — Abandonner les visages en attente d'écriture : chaque photo concernée retrouve les visages que son fichier contient. Les modifications
+- `pending_face_writes` · L1308 — Photos dont les visages attendent d'être écrits : (identifiant, chemin).
+- *struct* `pub KeywordChange` · L1320
+- *struct* `pub FaceKeywordConflict` · L1327 — Mot-clé d'une personne retiré à la main d'une photo alors qu'un de ses visages nommés y reste (spec §6.3).
+- `pub face_keyword_conflicts` · L1337 — Avant d'appliquer des mots-clés modifiés : retraits qui contredisent un visage nommé (mot-clé présent sur la photo, absent de la nouvelle l…
+- `pub erase_face_data` · L1370 — « Effacer les données de visages » : les visages des photos sont supprimés de la base, les photos redeviennent « non scannées » et sont
+- `pub cluster_unknown_faces` · L1395 — Groupes de visages inconnus qui se ressemblent, parmi ceux des photos `photo_ids` (vue de gestion) : DBSCAN sur leurs empreintes. Deux visa…
+- `pub rename_person` · L1422 — Renomme une personne non reliée à un mot-clé (pour une personne reliée, le nom affiché et écrit est celui du mot-clé : c'est lui qu'on reno…
+- `pub set_person_alias` · L1446 — Alias d'une personne (None ou texte vide : retiré). Affichage seulement : les fichiers et le filtre Personnes gardent le nom du mot-clé.
+- `pub set_person_hidden` · L1456 — Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (face_recognize::attribute_faces), et l'interface la cache.
+- `pub set_person_cover` · L1465 — Visage représentatif choisi par l'utilisateur (vue de gestion) : il doit être attribué à cette personne.
+- *struct* `pub PersonDeleteInfo` · L1478 — Ce que la suppression d'une personne touche (fenêtre d'alerte) : visages encore rattachés et photos qui les portent.
+- `pub person_delete_info` · L1485
+- `pub delete_person` · L1505 — Supprime une personne et ses caractéristiques de reconnaissance (ses visages confirmés ne servent plus de référence). Ses visages restants
+- `delete_person_rows` · L1514 — Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
+- `merge_rows` · L1533 — Fusion en base (voir merge_persons), dans la transaction de l'appelant.
+- `undo_merge_rows` · L1566 — Annulation en base (voir undo_person_merge), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentat…
+- *struct* `pub MergeResult` · L1601 — Résultat d'une fusion : identifiant du journal (pour l'annuler) et nombre de visages passés à la personne gardée.
+- `pub merge_persons` · L1610 — Fusionne `from_person_id` dans `into_person_id` : les visages de la première passent à la seconde (à réécrire : nom des zones et mot-clé
+- *struct* `pub MergeInfo` · L1625 — Fusion annulable, absorbée par une personne (menu de cette personne).
+- `pub get_person_merges` · L1633
+- `pub undo_person_merge` · L1654 — Annule une fusion : la personne absorbée est recréée (même identifiant, nom, masquage ; mot-clé lié s'il existe encore et n'a pas été relié
+- `pub get_persons_without_faces` · L1676 — Personnes sans aucun visage attribué (« Nettoyer les personnes sans visage », Paramètres > Visages) : (identifiant, nom affiché).
+- `pub delete_persons` · L1691 — Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
+- `pub add_manual_face` · L1709 — Ajoute une zone dessinée à la main sur une photo (`rect` : x, y, w, h normalisés, repère de l'image STOCKÉE) pour la personne désignée
+- `pub delete_faces` · L1742 — Supprime des zones de visage (plein écran) : les photos dont une zone nommée disparaît sont à réécrire. Un visage détecté supprimé peut
+- `pub person_covers_dir` · L1758 — Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).
+- `remove_person_covers` · L1763 — Supprime les vignettes d'une personne, sauf `keep` (la vignette à jour).
+- `pub get_person_cover` · L1778 — Vignette d'une personne pour la vue Personnes : son visage représentatif (choisi, à défaut le plus grand), recadré en carré autour du visage
+- `render_face_cover` · L1808 — Recadre le visage `rect` (normalisé, repère de l'image stockée) dans un carré de 1,6 fois son plus grand côté, depuis l'original décodé à u…
 
 ## geolocation.rs (14)
 
@@ -789,13 +790,13 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `clipboard_entry` · L2623
 - `file_uri` · L2629 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
 - `main` · L2643
-- `move_file_or_copy` · L2899 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L2920 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L2938 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L2955 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L2983
-- `get_storage_location` · L2990
-- `change_storage_location` · L3000
+- `move_file_or_copy` · L2900 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L2921 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L2939 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L2956 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L2984
+- `get_storage_location` · L2991
+- `change_storage_location` · L3001
 
 ## model_files.rs (11)
 

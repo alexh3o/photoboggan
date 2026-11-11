@@ -8,7 +8,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 42 | — |
-| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
+| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 14 | — |
 | `--active-button` | styles.css · `:root` · `#1e72ad` | 25 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
@@ -142,12 +142,12 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-rating-text` | styles.css · `:root` · `#ffd43b` | 1 | — |
 | `--tag-shot-bg` | shooting-filters.css · `:root` · `#865130` | 1 | — |
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
-| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 25 | — |
+| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 26 | — |
 | `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 30 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 3 | — |
 | `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 63 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 67 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 68 | — |
 | `--thumb-bg` | styles.css · `:root` · `#1a1a1a`<br>styles.css · (light) `:root[data-theme="light"]` · `#d4d4d4` | 3 | — |
 | `--thumb-corner-size` | styles.css · `:root` · `1.75rem` | 4 | — |
 | `--thumb-hover-scale` | styles.css · `:root` · `1.03` | 1 | — |
@@ -252,7 +252,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L36 Dimensions and size of each copy, along the bottom edge of its thumbnail (duplicate results only).
 - L40 Floating panel "Best copy" (duplicates-modal.js): under the banner of the results, stays open while the grid is used.
 
-### src/faces.css (248 lines)
+### src/faces.css (253 lines)
 
 - L1 Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran.
 - L3 Éléments masqués par l'attribut hidden, même quand leur classe fixe un display
@@ -267,37 +267,38 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L43 Réglages avec infobulle d'aide (title) : petit repère ⓘ après le libellé
 - L51 Fenêtre de lancement d'un scan
 - L55 Filtre « Scan des visages » de la vue Photos
-- L60 VUE VISAGES (faces-grid.js) : barre d'outils (filtre par statut, actions) et grille virtuelle des visages
-- L65 Pastille de statut : contour à la couleur du statut ; remplie de cette couleur quand le statut est affiché.
-- L68 Pastilles d'origine actives : sans couleur de statut, leur fond reste celui de la barre ; le texte blanc y disparaît en thème cla…
-- L70 Pastilles d'un même filtre (statuts, origines) : collées en un seul bloc, seuls les coins extérieurs arrondis. Le bloc reste d'un…
-- L77 Vue Visages : le retour, les deux blocs de filtres et les actions forment un seul flux qui passe à la ligne ; tout démarre dès la…
-- L82 Boutons de la barre un peu plus serrés : plus d'éléments tiennent sur la même ligne
-- L84 Hauteurs de la barre (en rem) : pastilles et boutons plus grands de 50 % (1,25 rem et 1,5 rem avant), pour être faciles à cliquer
-- L89 Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls…
-- L91 Sort button of the Faces view: icon + current mode; the "Sort:" text only with "Show all labels" (body.show-toolbar-labels, set b…
-- L102 Bloc d'écriture : « Écrire dans les fichiers » + « N photos » (couleur Confirmé), sans séparation ; les coins extérieurs arrondis…
-- L111 Réglages de la vue, lus aussi par faces-grid.js : côté des vignettes, espacement, arrondi, largeur de la bande d'état (unique pou…
-- L135 Bande verticale à gauche de chaque ligne de vignettes, colorée selon l'état (commun à la ligne).
-- L141 Couleur de l'état, partagée par la bande des lignes et les pastilles du filtre : à valider (orange), automatique (bleu), confirmé…
-- L151 Sélection : même rendu que la grille des photos (voir .thumbnail.selected dans styles.css) : bordure, contour intérieur, coin mar…
-- L163 Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la…
-- L165 Les zones captent le clic droit (menu de la zone, lot 5c) ; le glisser et la molette remontent au plein écran. Zone en cours de d…
-- L172 Zones écartées, affichées à la demande (sous-menu Visages) : pointillés fins, à part des vraies zones
-- L175 « Ajouter un visage » armé : curseur en croix sur la photo et ses zones
-- L176 (!important et « * » : les images, cases et zones ont leur propre curseur, qui l'emporterait sur celui de leur conteneur)
-- L179 Zones dans une case de l'aperçu : décoratives (la case reçoit glisser et molette) ; au survol seulement, chaque zone n'apparaît s…
-- L184 Rectangle en cours de dessin : toujours visible (même en mode « au survol ») et jamais sous la souris
-- L187 VUE PERSONNES (persons-view.js) : grosses vignettes, une par personne (taille réglable), nom et nombre de photos dessous
-- L203 Vue de gestion (lot 5b) : titres de groupe cliquables (sélection du groupe)
-- L205 Avatar of the person after the count in a group title: 24px, enlarged on hover to compare with the faces of the group.
-- L211 « Pas des visages » : libellé de la pastille « Visages » barré (le nom complet est dans l'infobulle)
-- L212 Compteurs : même présentation dans les pastilles de filtre et les titres de groupe
-- L216 Duplicata du titre de groupe courant, collé en haut de la vue pendant le défilement (updateStickySeparator)
-- L222 Bouton « Regrouper les inconnus » dans le titre « Visages inconnus »
-- L226 Barre d'actions flottante (faces-grid.js) : en bas de la vue, visible seulement avec une sélection. Boutons d'icône (infobulle + …
-- L237 Couleurs d'icône : valider en vert (comme le statut Confirmé), refus en rouge, le reste neutre
-- L242 Barre d'actions verticale (faces-grid.js : plus de 5 vignettes en largeur) : à droite, le haut aligné avec la dernière vignette s…
+- L59 Face-count filter: label on the left, "min to max" fields on the right (same row layout as the face scan filter)
+- L65 VUE VISAGES (faces-grid.js) : barre d'outils (filtre par statut, actions) et grille virtuelle des visages
+- L70 Pastille de statut : contour à la couleur du statut ; remplie de cette couleur quand le statut est affiché.
+- L73 Pastilles d'origine actives : sans couleur de statut, leur fond reste celui de la barre ; le texte blanc y disparaît en thème cla…
+- L75 Pastilles d'un même filtre (statuts, origines) : collées en un seul bloc, seuls les coins extérieurs arrondis. Le bloc reste d'un…
+- L82 Vue Visages : le retour, les deux blocs de filtres et les actions forment un seul flux qui passe à la ligne ; tout démarre dès la…
+- L87 Boutons de la barre un peu plus serrés : plus d'éléments tiennent sur la même ligne
+- L89 Hauteurs de la barre (en rem) : pastilles et boutons plus grands de 50 % (1,25 rem et 1,5 rem avant), pour être faciles à cliquer
+- L94 Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls…
+- L96 Sort button of the Faces view: icon + current mode; the "Sort:" text only with "Show all labels" (body.show-toolbar-labels, set b…
+- L107 Bloc d'écriture : « Écrire dans les fichiers » + « N photos » (couleur Confirmé), sans séparation ; les coins extérieurs arrondis…
+- L116 Réglages de la vue, lus aussi par faces-grid.js : côté des vignettes, espacement, arrondi, largeur de la bande d'état (unique pou…
+- L140 Bande verticale à gauche de chaque ligne de vignettes, colorée selon l'état (commun à la ligne).
+- L146 Couleur de l'état, partagée par la bande des lignes et les pastilles du filtre : à valider (orange), automatique (bleu), confirmé…
+- L156 Sélection : même rendu que la grille des photos (voir .thumbnail.selected dans styles.css) : bordure, contour intérieur, coin mar…
+- L168 Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la…
+- L170 Les zones captent le clic droit (menu de la zone, lot 5c) ; le glisser et la molette remontent au plein écran. Zone en cours de d…
+- L177 Zones écartées, affichées à la demande (sous-menu Visages) : pointillés fins, à part des vraies zones
+- L180 « Ajouter un visage » armé : curseur en croix sur la photo et ses zones
+- L181 (!important et « * » : les images, cases et zones ont leur propre curseur, qui l'emporterait sur celui de leur conteneur)
+- L184 Zones dans une case de l'aperçu : décoratives (la case reçoit glisser et molette) ; au survol seulement, chaque zone n'apparaît s…
+- L189 Rectangle en cours de dessin : toujours visible (même en mode « au survol ») et jamais sous la souris
+- L192 VUE PERSONNES (persons-view.js) : grosses vignettes, une par personne (taille réglable), nom et nombre de photos dessous
+- L208 Vue de gestion (lot 5b) : titres de groupe cliquables (sélection du groupe)
+- L210 Avatar of the person after the count in a group title: 24px, enlarged on hover to compare with the faces of the group.
+- L216 « Pas des visages » : libellé de la pastille « Visages » barré (le nom complet est dans l'infobulle)
+- L217 Compteurs : même présentation dans les pastilles de filtre et les titres de groupe
+- L221 Duplicata du titre de groupe courant, collé en haut de la vue pendant le défilement (updateStickySeparator)
+- L227 Bouton « Regrouper les inconnus » dans le titre « Visages inconnus »
+- L231 Barre d'actions flottante (faces-grid.js) : en bas de la vue, visible seulement avec une sélection. Boutons d'icône (infobulle + …
+- L242 Couleurs d'icône : valider en vert (comme le statut Confirmé), refus en rouge, le reste neutre
+- L247 Barre d'actions verticale (faces-grid.js : plus de 5 vignettes en largeur) : à droite, le haut aligné avec la dernière vignette s…
 
 ### src/find-raw.css (6 lines)
 
@@ -392,7 +393,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L265 Colour flag swatch before the name
 - L285 ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ----
 
-### src/styles.css (1053 lines)
+### src/styles.css (1057 lines)
 
 - L1 Fredoka Font (title, about) embedded : no connection to Google Fonts.
 - L20 Selectable interface fonts (Settings > Appearance), registered in src/app-fonts.js (steps to add one are listed there).
@@ -467,63 +468,64 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L596 EXIF
 - L599 Keywords from info panel : clickable tags (same looks as filter tags) ; « active » = already in use as a filter
 - L604 Deux-points des libellés traduits : espace insécable avant en français, collant en anglais
-- L613 FULLSCREEN
-- L616 L'image est positionnée et zoomée par transform (voir layoutPreviewSlot dans main.js), comme dans l'aperçu : vue entière par défa…
-- L620 Barre de notes (R) : étoiles nues (sans fond ni pastille, ombre comme les textes), suivies de la couleur et du fanion pick. En ba…
-- L628 Survol : les étoiles à gauche de celle qu'on survole se remplissent aussi (la note qu'un clic poserait)
-- L630 Pastille de couleur et drapeau pick : même rendu que les vignettes ; absents, ils restent visibles en gris très translucide cerné…
-- L635 Aucun fanion : intérieur translucide comme la pastille de couleur. Pas de text-shadow (il serait visible à travers le remplissage…
-- L645 Choix dans les bulles : aussi grands que la pastille et le drapeau qui les ouvrent
-- L649 Résumé en bas à droite, dans l'angle de l'histogramme : à sa place s'il est masqué, juste au-dessus sinon (son encadré : hauteur …
-- L658 INFORMATIONS SUR LA PHOTO (touche D) : nom en haut au centre, rang en haut à droite, EXIF en bas à gauche, titre / description / …
-- L673 Deux traits encadrent la date (longueur : --fullscreen-date-rule-width), pour qu'elle ne se noie pas dans la description.
-- L679 MODALE DE TRI
-- L684 SÉPARATEURS DE LA GRILLE (tri par date ou par dossier, voir la modale de tri).
-- L698 Élément invisible dont la hauteur sert à mesurer --group-separator-height (toute unité CSS acceptée)
-- L701 Title Bar
-- L705 Linux (WebKitGTK) : -webkit-app-region est ignoré, le glisser repose sur data-tauri-drag-region, qui ne réagit que si le clic tom…
-- L713 Mode immersif (F11) : la fenêtre est en plein écran, la barre de titre personnalisée est masquée.
-- L716 MENU CONTEXTUEL DES MINIATURES
-- L730 En-tête du menu (nom du fichier ou nombre de photos) et raccourcis affichés à droite des actions
-- L734 Titre de groupe d'un sous-menu (non cliquable)
-- L736 Sous-menu Marquage : entrées décorées (étoiles, pastille de couleur, fanion), valeur actuelle cochée
-- L743 FENETRES INFOS ET CONFIRMATION
-- L766 Autocomplétion des fenêtres de saisie (promptDialog dans photo-actions.js) : liste sous le champ
-- L772 Modale des fichiers non gérés lors de la suppression de dossier
-- L778 MODALE DU RAPPORT D'INTÉGRITÉ (liste des fichiers suspects, voir showIntegrityReport dans photo-actions.js)
-- L794 Dossier en cours d'analyse : seconde ligne du toast de la tâche, et fin de la ligne d'état dans la fenêtre des actions
-- L797 MODALE PARAMETRES
-- L806 Taille de la fenêtre
-- L809 Choix de dossier de l'application
-- L813 ExifTool : version, chemin (tronqué si trop long) puis boutons, sur une seule ligne.
-- L821 Barre d'onglets
-- L822 Onglets de la modale des paramètres
-- L830 PARAMETRES : PROGRAMMES "OUVRIR AVEC"
-- L832 Une ligne par programme : nom (saisie) | chemin | Supprimer.
-- L840 MODALE GUIDE (compatible thème sombre & clair)
-- L843 Recherche et note, toujours visibles en haut pendant le défilement (guide.js)
-- L853 Une ligne : les touches à gauche (colonne de largeur fixe, pour que l'œil les suive), l'action à droite avec son détail en gris d…
-- L860 Contexte où la ligne s'applique (une même touche peut avoir un autre sens ailleurs : D, Ctrl + A, Entrée…)
-- L864 MODALE À PROPOS
-- L881 MODALE REDIMENSIONNER (et question « fichier existant »)
-- L900 VIDÉOS (voir video.rs et main.js) : tout se règle ici, les variables ci-dessous suffisent pour l'essentiel.
-- L917 RAW sans JPEG intégré (ex. Panasonic / Leica .RAW) : (::before, car ::after sert au coin de sélection) les lettres de l'extension…
-- L925 Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier
-- L929 Onglet Info : titres de groupe
-- L931 Zones de clic d'au moins 1,5 rem pour les boutons d'icône
-- L934 Voile des fenêtres : un peu plus dense en thème clair, où le fond blanc ressort davantage
-- L936 Fenêtre Affichage : assez large pour les sélecteurs de couleurs
-- L939 MARQUAGE : note et couleur de la sélection (main.js, « MARQUAGE »), en bas du panneau Info et/ou en barre flottante sur la grille
-- L943 Section du panneau Info : épinglée en bas de l'onglet (l'onglet est une colonne dont la liste prend la place libre) et visible mê…
-- L950 Groupe Lieu (location-panel.js) : coordonnées et lien, message éventuel, puis carte de hauteur fixe sur toute la largeur du panne…
-- L955 isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas
-- L958 Titre et cadenas (lieu privé : fermé et accentué ; sinon ouvert et discret), qui ouvre la fenêtre des zones privées
-- L966 Coordonnées : un clic les copie dans le presse-papiers
-- L970 FENÊTRE DES ZONES PRIVÉES (private-zones-modal.js) : liste à gauche, détail ou création à droite (texte puis carte)
-- L1013 Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans …
-- L1017 Légèrement translucide au repos (la grille reste visible dessous), entièrement opaque au survol et au clavier
-- L1020 Grille étroite (aperçu ouvert, fenêtre réduite) : la barre passe sur deux lignes, le nombre de photos sous les étoiles.
-- L1033 Réserve en bas de la grille pour que la dernière rangée ne reste pas sous la barre ; l'ancre « sticky » se cale au-dessus de ce r…
-- L1036 Pastille multicolore : ouvre la bulle des couleurs ; prend la couleur de la photo quand elle en a une
-- L1042 Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la…
-- L1047 Finished duplicate search waiting to be shown: "Show" button in the toast, and "Show" / "Dismiss" in the tasks window.
+- L612 Folder of the photo (shown when it is not obvious from the open folder): a link-looking button; its tooltip is the full folder pa…
+- L617 FULLSCREEN
+- L620 L'image est positionnée et zoomée par transform (voir layoutPreviewSlot dans main.js), comme dans l'aperçu : vue entière par défa…
+- L624 Barre de notes (R) : étoiles nues (sans fond ni pastille, ombre comme les textes), suivies de la couleur et du fanion pick. En ba…
+- L632 Survol : les étoiles à gauche de celle qu'on survole se remplissent aussi (la note qu'un clic poserait)
+- L634 Pastille de couleur et drapeau pick : même rendu que les vignettes ; absents, ils restent visibles en gris très translucide cerné…
+- L639 Aucun fanion : intérieur translucide comme la pastille de couleur. Pas de text-shadow (il serait visible à travers le remplissage…
+- L649 Choix dans les bulles : aussi grands que la pastille et le drapeau qui les ouvrent
+- L653 Résumé en bas à droite, dans l'angle de l'histogramme : à sa place s'il est masqué, juste au-dessus sinon (son encadré : hauteur …
+- L662 INFORMATIONS SUR LA PHOTO (touche D) : nom en haut au centre, rang en haut à droite, EXIF en bas à gauche, titre / description / …
+- L677 Deux traits encadrent la date (longueur : --fullscreen-date-rule-width), pour qu'elle ne se noie pas dans la description.
+- L683 MODALE DE TRI
+- L688 SÉPARATEURS DE LA GRILLE (tri par date ou par dossier, voir la modale de tri).
+- L702 Élément invisible dont la hauteur sert à mesurer --group-separator-height (toute unité CSS acceptée)
+- L705 Title Bar
+- L709 Linux (WebKitGTK) : -webkit-app-region est ignoré, le glisser repose sur data-tauri-drag-region, qui ne réagit que si le clic tom…
+- L717 Mode immersif (F11) : la fenêtre est en plein écran, la barre de titre personnalisée est masquée.
+- L720 MENU CONTEXTUEL DES MINIATURES
+- L734 En-tête du menu (nom du fichier ou nombre de photos) et raccourcis affichés à droite des actions
+- L738 Titre de groupe d'un sous-menu (non cliquable)
+- L740 Sous-menu Marquage : entrées décorées (étoiles, pastille de couleur, fanion), valeur actuelle cochée
+- L747 FENETRES INFOS ET CONFIRMATION
+- L770 Autocomplétion des fenêtres de saisie (promptDialog dans photo-actions.js) : liste sous le champ
+- L776 Modale des fichiers non gérés lors de la suppression de dossier
+- L782 MODALE DU RAPPORT D'INTÉGRITÉ (liste des fichiers suspects, voir showIntegrityReport dans photo-actions.js)
+- L798 Dossier en cours d'analyse : seconde ligne du toast de la tâche, et fin de la ligne d'état dans la fenêtre des actions
+- L801 MODALE PARAMETRES
+- L810 Taille de la fenêtre
+- L813 Choix de dossier de l'application
+- L817 ExifTool : version, chemin (tronqué si trop long) puis boutons, sur une seule ligne.
+- L825 Barre d'onglets
+- L826 Onglets de la modale des paramètres
+- L834 PARAMETRES : PROGRAMMES "OUVRIR AVEC"
+- L836 Une ligne par programme : nom (saisie) | chemin | Supprimer.
+- L844 MODALE GUIDE (compatible thème sombre & clair)
+- L847 Recherche et note, toujours visibles en haut pendant le défilement (guide.js)
+- L857 Une ligne : les touches à gauche (colonne de largeur fixe, pour que l'œil les suive), l'action à droite avec son détail en gris d…
+- L864 Contexte où la ligne s'applique (une même touche peut avoir un autre sens ailleurs : D, Ctrl + A, Entrée…)
+- L868 MODALE À PROPOS
+- L885 MODALE REDIMENSIONNER (et question « fichier existant »)
+- L904 VIDÉOS (voir video.rs et main.js) : tout se règle ici, les variables ci-dessous suffisent pour l'essentiel.
+- L921 RAW sans JPEG intégré (ex. Panasonic / Leica .RAW) : (::before, car ::after sert au coin de sélection) les lettres de l'extension…
+- L929 Arborescence vide (aucun dossier suivi) : invitation à ajouter un dossier
+- L933 Onglet Info : titres de groupe
+- L935 Zones de clic d'au moins 1,5 rem pour les boutons d'icône
+- L938 Voile des fenêtres : un peu plus dense en thème clair, où le fond blanc ressort davantage
+- L940 Fenêtre Affichage : assez large pour les sélecteurs de couleurs
+- L943 MARQUAGE : note et couleur de la sélection (main.js, « MARQUAGE »), en bas du panneau Info et/ou en barre flottante sur la grille
+- L947 Section du panneau Info : épinglée en bas de l'onglet (l'onglet est une colonne dont la liste prend la place libre) et visible mê…
+- L954 Groupe Lieu (location-panel.js) : coordonnées et lien, message éventuel, puis carte de hauteur fixe sur toute la largeur du panne…
+- L959 isolation : les contrôles de MapLibre (z-index propres) restent sous le panneau Marquage collé en bas
+- L962 Titre et cadenas (lieu privé : fermé et accentué ; sinon ouvert et discret), qui ouvre la fenêtre des zones privées
+- L970 Coordonnées : un clic les copie dans le presse-papiers
+- L974 FENÊTRE DES ZONES PRIVÉES (private-zones-modal.js) : liste à gauche, détail ou création à droite (texte puis carte)
+- L1017 Barre flottante, sur le modèle de celle de la vue Visages : collée en bas de la zone visible de la grille (ancre « sticky » sans …
+- L1021 Légèrement translucide au repos (la grille reste visible dessous), entièrement opaque au survol et au clavier
+- L1024 Grille étroite (aperçu ouvert, fenêtre réduite) : la barre passe sur deux lignes, le nombre de photos sous les étoiles.
+- L1037 Réserve en bas de la grille pour que la dernière rangée ne reste pas sous la barre ; l'ancre « sticky » se cale au-dessus de ce r…
+- L1040 Pastille multicolore : ouvre la bulle des couleurs ; prend la couleur de la photo quand elle en a une
+- L1046 Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la…
+- L1051 Finished duplicate search waiting to be shown: "Show" button in the toast, and "Show" / "Dismiss" in the tasks window.

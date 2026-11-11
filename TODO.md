@@ -2,20 +2,27 @@
 
 ## 🚀 Next in line
 
-- [ ] *feat*: `semantic` offer a way to reanalyse content already analyzed ?
+- [ ] *feat*: `search` private folders to optionally exclude from searches (similar x2, semantic search, keywords)
+- [ ] *feat*: `grid` implement pages for 50k+ views
 - [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
-- [ ] *feat*: `infos` add folder in infos when all photos is selected
+- [x] *feat*: `infos` add folder in infos when all photos is selected
+- [ ] *feat*: `tree` reorder root folders
+- [ ] *feat*: `tree` add folder search
+- [ ] *fix*: `faces` cannot pass faces from filtered to unknown
+- [ ] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
+- [ ] *feat*: `keywords` write keywords when typing enter in empty keyword input field
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *feat*: `tasks` task to popup action to see progress
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
+- [ ] *fix*: add "scan for new items" ? big folders, when do they see new elements
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
-- [ ] *refactor*: `UI` improve toasts placement / visibility
+- [ ] *feat*: `semantic` offer a way to reanalyse content already analyzed ?
 
 ## ❄️ Cold storage
 

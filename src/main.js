@@ -1105,6 +1105,7 @@ function applyPhotoFilters({ keepState = false } = {}) {
     updateRatingAction();
     document.getElementById('exif-title').textContent = '-';
     document.getElementById('exif-caption').textContent = '-';
+    updateInfoFolder(null);
     refreshInfoRows();
   }
   updateFilteredPhotosCount();
@@ -2289,9 +2290,10 @@ function currentViewScope() {
 }
 
 function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch && !semanticSearch; }
-async function showPhotoInItsFolder(photo) {
+// `anyView`: also allowed from a folder view with subfolders included (Info panel "Folder" link), where the photo may lie below the open folder.
+async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
   const fromResults = rawSearch !== null || duplicateSearch !== null || semanticSearch !== null;
-  if (!photo || !(fromResults || isAllPhotosView())) return;
+  if (!photo || !(fromResults || anyView || isAllPhotosView())) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
   abandonDuplicateSearch();
@@ -3186,6 +3188,7 @@ function updateUIOnSelection() {
     if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
 
     document.getElementById('exif-filename').textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '-';
+    updateInfoFolder(photo);
     document.getElementById('exif-date').textContent = photo.date_taken || '-';
     // Fabricant et modèle regroupés en un seul champ « Camera », séparés par une espace.
     document.getElementById('exif-camera').textContent =
@@ -3207,6 +3210,25 @@ function updateUIOnSelection() {
   refreshInfoRows();
   syncHistogram(); // histogramme de la photo courante
 }
+
+// Info tab "Folder" row: the folder of the active photo, shown only when the folder view does not already tell it ("All photos", or the
+// option to include subfolders is on). Outside those cases the text stays "-" and refreshInfoRows hides the row. The tooltip is the full
+// folder path (file name excluded, same separators as the catalogue); a click opens that folder in the tree (see showPhotoInItsFolder).
+function updateInfoFolder(photo) {
+  const button = document.getElementById('exif-folder');
+  const folder = photo && (currentFolderFilter === null || includeSubfolders) ? folderOf(photo.path) : '';
+  const name = folder.split(/[\\/]/).filter(Boolean).pop() || '';
+  button.textContent = name || '-';
+  button.title = name ? folder : '';
+  button.disabled = !name;
+}
+document.getElementById('exif-folder').addEventListener('click', async () => {
+  const photo = photos[lastSelectedIndex];
+  if (!photo) return;
+  // Same guard as a folder change: an edited smart album is left only after Save / Discard / Cancel.
+  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return;
+  showPhotoInItsFolder(photo, { anyView: true });
+});
 
 // Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
 // (Appareil photo, Exposition, Métadonnées) disparaît quand aucune de ses lignes n'est affichée.

@@ -609,6 +609,10 @@ html[lang="en"] .exif-label::after { content: ":"; }
 .exif-section li span#exif-camera,
   .exif-section li span#exif-size, .exif-section li span#exif-shutter,
   .exif-section li span#exif-aperture, .exif-section li span#exif-focal, .exif-section li span#exif-iso {display: inline;}
+/* Folder of the photo (shown when it is not obvious from the open folder): a link-looking button; its tooltip is the full folder path, a click opens the folder in the tree */
+.exif-folder-link { display: inline; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.exif-folder-link:hover:not(:disabled), .exif-folder-link:focus-visible { background: transparent; text-decoration: underline; }
+.exif-folder-link:disabled { color: var(--text-strong); cursor: default; }
 
 /* FULLSCREEN */
 #fullscreen-view { position: fixed; inset: 0; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; cursor: zoom-out; }
