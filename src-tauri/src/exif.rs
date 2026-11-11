@@ -980,9 +980,10 @@ fn add_hierarchical_leaves(meta: &mut ExifMetadata) {
     meta.keywords = words.join(", ");
 }
 
+/// Decodes XML entities from an XMP value. Delegates to `decode_xml_entities` so numeric references such as `&#39;`
+/// (how ExifTool writes an apostrophe) are decoded too, otherwise the read-back check sees `yin&#39;s` instead of `yin's`.
 fn xml_unescape(text: &str) -> String {
-    text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-        .replace("&quot;", "\"").replace("&apos;", "'")
+    decode_xml_entities(text)
 }
 
 /// Lit les dimensions réelles dans l'en-tête du fichier (JPEG : marqueur SOF, PNG : IHDR).

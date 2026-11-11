@@ -359,7 +359,31 @@ Faces and names are only written to your files when you click **Write to files**
 
 ---
 
-## 8. Settings
+## 8. Maps, Geolocation & Private Zones
+
+### Interactive Map
+
+Click **Map** in the top toolbar to view photo coordinates plotted over an interactive vector map.
+
+- **Assign Location:** Select photos in the grid, hold Shift, and drag them onto the target spot on the map (or right-click the map and select *Place selection here*).
+
+- **Filter by Map Area:** Check "Visible area only" to filter the thumbnail grid to images located within the current map viewport.
+
+### Private Zones (Protection Against Tile Leaks)
+
+Online map providers can log coordinate requests when fetching map tiles. Photoboggan solves this through **Private Zones** found in Settings / Map:
+
+- You can define a sensitive area (such as your home, workplace, or private property) by drawing either a **Circle** or a **Rectangle**.
+
+- Photoboggan downloads the vector map tiles for this specific area and saves them locally in an isolated .mbtiles container.
+
+- Whenever a photo located inside a private zone is viewed, **Photoboggan strictly blocks any outgoing network requests**. Tiles are loaded solely from your local disk.
+
+- You can also import pre-downloaded .mbtiles packages for complete offline field use.
+
+---
+
+## 9. Settings
 
 Open with the gear icon. The keyboard icon shows the shortcut guide; the *i* icon shows the version and links.
 
@@ -380,14 +404,14 @@ Display & appearance options (theme, text size, layout) are in **Display**, open
 
 ---
 
-## 9. Keyboard shortcuts
+## 10. Keyboard shortcuts
 
 Many shortcuts are available to qucikly adjust interface and to rate/sort photos.
 Press `G` for the full searchable in-app guide.
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Problem                                          | What to try                                                                                                                                                                                                                                                                             |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

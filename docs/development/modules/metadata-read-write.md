@@ -1,4 +1,4 @@
-<!-- verified: 984f5c1 | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js -->
+<!-- verified: e09c6df | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js -->
 # Metadata reading and writing (EXIF / IPTC / XMP, ExifTool, sidecars)
 
 ## Purpose
@@ -21,7 +21,7 @@ Called by `library_sync::read_photo` for every scan and sync. Videos go to `read
 1. `parse_xmp` reads the XMP: the embedded packet (JPEG APP1 via `read_embedded_xmp`, HEIC via `heif::read_xmp`) and the sidecar chosen by `read_sidecar` (never both merged for the same image). For rating, colour, pick, title and description, each source missing in the embedded packet is looked up in the sidecar; face regions come from the embedded packet, else from the sidecar.
 2. `read_jpeg_fields` reads IPTC (keywords, ObjectName, Caption) and the JPEG comment.
 3. For every EXIF source returned by `thumbnails::read_exif_sources` (several for CR3 / RAF): camera data (date, aperture, ISO, lens, size, flash), GPS, orientation; and, unless `exiftool::skip_exif_metadata()`, the Windows fields XPKeywords, XPTitle, XPComment, Rating, RatingPercent, ImageDescription, UserComment. A source that lacks a value never erases the one found by another (`keep`).
-4. Flat keywords are merged without duplicates (XMP `dc:subject`, IPTC, XPKeywords), then `add_hierarchical_leaves`.
+4. Flat keywords are merged without duplicates (XMP `dc:subject`, IPTC, XPKeywords), then `add_hierarchical_leaves`. XMP XML entities, including numeric references such as `&#39;` used for apostrophes by ExifTool, are decoded before values are compared or stored.
 5. `resolve_values` picks, for rating, colour, pick, title, description and GPS, the first source with data in the user's order. `ExifMetadata` keeps every source value (`rating_sources`, `text_sources`…) so that write checks can look at one source.
 6. Orientation is resolved with `orientation::resolve` (see `thumbnails-and-previews.md`); HEIC dimensions and orientation come from the container.
 

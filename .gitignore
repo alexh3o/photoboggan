@@ -32,3 +32,4 @@ Powershell.lnk
 *.njsproj
 *.sln
 *.sw?
+.aider*

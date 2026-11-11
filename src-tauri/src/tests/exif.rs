@@ -396,7 +396,7 @@ fn read_order_must_list_each_source_exactly_once() {
 
 #[test]
 fn xml_entities_and_text_helpers() {
-    assert_eq!(decode_xml_entities("a &amp; b &lt;c&gt; &#233; &#xE9; &inconnu; &"), "a & b <c> é é &inconnu; &");
+    assert_eq!(decode_xml_entities("a &amp; b &lt;c&gt; &#233; &#xE9; &#39; &inconnu; &"), "a & b <c> é é ' &inconnu; &");
     assert_eq!(clean_text("  a\r\nb\0 "), Some("a\nb".to_string()));
     assert_eq!(clean_text("   "), None);
     assert_eq!(clean_title("a\nb"), Some("a b".to_string()));

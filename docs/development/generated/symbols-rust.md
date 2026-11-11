@@ -173,95 +173,95 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `acdsee_category_paths` · L891 — Catégories ACDSee : la propriété `acdsee:categories` contient, en texte, un arbre XML (échappé dans le paquet) :
 - `pub acdsee_categories_value` · L939 — Valeur de `acdsee:categories` (arbre XML en texte, voir acdsee_category_paths) pour les mots-clés actifs `paths` : chemins fusionnés en un …
 - `add_hierarchical_leaves` · L972 — Ajoute aux mots-clés à plat (`meta.keywords`) le nom des mots-clés hiérarchiques actifs, pour que le filtre et le panneau Info
-- `xml_unescape` · L983
-- `read_image_dimensions` · L990 — Lit les dimensions réelles dans l'en-tête du fichier (JPEG : marqueur SOF, PNG : IHDR).
-- `video_date_taken` · L1010 — Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
-- `apply_parsed_xmp` · L1026 — Remplit les champs XMP de `meta` (sources XMP de la note, de la couleur, du titre et de la description ; mots-clés).
-- `resolve_values` · L1040 — Note, couleur, fanion, titre, description et coordonnées GPS retenus : la première source présente dans l'ordre de priorité réglé.
-- `lock_read` · L1055
-- `read_video_metadata` · L1061 — Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
-- `keep` · L1072 — Remplace `slot` par `value` quand celle-ci existe (une source qui ne connaît pas la valeur ne doit pas effacer celle d'une autre).
-- `pub read_exif` · L1076
-- `update_xmp_rating` · L1192
-- `update_xmp_label` · L1260 — Écrit (`Some`) ou retire (`None`) xmp:Label, que le paquet l'exprime en élément ou en attribut,
-- `pub color_to_urgency_and_digikam` · L1351 — Conversion des flags couleur standard vers digikam et photoshop (numériques)
-- `update_photoshop_urgency` · L1366
-- `update_digikam_color_label` · L1387
-- `remove_xmp_attribute` · L1409 — Helper pour supprimer un attribut XMP existant (ex: photoshop:Urgency ou digikam:ColorLabel)
-- *struct* `pub XmpEdit` · L1439 — Marquage demandé : seules les valeurs fournies sont modifiées.
-- `pub XmpEdit::adds_values` · L1450 — Vrai si la modification écrit une valeur (et pas seulement un retrait) : seule elle justifie de créer un paquet XMP ou un sidecar.
-- `pub pick_values` · L1459 — Valeurs écrites pour un fanion pick : (digiKam:PickLabel, xmpDM:pick, xmpDM:good). `good` est un booléen : sans fanion (ou « en attente »,
-- `remove_xmp_element` · L1469 — Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par remove_xmp_attribute.
-- `pub strip_xmp_marks` · L1493 — Retire d'un paquet XMP tous les marquages (note, couleur, fanions pick / rejet), quelle que soit la forme (attribut ou élément) :
-- `set_description_attribute` · L1508 — Remplace une propriété XMP par un attribut du premier rdf:Description (la propriété existante, en attribut ou en élément, est retirée avant…
-- `update_xmp_pick` · L1529 — Écrit le fanion pick dans les trois formats : digiKam:PickLabel (0 à 3), xmpDM:pick (-1, 0, 1) et xmpDM:good (True / False, retiré sans fan…
-- `update_xmp_metadata` · L1541 — Applique uniquement ce qui est demandé (voir XmpEdit).
-- `pub write_xmp_metadata` · L1574 — Écrit la note, la couleur et/ou le fanion pick (voir `XmpEdit` : seules les valeurs fournies sont modifiées), sans toucher au reste du fich…
-- `set_xmp_orientation` · L1601 — XMP `tiff:Orientation` set to `orientation` (packet created when there is none). The MicrosoftPhoto namespace of an old packet is fixed
-- `pub write_xmp_orientation` · L1608 — Lossless rotation with the internal writer (see orientation.rs): XMP `tiff:Orientation` only, never the EXIF tag nor the image data.
-- `fix_microsoft_namespace` · L1638 — Paquet XMP dont la déclaration du namespace MicrosoftPhoto est corrigée : les versions précédentes l'écrivaient sans le « / » final.
-- `xml_escape_text` · L1644
-- `remove_xmp_list_property` · L1650 — Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
-- `xmp_list_element` · L1684 — Élément XMP liste : `<nom><rdf:Bag><rdf:li>…</rdf:li></rdf:Bag></nom>` (ou `rdf:Seq`).
-- `insert_description_children` · L1696 — Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élém…
-- `update_xmp_keywords` · L1734 — Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
-- *struct* `pub MetadataUpdate` · L1771 — Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
-- *struct* `pub RegionWrite` · L1784 — Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
-- *struct* `pub RegionsUpdate` · L1794 — Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
-- `pub MetadataUpdate::clean_title` · L1802 — Titre à écrire, nettoyé (une ligne) ; chaîne vide pour le retirer.
-- `pub MetadataUpdate::clean_description` · L1807 — Description à écrire, nettoyée ; chaîne vide pour la retirer.
-- `pub MetadataUpdate::adds_values` · L1812 — Vrai si l'écriture ajoute au moins une valeur (sinon elle ne fait que retirer : un sidecar absent n'est pas créé).
-- `pub keyword_leaves` · L1822 — Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
-- `xmp_other_language_items` · L1838 — Entrées d'une liste de langues XMP (`rdf:Alt`) autres que `x-default` (ex. `fr-FR` ajoutée par digiKam), telles qu'écrites dans le
-- `xmp_alt_element` · L1866 — Élément XMP « liste de langues » : la valeur par défaut `<rdf:li xml:lang="x-default">…</rdf:li>` suivie des autres langues
-- `update_xmp_texts` · L1876 — Remplace le titre (dc:title, acdsee:caption) et/ou la description (dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes)
-- `update_xmp_all` · L1923 — Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, zones de visage, GPS).
-- `pub xmp_gps_coordinate` · L1940 — Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.
-- `pub update_xmp_gps` · L1948 — Coordonnées GPS du paquet XMP : toutes les propriétés `exif:GPS…` (position, altitude, heure, version…) sont retirées, puis, pour une
-- `pub update_xmp_regions` · L1989 — Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
-- `pub read_face_regions` · L2037 — Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
-- `pub rotate_xmp_regions` · L2047 — Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
-- `jpeg_replace_comment` · L2062 — JPEG dont les commentaires (segments COM) sont remplacés par un seul contenant `text` (aucun si `text` est vide), placé après les segments
-- `jpeg_insert_position` · L2099 — Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
-- `invalid_data` · L2109
-- `check_jpeg_structure` · L2116 — JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien …
-- `jpeg_replace_xmp` · L2124
-- `find_jpeg_photoshop_segment` · L2165 — Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
-- *struct* `PhotoshopResource` · L2171
-- `parse_photoshop_resources` · L2174 — Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
-- *struct* `IptcDataset` · L2195
-- `parse_iptc_datasets` · L2198 — Jeux de données d'un bloc IPTC-IIM ; `None` si le bloc est mal formé (il n'est alors pas modifié).
-- `pub truncate_utf8` · L2222
-- *struct* `IptcChanges` · L2231 — Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120) ; `None` = inchangé, valeur vide = r…
-- `IptcChanges::datasets` · L2239 — Nouveaux jeux de données (numéro, valeur), coupés à la longueur maximale de la norme (64 octets ; 2000 pour la description).
-- `iptc_with` · L2252 — Nouveau bloc IPTC : les jeux de données concernés par `changes` sont remplacés, tout le reste est recopié tel quel.
-- `jpeg_replace_iptc` · L2279 — JPEG dont les jeux de données IPTC concernés par `changes` sont remplacés. Les autres ressources Photoshop et jeux de données IPTC sont
-- `pub write_file_atomically` · L2329
-- `write_jpeg_metadata` · L2344 — JPEG : XMP, IPTC et commentaire réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
-- `pub image_gone` · L2358
-- *struct* `pub SidecarTarget` · L2363 — Sidecar an image's metadata is written to (see `sidecar_target`).
-- `pub sidecar_target` · L2377 — XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
-- `pub has_same_stem_sibling` · L2390 — True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
-- `shares_sidecar_with_sidecar_writer` · L2395 — Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
-- `same_stem_siblings` · L2403
-- `pub read_sidecar` · L2415 — Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
-- `pub sidecar_candidates` · L2423 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
-- `write_xmp_sidecar_with` · L2429 — XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
-- `pub write_metadata` · L2449 — Écrit les modifications `update` (mots-clés, titre, description) dans le fichier, en une seule écriture :
-- `pub write_metadata_internal` · L2455 — The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
-- `pub text_mismatch` · L2475 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
-- *struct* `pub MetadataEntry` · L2511
-- *struct* `pub MetadataDetails` · L2517
-- `detail_entry` · L2526
-- `read_exif_entries` · L2536
-- `read_xmp_packet` · L2552 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
-- `pub xml_tag_end` · L2558 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
-- `xml_attributes` · L2571
-- `list_xmp_properties` · L2588 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
-- `iptc_dataset_name` · L2646
-- `collect_iptc_datasets` · L2660 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
-- `read_iptc_entries` · L2689
-- `pub read_metadata_details` · L2704 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
+- `xml_unescape` · L985 — Decodes XML entities from an XMP value. Delegates to `decode_xml_entities` so numeric references such as `&#39;`
+- `read_image_dimensions` · L991 — Lit les dimensions réelles dans l'en-tête du fichier (JPEG : marqueur SOF, PNG : IHDR).
+- `video_date_taken` · L1011 — Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
+- `apply_parsed_xmp` · L1027 — Remplit les champs XMP de `meta` (sources XMP de la note, de la couleur, du titre et de la description ; mots-clés).
+- `resolve_values` · L1041 — Note, couleur, fanion, titre, description et coordonnées GPS retenus : la première source présente dans l'ordre de priorité réglé.
+- `lock_read` · L1056
+- `read_video_metadata` · L1062 — Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
+- `keep` · L1073 — Remplace `slot` par `value` quand celle-ci existe (une source qui ne connaît pas la valeur ne doit pas effacer celle d'une autre).
+- `pub read_exif` · L1077
+- `update_xmp_rating` · L1193
+- `update_xmp_label` · L1261 — Écrit (`Some`) ou retire (`None`) xmp:Label, que le paquet l'exprime en élément ou en attribut,
+- `pub color_to_urgency_and_digikam` · L1352 — Conversion des flags couleur standard vers digikam et photoshop (numériques)
+- `update_photoshop_urgency` · L1367
+- `update_digikam_color_label` · L1388
+- `remove_xmp_attribute` · L1410 — Helper pour supprimer un attribut XMP existant (ex: photoshop:Urgency ou digikam:ColorLabel)
+- *struct* `pub XmpEdit` · L1440 — Marquage demandé : seules les valeurs fournies sont modifiées.
+- `pub XmpEdit::adds_values` · L1451 — Vrai si la modification écrit une valeur (et pas seulement un retrait) : seule elle justifie de créer un paquet XMP ou un sidecar.
+- `pub pick_values` · L1460 — Valeurs écrites pour un fanion pick : (digiKam:PickLabel, xmpDM:pick, xmpDM:good). `good` est un booléen : sans fanion (ou « en attente »,
+- `remove_xmp_element` · L1470 — Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par remove_xmp_attribute.
+- `pub strip_xmp_marks` · L1494 — Retire d'un paquet XMP tous les marquages (note, couleur, fanions pick / rejet), quelle que soit la forme (attribut ou élément) :
+- `set_description_attribute` · L1509 — Remplace une propriété XMP par un attribut du premier rdf:Description (la propriété existante, en attribut ou en élément, est retirée avant…
+- `update_xmp_pick` · L1530 — Écrit le fanion pick dans les trois formats : digiKam:PickLabel (0 à 3), xmpDM:pick (-1, 0, 1) et xmpDM:good (True / False, retiré sans fan…
+- `update_xmp_metadata` · L1542 — Applique uniquement ce qui est demandé (voir XmpEdit).
+- `pub write_xmp_metadata` · L1575 — Écrit la note, la couleur et/ou le fanion pick (voir `XmpEdit` : seules les valeurs fournies sont modifiées), sans toucher au reste du fich…
+- `set_xmp_orientation` · L1602 — XMP `tiff:Orientation` set to `orientation` (packet created when there is none). The MicrosoftPhoto namespace of an old packet is fixed
+- `pub write_xmp_orientation` · L1609 — Lossless rotation with the internal writer (see orientation.rs): XMP `tiff:Orientation` only, never the EXIF tag nor the image data.
+- `fix_microsoft_namespace` · L1639 — Paquet XMP dont la déclaration du namespace MicrosoftPhoto est corrigée : les versions précédentes l'écrivaient sans le « / » final.
+- `xml_escape_text` · L1645
+- `remove_xmp_list_property` · L1651 — Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
+- `xmp_list_element` · L1685 — Élément XMP liste : `<nom><rdf:Bag><rdf:li>…</rdf:li></rdf:Bag></nom>` (ou `rdf:Seq`).
+- `insert_description_children` · L1697 — Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élém…
+- `update_xmp_keywords` · L1735 — Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
+- *struct* `pub MetadataUpdate` · L1772 — Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
+- *struct* `pub RegionWrite` · L1785 — Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
+- *struct* `pub RegionsUpdate` · L1795 — Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
+- `pub MetadataUpdate::clean_title` · L1803 — Titre à écrire, nettoyé (une ligne) ; chaîne vide pour le retirer.
+- `pub MetadataUpdate::clean_description` · L1808 — Description à écrire, nettoyée ; chaîne vide pour la retirer.
+- `pub MetadataUpdate::adds_values` · L1813 — Vrai si l'écriture ajoute au moins une valeur (sinon elle ne fait que retirer : un sidecar absent n'est pas créé).
+- `pub keyword_leaves` · L1823 — Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
+- `xmp_other_language_items` · L1839 — Entrées d'une liste de langues XMP (`rdf:Alt`) autres que `x-default` (ex. `fr-FR` ajoutée par digiKam), telles qu'écrites dans le
+- `xmp_alt_element` · L1867 — Élément XMP « liste de langues » : la valeur par défaut `<rdf:li xml:lang="x-default">…</rdf:li>` suivie des autres langues
+- `update_xmp_texts` · L1877 — Remplace le titre (dc:title, acdsee:caption) et/ou la description (dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes)
+- `update_xmp_all` · L1924 — Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, zones de visage, GPS).
+- `pub xmp_gps_coordinate` · L1941 — Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.
+- `pub update_xmp_gps` · L1949 — Coordonnées GPS du paquet XMP : toutes les propriétés `exif:GPS…` (position, altitude, heure, version…) sont retirées, puis, pour une
+- `pub update_xmp_regions` · L1990 — Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
+- `pub read_face_regions` · L2038 — Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
+- `pub rotate_xmp_regions` · L2048 — Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
+- `jpeg_replace_comment` · L2063 — JPEG dont les commentaires (segments COM) sont remplacés par un seul contenant `text` (aucun si `text` est vide), placé après les segments
+- `jpeg_insert_position` · L2100 — Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
+- `invalid_data` · L2110
+- `check_jpeg_structure` · L2117 — JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien …
+- `jpeg_replace_xmp` · L2125
+- `find_jpeg_photoshop_segment` · L2166 — Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
+- *struct* `PhotoshopResource` · L2172
+- `parse_photoshop_resources` · L2175 — Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
+- *struct* `IptcDataset` · L2196
+- `parse_iptc_datasets` · L2199 — Jeux de données d'un bloc IPTC-IIM ; `None` si le bloc est mal formé (il n'est alors pas modifié).
+- `pub truncate_utf8` · L2223
+- *struct* `IptcChanges` · L2232 — Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120) ; `None` = inchangé, valeur vide = r…
+- `IptcChanges::datasets` · L2240 — Nouveaux jeux de données (numéro, valeur), coupés à la longueur maximale de la norme (64 octets ; 2000 pour la description).
+- `iptc_with` · L2253 — Nouveau bloc IPTC : les jeux de données concernés par `changes` sont remplacés, tout le reste est recopié tel quel.
+- `jpeg_replace_iptc` · L2280 — JPEG dont les jeux de données IPTC concernés par `changes` sont remplacés. Les autres ressources Photoshop et jeux de données IPTC sont
+- `pub write_file_atomically` · L2330
+- `write_jpeg_metadata` · L2345 — JPEG : XMP, IPTC et commentaire réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
+- `pub image_gone` · L2359
+- *struct* `pub SidecarTarget` · L2364 — Sidecar an image's metadata is written to (see `sidecar_target`).
+- `pub sidecar_target` · L2378 — XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
+- `pub has_same_stem_sibling` · L2391 — True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
+- `shares_sidecar_with_sidecar_writer` · L2396 — Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
+- `same_stem_siblings` · L2404
+- `pub read_sidecar` · L2416 — Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
+- `pub sidecar_candidates` · L2424 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
+- `write_xmp_sidecar_with` · L2430 — XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
+- `pub write_metadata` · L2450 — Écrit les modifications `update` (mots-clés, titre, description) dans le fichier, en une seule écriture :
+- `pub write_metadata_internal` · L2456 — The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
+- `pub text_mismatch` · L2476 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
+- *struct* `pub MetadataEntry` · L2512
+- *struct* `pub MetadataDetails` · L2518
+- `detail_entry` · L2527
+- `read_exif_entries` · L2537
+- `read_xmp_packet` · L2553 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
+- `pub xml_tag_end` · L2559 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
+- `xml_attributes` · L2572
+- `list_xmp_properties` · L2589 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
+- `iptc_dataset_name` · L2647
+- `collect_iptc_datasets` · L2661 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
+- `read_iptc_entries` · L2690
+- `pub read_metadata_details` · L2705 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
 
 ## exiftool.rs (54)
 

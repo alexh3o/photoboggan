@@ -151,7 +151,7 @@ fn leftovers(dir: &Path) -> Vec<String> {
 
 fn sample_update() -> MetadataUpdate {
     MetadataUpdate {
-        keywords: Some(paths(&[&["Lieux", "France", "Paris"], &["Animaux"]])),
+        keywords: Some(paths(&[&["Lieux", "France", "Paris"], &["Animaux"], &["People", "lu think yin's father"]])),
         title: Some("Titre é & <b>".into()),
         description: Some("Description".into()),
         ..Default::default()
@@ -176,7 +176,7 @@ fn jpeg_is_written_without_touching_pixels() {
     let meta = read_exif(&path);
     let mut keyword_paths = meta.keyword_paths.clone();
     keyword_paths.sort();
-    assert_eq!(keyword_paths, paths(&[&["Animaux"], &["Lieux", "France", "Paris"]]));
+    assert_eq!(keyword_paths, paths(&[&["Animaux"], &["Lieux", "France", "Paris"], &["People", "lu think yin's father"]]));
     assert_eq!((meta.title.as_str(), meta.caption.as_str()), ("Titre é & <b>", "Description"));
     assert!(crate::exif::text_mismatch(&path, &sample_update(), &meta).is_none());
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));

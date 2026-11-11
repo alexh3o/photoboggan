@@ -8,7 +8,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 42 | — |
-| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 14 | — |
+| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
 | `--active-button` | styles.css · `:root` · `#1e72ad` | 25 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |

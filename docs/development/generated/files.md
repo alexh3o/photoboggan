@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1387 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 57 |  |
+| `TODO.md` | 60 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -32,7 +32,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `USER_GUIDE.md` | 409 |  |
+| `USER_GUIDE.md` | 433 |  |
 
 ## docs/development
 
@@ -57,14 +57,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 150 |  |
-| `css.md` | 530 |  |
+| `css.md` | 532 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
 | `files.md` | 293 |  |
-| `ipc-commands.md` | 178 |  |
+| `ipc-commands.md` | 179 |  |
 | `module-deps.md` | 95 |  |
-| `symbols-js.md` | 1399 |  |
-| `symbols-rust.md` | 1307 |  |
+| `symbols-js.md` | 1406 |  |
+| `symbols-rust.md` | 1308 |  |
 | `tests.md` | 447 |  |
 
 ## docs/development/modules
@@ -209,7 +209,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 393 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `db.rs` | 604 |  |
 | `duplicates.rs` | 756 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
-| `exif.rs` | 2727 |  |
+| `exif.rs` | 2728 |  |
 | `exiftool.rs` | 905 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
 | `face_detect.rs` | 802 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
