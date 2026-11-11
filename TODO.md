@@ -9,10 +9,10 @@
 - [ ] *feat*: `tree` reorder root folders
 - [ ] *feat*: `tree` add folder search
 - [ ] *fix*: `faces` cannot pass faces from filtered to unknown
-- [ ] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
+- [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
 - [ ] *feat*: `keywords` write keywords when typing enter in empty keyword input field
 - [ ] *fix*: `keywords` keywords fail dialog shows No/Retry/Show: "No" is unclear
-- [ ] *feat*: `infos` add folder info in album photos too
+- [x] *feat*: `infos` add folder info in album photos too
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
 
 ## 💡 Ideas / Longer term / On hold
