@@ -462,24 +462,24 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `updateSuggestions()` · L719
 - `validateSuggestion(index, withAncestors)` · L728 — Entrée : active le mot-clé en surbrillance sur toute la sélection (avec Maj : ses ascendants aussi). Rien ne se passe s'aucun mot-clé ne co…
 - `onInputKeyDown(event)` · L737
-- `onTreeContextMenu(event)` · L765 — Menu contextuel : celui des photos, dossiers et personnes (photo-actions.js), pour une même apparence et la navigation au clavier.
-- `collapseAll()` · L809
-- `expandToActive()` · L815 — Déplie tous les niveaux nécessaires pour voir les mots-clés actifs dans la sélection.
-- `registerNode(node)` · L822
-- `validateKeywordName(name, parentId, excludeId = null)` · L832 — Message d'erreur si `name` ne peut pas être créé sous `parentId`, sinon null.
-- `describeKeywordError(error)` · L841 — Erreurs de la commande create_keyword : codes courts du backend traduits, autre erreur affichée telle quelle.
-- `nameDialog({ title, parentLabel, validate, initialValue = '', confirmL…)` · L851 — Fenêtre de saisie du nom d'un mot-clé (création ou renommage) : rappelle le parent ; `validate(nom)` renvoie un message d'erreur ou null.
-- `createKeywordFlow(parentId)` · L976 — Création d'un mot-clé enfant (parentId 0 = premier niveau). Créé tout de suite dans l'arbre s'il n'existe pas ailleurs ; sinon confirmation
-- `deleteKeywordFlow(node)` · L997 — Suppression d'un mot-clé (et de son sous-arbre) : confirmation indiquant le nombre de photos concernées, puis retrait des fichiers.
-- `confirmHomonyms(name, excludeId, question, actionLabel)` · L1025 — Confirmation quand ce nom existe déjà ailleurs dans l'arbre (hors `excludeId`) : liste les hiérarchies où il existe. Renvoie true s'il faut…
-- `renameKeywordFlow(node)` · L1044 — Renommage d'un mot-clé : même fenêtre que la création (liste des mots-clés existants, confirmation si le nom existe déjà ailleurs dans l'ar…
-- `keywordPhotoCount(keywordId)` · L1064 — Nombre de photos qui portent le mot-clé ou l'un de ses descendants (choix entre écriture directe et file de tâches).
-- `export renameKeywordById(keywordId, name, after)` · L1076 — Renommage demandé hors de l'arbre (personne reliée à un mot-clé, faces-panel.js) : mêmes vérifications que depuis l'arbre (aucune écriture …
-- `runKeywordRename(node, name, photoCount, after = null)` · L1090
-- `finishRename(node, name, photoCount, after, result, error)` · L1095 — Fin d'un renommage. L'arbre est renommé dès le début de l'opération, même si certains fichiers n'ont pas pu être réécrits (« Retenter » les…
-- `runKeywordDelete(node, photoCount)` · L1114
-- `finishDelete(node, photoCount, ids, result, error)` · L1120 — Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.…
-- `export initKeywordsPanel(hostApi)` · L1152 — Services fournis par main.js : getSelectedPhotos, showToast, findIndicesByPhotoIds, setSelectionIndices (les écritures passent par
+- `onTreeContextMenu(event)` · L771 — Menu contextuel : celui des photos, dossiers et personnes (photo-actions.js), pour une même apparence et la navigation au clavier.
+- `collapseAll()` · L815
+- `expandToActive()` · L821 — Déplie tous les niveaux nécessaires pour voir les mots-clés actifs dans la sélection.
+- `registerNode(node)` · L828
+- `validateKeywordName(name, parentId, excludeId = null)` · L838 — Message d'erreur si `name` ne peut pas être créé sous `parentId`, sinon null.
+- `describeKeywordError(error)` · L847 — Erreurs de la commande create_keyword : codes courts du backend traduits, autre erreur affichée telle quelle.
+- `nameDialog({ title, parentLabel, validate, initialValue = '', confirmL…)` · L857 — Fenêtre de saisie du nom d'un mot-clé (création ou renommage) : rappelle le parent ; `validate(nom)` renvoie un message d'erreur ou null.
+- `createKeywordFlow(parentId)` · L982 — Création d'un mot-clé enfant (parentId 0 = premier niveau). Créé tout de suite dans l'arbre s'il n'existe pas ailleurs ; sinon confirmation
+- `deleteKeywordFlow(node)` · L1003 — Suppression d'un mot-clé (et de son sous-arbre) : confirmation indiquant le nombre de photos concernées, puis retrait des fichiers.
+- `confirmHomonyms(name, excludeId, question, actionLabel)` · L1031 — Confirmation quand ce nom existe déjà ailleurs dans l'arbre (hors `excludeId`) : liste les hiérarchies où il existe. Renvoie true s'il faut…
+- `renameKeywordFlow(node)` · L1050 — Renommage d'un mot-clé : même fenêtre que la création (liste des mots-clés existants, confirmation si le nom existe déjà ailleurs dans l'ar…
+- `keywordPhotoCount(keywordId)` · L1070 — Nombre de photos qui portent le mot-clé ou l'un de ses descendants (choix entre écriture directe et file de tâches).
+- `export renameKeywordById(keywordId, name, after)` · L1082 — Renommage demandé hors de l'arbre (personne reliée à un mot-clé, faces-panel.js) : mêmes vérifications que depuis l'arbre (aucune écriture …
+- `runKeywordRename(node, name, photoCount, after = null)` · L1096
+- `finishRename(node, name, photoCount, after, result, error)` · L1101 — Fin d'un renommage. L'arbre est renommé dès le début de l'opération, même si certains fichiers n'ont pas pu être réécrits (« Retenter » les…
+- `runKeywordDelete(node, photoCount)` · L1120
+- `finishDelete(node, photoCount, ids, result, error)` · L1126 — Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.…
+- `export initKeywordsPanel(hostApi)` · L1158 — Services fournis par main.js : getSelectedPhotos, showToast, findIndicesByPhotoIds, setSelectionIndices (les écritures passent par
 
 ## src/location-panel.js (17)
 

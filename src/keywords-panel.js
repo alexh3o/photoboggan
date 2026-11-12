@@ -746,6 +746,12 @@ function onInputKeyDown(event) {
     renderSuggestions();
   } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
     event.preventDefault();
+    // Enter in an empty input with keyword changes pending: nothing to validate, so it writes the pending changes into the files
+    // (same circuit as the Apply button and Ctrl+Enter). Ignored while a write is running or when the key is held down.
+    if (!inputField.value.trim() && dirtyIds.size > 0) {
+      if (!event.repeat && !isWriteLocked()) applyChanges();
+      return;
+    }
     validateSuggestion(highlighted, event.shiftKey);
   } else if (event.key === 'Escape') {
     event.stopPropagation();

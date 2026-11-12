@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1390 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 66 |  |
+| `TODO.md` | 68 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -78,7 +78,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `faces.md` | 68 |  |
 | `filters-and-search.md` | 89 |  |
 | `grid-and-viewer.md` | 89 |  |
-| `keywords.md` | 78 |  |
+| `keywords.md` | 94 |  |
 | `library-and-database.md` | 72 |  |
 | `main-window.md` | 79 |  |
 | `maps-and-geolocation.md` | 69 |  |
@@ -127,7 +127,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 395 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 104 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
-| `keywords-panel.js` | 1241 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
+| `keywords-panel.js` | 1247 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 253 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
 | `main.js` | 8643 |  |

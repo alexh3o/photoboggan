@@ -11,7 +11,7 @@
 - [ ] *feat*: `keywords` add keyword search
 - [x] *fix*: `faces` cannot pass faces from filtered to unknown
 - [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
-- [ ] *feat*: `keywords` write keywords when typing enter in empty keyword input field
+- [x] *feat*: `keywords` write keywords when typing enter in empty keyword input field
 - [ ] *fix*: `keywords` keywords fail dialog shows No/Retry/Show: "No" is unclear
 - [x] *feat*: `infos` add folder info in album photos too
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
@@ -20,7 +20,7 @@
 - [x] *refactor*: `grid` stay on the current photo when undoing filters
 - [x] *feat*: `grid` scrollbar should give a date / filename indication
 - [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
-- [ ] *refactor*: `files` remember "keep marks" setting in resize
+- [ ] *feat*: `tree` sticky folders in tree
 
 ## 💡 Ideas / Longer term / On hold
 
