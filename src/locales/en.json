@@ -1701,5 +1701,17 @@
   "No matching entry": "No matching entry",
   "No photo matches these filters.": "No photo matches these filters.",
   "Top cameras": "Top cameras",
-  "Top lenses": "Top lenses"
+  "Top lenses": "Top lenses",
+  "Photo pages": "Photo pages",
+  "Previous page of photos": "Previous page (Alt + PageUp)",
+  "Previous page of photos label": "Previous page",
+  "Next page of photos": "Next page (Alt + PageDown)",
+  "Next page of photos label": "Next page",
+  "Photo pages total {total}": "of {total}",
+  "Photo page {page} of {total}": "Page {page} of {total}",
+  "Go to photo page": "Go to page",
+  "Photo page option {page}": "Page {page}",
+  "Photos {from} to {to} of {total}": "Photos {from} to {to} of {total}",
+  "Previous / next page of photos": "Previous / next page of photos",
+  "Only when the view holds more photos than the loading limit": "Only when the view holds more photos than the loading limit"
 }

@@ -45,7 +45,16 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 `renderPreview` fills `previewSlots` (one per selected photo in compare mode, shared centre unless "Desynchronise"), zoom steps ×1.4 up to 200 %. In compare mode with several photos, commands (rating, colour, delete, rotation) target only the **sub-selection** (`compareSubSelection`, circle-check marks in the preview): `commandTargetPhotos`. Context-menu commands always target the right-clicked photo. Leaving compare restores the preview's previous visibility.
 
 ### Sort
-`photoSortValue` (name with numeric collation, modification date, taken date; missing values go last whatever the order). The list is sorted in the UI, but `get_photos_paginated` also receives `sortKey` / `sortOrder` because a capped list (50 000) must pick the right photos: `applySortChange` reloads from the backend when `photoListCap` is set, else re-applies filters and scrolls to the active photo. Persists `photoSortKey`, `photoSortOrder`, `photoDateSeparator`, `photoNameSeparator`.
+`photoSortValue` (name with numeric collation, modification date, taken date; missing values go last whatever the order). The list is sorted in the UI, but `get_photos_paginated` also receives `sortKey` / `sortOrder` because a capped or paged list (50 000 per page) must pick the right photos: `applySortChange` reloads from the backend (back to page 1) when `photoListCap` is set or the view has several pages (`photoPageCount > 1`), else re-applies filters and scrolls to the active photo. Persists `photoSortKey`, `photoSortOrder`, `photoDateSeparator`, `photoNameSeparator`.
+
+### Page bar (views above `PHOTO_LOAD_LIMIT`)
+A view with more than 50 000 matching photos (prefilter applied) is shown one page of 50 000 at a time; how the page is read is in `main-window.md` ("Loading the photos", step 4b). Section "PAGINATION DE LA GRILLE" of `main.js`, markup `#photo-pager` in `index.html` (styles `.photo-pager*` at the end of `styles.css`).
+- The bar is a `position: sticky; top: 0` row of the grid, like the RAW / duplicates / content banners (so it shifts the grid down by its own height; the virtual scroller's overscan covers it). It is `hidden` while `photoPageCount <= 1`, i.e. for any normal collection, album or search mode.
+- Content: previous button, a menu of pages (`Page N`), the text "of N", next button. A visually hidden `role="status"` element carries the full sentence ("Page 2 of 3") for screen readers. The tooltip of "of N" gives the photo range of the page out of the real total (`photoPageTotal`). `renderPhotoPager` redraws it from `currentPhotoPage`, `photoPageCount` and `photoPageTotal` (called by `adoptListResult` and on language change); the menu is rebuilt only when the page count changes.
+- `goToPhotoPage(target)` (buttons, menu, **Alt + PageUp / Alt + PageDown**): clamps the target; ignored while `photoPageBusy`. If `hasSelectionEdits()` it asks through `resolvePendingSelection([])` (`metadata-writes.js`: the same Apply / Ignore / Cancel question as a selection change; Cancel stays on the page). Then it clears `selectedIndices`, calls `updateUIOnSelection()`, sets `currentPhotoPage`, clears `fullscreenImageCache` (index-keyed), `await loadPhotos()` and puts `gridContainer.scrollTop` at 0. While it runs the bar is greyed (`.busy`, `aria-busy`, controls disabled).
+- The keyboard shortcut is its own `keydown` listener, inactive in full screen, behind an open window and in the Faces / People views. It is listed in `guide.js`.
+- The sidebar counter (`updateFilteredPhotosCount`) reads "shown of total" with the whole view's total on a paged view, not the size of the page; the "list is cut" ⚠ only remains when paging is impossible (Ctrl+click folders).
+- Filters that are not part of the SQL prefilter only narrow the loaded page.
 
 ### Marking, rotation, undo
 1. `setSelectionRating / ColorFlag / PickFlag` pick targets, compute the final value (same value on all targets = clear it; pick buttons use `toggle:false`), then call `writeMarking(targets, fields, {apply, refilter,…})`.
@@ -70,7 +79,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: virtual grid layout is pixel-exact (AGENTS.md §5.A/§7); a fractional width or a size change on hover/selection creates gaps or reflows.
-- ⚠ sensitive: `photos` indices are positional: `fullscreenImageCache`, `renderedThumbnailNodes` and selection all break if the list is re-sorted without clearing/re-finding them.
+- ⚠ sensitive: `photos` indices are positional: `fullscreenImageCache`, `renderedThumbnailNodes` and selection all break if the list is re-sorted without clearing/re-finding them. A page change replaces the whole list, so it clears the selection first.
 - ⚠ sensitive: `view_fix` must not be applied to a thumbnail or generated preview (double rotation).
 - Compare mode: selection limited to 4 only while it is active (`limitSelectionForCompare` when entering it).
 - No frontend framework (AGENTS.md §4.6).

@@ -330,6 +330,14 @@
             <button id="semantic-analyse" type="button" class="semantic-analyse" data-i18n="Analyse">Analyser</button>
           </div>
         </div>
+        <!-- Pagination des très grandes vues (main.js, section « PAGINATION DE LA GRILLE ») : masquée tant que la vue tient dans PHOTO_LOAD_LIMIT -->
+        <nav id="photo-pager" class="photo-pager" aria-label="Pages de photos" data-i18n-aria-label="Photo pages" hidden>
+          <button id="photo-pager-prev" type="button" class="photo-pager-btn" title="Page précédente (Alt + PageUp)" aria-label="Page précédente" aria-keyshortcuts="Alt+PageUp" data-i18n-title="Previous page of photos" data-i18n-aria-label="Previous page of photos label">‹</button>
+          <select id="photo-pager-select" class="photo-pager-select" title="Aller à la page" aria-label="Aller à la page" data-i18n-title="Go to photo page" data-i18n-aria-label="Go to photo page"></select>
+          <span id="photo-pager-label" class="photo-pager-label" aria-hidden="true"></span>
+          <button id="photo-pager-next" type="button" class="photo-pager-btn" title="Page suivante (Alt + PageDown)" aria-label="Page suivante" aria-keyshortcuts="Alt+PageDown" data-i18n-title="Next page of photos" data-i18n-aria-label="Next page of photos label">›</button>
+          <span id="photo-pager-live" class="photo-pager-live" role="status"></span>
+        </nav>
         <!-- État vide centré (texte choisi par main.js, updateGridEmptyState) : dossier vide, filtres trop sélectifs, ou autre cas -->
         <p id="grid-empty" class="grid-empty" role="status" hidden></p>
         <!-- Repère temporaire pendant le défilement : la valeur suit le tri actif. -->

@@ -1060,3 +1060,17 @@ body.immersive .titlebar { display: none; }
 .task-item-actions { grid-column: 2; grid-row: 1 / span 4; display: flex; gap: 0.4rem; }
 .task-item-dismiss[hidden], .task-item-pause[hidden] { display: none; }
 .task-item.ready .task-item-bar > span { width: 100%; }
+
+/* PAGINATION DE LA GRILLE (main.js, « PAGINATION DE LA GRILLE ») : barre collée en haut, comme les bannières des modes de résultats. Visible seulement quand la vue dépasse PHOTO_LOAD_LIMIT. */
+.photo-pager { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: var(--control-bg); color: var(--text-strong); border-bottom: 1px solid var(--control-border); font-size: 0.8rem; }
+.photo-pager[hidden] { display: none; }
+.photo-pager-btn { min-width: 2rem; min-height: 2rem; padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1; }
+.photo-pager-btn:disabled { opacity: 0.4; cursor: default; }
+.photo-pager-label { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.photo-pager-select { min-width: 7rem; min-height: 2rem; padding: 0.3rem 0.5rem; color: var(--text-strong); background: var(--bg-panel); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; }
+.photo-pager-select:focus-visible, .photo-pager-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* Page change under way (question, then reading the page): the bar is greyed and inert until the new page is shown. */
+.photo-pager.busy { opacity: 0.6; cursor: progress; }
+.photo-pager.busy * { cursor: progress; }
+/* Full sentence ("Page 2 of 3") for screen readers only. */
+.photo-pager-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -17,7 +17,7 @@ import { initKeywordSuggestions, guessedKeywordEntries, syncKeywordSuggestions, 
 import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initStats } from './stats.js';
 import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
@@ -838,8 +838,9 @@ async function loadFolders() {
 // The grid loads at most this many photos per folder. The backend picks them in the current sort (ascending by date = the oldest ones);
 // on larger folders it also pre-applies the filters it can (`sqlPrefilter`), and `photoListCap` warns the user when the list is still cut.
 const PHOTO_LOAD_LIMIT = 50000;
-const queryPhotoPage = (folderFilter, prefilter = null) => invoke('get_photos_paginated', {
-  offset: 0, limit: PHOTO_LOAD_LIMIT, folderFilter, recursive: includeSubfolders, sortKey, sortOrder, prefilter,
+// `offset`: first photo of the page (0 for the first page; the grid pages through views larger than PHOTO_LOAD_LIMIT, see "PAGINATION DE LA GRILLE").
+const queryPhotoPage = (folderFilter, prefilter = null, offset = 0) => invoke('get_photos_paginated', {
+  offset, limit: PHOTO_LOAD_LIMIT, folderFilter, recursive: includeSubfolders, sortKey, sortOrder, prefilter,
 });
 // Loaded list cut at PHOTO_LOAD_LIMIT: { total } = matching photos of the displayed folders in the catalogue; null when everything is loaded.
 let photoListCap = null;
@@ -851,9 +852,10 @@ let photoLoadGeneration = 0; // a newer load (folder change, filter reload) make
 
 // Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains another).
 // `capped` is set on the returned list when one of the queries reached PHOTO_LOAD_LIMIT; the interface sorts the list itself.
-async function queryFolderPhotos(folder, prefilter = null) {
+// `offset` only applies to a single folder: merged Ctrl+click folders cannot be paged (no common order to cut), see readDisplayedFolderPhotos.
+async function queryFolderPhotos(folder, prefilter = null, offset = 0) {
   const folderList = folder === null || folder !== currentFolderFilter ? [folder] : [folder, ...extraFolderFilters];
-  const lists = await Promise.all(folderList.map(item => queryPhotoPage(item, prefilter)));
+  const lists = await Promise.all(folderList.map(item => queryPhotoPage(item, prefilter, folderList.length === 1 ? offset : 0)));
   const capped = lists.some(list => list.length >= PHOTO_LOAD_LIMIT);
   let merged = lists[0];
   if (lists.length > 1) {
@@ -930,22 +932,128 @@ const sqlPrefilter = () => (largeScope ? buildSqlPrefilter() : null);
 // Pending positions stay out of the key: a photo placed on the map is already loaded, so placing one must not read the list again.
 const prefilterKey = prefilter => (prefilter ? JSON.stringify({ ...prefilter, pendingPositions: undefined }) : '');
 
-// Reads the displayed folders: on a large folder, prefiltered (counted first to know). Returns { list, cap, large, key }.
+// Reads the displayed folders: on a large folder, prefiltered (counted first to know). Returns { list, cap, large, key, page, pageCount }.
+// A view with more matching photos than PHOTO_LOAD_LIMIT (after the prefilter) is cut in pages of that size: `page` (0-based, `currentPhotoPage`
+// clamped to what exists) is the one read, `pageCount` how many there are. `cap` (the "list is cut" warning) only remains when paging is not possible.
 async function readDisplayedFolderPhotos(folder) {
   const wanted = buildSqlPrefilter();
+  const queriedOffset = photoPageOffset(currentPhotoPage);
   let total;
   let list;
   if (wanted) {
     total = await countDisplayedPhotos();
   } else {
-    [total, list] = await Promise.all([countDisplayedPhotos(), queryFolderPhotos(folder)]); // usual case: no wait for the count
+    [total, list] = await Promise.all([countDisplayedPhotos(), queryFolderPhotos(folder, null, queriedOffset)]); // usual case: no wait for the count
   }
   const large = total === null ? Boolean(list?.capped) || largeScope : total > PHOTO_LOAD_LIMIT;
   const prefilter = large ? wanted : null;
-  if (!list) list = await queryFolderPhotos(folder, prefilter);
-  const cap = list.capped ? { total: prefilter ? await countDisplayedPhotos(prefilter) : total } : null;
-  return { list, cap, large, key: prefilterKey(prefilter) };
+  // Photos matching once the prefilter is applied: what the pages split. Several Ctrl+click folders (or a failed count) cannot be paged.
+  const matching = prefilter ? await countDisplayedPhotos(prefilter) : total;
+  const pageable = displayedPhotoFolders().length === 1 && Number.isFinite(matching);
+  const pageCount = pageable ? Math.max(1, Math.ceil(matching / PHOTO_LOAD_LIMIT)) : 1;
+  const page = Math.min(currentPhotoPage, pageCount - 1);
+  const offset = photoPageOffset(page);
+  if (!list || offset !== queriedOffset) list = await queryFolderPhotos(folder, prefilter, offset);
+  const cap = list.capped && pageCount <= 1 ? { total: matching } : null;
+  return { list, cap, large, key: prefilterKey(prefilter), page, pageCount, total: pageCount > 1 ? matching : null };
 }
+
+// Adopts what readDisplayedFolderPhotos (or another source: albums, searches) returned: cap warning, large scope, prefilter, current page.
+function adoptListResult(result) {
+  ({ cap: photoListCap, large: largeScope, key: loadedPrefilterKey } = result);
+  currentPhotoPage = result.page ?? 0;
+  photoPageCount = result.pageCount ?? 1;
+  photoPageTotal = result.total ?? null;
+  renderPhotoPager();
+}
+
+// ==========================================
+// PAGINATION DE LA GRILLE
+// ==========================================
+// A view (folder, prefilter applied) with more photos than PHOTO_LOAD_LIMIT is shown page by page: the backend returns the slice
+// [page × PHOTO_LOAD_LIMIT, +PHOTO_LOAD_LIMIT) of the current sort (`offset` of get_photos_paginated). The JS filters, selection and layout only ever
+// see the loaded page. The bar stays hidden for any view that fits in one page (and for albums, searches and several Ctrl+click folders).
+let currentPhotoPage = 0; // 0-based
+let photoPageCount = 1;
+let photoPageTotal = null; // photos of the whole paged view (prefilter applied); null when the view is not paged
+let photoPagerBuiltCount = 0; // number of options currently in the page menu
+let photoPageBusy = false; // a page change (question, then reload) is under way
+const photoPager = document.getElementById('photo-pager');
+const photoPagerPrev = document.getElementById('photo-pager-prev');
+const photoPagerNext = document.getElementById('photo-pager-next');
+const photoPagerLabel = document.getElementById('photo-pager-label');
+const photoPagerLive = document.getElementById('photo-pager-live'); // visually hidden: announces "Page 2 of 3" to screen readers
+const photoPagerSelect = document.getElementById('photo-pager-select');
+
+function photoPageOffset(page) {
+  return page * PHOTO_LOAD_LIMIT;
+}
+
+function renderPhotoPager() {
+  if (!photoPager) return;
+  const paged = photoPageCount > 1;
+  photoPager.hidden = !paged;
+  if (!paged) return;
+  const format = value => value.toLocaleString(getLanguage());
+  // Menu rebuilt only when the number of pages (or the language) changed: it can hold a few dozen entries.
+  if (photoPagerBuiltCount !== photoPageCount) {
+    photoPagerSelect.replaceChildren(...Array.from({ length: photoPageCount }, (_, index) => new Option(t('Photo page option {page}', { page: format(index + 1) }), String(index))));
+    photoPagerBuiltCount = photoPageCount;
+  }
+  photoPagerSelect.value = String(currentPhotoPage);
+  // The menu shows the current page, the label only completes it ("of 3"); the hidden live region carries the full sentence.
+  photoPagerLabel.textContent = t('Photo pages total {total}', { total: format(photoPageCount) });
+  photoPagerLive.textContent = t('Photo page {page} of {total}', { page: format(currentPhotoPage + 1), total: format(photoPageCount) });
+  // A page change is under way (question, then reading the page): the bar is greyed and cannot be used again until it ends.
+  photoPager.classList.toggle('busy', photoPageBusy);
+  photoPager.setAttribute('aria-busy', String(photoPageBusy));
+  photoPagerSelect.disabled = photoPageBusy;
+  photoPagerPrev.disabled = photoPageBusy || currentPhotoPage <= 0;
+  photoPagerNext.disabled = photoPageBusy || currentPhotoPage >= photoPageCount - 1;
+  // Tooltip: which photos of the view this page holds (the real total of the view is known: photoPageTotal).
+  const from = photoPageOffset(currentPhotoPage) + 1;
+  const total = Number.isFinite(photoPageTotal) ? photoPageTotal : photoPageOffset(photoPageCount - 1) + loadedPhotos.length;
+  photoPagerLabel.title = t('Photos {from} to {to} of {total}', { from: format(from), to: format(Math.min(total, photoPageOffset(currentPhotoPage) + loadedPhotos.length)), total: format(total) });
+}
+// The menu text follows the language.
+onLanguageChange(() => { photoPagerBuiltCount = 0; renderPhotoPager(); });
+
+// Goes to another page: pending keyword / title / description edits are applied or dropped first (same question as a selection change, Cancel stays
+// on the page), then the selection is cleared, the page read and the grid put back on top.
+async function goToPhotoPage(target) {
+  const page = Math.max(0, Math.min(photoPageCount - 1, target));
+  if (photoPageCount <= 1 || photoPageBusy) return;
+  if (page === currentPhotoPage) { renderPhotoPager(); return; }
+  photoPageBusy = true;
+  renderPhotoPager(); // greyed while the question and the reading last
+  try {
+    if (hasSelectionEdits() && (await resolvePendingSelection([])) === 'cancel') {
+      renderPhotoPager(); // menu back on the current page
+      return;
+    }
+    selectedIndices.clear();
+    updateUIOnSelection();
+    currentPhotoPage = page;
+    fullscreenImageCache.clear(); // keyed by index in the list, which the new page replaces
+    await loadPhotos(); // reads the page at offset currentPhotoPage × PHOTO_LOAD_LIMIT
+    gridContainer.scrollTop = 0;
+  } finally {
+    photoPageBusy = false;
+    renderPhotoPager();
+  }
+}
+
+photoPagerPrev?.addEventListener('click', () => goToPhotoPage(currentPhotoPage - 1));
+photoPagerNext?.addEventListener('click', () => goToPhotoPage(currentPhotoPage + 1));
+photoPagerSelect?.addEventListener('change', () => goToPhotoPage(Number(photoPagerSelect.value)));
+
+// Alt+PageUp / Alt+PageDown: previous / next page. Not in full screen, behind a window, or in the Faces / People views (the grid is hidden there).
+window.addEventListener('keydown', event => {
+  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.key !== 'PageUp' && event.key !== 'PageDown')) return;
+  if (photoPageCount <= 1 || isFullscreen || document.querySelector('.modal:not(.hidden)') || isFacesViewOpen() || isPersonsViewOpen()) return;
+  event.preventDefault();
+  if (!event.repeat) goToPhotoPage(currentPhotoPage + (event.key === 'PageUp' ? -1 : 1));
+});
 
 // A filter changed on a large folder: the list is read again with the new prefilter (grouped over a burst of changes).
 let prefilterReloadTimer = null;
@@ -953,10 +1061,11 @@ function schedulePrefilterReload() {
   clearTimeout(prefilterReloadTimer);
   prefilterReloadTimer = setTimeout(async () => {
     if (!largeScope || prefilterKey(sqlPrefilter()) === loadedPrefilterKey) return;
+    currentPhotoPage = 0; // another set of photos: back to the first page
     const generation = ++photoLoadGeneration;
     const result = await readDisplayedFolderPhotos(getSelectedAlbum() ? null : currentFolderFilter);
     if (generation !== photoLoadGeneration) return;
-    ({ cap: photoListCap, large: largeScope, key: loadedPrefilterKey } = result);
+    adoptListResult(result);
     loadedPhotos = result.list;
     applyPhotoFilters(); // same reset (scroll, selection) as any filter change
   }, 200);
@@ -981,7 +1090,7 @@ async function loadPhotos() {
     result = await readDisplayedFolderPhotos(album ? null : currentFolderFilter);
   }
   if (generation !== photoLoadGeneration) return; // a newer load is under way and will show its own list
-  ({ cap: photoListCap, large: largeScope, key: loadedPrefilterKey } = result);
+  adoptListResult(result);
   loadedPhotos = result.list;
   if (duplicateSearch) indexDuplicateGroups();
   photosLoadedOnce = true;
@@ -1045,12 +1154,12 @@ function updateFilteredPhotosCount() {
   }
 
   if (countElement) {
-    const total = loadedPhotos.length;
+    const total = photoPageCount > 1 && Number.isFinite(photoPageTotal) ? photoPageTotal : loadedPhotos.length; // paged view: the photos of every page
     const format = value => value.toLocaleString(getLanguage()); // séparateur de milliers de la langue
     const number = format(photos.length);
     // Texte court (la barre latérale est étroite) : « 12 480 photos » ou « 342 sur 12 480 » ; la phrase complète est en infobulle.
     // Le pluriel suit le total (« 1 sur 12 photos ») ; les nombres affichés sont les valeurs mises en forme.
-    const narrowed = isFiltered && photos.length !== total;
+    const narrowed = (isFiltered || total !== loadedPhotos.length) && photos.length !== total; // a paged view always reads "shown of total"
     const text = narrowed
       ? t('{shown} of {count}', { shown: number, count: format(total) })
       : tp('{count} photo', photos.length, { count: number });
@@ -2159,6 +2268,7 @@ function selectFolder(path) {
   abandonSemanticSearch(); // and the content search
   clearAlbumSelection(); // une seule entrée active dans la barre latérale
   syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
+  currentPhotoPage = 0; // new view: first page
   currentFolderFilter = path;
   extraFolderFilters = [];
   rememberCurrentFolder();
@@ -2212,6 +2322,7 @@ function toggleFolderInSelection(path) {
   } else {
     extraFolderFilters.push(path);
   }
+  currentPhotoPage = 0; // the folders changed: first page
   renderFolderTree();
   loadPhotos();
 }
@@ -2286,6 +2397,7 @@ async function exitRawSearch() {
 
 // Reopens the view saved before a results mode (folder or album, scroll, selection). The caller has already left the mode.
 async function restoreViewSnapshot(snapshot) {
+  currentPhotoPage = 0; // back to the first page of the view
   if (snapshot.albumId) {
     restoreAlbumSelection(snapshot.albumId);
     syncSmartAlbumWithSelection(); // album intelligent : ses filtres reviennent
@@ -2332,6 +2444,7 @@ async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
   syncSmartAlbumWithSelection();
   const folder = folderOf(photo.path);
   currentFolderFilter = folder; extraFolderFilters = [];
+  currentPhotoPage = 0;
   rememberCurrentFolder();
   // Dossiers parents dépliés pour que le dossier soit visible dans l'arbre (comme à la reprise du dernier dossier au démarrage).
   const segments = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase().split('/');
@@ -2407,6 +2520,7 @@ async function findRawFor(photo) {
   applyFilterState(state);
   setIncludeSubfoldersTemporarily(true);
   currentFolderFilter = folder; extraFolderFilters = [];
+  currentPhotoPage = 0;
   rawSearch = { name, excludeDir: excluded, nameStem, snapshot };
   renderFolderTree();
   await loadPhotos();
@@ -4118,7 +4232,7 @@ function renderSettingsFolderList() {
     remove.addEventListener('click', async () => {
       dropScanTasksForFolder(f.path); // un dossier retiré ne doit plus être scanné
       folders = applyFolderOrder(await invoke('remove_folder', { id: f.id, path: f.path }));
-      if (currentFolderFilter === f.path) { currentFolderFilter = null; rememberCurrentFolder(); }
+      if (currentFolderFilter === f.path) { currentFolderFilter = null; currentPhotoPage = 0; rememberCurrentFolder(); }
       renderFolderTree();
       renderSettingsFolderList();
       loadPhotos();
@@ -4713,8 +4827,9 @@ function applySortChange() {
   localStorage.setItem('photoNameSeparator', nameSeparator);
   updateSortUI();
   fullscreenImageCache.clear(); // le cache de préchargement est indexé par position dans la liste
-  // Capped list: the backend picked its photos in the previous sort (e.g. the newest ones), so the new sort needs another set.
-  if (photoListCap) {
+  // Capped or paged list: the backend picked its photos in the previous sort (e.g. the newest ones), so the new sort needs another set; back to page 1.
+  if (photoListCap || photoPageCount > 1) {
+    currentPhotoPage = 0;
     loadPhotos();
     return;
   }
@@ -5406,6 +5521,7 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
   abandonRawSearch(); // la recherche du RAW impose les sous-dossiers : changer l'option la termine
   abandonSemanticSearch(); // the scope of a "view" search would no longer match what is shown
   includeSubfolders = wanted;
+  currentPhotoPage = 0; // the scope changed: first page
   event.target.checked = wanted;
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
   loadPhotos();
@@ -7851,7 +7967,7 @@ initLocationPanel({ showToast: message => showWriteToast(message) });
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
-  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); abandonSemanticSearch(); syncSmartAlbumWithSelection(); loadPhotos(); },
+  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); abandonSemanticSearch(); syncSmartAlbumWithSelection(); currentPhotoPage = 0; loadPhotos(); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
   onTreeChanged: () => scheduleAlbumCounts(),
   // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».
@@ -8450,12 +8566,12 @@ async function refreshLibraryAfterSync(changes) {
   const generation = photoLoadGeneration;
   const prefilter = loadedPrefilterKey ? JSON.parse(loadedPrefilterKey) : null;
   const [fresh, everything] = await Promise.all([
-    queryFolderPhotos(folderAtStart, prefilter),
+    queryFolderPhotos(folderAtStart, prefilter, photoPageOffset(currentPhotoPage)),
     folderAtStart === null && !prefilter ? null : queryPhotoPage(null),
   ]);
   const stale = () => folderAtStart !== currentFolderFilter || generation !== photoLoadGeneration;
   if (stale()) return; // dossier changé (ou liste relue) pendant le chargement : le rechargement normal fait foi
-  const cap = fresh.capped ? { total: await countDisplayedPhotos(prefilter) } : null;
+  const cap = fresh.capped && photoPageCount <= 1 ? { total: await countDisplayedPhotos(prefilter) } : null;
   if (stale()) return;
   photoListCap = cap;
   for (const photo of fresh) {

@@ -16,6 +16,7 @@ const GROUPS = [
     { a: 'Add a photo to the selection', k: [['Ctrl', 'Click']] },
     { a: 'Select from the last click', k: [['Shift', 'Click']] },
     { a: 'Select all / none', d: 'Not in compare mode', k: [['Ctrl', 'A']] },
+    { a: 'Previous / next page of photos', d: 'Only when the view holds more photos than the loading limit', k: [['Alt', 'PageUp'], ['Alt', 'PageDown']], sep: 'slash' },
     { a: 'Rate', d: '0 removes the rating', k: [['0 – 5']] },
     { a: 'Color label', d: 'Red, yellow, green, blue. Same key again: remove the color', k: [['6'], ['7'], ['8'], ['9']], sep: 'space' },
     { a: 'Pick or reject', d: 'Same key again: remove the flag. Enable it in Settings > Metadata', k: [['Shift', 'P'], ['Shift', 'X']], sep: 'space' },

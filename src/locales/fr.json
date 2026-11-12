@@ -1701,5 +1701,17 @@
   "No matching entry": "Aucune entrée correspondante",
   "No photo matches these filters.": "Aucune photo ne correspond à ces filtres.",
   "Top cameras": "Appareils les plus utilisés",
-  "Top lenses": "Objectifs les plus utilisés"
+  "Top lenses": "Objectifs les plus utilisés",
+  "Photo pages": "Pages de photos",
+  "Previous page of photos": "Page précédente (Alt + PageUp)",
+  "Previous page of photos label": "Page précédente",
+  "Next page of photos": "Page suivante (Alt + PageDown)",
+  "Next page of photos label": "Page suivante",
+  "Photo pages total {total}": "sur {total}",
+  "Photo page {page} of {total}": "Page {page} sur {total}",
+  "Go to photo page": "Aller à la page",
+  "Photo page option {page}": "Page {page}",
+  "Photos {from} to {to} of {total}": "Photos {from} à {to} sur {total}",
+  "Previous / next page of photos": "Page précédente / suivante",
+  "Only when the view holds more photos than the loading limit": "Seulement quand la vue contient plus de photos que la limite de chargement"
 }
