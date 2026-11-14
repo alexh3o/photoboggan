@@ -117,6 +117,9 @@ pub struct AppState {
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
 struct AppConfig {
+    /// Active privacy sets (privacy.rs): kept here so they apply from startup, before the frontend sends anything.
+    #[serde(default)]
+    privacy_sets: Vec<privacy::PrivacySet>,
     custom_data_dir: Option<String>,
     thumbnail_cache_size: Option<u32>,
     /// Thumbnail JPEG quality: "normal" or "high" (see set_thumbnail_quality). Kept here so it applies from startup,
@@ -2680,6 +2683,9 @@ fn main() {
                     let _ = fallback_window.show();
                 }
             });
+
+            // Hidden photos stay hidden from the very first read: the active privacy sets come back before the interface sends anything.
+            if let Ok(config_data) = load_config(app.handle()) { privacy::restore(config_data.privacy_sets); }
 
             app.manage(AppState {
                 db_pool: RwLock::new(db_pool),

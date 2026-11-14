@@ -690,7 +690,7 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, bool>(3)?, row.get::<_, Option<String>>(4)?)))
         .map_err(|error| error.to_string())?;
-    let persons = crate::keywords::collect_rows(rows)?
+    let persons: Vec<PersonInfo> = crate::keywords::collect_rows(rows)?
         .into_iter()
         .map(|(id, name, keyword_id, hidden, alias)| {
             let photo_count = photos_by_person.get(&id).map_or(0, |photos| photos.len() as i64);

@@ -11,11 +11,11 @@
 //! tant que l'interface ne l'a pas envoyé. Le test SQL (`visible_condition`) ne contient aucun paramètre : les textes sont insérés comme
 //! littéraux (apostrophes doublées), ce qui permet de l'ajouter à n'importe quelle requête sans renuméroter ses paramètres.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::RwLock;
 
 /// Un critère de chemin : texte (la casse et les « / » de bord sont normalisés ici), complet (élément de chemin entier) ou partiel (sous-chaîne).
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PathCriterion {
     pub text: String,
@@ -24,14 +24,14 @@ pub struct PathCriterion {
 
 /// Plage de dates inclusive. Bornes au format `YYYYMMDDHHmmss` (une date incomplète couvre toute sa période : « 2024 » va du 1er janvier
 /// 2024 à la fin de l'année) ; une borne vide est ouverte.
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DateRange {
     pub start: String,
     pub end: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PrivacySet {
     pub paths: Vec<PathCriterion>,
@@ -54,10 +54,8 @@ fn read_active() -> Option<PrivacySet> {
     ACTIVE.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
 }
 
-/// Ensembles actifs (liste vide : confidentialité désactivée ou « Off »), envoyés par l'interface au démarrage et à chaque changement.
-/// Leurs critères se cumulent : une photo est masquée dès qu'elle répond à un critère de l'un d'eux (le OU de tous les critères).
-#[tauri::command]
-pub fn set_privacy_sets(sets: Vec<PrivacySet>) {
+/// Applique les ensembles actifs : leurs critères se cumulent (une photo est masquée dès qu'elle répond à un critère de l'un d'eux).
+fn apply(sets: Vec<PrivacySet>) {
     let mut merged = PrivacySet::default();
     for set in sets {
         merged.paths.extend(set.paths);
@@ -65,6 +63,29 @@ pub fn set_privacy_sets(sets: Vec<PrivacySet>) {
         merged.date_ranges.extend(set.date_ranges);
     }
     *ACTIVE.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = if merged.is_empty() { None } else { Some(merged) };
+}
+
+/// Au démarrage, avant que l'interface ne parle : reprend les ensembles actifs enregistrés dans `config.json`, pour qu'aucune photo masquée
+/// ne soit lue (ni affichée par un premier chargement) dans l'intervalle.
+pub fn restore(sets: Vec<PrivacySet>) {
+    apply(sets);
+}
+
+/// Ensembles actifs (liste vide : confidentialité désactivée ou « Off »), envoyés par l'interface au démarrage et à chaque changement.
+/// L'interface fait foi : elle remplace ce que `restore` avait repris. Ils sont aussi gardés dans `config.json` (voir `restore`).
+#[tauri::command(async)]
+pub fn set_privacy_sets(app: tauri::AppHandle, sets: Vec<PrivacySet>) {
+    apply(sets.clone());
+    let saved = crate::load_config(&app).and_then(|mut config| {
+        if config.privacy_sets == sets {
+            return Ok(());
+        }
+        config.privacy_sets = sets;
+        crate::save_config(&app, &config)
+    });
+    if let Err(error) = saved {
+        eprintln!("Privacy sets not saved to config.json: {error}");
+    }
 }
 
 /// Vrai si un ensemble qui masque quelque chose est actif (sert à interdire la suppression de dossiers).
