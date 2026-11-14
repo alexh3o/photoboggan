@@ -44,6 +44,7 @@ import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel, initDuplicatesMod
 import { findNameGroups } from './duplicate-names.js';
 import { initSlideshow,startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 import { initToolbarAria } from './toolbar-a11y.js';
+import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
 
 // AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
 // à DOMContentLoaded, on attend deux images (premier rendu stylé peint) avant de l'afficher. Un filet de sécurité existe côté Rust (main.rs).
@@ -5703,7 +5704,7 @@ markingPlacementSelect.addEventListener('change', event => {
 keywordFilterSuggest = createFilterSuggest({
   input: document.getElementById('keyword-filter-input'),
   list: document.getElementById('keyword-filter-suggestions'),
-  getOptions: () => keywordFilterOptions.filter(option => !keywordFilters.includes(option.value) && !excludedKeywordFilters.includes(option.value)),
+  getOptions: () => keywordFilterOptions.filter(option => !isHiddenKeyword(option.value) && !keywordFilters.includes(option.value) && !excludedKeywordFilters.includes(option.value)),
   onPick: (value, exclude, text) => addKeywordFilter(value ?? text, exclude),
   emptyText: 'No matching keyword',
 });
@@ -7545,6 +7546,8 @@ function applyDeletedFolder(deletedPath, removedPaths) {
 async function deleteFolderToTrash(path, { permanent = false } = {}) {
   if (photoMoveRunning || hasFileTask()) return;
   if (isWriteLocked()) { showWriteToast(t('Metadata writing in progress…')); return; }
+  // Hidden photos would be deleted unseen with their folder (the backend refuses too, privacy.rs).
+  if (hasActivePrivacy()) { showWriteToast(t('Folders cannot be deleted while a privacy set is active')); return; }
   photoMoveRunning = true;
   showWriteToast(t(permanent ? 'Deleting folder…' : 'Moving folder to the trash…'), true);
   try {
@@ -8170,6 +8173,15 @@ initPhotoActions({
 initMetadataSettings();
 initDuplicatesModal(); // window "Find duplicates > More…"
 initToolbarAria(); // aria-pressed on the toolbar toggle buttons
+// Photos privées (privacy.js) : bouclier du panneau Filtres et réglages. À chaque changement d'ensemble actif, le backend est déjà à jour : on relit la grille
+// (et les personnes), l'arborescence, les dossiers vides et les albums.
+initPrivacy();
+onPrivacyChange(async () => {
+  await loadPhotos();
+  scheduleFolderCounts();
+  if (showEmptyFolders) refreshDiskFolders();
+  refreshAlbums();
+});
 initRawSettings(); // Settings > Search > RAW search: criteria of "Find the RAW"
 initLocationPanel({ showToast: message => showWriteToast(message) });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).

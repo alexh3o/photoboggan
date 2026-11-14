@@ -51,6 +51,8 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `photoSortOrder` | `"desc"` | main.js |
 | `pickLabelEnabled` | `false` | marking-settings.js |
 | `previewVisible` | `true` | main.js |
+| `privacyEnabled` | `false` | privacy.js |
+| `privacyLock` | `false` | privacy.js |
 | `rawMatchDate` | `true` | raw-settings.js |
 | `rawMatchGear` | `true` | raw-settings.js |
 | `rawMatchName` | `false` | raw-settings.js |
@@ -96,7 +98,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Keys: 1723 (en) / 1723 (fr)
+- Keys: 1747 (en) / 1747 (fr)
 - In en.json but missing from fr.json: none
 - In fr.json but missing from en.json: none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none

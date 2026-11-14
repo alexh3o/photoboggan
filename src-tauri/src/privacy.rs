@@ -7,8 +7,8 @@
 //! Tous les textes se comparent sans tenir compte de la casse (ASCII dans le chemin : `lower` de SQLite ; Unicode pour les mots-clés).
 //!
 //! L'ensemble ACTIF est une donnée de l'interface (réglages en localStorage), envoyée ici au démarrage et à chaque changement
-//! (`set_privacy_sets`), comme les autres réglages gardés en statique côté Rust : il repart vide à chaque lancement, donc rien n'est masqué
-//! tant que l'interface ne l'a pas envoyé. Le test SQL (`visible_condition`) ne contient aucun paramètre : les textes sont insérés comme
+//! (`set_privacy_sets`), comme les autres réglages gardés en statique côté Rust ; ils sont aussi copiés dans `config.json` et repris au démarrage
+//! (`restore`) pour que rien ne soit lu ni affiché avant que l'interface ne parle. Le test SQL (`visible_condition`) ne contient aucun paramètre : les textes sont insérés comme
 //! littéraux (apostrophes doublées), ce qui permet de l'ajouter à n'importe quelle requête sans renuméroter ses paramètres.
 
 use serde::{Deserialize, Serialize};

@@ -82,6 +82,10 @@
   "albumOverwriteWarning": true,
   // Offline mode: never connects to the Internet.
   "offlineMode": false,
+  // Private photos (privacy.js): the feature is on, and the privacy lock keeps the sets from being changed outside Settings.
+  // The sets themselves (privacySets) and the ids of the active ones (privacyActive) are JSON saved by privacy.js.
+  "privacyEnabled": false,
+  "privacyLock": false,
   // Check GitHub for updates (ignored in offline mode).
   "checkUpdates": true,
   // Also propose beta versions.

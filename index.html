@@ -94,6 +94,13 @@
             <h3 id="filters-title" class="sidebar-block-title"><button type="button" id="filters-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="filters-body"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Filters">Filtres</span></button></h3>
             <!-- Nombre de photos affichées, dans l'en-tête pour rester visible bloc replié (« 342 sur 12 480 photos » quand un filtre est actif) : main.js, updateFilteredPhotosCount -->
             <span id="filtered-photos-count" class="filtered-count" role="status"></span>
+            <!-- Photos privées (privacy.js) : bouclier visible quand la fonction est activée ; grisé sans ensemble actif, vert avec ; le clic ouvre la liste des ensembles (sans effet si le verrou est actif) -->
+            <span id="privacy-shield-wrap" class="privacy-shield-wrap" hidden>
+              <button id="privacy-shield" type="button" class="privacy-shield" aria-haspopup="listbox" aria-expanded="false" title="Photos privées : désactivé" aria-label="Photos privées : désactivé">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+              </button>
+              <ul id="privacy-menu" class="keyword-suggestions below privacy-menu" role="listbox" aria-multiselectable="true" hidden></ul>
+            </span>
             <button id="btn-clear-all-filters" type="button" class="btn-clear-filters hidden" title="Effacer tous les filtres" aria-label="Effacer tous les filtres" data-i18n-title="Clear all filters" data-i18n-aria-label="Clear all filters">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-filter-x"><path d="M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055"/><path d="m22 3-5 5"/><path d="m17 3 5 5"/></svg>
             </button>
@@ -920,6 +927,48 @@
 
           <!-- Onglet Divers -->
           <div id="settings-tab-misc" class="settings-tab-pane" role="tabpanel" hidden>
+            <!-- Photos privées (privacy.js) : ensembles de critères (chemins, mots-clés, dates) dont les photos restent masquées -->
+            <section class="settings-section" id="privacy-settings">
+              <h4 data-i18n="Private photos">Photos privées</h4>
+              <label class="settings-row settings-check" title="Masque, dans la grille, l'arborescence, les albums, les personnes et les recherches, les photos qui répondent à un critère d'un ensemble actif. Le scan, les métadonnées, les mots-clés et les miniatures continuent de les traiter." data-i18n-title="Private photos help"><input id="privacy-enabled-toggle" type="checkbox" /><span data-i18n="Enable private photos">Activer les photos privées</span></label>
+              <label class="settings-row settings-check settings-sub" title="Avec le verrou, le bouclier du panneau Filtres ne change plus d'ensemble : cela ne se fait que dans les paramètres." data-i18n-title="Privacy lock help"><input id="privacy-lock-toggle" type="checkbox" /><span data-i18n="Privacy lock">Verrou de confidentialité</span></label>
+              <div id="privacy-editor" class="privacy-editor" hidden>
+                <label class="settings-row" for="privacy-set-select"><span data-i18n="Privacy set">Ensemble</span>
+                  <select id="privacy-set-select"></select></label>
+                <div id="privacy-set-body" hidden>
+                  <label class="settings-row" for="privacy-set-name"><span data-i18n="Name">Nom</span>
+                    <input id="privacy-set-name" type="text" maxlength="60" autocomplete="off" spellcheck="false" /></label>
+                  <label class="settings-row settings-check"><input id="privacy-set-active" type="checkbox" /><span data-i18n="Active set">Ensemble actif</span></label>
+                  <div class="privacy-criterion">
+                    <label for="privacy-path-input" data-i18n="Folder path parts">Parties de chemin de dossier</label>
+                    <input id="privacy-path-input" type="text" autocomplete="off" spellcheck="false" placeholder="confidential" data-i18n-placeholder="Path part placeholder" title="Entrée : élément de dossier complet (« confidential » correspond à /Confidential/ mais pas à /notConfidential/). Alt+Entrée : partie de chemin (« ~confidential » correspond aussi à /notConfidential/). Clic droit sur une étiquette : passer de l'un à l'autre." data-i18n-title="Path part help" />
+                    <div id="privacy-path-tags" class="filter-tags"></div>
+                  </div>
+                  <div class="privacy-criterion">
+                    <label for="privacy-keyword-input" data-i18n="Keywords (exact match)">Mots-clés (correspondance exacte)</label>
+                    <input id="privacy-keyword-input" type="text" autocomplete="off" spellcheck="false" />
+                    <div id="privacy-keyword-tags" class="filter-tags"></div>
+                  </div>
+                  <div class="privacy-criterion">
+                    <label for="privacy-date-input" data-i18n="Date ranges">Plages de dates</label>
+                    <div class="date-filter">
+                      <input id="privacy-date-input" type="text" placeholder="AAAAMMJJ" data-i18n-placeholder="YYYYMMDD" maxlength="29" autocomplete="off" spellcheck="false" title="AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss — plage : début-fin (formats mélangeables, ex. 20240501-2025)" data-i18n-title="Date format help" />
+                      <button id="privacy-date-calendar" type="button" class="icon-button" title="Choisir dans un calendrier" data-i18n-title="Pick in calendar" aria-label="Ouvrir le calendrier" data-i18n-aria-label="Open calendar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days preview-icon"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>
+                      </button>
+                    </div>
+                    <div id="privacy-date-picker" class="privacy-date-picker" hidden>
+                      <input id="privacy-date-from" type="date" aria-label="Du" data-i18n-aria-label="From" />
+                      <input id="privacy-date-to" type="date" aria-label="Au" data-i18n-aria-label="To" />
+                      <button id="privacy-date-add" type="button" data-i18n="Add">Ajouter</button>
+                    </div>
+                    <p id="privacy-date-error" class="sort-note" role="alert" hidden></p>
+                    <div id="privacy-date-tags" class="filter-tags"></div>
+                  </div>
+                  <button id="privacy-set-delete" type="button" class="privacy-delete" data-i18n="Delete this set">Supprimer cet ensemble</button>
+                </div>
+              </div>
+            </section>
             <section class="settings-section">
               <h4 data-i18n="Slideshow">Diaporama</h4>
               <label class="settings-row" for="slideshow-delay"><span data-i18n="Delay between photos (seconds)">Durée entre les photos (secondes)</span>

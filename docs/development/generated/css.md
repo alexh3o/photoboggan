@@ -182,6 +182,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 5000 | styles.css | `.date-picker` |
 | 1000 | styles.css | `.write-toast` |
 | 900 | styles.css | `.top-bar.hidden.peek` |
+| 60 | privacy.css | `.privacy-menu.keyword-suggestions` |
 | 20 | histogram.css | `.histogram-widget` |
 | 20 | keywords.css | `.keyword-suggestions` |
 | 20 | styles.css | `.grid-scroll-position` |
@@ -361,6 +362,13 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L49 Message « Carte désactivée » : cliquable, ouvre Paramètres > Cartes.
 - L55 Pendant un Maj + glisser de photos : réticule au-dessus de la carte, pour viser précisément le point de dépôt.
 - L58 Position choisie dans le mode Carte et pas encore écrite : pastille orange, même si les pastilles de géolocalisation sont masquée…
+
+### src/privacy.css (29 lines)
+
+- L1 Photos privées (privacy.js) : bouclier du panneau Filtres, liste des ensembles et zone de réglage de Paramètres > Divers.
+- L3 Bouclier : grisé sans ensemble actif, vert avec ; sans effet au clic quand le verrou est actif (curseur par défaut).
+- L12 Liste des ensembles : même aspect que les listes de suggestions des filtres, ouverte sous le bouclier (position fixe : l'en-tête …
+- L18 Paramètres.
 
 ### src/raw-settings.css (15 lines)
 
