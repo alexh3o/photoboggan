@@ -12,7 +12,7 @@
 import './privacy.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
-import { readBool, readStored } from './settings-defaults.js';
+import { readBool, readStored, writeStored } from './settings-defaults.js';
 import { createFilterTag } from './filter-tags.js';
 import { openContextMenuAt, confirmDialog } from './photo-actions.js';
 
@@ -87,9 +87,8 @@ let hiddenKeys = null; // cache des mots-clés masqués
 let selectedId = sets[0]?.id ?? null; // ensemble ouvert dans les paramètres
 const listeners = new Set();
 
-const save = (key, value) => { try { localStorage.setItem(key, value); } catch { /* stockage indisponible : réglage non mémorisé */ } };
-const saveSets = () => save(KEYS.sets, JSON.stringify(sets));
-const saveActive = () => save(KEYS.active, JSON.stringify([...activeIds]));
+const saveSets = () => writeStored(KEYS.sets, JSON.stringify(sets));
+const saveActive = () => writeStored(KEYS.active, JSON.stringify([...activeIds]));
 
 /** La fonction est activée dans les paramètres. */
 export const isPrivacyEnabled = () => enabled;
@@ -375,14 +374,14 @@ function initSettings() {
 
   ui.enabled.addEventListener('change', () => {
     enabled = ui.enabled.checked;
-    save(KEYS.enabled, String(enabled));
+    writeStored(KEYS.enabled, enabled);
     renderSettings();
     updateShield();
     commit();
   });
   ui.lock.addEventListener('change', () => {
     locked = ui.lock.checked;
-    save(KEYS.lock, String(locked));
+    writeStored(KEYS.lock, locked);
     updateShield();
   });
 

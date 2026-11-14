@@ -1,4 +1,4 @@
-<!-- verified: 5345c5f | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: 03c1da6 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 # Maintenance recipes
 
 Ordered checklists for the most common changes. Each recipe names a **traced example** (an existing feature built that way: read it first and copy its shape), the files to touch with the name to search, the test to add and the traps. Rules behind them: `invariants.md`.
@@ -21,7 +21,7 @@ Example: `set_thumbnail_quality` (main.rs) called from `main.js` (search `thumbn
 Examples: `keywordsAutoApply` (frontend only, `metadata-writes.js`), `thumbnailQuality` (frontend + backend + `config.json`), `offlineMode` (frontend, pushed to the backend at startup).
 1. `src/defaults.jsonc`: add the key (= localStorage key) with its default, possible values in a **full-line** comment above it (inline comments break both parsers).
 2. Read it with `readBool` / `readChoice(key, allowed)` / `readNumber(key, min, max)` from `settings-defaults.js`; never hard-code the default.
-3. UI control: in `index.html` (Settings modal `#settings-modal`, one `settings-tab-…` per tab), wired in the owning module (or `main.js`, section "MODALE PARAMÈTRES"); save with `localStorage.setItem(key, String(value))`.
+3. UI control: in `index.html` (Settings modal `#settings-modal`, one `settings-tab-…` per tab), wired in the owning module (or `main.js`, section "MODALE PARAMÈTRES"); save with `writeStored(key, value)` from `settings-defaults.js`.
 4. Labels: `data-i18n` keys in `en.json` and `fr.json` (recipe 7).
 5. Backend needs it? Add a setter command (recipe 1) and call it **at startup and on change** (see `offlineMode` → `set_internet_allowed` in main.js). Backend statics reset at every launch.
 6. Backend needs it **before the UI loads** (e.g. thumbnail quality for the first thumbnails)? Store it also in `config.json`: field in `AppConfig` (`#[serde(default)]`), read in `.setup`, written by the setter with `load_config` + `save_config` (see `set_thumbnail_quality`).
@@ -72,7 +72,7 @@ Example: flash filter (`shooting-filters.js`).
 
 ## 7. Add a translation key, a modal, a panel, a toolbar button
 
-1. Text: English key in `src/locales/en.json` **and** French in `fr.json`. HTML: `data-i18n="Key"` (content) or `data-i18n-title` / `-aria-label` / `-placeholder` / `-alt`. JS: `t('Key', {param})`, plurals `tp('Key', count)` with a `Key|other` entry, labels with colon `labelWithColon('Key')`. Text built in JS must be rebuilt on `onLanguageChange`.
+1. Text: English key in `src/locales/en.json` **and** French in `fr.json`. HTML: `data-i18n="Key"` (content) or `data-i18n-title` / `-aria-label` / `-placeholder` / `-alt`. JS: `t('Key', {param})`, plurals `tp('Key', count)` with a `Key|other` entry, labels with colon `labelWithColon('Key')`. Size formatting: use `formatBytes(bytes)` (disk sizes, binary KiB/MiB/GiB) or `formatMegabytes(mb)` (download sizes, decimal MB/GB) from `i18n.js`. Text built in JS must be rebuilt on `onLanguageChange`.
 2. Modal / panel / button: DOM in `index.html`, styles in the feature's CSS (rem except fine borders, AGENTS.md §5.A; see `style.md`), behaviour in the feature module with an `init…` function called by `main.js`. Reuse `keepFocusInModal` and `choiceDialog` (`metadata-writes.js`) for focus trapping and simple choices.
 - Trap: a missing French key silently shows English (`t` falls back to `en` then to the key).
 

@@ -1,4 +1,4 @@
-<!-- verified: 5345c5f | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: 03c1da6 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -17,7 +17,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 
 ## How it works
 
-**Launch.** Context menu "Find duplicates" (photo, selection, folder, all) or the "More…" window → `findDuplicateImages(kind, spec, settings)` queues a task `kind: 'duplicates'` with `dedupeKey = <kind>:<scope>` (same kind on the same scope is refused while running or waiting, see `main-window.md`). `scope` is `All`, `Folder {path, recursive}` or `Paths`; `compareWithLibrary` also loads the rest of the library, and a group is kept only if it contains a scanned photo.
+**Launch.** Context menu "Find duplicates" (photo, selection, folder, all) or the "More…" window → `findDuplicateImages(kind, spec, settings)` queues a task `kind: 'duplicates'` with `dedupeKey = <kind>:<scope>` (same kind on the same scope is refused while running or waiting, see `main-window.md`). `scope` is `All`, `Folder {path, recursive}` or `Paths`; `compareWithLibrary` also loads the rest of the library, and a group is kept only if it contains a scanned photo. `load_candidates` discards photos matching active privacy sets via `privacy::visible_condition("")` right from candidate loading, so hidden photos are never compared or grouped (shared by identical, similar and by-name searches).
 
 **Identical** (`find_duplicates` → `duplicates::run`, holding a `PriorityGuard`):
 1. Stage 0: per file, size / mtime and the length of its *image data* from headers only (cache first). Hashed bytes (`layout_of`): JPEG = all segments except APPn / COM plus the scan; PNG = IHDR, PLTE, tRNS, IDAT, animation chunks; WebP = bitstream, alpha, animation chunks; everything else (HEIC, AVIF, GIF, BMP, RAW) whole. Videos are skipped (`is_video`). `ignoreMetadata` off = whole files (`mode` 0 vs 1 in the cache).

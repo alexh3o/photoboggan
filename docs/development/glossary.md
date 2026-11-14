@@ -1,4 +1,4 @@
-<!-- verified: 5345c5f | sources: AGENTS.md, src/locales/en.json -->
+<!-- verified: 03c1da6 | sources: AGENTS.md, src/locales/en.json -->
 # Glossary
 
 One line per term, built from the terms used by the other docs. Module docs hold the details (link given when useful). Each term was checked against the code or the doc it links.
@@ -66,6 +66,8 @@ One line per term, built from the terms used by the other docs. Module docs hold
 - **Map mode**: full map of the grid's photos; positions assigned there stay pending until written.
 - **`pbmap://`**: custom protocol serving every map resource; the only webview network path (`maps-and-geolocation.md`).
 - **Private zone**: place whose tiles are on disk (MBTiles); photos inside use a strict map that never reaches the provider. **Offline map**: a non-private zone.
+- **Private photos / Privacy set**: a user-defined set of criteria (folder path segments, keywords, date ranges) that hides matching photos across the UI without deleting them or modifying files on disk (`modules/privacy.md`). Distinct from **Private zone**, which relates to map tile privacy.
+- **Privacy lock**: option preventing quick toggle of privacy sets from the shield button in the filter header, allowing changes only via Settings (`modules/privacy.md`).
 - **MBTiles**: standard SQLite file of map tiles.
 - **Strict map**: map context with no remote requests.
 - **Erased location backup**: coordinates saved in `erased_locations` before GPS removal, to allow restore.

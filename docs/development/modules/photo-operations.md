@@ -1,4 +1,4 @@
-<!-- verified: 109c858 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs -->
+<!-- verified: 03c1da6 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs -->
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 
 ## Purpose
@@ -32,7 +32,7 @@ Same task wrapper. The UI first asks for conflicts (`copy_conflicts` lists files
 
 ### Rename and delete
 - `rename_photo`: keeps the extension (`IMG.2024.cr2` + `vacances` → `vacances.cr2`), refuses an existing name except a case-only change (`same_existing_file`), checks the sidecar can follow **before** renaming, takes `path_lock`, keeps the row `id`, renames cache files. `rename_folder` renames a subfolder of a tracked folder in place and updates every row under it (ids kept, cache files renamed); it refuses a tracked folder (or one containing one) and the app data folder, like `delete_folder`.
-- `delete_photos`: only photos of the catalogue; `trash::delete` for the file, then its sidecar; on a trash failure the photo stays and the failure is reported, **never a permanent fallback**. A file already gone only loses its row. Cache files are removed. The row is deleted after the trash; if the row delete fails, the failure is reported. `delete_folder` / `is_folder_empty` / `get_folder_unrecognized_files` ask the user first about files the app does not catalogue.
+- `delete_photos`: only photos of the catalogue; `trash::delete` for the file, then its sidecar; on a trash failure the photo stays and the failure is reported, **never a permanent fallback**. A file already gone only loses its row. Cache files are removed. The row is deleted after the trash; if the row delete fails, the failure is reported. `delete_folder` / `is_folder_empty` / `get_folder_unrecognized_files` ask the user first about files the app does not catalogue; `delete_folder` is refused while any privacy set is active (`privacy::is_active()`) to prevent hidden photos inside from being trashed unseen.
 - `has_trash(path)` (Windows): false for UNC paths and drives of type removable, network, optical or RAM (`GetDriveTypeW`); true elsewhere and on other OSes. `count_permanent_deletions` counts paths without trash; `confirmAndDelete` (JS) uses it to word the confirmation ("Permanently delete…" / "some… permanently deleted") **before** anything happens. It refuses while a metadata write runs (`isWriteLocked`), because ExifTool could recreate a trashed file.
 
 ### Marking and rotation commands
@@ -68,6 +68,7 @@ Queued task (`kind: 'integrity'`), events `scan-progress` and `scan-detail` (cur
 - ⚠ sensitive: a catalogue update must follow the file operation in the same call; a failure in between is reported and left to `sync_library`, never presented as success.
 - ⚠ sensitive: the "Open with" allow-list is the only barrier against launching arbitrary programs.
 - `has_trash` changes the wording of the deletion dialog: a new delete path must call `count_permanent_deletions` first.
+- ⚠ sensitive: `delete_folder` must refuse while `privacy::is_active()` is true so photos hidden by privacy sets are not deleted unseen.
 
 ## Tests
 `tests/main.rs` (10: durable copy keeps attributes, replacing copy leaves no temp, move cost between drives, sidecar adoption, rename onto the same file, reserved names, cache follow), `tests/integrity.rs` (12), `tests/resize.rs` (5: longest side, never enlarged, PNG output, metadata copied only when asked, conflict policies ask / skip / increment, refusals; "Replace" untested because it uses the real trash). Gaps: no test of `delete_photos`, `has_trash`, `rename_photo`, `rename_folder`, `update_photos_marking` (they need an `AppHandle` / `State`), nor of the frontend.

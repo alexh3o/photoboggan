@@ -38,14 +38,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `_PROGRESS.md` | 203 |  |
+| `_PROGRESS.md` | 208 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 98 |  |
+| `architecture.md` | 102 |  |
 | `build-release.md` | 87 |  |
-| `code-map.md` | 87 |  |
+| `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
-| `glossary.md` | 80 |  |
-| `invariants.md` | 81 |  |
+| `glossary.md` | 82 |  |
+| `invariants.md` | 89 |  |
 | `README.md` | 56 |  |
 | `recipes.md` | 104 |  |
 | `style.md` | 58 |  |
@@ -60,10 +60,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 557 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 297 |  |
+| `files.md` | 298 |  |
 | `ipc-commands.md` | 181 |  |
 | `module-deps.md` | 98 |  |
-| `symbols-js.md` | 1477 |  |
+| `symbols-js.md` | 1461 |  |
 | `symbols-rust.md` | 1336 |  |
 | `tests.md` | 449 |  |
 
@@ -71,8 +71,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums.md` | 62 |  |
-| `app-shell.md` | 71 |  |
+| `albums.md` | 63 |  |
+| `app-shell.md` | 72 |  |
 | `duplicates.md` | 65 |  |
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
@@ -83,7 +83,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `main-window.md` | 86 |  |
 | `maps-and-geolocation.md` | 69 |  |
 | `metadata-read-write.md` | 101 |  |
-| `photo-operations.md` | 82 |  |
+| `photo-operations.md` | 83 |  |
+| `privacy.md` | 65 |  |
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 65 |  |
 | `stats.md` | 44 |  |
@@ -145,7 +146,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `photo-actions.js` | 2166 |  |
 | `place-search.js` | 68 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `privacy.css` | 29 | Photos privées (privacy.js) : bouclier du panneau Filtres, liste des ensembles et zone de réglage de Paramètres > Divers. |
-| `privacy.js` | 465 | Photos privées : ensembles de confidentialité dont les photos restent masquées (le masquage lui-même est fait côté Rust, voir privacy.rs). Un ensemble = un nom + des critères, tous insensibles à la casse (une photo est … |
+| `privacy.js` | 464 | Photos privées : ensembles de confidentialité dont les photos restent masquées (le masquage lui-même est fait côté Rust, voir privacy.rs). Un ensemble = un nom + des critères, tous insensibles à la casse (une photo est … |
 | `private-zones-modal.js` | 514 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
 | `private-zones.js` | 139 | Zones privées de la carte (côté interface) : liste des zones (lue dans le backend, private_maps.rs), lieux privés, contours à dessiner et niveaux de détail. Partagé par le panneau Info, la fenêtre de gestion des zones e… |
 | `raw-settings.css` | 15 | Settings > Search > RAW search (raw-settings.js) |

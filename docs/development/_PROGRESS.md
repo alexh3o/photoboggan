@@ -1,22 +1,24 @@
 <!-- Working file for the writing phase: delete or archive when every row below is "reviewed". Ignored by `npm run docs:stale`. -->
+
 # Documentation progress
 
 Update the status column and commit at the end of each session. One session = one row (or two small ones). Statuses: `skeleton` → `written` → `reviewed`.
 
 ## Phase plan
 
-| # | Phase | Model | Output | Status |
-|---|---|---|---|---|
-| 1 | Generator + skeleton + template | Sonnet | `scripts/gen-docs.mjs`, `generated/`, empty docs | done |
-| 2 | Architecture, code map, invariants, recipes; **validate the module split below** | Opus | `architecture.md`, `code-map.md`, `invariants.md`, `recipes.md`, this table, phase 2 notes in every module skeleton | done |
-| 3 | Module docs, style, configuration, testing, build, troubleshooting, glossary | Sonnet, one session per row | see table below | done |
-| 4 | Cross-review: contradictions, `⚠` items, spot-check claims against the code | Opus | fixes + `reviewed` status | done |
-| 5 | Real-task test with a free-tier model using only these docs | any | list of gaps → fixes | todo |
-| 6 | Hook up `AGENTS.md` (one pointer line + "update docs with the code" rule) | Opus | AGENTS.md §3 rewritten, file shortened from 220 to 110 lines (details moved to the docs) | done |
+| #   | Phase                                                                            | Model                       | Output                                                                                                              | Status |
+| --- | -------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | Generator + skeleton + template                                                  | Sonnet                      | `scripts/gen-docs.mjs`, `generated/`, empty docs                                                                    | done   |
+| 2   | Architecture, code map, invariants, recipes; **validate the module split below** | Opus                        | `architecture.md`, `code-map.md`, `invariants.md`, `recipes.md`, this table, phase 2 notes in every module skeleton | done   |
+| 3   | Module docs, style, configuration, testing, build, troubleshooting, glossary     | Sonnet, one session per row | see table below                                                                                                     | done   |
+| 4   | Cross-review: contradictions, `⚠` items, spot-check claims against the code      | Opus                        | fixes + `reviewed` status                                                                                           | done   |
+| 5   | Real-task test with a free-tier model using only these docs                      | any                         | list of gaps → fixes                                                                                                | todo   |
+| 6   | Hook up `AGENTS.md` (one pointer line + "update docs with the code" rule)        | Opus                        | AGENTS.md §3 rewritten, file shortened from 220 to 110 lines (details moved to the docs)                            | done   |
 
 ## Module split (validated in phase 2)
 
 Changes from the draft, and why:
+
 - `main.js` (~8400 lines) is split in two docs: **`main-window`** (loading, folder tree, task queue, settings modal, sync, startup) and **`grid-and-viewer`** (virtual grid, thumbnails in the grid, selection, full screen, compare, marking, sort, slideshow). Each prompt below lists the `main.js` sections it owns.
 - Faces (9 files, ~6000 lines) is split: **`faces`** (data, review, people: `faces.rs` + UI) and **`face-detection`** (detection, recognition, model download, ONNX Runtime, offline flag).
 - Maps (14 files) is split: **`maps-and-geolocation`** (map view, tile protocol, map mode, location panel, GPS edit, place search) and **`private-zones`** (`private_maps.rs`: private zones, MBTiles offline maps).
@@ -25,52 +27,54 @@ Changes from the draft, and why:
 - Kept as is: library-and-database, thumbnails-and-previews, metadata-read-write (dense but one subject; if it exceeds 150 lines, split "reading" and "writing"), keywords, semantic (may split search / suggestions if too long), duplicates, albums, filters-and-search, photo-operations, updates, app-shell.
 
 Findings of phase 2, already fixed in `AGENTS.md` (§1 and §5.D):
+
 - the keyword format order is sent with `set_metadata_read_order` (kind `keywords`), not `set_keyword_format_order` (which does not exist);
 - HEIC / HEIF metadata is written inside the container (`heif::update_xmp`, ExifTool `Target::Heif`), sidecar only as internal fallback;
 - map tiles are the one network access made by the webview (`map-tile-protocol.js`, gated by `isMapNetworkAllowed()`).
 
 ## Document status
 
-| Doc | Phase | Status |
-|---|---|---|
-| `architecture.md` | 2 | reviewed |
-| `code-map.md` | 2 | reviewed |
-| `invariants.md` | 2 | reviewed |
-| `recipes.md` | 2 | reviewed |
-| `modules/app-shell.md` | 3 | reviewed |
-| `modules/library-and-database.md` | 3 | reviewed |
-| `modules/main-window.md` | 3 | reviewed |
-| `modules/grid-and-viewer.md` | 3 | reviewed |
-| `modules/thumbnails-and-previews.md` | 3 | reviewed |
-| `modules/metadata-read-write.md` | 3 | reviewed |
-| `modules/keywords.md` | 3 | reviewed |
-| `modules/stats.md` | 3 | draft |
-| `modules/faces.md` | 3 | reviewed |
-| `modules/face-detection.md` | 3 | reviewed |
-| `modules/semantic.md` | 3 | reviewed |
-| `modules/duplicates.md` | 3 | reviewed |
-| `modules/maps-and-geolocation.md` | 3 | reviewed |
-| `modules/private-zones.md` | 3 | reviewed |
-| `modules/albums.md` | 3 | reviewed |
-| `modules/filters-and-search.md` | 3 | reviewed |
-| `modules/photo-operations.md` | 3 | reviewed |
-| `modules/updates.md` | 3 | reviewed |
-| `style.md` | 3 | reviewed |
-| `configuration.md` | 3 | reviewed |
-| `testing.md` | 3 | reviewed |
-| `build-release.md` | 3 | reviewed |
-| `troubleshooting.md` | 3 | reviewed |
-| `glossary.md` | 3 | reviewed |
+| Doc                                  | Phase | Status   |
+| ------------------------------------ | ----- | -------- |
+| `architecture.md`                    | 2     | reviewed |
+| `code-map.md`                        | 2     | reviewed |
+| `invariants.md`                      | 2     | reviewed |
+| `recipes.md`                         | 2     | reviewed |
+| `modules/app-shell.md`               | 3     | reviewed |
+| `modules/library-and-database.md`    | 3     | reviewed |
+| `modules/main-window.md`             | 3     | reviewed |
+| `modules/grid-and-viewer.md`         | 3     | reviewed |
+| `modules/thumbnails-and-previews.md` | 3     | reviewed |
+| `modules/metadata-read-write.md`     | 3     | reviewed |
+| `modules/keywords.md`                | 3     | reviewed |
+| `modules/stats.md`                   | 3     | draft    |
+| `modules/faces.md`                   | 3     | reviewed |
+| `modules/face-detection.md`          | 3     | reviewed |
+| `modules/semantic.md`                | 3     | reviewed |
+| `modules/duplicates.md`              | 3     | reviewed |
+| `modules/maps-and-geolocation.md`    | 3     | reviewed |
+| `modules/private-zones.md`           | 3     | reviewed |
+| `modules/privacy.md`                 | 3     | reviewed |
+| `modules/albums.md`                  | 3     | reviewed |
+| `modules/filters-and-search.md`      | 3     | reviewed |
+| `modules/photo-operations.md`        | 3     | reviewed |
+| `modules/updates.md`                 | 3     | reviewed |
+| `style.md`                           | 3     | reviewed |
+| `configuration.md`                   | 3     | reviewed |
+| `testing.md`                         | 3     | reviewed |
+| `build-release.md`                   | 3     | reviewed |
+| `troubleshooting.md`                 | 3     | reviewed |
+| `glossary.md`                        | 3     | reviewed |
 
 ## Phase 3 in three parallel sessions
 
 The 23 phase 3 docs are grouped in three sessions that can run **at the same time in this checkout**: they write disjoint files. Balanced by source volume (about 13k, 13k and 16k lines of source; B reads `main.js` by sections, A and B read regions of `main.rs`) and grouped by subject so that one session reuses what it has already read.
 
-| Session | Docs, in this order | Theme |
-|---|---|---|
-| A | metadata-read-write, keywords, library-and-database, thumbnails-and-previews, photo-operations, updates, testing, build-release | Backend core: files, metadata, catalogue, caches |
-| B | app-shell, main-window, grid-and-viewer, filters-and-search, albums, configuration, style | Frontend shell and main window (`main.js`, `index.html`, CSS) |
-| C | faces, face-detection, semantic, duplicates, maps-and-geolocation, private-zones, troubleshooting, glossary | Optional features and the two cross-reading docs (last) |
+| Session | Docs, in this order                                                                                                             | Theme                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| A       | metadata-read-write, keywords, library-and-database, thumbnails-and-previews, photo-operations, updates, testing, build-release | Backend core: files, metadata, catalogue, caches              |
+| B       | app-shell, main-window, grid-and-viewer, filters-and-search, albums, configuration, style                                       | Frontend shell and main window (`main.js`, `index.html`, CSS) |
+| C       | faces, face-detection, semantic, duplicates, maps-and-geolocation, private-zones, troubleshooting, glossary                     | Optional features and the two cross-reading docs (last)       |
 
 Rules for parallel runs (already in each prompt): do not edit `_PROGRESS.md` and do not run `npm run docs:gen` (shared files); commit only your own docs with `git commit -m "…" -- <paths>`; if git reports `index.lock`, wait a few seconds and retry. Once the three sessions are done, one short step sets the 23 statuses to `written` here, runs `npm run docs:gen` and `npm run docs:stale`, and commits.
 
@@ -188,6 +192,7 @@ Every module prompt below starts with the same instructions; only the last sente
 - `glossary.md` "All photos" / virtual folder: settled.
 
 Found during phase 4 (code, not fixed):
+
 - New install: backend thumbnail cache size 512 (`config.json` empty) vs frontend default 1024. **Fixed**: the backend reads `thumbnailCacheSize` from `defaults.jsonc` (`startup_thumbnail_cache_size`, test in `tests/main.rs`).
 - Inline test modules in three face files contradicted AGENTS.md §5.I: **fixed**, moved to `tests/face_detect.rs`, `tests/face_recognize.rs`, `tests/faces.rs`.
 - `logs/` was left in the old folder on a storage change: **fixed** (added to `STORAGE_DIRS`, test `storage_copy_carries_the_logs_and_cleanup_removes_them`).

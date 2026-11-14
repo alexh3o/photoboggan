@@ -1165,7 +1165,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export updatePlaceSearchAvailability()` · L51 — Champ de recherche affiché seulement si Internet est permis ; à rappeler quand le mode hors ligne change.
 - `export initPlaceSearch(options)` · L58 — `host` : { goTo(place), showToast(message) }.
 
-## src/privacy.js (39)
+## src/privacy.js (38)
 
 - `periodOf(token)` · L29 — Période couverte par une date incomplète, au format AAAAMMJJHHmmss (« 2024 » : de 20240101000000 à 20241231235959), ou null si elle n'exist…
 - `export parseDateRange(text)` · L46 — Plage de dates saisie : { text, start, end } (bornes incluses, AAAAMMJJHHmmss), ou null si le texte n'est pas valide.
@@ -1173,39 +1173,38 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `cleanPath(text)` · L61
 - `cleanSet(raw)` · L63
 - `readJson(key)` · L78
-- `save(key, value)` · L90
-- `saveSets()` · L91
-- `saveActive()` · L92
-- `export isPrivacyEnabled()` · L95 — La fonction est activée dans les paramètres.
-- `export isPrivacyLocked()` · L97 — Le verrou est actif (fonction activée et verrou coché) : le bouclier ne change plus d'ensemble.
-- `export activeSets()` · L99 — Ensembles actifs (aucun si la fonction est désactivée).
-- `export hasActivePrivacy()` · L101 — Au moins un ensemble est actif : des photos peuvent être masquées (et les dossiers ne se suppriment plus).
-- `export hiddenKeywordKeys()` · L104 — Clés (minuscules) des mots-clés des ensembles actifs : à retirer des listes de filtres de mots-clés (pas des panneaux de saisie).
-- `export isHiddenKeyword(name)` · L110 — Ce mot-clé fait-il partie d'un ensemble actif ?
-- `export onPrivacyChange(fn)` · L113 — `fn()` est appelée à chaque changement des ensembles actifs ou des critères de l'un d'eux (le backend est déjà à jour) : recharger les vues.
-- `export syncPrivacyToBackend()` · L119 — Envoie les ensembles actifs au backend.
-- `commit()` · L131 — Les ensembles actifs ou leurs critères ont changé : backend d'abord, puis les vues (dans l'ordre des changements).
-- `byId(id)` · L142
-- `updateShield()` · L147
-- `displayName(set)` · L159
-- `renderMenu()` · L161
-- `openMenu()` · L195
-- `closeMenu()` · L207
-- `onOutsideMouseDown(event)` · L214
-- `onMenuKeyDown(event)` · L218
-- `currentSet()` · L231
-- `criteriaChanged(set)` · L234 — Les critères de `set` ont changé : mémorisation, affichage, et rechargement des vues si l'ensemble est actif.
-- `makeRemovable(tag, remove)` · L240
-- `renderCriteria(set)` · L251
-- `renderSetSelect()` · L282
-- `renderSettings()` · L290
-- `addPath(text, partial)` · L306
-- `addKeyword(text)` · L316
-- `showDateError(message)` · L324
-- `addDateRange(text)` · L332 — Ajoute la plage saisie ; renvoie false (et signale l'erreur) si elle n'est pas valide.
-- `deleteSelectedSet()` · L343
-- `initSettings()` · L364
-- `export initPrivacy()` · L455 — À appeler une fois au démarrage (main.js) : branche le bouclier et les paramètres, envoie les ensembles actifs au backend.
+- `saveSets()` · L90
+- `saveActive()` · L91
+- `export isPrivacyEnabled()` · L94 — La fonction est activée dans les paramètres.
+- `export isPrivacyLocked()` · L96 — Le verrou est actif (fonction activée et verrou coché) : le bouclier ne change plus d'ensemble.
+- `export activeSets()` · L98 — Ensembles actifs (aucun si la fonction est désactivée).
+- `export hasActivePrivacy()` · L100 — Au moins un ensemble est actif : des photos peuvent être masquées (et les dossiers ne se suppriment plus).
+- `export hiddenKeywordKeys()` · L103 — Clés (minuscules) des mots-clés des ensembles actifs : à retirer des listes de filtres de mots-clés (pas des panneaux de saisie).
+- `export isHiddenKeyword(name)` · L109 — Ce mot-clé fait-il partie d'un ensemble actif ?
+- `export onPrivacyChange(fn)` · L112 — `fn()` est appelée à chaque changement des ensembles actifs ou des critères de l'un d'eux (le backend est déjà à jour) : recharger les vues.
+- `export syncPrivacyToBackend()` · L118 — Envoie les ensembles actifs au backend.
+- `commit()` · L130 — Les ensembles actifs ou leurs critères ont changé : backend d'abord, puis les vues (dans l'ordre des changements).
+- `byId(id)` · L141
+- `updateShield()` · L146
+- `displayName(set)` · L158
+- `renderMenu()` · L160
+- `openMenu()` · L194
+- `closeMenu()` · L206
+- `onOutsideMouseDown(event)` · L213
+- `onMenuKeyDown(event)` · L217
+- `currentSet()` · L230
+- `criteriaChanged(set)` · L233 — Les critères de `set` ont changé : mémorisation, affichage, et rechargement des vues si l'ensemble est actif.
+- `makeRemovable(tag, remove)` · L239
+- `renderCriteria(set)` · L250
+- `renderSetSelect()` · L281
+- `renderSettings()` · L289
+- `addPath(text, partial)` · L305
+- `addKeyword(text)` · L315
+- `showDateError(message)` · L323
+- `addDateRange(text)` · L331 — Ajoute la plage saisie ; renvoie false (et signale l'erreur) si elle n'est pas valide.
+- `deleteSelectedSet()` · L342
+- `initSettings()` · L363
+- `export initPrivacy()` · L454 — À appeler une fois au démarrage (main.js) : branche le bouclier et les paramètres, envoie les ensembles actifs au backend.
 
 ## src/private-zones-modal.js (11)
 
