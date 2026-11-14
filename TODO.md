@@ -10,8 +10,6 @@
 - [x] *feat*: `tree` reorder root folders
 - [x] *feat*: `tree` add folder & albums search in left panel
 - [x] *feat*: `persons` add people search in left panel
-- [ ] *fix*: `persons` when hiding a person, also hide it from "People" section in the left bar. don't remove it from the filter search field
-- [ ] *feat*: `keywords` add keyword search
 - [x] *fix*: `faces` cannot pass faces from filtered to unknown
 - [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
 - [x] *feat*: `keywords` write keywords when typing enter in empty keyword input field
@@ -24,7 +22,7 @@
 - [x] *feat*: `grid` scrollbar should give a date / filename indication
 - [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
 - [x] *feat*: `tree` sticky folders in tree
-- [ ] *style*: `UI` bigger star ratings in thumbnails
+- [x] *style*: `UI` bigger star ratings in thumbnails
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `files` prevent deletion of photos with stars
 - [ ] *style*: `map` alternative dark map style
