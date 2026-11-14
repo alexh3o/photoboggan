@@ -1,4 +1,4 @@
-<!-- verified: f54180d | sources: src/main.js, index.html -->
+<!-- verified: 78c8b4d | sources: src/main.js, index.html -->
 # Main window: photo loading, folder tree, task queue, settings modal, startup (main.js, part 1)
 
 ## Purpose
