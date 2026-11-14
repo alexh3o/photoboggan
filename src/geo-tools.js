@@ -12,7 +12,7 @@ import { runLocked, isWriteLocked, failureDetailsAction } from './metadata-write
 let host = { showToast: () => {}, onPhotosUpdated: () => {} };
 let erasedIds = new Set(); // photos dont les coordonnées effacées sont sauvegardées
 
-/** `showToast(message)` et `onPhotosUpdated(updates)` ([{ photo_id, gps_lat, gps_lon }]) viennent de main.js. */
+/** `showToast(message)` et `onPhotosUpdated(updates)` ([{ photo_id, gps_lat, gps_lon, effective_modified }]) viennent de main.js. */
 export function initGeoTools(options) {
   host = { ...host, ...options };
   reloadErasedIds();

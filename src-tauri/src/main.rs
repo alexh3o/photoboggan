@@ -1158,9 +1158,18 @@ struct MarkingFailure {
 struct MarkingResult {
     /// Photos écrites (fichier et base).
     written: Vec<i64>,
+    /// New `photos.effective_modified` of the written photos whose file or sidecar was rewritten (the interface re-sorts by modification date with it).
+    dates: Vec<WrittenDate>,
     failed: Vec<MarkingFailure>,
     /// Photos laissées intactes parce que la tâche a été arrêtée.
     cancelled: usize,
+}
+
+/// Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
+#[derive(serde::Serialize)]
+struct WrittenDate {
+    id: i64,
+    effective_modified: i64,
 }
 
 /// Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
@@ -1202,8 +1211,8 @@ async fn update_photos_marking(
         let total = prepared.len().max(1);
         let done = AtomicUsize::new(0);
         let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
-        // None : photo non traitée (tâche arrêtée) ; Some(Err(message)) : échec.
-        let outcomes: Vec<(MarkingTarget, Option<Result<(), String>>)> = threads.install(|| {
+        // None : photo non traitée (tâche arrêtée) ; Some(Err(message)) : échec ; Some(Ok(None)) : rien à écrire ; Some(Ok(Some(date))) : nouvelle date effective.
+        let outcomes: Vec<(MarkingTarget, Option<Result<Option<i64>, String>>)> = threads.install(|| {
             prepared
                 .into_par_iter()
                 .map(|Prepared { photo, rating, label, pick, color_flag }| {
@@ -1217,11 +1226,14 @@ async fn update_photos_marking(
                 })
                 .collect()
         });
-        let mut result = MarkingResult { written: Vec::new(), failed: Vec::new(), cancelled: 0 };
+        let mut result = MarkingResult { written: Vec::new(), dates: Vec::new(), failed: Vec::new(), cancelled: 0 };
         for (photo, outcome) in outcomes {
             match outcome {
                 None => result.cancelled += 1,
-                Some(Ok(())) => result.written.push(photo.id),
+                Some(Ok(effective_modified)) => {
+                    result.written.push(photo.id);
+                    if let Some(effective_modified) = effective_modified { result.dates.push(WrittenDate { id: photo.id, effective_modified }); }
+                }
                 Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
             }
         }
@@ -1234,6 +1246,7 @@ async fn update_photos_marking(
 
 /// Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
 /// La miniature et l'aperçu en cache suivent le fichier réécrit (keep_cached_images).
+/// Returns the new `effective_modified` (None: nothing to write). `modified` stays the image file's own mtime, even when only a sidecar was written.
 #[allow(clippy::too_many_arguments)]
 fn write_photo_marking(
     pool: &DbPool,
@@ -1244,8 +1257,8 @@ fn write_photo_marking(
     label: Option<Option<&'static str>>,
     pick: Option<&'static str>,
     color_flag: Option<&str>,
-) -> Result<(), String> {
-    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(()); }
+) -> Result<Option<i64>, String> {
+    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(None); }
     keep_cached_images(dirs, path, || exif::write_xmp_metadata(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string()))?;
     // The file is read back before the catalog is updated: a write that did not put the value where the interface reads it (ignored field,
     // read order, sidecar of another file) is a failure, never shown as written. Only the marking is read (exif::read_marking): negligible cost.
@@ -1257,7 +1270,10 @@ fn write_photo_marking(
     // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
     let metadata = fs::metadata(&path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
     let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
-    tx.execute("UPDATE photos SET file_size = ?, modified = ? WHERE id = ?", params![metadata.len() as i64, library_sync::modified_millis(&metadata), id])
+    // `modified` = the image file's mtime (unchanged when only the sidecar was written); `effective_modified` also counts the sidecar's.
+    let image_modified = library_sync::modified_millis(&metadata);
+    let effective_modified = library_sync::effective_modified_millis(Path::new(path), image_modified);
+    tx.execute("UPDATE photos SET file_size = ?, modified = ?, effective_modified = ? WHERE id = ?", params![metadata.len() as i64, image_modified, effective_modified, id])
         .map_err(|error| error.to_string())?;
     if let Some(rating) = rating {
         tx.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|error| error.to_string())?;
@@ -1268,7 +1284,8 @@ fn write_photo_marking(
     if let Some(pick) = pick {
         tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
     }
-    tx.commit().map_err(|error| error.to_string())
+    tx.commit().map_err(|error| error.to_string())?;
+    Ok(Some(effective_modified))
 }
 
 /// Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
@@ -1276,6 +1293,8 @@ fn write_photo_marking(
 struct RotatedPhoto {
     id: i64,
     view_fix: u32,
+    /// New `photos.effective_modified` (the tag lives in the file or in its sidecar): the interface re-sorts by modification date with it.
+    effective_modified: i64,
 }
 
 #[derive(serde::Serialize)]
@@ -1306,7 +1325,7 @@ async fn rotate_photos(
         let total = photos.len().max(1);
         let done = AtomicUsize::new(0);
         let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
-        let outcomes: Vec<(MarkingTarget, Option<Result<u32, String>>)> = threads.install(|| {
+        let outcomes: Vec<(MarkingTarget, Option<Result<(u32, i64), String>>)> = threads.install(|| {
             photos
                 .into_par_iter()
                 .map(|photo| {
@@ -1324,7 +1343,7 @@ async fn rotate_photos(
         for (photo, outcome) in outcomes {
             match outcome {
                 None => result.cancelled += 1,
-                Some(Ok(view_fix)) => result.written.push(RotatedPhoto { id: photo.id, view_fix }),
+                Some(Ok((view_fix, effective_modified))) => result.written.push(RotatedPhoto { id: photo.id, view_fix, effective_modified }),
                 Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
             }
         }
@@ -1335,8 +1354,9 @@ async fn rotate_photos(
     outcome.map_err(|error| error.to_string())?
 }
 
-/// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `view_fix`.
-fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<u32, String> {
+/// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `view_fix` and the new
+/// `effective_modified` (`modified` stays the image's own mtime, even when only a sidecar was written).
+fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<(u32, i64), String> {
     let source = Path::new(path);
     if !orientation::is_rotatable(source) { return Err("Rotation sans perte impossible pour ce format (HEIC, HEIF, vidéo)".into()); }
     // Internal writer reading the EXIF tag first: the XMP it would write could not change what is displayed. Refused before writing anything.
@@ -1358,12 +1378,14 @@ fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quart
     if after.stored != wanted { return Err(format!("Orientation relue différente ({} au lieu de {wanted})", after.stored)); }
     let metadata = fs::metadata(source).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
     let conn = pool.get().map_err(|error| error.to_string())?;
+    let image_modified = library_sync::modified_millis(&metadata);
+    let effective_modified = library_sync::effective_modified_millis(source, image_modified);
     conn.execute(
-        "UPDATE photos SET orientation = ?1, view_fix = ?2, file_size = ?3, modified = ?4 WHERE id = ?5",
-        params![after.stored, after.view_fix, metadata.len() as i64, library_sync::modified_millis(&metadata), id],
+        "UPDATE photos SET orientation = ?1, view_fix = ?2, file_size = ?3, modified = ?4, effective_modified = ?5 WHERE id = ?6",
+        params![after.stored, after.view_fix, metadata.len() as i64, image_modified, effective_modified, id],
     )
     .map_err(|error| error.to_string())?;
-    Ok(after.view_fix)
+    Ok((after.view_fix, effective_modified))
 }
 
 #[derive(serde::Serialize)]

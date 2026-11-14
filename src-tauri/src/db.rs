@@ -42,6 +42,12 @@ pub struct Photo {
     // Elle n'est pas écrite par les insertions (voir library_sync::store_modified), d'où la valeur 0 des constructions hors lecture.
     #[serde(default)]
     pub modified: i64,
+    /// Effective date of the last metadata change (ms since 1970): the later of the image file's mtime and the mtime of the `.xmp` sidecar it reads.
+    /// It exists because a sidecar write never touches the image, so `modified` (strictly the image file's mtime, the witness of
+    /// `library_sync::sync_library`) cannot move. 0 = unknown (catalogue read before this column existed): every consumer falls back to `modified`,
+    /// see `EFFECTIVE_MODIFIED` (SQL) and `photoModifiedTime` (main.js), which must stay the same rule.
+    #[serde(default)]
+    pub effective_modified: i64,
     /// Orientation the interface applies on top of the webview's when it shows the original file (see orientation::Resolved).
     #[serde(default = "one")]
     pub view_fix: u32,
@@ -116,6 +122,10 @@ pub fn init_db(db_path: &str) -> DbPool {
     add_column(&conn, "photos", "title TEXT NOT NULL DEFAULT ''");
     // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
     add_column(&conn, "photos", "modified INTEGER NOT NULL DEFAULT 0");
+    // Later of the image's and its active sidecar's modification dates (ms since 1970, 0 = unknown, then `modified` applies): sort key of the
+    // modification date. Kept apart from `modified`, which must stay the image file's own mtime for the incremental sync. Filled when files are read
+    // and after each metadata write (library_sync::store_dates, and the UPDATE of each write command).
+    add_column(&conn, "photos", "effective_modified INTEGER NOT NULL DEFAULT 0");
     // Date de création du fichier (ms depuis 1970, 0 = inconnue) : remplie à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
     // Sert aux plages de dates des ensembles de confidentialité pour une photo sans date de prise de vue (privacy.rs : repli sur `modified` si 0).
     add_column(&conn, "photos", "created INTEGER NOT NULL DEFAULT 0");
@@ -214,7 +224,7 @@ pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), St
 
 /// Colonnes lues par `photo_from_row`, dans cet ordre.
 pub(crate) const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
-     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix";
+     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix, effective_modified";
 
 /// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
 /// jamais écartée de la liste parce qu'une de ses colonnes est vide.
@@ -251,6 +261,7 @@ pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo>
         gps_lon: row.get(22)?,
         flash: row.get::<_, Option<i64>>(23)?.map(|value| value != 0),
         view_fix: row.get::<_, Option<u32>>(24)?.filter(|value| (1..=8).contains(value)).unwrap_or(1),
+        effective_modified: row.get::<_, Option<i64>>(25)?.unwrap_or_default(),
     })
 }
 
@@ -272,6 +283,10 @@ fn folder_prefix(folder: Option<&str>) -> String {
 
 /// A dated photo for the date sort: the interface ignores empty dates such as `0000:00:00` (they sort with the undated ones).
 const DATED: &str = "date_taken >= '1000'";
+
+/// Sort value of the modification date: the later of `modified` (image file) and `effective_modified` (image or sidecar, 0 on rows read before the
+/// column existed). Same rule as `photoModifiedTime` in main.js: change both together.
+pub(crate) const EFFECTIVE_MODIFIED: &str = "MAX(COALESCE(modified, 0), COALESCE(effective_modified, 0))";
 
 /// Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
 /// It may keep more photos than the interface filters (it is a superset, never a subset): the interface filters the list again exactly.
@@ -509,7 +524,7 @@ pub fn get_photos_filtered(pool: &DbPool, offset: i32, limit: i32, folder_filter
         rows.collect::<rusqlite::Result<Vec<Photo>>>().map_err(|e| e.to_string())
     };
     match sort_key {
-        "modified" => page("1", &format!("modified <= 0, modified {direction}, id {direction}"), limit, offset),
+        "modified" => page("1", &format!("{EFFECTIVE_MODIFIED} <= 0, {EFFECTIVE_MODIFIED} {direction}, id {direction}"), limit, offset),
         "name" => page("1", &format!("filename COLLATE NOCASE {direction}, path {direction}, id {direction}"), limit, offset),
         _ => {
             // Dated photos first, read through the `date_taken` index, then the undated ones. A single ORDER BY starting with an

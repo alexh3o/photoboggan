@@ -38,6 +38,8 @@ pub struct GeoPhoto {
     pub photo_id: i64,
     pub gps_lat: Option<f64>,
     pub gps_lon: Option<f64>,
+    /// New `photos.effective_modified` (0 if the file could not be read): the interface re-sorts by modification date with it.
+    pub effective_modified: i64,
 }
 
 #[derive(Serialize, Debug)]
@@ -109,15 +111,21 @@ fn write_one(conn: &rusqlite::Connection, cache_dirs: &crate::ImageCacheDirs, ph
     }
     let (gps_lat, gps_lon) = (meta.gps.map(|gps| gps.0), meta.gps.map(|gps| gps.1));
     // La base reflète la relecture ; une restauration (coordonnées présentes) supprime la sauvegarde (déclencheur erased_locations_relocated).
+    // `modified` stays the image file's own mtime (unchanged when only a sidecar was written); `effective_modified` also counts the sidecar's.
+    let mut effective_modified = 0i64;
     let stored = match std::fs::metadata(path) {
-        Ok(file) => conn.execute(
-            "UPDATE photos SET gps_lat = ?1, gps_lon = ?2, file_size = ?3, modified = ?4 WHERE id = ?5",
-            params![gps_lat, gps_lon, file.len() as i64, crate::library_sync::modified_millis(&file), photo_id],
-        ),
+        Ok(file) => {
+            let image_modified = crate::library_sync::modified_millis(&file);
+            effective_modified = crate::library_sync::effective_modified_millis(Path::new(path), image_modified);
+            conn.execute(
+                "UPDATE photos SET gps_lat = ?1, gps_lon = ?2, file_size = ?3, modified = ?4, effective_modified = ?5 WHERE id = ?6",
+                params![gps_lat, gps_lon, file.len() as i64, image_modified, effective_modified, photo_id],
+            )
+        }
         Err(_) => conn.execute("UPDATE photos SET gps_lat = ?1, gps_lon = ?2 WHERE id = ?3", params![gps_lat, gps_lon, photo_id]),
     };
     stored.map_err(|error| format!("Base de données non mise à jour : {error}"))?;
-    Ok(GeoPhoto { photo_id, gps_lat, gps_lon })
+    Ok(GeoPhoto { photo_id, gps_lat, gps_lon, effective_modified })
 }
 
 /// Photos visées : (identifiant, chemin, coordonnées en base).

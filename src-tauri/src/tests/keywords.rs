@@ -217,3 +217,46 @@ fn delete_keeps_the_keyword_when_a_file_could_not_be_rewritten() {
     assert!(file_paths(&path).is_empty(), "the file that could be rewritten no longer carries it");
 }
 
+
+/// Sets the modification date of `path` one hour back (so a sidecar written now is strictly newer, whatever the clock resolution).
+fn backdate(path: &Path) {
+    let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3600)).unwrap();
+}
+
+/// A keyword write on a format that writes to a sidecar (PNG: `a.png.xmp`) never touches the image file, so `photos.modified` (its own mtime, the
+/// sync's witness) must not move; `photos.effective_modified` follows the sidecar and is returned to the interface (`KeywordWritten`).
+/// Removing a keyword from an image that has no sidecar writes nothing: the effective date stays the image's.
+#[test]
+fn a_sidecar_write_moves_the_effective_date_but_never_the_image_date() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let png = dir.path().join("a.png");
+    std::fs::write(&png, png_bytes(8, 8)).unwrap();
+    backdate(&png);
+    let path = png.to_string_lossy().into_owned();
+    let before = std::fs::read(&png).unwrap();
+    let photo = insert_photo(&conn, &path);
+    let image_date = crate::library_sync::modified_millis(&std::fs::metadata(&png).unwrap());
+    conn.execute("UPDATE photos SET modified = ?1, effective_modified = ?1 WHERE id = ?2", params![image_date, photo]).unwrap();
+    let dates = || -> (i64, i64) { conn.query_row("SELECT modified, effective_modified FROM photos WHERE id = ?1", params![photo], |row| Ok((row.get(0)?, row.get(1)?))).unwrap() };
+    let paris = ensure_node(&conn, 0, "Paris").unwrap();
+    let env = write_env(dir.path());
+
+    // Removal only, no sidecar: nothing is written, the effective date stays the image's.
+    let removal = run_write(&env, &pool, vec![item(photo, &path, Some(Vec::new()))], None).unwrap();
+    assert!(removal.failed.is_empty(), "{:?}", removal.failed.iter().map(|f| &f.error).collect::<Vec<_>>());
+    assert!(!Path::new(&format!("{path}.xmp")).exists(), "a removal alone creates no sidecar");
+    assert_eq!(removal.written[0].effective_modified, image_date);
+    assert_eq!(dates(), (image_date, image_date));
+
+    // Adding a keyword creates the sidecar: only `effective_modified` moves, and the interface gets the same value.
+    let added = run_write(&env, &pool, vec![item(photo, &path, Some(vec![paris]))], None).unwrap();
+    assert!(added.failed.is_empty(), "{:?}", added.failed.iter().map(|f| &f.error).collect::<Vec<_>>());
+    assert!(Path::new(&format!("{path}.xmp")).is_file());
+    let sidecar_date = crate::library_sync::modified_millis(&std::fs::metadata(format!("{path}.xmp")).unwrap());
+    assert!(sidecar_date > image_date);
+    assert_eq!(added.written[0].effective_modified, sidecar_date);
+    assert_eq!(dates(), (image_date, sidecar_date), "modified is still the image file's own mtime");
+    assert_eq!(std::fs::read(&png).unwrap(), before, "the image file is never rewritten");
+}

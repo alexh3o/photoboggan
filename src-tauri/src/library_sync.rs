@@ -56,6 +56,17 @@ pub fn now_millis() -> i64 {
     std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(|duration| duration.as_millis() as i64).unwrap_or(0)
 }
 
+/// Effective modification date (ms) of an image: the later of `image_modified` (its own mtime, 0 if unknown) and the mtime of the sidecar it
+/// reads (`exif::active_sidecar`, the only place that picks it), 0 without sidecar. This is `photos.effective_modified`; `photos.modified` itself
+/// stays the image's mtime, because the incremental sync compares it with the image files only.
+pub fn effective_modified_millis(image: &Path, image_modified: i64) -> i64 {
+    let sidecar_modified = crate::exif::active_sidecar(image)
+        .and_then(|sidecar| fs::metadata(sidecar).ok())
+        .map(|metadata| modified_millis(&metadata))
+        .unwrap_or(0);
+    image_modified.max(sidecar_modified)
+}
+
 /// Stores the modification date (ms) of files, by path (one transaction: all or nothing), without marking them as read.
 pub fn store_modified(conn: &rusqlite::Connection, items: &[(String, i64)]) -> rusqlite::Result<()> {
     store_dates(conn, items, None)
@@ -69,13 +80,15 @@ fn store_read_dates(conn: &rusqlite::Connection, items: &[(String, i64)]) -> rus
 fn store_dates(conn: &rusqlite::Connection, items: &[(String, i64)], scanned_at: Option<i64>) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut update = tx.prepare_cached("UPDATE photos SET modified = ?1, scanned_at = COALESCE(?2, scanned_at), created = CASE WHEN ?4 > 0 THEN ?4 ELSE created END WHERE path = ?3")?;
+        let mut update = tx.prepare_cached("UPDATE photos SET modified = ?1, scanned_at = COALESCE(?2, scanned_at), created = CASE WHEN ?4 > 0 THEN ?4 ELSE created END, effective_modified = ?5 WHERE path = ?3")?;
         for (path, modified) in items {
             // File creation date (ms), 0 when the file system cannot tell: kept as is in that case (used by privacy.rs for undated photos).
             let created = std::fs::metadata(path).and_then(|metadata| metadata.created()).ok()
                 .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|duration| duration.as_millis() as i64).unwrap_or(0);
-            update.execute(params![modified, scanned_at, path, created])?;
+            // `modified` stays the image's own mtime; the sidecar's date only enters `effective_modified`.
+            let effective = effective_modified_millis(Path::new(path), *modified);
+            update.execute(params![modified, scanned_at, path, created, effective])?;
         }
     }
     tx.commit()
@@ -189,6 +202,7 @@ pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(P
         gps_lon: exif_data.gps.map(|(_, longitude)| longitude),
         flash: exif_data.flash,
         modified: 0, // non utilisé : la date est enregistrée séparément par store_read_batch
+        effective_modified: 0, // same: recorded with `modified` by store_read_batch (library_sync::store_dates)
         view_fix: exif_data.faces.view_fix, // stored with the orientation by faces::store_photo_faces
     };
     Ok((photo, exif_data.keyword_paths, exif_data.faces))

@@ -87,6 +87,7 @@ Marking (rating / colour / pick) does not use this circuit: it goes through `upd
 - ⚠ sensitive: read priorities, `skip_exif`, and the writer mode are process-wide statics; a test touching them must be the only one (AGENTS.md §5.H).
 - ⚠ sensitive: `jpeg_replace_*` parse JPEG segments by hand; `check_jpeg_structure` rejects broken files rather than guessing.
 - Marking writes verify only the sources the file can hold: a RAW whose EXIF rating comes first in the order is not checked on that source (doc of `read_marking`).
+- Every write (`update_photos_marking`, `rotate_photos`, `apply_metadata_changes`, geolocation erase / restore) records `photos.effective_modified` (later of the image's and its active sidecar's mtime) and returns it to the interface (`dates` of `MarkingResult`, `RotatedPhoto`, `KeywordWritten`, `GeoPhoto`: field `effective_modified`). `photos.modified` is still only the image's mtime, so a sidecar write never makes `sync_library` re-read the photo (`library-and-database.md`). A removal on an image without sidecar writes nothing, and the recorded date is unchanged.
 
 ## Tests
 `tests/exif.rs` (46 fast tests: internal writer, sidecars, markings, atomic write, IPTC, regions) and `tests/exiftool.rs` (19, mostly `#[ignore]`: run `cargo test exiftool:: -- --ignored --test-threads=1`; the recovery tests are fast). Lists: `../generated/tests.md`. Gap: no test of the frontend circuit (AGENTS.md §5.H), nor of `order-list.js`.

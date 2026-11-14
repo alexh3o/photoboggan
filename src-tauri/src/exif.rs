@@ -2414,8 +2414,14 @@ fn same_stem_siblings(image_path: &Path) -> Option<Vec<std::path::PathBuf>> {
 /// Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
 /// sidecar (see sidecar_target), a value removed from it must not come back from a `photo.xmp` shared with another image.
 pub(crate) fn read_sidecar(image_path: &Path) -> Option<String> {
+    fs::read_to_string(active_sidecar(image_path)?).ok()
+}
+
+/// The sidecar an image reads, if it exists: `photo.ext.xmp`, else `photo.xmp` (the same choice as `read_sidecar`, which reads it). Its
+/// modification date joins the image's in `photos.effective_modified` (library_sync.rs), since a sidecar write never touches the image file.
+pub(crate) fn active_sidecar(image_path: &Path) -> Option<std::path::PathBuf> {
     let [appended, compatible] = sidecar_candidates(image_path);
-    if appended.exists() { fs::read_to_string(appended).ok() } else { fs::read_to_string(compatible).ok() }
+    if appended.exists() { Some(appended) } else if compatible.exists() { Some(compatible) } else { None }
 }
 
 /// Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit

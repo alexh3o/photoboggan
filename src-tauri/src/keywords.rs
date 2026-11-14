@@ -203,6 +203,9 @@ pub struct KeywordWritten {
     /// Coordonnées retenues à la relecture du fichier (colonnes `gps_lat` et `gps_lon`).
     pub gps_lat: Option<f64>,
     pub gps_lon: Option<f64>,
+    /// New `photos.effective_modified` (later of the image's and its sidecar's modification dates, 0 if the file could not be read): the interface
+    /// re-sorts by modification date with it. `photos.modified` stays the image file's own date.
+    pub effective_modified: i64,
 }
 
 #[derive(Serialize)]
@@ -429,11 +432,17 @@ fn run_write(
                     push_failure(&mut failed, item.photo_id, item.path, error);
                     continue;
                 }
+                // `modified` stays the image file's own mtime (a sidecar-only write leaves it unchanged); `effective_modified` also counts the sidecar's.
+                let mut effective_modified = 0i64;
                 let stored = match std::fs::metadata(&item.path) {
-                    Ok(file) => tx.execute(
-                        "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3, file_size = ?4, modified = ?5 WHERE id = ?6",
-                        params![meta.keywords, meta.title, meta.caption, file.len() as i64, crate::library_sync::modified_millis(&file), item.photo_id],
-                    ),
+                    Ok(file) => {
+                        let image_modified = crate::library_sync::modified_millis(&file);
+                        effective_modified = crate::library_sync::effective_modified_millis(Path::new(&item.path), image_modified);
+                        tx.execute(
+                            "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3, file_size = ?4, modified = ?5, effective_modified = ?6 WHERE id = ?7",
+                            params![meta.keywords, meta.title, meta.caption, file.len() as i64, image_modified, effective_modified, item.photo_id],
+                        )
+                    }
                     Err(_) => tx.execute(
                         "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3 WHERE id = ?4",
                         params![meta.keywords, meta.title, meta.caption, item.photo_id],
@@ -460,7 +469,7 @@ fn run_write(
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
                 face_batches.push((item.path.clone(), meta.faces));
                 written_paths.insert(item.photo_id, item.path);
-                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption, gps_lat: meta.gps.map(|gps| gps.0), gps_lon: meta.gps.map(|gps| gps.1) });
+                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption, gps_lat: meta.gps.map(|gps| gps.0), gps_lon: meta.gps.map(|gps| gps.1), effective_modified });
             }
         }
     }

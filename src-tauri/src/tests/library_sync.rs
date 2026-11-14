@@ -120,6 +120,37 @@ fn sync_detects_added_modified_removed_and_never_trusts_a_missing_disk() {
     let unplugged = sync_library(&pool, &[]).unwrap();
     assert!(unplugged.removed.is_empty(), "photos du disque absent retirées : {:?}", unplugged.removed);
     assert_eq!(photo_count(&pool), 3);
+
+    // A sidecar write (PNG: `p.png.xmp`) moves `effective_modified` but never `modified` (the image file's own mtime, the sync's witness),
+    // so the next sync does not read the photo again. The image is back-dated so the sidecar is strictly newer whatever the clock resolution.
+    let png = root.join("p.png");
+    fs::write(&png, png_bytes(8, 8)).unwrap();
+    backdate(&png);
+    let png_text = png.to_string_lossy().to_string();
+    assert_eq!(sync_library(&pool, &[]).unwrap().added, full_paths(root, &["p.png"]));
+    let conn = pool.get().unwrap();
+    let dates = |conn: &rusqlite::Connection| -> (i64, i64) {
+        conn.query_row("SELECT modified, effective_modified FROM photos WHERE path = ?1", [&png_text], |row| Ok((row.get(0)?, row.get(1)?))).unwrap()
+    };
+    let (image_date, effective) = dates(&conn);
+    assert!(image_date > 0 && effective == image_date, "without a sidecar the effective date is the image's own");
+    let update = crate::exif::MetadataUpdate { title: Some("Titre".to_string()), ..Default::default() };
+    crate::exif::write_metadata_internal(&png_text, &update).unwrap();
+    assert!(Path::new(&format!("{png_text}.xmp")).is_file(), "the metadata went to the sidecar");
+    // What the write commands do in their own UPDATE: `modified` untouched, `effective_modified` = later of the image's and the sidecar's mtime.
+    let recorded = effective_modified_millis(Path::new(&png_text), image_date);
+    conn.execute("UPDATE photos SET effective_modified = ?1 WHERE path = ?2", params![recorded, &png_text]).unwrap();
+    assert!(recorded > image_date, "the sidecar is newer than the back-dated image");
+    assert_eq!(dates(&conn), (image_date, recorded), "modified is untouched, effective_modified follows the sidecar");
+    let after = sync_library(&pool, &[]).unwrap();
+    assert!(after.added.is_empty() && after.updated.is_empty() && after.removed.is_empty(), "the sync must not read a photo whose sidecar changed: {:?}", after.updated);
+    assert_eq!(dates(&conn), (image_date, recorded), "the sync leaves both dates as they were");
+}
+
+/// Sets the modification date of `path` one hour back.
+fn backdate(path: &Path) {
+    let file = fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3600)).unwrap();
 }
 
 /// Reads `path` and stores it like a scan does (store_read_batch), returning its size and modification date.

@@ -353,3 +353,26 @@ fn photos_are_read_back_by_path_in_chunks() {
     assert_eq!(found.len(), 1200);
     assert!(get_photos_by_paths(&pool, &[]).unwrap().is_empty());
 }
+
+/// The modification sort uses the later of `modified` (image file) and `effective_modified` (image or sidecar); rows read before the column
+/// existed (effective = 0) keep sorting on `modified`, and photos without any date come last in both directions.
+#[test]
+fn modification_sort_uses_the_effective_date_and_falls_back_to_the_file_date() {
+    let (_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for (name, modified, effective) in [("old.jpg", 10, 0), ("legacy.jpg", 20, 0), ("edited.png", 5, 30), ("stale.jpg", 40, 25), ("undated.jpg", 0, 0)] {
+            let id = insert_photo(&conn, &format!("C:/P/{name}"));
+            conn.execute("UPDATE photos SET modified = ?1, effective_modified = ?2 WHERE id = ?3", rusqlite::params![modified, effective, id]).unwrap();
+        }
+    }
+    let folder = || Some("C:/P".to_string());
+    // `edited.png`: only its sidecar changed (modified 5, effective 30). `stale.jpg`: the image was rewritten after the recorded effective date.
+    assert_eq!(ordered(get_photos_sorted(&pool, 0, 10, folder(), true, "modified", false).unwrap()), ["stale.jpg", "edited.png", "legacy.jpg", "old.jpg", "undated.jpg"]);
+    assert_eq!(ordered(get_photos_sorted(&pool, 0, 10, folder(), true, "modified", true).unwrap()), ["old.jpg", "legacy.jpg", "edited.png", "stale.jpg", "undated.jpg"]);
+    // A capped list holds the right photos: the newest two, even though `edited.png` has the oldest image file.
+    assert_eq!(ordered(get_photos_sorted(&pool, 0, 2, folder(), true, "modified", false).unwrap()), ["stale.jpg", "edited.png"]);
+    // Both dates reach the interface unchanged (it applies the same rule on `photo.modified` / `photo.effective_modified`).
+    let edited = get_photos_sorted(&pool, 0, 10, folder(), true, "name", true).unwrap().into_iter().find(|photo| photo.filename == "edited.png").unwrap();
+    assert_eq!((edited.modified, edited.effective_modified), (5, 30));
+}
