@@ -2071,6 +2071,7 @@ function decodeHtmlEntities(text) {
 // `fromCounts` : redessin demandé par l'arrivée de nouveaux compteurs, qui ne doit pas en redemander.
 function renderFolderTree({ fromCounts = false } = {}) {
   folderTree.innerHTML = '';
+  folderTree.appendChild(stickyFolderLayer); // first child: the zero-height layer of the pinned ancestor rows (see STICKY FOLDERS)
   if (!fromCounts) scheduleFolderCounts(); // photos may have changed (scan, move, deletion…): re-read the catalogue folders
 
   const allItem = document.createElement('li');
@@ -2116,6 +2117,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
     const isActiveFolder = !getSelectedAlbum() && [currentFolderFilter, ...extraFolderFilters].some(folder => folder && normalize(folder) === normalize(node.path));
     li.className = `folder-tree-item ${isActiveFolder ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
     li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
+    li.dataset.folderDepth = String(depth); // indentation level (0 = tracked folder), read by the sticky folders
     if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
     li.style.paddingLeft = `${10 + depth * 16}px`;
     const hasChildren = node.children.size > 0;
@@ -2168,6 +2170,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
     empty.append(message, addButton);
     folderTree.appendChild(empty);
   }
+  indexStickyFolders(); // the rows are new: pin the ancestors of the first visible one
 }
 
 // Compteurs de l'option « Montrer le nombre de photos des dossiers » : photos et vidéos du catalogue, sans filtre, calculées côté Rust.
@@ -2342,6 +2345,156 @@ folderTree.addEventListener('mousedown', event => {
 });
 
 // ==========================================
+// STICKY FOLDERS (pinned ancestors of the first visible row)
+// ==========================================
+// While a big folder is scrolled, its ancestors stay pinned at the top of the tree, one row per level and indented like in the tree, so the user
+// always knows which folders they are under. The tree is a flat list of rows (the indentation is `data-folder-depth`), so CSS `position: sticky` cannot
+// stack the levels; a layer of copies of the ancestor rows is drawn over the top of the list instead. The layer is a sticky <li> without height (same
+// trick as the marking bar of the grid), so it never changes the layout of the real rows, which stay the only ones in the flow.
+// Level n is pinned in slot n, as nested sticky boxes would be, and its end pushes it up as the end of its subtree reaches it. When the panel is too short
+// for all the levels, the deepest ones are kept. Clicks on a copy are forwarded to the real row (select, Ctrl + click, fold); the context menu, the
+// double-click fold and the photo drop target work on the copies as they carry the same `data-folder-*` attributes.
+const STICKY_FOLDERS_MAX_SHARE = 0.4; // the pinned rows never take more than this share of the height of the tree
+const stickyFolderLayer = document.createElement('li');
+stickyFolderLayer.className = 'folder-tree-sticky';
+stickyFolderLayer.setAttribute('aria-hidden', 'true'); // the real rows stay in the DOM: assistive technologies do not need the copies
+let stickyFolderIndex = null; // structure of the rows of the last render: { rows, depths, parents, ends }
+const stickyFolderCopies = new Map(); // row index -> its copy, created on demand and dropped by every render
+const stickyFolderSources = new WeakMap(); // copy -> real row
+let stickyFolderFrame = 0;
+
+// Which rows are pinned for a scroll position. Pure: the geometry comes in through `topOf(index)` (offsetTop of a row, growing with the index).
+// `depths`, `parents` (-1 for none) and `ends` (index of the first row after the subtree) describe the flat list; `listEnd` is where the last row ends
+// (margin included) and `pitch` the distance between two rows. Returns [{ index, slot, pushed }]: `slot` = place among the pinned rows (0 = top),
+// `pushed` = how far up (px, 0 or less) the end of the subtree pushes the row out of its slot.
+function pinnedFolderRows({ depths, parents, ends, topOf, listEnd, scrollTop, pitch, maxSlots }) {
+  const count = depths.length;
+  // Last row whose top is above `y`, -1 when there is none (binary search: the tops grow with the index).
+  const lastAbove = y => {
+    let low = 0;
+    let high = count;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (topOf(middle) < y) low = middle + 1; else high = middle;
+    }
+    return low - 1;
+  };
+  // Pinned rows when the `skip` first levels are left out: the level `skip` takes the top slot, the next one the slot below, and so on.
+  const collect = (skip, limit) => {
+    const pinned = [];
+    for (let level = skip; pinned.length < limit; level++) {
+      const y = scrollTop + (level - skip) * pitch; // top of the slot of this level
+      let index = lastAbove(y);
+      while (index >= 0 && depths[index] > level) index = parents[index]; // up to the row of this level that holds (or is) that row
+      if (index < 0 || depths[index] !== level || ends[index] === index + 1) break; // no such level here, or no subfolder shown under it
+      const subtreeEnd = ends[index] < count ? topOf(ends[index]) : listEnd;
+      pinned.push({ index, slot: level - skip, pushed: Math.min(0, subtreeEnd - (y + pitch)) });
+    }
+    return pinned;
+  };
+  const all = collect(0, Infinity);
+  return all.length > maxSlots ? collect(all.length - maxSlots, maxSlots) : all;
+}
+
+// Size of the rows of the tree: `height` of a row, `pitch` = distance between two rows (height + margin), `maxSlots` = pinned rows the panel can afford.
+function stickyFolderMetrics(row) {
+  const height = row.offsetHeight;
+  const pitch = height + (parseFloat(getComputedStyle(row).marginBottom) || 0);
+  const maxSlots = pitch > 0 ? Math.floor(folderTree.clientHeight * STICKY_FOLDERS_MAX_SHARE / pitch) : 0;
+  return { height, pitch, maxSlots };
+}
+
+// Copy of a real row for the layer. Its buttons leave the tab order (the real row is the one to reach by keyboard).
+function makeStickyFolderCopy(row) {
+  const copy = row.cloneNode(true);
+  copy.classList.add('folder-tree-sticky-row');
+  for (const button of copy.querySelectorAll('button')) button.tabIndex = -1;
+  stickyFolderSources.set(copy, row);
+  return copy;
+}
+
+// Draws the pinned rows for the current scroll position. Cheap enough to run on every scroll frame: a few binary searches, copies are reused.
+function updateStickyFolders() {
+  const index = stickyFolderIndex;
+  if (!index || !index.rows.length || !folderTree.clientHeight) {
+    stickyFolderLayer.replaceChildren(); // nothing to pin (no folder, or the tree is folded away)
+    return;
+  }
+  const { rows, depths, parents, ends } = index;
+  const { pitch, maxSlots } = stickyFolderMetrics(rows[0]);
+  const lastRow = rows[rows.length - 1];
+  const pinned = maxSlots < 1 ? [] : pinnedFolderRows({
+    depths, parents, ends, pitch, maxSlots,
+    topOf: position => rows[position].offsetTop,
+    listEnd: lastRow.offsetTop + pitch,
+    scrollTop: folderTree.scrollTop,
+  });
+  const copies = pinned.map(({ index: rowIndex, slot, pushed }, position) => {
+    let copy = stickyFolderCopies.get(rowIndex);
+    if (!copy) {
+      copy = makeStickyFolderCopy(rows[rowIndex]);
+      stickyFolderCopies.set(rowIndex, copy);
+    }
+    copy.style.height = `${pitch}px`; // a full pitch, so that the rows of the list do not show through the margin between two copies
+    copy.style.transform = `translateY(${slot * pitch + pushed}px)`;
+    copy.style.zIndex = String(pinned.length - position); // a parent stays above its children: a child pushed out by the end of its subtree slides under it
+    copy.classList.toggle('is-last', position === pinned.length - 1); // the last one carries the separator under the pinned block
+    return copy;
+  });
+  const current = stickyFolderLayer.children;
+  if (copies.length !== current.length || copies.some((copy, position) => copy !== current[position])) stickyFolderLayer.replaceChildren(...copies);
+}
+
+function scheduleStickyFolders() {
+  if (stickyFolderFrame) return;
+  stickyFolderFrame = requestAnimationFrame(() => {
+    stickyFolderFrame = 0;
+    updateStickyFolders();
+  });
+}
+
+// Called by every render of the tree: reads the structure of the new rows (depths, parent and end of each subtree), then draws the layer.
+function indexStickyFolders() {
+  stickyFolderCopies.clear();
+  stickyFolderLayer.replaceChildren();
+  const rows = [...folderTree.querySelectorAll(':scope > li[data-folder-path]')]; // "All photos" is no folder row; the copies are not direct children
+  const depths = rows.map(row => Number(row.dataset.folderDepth) || 0);
+  const parents = new Array(rows.length).fill(-1);
+  const ends = new Array(rows.length).fill(rows.length);
+  const open = []; // rows whose subtree is still being read, outermost first
+  depths.forEach((depth, position) => {
+    while (open.length && depths[open[open.length - 1]] >= depth) ends[open.pop()] = position;
+    parents[position] = open.length ? open[open.length - 1] : -1;
+    open.push(position);
+  });
+  stickyFolderIndex = { rows, depths, parents, ends };
+  updateStickyFolders();
+}
+
+// Scrolls a row into view below the pinned rows that would otherwise hide it (`scroll-padding-top` is honoured by scrollIntoView).
+function revealFolderRow(row) {
+  if (!row) return;
+  const { pitch, maxSlots } = stickyFolderMetrics(stickyFolderIndex?.rows[0] ?? row);
+  folderTree.style.scrollPaddingTop = `${Math.min(Number(row.dataset.folderDepth) || 0, maxSlots) * pitch}px`;
+  row.scrollIntoView({ block: 'nearest' });
+  folderTree.style.scrollPaddingTop = '';
+}
+
+folderTree.addEventListener('scroll', scheduleStickyFolders, { passive: true });
+new ResizeObserver(scheduleStickyFolders).observe(folderTree); // panel resized, or folded away and shown again
+
+// A click on a pinned row does what a click on the real row does, with the same modifier keys (Ctrl + click: multiple selection).
+stickyFolderLayer.addEventListener('click', event => {
+  const target = event.target instanceof Element ? event.target : null;
+  const row = stickyFolderSources.get(target?.closest('.folder-tree-sticky-row'));
+  if (!row?.isConnected) return;
+  const destination = target.closest('.folder-tree-toggle') ? row.querySelector('.folder-tree-toggle') : row;
+  destination.dispatchEvent(new MouseEvent('click', {
+    bubbles: true, cancelable: true, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, altKey: event.altKey,
+  }));
+});
+
+// ==========================================
 // TROUVER LE RAW
 // ==========================================
 // Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Recherche > Recherche des RAW (raw-settings.js) deviennent les filtres
@@ -2460,7 +2613,7 @@ async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
     renderVisibleItems();
     updateUIOnSelection();
   }
-  document.querySelector('#folder-tree .folder-tree-item.active')?.scrollIntoView({ block: 'nearest' });
+  revealFolderRow(folderTree.querySelector(':scope > .folder-tree-item.active')); // direct children only: the pinned copies are not the real row
 }
 
 // Everything needed to come back to the current view after a results mode (folder or album, filters, scroll, selection).
