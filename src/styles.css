@@ -262,6 +262,11 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 /* STICKY FOLDERS (main.js, "STICKY FOLDERS"): ancestors of the first visible folder, pinned at the top of the tree. The layer is a sticky <li> without height,
    so it takes no room in the list; the pinned rows are absolutely positioned copies of the real rows, moved by a transform (slot + push-out by the end of their subtree). */
 .folder-tree-sticky { position: sticky; top: 0; z-index: 4; height: 0; list-style: none; pointer-events: none; }
+/* "All photos" row: always pinned at the very top, above the pinned ancestors. Its height is a full pitch (row + margin) so that the rows of the list do not show
+   through the margin under it; opaque like the pinned copies (the translucent states are laid over the panel colour). */
+.folder-tree-pinned { position: sticky; top: 0; z-index: 5; margin-bottom: 0; height: calc(var(--side-row-height) + 0.05rem); background: var(--bg-panel); }
+.folder-tree-pinned.active { background: linear-gradient(color-mix(in srgb, var(--active-button) 50%, transparent), color-mix(in srgb, var(--active-button) 50%, transparent)), var(--bg-panel); }
+.folder-tree-pinned.drop-target { background: linear-gradient(color-mix(in srgb, var(--accent) 35%, transparent), color-mix(in srgb, var(--accent) 35%, transparent)), var(--bg-panel); }
 /* Opaque, as the rows of the list scroll underneath. The translucent states (active, drop target) are laid over the panel colour for the same reason. */
 .folder-tree-sticky-row { position: absolute; top: 0; left: 0; right: 0; margin: 0; background: var(--bg-panel); pointer-events: auto; will-change: transform; }
 .folder-tree-sticky-row.active { background: linear-gradient(color-mix(in srgb, var(--active-button) 50%, transparent), color-mix(in srgb, var(--active-button) 50%, transparent)), var(--bg-panel); }
