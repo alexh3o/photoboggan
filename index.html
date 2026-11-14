@@ -57,14 +57,22 @@
       <!-- Arborescence dynamique -->
       <aside id="sidebar-panel" class="sidebar-section">
         <!-- Sections repliables Dossiers et Personnes (état mémorisé : faces-panel.js) -->
+        <div id="folders-header" class="sidebar-block-header">
         <h3 class="sidebar-block-title"><button type="button" id="folders-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="folder-tree"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Folders">Dossiers</span></button></h3>
+          <!-- Recherche rapide dans les noms de dossiers (sidebar-search.js, filtrage : main.js) : la loupe n'apparaît qu'au survol de la ligne de titre -->
+          <div id="folders-search" class="sidebar-search" hidden><input type="text" id="folders-search-input" class="sidebar-search-input" autocomplete="off" spellcheck="false" placeholder="Rechercher un dossier…" aria-label="Rechercher un dossier" data-i18n-placeholder="Search a folder…" data-i18n-aria-label="Search a folder" /><button type="button" id="folders-search-clear" class="sidebar-search-clear" title="Fermer la recherche" aria-label="Fermer la recherche" data-i18n-title="Close the search" data-i18n-aria-label="Close the search">×</button></div>
+          <button type="button" id="folders-search-open" class="sidebar-block-tool" title="Rechercher un dossier" aria-label="Rechercher un dossier" data-i18n-title="Search a folder" data-i18n-aria-label="Search a folder"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+        </div>
         <ul id="folder-tree"></ul>
         <!-- Albums virtuels (dossiers virtuels, albums manuels et intelligents) : albums-panel.js ; n'existent que dans la base -->
         <section id="albums-section" class="albums-section" aria-labelledby="albums-title">
           <div class="sidebar-block-header">
             <h3 id="albums-title" class="sidebar-block-title"><button type="button" id="albums-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="albums-list"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="Albums">Albums</span></button></h3>
             <!-- Même menu de création que le clic droit dans le vide de la section -->
-            <button type="button" id="albums-add" class="albums-add" title="Nouveau…" aria-label="Nouveau…" data-i18n-title="New…" data-i18n-aria-label="New…">+</button>
+            <!-- Recherche rapide dans les albums (sidebar-search.js, filtrage : albums-panel.js), à gauche du « + » -->
+            <div id="albums-search" class="sidebar-search" hidden><input type="text" id="albums-search-input" class="sidebar-search-input" autocomplete="off" spellcheck="false" placeholder="Rechercher un album…" aria-label="Rechercher un album" data-i18n-placeholder="Search an album…" data-i18n-aria-label="Search an album" /><button type="button" id="albums-search-clear" class="sidebar-search-clear" title="Fermer la recherche" aria-label="Fermer la recherche" data-i18n-title="Close the search" data-i18n-aria-label="Close the search">×</button></div>
+            <button type="button" id="albums-search-open" class="sidebar-block-tool" title="Rechercher un album" aria-label="Rechercher un album" data-i18n-title="Search an album" data-i18n-aria-label="Search an album"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
+            <button type="button" id="albums-add" class="albums-add sidebar-block-tool" title="Nouveau…" aria-label="Nouveau…" data-i18n-title="New…" data-i18n-aria-label="New…">+</button>
           </div>
           <ul id="albums-list" class="albums-list"></ul>
         </section>

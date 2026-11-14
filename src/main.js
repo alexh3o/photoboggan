@@ -7,6 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { DEFAULTS, readBool, readChoice, readNumber, readStored } from './settings-defaults.js';
 import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
+import { initSidebarSearch } from './sidebar-search.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
@@ -2068,7 +2069,7 @@ function decodeHtmlEntities(text) {
 // ==========================================
 // ARBORESCENCE & FILTRES
 // ==========================================
-// `fromCounts` : redessin demandé par l'arrivée de nouveaux compteurs, qui ne doit pas en redemander.
+// `fromCounts`: redraw that must not ask for the folder counts again (new counts have just arrived, or the text of the quick search changed).
 function renderFolderTree({ fromCounts = false } = {}) {
   folderTree.innerHTML = '';
   folderTree.appendChild(stickyFolderLayer); // first child: the zero-height layer of the pinned ancestor rows (see STICKY FOLDERS)
@@ -2112,7 +2113,17 @@ function renderFolderTree({ fromCounts = false } = {}) {
   for (const folderPath of createdFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''));
   // Option « Afficher les dossiers sans photo » : tous les dossiers présents sur le disque (listés par `refreshDiskFolders`).
   if (showEmptyFolders) for (const folderPath of diskFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''), true);
+  // Quick search of the Folders block (sidebar-search.js): a folder is kept when its name contains the text, or when one of its descendants does (the
+  // hierarchy above a result stays). The subfolders of a match are not kept unless they match too.
+  const searching = folderSearchQuery !== '';
+  const markSearchResults = node => {
+    const keptChildren = [...node.children.values()].map(child => markSearchResults(child)); // every child is marked, even when the node itself matches
+    node.searchShown = normalizeSearch(node.name).includes(folderSearchQuery) || keptChildren.some(Boolean);
+    return node.searchShown;
+  };
+  if (searching) roots.forEach(markSearchResults);
   const renderNode = (node, parentElement, depth, isRoot = false) => {
+    if (searching && !node.searchShown) return;
     const li = document.createElement('li');
     const isActiveFolder = !getSelectedAlbum() && [currentFolderFilter, ...extraFolderFilters].some(folder => folder && normalize(folder) === normalize(node.path));
     li.className = `folder-tree-item ${isActiveFolder ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
@@ -2120,18 +2131,18 @@ function renderFolderTree({ fromCounts = false } = {}) {
     li.dataset.folderDepth = String(depth); // indentation level (0 = tracked folder), read by the sticky folders
     if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
     li.style.paddingLeft = `${10 + depth * 16}px`;
-    const hasChildren = node.children.size > 0;
     const key = normalize(node.path);
-    const expanded = folderTreeExpanded.has(key) || (isRoot && !folderTreeInitialized);
+    // While the quick search filters the tree, only the folders it keeps count, unfolded unless folded by hand since the text last changed.
+    // The real fold state (`folderTreeExpanded`) is left alone: it is back as soon as the search ends.
+    const hasChildren = searching ? [...node.children.values()].some(child => child.searchShown) : node.children.size > 0;
+    const expanded = searching ? hasChildren && !folderSearchCollapsed.has(key) : folderTreeExpanded.has(key) || (isRoot && !folderTreeInitialized);
     const toggle = document.createElement('button');
     toggle.className = 'folder-tree-toggle';
     toggle.textContent = hasChildren ? (expanded ? '▾' : '▸') : ' ';
     toggle.setAttribute('aria-label', t(expanded ? 'Collapse folder' : 'Expand folder'));
     toggle.addEventListener('click', event => {
       event.stopPropagation();
-      if (expanded) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
-      folderTreeInitialized = true;
-      renderFolderTree();
+      toggleFolderFold(key, expanded);
     });
     const icon = document.createElement('span'); icon.className = `folder-tree-icon${isRoot ? ' folder-tree-icon-root' : ''}`; icon.textContent = '📁';
     const label = document.createElement('span'); label.className = 'folder-tree-name'; label.textContent = node.name; label.title = node.path;
@@ -2156,6 +2167,15 @@ function renderFolderTree({ fromCounts = false } = {}) {
     renderNode(root, folderTree, 0, true);
   }
   folderTreeInitialized = true;
+  // Quick search without any result ("All photos" stays, it is the pinned row of the list).
+  if (searching && folders.length > 0 && !roots.some(root => root.searchShown)) {
+    const none = document.createElement('li');
+    none.className = 'folder-tree-empty';
+    const message = document.createElement('p');
+    message.textContent = t('No matching folder');
+    none.append(message);
+    folderTree.appendChild(none);
+  }
   // Aucun dossier suivi (premier lancement) : l'arborescence propose directement d'en ajouter un, sans passer par les Paramètres.
   if (folders.length === 0) {
     const empty = document.createElement('li');
@@ -2235,6 +2255,10 @@ function scheduleFolderCounts() {
   }, 150);
 }
 const folderTreeExpanded = new Set();
+// Quick search of the Folders block (sidebar-search.js): normalized text, '' = no filter. While it is set, the tree only holds the folders whose name contains it
+// and their ancestors, all unfolded; `folderSearchCollapsed` holds the ones the user folded by hand meanwhile (reset with each new text).
+let folderSearchQuery = '';
+const folderSearchCollapsed = new Set();
 const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
 let showEmptyFolders = readBool('showEmptyFolders');
 let diskFolders = []; // sous-dossiers présents sur le disque, lus seulement si showEmptyFolders est actif
@@ -2278,6 +2302,38 @@ function selectFolder(path) {
   renderFolderTree();
   loadPhotos();
 }
+
+// Folds / unfolds a folder row (its arrow, a double-click). `expanded`: whether the row is unfolded now. While the quick search filters the tree, only the
+// temporary fold state of the search changes: the real one is kept for when the search ends.
+function toggleFolderFold(key, expanded) {
+  if (folderSearchQuery) {
+    if (expanded) folderSearchCollapsed.add(key); else folderSearchCollapsed.delete(key);
+  } else {
+    if (expanded) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
+    folderTreeInitialized = true;
+  }
+  renderFolderTree();
+}
+
+// Quick search of the Folders block: filters the tree live (see renderFolderTree). Once the filter is gone (field closed or emptied), the tree is back to its
+// real fold state, with the ancestors of the selected folders unfolded and the selected folder scrolled into view if needed.
+initSidebarSearch({
+  name: 'folders',
+  onChange: (query, previous) => {
+    folderSearchQuery = query;
+    folderSearchCollapsed.clear();
+    const filterEnded = !query && Boolean(previous);
+    if (filterEnded && !getSelectedAlbum()) {
+      for (const folder of [currentFolderFilter, ...extraFolderFilters]) {
+        if (!folder) continue;
+        const segments = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase().split('/');
+        for (let n = 1; n < segments.length; n++) folderTreeExpanded.add(segments.slice(0, n).join('/')); // every proper ancestor
+      }
+    }
+    renderFolderTree({ fromCounts: true }); // the counts do not change with the text: no new request
+    if (filterEnded) revealFolderRow(folderTree.querySelector(':scope > .folder-tree-item.active'));
+  },
+});
 
 // Right-click on the "Folders" title: fold every folder, or unfold the ancestors of the folders holding the selected photos.
 document.getElementById('folders-toggle').addEventListener('contextmenu', event => {
@@ -2338,10 +2394,9 @@ folderTree.addEventListener('mousedown', event => {
   const row = event.target.closest('li[data-folder-path]');
   if (!row) return;
   const key = row.dataset.folderPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  if (!row.querySelector('.folder-tree-toggle')?.textContent.trim()) return; // no subfolder
-  if (folderTreeExpanded.has(key)) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
-  folderTreeInitialized = true;
-  renderFolderTree();
+  const arrow = row.querySelector('.folder-tree-toggle')?.textContent.trim();
+  if (!arrow) return; // no subfolder
+  toggleFolderFold(key, arrow === '▾'); // the arrow tells whether the row is unfolded, also while a search filters the tree
 });
 
 // ==========================================

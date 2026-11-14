@@ -3,7 +3,8 @@
 // manuels (ajout, remplacement, retrait : enregistrés immédiatement). L'enregistrement des filtres d'un album intelligent vient à l'étape suivante.
 import './albums.css';
 import { invoke } from '@tauri-apps/api/core';
-import { t, onLanguageChange } from './i18n.js';
+import { t, onLanguageChange, normalizeSearch } from './i18n.js';
+import { initSidebarSearch } from './sidebar-search.js';
 import { readBool } from './settings-defaults.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
 
@@ -29,6 +30,12 @@ const OVERWRITE_WARNING_KEY = 'albumOverwriteWarning'; // « false » : ne plus 
 let host = null; // fonctions fournies par main.js (voir initAlbumsPanel)
 let nodes = []; // arbre à plat, tel que renvoyé par get_album_tree
 let expanded = new Set(readJson(EXPANDED_STORAGE_KEY));
+// Quick search (sidebar-search.js): normalized text, '' = no filter. While it is set, only the albums whose name contains it and their ancestors are shown
+// (`searchShown`: their ids, null without search), all unfolded except the ones folded by hand meanwhile (`searchCollapsed`, reset with each new text).
+// The real fold state (`expanded`) is left alone: it is back as soon as the search ends.
+let searchQuery = '';
+let searchShown = null;
+const searchCollapsed = new Set();
 let selectedId = 0; // album affiché dans la grille (0 : aucun)
 let counts = new Map(); // id -> nombre de photos calculé par main.js (voir setAlbumCounts)
 let selectedDirty = false; // l'album intelligent affiché a des filtres modifiés, pas encore enregistrés
@@ -45,6 +52,32 @@ const nodeById = id => nodes.find(node => node.id === id);
 const childrenOf = parentId => nodes.filter(node => node.parent_id === parentId)
   // Dossiers virtuels d'abord, puis les albums, chacun par ordre alphabétique.
   .sort((a, b) => (a.kind === KIND_FOLDER ? 0 : 1) - (b.kind === KIND_FOLDER ? 0 : 1) || a.name.localeCompare(b.name));
+
+// Ids of the nodes kept by the quick search: those whose name contains the text, with all their ancestors so that the hierarchy above a result stays.
+function computeSearchShown() {
+  if (!searchQuery) return null;
+  const shown = new Set();
+  for (const node of nodes) {
+    if (!normalizeSearch(node.name).includes(searchQuery)) continue;
+    for (let current = node, guard = 0; current && !shown.has(current.id) && guard < 10000; current = nodeById(current.parent_id), guard++) shown.add(current.id);
+  }
+  return shown;
+}
+
+// Children of a node (0: the root) that are displayed: all of them, or only those kept by the quick search.
+const visibleChildren = parentId => childrenOf(parentId).filter(node => !searchShown || searchShown.has(node.id));
+const isNodeOpen = id => (searchShown ? visibleChildren(id).length > 0 && !searchCollapsed.has(id) : expanded.has(id));
+
+// Folds / unfolds a node. While the quick search filters the tree, only the temporary fold state of the search changes.
+function setNodeOpen(id, open) {
+  if (searchShown) {
+    if (open) searchCollapsed.delete(id); else searchCollapsed.add(id);
+  } else {
+    if (open) expanded.add(id); else expanded.delete(id);
+    saveExpanded();
+  }
+  render();
+}
 
 // Les messages d'erreur du backend sont des clés de traduction.
 const errorText = error => t(String(error?.message ?? error));
@@ -99,8 +132,8 @@ function renderNode(node, depth, parent) {
   li.dataset.albumId = String(node.id);
   li.style.paddingLeft = `${10 + depth * 16}px`;
   li.title = kindLabel(node.kind);
-  const hasChildren = nodes.some(child => child.parent_id === node.id);
-  const isOpen = expanded.has(node.id);
+  const hasChildren = visibleChildren(node.id).length > 0;
+  const isOpen = isNodeOpen(node.id);
   const toggle = document.createElement('button');
   toggle.type = 'button';
   toggle.className = 'folder-tree-toggle';
@@ -108,9 +141,7 @@ function renderNode(node, depth, parent) {
   toggle.setAttribute('aria-label', t(isOpen ? 'Collapse folder' : 'Expand folder'));
   toggle.addEventListener('click', event => {
     event.stopPropagation();
-    if (isOpen) expanded.delete(node.id); else expanded.add(node.id);
-    saveExpanded();
-    render();
+    setNodeOpen(node.id, !isOpen);
   });
   // Pas de glisser démarré depuis le chevron.
   toggle.addEventListener('pointerdown', event => event.stopPropagation());
@@ -152,19 +183,20 @@ function renderNode(node, depth, parent) {
   li.addEventListener('contextmenu', event => openNodeMenu(event, node));
   li.addEventListener('pointerdown', event => startDrag(event, node));
   parent.append(li);
-  if (isOpen) for (const child of childrenOf(node.id)) renderNode(child, depth + 1, parent);
+  if (isOpen) for (const child of visibleChildren(node.id)) renderNode(child, depth + 1, parent);
 }
 
 function render() {
+  searchShown = computeSearchShown();
   const element = list();
   if (!element) return;
   element.replaceChildren();
-  const roots = childrenOf(0);
+  const roots = visibleChildren(0);
   for (const root of roots) renderNode(root, 0, element);
   if (!roots.length) {
     const empty = document.createElement('li');
     empty.className = 'albums-empty';
-    empty.textContent = t('No album yet. Right-click here to create one.');
+    empty.textContent = t(searchShown ? 'No matching album' : 'No album yet. Right-click here to create one.');
     element.append(empty);
   }
 }
@@ -216,9 +248,7 @@ async function selectAlbum(id) {
   const node = nodeById(id);
   if (!node) return;
   if (node.kind === KIND_FOLDER) {
-    if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
-    saveExpanded();
-    render();
+    setNodeOpen(id, !isNodeOpen(id));
     return;
   }
   // Quitter un album intelligent modifié pour un autre : Enregistrer / Abandonner / Annuler.
@@ -714,6 +744,22 @@ function applyCollapsed() {
 export function initAlbumsPanel(options) {
   host = options;
   document.getElementById('albums-add').addEventListener('click', openAddMenu);
+  // Quick search: filters the tree live (see render). Once the filter is gone (field closed or emptied), the tree is back to its real fold state, with the
+  // ancestors of the open album unfolded and the album scrolled into view if needed.
+  initSidebarSearch({
+    name: 'albums',
+    onChange: (query, previous) => {
+      searchQuery = query;
+      searchCollapsed.clear();
+      const filterEnded = !query && Boolean(previous);
+      if (filterEnded && selectedId) {
+        for (let parent = nodeById(nodeById(selectedId)?.parent_id), guard = 0; parent && guard < 10000; parent = nodeById(parent.parent_id), guard++) expanded.add(parent.id);
+        saveExpanded();
+      }
+      render();
+      if (filterEnded) list()?.querySelector('.album-item.active')?.scrollIntoView({ block: 'nearest' });
+    },
+  });
   // Paramètres : confirmation avant d'écraser les filtres d'un album intelligent. La case reflète le réglage, que « Ne plus afficher » (dans la
   // confirmation) peut avoir changé depuis : elle est relue à l'ouverture des Paramètres.
   const warningToggle = document.getElementById('album-overwrite-warning-toggle');

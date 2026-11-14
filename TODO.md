@@ -8,12 +8,14 @@
 - [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
 - [x] *feat*: `infos` add folder in infos when all photos is selected
 - [x] *feat*: `tree` reorder root folders
-- [ ] *feat*: `tree` add folder search
+- [x] *feat*: `tree` add folder & albums search in left panel
+- [ ] *feat*: `persons` add people search in left panel
+- [ ] *fix*: `persons` when hiding a person, also hide it from "People" section in the left bar. don't remove it from the filter search field
 - [ ] *feat*: `keywords` add keyword search
 - [x] *fix*: `faces` cannot pass faces from filtered to unknown
 - [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
 - [x] *feat*: `keywords` write keywords when typing enter in empty keyword input field
-- [ ] *fix*: `keywords` keywords fail dialog shows No/Retry/Show: "No" is unclear
+- [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear
 - [x] *feat*: `infos` add folder info in album photos too
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
 - [x] *feat*: `files` retain and offer last folder for resize and copy actions
@@ -22,6 +24,7 @@
 - [x] *feat*: `grid` scrollbar should give a date / filename indication
 - [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
 - [x] *feat*: `tree` sticky folders in tree
+- [ ] *style*: `UI` bigger star ratings in thumbnails
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -29,6 +32,13 @@
 - [ ] *feat*: `tasks` task to popup action to see progress
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [ ] *fix*: add "scan for new items" ? big folders, when do they see new elements
+- [ ] *feat*: `files` batch renaming
+- [ ] *feat*: `files` sd card import
+- [ ] *feat*: `viewing` instant zoom
+- [ ] *feat*: conditional clickable path line (breadcrumb) on top when left panel is closed
+- [ ] *feat*: `metadata` copyright and creator writing
+- [ ] *feat*: `metadata` lens metadata writing
+- [ ] feat: `metadata` exif time shift
 
 ## ⚖️ Undecided
 

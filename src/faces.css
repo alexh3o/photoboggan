@@ -9,7 +9,27 @@
 .sidebar-block-toggle:hover { background: transparent; color: var(--text-muted); }
 .sidebar-block-chevron { width: 0.7rem; font-size: 0.7rem; }
 .sidebar-block-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.sidebar-block-header .sidebar-block-title { margin-bottom: 0; }
+.sidebar-block-header .sidebar-block-title { margin-bottom: 0; margin-right: auto; } /* the tools (search, "+", sort) stay at the right whatever their number */
+/* Dossiers : le titre est dans un en-tête comme celui des Albums (la loupe de recherche y est posée), qui garde la place de l'ancien titre seul */
+#folders-header { flex: 0 0 auto; margin-bottom: 0.25rem; }
+
+/* Outils discrets de la ligne de titre d'un bloc (loupe de recherche, "+" des Albums) : même cadre, mêmes dimensions et même survol ; invisibles tant que
+   la ligne n'est pas survolée, sauf au focus clavier (ils restent dans l'ordre de tabulation). */
+.sidebar-block-tool { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 1.5rem; min-height: 1.5rem; padding: 0; border: 1px solid var(--separator); border-radius: 4px; background: transparent; color: var(--text-dim); font-size: 1rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+.sidebar-block-tool[hidden] { display: none; }
+.sidebar-block-header:hover .sidebar-block-tool, .sidebar-block-tool:focus-visible { opacity: 1; }
+.sidebar-block-tool:hover, .sidebar-block-tool:focus-visible { background: var(--control-bg); color: var(--text-strong); outline: none; }
+
+/* Recherche rapide (sidebar-search.js) : le champ s'étend à gauche des outils, entre le titre et eux, sans jamais passer sur le titre (min-width: 0).
+   La croix à son extrémité droite ferme la recherche. */
+.sidebar-search { position: relative; flex: 1 1 0; min-width: 0; transform-origin: right center; animation: sidebar-search-open 0.12s ease-out; }
+.sidebar-search[hidden] { display: none; }
+@keyframes sidebar-search-open { from { opacity: 0; transform: scaleX(0.4); } to { opacity: 1; transform: none; } }
+.sidebar-search-input { width: 100%; min-height: 1.5rem; padding: 0 1.5rem 0 0.5rem; border: 1px solid var(--control-border); border-radius: 4px; background: var(--control-bg); color: var(--text-strong); font-size: var(--side-row-size); user-select: text; }
+.sidebar-search-input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.sidebar-search-clear { position: absolute; top: 0; right: 0; width: 1.5rem; height: 100%; padding: 0; border: 0; border-radius: 0 4px 4px 0; background: transparent; color: var(--text-dim); font-size: 1rem; line-height: 1; }
+.sidebar-search-clear:hover, .sidebar-search-clear:focus-visible { background: transparent; color: var(--text-strong); }
+.sidebar-search-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* Section Personnes */
 .persons-section { display: flex; flex: 0 1 auto; flex-direction: column; min-height: 7rem; margin-top: var(--side-block-gap); padding-top: 0.75rem; border-top: 1px solid var(--separator); }
