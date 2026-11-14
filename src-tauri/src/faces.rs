@@ -647,10 +647,14 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
     let mut covers: HashMap<i64, (bool, f64, FaceCover)> = HashMap::new();
     {
         let mut statement = conn
-            .prepare(
+            .prepare(&format!(
+                // Photos and people hidden by the active privacy sets are left out (privacy.rs).
                 "SELECT f.person_id, f.photo_id, p.path, f.x, f.y, f.w, f.h, p.orientation, f.id = pr.cover_face_id, f.id
-                 FROM faces f JOIN photos p ON p.id = f.photo_id JOIN persons pr ON pr.id = f.person_id",
-            )
+                 FROM faces f JOIN photos p ON p.id = f.photo_id JOIN persons pr ON pr.id = f.person_id
+                 WHERE {} AND {}",
+                crate::privacy::visible_condition("p."),
+                crate::privacy::visible_person_condition("f.person_id")
+            ))
             .map_err(|error| error.to_string())?;
         let rows = statement
             .query_map([], |row| {
@@ -693,6 +697,14 @@ pub fn get_persons(state: State<'_, AppState>) -> Result<Vec<PersonInfo>, String
             PersonInfo { id, name, keyword_id, photo_count, cover: covers.remove(&id).map(|(_, _, cover)| cover), hidden, alias }
         })
         .collect();
+    // People whose linked keyword is hidden by the active privacy sets leave the People view, even when they have no photo left to count.
+    let mut hidden: HashSet<i64> = HashSet::new();
+    if let Some(sql) = crate::privacy::hidden_persons_sql() {
+        let mut statement = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        let rows = statement.query_map([], |row| row.get::<_, i64>(0)).map_err(|error| error.to_string())?;
+        for row in rows { hidden.insert(row.map_err(|error| error.to_string())?); }
+    }
+    let persons: Vec<PersonInfo> = persons.into_iter().filter(|person| !hidden.contains(&person.id)).collect();
     Ok(persons)
 }
 
@@ -702,7 +714,11 @@ pub fn get_face_index(state: State<'_, AppState>) -> Result<Vec<(i64, i64)>, Str
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let mut statement = conn
-        .prepare("SELECT DISTINCT photo_id, person_id FROM faces WHERE person_id IS NOT NULL")
+        .prepare(&format!(
+            "SELECT DISTINCT photo_id, person_id FROM faces WHERE person_id IS NOT NULL AND photo_id IN (SELECT id FROM photos WHERE {}) AND {}",
+            crate::privacy::visible_condition(""),
+            crate::privacy::visible_person_condition("person_id")
+        ))
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
@@ -719,7 +735,10 @@ pub fn get_face_counts(state: State<'_, AppState>) -> Result<Vec<(i64, i64)>, St
     let pool = state.pool();
     let conn = pool.get().map_err(|error| error.to_string())?;
     let mut statement = conn
-        .prepare("SELECT photo_id, COUNT(*) FROM faces WHERE state NOT IN ('filtered', 'not_face') GROUP BY photo_id")
+        .prepare(&format!(
+            "SELECT photo_id, COUNT(*) FROM faces WHERE state NOT IN ('filtered', 'not_face') AND photo_id IN (SELECT id FROM photos WHERE {}) GROUP BY photo_id",
+            crate::privacy::visible_condition("")
+        ))
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))

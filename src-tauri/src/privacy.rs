@@ -178,6 +178,28 @@ pub fn visible_condition(prefix: &str) -> String {
     }
 }
 
+/// SQL des identifiants des personnes masquées : celles dont le mot-clé lié (`persons.keyword_node_id`) est un mot-clé de l'ensemble actif.
+/// None si aucun mot-clé n'est masqué.
+pub fn hidden_persons_sql() -> Option<String> {
+    let keys = read_active().map(|set| keyword_keys(&set)).unwrap_or_default();
+    if keys.is_empty() {
+        return None;
+    }
+    let list: Vec<String> = keys.iter().map(|key| quote(key)).collect();
+    Some(format!(
+        "SELECT id FROM persons WHERE keyword_node_id IN (SELECT id FROM keyword_nodes WHERE name_key IN ({}))",
+        list.join(", ")
+    ))
+}
+
+/// Condition SQL « `column` (identifiant de personne) n'est pas une personne masquée » ; vaut « 1 » si aucune ne l'est.
+pub fn visible_person_condition(column: &str) -> String {
+    match hidden_persons_sql() {
+        Some(sql) => format!("COALESCE({column} NOT IN ({sql}), 1)"),
+        None => "1".to_string(),
+    }
+}
+
 /// Le dossier (chemin du disque) est-il masqué par un critère de CHEMIN de l'ensemble actif ? Les dossiers dont toutes les photos sont masquées
 /// par un mot-clé ou une date ne sont pas concernés : ils disparaissent de l'arbre parce qu'ils n'ont plus de photo, ou y restent en style
 /// « dossier vide » si « Afficher les dossiers vides » est coché.

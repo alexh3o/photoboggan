@@ -574,6 +574,15 @@ pub(crate) fn load_candidates(conn: &Connection, scope: &Scope, compare_with_lib
         candidates.extend(all.into_iter().filter(|candidate| !scoped_ids.contains(&candidate.id)));
     }
     candidates.retain(|candidate| !VIDEO_EXTENSIONS.contains(&extension_of(Path::new(&candidate.path)).as_str()));
+    // Photos hidden by the active privacy sets are never compared, so no group can reveal them (identical, similar and by-name searches share this list).
+    let visible_sql = crate::privacy::visible_condition("");
+    if visible_sql != "1" {
+        let visible: HashSet<i64> = conn
+            .prepare(&format!("SELECT id FROM photos WHERE {visible_sql}")).map_err(|e| e.to_string())?
+            .query_map([], |row| row.get(0)).map_err(|e| e.to_string())?
+            .collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())?;
+        candidates.retain(|candidate| visible.contains(&candidate.id));
+    }
     Ok(candidates)
 }
 
