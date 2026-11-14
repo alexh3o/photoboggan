@@ -76,17 +76,23 @@ fn row_to_node(row: &rusqlite::Row<'_>) -> rusqlite::Result<AlbumNode> {
     Ok(AlbumNode { id: row.get(0)?, parent_id: row.get(1)?, kind: row.get(2)?, name: row.get(3)?, filters: row.get(4)?, count: row.get(5)? })
 }
 
-const NODE_SELECT: &str = "SELECT n.id, n.parent_id, n.kind, n.name, n.filters,
-    CASE n.kind WHEN 'manual' THEN (SELECT COUNT(*) FROM album_photos p WHERE p.album_id = n.id) END
-    FROM album_nodes n";
+/// Requête des nœuds. Le compteur d'un album manuel ne compte pas les photos masquées par l'ensemble de confidentialité actif (privacy.rs).
+fn node_select() -> String {
+    format!(
+        "SELECT n.id, n.parent_id, n.kind, n.name, n.filters,
+    CASE n.kind WHEN 'manual' THEN (SELECT COUNT(*) FROM album_photos p WHERE p.album_id = n.id AND p.photo_id IN (SELECT id FROM photos WHERE {})) END
+    FROM album_nodes n",
+        crate::privacy::visible_condition("")
+    )
+}
 
 /// Tous les nœuds, à plat (l'interface reconstruit l'arbre d'après `parent_id`).
 pub fn list_nodes(conn: &Connection) -> rusqlite::Result<Vec<AlbumNode>> {
-    conn.prepare(&format!("{NODE_SELECT} ORDER BY n.id"))?.query_map([], row_to_node)?.collect()
+    conn.prepare(&format!("{} ORDER BY n.id", node_select()))?.query_map([], row_to_node)?.collect()
 }
 
 fn get_node(conn: &Connection, id: i64) -> Result<AlbumNode, String> {
-    conn.query_row(&format!("{NODE_SELECT} WHERE n.id = ?1"), params![id], row_to_node)
+    conn.query_row(&format!("{} WHERE n.id = ?1", node_select()), params![id], row_to_node)
         .optional().map_err(|e| e.to_string())?
         .ok_or_else(|| "Album not found".to_string())
 }
@@ -291,8 +297,9 @@ pub fn replace_photos(conn: &Connection, album_id: i64, photo_ids: &[i64]) -> Re
 pub fn album_photos(conn: &Connection, album_id: i64) -> Result<Vec<crate::db::Photo>, String> {
     require_manual(conn, album_id)?;
     let mut statement = conn.prepare(&format!(
-        "SELECT {} FROM photos WHERE id IN (SELECT photo_id FROM album_photos WHERE album_id = ?1) ORDER BY date_taken DESC, id DESC",
-        crate::db::PHOTO_COLUMNS
+        "SELECT {} FROM photos WHERE id IN (SELECT photo_id FROM album_photos WHERE album_id = ?1) AND ({}) ORDER BY date_taken DESC, id DESC",
+        crate::db::PHOTO_COLUMNS,
+        crate::privacy::visible_condition("")
     )).map_err(|e| e.to_string())?;
     let rows = statement.query_map(params![album_id], crate::db::photo_from_row).map_err(|e| e.to_string())?;
     rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
@@ -352,7 +359,11 @@ pub fn set_album_filters(state: State<'_, AppState>, id: i64, filters: String) -
 
 /// Appartenances (album, photo) de tous les albums manuels : l'interface en tire les compteurs des albums intelligents et des dossiers virtuels.
 pub fn memberships(conn: &Connection) -> Result<Vec<(i64, i64)>, String> {
-    let mut statement = conn.prepare("SELECT album_id, photo_id FROM album_photos").map_err(|e| e.to_string())?;
+    // Les appartenances de photos masquées par l'ensemble de confidentialité actif ne sont pas envoyées (compteurs des albums intelligents compris).
+    let mut statement = conn.prepare(&format!(
+        "SELECT album_id, photo_id FROM album_photos WHERE photo_id IN (SELECT id FROM photos WHERE {})",
+        crate::privacy::visible_condition("")
+    )).map_err(|e| e.to_string())?;
     let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).map_err(|e| e.to_string())?;
     rows.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
 }

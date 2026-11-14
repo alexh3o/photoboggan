@@ -15,6 +15,7 @@ mod semantic_search;
 mod semantic_keywords;
 mod phash;
 mod place_search;
+mod privacy;
 mod similar;
 mod update_check;
 mod private_maps;
@@ -2868,6 +2869,8 @@ fn main() {
             geolocation::erase_geolocation,
             geolocation::restore_geolocation,
             place_search::search_places,
+            privacy::set_privacy_set,
+            privacy::get_privacy_hidden_keywords,
             update_check::check_for_update,
             update_check::download_update,
             update_check::install_update,
