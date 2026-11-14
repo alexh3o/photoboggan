@@ -4,6 +4,7 @@
 
 - [ ] *feat*: `search` private folders to optionally exclude from searches (similar x2, semantic search, keywords)
 - [x] *feat*: `grid` implement pages for 50k+ views
+- [ ] *fix*: `grid` pagination disappears when setting filters, while filters give incomplete results because of 50k limit
 - [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
 - [x] *feat*: `infos` add folder in infos when all photos is selected
 - [x] *feat*: `tree` reorder root folders
@@ -20,7 +21,7 @@
 - [x] *refactor*: `grid` stay on the current photo when undoing filters
 - [x] *feat*: `grid` scrollbar should give a date / filename indication
 - [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
-- [ ] *feat*: `tree` sticky folders in tree
+- [x] *feat*: `tree` sticky folders in tree
 
 ## 💡 Ideas / Longer term / On hold
 
