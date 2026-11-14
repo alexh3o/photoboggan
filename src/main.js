@@ -2075,7 +2075,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
   if (!fromCounts) scheduleFolderCounts(); // photos may have changed (scan, move, deletion…): re-read the catalogue folders
 
   const allItem = document.createElement('li');
-  allItem.className = `folder-tree-item ${currentFolderFilter === null && !getSelectedAlbum() ? 'active' : ''}`;
+  allItem.className = `folder-tree-item folder-tree-pinned ${currentFolderFilter === null && !getSelectedAlbum() ? 'active' : ''}`;
   allItem.dataset.allPhotos = '1'; // read by the context menu (photo-actions.js)
   allItem.innerHTML = `<span>📚</span> <span class="folder-tree-name">${t('All photos')}</span>`;
   if (showFolderCounts) allItem.append(folderCountElement(folderCountsTotal, 'in this folder'));
@@ -2422,12 +2422,13 @@ function updateStickyFolders() {
   }
   const { rows, depths, parents, ends } = index;
   const { pitch, maxSlots } = stickyFolderMetrics(rows[0]);
+  stickyFolderLayer.style.top = `${pitch}px`; // the pinned ancestors sit right under the "All photos" row, which is itself pinned (.folder-tree-pinned)
   const lastRow = rows[rows.length - 1];
   const pinned = maxSlots < 1 ? [] : pinnedFolderRows({
     depths, parents, ends, pitch, maxSlots,
     topOf: position => rows[position].offsetTop,
     listEnd: lastRow.offsetTop + pitch,
-    scrollTop: folderTree.scrollTop,
+    scrollTop: folderTree.scrollTop + pitch, // slots start under the pinned "All photos" row
   });
   const copies = pinned.map(({ index: rowIndex, slot, pushed }, position) => {
     let copy = stickyFolderCopies.get(rowIndex);
@@ -2475,7 +2476,7 @@ function indexStickyFolders() {
 function revealFolderRow(row) {
   if (!row) return;
   const { pitch, maxSlots } = stickyFolderMetrics(stickyFolderIndex?.rows[0] ?? row);
-  folderTree.style.scrollPaddingTop = `${Math.min(Number(row.dataset.folderDepth) || 0, maxSlots) * pitch}px`;
+  folderTree.style.scrollPaddingTop = `${(Math.min(Number(row.dataset.folderDepth) || 0, maxSlots) + 1) * pitch}px`;
   row.scrollIntoView({ block: 'nearest' });
   folderTree.style.scrollPaddingTop = '';
 }
