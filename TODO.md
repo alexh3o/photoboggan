@@ -4,7 +4,6 @@
 
 - [ ] *feat*: `search` private folders to optionally exclude from searches (similar x2, semantic search, keywords)
 - [x] *feat*: `grid` implement pages for 50k+ views
-- [ ] *fix*: `grid` pagination disappears when setting filters, while filters give incomplete results because of 50k limit
 - [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
 - [x] *feat*: `infos` add folder in infos when all photos is selected
 - [x] *feat*: `tree` reorder root folders
@@ -31,7 +30,6 @@
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
-- [ ] *feat*: `tasks` task to popup action to see progress
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [ ] *fix*: add "scan for new items" ? big folders, when do they see new elements
 - [ ] *feat*: `files` batch renaming
