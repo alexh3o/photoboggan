@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1409 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 82 |  |
+| `TODO.md` | 80 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -63,7 +63,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `files.md` | 294 |  |
 | `ipc-commands.md` | 179 |  |
 | `module-deps.md` | 96 |  |
-| `symbols-js.md` | 1434 |  |
+| `symbols-js.md` | 1435 |  |
 | `symbols-rust.md` | 1309 |  |
 | `tests.md` | 449 |  |
 
