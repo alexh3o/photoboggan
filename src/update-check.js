@@ -9,8 +9,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { t, onLanguageChange } from './i18n.js';
-import { readBool } from './settings-defaults.js';
+import { t, onLanguageChange, formatMegabytes } from './i18n.js';
+import { readBool, readStored, writeStored, isOffline } from './settings-defaults.js';
 
 const KEY_ENABLED = 'checkUpdates';
 const KEY_PRERELEASES = 'includePrereleases';
@@ -23,17 +23,14 @@ const STARTUP_DELAY_MS = 3000; // laisse le temps à l'interface d'envoyer le r�
 const RELEASE_URL_PREFIX = 'https://github.com/';
 const MAX_NOTES_LENGTH = 8000;
 
-const read = key => { try { return localStorage.getItem(key); } catch { return null; } };
-const write = (key, value) => { try { localStorage.setItem(key, value); } catch { /* réglage non mémorisé */ } };
 const remove = key => { try { localStorage.removeItem(key); } catch { /* rien à retirer */ } };
 
-const isOffline = () => readBool('offlineMode');
 // Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
 const isEnabled = () => readBool(KEY_ENABLED);
 const includesPrereleases = () => readBool(KEY_PRERELEASES);
 
 function savedInfo() {
-  try { return JSON.parse(read(KEY_INFO)); } catch { return null; }
+  try { return JSON.parse(readStored(KEY_INFO)); } catch { return null; }
 }
 
 let currentVersion = '';
@@ -116,11 +113,6 @@ function renderNotes(container, markdown) {
     empty.textContent = t('No release notes.');
     container.append(empty);
   }
-}
-
-function formatMegabytes(bytes) {
-  const megabytes = bytes / 1e6;
-  return t('{size} MB', { size: megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes) });
 }
 
 // Codes d'erreur du backend (update_check.rs) traduits ; les autres messages sont affichés tels quels.
@@ -235,8 +227,8 @@ async function runCheck({ announce = null } = {}) {
   render();
   try {
     info = await invoke('check_for_update', { includePrereleases: includesPrereleases() });
-    write(KEY_INFO, JSON.stringify(info));
-    write(KEY_LAST_CHECK, String(Date.now()));
+    writeStored(KEY_INFO, JSON.stringify(info));
+    writeStored(KEY_LAST_CHECK, Date.now());
   } catch (error) {
     console.error('Update check failed', error);
     lastError = announce !== null; // au démarrage, un échec reste silencieux
@@ -247,7 +239,7 @@ async function runCheck({ announce = null } = {}) {
   if (!info?.update_available || lastError) return;
   if (announce === 'dialog') {
     openDialog();
-  } else if (announce === 'toast' && read(KEY_IGNORED) !== info.latest) {
+  } else if (announce === 'toast' && readStored(KEY_IGNORED) !== info.latest) {
     showToast(t('Version {latest} is available', { latest: info.latest }), { label: t('Details'), onClick: openDialog });
   }
 }
@@ -284,7 +276,7 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
   onLanguageChange(render); // textes construits en JavaScript : refaits dans la nouvelle langue
 
   toggle.addEventListener('change', () => {
-    write(KEY_ENABLED, String(toggle.checked));
+    writeStored(KEY_ENABLED, toggle.checked);
     if (toggle.checked) {
       forgetResult();
       runCheck();
@@ -292,7 +284,7 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
     render();
   });
   preToggle.addEventListener('change', () => {
-    write(KEY_PRERELEASES, String(preToggle.checked));
+    writeStored(KEY_PRERELEASES, preToggle.checked);
     forgetResult(); // le choix de la version proposée dépend de ce réglage
     runCheck();
     render();
@@ -303,7 +295,7 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
   document.getElementById('btn-update-download').addEventListener('click', onDownloadButton);
   document.getElementById('btn-update-github').addEventListener('click', openReleasePage);
   document.getElementById('btn-update-ignore').addEventListener('click', () => {
-    if (info) write(KEY_IGNORED, info.latest);
+    if (info) writeStored(KEY_IGNORED, info.latest);
     closeDialog();
   });
   document.getElementById('btn-update-close').addEventListener('click', closeDialog);
@@ -317,7 +309,7 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
   }, true);
 
   // Vérification au démarrage : au plus une fois par jour, en arrière-plan.
-  if (isActive() && Date.now() - Number(read(KEY_LAST_CHECK) || 0) > CHECK_INTERVAL_MS) {
+  if (isActive() && Date.now() - Number(readStored(KEY_LAST_CHECK) || 0) > CHECK_INTERVAL_MS) {
     setTimeout(() => runCheck({ announce: 'toast' }), STARTUP_DELAY_MS);
   }
 }

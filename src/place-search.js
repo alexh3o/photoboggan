@@ -3,10 +3,9 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp } from './i18n.js';
+import { isOffline } from './settings-defaults.js';
 
 let form, input, results, host;
-
-const isOffline = () => { try { return localStorage.getItem('offlineMode') === 'true'; } catch { return false; } };
 
 function clearResults() {
   results.replaceChildren();

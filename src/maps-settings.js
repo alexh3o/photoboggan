@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { t } from './i18n.js';
-import { readBool } from './settings-defaults.js';
+import { readBool, isOffline, writeStored } from './settings-defaults.js';
 import { reloadAllMaps } from './map-view.js';
 
 const REFRESH_STORAGE_KEY = 'mapStyleRefresh';
@@ -45,8 +45,6 @@ export function isMapStyleRefreshEnabled() {
   return readBool(REFRESH_STORAGE_KEY);
 }
 
-const isOffline = () => readBool('offlineMode');
-
 /** `showToast(message)` vient de main.js. */
 export function initMapsSettings({ showToast }) {
   const refreshToggle = document.getElementById('map-style-refresh-toggle');
@@ -56,7 +54,7 @@ export function initMapsSettings({ showToast }) {
 
   refreshToggle.checked = isMapStyleRefreshEnabled();
   refreshToggle.addEventListener('change', () => {
-    try { localStorage.setItem(REFRESH_STORAGE_KEY, String(refreshToggle.checked)); } catch { /* réglage non mémorisé */ }
+    writeStored(REFRESH_STORAGE_KEY, refreshToggle.checked);
   });
 
   // « Internet nécessaire » sous la case de la carte quand le mode hors ligne est activé.

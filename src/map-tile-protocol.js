@@ -13,6 +13,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { PROVIDER_STYLE_URL, PROVIDER_TILEJSON_URL, PROVIDER_FONT_URL, MAP_ATTRIBUTION, OFFLINE_PLACEHOLDER, isMapNetworkAllowed } from './map-config.js';
+import { isOffline } from './settings-defaults.js';
 
 export const MAP_PROTOCOL = 'pbmap';
 const URL_PATTERN = /^pbmap:\/\/(\d+)\/(style|tiles|sprite|fonts)\/(.+)$/;
@@ -47,8 +48,6 @@ const placeholderLayer = () => ({
   id: 'offline-placeholder', type: 'fill', source: 'openmaptiles', 'source-layer': OFFLINE_PLACEHOLDER.layer,
   paint: { 'fill-pattern': OFFLINE_PLACEHOLDER.image },
 });
-
-const isOffline = () => { try { return localStorage.getItem('offlineMode') === 'true'; } catch { return false; } };
 
 /** Enregistre le protocole auprès de MapLibre (une seule fois). */
 export function registerMapProtocol(library) {

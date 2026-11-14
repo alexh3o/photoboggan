@@ -1,7 +1,7 @@
 // Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES").
 // The backend (duplicates.rs) returns groups of paths; here a group is { id, members: [photo], bytes, firstPath }.
 import './duplicates.css';
-import { t, getLanguage } from './i18n.js';
+import { t } from './i18n.js';
 
 /** Ways to order the groups: most images first, largest total size first, or by path. */
 export const GROUP_SORT_MODES = ['count', 'size', 'path'];
@@ -13,12 +13,8 @@ export function normalizeGroupSort(value) {
   return GROUP_SORT_MODES.includes(value) ? value : 'count';
 }
 
-/** "1,204.5 MB" / "320 KB", with the units of the interface language. */
-export function formatBytes(bytes) {
-  const format = (value, unit) => `${new Intl.NumberFormat(getLanguage(), { maximumFractionDigits: 1 }).format(value)} ${unit}`;
-  if (bytes < 1024 * 1024) return format(Math.max(bytes, 1) / 1024, t('KB'));
-  return format(bytes / 1024 / 1024, t('MB unit'));
-}
+// Size formatting lives in i18n.js; re-exported here for the modules that already import it from this file.
+export { formatBytes } from './i18n.js';
 
 // How the best copy of a group is chosen. Saved at once whenever it changes in the "Best copy" panel, and used by every later search.
 //  - A text looked for in the full path (any part of it, any case, / or \ alike), preferred or to avoid: applied first, outside the list. For instance

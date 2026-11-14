@@ -5,8 +5,8 @@
 import './semantic.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { t, tp, onLanguageChange } from './i18n.js';
-import { readBool, readChoice } from './settings-defaults.js';
+import { t, tp, onLanguageChange, formatMegabytes } from './i18n.js';
+import { readBool, readChoice, isOffline, writeStored } from './settings-defaults.js';
 import { confirmDialog } from './photo-actions.js';
 import { choiceDialog } from './metadata-writes.js';
 import { initExcludedKeywordsSetting } from './semantic-exclusions.js';
@@ -100,13 +100,7 @@ async function sendEnabled() {
 // ==========================================
 // SETTINGS SECTION
 // ==========================================
-const isOffline = () => readBool('offlineMode');
 const byId = id => document.getElementById(id);
-
-function formatMegabytes(bytes) {
-  const megabytes = bytes / 1e6;
-  return t('{size} MB', { size: megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes) });
-}
 
 // Model line: status, Download (greyed in offline mode) / Import buttons, and the list of files to fetch by hand.
 function renderModelStatus() {
@@ -320,7 +314,7 @@ async function setEnabled(wanted) {
     }
   }
   enabled = wanted;
-  try { localStorage.setItem(ENABLED_STORAGE_KEY, String(enabled)); } catch { /* storage unavailable: setting not remembered */ }
+  writeStored(ENABLED_STORAGE_KEY, enabled);
   await sendEnabled();
   lastStats = null;
   await refreshModelStatus();
@@ -332,7 +326,7 @@ function bindCheckbox(id, key) {
   const input = byId(id);
   input.checked = readBool(key);
   input.addEventListener('change', () => {
-    try { localStorage.setItem(key, String(input.checked)); } catch { /* storage unavailable: setting not remembered */ }
+    writeStored(key, input.checked);
   });
 }
 
@@ -412,7 +406,7 @@ export async function initSemanticSettings(hostApi) {
   const threads = byId('semantic-threads');
   threads.value = String(semanticScanThreads());
   threads.addEventListener('change', () => {
-    try { localStorage.setItem('semanticScanThreads', threads.value); } catch { /* storage unavailable: setting not remembered */ }
+    writeStored('semanticScanThreads', threads.value);
   });
   byId('btn-semantic-model-download').addEventListener('click', downloadModel);
   byId('btn-semantic-model-import').addEventListener('click', importModel);

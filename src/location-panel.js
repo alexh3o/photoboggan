@@ -8,7 +8,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { t, tp, onLanguageChange } from './i18n.js';
-import { readBool } from './settings-defaults.js';
+import { readBool, isOffline, writeStored } from './settings-defaults.js';
 import { createMapView } from './map-view.js';
 import { MAP_MAX_POINTS, MAP_MAX_ZOOM, defaultMapZoom } from './map-config.js';
 import { locatePrivatePoints, onZonesChange } from './private-zones.js';
@@ -17,14 +17,6 @@ import { openPrivateZonesModal, offerPrivateZonesWelcome } from './private-zones
 
 const SHOW_MAP_STORAGE_KEY = 'showMap';
 const MAP_UPDATE_DELAY_MS = 150; // navigation rapide au clavier : seule la dernière photo est cadrée
-
-function readStorage(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-
-function isOffline() {
-  return readBool('offlineMode');
-}
 
 function isMapEnabled() {
   return readBool(SHOW_MAP_STORAGE_KEY);
@@ -222,21 +214,21 @@ export function initLocationPanel(options = {}) {
   const zoomSelect = document.getElementById('map-default-zoom');
   zoomSelect.value = String(defaultMapZoom());
   zoomSelect.addEventListener('change', () => {
-    try { localStorage.setItem('mapDefaultZoom', zoomSelect.value); } catch { /* réglage non mémorisé */ }
+    writeStored('mapDefaultZoom', zoomSelect.value);
     onMapAccessChanged();
   });
 
   const widgetToggle = document.getElementById('info-map-widget-toggle');
   widgetToggle.checked = isWidgetEnabled();
   widgetToggle.addEventListener('change', () => {
-    try { localStorage.setItem(WIDGET_STORAGE_KEY, String(widgetToggle.checked)); } catch { /* réglage non mémorisé */ }
+    writeStored(WIDGET_STORAGE_KEY, widgetToggle.checked);
     onMapAccessChanged();
   });
 
   const toggle = document.getElementById('show-map-toggle');
   toggle.checked = isMapEnabled();
   toggle.addEventListener('change', () => {
-    try { localStorage.setItem(SHOW_MAP_STORAGE_KEY, String(toggle.checked)); } catch { /* réglage non mémorisé */ }
+    writeStored(SHOW_MAP_STORAGE_KEY, toggle.checked);
     onMapAccessChanged();
     if (toggle.checked) offerPrivateZonesWelcome();
   });

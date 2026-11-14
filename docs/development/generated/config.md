@@ -42,7 +42,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `markingPlacement` | `"hybrid"` | main.js |
 | `metadataWriter` | `"exiftool"` | metadata-settings.js |
 | `minLength` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
-| `offlineMode` | `false` | faces-panel.js, location-panel.js, main.js, map-config.js, map-tile-protocol.js, maps-settings.js, place-search.js, semantic-settings.js, update-check.js |
+| `offlineMode` | `false` | main.js, map-config.js, settings-defaults.js |
 | `pattern` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `pausedScanTasks` | `[]` | main.js |
 | `photoDateSeparator` | `"none"` | main.js |

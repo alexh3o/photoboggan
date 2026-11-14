@@ -123,30 +123,29 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `initKeepPanel()` · L258
 - `export initDuplicatesModal()` · L291
 
-## src/duplicates.js (22)
+## src/duplicates.js (21)
 
 - `export normalizeGroupSort(value)` · L12
-- `export formatBytes(bytes)` · L17 — "1,204.5 MB" / "320 KB", with the units of the interface language.
-- `export getKeepSettings()` · L39
-- `export saveKeepSettings(settings)` · L55
-- `export describeKeepOrder(settings)` · L60 — "Path containing "originals" preferred > Most pixels > Largest file", for tooltips.
-- `normalizePath(path)` · L71
-- `fileName(path)` · L72
-- `pixelCount(photo)` · L73
-- `compareDates(a, b, direction)` · L75 — Dates are "YYYY-MM-DD HH:MM:SS": they compare as text. A missing date always comes last.
-- `keepComparators(settings)` · L82
-- `export sortGroupMembers(members, settings = getKeepSettings()` · L101 — Members of a group, the copy to keep first (see getKeepSettings).
-- `export orderGroups(groups, mode)` · L113 — Groups in display order. Ties always fall back on the path, so the order is stable.
-- `export getSimilarSettings()` · L127
-- `export describeIdenticalSettings(settings)` · L144 — One line for a tooltip: what the quick "identical" entry will do with the saved settings.
-- `export describeSimilarSettings(settings)` · L152 — The same for the "similar" entry.
-- `export describeSearch(kind, settings, { scope, compareWithLibrary })` · L161 — What a search looked for, one criterion per line (tooltip of the results banner).
-- `export similarRequestFields(settings)` · L181 — The fields of the backend request (`find_similar_images`) that come from the settings.
-- `export getIdenticalSettings()` · L197
-- `export saveIdenticalSettings(settings)` · L214
-- `export saveSimilarSettings(settings)` · L218
-- `export mergeGroups(parts)` · L226
-- `export firstPathOf(members)` · L260 — Smallest path of a group, used to order groups by path.
+- `export getKeepSettings()` · L35
+- `export saveKeepSettings(settings)` · L51
+- `export describeKeepOrder(settings)` · L56 — "Path containing "originals" preferred > Most pixels > Largest file", for tooltips.
+- `normalizePath(path)` · L67
+- `fileName(path)` · L68
+- `pixelCount(photo)` · L69
+- `compareDates(a, b, direction)` · L71 — Dates are "YYYY-MM-DD HH:MM:SS": they compare as text. A missing date always comes last.
+- `keepComparators(settings)` · L78
+- `export sortGroupMembers(members, settings = getKeepSettings()` · L97 — Members of a group, the copy to keep first (see getKeepSettings).
+- `export orderGroups(groups, mode)` · L109 — Groups in display order. Ties always fall back on the path, so the order is stable.
+- `export getSimilarSettings()` · L123
+- `export describeIdenticalSettings(settings)` · L140 — One line for a tooltip: what the quick "identical" entry will do with the saved settings.
+- `export describeSimilarSettings(settings)` · L148 — The same for the "similar" entry.
+- `export describeSearch(kind, settings, { scope, compareWithLibrary })` · L157 — What a search looked for, one criterion per line (tooltip of the results banner).
+- `export similarRequestFields(settings)` · L177 — The fields of the backend request (`find_similar_images`) that come from the settings.
+- `export getIdenticalSettings()` · L193
+- `export saveIdenticalSettings(settings)` · L210
+- `export saveSimilarSettings(settings)` · L214
+- `export mergeGroups(parts)` · L222
+- `export firstPathOf(members)` · L256 — Smallest path of a group, used to order groups by path.
 
 ## src/faces-grid.js (61)
 
@@ -212,115 +211,111 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `nameSelection(typed = null)` · L968 — Nommer les visages sélectionnés (fenêtre partagée avec le plein écran : faces-panel.js, promptPersonName). `typed` : premier caractère tapé
 - `export initFacesGrid(hostApi)` · L998 — ==========================================
 
-## src/faces-panel.js (107)
+## src/faces-panel.js (103)
 
 - `loadFaceSettings()` · L72
-- `readStorage(key)` · L86
-- `writeStorage(key, value)` · L90
-- `export orientRect({ x, y, w, h }, orientation)` · L99 — ==========================================
-- `export faceCropStyle(face, orientation, width, height, zoom)` · L114 — Découpe carrée d'un visage dans une miniature de `width` × `height` px, par CSS : la zone (repère de l'image stockée, orientée ici comme la
-- `export hasPersonFilters()` · L130 — ==========================================
-- `hasFaceCountFilter()` · L134
-- `parseFaceBound(value)` · L139 — Integer >= 0 typed in a bound field; empty or anything else = no bound.
-- `export personFilterMatches(photo)` · L144
-- `export setPersonFilterIds(ids, excludedIds = [])` · L161 — Albums intelligents (albums-panel.js, main.js) : personnes du filtre enregistrées dans un album, rétablies à son ouverture (sans relancer le
-- `export photoMatchesPersonIds(photo, ids, excludedIds = [])` · L169 — `excludedIds`: people who must not be on the photo.
-- `export getExcludedPersonFilterIds()` · L177 — Excluded people of the filter (smart albums, main.js).
-- `export clearPersonFilters()` · L182 — Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
-- `export clearPersonSelection()` · L198 — Ouverture des vues Personnes ou de gestion depuis leur bouton de barre d'outils : les personnes choisies (section et filtre Personnes) sont
-- `export getPersons()` · L210 — Personnes connues (vue Visages : suggestions de « Nommer »).
-- `export getPendingFaceWriteCount()` · L222
-- `export personLabel(person)` · L228 — Nom affiché d'une personne (section Personnes, vue Personnes) : son alias s'il est défini, sinon son nom (mot-clé). Le filtre Personnes, les
-- `export getPendingFaceWritePhotoIds()` · L230
-- `export getPersonFilterIds()` · L235 — Personnes choisies (section ou filtre Personnes) : la vue de gestion ne montre que leurs visages.
-- `export eraseFaceData(photoIds)` · L251 — « Effacer les données de visages » d'une sélection : confirmation, puis visages supprimés de la base et zones retirées des fichiers.
-- `export getPersonRoot()` · L272 — Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
-- `setPersonFilters(ids, excluded = excludedPersonFilters)` · L277 — `excluded`: new list of excluded people (unchanged if omitted); a person included again leaves it.
-- `togglePersonFilter(id, additive)` · L286 — Clic sur une personne : filtre sur elle seule (un second clic l'enlève) ; Ctrl + clic : ajoutée au filtre (ou retirée).
-- `setPersonFilterMode(id, exclude)` · L295 — Puts a person in the included or excluded list (and out of the other one), then filters again.
-- `addPersonFilterByName(value, exclude = false)` · L303 — Enter with no suggestion: the typed name, if it is exactly a listed person's.
-- `addPersonFilter(id, exclude)` · L310
-- `personName(id)` · L315
-- `renderPersonFilterTags()` · L320 — Étiquettes des personnes filtrées : boutons à croix quand le groupe est déplié, simples étiquettes derrière le titre quand il est replié.
-- `statusTags()` · L351 — Chips of the face scan status and of the face-count filter, after the people chips on the collapsed line (same violet as the people chips).
-- `faceCountLabel()` · L386 — Chip text: "👤≤3" (maximum only), "👤≥2" (minimum only), "👤=0" (same bound twice), "1≤👤≤4" (both). The text-presentation selector (U+FE0E)
-- `resetFaceCountFilter()` · L394 — Empties the face-count filter and its two fields (the caller renders the chips and filters again).
-- `initFaceCountFilter()` · L404 — The two bound fields: typing filters after a short pause (the list is filtered again each time), leaving the field or Enter at once.
-- `personFilterOptions()` · L428 — People offered by the filter field: listed people not already in the filter, with their photo count. Searched by name and alias.
-- `export refreshFaces()` · L443 — ==========================================
-- `export listedPersons()` · L491 — Personnes sans aucune photo : absentes de la section Personnes et de la liste du filtre.
-- `export getShowHiddenPersons()` · L498
-- `export setShowHiddenPersons(show)` · L502
-- `sortedPersons()` · L509
-- `visiblePersons()` · L515 — People listed in the sidebar: sorted, and only those matching the quick search when it is set (name or alias, without case or accents).
-- `renderPersons()` · L520
-- `avatarKey(cover)` · L571
-- `applyAvatarStyle(element, style)` · L573
-- `export getPersonCover(personId)` · L581 — Vignette ronde : la zone du visage (orientée comme la miniature), élargie et rendue carrée, découpée dans la miniature en cache par CSS.
-- `export fillAvatar(element, cover)` · L586 — Fills a round avatar element with the cover face of a person (same crop as the People section).
-- `loadAvatar(element, cover)` · L591
-- `export openPersonMenu(event, person)` · L616 — Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, fusionner (et annuler les
-- `personCommandError(error, invalidName)` · L659 — Codes d'erreur des commandes de personnes (faces.rs) traduits ; les autres messages sont affichés tels quels. `invalidName` : message du co…
-- `personErrorMessage(error)` · L672
-- `normalizeKeywordPath(path)` · L675 — Chemin de mot-clé comparable : niveaux sans espaces autour, en minuscules, niveaux vides retirés (« A / b/ » = « a/b »).
-- `mergePerson(person)` · L679 — Fusionner : la personne choisie reçoit les visages de `person` (à réécrire dans les fichiers), puis `person` est supprimée. La fusion
-- `undoMerge(merge)` · L708 — Annule une fusion : la personne absorbée revient avec ses visages (à réécrire).
-- `cleanPersonsWithoutFaces()` · L721 — Paramètres > Visages, « Nettoyer… » : les personnes sans aucun visage attribué sont listées, puis supprimées après confirmation.
-- `renamePerson(person)` · L755 — Renommer : une personne non reliée change de nom ; pour une personne reliée, c'est son mot-clé qui est renommé (son nom vient de lui), avec…
-- `editPersonAlias(person)` · L785 — Alias : nom d'affichage de la personne dans les vues Visages et Personnes et la section Personnes (ex. « Mamie » pour « #CONTACTS/Jeanne D …
-- `setPersonHidden(person, hidden)` · L805
-- `export confirmDeletePerson(person, intro = '')` · L817 — Supprimer une personne : alerte (caractéristiques de visage effacées ; visages encore rattachés, avec « Voir » pour les traiter d'abord).
-- `export proposeDeletePersons(unlinked)` · L851 — Mot-clé relié à des personnes supprimé (panneau Mots-clés) : proposer de supprimer aussi chacune d'elles (à défaut, elles restent, déliées).
-- `export filterOnPerson(personId)` · L858 — Vue Personnes, clic sur une personne : la grille des photos est filtrée sur elle seule.
-- `export showPersonFaces(personId)` · L863 — Visages d'une personne à traiter : la grille des photos est filtrée sur elle, puis la vue de gestion s'ouvre sur les visages de ces photos.
-- `export keywordPaths()` · L873 — Chemins complets (« A/B/C ») des nœuds de l'arbre des mots-clés, par identifiant.
-- `export faceNameErrorMessage(error)` · L891 — Messages des erreurs de « Nommer » (faces.rs, resolve_person).
-- `export promptPersonName({ title, message, proposed = '', selectValue = true, submit…)` · L898 — Fenêtre « Nommer » (vue de gestion, zone dessinée en plein écran) : une personne existante, un chemin de mot-clé de l'arbre (personne créée
-- `linkPersonToKeyword(person)` · L941
-- `saveLink(person, keywordId)` · L968 — Enregistre le lien (ou le retire) ; renvoie un message d'erreur (à afficher par l'appelant) ou null.
-- `unlinkPerson(person)` · L979 — « Délier le mot-clé » (menu de la personne, sans fenêtre) : l'erreur éventuelle s'affiche en toast.
-- `isCollapsed(name)` · L987 — ==========================================
-- `applyCollapsed(name)` · L991
-- `initCollapsibleSection(name)` · L1002
-- `export layoutFullscreenFaces(slot)` · L1014 — ==========================================
-- `effectiveOverlayMode(interactive)` · L1021 — Mode réellement appliqué : dans la vue de révision des visages, l'aperçu ne reste jamais sans zones
-- `export layoutPreviewFaces(slot)` · L1027 — Idem pour une case de l'aperçu (appelée par main.js à chaque mise en page de la case) ; le calque est créé à la demande.
-- `layoutFaceOverlay(overlay, slot, active, interactive)` · L1040 — Cale un calque sur l'image affichée du slot (même translation et même taille que l'image) et charge les visages si la photo a changé.
-- `fetchPhotoFaces(photoId)` · L1074 — Visages d'une photo pour les calques : les zones ignorées et « pas un visage » y sont incluses si l'utilisateur les a choisies.
-- `renderOverlayFaces(overlay, info, interactive)` · L1076
-- `openPreviewZoneMenu(event)` · L1100 — Clic droit dans une case de l'aperçu : les zones y laissent passer la souris (glisser, molette), donc la zone visée est retrouvée par sa
-- `relayoutOverlays()` · L1116 — Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
-- `reloadOverlayFaces()` · L1123 — Relit les visages de la photo du plein écran (après une action sur une zone), puis la section Personnes et les vues.
-- `openZoneMenu(event, face)` · L1129 — Menu d'une zone en plein écran (clic droit) : nommer / renommer, valider une suggestion, passer en inconnu, supprimer la zone.
-- `inverseOrientation(orientation)` · L1190 — Orientation inverse : repasse de l'image affichée (orientée) au repère de l'image stockée. Seules les rotations d'un quart de tour (6 et 8)
-- `startZoneDrawing(event)` · L1195 — Zone dessinée à la main (Maj + glisser sur la photo du plein écran) : les zones s'affichent si besoin, le rectangle suit la souris, puis la
-- `setFaceRegionsMode(mode)` · L1261
-- `export getFaceDisplay()` · L1269 — Réglages d'affichage des zones, pour le sous-menu Visages de la photo (aperçu et plein écran).
-- `export setFaceDisplayMode(mode)` · L1271
-- `export setFaceDisplayExtra(kind, shown)` · L1276 — kind : 'ignored' ou 'notFace'. Les calques rechargent leurs visages avec la nouvelle option.
-- `export armFaceDrawing()` · L1291 — « Ajouter un visage » (menu Visages, Alt+V) : le prochain glisser sur la photo du plein écran ou d'une case de l'aperçu trace une zone, com…
-- `disarmFaceDrawing()` · L1305
-- `export toggleFaceRegions()` · L1311 — Touche V : survol seulement > toujours > masquées. Un toast annonce le nouveau mode. Renvoie false si la lecture des visages est désactivée.
-- `export isFaceDetectionEnabled()` · L1325 — ==========================================
-- `faceErrorMessage(error)` · L1330 — Codes d'erreur du backend (face_models.rs) traduits ; les autres messages sont affichés tels quels.
-- `isOffline()` · L1339 — Mode hors ligne (Paramètres > Général, géré par main.js) : le modèle s'installe uniquement depuis un dossier.
-- `export onOfflineModeChanged()` · L1343
-- `formatMegabytes(bytes)` · L1347
-- `refreshModelStatus()` · L1352
-- `renderModelStatus()` · L1364 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
-- `downloadModels()` · L1401
-- `importModels()` · L1416
-- `sendFaceSettings()` · L1429
-- `scheduleReclassify()` · L1434 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
-- `initDetectionSettings()` · L1448
-- `applyDetectionEnabled()` · L1498 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
-- `setDetectionEnabled(enabled)` · L1511
-- `checkbox(label, checked)` · L1518
-- `dialogButton(label, className, onClick)` · L1530
-- `enqueueFaceScan(scope, recursive)` · L1541 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
-- `export openFaceScanDialog(scope)` · L1574 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
-- `applyReadingEnabled()` · L1653 — ==========================================
-- `export initFacesPanel(hostApi)` · L1672 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
+- `export orientRect({ x, y, w, h }, orientation)` · L91 — ==========================================
+- `export faceCropStyle(face, orientation, width, height, zoom)` · L106 — Découpe carrée d'un visage dans une miniature de `width` × `height` px, par CSS : la zone (repère de l'image stockée, orientée ici comme la
+- `export hasPersonFilters()` · L122 — ==========================================
+- `hasFaceCountFilter()` · L126
+- `parseFaceBound(value)` · L131 — Integer >= 0 typed in a bound field; empty or anything else = no bound.
+- `export personFilterMatches(photo)` · L136
+- `export setPersonFilterIds(ids, excludedIds = [])` · L153 — Albums intelligents (albums-panel.js, main.js) : personnes du filtre enregistrées dans un album, rétablies à son ouverture (sans relancer le
+- `export photoMatchesPersonIds(photo, ids, excludedIds = [])` · L161 — `excludedIds`: people who must not be on the photo.
+- `export getExcludedPersonFilterIds()` · L169 — Excluded people of the filter (smart albums, main.js).
+- `export clearPersonFilters()` · L174 — Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
+- `export clearPersonSelection()` · L190 — Ouverture des vues Personnes ou de gestion depuis leur bouton de barre d'outils : les personnes choisies (section et filtre Personnes) sont
+- `export getPersons()` · L202 — Personnes connues (vue Visages : suggestions de « Nommer »).
+- `export getPendingFaceWriteCount()` · L214
+- `export personLabel(person)` · L220 — Nom affiché d'une personne (section Personnes, vue Personnes) : son alias s'il est défini, sinon son nom (mot-clé). Le filtre Personnes, les
+- `export getPendingFaceWritePhotoIds()` · L222
+- `export getPersonFilterIds()` · L227 — Personnes choisies (section ou filtre Personnes) : la vue de gestion ne montre que leurs visages.
+- `export eraseFaceData(photoIds)` · L243 — « Effacer les données de visages » d'une sélection : confirmation, puis visages supprimés de la base et zones retirées des fichiers.
+- `export getPersonRoot()` · L264 — Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
+- `setPersonFilters(ids, excluded = excludedPersonFilters)` · L269 — `excluded`: new list of excluded people (unchanged if omitted); a person included again leaves it.
+- `togglePersonFilter(id, additive)` · L278 — Clic sur une personne : filtre sur elle seule (un second clic l'enlève) ; Ctrl + clic : ajoutée au filtre (ou retirée).
+- `setPersonFilterMode(id, exclude)` · L287 — Puts a person in the included or excluded list (and out of the other one), then filters again.
+- `addPersonFilterByName(value, exclude = false)` · L295 — Enter with no suggestion: the typed name, if it is exactly a listed person's.
+- `addPersonFilter(id, exclude)` · L302
+- `personName(id)` · L307
+- `renderPersonFilterTags()` · L312 — Étiquettes des personnes filtrées : boutons à croix quand le groupe est déplié, simples étiquettes derrière le titre quand il est replié.
+- `statusTags()` · L343 — Chips of the face scan status and of the face-count filter, after the people chips on the collapsed line (same violet as the people chips).
+- `faceCountLabel()` · L378 — Chip text: "👤≤3" (maximum only), "👤≥2" (minimum only), "👤=0" (same bound twice), "1≤👤≤4" (both). The text-presentation selector (U+FE0E)
+- `resetFaceCountFilter()` · L386 — Empties the face-count filter and its two fields (the caller renders the chips and filters again).
+- `initFaceCountFilter()` · L396 — The two bound fields: typing filters after a short pause (the list is filtered again each time), leaving the field or Enter at once.
+- `personFilterOptions()` · L420 — People offered by the filter field: listed people not already in the filter, with their photo count. Searched by name and alias.
+- `export refreshFaces()` · L435 — ==========================================
+- `export listedPersons()` · L483 — Personnes sans aucune photo : absentes de la section Personnes et de la liste du filtre.
+- `export getShowHiddenPersons()` · L490
+- `export setShowHiddenPersons(show)` · L494
+- `sortedPersons()` · L501
+- `visiblePersons()` · L507 — People listed in the sidebar: sorted, and only those matching the quick search when it is set (name or alias, without case or accents).
+- `renderPersons()` · L512
+- `avatarKey(cover)` · L563
+- `applyAvatarStyle(element, style)` · L565
+- `export getPersonCover(personId)` · L573 — Vignette ronde : la zone du visage (orientée comme la miniature), élargie et rendue carrée, découpée dans la miniature en cache par CSS.
+- `export fillAvatar(element, cover)` · L578 — Fills a round avatar element with the cover face of a person (same crop as the People section).
+- `loadAvatar(element, cover)` · L583
+- `export openPersonMenu(event, person)` · L608 — Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, fusionner (et annuler les
+- `personCommandError(error, invalidName)` · L651 — Codes d'erreur des commandes de personnes (faces.rs) traduits ; les autres messages sont affichés tels quels. `invalidName` : message du co…
+- `personErrorMessage(error)` · L664
+- `normalizeKeywordPath(path)` · L667 — Chemin de mot-clé comparable : niveaux sans espaces autour, en minuscules, niveaux vides retirés (« A / b/ » = « a/b »).
+- `mergePerson(person)` · L671 — Fusionner : la personne choisie reçoit les visages de `person` (à réécrire dans les fichiers), puis `person` est supprimée. La fusion
+- `undoMerge(merge)` · L700 — Annule une fusion : la personne absorbée revient avec ses visages (à réécrire).
+- `cleanPersonsWithoutFaces()` · L713 — Paramètres > Visages, « Nettoyer… » : les personnes sans aucun visage attribué sont listées, puis supprimées après confirmation.
+- `renamePerson(person)` · L747 — Renommer : une personne non reliée change de nom ; pour une personne reliée, c'est son mot-clé qui est renommé (son nom vient de lui), avec…
+- `editPersonAlias(person)` · L777 — Alias : nom d'affichage de la personne dans les vues Visages et Personnes et la section Personnes (ex. « Mamie » pour « #CONTACTS/Jeanne D …
+- `setPersonHidden(person, hidden)` · L797
+- `export confirmDeletePerson(person, intro = '')` · L809 — Supprimer une personne : alerte (caractéristiques de visage effacées ; visages encore rattachés, avec « Voir » pour les traiter d'abord).
+- `export proposeDeletePersons(unlinked)` · L843 — Mot-clé relié à des personnes supprimé (panneau Mots-clés) : proposer de supprimer aussi chacune d'elles (à défaut, elles restent, déliées).
+- `export filterOnPerson(personId)` · L850 — Vue Personnes, clic sur une personne : la grille des photos est filtrée sur elle seule.
+- `export showPersonFaces(personId)` · L855 — Visages d'une personne à traiter : la grille des photos est filtrée sur elle, puis la vue de gestion s'ouvre sur les visages de ces photos.
+- `export keywordPaths()` · L865 — Chemins complets (« A/B/C ») des nœuds de l'arbre des mots-clés, par identifiant.
+- `export faceNameErrorMessage(error)` · L883 — Messages des erreurs de « Nommer » (faces.rs, resolve_person).
+- `export promptPersonName({ title, message, proposed = '', selectValue = true, submit…)` · L890 — Fenêtre « Nommer » (vue de gestion, zone dessinée en plein écran) : une personne existante, un chemin de mot-clé de l'arbre (personne créée
+- `linkPersonToKeyword(person)` · L933
+- `saveLink(person, keywordId)` · L960 — Enregistre le lien (ou le retire) ; renvoie un message d'erreur (à afficher par l'appelant) ou null.
+- `unlinkPerson(person)` · L971 — « Délier le mot-clé » (menu de la personne, sans fenêtre) : l'erreur éventuelle s'affiche en toast.
+- `isCollapsed(name)` · L979 — ==========================================
+- `applyCollapsed(name)` · L983
+- `initCollapsibleSection(name)` · L994
+- `export layoutFullscreenFaces(slot)` · L1006 — ==========================================
+- `effectiveOverlayMode(interactive)` · L1013 — Mode réellement appliqué : dans la vue de révision des visages, l'aperçu ne reste jamais sans zones
+- `export layoutPreviewFaces(slot)` · L1019 — Idem pour une case de l'aperçu (appelée par main.js à chaque mise en page de la case) ; le calque est créé à la demande.
+- `layoutFaceOverlay(overlay, slot, active, interactive)` · L1032 — Cale un calque sur l'image affichée du slot (même translation et même taille que l'image) et charge les visages si la photo a changé.
+- `fetchPhotoFaces(photoId)` · L1066 — Visages d'une photo pour les calques : les zones ignorées et « pas un visage » y sont incluses si l'utilisateur les a choisies.
+- `renderOverlayFaces(overlay, info, interactive)` · L1068
+- `openPreviewZoneMenu(event)` · L1092 — Clic droit dans une case de l'aperçu : les zones y laissent passer la souris (glisser, molette), donc la zone visée est retrouvée par sa
+- `relayoutOverlays()` · L1108 — Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
+- `reloadOverlayFaces()` · L1115 — Relit les visages de la photo du plein écran (après une action sur une zone), puis la section Personnes et les vues.
+- `openZoneMenu(event, face)` · L1121 — Menu d'une zone en plein écran (clic droit) : nommer / renommer, valider une suggestion, passer en inconnu, supprimer la zone.
+- `inverseOrientation(orientation)` · L1182 — Orientation inverse : repasse de l'image affichée (orientée) au repère de l'image stockée. Seules les rotations d'un quart de tour (6 et 8)
+- `startZoneDrawing(event)` · L1187 — Zone dessinée à la main (Maj + glisser sur la photo du plein écran) : les zones s'affichent si besoin, le rectangle suit la souris, puis la
+- `setFaceRegionsMode(mode)` · L1253
+- `export getFaceDisplay()` · L1261 — Réglages d'affichage des zones, pour le sous-menu Visages de la photo (aperçu et plein écran).
+- `export setFaceDisplayMode(mode)` · L1263
+- `export setFaceDisplayExtra(kind, shown)` · L1268 — kind : 'ignored' ou 'notFace'. Les calques rechargent leurs visages avec la nouvelle option.
+- `export armFaceDrawing()` · L1283 — « Ajouter un visage » (menu Visages, Alt+V) : le prochain glisser sur la photo du plein écran ou d'une case de l'aperçu trace une zone, com…
+- `disarmFaceDrawing()` · L1297
+- `export toggleFaceRegions()` · L1303 — Touche V : survol seulement > toujours > masquées. Un toast annonce le nouveau mode. Renvoie false si la lecture des visages est désactivée.
+- `export isFaceDetectionEnabled()` · L1317 — ==========================================
+- `faceErrorMessage(error)` · L1322 — Codes d'erreur du backend (face_models.rs) traduits ; les autres messages sont affichés tels quels.
+- `export onOfflineModeChanged()` · L1331 — Offline mode (Settings > General, handled by main.js): the model can then only be installed from a folder.
+- `refreshModelStatus()` · L1335
+- `renderModelStatus()` · L1347 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
+- `downloadModels()` · L1384
+- `importModels()` · L1399
+- `sendFaceSettings()` · L1412
+- `scheduleReclassify()` · L1417 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
+- `initDetectionSettings()` · L1431
+- `applyDetectionEnabled()` · L1481 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
+- `setDetectionEnabled(enabled)` · L1494
+- `checkbox(label, checked)` · L1501
+- `dialogButton(label, className, onClick)` · L1513
+- `enqueueFaceScan(scope, recursive)` · L1524 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
+- `export openFaceScanDialog(scope)` · L1557 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
+- `applyReadingEnabled()` · L1636 — ==========================================
+- `export initFacesPanel(hostApi)` · L1655 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
 
 ## src/filter-suggest.js (2)
 
@@ -374,31 +369,29 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `applyFilter(container, query, emptyMessage)` · L175 — Recherche : une ligne reste affichée si tous les mots saisis figurent dans son texte (ou dans le titre de son groupe) ; un groupe sans ligne
 - `export initGuide()` · L192
 
-## src/histogram.js (21)
+## src/histogram.js (19)
 
-- `read(key, fallback)` · L19
-- `write(key, value)` · L20
-- `clampRange(value)` · L29
-- `computeHistograms(pixels)` · L47
-- `computeClipping(entry, range, withMask)` · L59 — Écrêtage : un pixel est écrêté dans les ombres quand ses trois canaux sont <= plage, dans les hautes lumières quand ils sont tous >= 255 - …
-- `readPixels(url)` · L74 — Décode l'image de `url` et en lit les pixels (réduits à MAX_ANALYSIS_SIDE). Renvoie null si l'image est illisible.
-- `loadEntry(photo)` · L106 — Miniature d'abord ; à défaut (format que le backend ne gère pas), l'image affichée de la photo.
-- `cssVar(name, fallback)` · L135
-- `parseColor(value)` · L139
-- `drawHistogram(hist)` · L148
-- `formatPercent(value)` · L194 — Pourcentage à la manière de la langue (« 5 % » en français, « 5% » en anglais) : une décimale sous 10 %, aucune au-delà.
-- `describeClipping(clip)` · L199
-- `paintOverlay(overlay, entry, clip)` · L204 — Peint le masque d'écrêtage dans une surcouche (canvas de la taille des pixels analysés, étiré par le CSS sur l'image).
-- `export syncHistogram()` · L238 — Demande une mise à jour de l'affichage (regroupée sur la prochaine image : peut être appelée sans retenue).
-- `hideOverlays()` · L244
-- `runSync()` · L249
-- `requestAnalysis(photo)` · L269
-- `render(view)` · L284
-- `syncControls()` · L316
-- `export cycleHistogramState()` · L325 — Touche H : Désactivé -> Histogramme -> Histogramme + écrêtage -> Désactivé. Un toast indique le nouvel état.
-- `export initHistogram(options)` · L337
+- `clampRange(value)` · L26
+- `computeHistograms(pixels)` · L44
+- `computeClipping(entry, range, withMask)` · L56 — Écrêtage : un pixel est écrêté dans les ombres quand ses trois canaux sont <= plage, dans les hautes lumières quand ils sont tous >= 255 - …
+- `readPixels(url)` · L71 — Décode l'image de `url` et en lit les pixels (réduits à MAX_ANALYSIS_SIDE). Renvoie null si l'image est illisible.
+- `loadEntry(photo)` · L103 — Miniature d'abord ; à défaut (format que le backend ne gère pas), l'image affichée de la photo.
+- `cssVar(name, fallback)` · L132
+- `parseColor(value)` · L136
+- `drawHistogram(hist)` · L145
+- `formatPercent(value)` · L191 — Pourcentage à la manière de la langue (« 5 % » en français, « 5% » en anglais) : une décimale sous 10 %, aucune au-delà.
+- `describeClipping(clip)` · L196
+- `paintOverlay(overlay, entry, clip)` · L201 — Peint le masque d'écrêtage dans une surcouche (canvas de la taille des pixels analysés, étiré par le CSS sur l'image).
+- `export syncHistogram()` · L235 — Demande une mise à jour de l'affichage (regroupée sur la prochaine image : peut être appelée sans retenue).
+- `hideOverlays()` · L241
+- `runSync()` · L246
+- `requestAnalysis(photo)` · L266
+- `render(view)` · L281
+- `syncControls()` · L313
+- `export cycleHistogramState()` · L322 — Touche H : Désactivé -> Histogramme -> Histogramme + écrêtage -> Désactivé. Un toast indique le nouvel état.
+- `export initHistogram(options)` · L334
 
-## src/i18n.js (12)
+## src/i18n.js (14)
 
 - `isSupported(language)` · L17
 - `export getLanguage()` · L22
@@ -408,10 +401,12 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export tp(key, count, params = {})` · L44 — Texte avec pluriel : la clé porte la forme singulière, la clé suffixée de "|other" la forme plurielle
 - `export normalizeSearch(text)` · L51 — Texte comparable pour une recherche : sans accents (marques combinantes retirées après décomposition) et en minuscules.
 - `export labelWithColon(key)` · L54 — Libellé suivi du séparateur de la langue : labelWithColon('Current rating') -> "Note actuelle :" / "Current rating:".
-- `setElementText(element, text)` · L60 — Remplace le texte d'un élément sans supprimer ses éléments enfants (ex. <label>Texte <select></select></label>) :
-- `export applyTranslations(root = document)` · L75 — Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
-- `export onLanguageChange(listener)` · L85 — Pour re-générer les textes construits en JavaScript quand la langue change.
-- `export setLanguage(language)` · L90
+- `export formatBytes(bytes)` · L61 — Sizes: two conventions, so two helpers.
+- `export formatMegabytes(bytes)` · L67
+- `setElementText(element, text)` · L74 — Remplace le texte d'un élément sans supprimer ses éléments enfants (ex. <label>Texte <select></select></label>) :
+- `export applyTranslations(root = document)` · L89 — Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
+- `export onLanguageChange(listener)` · L99 — Pour re-générer les textes construits en JavaScript quand la langue change.
+- `export setLanguage(language)` · L104
 
 ## src/keywords-panel.js (70)
 
@@ -486,25 +481,23 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `finishDelete(node, photoCount, ids, result, error)` · L1126 — Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.…
 - `export initKeywordsPanel(hostApi)` · L1158 — Services fournis par main.js : getSelectedPhotos, showToast, findIndicesByPhotoIds, setSelectionIndices (les écritures passent par
 
-## src/location-panel.js (17)
+## src/location-panel.js (15)
 
-- `readStorage(key)` · L21
-- `isOffline()` · L25
-- `isMapEnabled()` · L29
-- `isWidgetEnabled()` · L36
-- `isMapAllowed()` · L52 — Carte permise : option cochée, et Internet permis sauf pour un lieu privé (tuiles locales uniquement).
-- `export setMapSuppressed(value)` · L58
-- `hasGps(photo)` · L63
-- `formatCoordinate(value, positive, negative)` · L67
-- `coordinatesText(point)` · L72 — Coordonnées copiées : degrés décimaux signés (latitude, longitude), le format accepté par les sites et applications de cartes.
-- `copyCoordinates()` · L76
-- `focusPoint()` · L88
-- `renderMessage()` · L92
-- `renderText()` · L107
-- `updateMap()` · L121
-- `export refreshLocation(selection, focusPhoto)` · L139
-- `export onMapAccessChanged()` · L179 — Mode hors ligne ou option « Afficher une carte » changés : effet immédiat, sans redémarrage.
-- `export initLocationPanel(options = {})` · L187 — `showToast` vient de main.js (message après la copie des coordonnées).
+- `isMapEnabled()` · L21
+- `isWidgetEnabled()` · L28
+- `isMapAllowed()` · L44 — Carte permise : option cochée, et Internet permis sauf pour un lieu privé (tuiles locales uniquement).
+- `export setMapSuppressed(value)` · L50
+- `hasGps(photo)` · L55
+- `formatCoordinate(value, positive, negative)` · L59
+- `coordinatesText(point)` · L64 — Coordonnées copiées : degrés décimaux signés (latitude, longitude), le format accepté par les sites et applications de cartes.
+- `copyCoordinates()` · L68
+- `focusPoint()` · L80
+- `renderMessage()` · L84
+- `renderText()` · L99
+- `updateMap()` · L113
+- `export refreshLocation(selection, focusPhoto)` · L131
+- `export onMapAccessChanged()` · L171 — Mode hors ligne ou option « Afficher une carte » changés : effet immédiat, sans redémarrage.
+- `export initLocationPanel(options = {})` · L179 — `showToast` vient de main.js (message après la copie des coordonnées).
 
 ## src/main.js (399)
 
@@ -959,23 +952,22 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export initMapMode(hostApi)` · L462
 - `export onMapModeAccessChanged()` · L499 — Réglage « Afficher une carte » ou mode hors ligne changé (voir onMapAccessChanged de main.js).
 
-## src/map-tile-protocol.js (15)
+## src/map-tile-protocol.js (14)
 
-- `emptyStyle()` · L28
-- `PLACEHOLDER_TILE(()` · L36 — Tuile vectorielle (protobuf MVT) d'une seule couche et d'un seul polygone : le carré qui couvre toute la tuile. Rien d'autre n'est dessiné
-- `placeholderLayer()` · L46 — Couche du style qui remplit cette tuile de l'image-motif.
-- `isOffline()` · L51
-- `export registerMapProtocol(library)` · L54 — Enregistre le protocole auprès de MapLibre (une seule fois).
-- `export createTileContext()` · L64
-- `localResource(path)` · L89
-- `remoteFetch(context, url, abortController)` · L95 — Requête au fournisseur, annulée si la carte passe en mode strict ou si MapLibre n'en veut plus.
-- `gunzipIfNeeded(buffer)` · L112 — Tuiles d'un fichier importé : souvent compressées en gzip (format MBTiles) ; MapLibre attend des tuiles décompressées.
-- `remoteAllowed(context)` · L118
-- `handleRequest(params, abortController)` · L120
-- `loadStyle(context, id, name, abortController)` · L132 — Style : copie locale si elle existe (aucune requête), sinon celui du fournisseur ; ses sources et adresses sont réécrites vers ce protocole.
-- `loadTile(context, path, abortController)` · L156
-- `loadSprite(context, file, type, abortController)` · L172
-- `loadGlyphs(context, path, abortController)` · L183
+- `emptyStyle()` · L29
+- `PLACEHOLDER_TILE(()` · L37 — Tuile vectorielle (protobuf MVT) d'une seule couche et d'un seul polygone : le carré qui couvre toute la tuile. Rien d'autre n'est dessiné
+- `placeholderLayer()` · L47 — Couche du style qui remplit cette tuile de l'image-motif.
+- `export registerMapProtocol(library)` · L53 — Enregistre le protocole auprès de MapLibre (une seule fois).
+- `export createTileContext()` · L63
+- `localResource(path)` · L88
+- `remoteFetch(context, url, abortController)` · L94 — Requête au fournisseur, annulée si la carte passe en mode strict ou si MapLibre n'en veut plus.
+- `gunzipIfNeeded(buffer)` · L111 — Tuiles d'un fichier importé : souvent compressées en gzip (format MBTiles) ; MapLibre attend des tuiles décompressées.
+- `remoteAllowed(context)` · L117
+- `handleRequest(params, abortController)` · L119
+- `loadStyle(context, id, name, abortController)` · L131 — Style : copie locale si elle existe (aucune requête), sinon celui du fournisseur ; ses sources et adresses sont réécrites vers ce protocole.
+- `loadTile(context, path, abortController)` · L155
+- `loadSprite(context, file, type, abortController)` · L171
+- `loadGlyphs(context, path, abortController)` · L182
 
 ## src/map-view.js (8)
 
@@ -988,14 +980,13 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export reloadAllMaps()` · L90 — Style et tuiles redemandés pour toutes les cartes : à appeler quand le mode hors ligne ou l'option « Afficher une carte » change.
 - `export createMapView(container, { isAllowed, onStatus = ()` · L94
 
-## src/maps-settings.js (6)
+## src/maps-settings.js (5)
 
 - `export openSettingsTab(tab)` · L14 — Ouvre les Paramètres sur l'onglet demandé ('maps', 'general'…) : lien des messages « Carte désactivée », « Mode hors ligne »…
 - `export setSettingsLink(element, tab)` · L20 — Rend un élément de message cliquable vers l'onglet `tab` des Paramètres (clic ou Entrée / Espace), ou ne l'est plus si `tab` est vide.
 - `export bindSettingsLink(element)` · L36 — À appeler une fois par élément de message : l'action n'a lieu que s'il est marqué comme lien (setSettingsLink).
 - `export isMapStyleRefreshEnabled()` · L44 — Le style doit être téléchargé avec chaque zone (case des Paramètres > Cartes, décochée par défaut).
-- `isOffline()` · L48
-- `export initMapsSettings({ showToast })` · L51 — `showToast(message)` vient de main.js.
+- `export initMapsSettings({ showToast })` · L49 — `showToast(message)` vient de main.js.
 
 ## src/marking-settings.js (5)
 
@@ -1166,14 +1157,13 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `onContextMenu(event)` · L2104 — Remplace le menu contextuel du navigateur
 - `export initPhotoActions(options)` · L2147 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
 
-## src/place-search.js (6)
+## src/place-search.js (5)
 
-- `isOffline()` · L9
-- `clearResults()` · L11
-- `showResults(places)` · L16
-- `search()` · L37
-- `export updatePlaceSearchAvailability()` · L52 — Champ de recherche affiché seulement si Internet est permis ; à rappeler quand le mode hors ligne change.
-- `export initPlaceSearch(options)` · L59 — `host` : { goTo(place), showToast(message) }.
+- `clearResults()` · L10
+- `showResults(places)` · L15
+- `search()` · L36
+- `export updatePlaceSearchAvailability()` · L51 — Champ de recherche affiché seulement si Internet est permis ; à rappeler quand le mode hors ligne change.
+- `export initPlaceSearch(options)` · L58 — `host` : { goTo(place), showToast(message) }.
 
 ## src/privacy.js (39)
 
@@ -1217,21 +1207,19 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `initSettings()` · L364
 - `export initPrivacy()` · L455 — À appeler une fois au démarrage (main.js) : branche le bouclier et les paramètres, envoie les ensembles actifs au backend.
 
-## src/private-zones-modal.js (13)
+## src/private-zones-modal.js (11)
 
-- `export initPrivateZonesModal(options)` · L27 — `enqueueTask` et `showToast` viennent de main.js (file des tâches, messages).
-- `readStorage(key)` · L31
-- `export offerPrivateZonesWelcome()` · L36 — Première activation de la carte : la fenêtre s'ouvre sur l'accueil si aucune zone n'existe et que l'accueil n'a pas été refusé.
-- `errorMessage(error)` · L53
-- `formatBytes(bytes)` · L55
-- `formatRelativeDate(millis)` · L61
-- `detailLabel(zoom)` · L69
-- `zoneState(zone)` · L72 — État d'une zone : icône et texte (jamais la couleur seule).
-- `element(tag, className, text)` · L80
-- `button(label, className = '', onClick = null)` · L87
-- `privacyCheckbox(checked, onChange)` · L95 — Case « Privée » (création et détail d'une zone) avec son explication.
-- `enqueueDownload(zone)` · L108 — Télécharge (ou met à jour) une zone : tâche de la file.
-- `export openPrivateZonesModal()` · L129 — Ouvre la fenêtre de gestion des zones privées.
+- `export initPrivateZonesModal(options)` · L28 — `enqueueTask` et `showToast` viennent de main.js (file des tâches, messages).
+- `export offerPrivateZonesWelcome()` · L33 — Première activation de la carte : la fenêtre s'ouvre sur l'accueil si aucune zone n'existe et que l'accueil n'a pas été refusé.
+- `errorMessage(error)` · L50
+- `formatRelativeDate(millis)` · L52
+- `detailLabel(zoom)` · L60
+- `zoneState(zone)` · L63 — État d'une zone : icône et texte (jamais la couleur seule).
+- `element(tag, className, text)` · L71
+- `button(label, className = '', onClick = null)` · L78
+- `privacyCheckbox(checked, onChange)` · L86 — Case « Privée » (création et détail d'une zone) avec son explication.
+- `enqueueDownload(zone)` · L99 — Télécharge (ou met à jour) une zone : tâche de la file.
+- `export openPrivateZonesModal()` · L120 — Ouvre la fenêtre de gestion des zones privées.
 
 ## src/private-zones.js (14)
 
@@ -1294,7 +1282,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export setSuggestedCount(count)` · L184 — Number of suggested photos shown (known only after filtering): the status line.
 - `export initKeywordSuggestions(hostApi)` · L192 — hostApi: loadedIds() -> Set of the photo ids of the loaded list, onChange() (main.js filters again, keeping selection and scroll),
 
-## src/semantic-settings.js (30)
+## src/semantic-settings.js (28)
 
 - `export isSemanticEnabled()` · L22 — The single source of truth: the setting is on AND the model is installed. Every semantic entry, menu item and shortcut checks this.
 - `export isSemanticSettingOn()` · L27 — The setting alone (Settings section: the model may still have to be installed).
@@ -1305,27 +1293,25 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export semanticErrorMessage(error)` · L60 — Backend error keys (semantic*.rs) translated; other messages are shown as they are.
 - `export refreshModelStatus()` · L76 — Reads the model status (only when the setting is on: the backend refuses otherwise) and updates the gating.
 - `sendEnabled()` · L92 — Tells the backend, then (when on) reads the model status. Awaited before any other semantic command.
-- `isOffline()` · L103 — ==========================================
-- `byId(id)` · L104
-- `formatMegabytes(bytes)` · L106
-- `renderModelStatus()` · L112 — Model line: status, Download (greyed in offline mode) / Import buttons, and the list of files to fetch by hand.
-- `modelFilesInstalled()` · L156 — Model files (not counting the ONNX Runtime library shared with the faces) present on disk.
-- `refreshStats()` · L164
-- `renderStats()` · L179
-- `renderSection()` · L194
-- `importModel()` · L202 — Messages of the import: one line per problem (a file missing or with a wrong checksum).
-- `downloadModel()` · L223
-- `deleteAnalysisData()` · L241
-- `deleteModelFiles()` · L260
-- `hasStoredData()` · L284 — ==========================================
-- `setEnabled(wanted)` · L289
-- `bindCheckbox(id, key)` · L331
-- `export analyseContent({ folder = null, recursive = false, photoIds = null } = {})` · L345 — ==========================================
-- `reportAnalysis(report, stopped, error)` · L362 — End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
-- `scanRaw()` · L387 — Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts.
-- `export semanticScanThreads()` · L390 — Scan speed (ONNX Runtime threads): 1, 2 or 4.
-- `export onSemanticOfflineChanged()` · L395 — Offline mode changed (main.js): the Download button follows.
-- `export initSemanticSettings(hostApi)` · L402 — hostApi: enqueueTask(task) and showToast(message), as faces-panel.js; stopTasks() stops the analyses of the queue.
+- `byId(id)` · L103 — ==========================================
+- `renderModelStatus()` · L106 — Model line: status, Download (greyed in offline mode) / Import buttons, and the list of files to fetch by hand.
+- `modelFilesInstalled()` · L150 — Model files (not counting the ONNX Runtime library shared with the faces) present on disk.
+- `refreshStats()` · L158
+- `renderStats()` · L173
+- `renderSection()` · L188
+- `importModel()` · L196 — Messages of the import: one line per problem (a file missing or with a wrong checksum).
+- `downloadModel()` · L217
+- `deleteAnalysisData()` · L235
+- `deleteModelFiles()` · L254
+- `hasStoredData()` · L278 — ==========================================
+- `setEnabled(wanted)` · L283
+- `bindCheckbox(id, key)` · L325
+- `export analyseContent({ folder = null, recursive = false, photoIds = null } = {})` · L339 — ==========================================
+- `reportAnalysis(report, stopped, error)` · L356 — End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
+- `scanRaw()` · L381 — Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts.
+- `export semanticScanThreads()` · L384 — Scan speed (ONNX Runtime threads): 1, 2 or 4.
+- `export onSemanticOfflineChanged()` · L389 — Offline mode changed (main.js): the Download button follows.
+- `export initSemanticSettings(hostApi)` · L396 — hostApi: enqueueTask(task) and showToast(message), as faces-panel.js; stopTasks() stops the analyses of the queue.
 
 ## src/semantic-tagging.js (10)
 
@@ -1352,12 +1338,14 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export searchImage(photoId, scope = currentSearchScope()` · L76 — Similar-content search from a photo (`prob` is null in the answer). Same contract as `searchText`; the error is translated by the caller.
 - `export initSemanticSearch(hostApi)` · L92 — hostApi: getViewScope() -> { folder, recursive, photoIds }, showToast(message), errorMessage(error),
 
-## src/settings-defaults.js (4)
+## src/settings-defaults.js (6)
 
 - `export readStored(key)` · L11 — Raw saved string, or null (nothing saved, or storage unavailable).
 - `export readBool(key)` · L16 — Boolean saved as "true" / "false"; anything else gives the default.
 - `export readChoice(key, allowed)` · L22 — Saved string when it is one of `allowed`, the default otherwise.
 - `export readNumber(key, min = -Infinity, max = Infinity)` · L28 — Saved number (finite, within [min, max]), the default otherwise.
+- `export writeStored(key, value)` · L35 — Saves a value as a string (booleans and numbers are converted); when storage is unavailable the setting is simply not remembered.
+- `export isOffline()` · L40 — Offline mode (Settings > General): the application never connects to the Internet.
 
 ## src/shooting-filters.js (20)
 
@@ -1443,33 +1431,29 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 - `export initToolbarAria()` · L9
 
-## src/update-check.js (25)
+## src/update-check.js (21)
 
-- `read(key)` · L26
-- `write(key, value)` · L27
-- `remove(key)` · L28
-- `isOffline()` · L30
-- `isEnabled()` · L32 — Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
-- `includesPrereleases()` · L33
-- `savedInfo()` · L35
-- `isActive()` · L52 — Active seulement si Internet est autorisé et la vérification demandée.
-- `statusText()` · L55 — Ligne d'état sous les cases : versions installée et distante, ou état de la vérification.
-- `render()` · L65
-- `export onUpdateAccessChanged()` · L85 — Appelé par main.js quand le mode hors ligne ou la langue change.
-- `plainText(markdown)` · L90 — Notes de version : Markdown de git-cliff réduit à des titres, listes et paragraphes, construits en texte (jamais de HTML injecté).
-- `renderNotes(container, markdown)` · L94
-- `formatMegabytes(bytes)` · L121
-- `updateErrorMessage(error)` · L127 — Codes d'erreur du backend (update_check.rs) traduits ; les autres messages sont affichés tels quels.
-- `renderDownloadButton()` · L137 — Bouton principal de la fenêtre : Télécharger, puis Installer ; absent quand la release n'a pas d'installeur pour ce système.
-- `openDialog()` · L150 — ---- Fenêtre « Mise à jour disponible » ----
-- `closeDialog()` · L160
-- `downloadUpdate()` · L164
-- `installUpdate()` · L199
-- `onDownloadButton()` · L213
-- `openReleasePage()` · L218
-- `runCheck({ announce = null } = {})` · L231
-- `forgetResult()` · L256 — Une nouvelle recherche est nécessaire (réglage modifié ou version installée changée) : oublie le résultat mémorisé.
-- `export initUpdateCheck({ showToast: toast, enqueueTask: enqueue, canQuit: quitAllo…)` · L263
+- `remove(key)` · L26
+- `isEnabled()` · L29 — Désactivée par défaut : l'application ne contacte personne tant que l'utilisateur ne l'a pas demandé.
+- `includesPrereleases()` · L30
+- `savedInfo()` · L32
+- `isActive()` · L49 — Active seulement si Internet est autorisé et la vérification demandée.
+- `statusText()` · L52 — Ligne d'état sous les cases : versions installée et distante, ou état de la vérification.
+- `render()` · L62
+- `export onUpdateAccessChanged()` · L82 — Appelé par main.js quand le mode hors ligne ou la langue change.
+- `plainText(markdown)` · L87 — Notes de version : Markdown de git-cliff réduit à des titres, listes et paragraphes, construits en texte (jamais de HTML injecté).
+- `renderNotes(container, markdown)` · L91
+- `updateErrorMessage(error)` · L119 — Codes d'erreur du backend (update_check.rs) traduits ; les autres messages sont affichés tels quels.
+- `renderDownloadButton()` · L129 — Bouton principal de la fenêtre : Télécharger, puis Installer ; absent quand la release n'a pas d'installeur pour ce système.
+- `openDialog()` · L142 — ---- Fenêtre « Mise à jour disponible » ----
+- `closeDialog()` · L152
+- `downloadUpdate()` · L156
+- `installUpdate()` · L191
+- `onDownloadButton()` · L205
+- `openReleasePage()` · L210
+- `runCheck({ announce = null } = {})` · L223
+- `forgetResult()` · L248 — Une nouvelle recherche est nécessaire (réglage modifié ou version installée changée) : oublie le résultat mémorisé.
+- `export initUpdateCheck({ showToast: toast, enqueueTask: enqueue, canQuit: quitAllo…)` · L255
 
 ## src/zone-drawing.js (1)
 

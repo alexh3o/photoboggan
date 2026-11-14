@@ -30,3 +30,13 @@ export function readNumber(key, min = -Infinity, max = Infinity) {
   const value = stored === null || stored.trim() === '' ? NaN : Number(stored);
   return Number.isFinite(value) && value >= min && value <= max ? value : DEFAULTS[key];
 }
+
+/** Saves a value as a string (booleans and numbers are converted); when storage is unavailable the setting is simply not remembered. */
+export function writeStored(key, value) {
+  try { localStorage.setItem(key, String(value)); } catch { /* storage unavailable: setting not remembered */ }
+}
+
+/** Offline mode (Settings > General): the application never connects to the Internet. */
+export function isOffline() {
+  return readBool('offlineMode');
+}

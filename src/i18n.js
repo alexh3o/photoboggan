@@ -55,6 +55,20 @@ export function labelWithColon(key) {
   return `${t(key)}${LANGUAGES[currentLanguage].colon}`;
 }
 
+// Sizes: two conventions, so two helpers.
+// - formatBytes: size of a file or folder on disk, binary units (1 KB = 1024 bytes), KB below 1 MB and MB above: "320 KB" / "1,204.5 MB".
+// - formatMegabytes: size of something to download, as the server publishes it (1 MB = 1,000,000 bytes), one decimal below 10 MB: "8.4 MB" / "850 MB".
+export function formatBytes(bytes) {
+  const format = (value, unit) => `${new Intl.NumberFormat(currentLanguage, { maximumFractionDigits: 1 }).format(value)} ${unit}`;
+  if (bytes < 1024 * 1024) return format(Math.max(bytes, 1) / 1024, t('KB'));
+  return format(bytes / 1024 / 1024, t('MB unit'));
+}
+
+export function formatMegabytes(bytes) {
+  const megabytes = bytes / 1e6;
+  return t('{size} MB', { size: megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes) });
+}
+
 // Remplace le texte d'un élément sans supprimer ses éléments enfants (ex. <label>Texte <select></select></label>) :
 // sans enfant on remplace tout, sinon seulement le premier texte non vide.
 function setElementText(element, text) {

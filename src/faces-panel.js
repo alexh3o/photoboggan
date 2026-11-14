@@ -6,8 +6,8 @@
 import './faces.css';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { t, tp, onLanguageChange, normalizeSearch, labelWithColon } from './i18n.js';
-import { DEFAULTS, readBool } from './settings-defaults.js';
+import { t, tp, onLanguageChange, normalizeSearch, labelWithColon, formatMegabytes } from './i18n.js';
+import { DEFAULTS, readBool, readStored, writeStored, isOffline } from './settings-defaults.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
@@ -35,16 +35,16 @@ let readingEnabled = readBool(READING_STORAGE_KEY);
 // Anciennes valeurs mémorisées : « true » (zones affichées) et « false » (masquées).
 const OVERLAY_MODES = ['hover', 'always', 'hidden'];
 let overlayMode = (() => {
-  const stored = readStorage(OVERLAY_STORAGE_KEY);
+  const stored = readStored(OVERLAY_STORAGE_KEY);
   return OVERLAY_MODES.includes(stored) ? stored : stored === 'true' ? 'always' : stored === 'false' ? 'hidden' : DEFAULTS.fullscreenFacesVisible;
 })();
 // Zones écartées (ignorées, « pas un visage ») affichées aussi sur la photo : réglages du sous-menu Visages (aperçu et plein écran).
 const IGNORED_SHOWN_STORAGE_KEY = 'faceIgnoredShown';
 const NOT_FACE_SHOWN_STORAGE_KEY = 'faceNotFaceShown';
-let ignoredShown = readStorage(IGNORED_SHOWN_STORAGE_KEY) === 'true';
-let notFaceShown = readStorage(NOT_FACE_SHOWN_STORAGE_KEY) === 'true';
+let ignoredShown = readStored(IGNORED_SHOWN_STORAGE_KEY) === 'true';
+let notFaceShown = readStored(NOT_FACE_SHOWN_STORAGE_KEY) === 'true';
 let drawArmed = false; // « Ajouter un visage » (menu ou Alt+V) : le prochain glisser sur la photo dessine une zone, sans Maj
-let sortMode = readStorage(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
+let sortMode = readStored(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
 // Quick search of the People block (sidebar-search.js): normalized text, '' = no filter. Only the people whose name or alias contains it are listed.
 let personSearchQuery = '';
 let persons = []; // [{ id, name, keyword_id, photo_count, cover }]
@@ -71,7 +71,7 @@ let reclassifyTimer = null;
 
 function loadFaceSettings() {
   try {
-    const stored = JSON.parse(readStorage(FACE_SETTINGS_STORAGE_KEY));
+    const stored = JSON.parse(readStored(FACE_SETTINGS_STORAGE_KEY));
     if (stored && typeof stored === 'object') {
       delete stored.minSizePx; // réglage retiré (la taille relative suffit)
       // Ancien réglage en % : converti en ‰.
@@ -81,14 +81,6 @@ function loadFaceSettings() {
     }
   } catch { /* valeur absente ou illisible : réglages par défaut */ }
   return { ...DEFAULT_FACE_SETTINGS };
-}
-
-function readStorage(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-
-function writeStorage(key, value) {
-  try { localStorage.setItem(key, value); } catch { /* stockage indisponible : réglage non mémorisé */ }
 }
 
 // ==========================================
@@ -183,7 +175,7 @@ export function clearPersonFilters() {
   personFilters = [];
   excludedPersonFilters = [];
   scanFilter = 'all';
-  writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+  writeStored(SCAN_FILTER_STORAGE_KEY, scanFilter);
   resetFaceCountFilter();
   const input = document.getElementById('person-filter-input');
   if (input) input.value = '';
@@ -270,7 +262,7 @@ export async function eraseFaceData(photoIds) {
 
 // Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
 export function getPersonRoot() {
-  return (readStorage(PERSON_ROOT_STORAGE_KEY) ?? DEFAULTS.facePersonRoot).trim();
+  return (readStored(PERSON_ROOT_STORAGE_KEY) ?? DEFAULTS.facePersonRoot).trim();
 }
 
 // `excluded`: new list of excluded people (unchanged if omitted); a person included again leaves it.
@@ -358,7 +350,7 @@ function statusTags() {
       title: `${labelWithColon('Face scan')} ${status}`,
       onRemove: () => {
         scanFilter = 'all';
-        writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+        writeStored(SCAN_FILTER_STORAGE_KEY, scanFilter);
         const scanSelect = document.getElementById('face-scan-filter');
         if (scanSelect) scanSelect.value = scanFilter;
         renderPersonFilterTags();
@@ -493,7 +485,7 @@ export function listedPersons() {
 }
 
 const SHOW_HIDDEN_STORAGE_KEY = 'showHiddenPersons';
-let showHiddenPersons = readStorage(SHOW_HIDDEN_STORAGE_KEY) === 'true';
+let showHiddenPersons = readStored(SHOW_HIDDEN_STORAGE_KEY) === 'true';
 
 export function getShowHiddenPersons() {
   return showHiddenPersons;
@@ -501,7 +493,7 @@ export function getShowHiddenPersons() {
 
 export function setShowHiddenPersons(show) {
   showHiddenPersons = show;
-  writeStorage(SHOW_HIDDEN_STORAGE_KEY, String(show));
+  writeStored(SHOW_HIDDEN_STORAGE_KEY, String(show));
   renderPersons();
   host.onFacesChanged?.();
 }
@@ -985,7 +977,7 @@ async function unlinkPerson(person) {
 // SECTIONS REPLIABLES (Dossiers, Personnes, Filtres)
 // ==========================================
 function isCollapsed(name) {
-  return readStorage(COLLAPSED_STORAGE_KEYS[name]) === 'true';
+  return readStored(COLLAPSED_STORAGE_KEYS[name]) === 'true';
 }
 
 function applyCollapsed(name) {
@@ -1001,7 +993,7 @@ function applyCollapsed(name) {
 
 function initCollapsibleSection(name) {
   document.getElementById(`${name}-toggle`).addEventListener('click', () => {
-    writeStorage(COLLAPSED_STORAGE_KEYS[name], String(!isCollapsed(name)));
+    writeStored(COLLAPSED_STORAGE_KEYS[name], String(!isCollapsed(name)));
     applyCollapsed(name);
   });
   applyCollapsed(name);
@@ -1260,7 +1252,7 @@ function startZoneDrawing(event) {
 
 function setFaceRegionsMode(mode) {
   overlayMode = mode;
-  writeStorage(OVERLAY_STORAGE_KEY, mode);
+  writeStored(OVERLAY_STORAGE_KEY, mode);
   layoutFullscreenFaces(host.getFullscreenSlot());
   host.layoutPreview?.();
 }
@@ -1276,10 +1268,10 @@ export function setFaceDisplayMode(mode) {
 export function setFaceDisplayExtra(kind, shown) {
   if (kind === 'ignored') {
     ignoredShown = shown;
-    writeStorage(IGNORED_SHOWN_STORAGE_KEY, String(shown));
+    writeStored(IGNORED_SHOWN_STORAGE_KEY, String(shown));
   } else if (kind === 'notFace') {
     notFaceShown = shown;
-    writeStorage(NOT_FACE_SHOWN_STORAGE_KEY, String(shown));
+    writeStored(NOT_FACE_SHOWN_STORAGE_KEY, String(shown));
   } else {
     return;
   }
@@ -1335,18 +1327,9 @@ function faceErrorMessage(error) {
   return text;
 }
 
-// Mode hors ligne (Paramètres > Général, géré par main.js) : le modèle s'installe uniquement depuis un dossier.
-function isOffline() {
-  return readStorage('offlineMode') === 'true';
-}
-
+// Offline mode (Settings > General, handled by main.js): the model can then only be installed from a folder.
 export function onOfflineModeChanged() {
   renderModelStatus();
-}
-
-function formatMegabytes(bytes) {
-  const megabytes = bytes / 1e6;
-  return t('{size} MB', { size: megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes) });
 }
 
 async function refreshModelStatus() {
@@ -1450,7 +1433,7 @@ function initDetectionSettings() {
   raw.checked = faceSettings.scanRaw;
   raw.addEventListener('change', () => {
     faceSettings.scanRaw = raw.checked;
-    writeStorage(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
+    writeStored(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
     sendFaceSettings();
   });
   for (const [key, id] of Object.entries(THRESHOLD_INPUTS)) {
@@ -1466,13 +1449,13 @@ function initDetectionSettings() {
       }
       faceSettings[key] = Math.min(max, Math.max(min, value));
       input.value = String(faceSettings[key]);
-      writeStorage(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
+      writeStored(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
       sendFaceSettings().then(scheduleReclassify);
     });
   }
   const subfolders = document.getElementById('face-scan-subfolders');
   subfolders.checked = readBool(SUBFOLDERS_STORAGE_KEY);
-  subfolders.addEventListener('change', () => writeStorage(SUBFOLDERS_STORAGE_KEY, String(subfolders.checked)));
+  subfolders.addEventListener('change', () => writeStored(SUBFOLDERS_STORAGE_KEY, String(subfolders.checked)));
   document.getElementById('btn-face-model-download').addEventListener('click', downloadModels);
   document.getElementById('btn-face-model-import').addEventListener('click', importModels);
   document.querySelector('.settings-tab-btn[data-tab="faces"]').addEventListener('click', () => { if (detectionEnabled) refreshModelStatus(); });
@@ -1481,14 +1464,14 @@ function initDetectionSettings() {
   root.addEventListener('change', () => {
     // Mêmes règles que les mots-clés : pas de « | » ni de « , » ; « / » sépare les niveaux.
     root.value = root.value.replace(/[|,]/g, '').split('/').map(segment => segment.trim()).filter(Boolean).join('/');
-    writeStorage(PERSON_ROOT_STORAGE_KEY, root.value);
+    writeStored(PERSON_ROOT_STORAGE_KEY, root.value);
   });
   const scanSelect = document.getElementById('face-scan-filter');
-  scanFilter = ['unscanned', 'scanned', 'review'].includes(readStorage(SCAN_FILTER_STORAGE_KEY)) ? readStorage(SCAN_FILTER_STORAGE_KEY) : 'all';
+  scanFilter = ['unscanned', 'scanned', 'review'].includes(readStored(SCAN_FILTER_STORAGE_KEY)) ? readStored(SCAN_FILTER_STORAGE_KEY) : 'all';
   scanSelect.value = scanFilter;
   scanSelect.addEventListener('change', () => {
     scanFilter = scanSelect.value;
-    writeStorage(SCAN_FILTER_STORAGE_KEY, scanFilter);
+    writeStored(SCAN_FILTER_STORAGE_KEY, scanFilter);
     renderPersonFilterTags();
     host.onFilterChange();
   });
@@ -1510,7 +1493,7 @@ function applyDetectionEnabled() {
 
 function setDetectionEnabled(enabled) {
   detectionEnabled = enabled;
-  writeStorage(DETECTION_STORAGE_KEY, String(enabled));
+  writeStored(DETECTION_STORAGE_KEY, String(enabled));
   document.getElementById('face-detection-toggle').checked = enabled;
   applyDetectionEnabled();
 }
@@ -1637,7 +1620,7 @@ export async function openFaceScanDialog(scope) {
     include.disabled = withSubfolders === 0;
   };
   always.input.addEventListener('change', () => {
-    writeStorage(SUBFOLDERS_STORAGE_KEY, String(always.input.checked));
+    writeStored(SUBFOLDERS_STORAGE_KEY, String(always.input.checked));
     const setting = document.getElementById('face-scan-subfolders');
     if (setting) setting.checked = always.input.checked;
     updateButtons();
@@ -1695,7 +1678,7 @@ export function initFacesPanel(hostApi) {
   toggle.checked = readingEnabled;
   toggle.addEventListener('change', async () => {
     readingEnabled = toggle.checked;
-    writeStorage(READING_STORAGE_KEY, String(readingEnabled));
+    writeStored(READING_STORAGE_KEY, String(readingEnabled));
     await invoke('set_face_reading', { enabled: readingEnabled }).catch(error => console.error('Réglage de lecture des visages refusé', error));
     // Les photos déjà cataloguées n'ont pas encore été lues avec ce réglage : la relecture de la collection est proposée.
     document.getElementById('face-reading-rescan').hidden = !readingEnabled;
@@ -1728,7 +1711,7 @@ export function initFacesPanel(hostApi) {
   });
   document.getElementById('persons-sort').addEventListener('click', () => {
     sortMode = sortMode === 'name' ? 'count' : 'name';
-    writeStorage(SORT_STORAGE_KEY, sortMode);
+    writeStored(SORT_STORAGE_KEY, sortMode);
     renderPersons();
   });
   // People filter field: suggestion list (same as the keyword filter); Alt+Enter / Alt+click excludes the person.

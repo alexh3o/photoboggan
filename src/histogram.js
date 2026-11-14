@@ -8,7 +8,7 @@
 // écran, voir `getView` fourni par main.js) ; un clic bascule Luminance / RVB. Apparence et écrêtage réglables dans histogram.css.
 import './histogram.css';
 import { t, labelWithColon, getLanguage } from './i18n.js';
-import { DEFAULTS } from './settings-defaults.js';
+import { DEFAULTS, readStored, writeStored } from './settings-defaults.js';
 
 const MAX_ANALYSIS_SIDE = 768;   // plus grand côté des pixels analysés (au-delà, l'image est réduite : surtout le repli sur l'image d'origine)
 const PIXEL_CACHE_SIZE = 6;      // photos dont les pixels restent en mémoire
@@ -16,15 +16,12 @@ const ANALYSIS_DELAY_MS = 30;    // attente avant analyse : évite de décoder c
 const DEFAULT_CLIPPING_RANGE = DEFAULTS.clippingRange;
 const MAX_CLIPPING_RANGE = 20;
 
-const read = (key, fallback) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
-const write = (key, value) => { try { localStorage.setItem(key, String(value)); } catch { /* stockage indisponible : réglage non mémorisé */ } };
-
 // Réglages (Options d'affichage > Histogramme), mémorisés localement.
-let showHistogram = read('showHistogram', String(DEFAULTS.showHistogram)) === 'true';
-let showClippings = read('showClippings', String(DEFAULTS.showClippings)) === 'true';
-let clippingMode = read('clippingMode', DEFAULTS.clippingMode) === 'bw' ? 'bw' : 'colors';// 'colors' : rouge / bleu fixes ; 'bw' : noir / blanc pulsant
-let clippingRange = clampRange(Number(read('clippingRange', DEFAULT_CLIPPING_RANGE)));
-let rgbMode = read('histogramRgb', String(DEFAULTS.histogramRgb)) === 'true';                         // false : luminance, true : trois courbes RVB
+let showHistogram = (readStored('showHistogram') ?? String(DEFAULTS.showHistogram)) === 'true';
+let showClippings = (readStored('showClippings') ?? String(DEFAULTS.showClippings)) === 'true';
+let clippingMode = (readStored('clippingMode') ?? DEFAULTS.clippingMode) === 'bw' ? 'bw' : 'colors';// 'colors' : rouge / bleu fixes ; 'bw' : noir / blanc pulsant
+let clippingRange = clampRange(Number(readStored('clippingRange') ?? DEFAULT_CLIPPING_RANGE));
+let rgbMode = (readStored('histogramRgb') ?? String(DEFAULTS.histogramRgb)) === 'true';                         // false : luminance, true : trois courbes RVB
 
 function clampRange(value) {
   return Number.isFinite(value) ? Math.min(MAX_CLIPPING_RANGE, Math.max(0, Math.round(value))) : DEFAULT_CLIPPING_RANGE;
@@ -327,8 +324,8 @@ export function cycleHistogramState() {
   const next = (state + 1) % 3;
   showHistogram = next > 0;
   showClippings = next === 2;
-  write('showHistogram', showHistogram);
-  write('showClippings', showClippings);
+  writeStored('showHistogram', showHistogram);
+  writeStored('showClippings', showClippings);
   syncControls();
   syncHistogram();
   host.showToast(t(['Histogram: off', 'Histogram: displayed', 'Histogram and clippings: displayed'][next]));
@@ -350,24 +347,24 @@ export function initHistogram(options) {
 
   controls.show.addEventListener('change', () => {
     showHistogram = controls.show.checked;
-    write('showHistogram', showHistogram);
+    writeStored('showHistogram', showHistogram);
     syncControls();
     syncHistogram();
   });
   controls.clippings.addEventListener('change', () => {
     showClippings = controls.clippings.checked;
-    write('showClippings', showClippings);
+    writeStored('showClippings', showClippings);
     syncHistogram();
   });
   controls.mode.addEventListener('change', () => {
     clippingMode = controls.mode.value === 'bw' ? 'bw' : 'colors';
-    write('clippingMode', clippingMode);
+    writeStored('clippingMode', clippingMode);
     syncHistogram();
   });
   controls.range.addEventListener('change', () => {
     clippingRange = clampRange(Number(controls.range.value));
     controls.range.value = String(clippingRange);
-    write('clippingRange', clippingRange);
+    writeStored('clippingRange', clippingRange);
     syncHistogram();
   });
 
@@ -375,7 +372,7 @@ export function initHistogram(options) {
   widget.addEventListener('click', event => {
     event.stopPropagation();
     rgbMode = !rgbMode;
-    write('histogramRgb', rgbMode);
+    writeStored('histogramRgb', rgbMode);
     if (current) drawHistogram(current.entry.hist);
     widget.blur();
   });

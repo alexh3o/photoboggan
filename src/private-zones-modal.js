@@ -5,7 +5,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { t, tp, getLanguage } from './i18n.js';
+import { t, tp, getLanguage, formatBytes } from './i18n.js';
+import { readStored, writeStored } from './settings-defaults.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
 import { createMapView, reloadAllMaps } from './map-view.js';
 import { isMapNetworkAllowed } from './map-config.js';
@@ -28,13 +29,9 @@ export function initPrivateZonesModal(options) {
   host = { ...host, ...options };
 }
 
-function readStorage(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-
 /** Première activation de la carte : la fenêtre s'ouvre sur l'accueil si aucune zone n'existe et que l'accueil n'a pas été refusé. */
 export async function offerPrivateZonesWelcome() {
-  if (readStorage(WELCOME_DONE_KEY) === 'true') return;
+  if (readStored(WELCOME_DONE_KEY) === 'true') return;
   const zones = await ensureZonesLoaded();
   if (zones.length === 0) openPrivateZonesModal();
 }
@@ -51,12 +48,6 @@ const ERROR_KEYS = {
   imported_zone: 'An imported zone cannot be updated: import the file again.',
 };
 const errorMessage = error => (ERROR_KEYS[error] ? t(ERROR_KEYS[error]) : String(error));
-
-function formatBytes(bytes) {
-  const format = (value, unit) => `${new Intl.NumberFormat(getLanguage(), { maximumFractionDigits: 1 }).format(value)} ${unit}`;
-  if (bytes < 1024 * 1024) return format(Math.max(bytes, 1) / 1024, t('KB'));
-  return format(bytes / 1024 / 1024, t('MB unit'));
-}
 
 function formatRelativeDate(millis) {
   const seconds = (millis - Date.now()) / 1000;
@@ -222,7 +213,7 @@ export async function openPrivateZonesModal() {
       button(t('Create a zone'), 'btn-primary', () => startEditor()),
       button(t('Import a file…'), '', () => importZone()),
       button(t('Later'), '', () => {
-        try { localStorage.setItem(WELCOME_DONE_KEY, 'true'); } catch { /* choix non mémorisé */ }
+        writeStored(WELCOME_DONE_KEY, 'true');
         modal.close();
       }),
     );

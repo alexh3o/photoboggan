@@ -56,14 +56,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `config.md` | 151 |  |
-| `css.md` | 549 |  |
+| `config.md` | 153 |  |
+| `css.md` | 557 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 295 |  |
+| `files.md` | 297 |  |
 | `ipc-commands.md` | 181 |  |
-| `module-deps.md` | 97 |  |
-| `symbols-js.md` | 1435 |  |
+| `module-deps.md` | 98 |  |
+| `symbols-js.md` | 1477 |  |
 | `symbols-rust.md` | 1336 |  |
 | `tests.md` | 449 |  |
 
@@ -112,9 +112,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
 | `duplicates-modal.js` | 310 | Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are applied to this search only, unless "Save these settings as default" is tick… |
 | `duplicates.css` | 58 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
-| `duplicates.js` | 263 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
+| `duplicates.js` | 259 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1098 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
-| `faces-panel.js` | 1758 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
+| `faces-panel.js` | 1741 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `filter-suggest.js` | 128 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
 | `filter-tags.js` | 57 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
@@ -125,38 +125,38 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
 | `guide.js` | 208 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
-| `histogram.js` | 395 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
-| `i18n.js` | 104 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
+| `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
+| `i18n.js` | 118 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
 | `keywords-panel.js` | 1247 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
-| `location-panel.js` | 253 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
+| `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
 | `main.js` | 8980 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
-| `map-tile-protocol.js` | 194 | Protocole de tuiles des cartes (`pbmap://`) : toutes les ressources d'une carte (style, tuiles, icônes, polices) passent par ici, et c'est le seul code qui peut contacter le fournisseur. MapLibre lui-même ne fait aucune… |
+| `map-tile-protocol.js` | 193 | Protocole de tuiles des cartes (`pbmap://`) : toutes les ressources d'une carte (style, tuiles, icônes, polices) passent par ici, et c'est le seul code qui peut contacter le fournisseur. MapLibre lui-même ne fait aucune… |
 | `map-view.js` | 429 | Carte MapLibre réutilisable (panneau Info, fenêtre des zones privées, plus tard vue carte de la bibliothèque) : une seule instance par conteneur, créée au premier affichage et réutilisée ensuite. Accès réseau : MapLibre… |
-| `maps-settings.js` | 91 | Paramètres > Cartes (la carte du lieu, le zoom par défaut et les zones sont gérés par location-panel.js et private-zones-modal.js) : ici le style de la carte. Le style (couleurs, icônes, polices) est celui fourni avec l… |
+| `maps-settings.js` | 89 | Paramètres > Cartes (la carte du lieu, le zoom par défaut et les zones sont gérés par location-panel.js et private-zones-modal.js) : ici le style de la carte. Le style (couleurs, icônes, polices) est celui fourni avec l… |
 | `marking-settings.js` | 43 | Paramètres > Métadonnées > Marquage : utilisation des couleurs et du fanion pick (pick / rejet). Désactivée, une fonction reste lue dans les fichiers (la base la conserve) mais n'est plus affichée ni modifiable : le CSS… |
 | `metadata-settings.js` | 282 | Paramètres, onglet Métadonnées : chemin d'écriture des métadonnées (ExifTool ou écriture interne), exécutable ExifTool, et priorité de lecture des formats de chaque type de métadonnée (liste déroulante du type + tableau… |
 | `metadata-writes.js` | 616 | Écriture des métadonnées éditées dans le panneau de droite (onglets Mots-clés et Description) : un seul circuit pour les deux onglets. Chaque onglet est un « éditeur » qui garde ses modifications en attente (voir regist… |
 | `order-list.js` | 144 | Tableau ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats d'un type de métadonnée (mots-clés, titre, description, note, couleur). Plusieurs tableaux peuvent partager le même élément : seul… |
 | `persons-view.js` | 211 | Vue Personnes (lot 5a) : une grosse vignette par personne, à la place de la grille des photos (bouton « Visages » de la barre du haut). - Vignette : le visage représentatif recadré depuis la photo d'origine, à la résolu… |
 | `photo-actions.js` | 2166 |  |
-| `place-search.js` | 69 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
+| `place-search.js` | 68 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `privacy.css` | 29 | Photos privées (privacy.js) : bouclier du panneau Filtres, liste des ensembles et zone de réglage de Paramètres > Divers. |
 | `privacy.js` | 465 | Photos privées : ensembles de confidentialité dont les photos restent masquées (le masquage lui-même est fait côté Rust, voir privacy.rs). Un ensemble = un nom + des critères, tous insensibles à la casse (une photo est … |
-| `private-zones-modal.js` | 523 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
+| `private-zones-modal.js` | 514 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
 | `private-zones.js` | 139 | Zones privées de la carte (côté interface) : liste des zones (lue dans le backend, private_maps.rs), lieux privés, contours à dessiner et niveaux de détail. Partagé par le panneau Info, la fenêtre de gestion des zones e… |
 | `raw-settings.css` | 15 | Settings > Search > RAW search (raw-settings.js) |
 | `raw-settings.js` | 154 | Paramètres > Recherche > Recherche des RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js). Chaque utilisateur nomme et range ses RAW et ses JPEG à sa façon : il co… |
 | `semantic-exclusions.js` | 154 | Content search: keywords never suggested (Settings > Content search). Camera gear, lenses and other keywords that the content of a photo cannot tell give poor suggestions: the user lists them here, and neither they nor … |
 | `semantic-keywords.js` | 200 | Content search, keyword filter side (SigLIP 2, Phase 5): photos suggested for the keywords of the filter. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestio… |
-| `semantic-settings.js` | 437 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
+| `semantic-settings.js` | 431 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
 | `semantic-tagging.js` | 161 | Content search, tagging help (SigLIP 2, Phase 6): keyword -> photos and photo -> keywords. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§8, §23.5, §26). Nothing here writes anything: accepting a suggestion… |
 | `semantic.css` | 73 | Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. |
 | `semantic.js` | 112 | Content search, search side (SigLIP 2): the toolbar field, its scope toggle and the requests to the backend. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7, §9, §18). Everything here stays idle while the … |
-| `settings-defaults.js` | 33 | Default settings of a new installation, read from defaults.jsonc (the single place to edit them), and helpers that return the value saved in localStorage when it is valid, the default otherwise. |
+| `settings-defaults.js` | 43 | Default settings of a new installation, read from defaults.jsonc (the single place to edit them), and helpers that return the value saved in localStorage when it is valid, the default otherwise. |
 | `shooting-filters.css` | 22 | Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `shooting-filters.js` | 474 | Filtres « Matériel » (appareil photo, objectif) et « Prise de vue » (focale, vitesse, ouverture, ISO, flash) du panneau de filtres. Les valeurs viennent des champs déjà chargés avec chaque photo (manufacturer, camera_mo… |
 | `sidebar-search.js` | 56 | Quick search field in the title row of a sidebar block (Folders, Albums). A magnifier button (shown when the title row is hovered, like the "+" of the Albums block) opens a text field that grows to the left of the butto… |
@@ -165,7 +165,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `styles.css` | 1092 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
-| `update-check.js` | 324 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
+| `update-check.js` | 316 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
 
 ## src-tauri
