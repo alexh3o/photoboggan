@@ -1,4 +1,4 @@
-<!-- verified: 03c1da6 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: c2ee85e | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
 
 # Business rules and invariants
 
@@ -36,7 +36,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 - **No fallback**: if ExifTool is selected but not found, `exiftool::run` fails ("écriture refusée") and nothing is written by the internal path. Silently switching writers would produce files that differ from what the user configured.
 
-**2.2 Sidecar targeting** (`sidecar_target`, `read_sidecar`, `sidecar_candidates` in exif.rs; the only place where sidecar names are built). An image writes `photo.ext.xmp`, or an existing `photo.xmp` that is its own. A `photo.xmp` shared with another sidecar-writing image (RAW + DNG, HEIC + MOV…) is never written: the image gets its own `photo.ext.xmp`, seeded from `photo.xmp`. RAW + JPEG: `photo.xmp` stays the RAW's. An image reads one sidecar only, never two merged.
+**2.2 Sidecar targeting** (`sidecar_target`, `active_sidecar`, `read_sidecar`, `sidecar_candidates` in exif.rs; the only place where sidecar names are built). An image writes `photo.ext.xmp`, or an existing `photo.xmp` that is its own. A `photo.xmp` shared with another sidecar-writing image (RAW + DNG, HEIC + MOV…) is never written: the image gets its own `photo.ext.xmp`, seeded from `photo.xmp`. RAW + JPEG: `photo.xmp` stays the RAW's. An image reads one sidecar only, never two merged.
 
 - ⚠ sensitive: a mistake here silently writes one photo's keywords into another's sidecar. Tests: `existing_compatible_sidecar_is_reused`, `shared_compatible_sidecar_is_never_written_each_image_gets_its_own`, `raw_and_jpeg_pair_keeps_writing_the_compatible_sidecar`, `removal_alone_does_not_create_a_sidecar`, `sidecar_names_replace_only_the_last_extension`, `shared_compatible_sidecar_is_copied_never_written` (ignored), `a_moved_or_copied_photo_never_adopts_a_sidecar_already_at_the_destination` (main).
 
@@ -67,6 +67,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 - A scan is never reported successful when photos were not stored (`run_scan` returns an error if a batch failed). A file unreadable or changing during the read is skipped, never stored with empty metadata (`library_sync::read_photo`); it is retried by the next sync.
 - The incremental sync (`sync_library`) compares size + modification time only; it runs at startup and when the window regains focus, never while a foreground task runs (`syncLibraryWithDisk`, main.js). Its global flag (`library_sync::RUNNING`) means only one test may exercise it.
+- `photos.modified` must remain strictly the image file's own mtime so sidecar writes never trigger unnecessary re-reads; sorting by modification date uses `photos.effective_modified` (later of the image's and its active sidecar's mtime, with `0` falling back to `modified`).
 - Photos missing on disk are removed lazily, when displaying them fails (`checkPhotoMissing` → `remove_missing_photos`), and only if their tracked folder is reachable.
 
 ## 6. Long tasks

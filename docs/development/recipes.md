@@ -1,4 +1,5 @@
-<!-- verified: 03c1da6 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: c2ee85e | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+
 # Maintenance recipes
 
 Ordered checklists for the most common changes. Each recipe names a **traced example** (an existing feature built that way: read it first and copy its shape), the files to touch with the name to search, the test to add and the traps. Rules behind them: `invariants.md`.
@@ -6,6 +7,7 @@ Ordered checklists for the most common changes. Each recipe names a **traced exa
 ## 1. Add an IPC command
 
 Example: `set_thumbnail_quality` (main.rs) called from `main.js` (search `thumbnail-quality-select`).
+
 1. Write the function with `#[tauri::command(async)]` (or `async fn`) in the module that owns the feature. Return `Result<T, String>`; `T: Serialize`. Injected parameters (`State<'_, AppState>`, `tauri::AppHandle`) are free.
 2. Heavy work (disk, decoding, database loops): wrap it in `tokio::task::spawn_blocking`, see `generate_thumbnail`.
 3. Register it in `generate_handler![…]` in `fn main` (main.rs), next to its module's other commands. Forgetting this compiles fine and fails only at `invoke` time.
@@ -19,6 +21,7 @@ Example: `set_thumbnail_quality` (main.rs) called from `main.js` (search `thumbn
 ## 2. Add a remembered setting
 
 Examples: `keywordsAutoApply` (frontend only, `metadata-writes.js`), `thumbnailQuality` (frontend + backend + `config.json`), `offlineMode` (frontend, pushed to the backend at startup).
+
 1. `src/defaults.jsonc`: add the key (= localStorage key) with its default, possible values in a **full-line** comment above it (inline comments break both parsers).
 2. Read it with `readBool` / `readChoice(key, allowed)` / `readNumber(key, min, max)` from `settings-defaults.js`; never hard-code the default.
 3. UI control: in `index.html` (Settings modal `#settings-modal`, one `settings-tab-…` per tab), wired in the owning module (or `main.js`, section "MODALE PARAMÈTRES"); save with `writeStored(key, value)` from `settings-defaults.js`.
@@ -31,6 +34,7 @@ Examples: `keywordsAutoApply` (frontend only, `metadata-writes.js`), `thumbnailQ
 ## 3. Add a metadata field to write
 
 Example: **title** (`MetadataUpdate.title`). Read `invariants.md` §1–2 first.
+
 1. Data path: `KeywordWriteItem` (keywords.rs) → `MetadataUpdate` (exif.rs) → both writers. Add the field to both structs and to `MetadataUpdate::adds_values` (it decides whether a missing sidecar is created).
 2. **Internal writer** (exif.rs): XMP in `update_xmp_all` (title: `update_xmp_texts`, `XMP_TITLE_PROPERTIES`); for JPEG also IPTC in `write_jpeg_metadata` (`IptcChanges`, truncated with `truncate_utf8`).
 3. **ExifTool writer** (exiftool.rs): `metadata_args` (title: `XMP-dc:Title` lang-alt, `XMP-acdsee:Caption`, JPEG `IPTC:ObjectName` 64 bytes, `EXIF:XPTitle`). Update the doc comment of `exiftool::write_metadata`.
@@ -43,6 +47,7 @@ Example: **title** (`MetadataUpdate.title`). Read `invariants.md` §1–2 first.
 ## 4. Add a file format
 
 Lists to update (search the extension `"cr2"` to find them all, there is no single list):
+
 1. Backend catalogue: `SUPPORTED_EXTENSIONS` (library_sync.rs) for standard formats; videos: `VIDEO_EXTENSIONS` (video.rs, also used by duplicates.rs).
 2. RAW: the single backend list `thumbnails::RAW_EXTENSIONS` (`is_raw_extension`, `is_raw_path`), used by the catalogue, previews, faces, resize and content search.
 3. Frontend: `RAW_EXTENSIONS` / `HEIF_EXTENSIONS` / `VIDEO_EXTENSIONS` / `RASTER_EXTENSIONS` (format-filters.js), used by `isRawPath` / `isVideoPath` (main.js).
@@ -55,6 +60,7 @@ Lists to update (search the extension `"cr2"` to find them all, there is no sing
 ## 5. Add a database column or table
 
 Example: column `flash` of `photos`.
+
 1. Column: `add_column(&conn, "photos", "flash INTEGER")` at the end of the list in `init_db` (db.rs), with a comment. Never `ALTER` another way, never drop or rename.
 2. Table: `CREATE TABLE IF NOT EXISTS` in the owning module's `init_schema`, called from `init_db` (see `crate::duplicates::init_schema`). Empty until the feature is used (AGENTS.md "zero cost at rest").
 3. `Photo` struct (db.rs, `#[serde(default)]` if optional), `PHOTO_COLUMNS` and `photo_from_row` (same order!), the insert / upsert `insert_batch` (main.rs, called by `library_sync::store_read_batch`), the read `library_sync::read_photo`.
@@ -66,19 +72,21 @@ Example: column `flash` of `photos`.
 ## 6. Add a filter
 
 Example: flash filter (`shooting-filters.js`).
+
 1. UI and state in a filter module: `capture()` / restore of its state (smart albums save it: `main.js`, section "ALBUMS INTELLIGENTS"), `matches…State(photo)` used by `applyPhotoFilters` (main.js).
 2. Large catalogues are prefiltered in SQL: `shootingPrefilter` → `PhotoPrefilter` (db.rs). Both sides must give the same result.
 3. Filter chips and include / exclude menus: `filter-tags.js`; autocomplete: `filter-suggest.js`.
 
 ## 7. Add a translation key, a modal, a panel, a toolbar button
 
-1. Text: English key in `src/locales/en.json` **and** French in `fr.json`. HTML: `data-i18n="Key"` (content) or `data-i18n-title` / `-aria-label` / `-placeholder` / `-alt`. JS: `t('Key', {param})`, plurals `tp('Key', count)` with a `Key|other` entry, labels with colon `labelWithColon('Key')`. Size formatting: use `formatBytes(bytes)` (disk sizes, binary KiB/MiB/GiB) or `formatMegabytes(mb)` (download sizes, decimal MB/GB) from `i18n.js`. Text built in JS must be rebuilt on `onLanguageChange`.
+1. Text: English key in `src/locales/en.json` **and** French in `fr.json`. HTML: `data-i18n="Key"` (content) or `data-i18n-title` / `-aria-label` / `-placeholder` / `-alt`. JS: `t('Key', {param})`, plurals `tp('Key', count)` with a `Key|other` entry, labels with colon `labelWithColon('Key')`. Size formatting: use `formatBytes(bytes)` (disk sizes, binary KiB/MiB/GiB) or `formatMegabytes(bytes)` (download sizes, decimal MB/GB) from `i18n.js`. Text built in JS must be rebuilt on `onLanguageChange`.
 2. Modal / panel / button: DOM in `index.html`, styles in the feature's CSS (rem except fine borders, AGENTS.md §5.A; see `style.md`), behaviour in the feature module with an `init…` function called by `main.js`. Reuse `keepFocusInModal` and `choiceDialog` (`metadata-writes.js`) for focus trapping and simple choices.
 - Trap: a missing French key silently shows English (`t` falls back to `en` then to the key).
 
 ## 8. Add a long task to the queue
 
 Example: integrity check (`checkFolderIntegrity` in main.js → `integrity_scan` in main.rs).
+
 1. JS: `enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, dedupeKey })` (main.js). Modules receive it as an injected `enqueueTask`. Add the kind to `familyOf` if it must not be refused as a duplicate of scans.
 2. Rust command takes `task_id: String`; `let cancel = crate::scan_cancel_flag(&task_id);`; work in `spawn_blocking`, checking `cancel` between items; progress with `app.emit("scan-progress", ScanProgress { task_id, percent })`; `crate::release_scan_cancel_flag(&task_id)` at the end, also on error.
 3. A stop must leave no half-written output (see `download_face_models`: "cancelled" is not an error, nothing installed).
@@ -88,6 +96,7 @@ Example: integrity check (`checkFolderIntegrity` in main.js → `integrity_scan`
 ## 9. Add a backend event
 
 Only `scan-progress` and `scan-detail` exist; prefer reusing them with a `task_id`.
+
 1. Rust: `app.emit("event-name", payload)` with a `#[derive(Clone, serde::Serialize)]` payload (see `ScanDetail`, main.rs).
 2. JS: one `listenToBackend('event-name', handler)` (main.js, next to `scan-detail`); dispatch to modules from there.
 3. `npm run docs:gen` lists it in `generated/events.md`.
@@ -95,6 +104,7 @@ Only `scan-progress` and `scan-detail` exist; prefer reusing them with a `task_i
 ## 10. Add a quick search to a sidebar block
 
 Examples: Folders (`main.js`, search `folderSearchQuery`), Albums (`albums-panel.js`, `computeSearchShown`), People (`faces-panel.js`, `visiblePersons`). The field itself is `sidebar-search.js`; the caller only filters.
+
 1. Markup in the block's title row (`.sidebar-block-header`, `index.html`): a hidden `<div id="<name>-search" class="sidebar-search">` holding `<input id="<name>-search-input" class="sidebar-search-input" type="text">` and `<button id="<name>-search-clear" class="sidebar-search-clear">×</button>`, then `<button id="<name>-search-open" class="sidebar-block-tool">` with the magnifier SVG, both **before** any right-hand button (the field grows to the left of the tools). The title button must be `id="<name>-toggle"` (the module clicks it to unfold a collapsed block). Texts through `data-i18n-placeholder`, `-aria-label` and `-title`.
 2. Call `initSidebarSearch({ name, onChange(query, previous) })` once at init. `query` is already normalized (`normalizeSearch`, trimmed, `''` = no filter); closing the field empties it, so the end of a search is always `query === '' && previous !== ''`.
 3. In `onChange`: store the text in a module variable, redraw, and on the end of the search put the list back (unfold the ancestors of the selected item, scroll the active row into view). Do **not** change the persisted fold state during the search: use a temporary "folded by hand" set, as the folders and albums do.

@@ -1,4 +1,4 @@
-<!-- verified: 03c1da6 | sources: src-tauri/src/privacy.rs, src/privacy.js, src/privacy.css -->
+<!-- verified: c2ee85e | sources: src-tauri/src/privacy.rs, src/privacy.js, src/privacy.css -->
 
 # Private photos and privacy sets
 
