@@ -488,6 +488,8 @@ pub fn get_photos_filtered(pool: &DbPool, offset: i32, limit: i32, folder_filter
     let direction = if ascending { "ASC" } else { "DESC" };
     let mut filter_values = Vec::new();
     let filter_sql = prefilter_condition(filter, FIXED_PARAMS, &mut filter_values);
+    // Photos hidden by the active privacy set never leave the catalogue (privacy.rs); `1` when no set is active.
+    let filter_sql = format!("({filter_sql}) AND ({})", crate::privacy::visible_condition(""));
     let statement_values = |limit: i32, offset: i32| {
         let mut values = vec![prefix.clone().into(), recursive.into(), limit.into(), offset.into()];
         values.extend(filter_values.iter().cloned());
@@ -543,6 +545,8 @@ pub fn count_photos(pool: &DbPool, folder_filter: Option<String>, recursive: boo
     let conn = pool.get().map_err(|e| e.to_string())?;
     let mut filter_values = Vec::new();
     let filter_sql = prefilter_condition(filter, FIXED_PARAMS, &mut filter_values);
+    // Same privacy condition as the list, so the count matches what the grid can show.
+    let filter_sql = format!("({filter_sql}) AND ({})", crate::privacy::visible_condition(""));
     count_matching(&conn, &folder_prefix(folder_filter.as_deref()), recursive, "1", &filter_sql, &filter_values)
 }
 
@@ -552,7 +556,7 @@ pub fn get_photos_by_paths(pool: &DbPool, paths: &[String]) -> Result<Vec<Photo>
     let mut photos = Vec::with_capacity(paths.len());
     for chunk in paths.chunks(500) {
         let marks = vec!["?"; chunk.len()].join(",");
-        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE path IN ({marks})")).map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE path IN ({marks}) AND ({})", crate::privacy::visible_condition(""))).map_err(|e| e.to_string())?;
         let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), photo_from_row).map_err(|e| e.to_string())?;
         for row in rows {
             photos.push(row.map_err(|e| e.to_string())?);
@@ -567,7 +571,7 @@ pub fn get_photos_by_ids(pool: &DbPool, ids: &[i64]) -> Result<Vec<Photo>, Strin
     let mut photos = Vec::with_capacity(ids.len());
     for chunk in ids.chunks(500) {
         let marks = vec!["?"; chunk.len()].join(",");
-        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE id IN ({marks})")).map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(&format!("SELECT {PHOTO_COLUMNS} FROM photos WHERE id IN ({marks}) AND ({})", crate::privacy::visible_condition(""))).map_err(|e| e.to_string())?;
         let rows = stmt.query_map(rusqlite::params_from_iter(chunk.iter()), photo_from_row).map_err(|e| e.to_string())?;
         for row in rows {
             photos.push(row.map_err(|e| e.to_string())?);
@@ -582,10 +586,12 @@ pub fn get_photos_by_ids(pool: &DbPool, ids: &[i64]) -> Result<Vec<Photo>, Strin
 pub fn get_folder_counts(pool: &DbPool) -> Result<std::collections::HashMap<String, i64>, String> {
     let conn = pool.get().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare(
+        .prepare(&format!(
+            // Photos hidden by the active privacy set are not counted: a folder with no visible photo leaves the tree (privacy.rs).
             "SELECT rtrim(p, replace(p, '/', '')) AS dir, COUNT(*)
-             FROM (SELECT replace(path, char(92), '/') AS p FROM photos) GROUP BY dir",
-        )
+             FROM (SELECT replace(path, char(92), '/') AS p FROM photos WHERE {}) GROUP BY dir",
+            crate::privacy::visible_condition("")
+        ))
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))

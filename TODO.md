@@ -23,27 +23,29 @@
 - [x] *feat*: `tree` sticky folders in tree
 - [x] *style*: `UI` bigger star ratings in thumbnails
 - [ ] *feat*: `grid` option to hide RAW by default
-- [ ] *feat*: `files` prevent deletion of photos with stars
 - [ ] *style*: `map` alternative dark map style
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections
+- [ ] *refactor*: `grid` date modified sorting must see metadata writes
+- [ ] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
 
 ## 💡 Ideas / Longer term / On hold
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
-- [ ] *fix*: add "scan for new items" ? big folders, when do they see new elements
 - [ ] *feat*: `files` batch renaming
 - [ ] *feat*: `files` sd card import
 - [ ] *feat*: `viewing` instant zoom
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `metadata` copyright and creator writing
 - [ ] *feat*: `metadata` lens metadata writing
-- [ ] feat: `metadata` exif time shift
+- [ ] *feat*: `metadata` exif time shift
+- [ ] *feat*: `files` prevent deletion of photos with stars
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `semantic` offer a way to reanalyse content already analyzed ?
+- [ ] *feat*: add "scan for new items" to accelerate discovery of new elements
 
 ## ❄️ Cold storage
 
