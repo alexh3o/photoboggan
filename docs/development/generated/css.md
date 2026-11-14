@@ -7,14 +7,14 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
-| `--accent` | styles.css · `:root` · `#1e72ad` | 42 | — |
+| `--accent` | styles.css · `:root` · `#1e72ad` | 43 | — |
 | `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
 | `--active-button` | styles.css · `:root` · `#1e72ad` | 26 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 1 | — |
-| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 9 | — |
+| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 10 | — |
 | `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 19 | — |
 | `--btn-text` | styles.css · `:root` · `#fff`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 12 | — |
 | `--card-bg` | styles.css · `:root` · `#222`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 13 | — |
@@ -26,8 +26,8 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--clipping-pulse-max-opacity` | histogram.css · `:root` · `0.5` | 1 | — |
 | `--clipping-pulse-min-opacity` | histogram.css · `:root` · `0.05` | 1 | — |
 | `--clipping-shadow-color` | histogram.css · `:root` · `rgba(0, 90, 255, 0.9)` | 0 | — |
-| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 51 | — |
-| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 61 | — |
+| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 52 | — |
+| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 63 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 19 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
@@ -145,9 +145,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 26 | — |
 | `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 30 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 3 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 63 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 64 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 69 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 71 | — |
 | `--thumb-bg` | styles.css · `:root` · `#1a1a1a`<br>styles.css · (light) `:root[data-theme="light"]` · `#d4d4d4` | 3 | — |
 | `--thumb-corner-size` | styles.css · `:root` · `1.75rem` | 4 | — |
 | `--thumb-hover-scale` | styles.css · `:root` · `1.03` | 1 | — |
@@ -199,6 +199,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 5 | styles.css | `.preview-zoom-badge` |
 | 5 | styles.css | `.slideshow-indicator` |
 | 5 | styles.css | `.marking-float-anchor` |
+| 5 | styles.css | `.photo-pager` |
 | 4 | faces.css | `.faces-sticky` |
 | 4 | faces.css | `.faces-separator-sticky.level-1` |
 | 3 | map-mode.css | `.map-drop-hint` |
@@ -394,7 +395,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L265 Colour flag swatch before the name
 - L285 ---- Time chart: one column per day / week / month / year / decade; wide periods scroll sideways. ----
 
-### src/styles.css (1063 lines)
+### src/styles.css (1077 lines)
 
 - L1 Fredoka Font (title, about) embedded : no connection to Google Fonts.
 - L20 Selectable interface fonts (Settings > Appearance), registered in src/app-fonts.js (steps to add one are listed there).
@@ -532,3 +533,6 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L1046 Pastille multicolore : ouvre la bulle des couleurs ; prend la couleur de la photo quand elle en a une
 - L1052 Bulle centrée au-dessus de la barre (la barre est son repère) ; elle se réduit pour rester dans la grille (100cqw = largeur de la…
 - L1057 Finished duplicate search waiting to be shown: "Show" button in the toast, and "Show" / "Dismiss" in the tasks window.
+- L1064 PAGINATION DE LA GRILLE (main.js, « PAGINATION DE LA GRILLE ») : barre collée en haut, comme les bannières des modes de résultats…
+- L1072 Page change under way (question, then reading the page): the bar is greyed and inert until the new page is shown.
+- L1075 Full sentence ("Page 2 of 3") for screen readers only.

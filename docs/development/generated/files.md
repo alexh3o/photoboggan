@@ -9,7 +9,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1390 |  |
+| `index.html` | 1398 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
 | `TODO.md` | 68 |  |
@@ -77,10 +77,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `face-detection.md` | 72 |  |
 | `faces.md` | 68 |  |
 | `filters-and-search.md` | 89 |  |
-| `grid-and-viewer.md` | 89 |  |
+| `grid-and-viewer.md` | 98 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 72 |  |
-| `main-window.md` | 79 |  |
+| `main-window.md` | 81 |  |
 | `maps-and-geolocation.md` | 69 |  |
 | `metadata-read-write.md` | 101 |  |
 | `photo-operations.md` | 82 |  |
@@ -123,14 +123,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `format-filters.css` | 12 | Filtre Format (format-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
-| `guide.js` | 207 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
+| `guide.js` | 208 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 395 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 104 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
 | `keywords-panel.js` | 1247 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 253 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 8643 |  |
+| `main.js` | 8759 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -160,7 +160,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `slideshow.js` | 311 | Diaporama : un état du plein écran (pas un mode à part). Un minuteur fait passer le plein écran à la photo suivante ; tout le reste (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même.… |
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
-| `styles.css` | 1063 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1077 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `update-check.js` | 324 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
@@ -288,5 +288,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1706 |  |
-| `fr.json` | 1706 |  |
+| `en.json` | 1718 |  |
+| `fr.json` | 1718 |  |
