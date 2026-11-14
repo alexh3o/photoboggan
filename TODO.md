@@ -25,6 +25,10 @@
 - [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
 - [x] *feat*: `tree` sticky folders in tree
 - [ ] *style*: `UI` bigger star ratings in thumbnails
+- [ ] *feat*: `grid` option to hide RAW by default
+- [ ] *feat*: `files` prevent deletion of photos with stars
+- [ ] *style*: `map` alternative dark map style
+- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -35,7 +39,7 @@
 - [ ] *feat*: `files` batch renaming
 - [ ] *feat*: `files` sd card import
 - [ ] *feat*: `viewing` instant zoom
-- [ ] *feat*: conditional clickable path line (breadcrumb) on top when left panel is closed
+- [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `metadata` copyright and creator writing
 - [ ] *feat*: `metadata` lens metadata writing
 - [ ] feat: `metadata` exif time shift
@@ -75,4 +79,3 @@
 - [ ] `linux` Test Linux Release
 - [ ] `backup` restoring data from data folder
 - [ ] `thumbnails` Some thumbnails don't load, but passing mouse over them instantly displays them: dev only ?
-- [ ] *fix to reproduce*: `files` choose button from resize modal opens folder pick window much later

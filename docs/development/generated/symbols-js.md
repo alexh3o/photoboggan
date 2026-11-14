@@ -212,114 +212,115 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `nameSelection(typed = null)` · L968 — Nommer les visages sélectionnés (fenêtre partagée avec le plein écran : faces-panel.js, promptPersonName). `typed` : premier caractère tapé
 - `export initFacesGrid(hostApi)` · L998 — ==========================================
 
-## src/faces-panel.js (106)
+## src/faces-panel.js (107)
 
-- `loadFaceSettings()` · L69
-- `readStorage(key)` · L83
-- `writeStorage(key, value)` · L87
-- `export orientRect({ x, y, w, h }, orientation)` · L96 — ==========================================
-- `export faceCropStyle(face, orientation, width, height, zoom)` · L111 — Découpe carrée d'un visage dans une miniature de `width` × `height` px, par CSS : la zone (repère de l'image stockée, orientée ici comme la
-- `export hasPersonFilters()` · L127 — ==========================================
-- `hasFaceCountFilter()` · L131
-- `parseFaceBound(value)` · L136 — Integer >= 0 typed in a bound field; empty or anything else = no bound.
-- `export personFilterMatches(photo)` · L141
-- `export setPersonFilterIds(ids, excludedIds = [])` · L158 — Albums intelligents (albums-panel.js, main.js) : personnes du filtre enregistrées dans un album, rétablies à son ouverture (sans relancer le
-- `export photoMatchesPersonIds(photo, ids, excludedIds = [])` · L166 — `excludedIds`: people who must not be on the photo.
-- `export getExcludedPersonFilterIds()` · L174 — Excluded people of the filter (smart albums, main.js).
-- `export clearPersonFilters()` · L179 — Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
-- `export clearPersonSelection()` · L195 — Ouverture des vues Personnes ou de gestion depuis leur bouton de barre d'outils : les personnes choisies (section et filtre Personnes) sont
-- `export getPersons()` · L207 — Personnes connues (vue Visages : suggestions de « Nommer »).
-- `export getPendingFaceWriteCount()` · L219
-- `export personLabel(person)` · L225 — Nom affiché d'une personne (section Personnes, vue Personnes) : son alias s'il est défini, sinon son nom (mot-clé). Le filtre Personnes, les
-- `export getPendingFaceWritePhotoIds()` · L227
-- `export getPersonFilterIds()` · L232 — Personnes choisies (section ou filtre Personnes) : la vue de gestion ne montre que leurs visages.
-- `export eraseFaceData(photoIds)` · L248 — « Effacer les données de visages » d'une sélection : confirmation, puis visages supprimés de la base et zones retirées des fichiers.
-- `export getPersonRoot()` · L269 — Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
-- `setPersonFilters(ids, excluded = excludedPersonFilters)` · L274 — `excluded`: new list of excluded people (unchanged if omitted); a person included again leaves it.
-- `togglePersonFilter(id, additive)` · L283 — Clic sur une personne : filtre sur elle seule (un second clic l'enlève) ; Ctrl + clic : ajoutée au filtre (ou retirée).
-- `setPersonFilterMode(id, exclude)` · L292 — Puts a person in the included or excluded list (and out of the other one), then filters again.
-- `addPersonFilterByName(value, exclude = false)` · L300 — Enter with no suggestion: the typed name, if it is exactly a listed person's.
-- `addPersonFilter(id, exclude)` · L307
-- `personName(id)` · L312
-- `renderPersonFilterTags()` · L317 — Étiquettes des personnes filtrées : boutons à croix quand le groupe est déplié, simples étiquettes derrière le titre quand il est replié.
-- `statusTags()` · L348 — Chips of the face scan status and of the face-count filter, after the people chips on the collapsed line (same violet as the people chips).
-- `faceCountLabel()` · L383 — Chip text: "👤≤3" (maximum only), "👤≥2" (minimum only), "👤=0" (same bound twice), "1≤👤≤4" (both). The text-presentation selector (U+FE0E)
-- `resetFaceCountFilter()` · L391 — Empties the face-count filter and its two fields (the caller renders the chips and filters again).
-- `initFaceCountFilter()` · L401 — The two bound fields: typing filters after a short pause (the list is filtered again each time), leaving the field or Enter at once.
-- `personFilterOptions()` · L425 — People offered by the filter field: listed people not already in the filter, with their photo count. Searched by name and alias.
-- `export refreshFaces()` · L440 — ==========================================
-- `export listedPersons()` · L488 — Personnes sans aucune photo : absentes de la section Personnes et de la liste du filtre.
-- `export getShowHiddenPersons()` · L495
-- `export setShowHiddenPersons(show)` · L499
-- `sortedPersons()` · L506
-- `renderPersons()` · L511
-- `avatarKey(cover)` · L555
-- `applyAvatarStyle(element, style)` · L557
-- `export getPersonCover(personId)` · L565 — Vignette ronde : la zone du visage (orientée comme la miniature), élargie et rendue carrée, découpée dans la miniature en cache par CSS.
-- `export fillAvatar(element, cover)` · L570 — Fills a round avatar element with the cover face of a person (same crop as the People section).
-- `loadAvatar(element, cover)` · L575
-- `export openPersonMenu(event, person)` · L600 — Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, fusionner (et annuler les
-- `personCommandError(error, invalidName)` · L643 — Codes d'erreur des commandes de personnes (faces.rs) traduits ; les autres messages sont affichés tels quels. `invalidName` : message du co…
-- `personErrorMessage(error)` · L656
-- `normalizeKeywordPath(path)` · L659 — Chemin de mot-clé comparable : niveaux sans espaces autour, en minuscules, niveaux vides retirés (« A / b/ » = « a/b »).
-- `mergePerson(person)` · L663 — Fusionner : la personne choisie reçoit les visages de `person` (à réécrire dans les fichiers), puis `person` est supprimée. La fusion
-- `undoMerge(merge)` · L692 — Annule une fusion : la personne absorbée revient avec ses visages (à réécrire).
-- `cleanPersonsWithoutFaces()` · L705 — Paramètres > Visages, « Nettoyer… » : les personnes sans aucun visage attribué sont listées, puis supprimées après confirmation.
-- `renamePerson(person)` · L739 — Renommer : une personne non reliée change de nom ; pour une personne reliée, c'est son mot-clé qui est renommé (son nom vient de lui), avec…
-- `editPersonAlias(person)` · L769 — Alias : nom d'affichage de la personne dans les vues Visages et Personnes et la section Personnes (ex. « Mamie » pour « #CONTACTS/Jeanne D …
-- `setPersonHidden(person, hidden)` · L789
-- `export confirmDeletePerson(person, intro = '')` · L801 — Supprimer une personne : alerte (caractéristiques de visage effacées ; visages encore rattachés, avec « Voir » pour les traiter d'abord).
-- `export proposeDeletePersons(unlinked)` · L835 — Mot-clé relié à des personnes supprimé (panneau Mots-clés) : proposer de supprimer aussi chacune d'elles (à défaut, elles restent, déliées).
-- `export filterOnPerson(personId)` · L842 — Vue Personnes, clic sur une personne : la grille des photos est filtrée sur elle seule.
-- `export showPersonFaces(personId)` · L847 — Visages d'une personne à traiter : la grille des photos est filtrée sur elle, puis la vue de gestion s'ouvre sur les visages de ces photos.
-- `export keywordPaths()` · L857 — Chemins complets (« A/B/C ») des nœuds de l'arbre des mots-clés, par identifiant.
-- `export faceNameErrorMessage(error)` · L875 — Messages des erreurs de « Nommer » (faces.rs, resolve_person).
-- `export promptPersonName({ title, message, proposed = '', selectValue = true, submit…)` · L882 — Fenêtre « Nommer » (vue de gestion, zone dessinée en plein écran) : une personne existante, un chemin de mot-clé de l'arbre (personne créée
-- `linkPersonToKeyword(person)` · L925
-- `saveLink(person, keywordId)` · L952 — Enregistre le lien (ou le retire) ; renvoie un message d'erreur (à afficher par l'appelant) ou null.
-- `unlinkPerson(person)` · L963 — « Délier le mot-clé » (menu de la personne, sans fenêtre) : l'erreur éventuelle s'affiche en toast.
-- `isCollapsed(name)` · L971 — ==========================================
-- `applyCollapsed(name)` · L975
-- `initCollapsibleSection(name)` · L986
-- `export layoutFullscreenFaces(slot)` · L998 — ==========================================
-- `effectiveOverlayMode(interactive)` · L1005 — Mode réellement appliqué : dans la vue de révision des visages, l'aperçu ne reste jamais sans zones
-- `export layoutPreviewFaces(slot)` · L1011 — Idem pour une case de l'aperçu (appelée par main.js à chaque mise en page de la case) ; le calque est créé à la demande.
-- `layoutFaceOverlay(overlay, slot, active, interactive)` · L1024 — Cale un calque sur l'image affichée du slot (même translation et même taille que l'image) et charge les visages si la photo a changé.
-- `fetchPhotoFaces(photoId)` · L1058 — Visages d'une photo pour les calques : les zones ignorées et « pas un visage » y sont incluses si l'utilisateur les a choisies.
-- `renderOverlayFaces(overlay, info, interactive)` · L1060
-- `openPreviewZoneMenu(event)` · L1084 — Clic droit dans une case de l'aperçu : les zones y laissent passer la souris (glisser, molette), donc la zone visée est retrouvée par sa
-- `relayoutOverlays()` · L1100 — Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
-- `reloadOverlayFaces()` · L1107 — Relit les visages de la photo du plein écran (après une action sur une zone), puis la section Personnes et les vues.
-- `openZoneMenu(event, face)` · L1113 — Menu d'une zone en plein écran (clic droit) : nommer / renommer, valider une suggestion, passer en inconnu, supprimer la zone.
-- `inverseOrientation(orientation)` · L1174 — Orientation inverse : repasse de l'image affichée (orientée) au repère de l'image stockée. Seules les rotations d'un quart de tour (6 et 8)
-- `startZoneDrawing(event)` · L1179 — Zone dessinée à la main (Maj + glisser sur la photo du plein écran) : les zones s'affichent si besoin, le rectangle suit la souris, puis la
-- `setFaceRegionsMode(mode)` · L1245
-- `export getFaceDisplay()` · L1253 — Réglages d'affichage des zones, pour le sous-menu Visages de la photo (aperçu et plein écran).
-- `export setFaceDisplayMode(mode)` · L1255
-- `export setFaceDisplayExtra(kind, shown)` · L1260 — kind : 'ignored' ou 'notFace'. Les calques rechargent leurs visages avec la nouvelle option.
-- `export armFaceDrawing()` · L1275 — « Ajouter un visage » (menu Visages, Alt+V) : le prochain glisser sur la photo du plein écran ou d'une case de l'aperçu trace une zone, com…
-- `disarmFaceDrawing()` · L1289
-- `export toggleFaceRegions()` · L1295 — Touche V : survol seulement > toujours > masquées. Un toast annonce le nouveau mode. Renvoie false si la lecture des visages est désactivée.
-- `export isFaceDetectionEnabled()` · L1309 — ==========================================
-- `faceErrorMessage(error)` · L1314 — Codes d'erreur du backend (face_models.rs) traduits ; les autres messages sont affichés tels quels.
-- `isOffline()` · L1323 — Mode hors ligne (Paramètres > Général, géré par main.js) : le modèle s'installe uniquement depuis un dossier.
-- `export onOfflineModeChanged()` · L1327
-- `formatMegabytes(bytes)` · L1331
-- `refreshModelStatus()` · L1336
-- `renderModelStatus()` · L1348 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
-- `downloadModels()` · L1385
-- `importModels()` · L1400
-- `sendFaceSettings()` · L1413
-- `scheduleReclassify()` · L1418 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
-- `initDetectionSettings()` · L1432
-- `applyDetectionEnabled()` · L1482 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
-- `setDetectionEnabled(enabled)` · L1495
-- `checkbox(label, checked)` · L1502
-- `dialogButton(label, className, onClick)` · L1514
-- `enqueueFaceScan(scope, recursive)` · L1525 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
-- `export openFaceScanDialog(scope)` · L1558 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
-- `applyReadingEnabled()` · L1637 — ==========================================
-- `export initFacesPanel(hostApi)` · L1656 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
+- `loadFaceSettings()` · L72
+- `readStorage(key)` · L86
+- `writeStorage(key, value)` · L90
+- `export orientRect({ x, y, w, h }, orientation)` · L99 — ==========================================
+- `export faceCropStyle(face, orientation, width, height, zoom)` · L114 — Découpe carrée d'un visage dans une miniature de `width` × `height` px, par CSS : la zone (repère de l'image stockée, orientée ici comme la
+- `export hasPersonFilters()` · L130 — ==========================================
+- `hasFaceCountFilter()` · L134
+- `parseFaceBound(value)` · L139 — Integer >= 0 typed in a bound field; empty or anything else = no bound.
+- `export personFilterMatches(photo)` · L144
+- `export setPersonFilterIds(ids, excludedIds = [])` · L161 — Albums intelligents (albums-panel.js, main.js) : personnes du filtre enregistrées dans un album, rétablies à son ouverture (sans relancer le
+- `export photoMatchesPersonIds(photo, ids, excludedIds = [])` · L169 — `excludedIds`: people who must not be on the photo.
+- `export getExcludedPersonFilterIds()` · L177 — Excluded people of the filter (smart albums, main.js).
+- `export clearPersonFilters()` · L182 — Vide les filtres sans relancer le filtrage (« Effacer tous les filtres » le fait ensuite).
+- `export clearPersonSelection()` · L198 — Ouverture des vues Personnes ou de gestion depuis leur bouton de barre d'outils : les personnes choisies (section et filtre Personnes) sont
+- `export getPersons()` · L210 — Personnes connues (vue Visages : suggestions de « Nommer »).
+- `export getPendingFaceWriteCount()` · L222
+- `export personLabel(person)` · L228 — Nom affiché d'une personne (section Personnes, vue Personnes) : son alias s'il est défini, sinon son nom (mot-clé). Le filtre Personnes, les
+- `export getPendingFaceWritePhotoIds()` · L230
+- `export getPersonFilterIds()` · L235 — Personnes choisies (section ou filtre Personnes) : la vue de gestion ne montre que leurs visages.
+- `export eraseFaceData(photoIds)` · L251 — « Effacer les données de visages » d'une sélection : confirmation, puis visages supprimés de la base et zones retirées des fichiers.
+- `export getPersonRoot()` · L272 — Racine des mots-clés créés pour les nouvelles personnes (Paramètres > Visages).
+- `setPersonFilters(ids, excluded = excludedPersonFilters)` · L277 — `excluded`: new list of excluded people (unchanged if omitted); a person included again leaves it.
+- `togglePersonFilter(id, additive)` · L286 — Clic sur une personne : filtre sur elle seule (un second clic l'enlève) ; Ctrl + clic : ajoutée au filtre (ou retirée).
+- `setPersonFilterMode(id, exclude)` · L295 — Puts a person in the included or excluded list (and out of the other one), then filters again.
+- `addPersonFilterByName(value, exclude = false)` · L303 — Enter with no suggestion: the typed name, if it is exactly a listed person's.
+- `addPersonFilter(id, exclude)` · L310
+- `personName(id)` · L315
+- `renderPersonFilterTags()` · L320 — Étiquettes des personnes filtrées : boutons à croix quand le groupe est déplié, simples étiquettes derrière le titre quand il est replié.
+- `statusTags()` · L351 — Chips of the face scan status and of the face-count filter, after the people chips on the collapsed line (same violet as the people chips).
+- `faceCountLabel()` · L386 — Chip text: "👤≤3" (maximum only), "👤≥2" (minimum only), "👤=0" (same bound twice), "1≤👤≤4" (both). The text-presentation selector (U+FE0E)
+- `resetFaceCountFilter()` · L394 — Empties the face-count filter and its two fields (the caller renders the chips and filters again).
+- `initFaceCountFilter()` · L404 — The two bound fields: typing filters after a short pause (the list is filtered again each time), leaving the field or Enter at once.
+- `personFilterOptions()` · L428 — People offered by the filter field: listed people not already in the filter, with their photo count. Searched by name and alias.
+- `export refreshFaces()` · L443 — ==========================================
+- `export listedPersons()` · L491 — Personnes sans aucune photo : absentes de la section Personnes et de la liste du filtre.
+- `export getShowHiddenPersons()` · L498
+- `export setShowHiddenPersons(show)` · L502
+- `sortedPersons()` · L509
+- `visiblePersons()` · L515 — People listed in the sidebar: sorted, and only those matching the quick search when it is set (name or alias, without case or accents).
+- `renderPersons()` · L520
+- `avatarKey(cover)` · L571
+- `applyAvatarStyle(element, style)` · L573
+- `export getPersonCover(personId)` · L581 — Vignette ronde : la zone du visage (orientée comme la miniature), élargie et rendue carrée, découpée dans la miniature en cache par CSS.
+- `export fillAvatar(element, cover)` · L586 — Fills a round avatar element with the cover face of a person (same crop as the People section).
+- `loadAvatar(element, cover)` · L591
+- `export openPersonMenu(event, person)` · L616 — Menu d'une personne (section Personnes, vue Personnes) : gérer ses visages, renommer, relier / délier un mot-clé, fusionner (et annuler les
+- `personCommandError(error, invalidName)` · L659 — Codes d'erreur des commandes de personnes (faces.rs) traduits ; les autres messages sont affichés tels quels. `invalidName` : message du co…
+- `personErrorMessage(error)` · L672
+- `normalizeKeywordPath(path)` · L675 — Chemin de mot-clé comparable : niveaux sans espaces autour, en minuscules, niveaux vides retirés (« A / b/ » = « a/b »).
+- `mergePerson(person)` · L679 — Fusionner : la personne choisie reçoit les visages de `person` (à réécrire dans les fichiers), puis `person` est supprimée. La fusion
+- `undoMerge(merge)` · L708 — Annule une fusion : la personne absorbée revient avec ses visages (à réécrire).
+- `cleanPersonsWithoutFaces()` · L721 — Paramètres > Visages, « Nettoyer… » : les personnes sans aucun visage attribué sont listées, puis supprimées après confirmation.
+- `renamePerson(person)` · L755 — Renommer : une personne non reliée change de nom ; pour une personne reliée, c'est son mot-clé qui est renommé (son nom vient de lui), avec…
+- `editPersonAlias(person)` · L785 — Alias : nom d'affichage de la personne dans les vues Visages et Personnes et la section Personnes (ex. « Mamie » pour « #CONTACTS/Jeanne D …
+- `setPersonHidden(person, hidden)` · L805
+- `export confirmDeletePerson(person, intro = '')` · L817 — Supprimer une personne : alerte (caractéristiques de visage effacées ; visages encore rattachés, avec « Voir » pour les traiter d'abord).
+- `export proposeDeletePersons(unlinked)` · L851 — Mot-clé relié à des personnes supprimé (panneau Mots-clés) : proposer de supprimer aussi chacune d'elles (à défaut, elles restent, déliées).
+- `export filterOnPerson(personId)` · L858 — Vue Personnes, clic sur une personne : la grille des photos est filtrée sur elle seule.
+- `export showPersonFaces(personId)` · L863 — Visages d'une personne à traiter : la grille des photos est filtrée sur elle, puis la vue de gestion s'ouvre sur les visages de ces photos.
+- `export keywordPaths()` · L873 — Chemins complets (« A/B/C ») des nœuds de l'arbre des mots-clés, par identifiant.
+- `export faceNameErrorMessage(error)` · L891 — Messages des erreurs de « Nommer » (faces.rs, resolve_person).
+- `export promptPersonName({ title, message, proposed = '', selectValue = true, submit…)` · L898 — Fenêtre « Nommer » (vue de gestion, zone dessinée en plein écran) : une personne existante, un chemin de mot-clé de l'arbre (personne créée
+- `linkPersonToKeyword(person)` · L941
+- `saveLink(person, keywordId)` · L968 — Enregistre le lien (ou le retire) ; renvoie un message d'erreur (à afficher par l'appelant) ou null.
+- `unlinkPerson(person)` · L979 — « Délier le mot-clé » (menu de la personne, sans fenêtre) : l'erreur éventuelle s'affiche en toast.
+- `isCollapsed(name)` · L987 — ==========================================
+- `applyCollapsed(name)` · L991
+- `initCollapsibleSection(name)` · L1002
+- `export layoutFullscreenFaces(slot)` · L1014 — ==========================================
+- `effectiveOverlayMode(interactive)` · L1021 — Mode réellement appliqué : dans la vue de révision des visages, l'aperçu ne reste jamais sans zones
+- `export layoutPreviewFaces(slot)` · L1027 — Idem pour une case de l'aperçu (appelée par main.js à chaque mise en page de la case) ; le calque est créé à la demande.
+- `layoutFaceOverlay(overlay, slot, active, interactive)` · L1040 — Cale un calque sur l'image affichée du slot (même translation et même taille que l'image) et charge les visages si la photo a changé.
+- `fetchPhotoFaces(photoId)` · L1074 — Visages d'une photo pour les calques : les zones ignorées et « pas un visage » y sont incluses si l'utilisateur les a choisies.
+- `renderOverlayFaces(overlay, info, interactive)` · L1076
+- `openPreviewZoneMenu(event)` · L1100 — Clic droit dans une case de l'aperçu : les zones y laissent passer la souris (glisser, molette), donc la zone visée est retrouvée par sa
+- `relayoutOverlays()` · L1116 — Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
+- `reloadOverlayFaces()` · L1123 — Relit les visages de la photo du plein écran (après une action sur une zone), puis la section Personnes et les vues.
+- `openZoneMenu(event, face)` · L1129 — Menu d'une zone en plein écran (clic droit) : nommer / renommer, valider une suggestion, passer en inconnu, supprimer la zone.
+- `inverseOrientation(orientation)` · L1190 — Orientation inverse : repasse de l'image affichée (orientée) au repère de l'image stockée. Seules les rotations d'un quart de tour (6 et 8)
+- `startZoneDrawing(event)` · L1195 — Zone dessinée à la main (Maj + glisser sur la photo du plein écran) : les zones s'affichent si besoin, le rectangle suit la souris, puis la
+- `setFaceRegionsMode(mode)` · L1261
+- `export getFaceDisplay()` · L1269 — Réglages d'affichage des zones, pour le sous-menu Visages de la photo (aperçu et plein écran).
+- `export setFaceDisplayMode(mode)` · L1271
+- `export setFaceDisplayExtra(kind, shown)` · L1276 — kind : 'ignored' ou 'notFace'. Les calques rechargent leurs visages avec la nouvelle option.
+- `export armFaceDrawing()` · L1291 — « Ajouter un visage » (menu Visages, Alt+V) : le prochain glisser sur la photo du plein écran ou d'une case de l'aperçu trace une zone, com…
+- `disarmFaceDrawing()` · L1305
+- `export toggleFaceRegions()` · L1311 — Touche V : survol seulement > toujours > masquées. Un toast annonce le nouveau mode. Renvoie false si la lecture des visages est désactivée.
+- `export isFaceDetectionEnabled()` · L1325 — ==========================================
+- `faceErrorMessage(error)` · L1330 — Codes d'erreur du backend (face_models.rs) traduits ; les autres messages sont affichés tels quels.
+- `isOffline()` · L1339 — Mode hors ligne (Paramètres > Général, géré par main.js) : le modèle s'installe uniquement depuis un dossier.
+- `export onOfflineModeChanged()` · L1343
+- `formatMegabytes(bytes)` · L1347
+- `refreshModelStatus()` · L1352
+- `renderModelStatus()` · L1364 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
+- `downloadModels()` · L1401
+- `importModels()` · L1416
+- `sendFaceSettings()` · L1429
+- `scheduleReclassify()` · L1434 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
+- `initDetectionSettings()` · L1448
+- `applyDetectionEnabled()` · L1498 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
+- `setDetectionEnabled(enabled)` · L1511
+- `checkbox(label, checked)` · L1518
+- `dialogButton(label, className, onClick)` · L1530
+- `enqueueFaceScan(scope, recursive)` · L1541 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
+- `export openFaceScanDialog(scope)` · L1574 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
+- `applyReadingEnabled()` · L1653 — ==========================================
+- `export initFacesPanel(hostApi)` · L1672 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
 
 ## src/filter-suggest.js (2)
 

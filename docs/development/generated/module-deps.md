@@ -53,7 +53,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `duplicates` | i18n | duplicates-modal, main, photo-actions |
 | `duplicates-modal` | duplicates, i18n, raw-settings | main |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults | main |
-| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults | faces-grid, main, persons-view, stats |
+| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | faces-grid, main, persons-view, stats |
 | `filter-suggest` | i18n | faces-panel, format-filters, keywords-panel, main, semantic-exclusions, shooting-filters, stats |
 | `filter-tags` | i18n, photo-actions | faces-panel, format-filters, main, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | main |
@@ -87,7 +87,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, main, semantic-keywords |
 | `settings-defaults` | — | albums-panel, faces-grid, faces-panel, histogram, i18n, location-panel, main, map-config, map-mode, maps-settings, marking-settings, metadata-settings, metadata-writes, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, slideshow, update-check |
 | `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, main |
-| `sidebar-search` | i18n | albums-panel, main |
+| `sidebar-search` | i18n | albums-panel, faces-panel, main |
 | `slideshow` | i18n, settings-defaults | main, photo-actions |
 | `stats` | faces-panel, filter-suggest, filter-tags, format-filters, i18n, marking-settings, semantic-settings | main |
 | `toolbar-a11y` | — | main |

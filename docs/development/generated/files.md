@@ -9,10 +9,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1406 |  |
+| `index.html` | 1409 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 79 |  |
+| `TODO.md` | 82 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -47,8 +47,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `glossary.md` | 80 |  |
 | `invariants.md` | 81 |  |
 | `README.md` | 56 |  |
-| `recipes.md` | 94 |  |
-| `style.md` | 57 |  |
+| `recipes.md` | 104 |  |
+| `style.md` | 58 |  |
 | `testing.md` | 76 |  |
 | `troubleshooting.md` | 72 |  |
 
@@ -57,13 +57,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 151 |  |
-| `css.md` | 545 |  |
+| `css.md` | 548 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
-| `files.md` | 293 |  |
+| `files.md` | 294 |  |
 | `ipc-commands.md` | 179 |  |
-| `module-deps.md` | 95 |  |
-| `symbols-js.md` | 1425 |  |
+| `module-deps.md` | 96 |  |
+| `symbols-js.md` | 1434 |  |
 | `symbols-rust.md` | 1309 |  |
 | `tests.md` | 449 |  |
 
@@ -71,16 +71,16 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums.md` | 60 |  |
+| `albums.md` | 62 |  |
 | `app-shell.md` | 71 |  |
 | `duplicates.md` | 65 |  |
 | `face-detection.md` | 72 |  |
-| `faces.md` | 68 |  |
+| `faces.md` | 69 |  |
 | `filters-and-search.md` | 89 |  |
 | `grid-and-viewer.md` | 98 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 72 |  |
-| `main-window.md` | 83 |  |
+| `main-window.md` | 86 |  |
 | `maps-and-geolocation.md` | 69 |  |
 | `metadata-read-write.md` | 101 |  |
 | `photo-operations.md` | 82 |  |
@@ -114,7 +114,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.css` | 58 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
 | `duplicates.js` | 263 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1098 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
-| `faces-panel.js` | 1733 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
+| `faces-panel.js` | 1758 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `filter-suggest.js` | 128 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
 | `filter-tags.js` | 57 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
@@ -289,5 +289,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1724 |  |
-| `fr.json` | 1724 |  |
+| `en.json` | 1726 |  |
+| `fr.json` | 1726 |  |
