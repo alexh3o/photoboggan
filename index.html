@@ -927,6 +927,17 @@
 
           <!-- Onglet Divers -->
           <div id="settings-tab-misc" class="settings-tab-pane" role="tabpanel" hidden>
+            <section class="settings-section">
+              <h4 data-i18n="Slideshow">Diaporama</h4>
+              <label class="settings-row" for="slideshow-delay"><span data-i18n="Delay between photos (seconds)">Durée entre les photos (secondes)</span>
+                <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
+              <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
+              <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
+            </section>
+            <section class="settings-section">
+              <h4 data-i18n="Albums">Albums</h4>
+              <label class="settings-row settings-check"><input id="album-overwrite-warning-toggle" type="checkbox" /><span data-i18n="Confirm before replacing the filters of a smart album">Confirmer avant d'écraser les filtres d'un album intelligent</span></label>
+            </section>
             <!-- Photos privées (privacy.js) : ensembles de critères (chemins, mots-clés, dates) dont les photos restent masquées -->
             <section class="settings-section" id="privacy-settings">
               <h4 data-i18n="Private photos">Photos privées</h4>
@@ -968,17 +979,6 @@
                   <button id="privacy-set-delete" type="button" class="privacy-delete" data-i18n="Delete this set">Supprimer cet ensemble</button>
                 </div>
               </div>
-            </section>
-            <section class="settings-section">
-              <h4 data-i18n="Slideshow">Diaporama</h4>
-              <label class="settings-row" for="slideshow-delay"><span data-i18n="Delay between photos (seconds)">Durée entre les photos (secondes)</span>
-                <input id="slideshow-delay" type="number" min="1" max="60" step="1" /></label>
-              <label class="settings-row settings-check"><input id="slideshow-loop" type="checkbox" /><span data-i18n="Loop">Boucler</span></label>
-              <label class="settings-row settings-check"><input id="slideshow-random" type="checkbox" /><span data-i18n="Random order">Ordre aléatoire</span></label>
-            </section>
-            <section class="settings-section">
-              <h4 data-i18n="Albums">Albums</h4>
-              <label class="settings-row settings-check"><input id="album-overwrite-warning-toggle" type="checkbox" /><span data-i18n="Confirm before replacing the filters of a smart album">Confirmer avant d'écraser les filtres d'un album intelligent</span></label>
             </section>
           </div>
         </div>

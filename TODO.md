@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [x] *feat*: `search` private folders to optionally exclude from searches (similar x2, semantic search, keywords)
-- [ ] *fix*: `privacy` keywords filtering does not work
+- [x] *fix*: `privacy` keywords filtering does not work
 - [x] *feat*: `grid` implement pages for 50k+ views
 - [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
 - [x] *feat*: `infos` add folder in infos when all photos is selected

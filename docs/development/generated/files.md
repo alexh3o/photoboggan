@@ -63,9 +63,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `files.md` | 298 |  |
 | `ipc-commands.md` | 181 |  |
 | `module-deps.md` | 98 |  |
-| `symbols-js.md` | 1460 |  |
-| `symbols-rust.md` | 1336 |  |
-| `tests.md` | 449 |  |
+| `symbols-js.md` | 1462 |  |
+| `symbols-rust.md` | 1339 |  |
+| `tests.md` | 451 |  |
 
 ## docs/development/modules
 
@@ -230,7 +230,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `orientation.rs` | 146 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
 | `phash.rs` | 201 | Perceptual hash (pHash) of an image, for the "similar images" search (similar.rs). The image is reduced to 32x32 grey levels, a 2D DCT keeps its 8x8 lowest frequencies, and each of the 63 AC coefficients becomes one bit… |
 | `place_search.rs` | 74 | Recherche d'un lieu par son nom (mode Carte, champ de recherche de la barre de la carte), pour aller y placer la carte. Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propr… |
-| `privacy.rs` | 248 | Photos privées : ensembles de confidentialité. Un ensemble actif masque, partout où le backend lit le catalogue, les photos qui répondent à AU MOINS UN de ses critères (OU entre critères) : - parties de chemin de dossie… |
+| `privacy.rs` | 250 | Photos privées : ensembles de confidentialité. Un ensemble actif masque, partout où le backend lit le catalogue, les photos qui répondent à AU MOINS UN de ses critères (OU entre critères) : - parties de chemin de dossie… |
 | `private_maps.rs` | 1156 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
 | `resize.rs` | 575 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into … |

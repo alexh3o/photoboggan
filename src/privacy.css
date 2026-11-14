@@ -5,8 +5,8 @@
 .privacy-shield-wrap[hidden] { display: none; }
 .privacy-shield { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 4px; background: transparent; color: currentColor; opacity: 0.4; cursor: pointer; }
 .privacy-shield:hover, .privacy-shield:focus-visible { opacity: 0.75; }
-.privacy-shield.active { color: #3fb950; opacity: 1; }
-.privacy-shield.active svg { fill: rgba(63, 185, 80, 0.25); }
+.privacy-shield.active { color: #3fb950; opacity: 1; background: transparent;}
+.privacy-shield.active svg { fill: rgba(63, 185, 80, 0.50);}
 .privacy-shield.locked { cursor: default; }
 
 /* Liste des ensembles : même aspect que les listes de suggestions des filtres, ouverte sous le bouclier (position fixe : l'en-tête peut rogner). */

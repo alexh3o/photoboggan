@@ -880,11 +880,11 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pad_start` · L135 — Borne de début complétée à 14 chiffres par des zéros (« 2024 » → « 20240000000000 » : toute l'année est ≥).
 - `pad_end` · L140 — Borne de fin complétée à 14 chiffres par des 9 (« 2024 » → « 20249999999999 » : toute l'année est ≤).
 - `private_test` · L146 — Test SQL « cette photo est privée » d'un ensemble, `prefix` étant celui des colonnes de `photos` (« » ou « p. »). None : rien à tester.
-- `pub visible_condition` · L195 — Condition SQL à ajouter (avec AND) aux requêtes qui lisent `photos` : « les photos que l'ensemble actif ne masque pas ». Vaut « 1 » sans
-- `pub hidden_persons_sql` · L204 — SQL des identifiants des personnes masquées : celles dont le mot-clé lié (`persons.keyword_node_id`) est un mot-clé de l'ensemble actif.
-- `pub visible_person_condition` · L217 — Condition SQL « `column` (identifiant de personne) n'est pas une personne masquée » ; vaut « 1 » si aucune ne l'est.
-- `pub is_private_folder` · L227 — Le dossier (chemin du disque) est-il masqué par un critère de CHEMIN de l'ensemble actif ? Les dossiers dont toutes les photos sont masquées
-- `pub get_privacy_hidden_keywords` · L245 — Mots-clés masqués par l'ensemble actif (clés en minuscules) : l'interface les retire des listes de filtres de mots-clés,
+- `pub visible_condition` · L197 — Condition SQL à ajouter (avec AND) aux requêtes qui lisent `photos` : « les photos que l'ensemble actif ne masque pas ». Vaut « 1 » sans
+- `pub hidden_persons_sql` · L206 — SQL des identifiants des personnes masquées : celles dont le mot-clé lié (`persons.keyword_node_id`) est un mot-clé de l'ensemble actif.
+- `pub visible_person_condition` · L219 — Condition SQL « `column` (identifiant de personne) n'est pas une personne masquée » ; vaut « 1 » si aucune ne l'est.
+- `pub is_private_folder` · L229 — Le dossier (chemin du disque) est-il masqué par un critère de CHEMIN de l'ensemble actif ? Les dossiers dont toutes les photos sont masquées
+- `pub get_privacy_hidden_keywords` · L247 — Mots-clés masqués par l'ensemble actif (clés en minuscules) : l'interface les retire des listes de filtres de mots-clés,
 
 ## private_maps.rs (74)
 

@@ -165,8 +165,10 @@ fn private_test(set: &PrivacySet, prefix: &str) -> Option<String> {
     let keys = keyword_keys(set);
     if !keys.is_empty() {
         let list: Vec<String> = keys.iter().map(|key| quote(key)).collect();
+        // `id` doit être qualifié : sans préfixe, un `id` seul se résoudrait dans la sous-requête sur `keyword_nodes.id` (et non sur la photo).
+        let photo_id = if prefix.is_empty() { "photos.id".to_string() } else { format!("{prefix}id") };
         parts.push(format!(
-            "EXISTS (SELECT 1 FROM photo_keywords pk JOIN keyword_nodes kn ON kn.id = pk.keyword_id WHERE pk.photo_id = {prefix}id AND kn.name_key IN ({}))",
+            "EXISTS (SELECT 1 FROM photo_keywords pk JOIN keyword_nodes kn ON kn.id = pk.keyword_id WHERE pk.photo_id = {photo_id} AND kn.name_key IN ({}))",
             list.join(", ")
         ));
     }
