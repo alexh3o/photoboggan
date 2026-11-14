@@ -7,7 +7,7 @@
 //! Tous les textes se comparent sans tenir compte de la casse (ASCII dans le chemin : `lower` de SQLite ; Unicode pour les mots-clés).
 //!
 //! L'ensemble ACTIF est une donnée de l'interface (réglages en localStorage), envoyée ici au démarrage et à chaque changement
-//! (`set_privacy_set`), comme les autres réglages gardés en statique côté Rust : il repart vide à chaque lancement, donc rien n'est masqué
+//! (`set_privacy_sets`), comme les autres réglages gardés en statique côté Rust : il repart vide à chaque lancement, donc rien n'est masqué
 //! tant que l'interface ne l'a pas envoyé. Le test SQL (`visible_condition`) ne contient aucun paramètre : les textes sont insérés comme
 //! littéraux (apostrophes doublées), ce qui permet de l'ajouter à n'importe quelle requête sans renuméroter ses paramètres.
 
@@ -54,10 +54,17 @@ fn read_active() -> Option<PrivacySet> {
     ACTIVE.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
 }
 
-/// Ensemble actif (None : confidentialité désactivée ou « Off »), envoyé par l'interface au démarrage et à chaque changement.
+/// Ensembles actifs (liste vide : confidentialité désactivée ou « Off »), envoyés par l'interface au démarrage et à chaque changement.
+/// Leurs critères se cumulent : une photo est masquée dès qu'elle répond à un critère de l'un d'eux (le OU de tous les critères).
 #[tauri::command]
-pub fn set_privacy_set(set: Option<PrivacySet>) {
-    *ACTIVE.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = set.filter(|set| !set.is_empty());
+pub fn set_privacy_sets(sets: Vec<PrivacySet>) {
+    let mut merged = PrivacySet::default();
+    for set in sets {
+        merged.paths.extend(set.paths);
+        merged.keywords.extend(set.keywords);
+        merged.date_ranges.extend(set.date_ranges);
+    }
+    *ACTIVE.write().unwrap_or_else(|poisoned| poisoned.into_inner()) = if merged.is_empty() { None } else { Some(merged) };
 }
 
 /// Vrai si un ensemble qui masque quelque chose est actif (sert à interdire la suppression de dossiers).
@@ -94,10 +101,13 @@ fn date_taken_digits(prefix: &str) -> String {
     )
 }
 
-/// Date du fichier au même format. ⚠ Le catalogue ne garde que la date de MODIFICATION du fichier (`modified`, ms depuis 1970), pas sa date
-/// de création : elle sert de repli tant qu'une colonne « création » n'existe pas.
+/// Date du fichier au même format : date de création (`created`, ms depuis 1970) si elle est connue, sinon date de modification (`modified`) tant que
+/// la collection n'a pas été relue depuis l'ajout de la colonne `created`.
 fn file_date_digits(prefix: &str) -> String {
-    format!("(CASE WHEN {prefix}modified > 0 THEN strftime('%Y%m%d%H%M%S', {prefix}modified / 1000, 'unixepoch', 'localtime') END)")
+    format!(
+        "(CASE WHEN COALESCE({prefix}created, 0) > 0 OR COALESCE({prefix}modified, 0) > 0 THEN strftime('%Y%m%d%H%M%S', \
+         (CASE WHEN COALESCE({prefix}created, 0) > 0 THEN {prefix}created ELSE {prefix}modified END) / 1000, 'unixepoch', 'localtime') END)"
+    )
 }
 
 /// Borne de début complétée à 14 chiffres par des zéros (« 2024 » → « 20240000000000 » : toute l'année est ≥).

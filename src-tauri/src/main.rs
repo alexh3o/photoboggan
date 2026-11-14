@@ -1040,7 +1040,8 @@ fn list_disk_folders(state: State<'_, AppState>) -> Vec<String> {
     let mut result = Vec::new();
     for tracked in db::get_folders(&pool) {
         let walker = walkdir::WalkDir::new(&tracked.path).min_depth(1).into_iter()
-            .filter_entry(|entry| entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with(['.', '$']));
+            // Folders hidden by a path criterion of the active privacy sets stay hidden here too (even with « Afficher les dossiers vides »).
+            .filter_entry(|entry| entry.depth() == 0 || (!entry.file_name().to_string_lossy().starts_with(['.', '$']) && !privacy::is_private_folder(&entry.path().to_string_lossy())));
         for entry in walker.flatten() {
             if entry.file_type().is_dir() { result.push(entry.path().to_string_lossy().into_owned()); }
         }
@@ -1808,6 +1809,8 @@ fn get_folder_unrecognized_files(state: State<'_, AppState>, path: String) -> Re
 // La sélection des photos se fait sur le chemin complet avec séparateur final : supprimer « D:\Photos » ne touche pas « D:\Photos2 ».
 #[tauri::command(async)]
 fn delete_folder(state: State<'_, AppState>, path: String) -> Result<Vec<String>, String> {
+    // Hidden photos would be deleted unseen with their folder: refused as long as a privacy set is active (the interface also disables the menu entry).
+    if privacy::is_active() { return Err("La suppression de dossiers est interdite tant qu'un ensemble de confidentialité est actif".into()); }
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
@@ -2869,7 +2872,7 @@ fn main() {
             geolocation::erase_geolocation,
             geolocation::restore_geolocation,
             place_search::search_places,
-            privacy::set_privacy_set,
+            privacy::set_privacy_sets,
             privacy::get_privacy_hidden_keywords,
             update_check::check_for_update,
             update_check::download_update,

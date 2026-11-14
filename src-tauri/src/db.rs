@@ -116,6 +116,9 @@ pub fn init_db(db_path: &str) -> DbPool {
     add_column(&conn, "photos", "title TEXT NOT NULL DEFAULT ''");
     // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
     add_column(&conn, "photos", "modified INTEGER NOT NULL DEFAULT 0");
+    // Date de création du fichier (ms depuis 1970, 0 = inconnue) : remplie à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
+    // Sert aux plages de dates des ensembles de confidentialité pour une photo sans date de prise de vue (privacy.rs : repli sur `modified` si 0).
+    add_column(&conn, "photos", "created INTEGER NOT NULL DEFAULT 0");
     // When the file's metadata was last read (ms since 1970, 0 = unknown): a paused scan resumes by skipping the files read since it first started.
     add_column(&conn, "photos", "scanned_at INTEGER NOT NULL DEFAULT 0");
     // Orientation EXIF (1 à 8) : les zones de visage sont dans le repère de l'image stockée et l'interface l'applique pour les afficher (faces.rs).

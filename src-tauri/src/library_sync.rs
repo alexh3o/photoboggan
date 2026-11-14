@@ -69,9 +69,13 @@ fn store_read_dates(conn: &rusqlite::Connection, items: &[(String, i64)]) -> rus
 fn store_dates(conn: &rusqlite::Connection, items: &[(String, i64)], scanned_at: Option<i64>) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     {
-        let mut update = tx.prepare_cached("UPDATE photos SET modified = ?1, scanned_at = COALESCE(?2, scanned_at) WHERE path = ?3")?;
+        let mut update = tx.prepare_cached("UPDATE photos SET modified = ?1, scanned_at = COALESCE(?2, scanned_at), created = CASE WHEN ?4 > 0 THEN ?4 ELSE created END WHERE path = ?3")?;
         for (path, modified) in items {
-            update.execute(params![modified, scanned_at, path])?;
+            // File creation date (ms), 0 when the file system cannot tell: kept as is in that case (used by privacy.rs for undated photos).
+            let created = std::fs::metadata(path).and_then(|metadata| metadata.created()).ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|duration| duration.as_millis() as i64).unwrap_or(0);
+            update.execute(params![modified, scanned_at, path, created])?;
         }
     }
     tx.commit()
