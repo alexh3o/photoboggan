@@ -31,7 +31,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 |---|---|---|
 | App shell (`app-shell`) | `main.rs` (AppState, `config.json`, storage location, window) | `i18n.js`, `settings-defaults.js`, `defaults.jsonc`, `app-fonts.js`, `guide.js`, `locales/` |
 | Library & database (`library-and-database`) | `db.rs`, `library_sync.rs`, scan commands of `main.rs` | — |
-| Main window: navigation & tasks (`main-window`) | — | `main.js`: loading, folder tree, task queue, settings modal, sync, startup |
+| Main window: navigation & tasks (`main-window`) | — | `main.js`: loading, folder tree (and its quick search), task queue, settings modal, sync, startup; `sidebar-search.js` (search field of the Folders / Albums / People titles) |
 | Grid & viewer (`grid-and-viewer`) | — | `main.js`: virtual grid, selection, sort, full screen, compare, marking; `slideshow.js`, `toolbar-a11y.js` |
 | Thumbnails & previews (`thumbnails-and-previews`) | `thumbnails.rs`, `heif.rs`, `video.rs`, `orientation.rs`, cache commands of `main.rs` | — |
 | Metadata (`metadata-read-write`) | `exif.rs`, `exiftool.rs` | `metadata-writes.js`, `metadata-settings.js`, `marking-settings.js`, `order-list.js` |

@@ -1,4 +1,4 @@
-<!-- verified: 443ea6c | sources: src-tauri/src/faces.rs, src/faces-panel.js, src/faces-grid.js, src/persons-view.js -->
+<!-- verified: 443ea6c | sources: src-tauri/src/faces.rs, src/faces-panel.js, src/faces-grid.js, src/persons-view.js, src/sidebar-search.js -->
 # Faces: data, review, people (faces.rs and UI)
 
 ## Purpose
@@ -8,8 +8,9 @@ Faces are the face regions of a photo and the people they belong to. photoboggan
 | File | Role |
 |---|---|
 | `faces.rs` | XMP region parsers, schema (`init_schema`), import (`store_photo_faces`), review / person / write-plan commands. Sections are `// ----` banners (settings, parsing, database, UI commands, faces view, writing, grouping, persons, merge, manual regions). |
-| `faces-panel.js` | Settings > Faces, People section of the sidebar, person filter (AND / exclude), face overlays in full screen and preview (`layoutFullscreenFaces`, `layoutPreviewFaces`), person menu, detection settings and scan dialog (`openFaceScanDialog`), `initFacesPanel`. |
+| `faces-panel.js` | Settings > Faces, People section of the sidebar (list, sort button, quick search `visiblePersons`), person filter (AND / exclude), face overlays in full screen and preview (`layoutFullscreenFaces`, `layoutPreviewFaces`), person menu, detection settings and scan dialog (`openFaceScanDialog`), `initFacesPanel`. |
 | `faces-grid.js` | "Faces" management view: virtual grid of face tiles grouped by status, actions, undo, pending-write mode (`openFacesView`, `initFacesGrid`). |
+| `sidebar-search.js` | The search field of the sidebar titles (Folders, Albums, People): `initSidebarSearch`. Here it only reports the text; `faces-panel.js` does the filtering. |
 | `persons-view.js` | People view: one big tile per person, search, size slider (`openPersonsView`, `initPersonsView`). |
 | `tests/faces.rs`, `tests/faces_db.rs` | Region parsing; import and write-plan tests. |
 
@@ -34,7 +35,7 @@ Then `auto_link_person` links each touched person to the keyword node of the sam
 
 **4. Keyword conflict.** Before applying a keyword list, `metadata-writes.js` `resolveFaceKeywordConflicts` calls `face_keyword_conflicts`: a keyword removed from a photo while a confirmed face of its person remains opens the dialog Keep / Set the face as unknown (`set_faces_unknown`) / Cancel.
 
-**5. People.** `get_persons` (with photo counts and cover), `get_face_index` (photo → persons, for the filter). A person linked to a keyword (`persons.keyword_node_id`) is displayed and written under the keyword's name: renaming goes through the keyword (`rename_person` returns `person_linked`); `link_person_keyword` changes the link; `set_person_alias` is display only, never written. `set_person_hidden`, `set_person_cover`, `delete_person(s)` (`person_delete_info`, `get_persons_without_faces`). `merge_persons` journals the absorbed person in `person_merges` / `person_merge_faces` so `undo_person_merge` can restore it. Covers: `get_person_cover` crops the cover face from the original file into `<data dir>/person_covers/<person>-<hash>`; the name changes with face, cache size and file, so a stale cover is never served.
+**5. People.** The People block of the sidebar lists `listedPersons()` sorted by frequency or name (`sortedPersons`, the button of the title row, `personsSort`). **Quick search**: a magnifier in the title row, left of the sort button and shown only when the row is hovered (or on keyboard focus), opens a field (`initSidebarSearch({ name: 'persons' })` in `initFacesPanel`) that filters the list live: `visiblePersons` keeps the people whose name **or alias** contains the text, compared with `normalizeSearch` (no case, no accents), like the person filter field (`personFilterOptions`). The list is flat, so there are no ancestors to keep. No match shows "No matching person". The filter on the grid (`personFilters`) is not affected: clicking a listed person filters as usual, a selected person stays selected while hidden by the search, and when the text becomes empty again the active row is scrolled into view. The text is not remembered. `get_persons` (with photo counts and cover), `get_face_index` (photo → persons, for the filter). A person linked to a keyword (`persons.keyword_node_id`) is displayed and written under the keyword's name: renaming goes through the keyword (`rename_person` returns `person_linked`); `link_person_keyword` changes the link; `set_person_alias` is display only, never written. `set_person_hidden`, `set_person_cover`, `delete_person(s)` (`person_delete_info`, `get_persons_without_faces`). `merge_persons` journals the absorbed person in `person_merges` / `person_merge_faces` so `undo_person_merge` can restore it. Covers: `get_person_cover` crops the cover face from the original file into `<data dir>/person_covers/<person>-<hash>`; the name changes with face, cache size and file, so a stale cover is never served.
 
 ## Contracts
 - IPC commands: all above, in `generated/ipc-commands.md` (search `faces.rs`). Error codes returned as strings: `invalid_name`, `unknown_person`, `unknown_keyword`, `person_name_taken`, `person_linked`, `keyword_taken`, `invalid_region`, `unknown_photo`.
@@ -43,7 +44,7 @@ Then `auto_link_person` links each touched person to the keyword node of the sam
 - Settings: `faceReading`, `faceDetection`, `faceSettings`, `facePersonRoot`, `faceScanFilter`, `fullscreenFacesVisible`, `faceIgnoredShown`, `faceNotFaceShown`, `personsSort`, `personsTileSize`, `facesViewStatuses`; see `generated/config.md`.
 
 ## Dependencies
-- Uses: `keywords.rs` (`name_key`, `ensure_node`, `run_write`), `exif.rs` (region read/write, `RegionsUpdate`), `face_detect.rs` (`iou`, thresholds), `face_recognize.rs` (attribution, DBSCAN, `MODEL_ID`), `metadata-writes.js` (`applyPending`, `choiceDialog`), `photo-actions.js` (menus, dialogs).
+- Uses: `keywords.rs` (`name_key`, `ensure_node`, `run_write`), `exif.rs` (region read/write, `RegionsUpdate`), `face_detect.rs` (`iou`, thresholds), `face_recognize.rs` (attribution, DBSCAN, `MODEL_ID`), `metadata-writes.js` (`applyPending`, `choiceDialog`), `photo-actions.js` (menus, dialogs), `sidebar-search.js` (People quick search).
 - Used by: `library_sync.rs` / `keywords.rs` (`store_photo_faces`, plan / finish), `main.js` (person filter, overlays, startup settings).
 
 ## Invariants and sensitive areas

@@ -7,7 +7,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
-| `--accent` | styles.css · `:root` · `#1e72ad` | 48 | — |
+| `--accent` | styles.css · `:root` · `#1e72ad` | 50 | — |
 | `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
 | `--active-button` | styles.css · `:root` · `#1e72ad` | 30 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
@@ -26,8 +26,8 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--clipping-pulse-max-opacity` | histogram.css · `:root` · `0.5` | 1 | — |
 | `--clipping-pulse-min-opacity` | histogram.css · `:root` · `0.05` | 1 | — |
 | `--clipping-shadow-color` | histogram.css · `:root` · `rgba(0, 90, 255, 0.9)` | 0 | — |
-| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 52 | — |
-| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 63 | — |
+| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 53 | — |
+| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 64 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 19 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
@@ -104,7 +104,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--side-block-gap` | styles.css · `:root` · `1rem` | 2 | — |
 | `--side-meta-size` | styles.css · `:root` · `0.7rem` | 11 | — |
 | `--side-row-height` | styles.css · `:root` · `1.9rem` | 3 | — |
-| `--side-row-size` | styles.css · `:root` · `0.8rem` | 6 | — |
+| `--side-row-size` | styles.css · `:root` · `0.8rem` | 7 | — |
 | `--side-title-size` | styles.css · `:root` · `0.85rem` | 1 | — |
 | `--star-off` | styles.css · `:root` · `#666`<br>styles.css · (light) `:root[data-theme="light"]` · `#b8b8b8` | 1 | — |
 | `--tag-camera-bg` | stats.css · `:root` · `#2000d8` | 1 | — |
@@ -142,12 +142,12 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-rating-text` | styles.css · `:root` · `#ffd43b` | 1 | — |
 | `--tag-shot-bg` | shooting-filters.css · `:root` · `#865130` | 1 | — |
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
-| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 26 | — |
+| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 27 | — |
 | `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 30 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 3 | — |
 | `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 64 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 71 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 73 | — |
 | `--thumb-bg` | styles.css · `:root` · `#1a1a1a`<br>styles.css · (light) `:root[data-theme="light"]` · `#d4d4d4` | 3 | — |
 | `--thumb-corner-size` | styles.css · `:root` · `1.75rem` | 4 | — |
 | `--thumb-hover-scale` | styles.css · `:root` · `1.03` | 1 | — |
@@ -235,7 +235,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 ## Sections per stylesheet
 
-### src/albums.css (47 lines)
+### src/albums.css (46 lines)
 
 - L1 SECTION ALBUMS DU PANNEAU DE GAUCHE (albums virtuels) : voir albums-panel.js. Les lignes réutilisent le style des dossiers (.fold…
 - L5 Liste : assez haute pour laisser un vide où faire le clic droit « créer à la racine », limitée pour ne pas écraser les dossiers.
@@ -245,8 +245,8 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L23 Disquette : l'album intelligent ouvert a des filtres modifiés et non enregistrés
 - L27 Filtres de l'album ouvert : hérités du parent (grisés, non modifiables) et critères propres sans contrôle (dossier, zone de carte)
 - L35 Case « ne plus afficher » d'une fenêtre de confirmation
-- L38 En-tête de la section : bouton « + » (même menu de création que le clic droit dans le vide)
-- L44 Raison d'un refus de dépôt, sous l'image glissée d'un album
+- L38 En-tête de la section : boutons de recherche et « + » (même menu de création que le clic droit dans le vide). Leur cadre, leur ta…
+- L43 Raison d'un refus de dépôt, sous l'image glissée d'un album
 
 ### src/duplicates.css (58 lines)
 
@@ -256,53 +256,56 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L36 Dimensions and size of each copy, along the bottom edge of its thumbnail (duplicate results only).
 - L40 Floating panel "Best copy" (duplicates-modal.js): under the banner of the results, stays open while the grid is used.
 
-### src/faces.css (253 lines)
+### src/faces.css (273 lines)
 
 - L1 Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran.
 - L3 Éléments masqués par l'attribut hidden, même quand leur classe fixe un display
 - L6 Titres repliables (Dossiers, Personnes) : le bouton occupe le titre, chevron à gauche
-- L14 Section Personnes
-- L16 Replié, le bloc garde une taille minimale de 5 rem
-- L19 Bouton de tri : cible d'au moins 1,5 rem de haut
-- L22 Liste : cinq personnes environ avant de défiler (le reste de la hauteur revient aux dossiers) ; elle se réduit aussi avant que le…
-- L25 Ligne de personne : 2 rem de haut, comme une ligne de dossier (avatar de 1,75 rem + 0,125 rem de marge en haut et en bas)
-- L34 Étiquettes du filtre Personnes (violet, à côté du bleu des mots-clés et du vert des noms de fichier)
-- L39 Paramètres > Visages : réglages de détection, fichiers du modèle
-- L43 Réglages avec infobulle d'aide (title) : petit repère ⓘ après le libellé
-- L51 Fenêtre de lancement d'un scan
-- L55 Filtre « Scan des visages » de la vue Photos
-- L59 Face-count filter: label on the left, "min to max" fields on the right (same row layout as the face scan filter)
-- L65 VUE VISAGES (faces-grid.js) : barre d'outils (filtre par statut, actions) et grille virtuelle des visages
-- L70 Pastille de statut : contour à la couleur du statut ; remplie de cette couleur quand le statut est affiché.
-- L73 Pastilles d'origine actives : sans couleur de statut, leur fond reste celui de la barre ; le texte blanc y disparaît en thème cla…
-- L75 Pastilles d'un même filtre (statuts, origines) : collées en un seul bloc, seuls les coins extérieurs arrondis. Le bloc reste d'un…
-- L82 Vue Visages : le retour, les deux blocs de filtres et les actions forment un seul flux qui passe à la ligne ; tout démarre dès la…
-- L87 Boutons de la barre un peu plus serrés : plus d'éléments tiennent sur la même ligne
-- L89 Hauteurs de la barre (en rem) : pastilles et boutons plus grands de 50 % (1,25 rem et 1,5 rem avant), pour être faciles à cliquer
-- L94 Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls…
-- L96 Sort button of the Faces view: icon + current mode; the "Sort:" text only with "Show all labels" (body.show-toolbar-labels, set b…
-- L107 Bloc d'écriture : « Écrire dans les fichiers » + « N photos » (couleur Confirmé), sans séparation ; les coins extérieurs arrondis…
-- L116 Réglages de la vue, lus aussi par faces-grid.js : côté des vignettes, espacement, arrondi, largeur de la bande d'état (unique pou…
-- L140 Bande verticale à gauche de chaque ligne de vignettes, colorée selon l'état (commun à la ligne).
-- L146 Couleur de l'état, partagée par la bande des lignes et les pastilles du filtre : à valider (orange), automatique (bleu), confirmé…
-- L156 Sélection : même rendu que la grille des photos (voir .thumbnail.selected dans styles.css) : bordure, contour intérieur, coin mar…
-- L168 Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la…
-- L170 Les zones captent le clic droit (menu de la zone, lot 5c) ; le glisser et la molette remontent au plein écran. Zone en cours de d…
-- L177 Zones écartées, affichées à la demande (sous-menu Visages) : pointillés fins, à part des vraies zones
-- L180 « Ajouter un visage » armé : curseur en croix sur la photo et ses zones
-- L181 (!important et « * » : les images, cases et zones ont leur propre curseur, qui l'emporterait sur celui de leur conteneur)
-- L184 Zones dans une case de l'aperçu : décoratives (la case reçoit glisser et molette) ; au survol seulement, chaque zone n'apparaît s…
-- L189 Rectangle en cours de dessin : toujours visible (même en mode « au survol ») et jamais sous la souris
-- L192 VUE PERSONNES (persons-view.js) : grosses vignettes, une par personne (taille réglable), nom et nombre de photos dessous
-- L208 Vue de gestion (lot 5b) : titres de groupe cliquables (sélection du groupe)
-- L210 Avatar of the person after the count in a group title: 24px, enlarged on hover to compare with the faces of the group.
-- L216 « Pas des visages » : libellé de la pastille « Visages » barré (le nom complet est dans l'infobulle)
-- L217 Compteurs : même présentation dans les pastilles de filtre et les titres de groupe
-- L221 Duplicata du titre de groupe courant, collé en haut de la vue pendant le défilement (updateStickySeparator)
-- L227 Bouton « Regrouper les inconnus » dans le titre « Visages inconnus »
-- L231 Barre d'actions flottante (faces-grid.js) : en bas de la vue, visible seulement avec une sélection. Boutons d'icône (infobulle + …
-- L242 Couleurs d'icône : valider en vert (comme le statut Confirmé), refus en rouge, le reste neutre
-- L247 Barre d'actions verticale (faces-grid.js : plus de 5 vignettes en largeur) : à droite, le haut aligné avec la dernière vignette s…
+- L13 Dossiers : le titre est dans un en-tête comme celui des Albums (la loupe de recherche y est posée), qui garde la place de l'ancie…
+- L16 Outils discrets de la ligne de titre d'un bloc (loupe de recherche, "+" des Albums) : même cadre, mêmes dimensions et même survol…
+- L23 Recherche rapide (sidebar-search.js) : le champ s'étend à gauche des outils, entre le titre et eux, sans jamais passer sur le tit…
+- L34 Section Personnes
+- L36 Replié, le bloc garde une taille minimale de 5 rem
+- L39 Bouton de tri : cible d'au moins 1,5 rem de haut
+- L42 Liste : cinq personnes environ avant de défiler (le reste de la hauteur revient aux dossiers) ; elle se réduit aussi avant que le…
+- L45 Ligne de personne : 2 rem de haut, comme une ligne de dossier (avatar de 1,75 rem + 0,125 rem de marge en haut et en bas)
+- L54 Étiquettes du filtre Personnes (violet, à côté du bleu des mots-clés et du vert des noms de fichier)
+- L59 Paramètres > Visages : réglages de détection, fichiers du modèle
+- L63 Réglages avec infobulle d'aide (title) : petit repère ⓘ après le libellé
+- L71 Fenêtre de lancement d'un scan
+- L75 Filtre « Scan des visages » de la vue Photos
+- L79 Face-count filter: label on the left, "min to max" fields on the right (same row layout as the face scan filter)
+- L85 VUE VISAGES (faces-grid.js) : barre d'outils (filtre par statut, actions) et grille virtuelle des visages
+- L90 Pastille de statut : contour à la couleur du statut ; remplie de cette couleur quand le statut est affiché.
+- L93 Pastilles d'origine actives : sans couleur de statut, leur fond reste celui de la barre ; le texte blanc y disparaît en thème cla…
+- L95 Pastilles d'un même filtre (statuts, origines) : collées en un seul bloc, seuls les coins extérieurs arrondis. Le bloc reste d'un…
+- L102 Vue Visages : le retour, les deux blocs de filtres et les actions forment un seul flux qui passe à la ligne ; tout démarre dès la…
+- L107 Boutons de la barre un peu plus serrés : plus d'éléments tiennent sur la même ligne
+- L109 Hauteurs de la barre (en rem) : pastilles et boutons plus grands de 50 % (1,25 rem et 1,5 rem avant), pour être faciles à cliquer
+- L114 Groupe d'actions de révision (Valider, Nommer, Inconnu, Ignorer, N'est pas un visage) : boutons accolés dans un même cadre, seuls…
+- L116 Sort button of the Faces view: icon + current mode; the "Sort:" text only with "Show all labels" (body.show-toolbar-labels, set b…
+- L127 Bloc d'écriture : « Écrire dans les fichiers » + « N photos » (couleur Confirmé), sans séparation ; les coins extérieurs arrondis…
+- L136 Réglages de la vue, lus aussi par faces-grid.js : côté des vignettes, espacement, arrondi, largeur de la bande d'état (unique pou…
+- L160 Bande verticale à gauche de chaque ligne de vignettes, colorée selon l'état (commun à la ligne).
+- L166 Couleur de l'état, partagée par la bande des lignes et les pastilles du filtre : à valider (orange), automatique (bleu), confirmé…
+- L176 Sélection : même rendu que la grille des photos (voir .thumbnail.selected dans styles.css) : bordure, contour intérieur, coin mar…
+- L188 Zones de visage en plein écran : calque posé sur l'image affichée (position et taille données par faces-panel.js), sans capter la…
+- L190 Les zones captent le clic droit (menu de la zone, lot 5c) ; le glisser et la molette remontent au plein écran. Zone en cours de d…
+- L197 Zones écartées, affichées à la demande (sous-menu Visages) : pointillés fins, à part des vraies zones
+- L200 « Ajouter un visage » armé : curseur en croix sur la photo et ses zones
+- L201 (!important et « * » : les images, cases et zones ont leur propre curseur, qui l'emporterait sur celui de leur conteneur)
+- L204 Zones dans une case de l'aperçu : décoratives (la case reçoit glisser et molette) ; au survol seulement, chaque zone n'apparaît s…
+- L209 Rectangle en cours de dessin : toujours visible (même en mode « au survol ») et jamais sous la souris
+- L212 VUE PERSONNES (persons-view.js) : grosses vignettes, une par personne (taille réglable), nom et nombre de photos dessous
+- L228 Vue de gestion (lot 5b) : titres de groupe cliquables (sélection du groupe)
+- L230 Avatar of the person after the count in a group title: 24px, enlarged on hover to compare with the faces of the group.
+- L236 « Pas des visages » : libellé de la pastille « Visages » barré (le nom complet est dans l'infobulle)
+- L237 Compteurs : même présentation dans les pastilles de filtre et les titres de groupe
+- L241 Duplicata du titre de groupe courant, collé en haut de la vue pendant le défilement (updateStickySeparator)
+- L247 Bouton « Regrouper les inconnus » dans le titre « Visages inconnus »
+- L251 Barre d'actions flottante (faces-grid.js) : en bas de la vue, visible seulement avec une sélection. Boutons d'icône (infobulle + …
+- L262 Couleurs d'icône : valider en vert (comme le statut Confirmé), refus en rouge, le reste neutre
+- L267 Barre d'actions verticale (faces-grid.js : plus de 5 vignettes en largeur) : à droite, le haut aligné avec la dernière vignette s…
 
 ### src/find-raw.css (6 lines)
 

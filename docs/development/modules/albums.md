@@ -1,4 +1,4 @@
-<!-- verified: ad666bb | sources: src-tauri/src/albums.rs, src/albums-panel.js, src/main.js -->
+<!-- verified: ad666bb | sources: src-tauri/src/albums.rs, src/albums-panel.js, src/main.js, src/sidebar-search.js -->
 # Albums (virtual folders, manual albums, smart albums)
 
 ## Purpose
@@ -8,7 +8,8 @@ Albums organise photos **without touching the files**: virtual folders to group 
 | File | Role |
 |---|---|
 | `src-tauri/src/albums.rs` | Table creation (`init_schema`), tree rules (`create_node`, `rename_node`, `delete_node`, `move_node`, `copy_node`), smart filters (`set_filters`), manual content (`add_photos_listed`, `remove_photos`, `replace_photos`, `album_photos`), `memberships`; the IPC commands wrap these |
-| `src/albums-panel.js` | The sidebar block: tree rendering, create / rename / delete, drag and drop (move or copy), manual content actions with undo toast, the smart-album "dirty" state and leave guard (`confirmLeaveAlbum`), `getAlbumContext`, `initAlbumsPanel` |
+| `src/albums-panel.js` | The sidebar block: tree rendering, create / rename / delete, drag and drop (move or copy), manual content actions with undo toast, the smart-album "dirty" state and leave guard (`confirmLeaveAlbum`), `getAlbumContext`, `initAlbumsPanel`, the quick search of the block (`computeSearchShown`, `visibleChildren`, `setNodeOpen`) |
+| `src/sidebar-search.js` | The search field shared by the Folders, Albums and People titles (`initSidebarSearch`); this module only filters the album tree with the text it reports |
 | `src/main.js` | Section "ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ": `captureFilterState`, `applyFilterState`, `syncSmartAlbumWithSelection`, `saveActiveSmartAlbum`, `saveCurrentViewInto`, `computeAlbumCounts`, `loadPhotos` branch for albums |
 
 ## How it works
@@ -28,15 +29,16 @@ Albums organise photos **without touching the files**: virtual folders to group 
 5. **Manual content**: add (`add_photos_to_album` returns the ids really added; the toast's Undo removes only those), move between albums (add then remove, undo reverses both), replace with the selection (confirmation), remove from the displayed album. All are saved immediately and followed by `refreshAlbums`, which reloads the grid if the displayed album changed.
 6. **Counts**: manual albums come with a count; smart albums and virtual folders are counted by `computeAlbumCounts` (500 ms debounce, only when the Albums block is expanded, one run at a time): it reads the whole catalogue (50 000) and `get_album_memberships` and evaluates each smart album with `matchesFilterState`. A smart album starts from its parent's set (manual or smart) or the whole library under a folder/root; a virtual folder counts the union of its children. Counts are therefore approximate on catalogues above 50 000 photos (photos beyond the cut are ignored).
 7. **Drag and drop** in the tree: `startDrag` after 5 px, `dropRefusal` mirrors the backend rules for early feedback, `askMoveOrCopy` chooses move or copy; the backend re-checks everything.
+8. **Quick search** (magnifier in the title row, shown on hover, left of the "+"): `initAlbumsPanel` calls `initSidebarSearch({ name: 'albums', onChange })`. The module owns the field (open with click or Enter, which also unfolds a collapsed block, close with × or Esc) and reports the text normalized by `normalizeSearch` (no case, no accents, trimmed). `render` then calls `computeSearchShown`: the ids of the nodes whose name contains the text **plus all their ancestors** (the subfolders of a match are not kept unless they match). `visibleChildren` filters every level, and while a search is active `isNodeOpen` unfolds every node that has a kept child, except those folded by hand since the text last changed (`searchCollapsed`, cleared on each new text). `setNodeOpen` (arrow, click on a virtual folder) writes to `searchCollapsed` during a search and to `expanded` otherwise, so the **real fold state (`albumsExpanded`) is never touched by a search**. When the text becomes empty again (field closed with × / Esc, or emptied by hand), the ancestors of the open album are added to `expanded` and the active row is scrolled into view; the selected album itself never changes. Navigation is unchanged while filtering (click, menus, drag and drop work on the kept rows). No result: the list shows "No matching album".
 
 ## Contracts
 - IPC commands: `get_album_tree`, `create_album_node`, `rename_album_node`, `delete_album_node`, `move_album_node`, `copy_album_node`, `set_album_filters`, `get_album_memberships`, `get_album_photos`, `add_photos_to_album`, `remove_photos_from_album`, `replace_album_photos` (`../generated/ipc-commands.md`). Backend error strings are English sentences (`"An item with this name already exists here"`…) that the UI translates with `t(...)` where a key exists.
 - Events: none.
 - Database: `album_nodes`, `album_photos`, trigger `album_photos_photo_deleted`, index `idx_album_photos_photo` (`../generated/db-schema.md`).
-- Settings: `albumsExpanded`, `albumsCollapsed`, `albumOverwriteWarning` (localStorage).
+- Settings: `albumsExpanded`, `albumsCollapsed`, `albumOverwriteWarning` (localStorage). The text of the quick search is not remembered.
 
 ## Dependencies
-- Uses: `db.rs` (`PHOTO_COLUMNS`, `photo_from_row`, `init_db` calls `albums::init_schema`), `photo-actions.js` dialogs (`promptDialog`, `confirmDialog`, `createModal`, `openContextMenuAt`), the filter modules through `main.js`.
+- Uses: `db.rs` (`PHOTO_COLUMNS`, `photo_from_row`, `init_db` calls `albums::init_schema`), `photo-actions.js` dialogs (`promptDialog`, `confirmDialog`, `createModal`, `openContextMenuAt`), `sidebar-search.js` and `i18n.js` `normalizeSearch` (quick search), the filter modules through `main.js`.
 - Used by: `main.js` (loading, filters, counts), `photo-actions.js` (add to album, remove from album menu entries via `addPhotosToAlbum` / `removePhotosFromSelectedAlbum`).
 
 ## Invariants and sensitive areas

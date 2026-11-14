@@ -9,10 +9,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1398 |  |
+| `index.html` | 1406 |  |
 | `package.json` | 29 |  |
 | `README.md` | 173 |  |
-| `TODO.md` | 69 |  |
+| `TODO.md` | 79 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -57,7 +57,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 151 |  |
-| `css.md` | 543 |  |
+| `css.md` | 545 |  |
 | `db-schema.md` | 255 |  |
 | `events.md` | 11 |  |
 | `files.md` | 293 |  |
@@ -104,8 +104,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `albums-panel.js` | 741 | Section « Albums » du panneau de gauche : arborescence d'albums virtuels (dossiers virtuels, albums manuels, albums intelligents), qui n'existent que dans la base (albums.rs). Gère l'arbre (création, renommage, suppress… |
-| `albums.css` | 47 | SECTION ALBUMS DU PANNEAU DE GAUCHE (albums virtuels) : voir albums-panel.js. Les lignes réutilisent le style des dossiers (.folder-tree-item). |
+| `albums-panel.js` | 787 | Section « Albums » du panneau de gauche : arborescence d'albums virtuels (dossiers virtuels, albums manuels, albums intelligents), qui n'existent que dans la base (albums.rs). Gère l'arbre (création, renommage, suppress… |
+| `albums.css` | 46 | SECTION ALBUMS DU PANNEAU DE GAUCHE (albums virtuels) : voir albums-panel.js. Les lignes réutilisent le style des dossiers (.folder-tree-item). |
 | `app-fonts.js` | 30 | Interface fonts offered in Settings > Appearance. This list is the single place to register a font: the select is built from it and main.js applies the chosen stack to --app-font. To add a font (all four steps are requi… |
 | `defaults.jsonc` | 189 |  |
 | `description-panel.js` | 260 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
@@ -115,7 +115,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.js` | 263 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1098 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
 | `faces-panel.js` | 1733 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
-| `faces.css` | 253 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
+| `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `filter-suggest.js` | 128 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
 | `filter-tags.js` | 57 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
 | `find-raw.css` | 6 | Bannière du mode « Trouver le RAW » (main.js) : barre collée en haut de la grille, bouton de retour à gauche, nombre de résultats à côté. |
@@ -130,7 +130,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1247 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 253 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 8913 |  |
+| `main.js` | 8968 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -157,6 +157,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `settings-defaults.js` | 33 | Default settings of a new installation, read from defaults.jsonc (the single place to edit them), and helpers that return the value saved in localStorage when it is valid, the default otherwise. |
 | `shooting-filters.css` | 22 | Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `shooting-filters.js` | 474 | Filtres « Matériel » (appareil photo, objectif) et « Prise de vue » (focale, vitesse, ouverture, ISO, flash) du panneau de filtres. Les valeurs viennent des champs déjà chargés avec chaque photo (manufacturer, camera_mo… |
+| `sidebar-search.js` | 56 | Quick search field in the title row of a sidebar block (Folders, Albums). A magnifier button (shown when the title row is hovered, like the "+" of the Albums block) opens a text field that grows to the left of the butto… |
 | `slideshow.js` | 311 | Diaporama : un état du plein écran (pas un mode à part). Un minuteur fait passer le plein écran à la photo suivante ; tout le reste (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même.… |
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
@@ -288,5 +289,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1718 |  |
-| `fr.json` | 1718 |  |
+| `en.json` | 1724 |  |
+| `fr.json` | 1724 |  |

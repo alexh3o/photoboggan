@@ -11,6 +11,7 @@ import { DEFAULTS, readBool } from './settings-defaults.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
+import { initSidebarSearch } from './sidebar-search.js';
 import { registerEditor, writeMetadataItems, choiceDialog } from './metadata-writes.js';
 
 const READING_STORAGE_KEY = 'faceReading'; // « true » : lecture des zones de visage activée
@@ -44,6 +45,8 @@ let ignoredShown = readStorage(IGNORED_SHOWN_STORAGE_KEY) === 'true';
 let notFaceShown = readStorage(NOT_FACE_SHOWN_STORAGE_KEY) === 'true';
 let drawArmed = false; // « Ajouter un visage » (menu ou Alt+V) : le prochain glisser sur la photo dessine une zone, sans Maj
 let sortMode = readStorage(SORT_STORAGE_KEY) === 'name' ? 'name' : 'count';
+// Quick search of the People block (sidebar-search.js): normalized text, '' = no filter. Only the people whose name or alias contains it are listed.
+let personSearchQuery = '';
 let persons = []; // [{ id, name, keyword_id, photo_count, cover }]
 let faceIndex = new Map(); // identifiant de photo -> Set des identifiants de personnes
 let personFilters = []; // identifiants des personnes filtrées (ET)
@@ -508,6 +511,12 @@ function sortedPersons() {
   return [...listedPersons()].sort(sortMode === 'name' ? byName : (a, b) => b.photo_count - a.photo_count || byName(a, b));
 }
 
+// People listed in the sidebar: sorted, and only those matching the quick search when it is set (name or alias, without case or accents).
+function visiblePersons() {
+  const sorted = sortedPersons();
+  return personSearchQuery ? sorted.filter(person => normalizeSearch(person.alias ? `${person.name} ${person.alias}` : person.name).includes(personSearchQuery)) : sorted;
+}
+
 function renderPersons() {
   const list = document.getElementById('persons-list');
   const empty = document.getElementById('persons-empty');
@@ -516,7 +525,7 @@ function renderPersons() {
   sortButton.textContent = sortMode === 'name' ? t('By name') : t('By frequency');
   sortButton.title = t('Sort people by name or by number of photos');
   empty.hidden = listedPersons().length > 0 || isCollapsed('persons');
-  list.replaceChildren(...sortedPersons().map(person => {
+  list.replaceChildren(...visiblePersons().map(person => {
     const item = document.createElement('li');
     item.className = `person-item${personFilters.includes(person.id) ? ' active' : ''}`;
     item.dataset.personId = String(person.id);
@@ -547,6 +556,13 @@ function renderPersons() {
     item.addEventListener('contextmenu', event => openPersonMenu(event, person));
     return item;
   }));
+  // Quick search without any result.
+  if (personSearchQuery && listedPersons().length > 0 && !list.children.length) {
+    const none = document.createElement('li');
+    none.className = 'persons-empty';
+    none.textContent = t('No matching person');
+    list.append(none);
+  }
 }
 
 // Styles des vignettes rondes déjà calculés, par couverture : la liste est reconstruite à chaque clic de filtre ou de tri sans relire les
@@ -1701,6 +1717,15 @@ export function initFacesPanel(hostApi) {
   document.getElementById('preview-stage').addEventListener('pointerdown', startZoneDrawing, true);
   document.getElementById('preview-stage').addEventListener('contextmenu', openPreviewZoneMenu, true);
 
+  // Quick search: filters the list live (see visiblePersons). Once the filter is gone (field closed or emptied), the selected people are scrolled into view.
+  initSidebarSearch({
+    name: 'persons',
+    onChange: (query, previous) => {
+      personSearchQuery = query;
+      renderPersons();
+      if (!query && previous) document.querySelector('#persons-list .person-item.active')?.scrollIntoView({ block: 'nearest' });
+    },
+  });
   document.getElementById('persons-sort').addEventListener('click', () => {
     sortMode = sortMode === 'name' ? 'count' : 'name';
     writeStorage(SORT_STORAGE_KEY, sortMode);

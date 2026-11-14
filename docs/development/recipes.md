@@ -91,3 +91,13 @@ Only `scan-progress` and `scan-detail` exist; prefer reusing them with a `task_i
 1. Rust: `app.emit("event-name", payload)` with a `#[derive(Clone, serde::Serialize)]` payload (see `ScanDetail`, main.rs).
 2. JS: one `listenToBackend('event-name', handler)` (main.js, next to `scan-detail`); dispatch to modules from there.
 3. `npm run docs:gen` lists it in `generated/events.md`.
+
+## 10. Add a quick search to a sidebar block
+
+Examples: Folders (`main.js`, search `folderSearchQuery`), Albums (`albums-panel.js`, `computeSearchShown`), People (`faces-panel.js`, `visiblePersons`). The field itself is `sidebar-search.js`; the caller only filters.
+1. Markup in the block's title row (`.sidebar-block-header`, `index.html`): a hidden `<div id="<name>-search" class="sidebar-search">` holding `<input id="<name>-search-input" class="sidebar-search-input" type="text">` and `<button id="<name>-search-clear" class="sidebar-search-clear">×</button>`, then `<button id="<name>-search-open" class="sidebar-block-tool">` with the magnifier SVG, both **before** any right-hand button (the field grows to the left of the tools). The title button must be `id="<name>-toggle"` (the module clicks it to unfold a collapsed block). Texts through `data-i18n-placeholder`, `-aria-label` and `-title`.
+2. Call `initSidebarSearch({ name, onChange(query, previous) })` once at init. `query` is already normalized (`normalizeSearch`, trimmed, `''` = no filter); closing the field empties it, so the end of a search is always `query === '' && previous !== ''`.
+3. In `onChange`: store the text in a module variable, redraw, and on the end of the search put the list back (unfold the ancestors of the selected item, scroll the active row into view). Do **not** change the persisted fold state during the search: use a temporary "folded by hand" set, as the folders and albums do.
+4. In the render: keep the items whose name contains the text, **with their ancestors** for a tree; show a "No matching …" row when nothing is left. A redraw that does not change the data must not re-request it (`renderFolderTree({ fromCounts: true })`).
+5. Locale keys in both files: the placeholder ("Search a folder…") and the tooltip ("Search a folder"), plus the "No matching …" message; `Close the search` is shared.
+- Trap: the × and Esc must only close the search (the module stops the Esc event); the tool button stays invisible until the title row is hovered, so check it with the keyboard (Tab) too.

@@ -80,6 +80,9 @@
         <section id="persons-section" class="persons-section" aria-labelledby="persons-title" hidden>
           <div class="sidebar-block-header">
             <h3 id="persons-title" class="sidebar-block-title"><button type="button" id="persons-toggle" class="sidebar-block-toggle" aria-expanded="true" aria-controls="persons-list"><span class="sidebar-block-chevron" aria-hidden="true">▾</span><span data-i18n="People">Personnes</span></button></h3>
+            <!-- Recherche rapide dans les personnes (sidebar-search.js, filtrage : faces-panel.js), à gauche du bouton de tri -->
+            <div id="persons-search" class="sidebar-search" hidden><input type="text" id="persons-search-input" class="sidebar-search-input" autocomplete="off" spellcheck="false" placeholder="Rechercher une personne…" aria-label="Rechercher une personne" data-i18n-placeholder="Search a person…" data-i18n-aria-label="Search a person" /><button type="button" id="persons-search-clear" class="sidebar-search-clear" title="Fermer la recherche" aria-label="Fermer la recherche" data-i18n-title="Close the search" data-i18n-aria-label="Close the search">×</button></div>
+            <button type="button" id="persons-search-open" class="sidebar-block-tool" title="Rechercher une personne" aria-label="Rechercher une personne" data-i18n-title="Search a person" data-i18n-aria-label="Search a person"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
             <button type="button" id="persons-sort" class="persons-sort"></button>
           </div>
           <ul id="persons-list" class="persons-list"></ul>

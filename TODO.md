@@ -9,7 +9,7 @@
 - [x] *feat*: `infos` add folder in infos when all photos is selected
 - [x] *feat*: `tree` reorder root folders
 - [x] *feat*: `tree` add folder & albums search in left panel
-- [ ] *feat*: `persons` add people search in left panel
+- [x] *feat*: `persons` add people search in left panel
 - [ ] *fix*: `persons` when hiding a person, also hide it from "People" section in the left bar. don't remove it from the filter search field
 - [ ] *feat*: `keywords` add keyword search
 - [x] *fix*: `faces` cannot pass faces from filtered to unknown
