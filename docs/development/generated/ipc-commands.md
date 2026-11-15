@@ -68,9 +68,9 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `get_erased_location_ids` | `geolocation.rs` | — | `Vec<i64>` | async pool | geo-tools.js |
 | `erase_geolocation` | `geolocation.rs` | `photo_ids: Vec<i64>, task_id: Option<String>` | `GeoWriteResult` | async pool | geo-tools.js |
 | `restore_geolocation` | `geolocation.rs` | `photo_ids: Vec<i64>, task_id: Option<String>` | `GeoWriteResult` | async pool | geo-tools.js |
-| `get_keyword_tree` | `keywords.rs` | — | `Vec<KeywordNode>` | async pool | faces-panel.js, keywords-panel.js, semantic-exclusions.js ×2, semantic-keywords.js |
+| `get_keyword_tree` | `keywords.rs` | — | `Vec<KeywordNode>` | async pool | faces-panel.js, keywords-panel.js, privacy.js, semantic-exclusions.js ×2, semantic-keywords.js |
 | `get_photo_keyword_ids` | `keywords.rs` | `photo_ids: Vec<i64>` | `Vec<(i64, i64)>` | async pool | keywords-panel.js |
-| `get_keyword_usage` | `keywords.rs` | — | `Vec<(i64, i64)>` | async pool | keywords-panel.js, semantic-exclusions.js |
+| `get_keyword_usage` | `keywords.rs` | — | `Vec<(i64, i64)>` | async pool | keywords-panel.js, privacy.js, semantic-exclusions.js |
 | `apply_metadata_changes` | `keywords.rs` | `items: Vec<KeywordWriteItem>, task_id: Option<String>` | `KeywordWriteResult` | async pool | metadata-writes.js |
 | `create_keyword` | `keywords.rs` | `parent_id: i64, name: String` | `KeywordNode` | async pool | keywords-panel.js |
 | `get_keyword_delete_info` | `keywords.rs` | `keyword_id: i64` | `KeywordDeleteInfo` | async pool | keywords-panel.js ×2 |

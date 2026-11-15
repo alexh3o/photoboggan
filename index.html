@@ -941,29 +941,45 @@
             <!-- Photos privées (privacy.js) : ensembles de critères (chemins, mots-clés, dates) dont les photos restent masquées -->
             <section class="settings-section" id="privacy-settings">
               <h4 data-i18n="Private photos"></h4>
+              <p class="sort-note privacy-intro" data-i18n="Private photos intro"></p>
               <label class="settings-row settings-check" data-i18n-title="Private photos help"><input id="privacy-enabled-toggle" type="checkbox" /><span data-i18n="Enable private photos"></span></label>
               <label class="settings-row settings-check settings-sub" data-i18n-title="Privacy lock help"><input id="privacy-lock-toggle" type="checkbox" /><span data-i18n="Privacy lock"></span></label>
               <div id="privacy-editor" class="privacy-editor" hidden>
-                <label class="settings-row" for="privacy-set-select"><span data-i18n="Privacy set"></span>
-                  <select id="privacy-set-select"></select></label>
+                <h4 data-i18n="Privacy sets"></h4>
+                <!-- Same label | field grid as the RAW search (raw-settings.css): « + » to the left of the list, « Delete » to the right -->
+                <!-- One card: the list is its header, the name, the active box and the criteria below belong to the chosen set -->
+                <div class="privacy-card">
+                <div class="raw-pattern-grid privacy-grid">
+                  <label for="privacy-set-select" data-i18n="Privacy set"></label>
+                  <div class="privacy-set-row">
+                    <button id="privacy-set-add" type="button" class="icon-button" data-i18n-title="New privacy set…" data-i18n-aria-label="New privacy set…">+</button>
+                    <select id="privacy-set-select"></select>
+                    <button id="privacy-set-delete" type="button" class="btn-danger" data-i18n="Delete set" data-i18n-title="Delete this set"></button>
+                  </div>
+                  <p id="privacy-empty" class="privacy-hint" data-i18n="No privacy set yet" hidden></p>
+                </div>
                 <div id="privacy-set-body" hidden>
-                  <label class="settings-row" for="privacy-set-name"><span data-i18n="Name"></span>
-                    <input id="privacy-set-name" type="text" maxlength="60" autocomplete="off" spellcheck="false" /></label>
-                  <label class="settings-row settings-check"><input id="privacy-set-active" type="checkbox" /><span data-i18n="Active set"></span></label>
-                  <div class="privacy-criterion">
+                  <div class="raw-pattern-grid privacy-grid">
+                    <label for="privacy-set-name" data-i18n="Privacy set name"></label>
+                    <input id="privacy-set-name" type="text" maxlength="60" autocomplete="off" spellcheck="false" />
+                    <label class="settings-row settings-check privacy-active"><input id="privacy-set-active" type="checkbox" /><span data-i18n="Active set"></span></label>
+                  </div>
+                  <h4 id="privacy-criteria-title"></h4>
+                  <div class="raw-pattern-grid privacy-grid privacy-criteria">
                     <label for="privacy-path-input" data-i18n="Folder path parts"></label>
                     <input id="privacy-path-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="Path part placeholder" data-i18n-title="Path part help" />
-                    <div id="privacy-path-tags" class="filter-tags"></div>
-                  </div>
-                  <div class="privacy-criterion">
+                    <p class="privacy-hint" data-i18n="Path part hint"></p>
+                    <div id="privacy-path-tags" class="filter-tags privacy-tags"></div>
                     <label for="privacy-keyword-input" data-i18n="Keywords (exact match)"></label>
-                    <input id="privacy-keyword-input" type="text" autocomplete="off" spellcheck="false" />
-                    <div id="privacy-keyword-tags" class="filter-tags"></div>
-                  </div>
-                  <div class="privacy-criterion">
+                    <!-- Same suggestion list as the keyword filter (filter-suggest.js), opened below the field -->
+                    <div class="keyword-input-wrap">
+                      <input id="privacy-keyword-input" type="text" autocomplete="off" spellcheck="false" data-i18n-placeholder="Keyword then Enter" />
+                      <ul id="privacy-keyword-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                    </div>
+                    <div id="privacy-keyword-tags" class="filter-tags privacy-tags"></div>
                     <label for="privacy-date-input" data-i18n="Date ranges"></label>
                     <div class="date-filter">
-                      <input id="privacy-date-input" type="text" data-i18n-placeholder="YYYYMMDD" maxlength="29" autocomplete="off" spellcheck="false" data-i18n-title="Date format help" />
+                      <input id="privacy-date-input" type="text" data-i18n-placeholder="Date then Enter" maxlength="29" autocomplete="off" spellcheck="false" data-i18n-title="Privacy date help" />
                       <button id="privacy-date-calendar" type="button" class="icon-button" data-i18n-title="Pick in calendar" data-i18n-aria-label="Open calendar">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days preview-icon"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>
                       </button>
@@ -973,10 +989,10 @@
                       <input id="privacy-date-to" type="date" data-i18n-aria-label="To" />
                       <button id="privacy-date-add" type="button" data-i18n="Add"></button>
                     </div>
-                    <p id="privacy-date-error" class="sort-note" role="alert" hidden></p>
-                    <div id="privacy-date-tags" class="filter-tags"></div>
+                    <p id="privacy-date-error" class="privacy-hint privacy-error" role="alert" hidden></p>
+                    <div id="privacy-date-tags" class="filter-tags privacy-tags"></div>
                   </div>
-                  <button id="privacy-set-delete" type="button" class="privacy-delete" data-i18n="Delete this set"></button>
+                </div>
                 </div>
               </div>
             </section>

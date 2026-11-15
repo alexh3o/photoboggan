@@ -55,7 +55,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `duplicates-modal` | duplicates, i18n, raw-settings | main |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults | main |
 | `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | faces-grid, main, persons-view, stats |
-| `filter-suggest` | i18n | faces-panel, format-filters, keywords-panel, main, semantic-exclusions, shooting-filters, stats |
+| `filter-suggest` | i18n | faces-panel, format-filters, keywords-panel, main, privacy, semantic-exclusions, shooting-filters, stats |
 | `filter-tags` | i18n, photo-actions | faces-panel, format-filters, main, privacy, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | main |
 | `format-filters` | filter-suggest, filter-tags, i18n | main, stats |
@@ -78,7 +78,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `persons-view` | faces-panel, i18n | main |
 | `photo-actions` | duplicates, i18n, main, metadata-settings, metadata-writes, slideshow | albums-panel, faces-panel, filter-tags, geo-tools, keywords-panel, main, privacy, private-zones-modal, semantic-settings |
 | `place-search` | i18n, settings-defaults | map-mode |
-| `privacy` | filter-tags, i18n, photo-actions, settings-defaults | main |
+| `privacy` | filter-suggest, filter-tags, i18n, photo-actions, settings-defaults | main |
 | `private-zones` | — | location-panel, map-mode, private-zones-modal, zone-drawing |
 | `private-zones-modal` | i18n, map-config, map-view, maps-settings, photo-actions, private-zones, settings-defaults, zone-drawing | location-panel, main, map-mode |
 | `raw-settings` | i18n, settings-defaults | duplicate-names, duplicates-modal, find-raw, main |

@@ -2,8 +2,6 @@
 
 ## 🚀 Next in line
 
-
-
 - [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
 - [ ] *feat*: `grid` option to hide RAW by default
@@ -11,6 +9,7 @@
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections
 - [ ] *refactor*: `grid` date modified sorting must see metadata writes
 - [ ] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
+- [ ] *fix*: `tree` reordering root folders in tree only works with arrows
 
 ## 💡 Ideas / Longer term / On hold
 

@@ -11,13 +11,13 @@
 // (`set_privacy_sets`) ; main.js recharge ses vues à chaque changement (`onPrivacyChange`).
 import './privacy.css';
 import { invoke } from '@tauri-apps/api/core';
-import { t, onLanguageChange } from './i18n.js';
+import { t, normalizeSearch, onLanguageChange } from './i18n.js';
 import { readBool, readStored, writeStored } from './settings-defaults.js';
 import { createFilterTag } from './filter-tags.js';
+import { createFilterSuggest } from './filter-suggest.js';
 import { openContextMenuAt, confirmDialog } from './photo-actions.js';
 
 const KEYS = { enabled: 'privacyEnabled', lock: 'privacyLock', sets: 'privacySets', active: 'privacyActive' };
-const NEW_SET = '__new';
 
 // ---------------------------------------------------------------------------
 // Dates : même saisie que le filtre de date (AAAA … AAAAMMJJHHmmss, « début-fin »)
@@ -147,7 +147,7 @@ function updateShield() {
   if (!shield) return;
   shieldWrap.hidden = !enabled;
   const names = activeSets().map(set => set.name.trim() || t('Privacy set {number}', { number: sets.indexOf(set) + 1 }));
-  const label = t('Private photos: {sets}', { sets: names.length ? names.join(', ') : t('Off') });
+  const label = t(isPrivacyLocked() ? 'Private photos locked: {sets}' : 'Private photos: {sets}', { sets: names.length ? names.join(', ') : t('Off') });
   shield.classList.toggle('active', names.length > 0);
   shield.classList.toggle('locked', isPrivacyLocked());
   shield.title = label;
@@ -178,6 +178,7 @@ function renderMenu() {
     saveActive();
     commit();
     closeMenu();
+    renderSettings();
   })];
   for (const set of sets) {
     rows.push(row(displayName(set), activeIds.has(set.id), () => {
@@ -278,12 +279,13 @@ function renderCriteria(set) {
   }), () => { set.dateRanges = set.dateRanges.filter(other => other !== range); criteriaChanged(set); })));
 }
 
+// Un ensemble actif (menu du bouclier ou case ci-dessous) est précédé de « ✓ » dans la liste, comme dans le menu du bouclier.
 function renderSetSelect() {
-  const options = sets.map(set => new Option(displayName(set), set.id));
+  const options = sets.map(set => new Option(`${activeIds.has(set.id) ? '✓ ' : ''}${displayName(set)}`, set.id));
   if (!currentSet()) options.unshift(new Option('', ''));
-  options.push(new Option(t('New privacy set…'), NEW_SET));
   ui.select.replaceChildren(...options);
   ui.select.value = currentSet()?.id ?? '';
+  ui.select.disabled = sets.length === 0;
 }
 
 function renderSettings() {
@@ -296,10 +298,18 @@ function renderSettings() {
   renderSetSelect();
   const set = currentSet();
   ui.body.hidden = !set;
+  ui.empty.hidden = Boolean(set);
+  ui.remove.disabled = !set;
   if (!set) return;
   if (document.activeElement !== ui.name) ui.name.value = set.name;
   ui.active.checked = activeIds.has(set.id);
+  renderCriteriaTitle(set);
   renderCriteria(set);
+}
+
+// Sous-titre des critères : rappelle l'ensemble modifié (il suit la liste et le champ de nom).
+function renderCriteriaTitle(set) {
+  ui.criteriaTitle.textContent = t('Privacy criteria of {name}', { name: displayName(set) });
 }
 
 function addPath(text, partial) {
@@ -360,12 +370,45 @@ async function deleteSelectedSet() {
   if (wasActive) commit();
 }
 
+/** Mots-clés proposés par le champ : noms de l'arbre des mots-clés (la correspondance se fait sur le nom, voir privacy.rs), les plus utilisés d'abord. */
+let keywordNames = new Map(); // keyOf(name) -> { name, count }
+let keywordSuggest = null;
+
+// Lu quand le champ prend le focus : l'arbre a pu changer entre-temps (fichiers lus, mot-clé créé).
+async function loadKeywordNames() {
+  try {
+    const [nodes, usage] = await Promise.all([invoke('get_keyword_tree'), invoke('get_keyword_usage')]);
+    const counts = new Map(usage);
+    const byName = new Map();
+    for (const node of nodes) {
+      const key = keyOf(node.name);
+      const entry = byName.get(key) ?? { name: node.name, count: 0 };
+      entry.count += counts.get(node.id) || 0;
+      byName.set(key, entry);
+    }
+    keywordNames = byName;
+  } catch (error) {
+    console.error('Keyword tree unreadable', error);
+    return;
+  }
+  keywordSuggest?.refresh();
+}
+
+// Mots-clés de l'arbre qui ne sont pas encore dans l'ensemble.
+function keywordOptions() {
+  const taken = new Set((currentSet()?.keywords ?? []).map(keyOf));
+  return [...keywordNames.entries()]
+    .filter(([key]) => !taken.has(key))
+    .map(([, entry]) => ({ value: entry.name, label: entry.name, count: entry.count, search: normalizeSearch(entry.name) }));
+}
+
 function initSettings() {
   ui = {
     enabled: byId('privacy-enabled-toggle'), lock: byId('privacy-lock-toggle'), editor: byId('privacy-editor'),
-    select: byId('privacy-set-select'), body: byId('privacy-set-body'), name: byId('privacy-set-name'), active: byId('privacy-set-active'),
+    select: byId('privacy-set-select'), add: byId('privacy-set-add'), empty: byId('privacy-empty'),
+    body: byId('privacy-set-body'), name: byId('privacy-set-name'), active: byId('privacy-set-active'), criteriaTitle: byId('privacy-criteria-title'),
     pathInput: byId('privacy-path-input'), pathTags: byId('privacy-path-tags'),
-    keywordInput: byId('privacy-keyword-input'), keywordTags: byId('privacy-keyword-tags'),
+    keywordInput: byId('privacy-keyword-input'), keywordList: byId('privacy-keyword-suggestions'), keywordTags: byId('privacy-keyword-tags'),
     dateInput: byId('privacy-date-input'), dateTags: byId('privacy-date-tags'), dateError: byId('privacy-date-error'),
     calendarButton: byId('privacy-date-calendar'), picker: byId('privacy-date-picker'),
     pickerFrom: byId('privacy-date-from'), pickerTo: byId('privacy-date-to'), pickerAdd: byId('privacy-date-add'),
@@ -386,16 +429,19 @@ function initSettings() {
   });
 
   ui.select.addEventListener('change', () => {
-    if (ui.select.value === NEW_SET) {
-      const set = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, name: '', paths: [], keywords: [], dateRanges: [] };
-      set.name = t('Privacy set {number}', { number: sets.length + 1 });
-      sets.push(set);
-      selectedId = set.id;
-      saveSets();
-    } else if (ui.select.value) {
-      selectedId = ui.select.value;
-    }
+    if (ui.select.value) selectedId = ui.select.value;
     renderSettings();
+  });
+  // « + » : crée un ensemble au nom numéroté et place le curseur dans son champ de nom.
+  ui.add.addEventListener('click', () => {
+    const set = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`, name: '', paths: [], keywords: [], dateRanges: [] };
+    set.name = t('Privacy set {number}', { number: sets.length + 1 });
+    sets.push(set);
+    selectedId = set.id;
+    saveSets();
+    renderSettings();
+    ui.name.focus();
+    ui.name.select();
   });
   ui.name.addEventListener('input', () => {
     const set = currentSet();
@@ -403,6 +449,7 @@ function initSettings() {
     set.name = ui.name.value;
     saveSets();
     renderSetSelect();
+    renderCriteriaTitle(set);
     updateShield();
   });
   ui.name.addEventListener('blur', () => {
@@ -414,6 +461,7 @@ function initSettings() {
     if (!set) return;
     if (ui.active.checked) activeIds.add(set.id); else activeIds.delete(set.id);
     saveActive();
+    renderSetSelect();
     commit();
   });
   ui.remove.addEventListener('click', deleteSelectedSet);
@@ -425,12 +473,15 @@ function initSettings() {
     addPath(ui.pathInput.value, event.altKey);
     ui.pathInput.value = '';
   });
-  ui.keywordInput.addEventListener('keydown', event => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    addKeyword(ui.keywordInput.value);
-    ui.keywordInput.value = '';
+  // Même liste que le filtre de mots-clés (filter-suggest.js). Entrée valide le mot-clé en surbrillance, ou le texte saisi quand rien ne correspond.
+  keywordSuggest = createFilterSuggest({
+    input: ui.keywordInput,
+    list: ui.keywordList,
+    getOptions: keywordOptions,
+    onPick: (value, _exclude, text) => addKeyword(value ?? text),
+    emptyText: 'No matching keyword',
   });
+  ui.keywordInput.addEventListener('focus', () => { loadKeywordNames(); });
   ui.dateInput.addEventListener('input', () => showDateError(null));
   ui.dateInput.addEventListener('keydown', event => {
     if (event.key !== 'Enter') return;

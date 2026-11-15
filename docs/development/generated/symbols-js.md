@@ -1167,7 +1167,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export updatePlaceSearchAvailability()` · L51 — Champ de recherche affiché seulement si Internet est permis ; à rappeler quand le mode hors ligne change.
 - `export initPlaceSearch(options)` · L58 — `host` : { goTo(place), showToast(message) }.
 
-## src/privacy.js (38)
+## src/privacy.js (41)
 
 - `periodOf(token)` · L29 — Période couverte par une date incomplète, au format AAAAMMJJHHmmss (« 2024 » : de 20240101000000 à 20241231235959), ou null si elle n'exist…
 - `export parseDateRange(text)` · L46 — Plage de dates saisie : { text, start, end } (bornes incluses, AAAAMMJJHHmmss), ou null si le texte n'est pas valide.
@@ -1190,23 +1190,26 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `updateShield()` · L146
 - `displayName(set)` · L158
 - `renderMenu()` · L160
-- `openMenu()` · L194
-- `closeMenu()` · L206
-- `onOutsideMouseDown(event)` · L213
-- `onMenuKeyDown(event)` · L217
-- `currentSet()` · L230
-- `criteriaChanged(set)` · L233 — Les critères de `set` ont changé : mémorisation, affichage, et rechargement des vues si l'ensemble est actif.
-- `makeRemovable(tag, remove)` · L239
-- `renderCriteria(set)` · L250
-- `renderSetSelect()` · L281
-- `renderSettings()` · L289
-- `addPath(text, partial)` · L305
-- `addKeyword(text)` · L315
-- `showDateError(message)` · L323
-- `addDateRange(text)` · L331 — Ajoute la plage saisie ; renvoie false (et signale l'erreur) si elle n'est pas valide.
-- `deleteSelectedSet()` · L342
-- `initSettings()` · L363
-- `export initPrivacy()` · L454 — À appeler une fois au démarrage (main.js) : branche le bouclier et les paramètres, envoie les ensembles actifs au backend.
+- `openMenu()` · L195
+- `closeMenu()` · L207
+- `onOutsideMouseDown(event)` · L214
+- `onMenuKeyDown(event)` · L218
+- `currentSet()` · L231
+- `criteriaChanged(set)` · L234 — Les critères de `set` ont changé : mémorisation, affichage, et rechargement des vues si l'ensemble est actif.
+- `makeRemovable(tag, remove)` · L240
+- `renderCriteria(set)` · L251
+- `renderSetSelect()` · L283 — Un ensemble actif (menu du bouclier ou case ci-dessous) est précédé de « ✓ » dans la liste, comme dans le menu du bouclier.
+- `renderSettings()` · L291
+- `renderCriteriaTitle(set)` · L311 — Sous-titre des critères : rappelle l'ensemble modifié (il suit la liste et le champ de nom).
+- `addPath(text, partial)` · L315
+- `addKeyword(text)` · L325
+- `showDateError(message)` · L333
+- `addDateRange(text)` · L341 — Ajoute la plage saisie ; renvoie false (et signale l'erreur) si elle n'est pas valide.
+- `deleteSelectedSet()` · L352
+- `loadKeywordNames()` · L378 — Lu quand le champ prend le focus : l'arbre a pu changer entre-temps (fichiers lus, mot-clé créé).
+- `keywordOptions()` · L398 — Mots-clés de l'arbre qui ne sont pas encore dans l'ensemble.
+- `initSettings()` · L405
+- `export initPrivacy()` · L505 — À appeler une fois au démarrage (main.js) : branche le bouclier et les paramètres, envoie les ensembles actifs au backend.
 
 ## src/private-zones-modal.js (11)
 

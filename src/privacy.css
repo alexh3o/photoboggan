@@ -15,14 +15,43 @@
 .privacy-menu .privacy-check { flex: 0 0 1rem; color: #3fb950; text-align: center; }
 .privacy-menu .privacy-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Paramètres. */
-.privacy-editor { margin-top: 0.5rem; }
-.privacy-editor select, .privacy-editor input[type="text"] { min-width: 0; }
-.privacy-criterion { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.75rem 0; }
-.privacy-criterion > label { font-weight: 600; }
-.privacy-criterion .date-filter { display: flex; align-items: center; gap: 0.35rem; }
-.privacy-criterion .date-filter input { flex: 1 1 auto; min-width: 0; }
+/* Paramètres > Divers > Photos privées. Le cadre et le titre de la section sont dans styles.css (comme l'onglet Recherche) ;
+   les champs reprennent la grille « libellé | champ » de la recherche du RAW (raw-settings.css, .raw-pattern-grid). */
+#privacy-settings .privacy-intro { margin: 0 0 0.75rem; }
+
+/* Sous-titres « Ensembles » et « Critères » : un niveau sous le titre du cadre (même style que les sous-titres de Recherche par contenu). */
+#privacy-editor h4 { margin: 1.1rem 0 0.5rem; padding: 0; border: 0; font-size: 0.8rem; text-transform: none; letter-spacing: 0; color: var(--text-strong); }
+#privacy-editor > h4:first-child { margin-top: 0.8rem; }
+
+/* Fiche de l'ensemble choisi : la liste en est l'en-tête ; le nom, la case « actif » et les critères en dessous en dépendent. */
+.privacy-card { padding: 0.75rem 0.9rem 0.4rem; border: 1px solid var(--border); border-radius: 0.4rem; background: color-mix(in srgb, var(--text-strong) 4%, transparent); }
+.privacy-card > .privacy-grid:first-child { margin-bottom: 0.4rem; }
+#privacy-set-body { margin-top: 0.4rem; padding-top: 0.3rem; border-top: 1px solid var(--border); }
+#privacy-set-body > h4 { margin-top: 1rem; }
+#privacy-set-add { font-size: 1.1rem; line-height: 1; }
+
+.raw-pattern-grid.privacy-grid { grid-template-columns: 16rem minmax(8rem, 1fr); }
+.raw-pattern-grid.privacy-criteria { row-gap: 0.45rem; }
+.privacy-grid input[type="text"] { width: 100%; }
+.privacy-grid > input[type="text"], .privacy-grid > .keyword-input-wrap, .privacy-grid > .date-filter, .privacy-grid > .privacy-set-row { max-width: 26rem; }
+.privacy-grid > .privacy-hint, .privacy-grid > .privacy-tags, .privacy-grid > .privacy-date-picker, .privacy-grid > .privacy-active { grid-column: 2; }
+.privacy-grid > .privacy-hint { margin: 0; font-size: 0.72rem; color: var(--text-faint); }
+.privacy-grid > .privacy-hint.privacy-error { color: var(--danger-text); }
+.privacy-grid > .privacy-tags { margin-top: 0; }
+.privacy-grid > .privacy-tags:empty { display: none; }
+.privacy-grid > .privacy-active { margin: 0; }
+
+/* Ensemble choisi : « + » à gauche de la liste, « Supprimer » à droite. */
+.privacy-set-row { display: flex; align-items: center; gap: 0.4rem; }
+.privacy-set-row > * { min-height: 2rem; box-sizing: border-box; }
+.privacy-set-row button { flex: 0 0 auto; }
+.privacy-set-row button:disabled, .privacy-set-row select:disabled { opacity: 0.5; cursor: default; }
+.privacy-set-row select { flex: 1 1 auto; min-width: 0; padding: 0.35rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; }
+
+/* Mots-clés : la liste de suggestions s'ouvre sous le champ (filter-suggest.js). Dates : champ et calendrier de même hauteur. */
+.privacy-grid .date-filter { display: flex; align-items: center; gap: 0.35rem; }
+.privacy-grid .date-filter input { flex: 1 1 auto; min-width: 0; }
 .privacy-date-picker { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .privacy-date-picker[hidden] { display: none; }
-.privacy-criterion input.invalid { border-color: #e5534b; }
-.privacy-delete { align-self: flex-start; margin-top: 0.5rem; }
+.privacy-date-picker input[type="date"] { box-sizing: border-box; padding: 0.35rem 0.5rem; color: var(--text-strong); background: var(--control-bg); border: 1px solid var(--control-border); border-radius: 4px; font-size: 0.8rem; }
+.privacy-date-picker input[type="date"].invalid { border-color: #e74c3c; }
