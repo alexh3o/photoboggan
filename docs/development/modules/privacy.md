@@ -10,7 +10,7 @@ Hides sensitive photos across the grid, folder tree, albums, people/faces views,
 |---|---|
 | `privacy.rs` | `PrivacySet` criteria, `ACTIVE` state, startup `restore`, `set_privacy_sets` (persisted in `config.json`), SQL helpers (`visible_condition`, `hidden_persons_sql`, `visible_person_condition`), `is_active`, `is_private_folder`, `get_privacy_hidden_keywords`. |
 | `privacy.js` | Set editor (Settings > Misc), shield button and dropdown menu (`#privacy-shield`, `#privacy-menu`), `parseDateRange`, `syncPrivacyToBackend`, `onPrivacyChange`, `isHiddenKeyword`, `hasActivePrivacy`. |
-| `privacy.css` | Shield icon states, fixed-position set menu (`.privacy-menu.keyword-suggestions`), and settings editor layout. |
+| `privacy.css` | Shield icon states, fixed-position set menu (`.privacy-menu.keyword-suggestions`), and settings editor layout (set card, label | field grids). |
 
 ## How it works
 
@@ -35,16 +35,21 @@ An empty set (`PrivacySet::is_empty`) hides nothing. Multiple active sets are me
 - **Empty disk folders (`main.rs`)**: `list_disk_folders` skips folders matching `is_private_folder`.
 - **Keyword filter UI (`main.js`)**: `keywordFilterSuggest` filters out `isHiddenKeyword(option.value)` from autocomplete suggestions (editing panels such as the Keywords tab still show all keywords).
 
-**Shield, privacy lock, and folder deletion.** When `privacyEnabled` is on, `#privacy-shield-wrap` is shown in the Filters header (green when sets are active). With `privacyLock` checked (`isPrivacyLocked`), clicking the shield does nothing and active sets can only be changed in Settings. Folder deletion (`deleteFolderToTrash` in `main.js`, `delete_folder` in `main.rs`) is refused while any set is active (`hasActivePrivacy()` / `privacy::is_active()`), preventing unseen hidden photos from being trashed with their folder.
+**Settings editor (Settings > Misc > Private photos).** The section is one of three framed blocks of the Misc tab (`#settings-tab-misc > .settings-section`, `styles.css`, same look as the Search tab). A visible note under the title (`Private photos intro`) states the OR rule and that files stay on disk; the editor (`#privacy-editor`) is hidden until the feature is enabled, and the lock checkbox is greyed until then. The chosen set is shown as one card (`.privacy-card`): its header is the row `[+] [list] [Delete]`, the rest of the card (`#privacy-set-body`) belongs to the set picked in the list.
+- `#privacy-set-add` creates a set with a numbered name and focuses the name field (there is no "New set…" list entry any more). With no set, the list and Delete are disabled, `#privacy-empty` explains what to do and the body stays hidden. `renderSetSelect` prefixes the names of active sets with `✓ `, and is called again whenever activation changes (checkbox, shield menu, "Off").
+- The body holds the name, the "active" checkbox, a sub-title that repeats the set name (`#privacy-criteria-title`, `renderCriteriaTitle`, updated while typing) and the three criteria in `.raw-pattern-grid.privacy-grid` (the label | field grid of the RAW search; label column 16 rem). Hints are visible (`Path part hint`: Enter / Alt+Enter) or in tooltips (`Path part help`, `Privacy date help`: which date is compared).
+- The keyword field uses `createFilterSuggest` (`filter-suggest.js`), the same list and keys as the keyword filter. Options come from `loadKeywordNames` (`get_keyword_tree` + `get_keyword_usage`, read when the field gets the focus), merged by name because matching is on the last-level name (`name_key`), minus the keywords already in the set. Enter with no matching suggestion still adds the typed text (a keyword that does not exist yet can be listed); the list then shows "No matching keyword".
+
+**Shield, privacy lock, and folder deletion.** When `privacyEnabled` is on, `#privacy-shield-wrap` is shown in the Filters header (green when sets are active). With `privacyLock` checked (`isPrivacyLocked`), clicking the shield does nothing and active sets can only be changed in Settings; the shield tooltip and `aria-label` then use `Private photos locked: {sets}`, which says where to change it. In Settings the option is labelled "Lock the shield" (key `Privacy lock`). Folder deletion (`deleteFolderToTrash` in `main.js`, `delete_folder` in `main.rs`) is refused while any set is active (`hasActivePrivacy()` / `privacy::is_active()`), preventing unseen hidden photos from being trashed with their folder.
 
 ## Contracts
-- IPC commands: `set_privacy_sets`, `get_privacy_hidden_keywords` (`../generated/ipc-commands.md`; `get_privacy_hidden_keywords` has no JS caller because `privacy.js` computes `hiddenKeywordKeys()` locally).
+- IPC commands: `set_privacy_sets`, `get_privacy_hidden_keywords` (`../generated/ipc-commands.md`; `get_privacy_hidden_keywords` has no JS caller because `privacy.js` computes `hiddenKeywordKeys()` locally). The Settings keyword field also calls `get_keyword_tree` and `get_keyword_usage` (owned by the keyword modules).
 - Events: none.
 - Database: owns no tables; reads `photos` (`id`, `path`, `date_taken`, `created`, `modified`), `photo_keywords`, `keyword_nodes`, `persons` (`../generated/db-schema.md`).
 - Settings: `privacyEnabled`, `privacyLock` (`../generated/config.md`); `privacySets`, `privacyActive` in `localStorage` (no entry in `defaults.jsonc`); `AppConfig.privacy_sets` in `config.json`.
 
 ## Dependencies
-- Uses: `keywords::name_key` (`privacy.rs`), `load_config` / `save_config` (`main.rs`), `filter-tags.js`, `photo-actions.js` (`openContextMenuAt`, `confirmDialog`), `settings-defaults.js`, `i18n.js`.
+- Uses: `keywords::name_key` (`privacy.rs`), `load_config` / `save_config` (`main.rs`), `filter-tags.js`, `filter-suggest.js`, `photo-actions.js` (`openContextMenuAt`, `confirmDialog`), `settings-defaults.js`, `i18n.js`.
 - Used by: `db.rs`, `albums.rs`, `duplicates.rs`, `faces.rs`, `main.rs` (`.setup`, `list_disk_folders`, `delete_folder`), `main.js`.
 
 ## Invariants and sensitive areas

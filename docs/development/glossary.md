@@ -67,7 +67,7 @@ One line per term, built from the terms used by the other docs. Module docs hold
 - **`pbmap://`**: custom protocol serving every map resource; the only webview network path (`maps-and-geolocation.md`).
 - **Private zone**: place whose tiles are on disk (MBTiles); photos inside use a strict map that never reaches the provider. **Offline map**: a non-private zone.
 - **Private photos / Privacy set**: a user-defined set of criteria (folder path segments, keywords, date ranges) that hides matching photos across the UI without deleting them or modifying files on disk (`modules/privacy.md`). Distinct from **Private zone**, which relates to map tile privacy.
-- **Privacy lock**: option preventing quick toggle of privacy sets from the shield button in the filter header, allowing changes only via Settings (`modules/privacy.md`).
+- **Privacy lock**: option (`privacyLock`, labelled "Lock the shield" in Settings) preventing quick toggle of privacy sets from the shield button in the filter header, allowing changes only via Settings (`modules/privacy.md`).
 - **MBTiles**: standard SQLite file of map tiles.
 - **Strict map**: map context with no remote requests.
 - **Erased location backup**: coordinates saved in `erased_locations` before GPS removal, to allow restore.
