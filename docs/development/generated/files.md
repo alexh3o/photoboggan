@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1458 |  |
 | `package.json` | 29 |  |
 | `README.md` | 204 |  |
-| `TODO.md` | 81 |  |
+| `TODO.md` | 64 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -45,9 +45,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
 | `glossary.md` | 82 |  |
-| `invariants.md` | 89 |  |
+| `invariants.md` | 90 |  |
 | `README.md` | 56 |  |
-| `recipes.md` | 104 |  |
+| `recipes.md` | 114 |  |
 | `style.md` | 58 |  |
 | `testing.md` | 76 |  |
 | `troubleshooting.md` | 72 |  |
@@ -81,14 +81,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 79 |  |
 | `main-window.md` | 86 |  |
-| `maps-and-geolocation.md` | 69 |  |
+| `maps-and-geolocation.md` | 80 |  |
 | `metadata-read-write.md` | 102 |  |
-| `photo-operations.md` | 83 |  |
+| `photo-operations.md` | 102 |  |
 | `privacy.md` | 65 |  |
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 65 |  |
 | `stats.md` | 44 |  |
-| `thumbnails-and-previews.md` | 85 |  |
+| `thumbnails-and-previews.md` | 103 |  |
 | `updates.md` | 66 |  |
 
 ## scripts
@@ -127,7 +127,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `guide.js` | 208 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
-| `i18n.js` | 118 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
+| `i18n.js` | 119 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
 | `keywords-panel.js` | 1247 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |

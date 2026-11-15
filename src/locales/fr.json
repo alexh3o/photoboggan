@@ -1161,7 +1161,7 @@
   "Map view: where the photos are, and set the location of the selection": "Carte : où sont les photos, et position de la sélection",
   "Photos shown in the grid": "Photos affichées dans la grille",
   "Show all the photos of the selected folders and filters in the grid": "Afficher dans la grille toutes les photos des dossiers et filtres choisis",
-  "Show in the grid only the geolocated photos inside the visible map area. The grid follows the map when you move or zoom it; photos without a location are hidden.": "Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte. La grille suit la carte quand vous la déplacez ou zoomez ; les photos sans position sont masquées.",
+  "Show only visible map photos": "Afficher dans la grille seulement les photos géolocalisées de la zone visible de la carte. La grille suit la carte quand vous la déplacez ou zoomez ; les photos sans position sont masquées.",
   "Search a place…": "Rechercher un lieu…",
   "Search a place": "Rechercher un lieu",
   "No place found": "Aucun lieu trouvé",

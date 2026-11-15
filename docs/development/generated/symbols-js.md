@@ -404,9 +404,9 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export formatBytes(bytes)` · L61 — Sizes: two conventions, so two helpers.
 - `export formatMegabytes(bytes)` · L67
 - `setElementText(element, text)` · L74 — Remplace le texte d'un élément sans supprimer ses éléments enfants (ex. <label>Texte <select></select></label>) :
-- `export applyTranslations(root = document)` · L89 — Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
-- `export onLanguageChange(listener)` · L99 — Pour re-générer les textes construits en JavaScript quand la langue change.
-- `export setLanguage(language)` · L104
+- `export applyTranslations(root = document)` · L90 — Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
+- `export onLanguageChange(listener)` · L100 — Pour re-générer les textes construits en JavaScript quand la langue change.
+- `export setLanguage(language)` · L105
 
 ## src/keywords-panel.js (70)
 

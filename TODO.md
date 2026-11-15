@@ -2,27 +2,10 @@
 
 ## 🚀 Next in line
 
-- [x] *feat*: `search` private folders to optionally exclude from searches (similar x2, semantic search, keywords)
-- [x] *fix*: `privacy` keywords filtering does not work
-- [x] *feat*: `grid` implement pages for 50k+ views
-- [x] *feat*: `faces` `filters` add filter for photos with/without faces data, or with number of faces (0=>x)
-- [x] *feat*: `infos` add folder in infos when all photos is selected
-- [x] *feat*: `tree` reorder root folders
-- [x] *feat*: `tree` add folder & albums search in left panel
-- [x] *feat*: `persons` add people search in left panel
-- [x] *fix*: `faces` cannot pass faces from filtered to unknown
-- [x] *fix*: `keywords` problem with " ' " in keywords, can't read it the same as written, writing seems to fail
-- [x] *feat*: `keywords` write keywords when typing enter in empty keyword input field
+
+
 - [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear
-- [x] *feat*: `infos` add folder info in album photos too
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
-- [x] *feat*: `files` retain and offer last folder for resize and copy actions
-- [x] *feat*: `files` resize with directory structure
-- [x] *refactor*: `grid` stay on the current photo when undoing filters
-- [x] *feat*: `grid` scrollbar should give a date / filename indication
-- [x] *fix*: `grid` moving selection with arrows should put the view back on seleciton
-- [x] *feat*: `tree` sticky folders in tree
-- [x] *style*: `UI` bigger star ratings in thumbnails
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *style*: `map` alternative dark map style
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections

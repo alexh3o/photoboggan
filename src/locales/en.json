@@ -1161,7 +1161,7 @@
   "Map view: where the photos are, and set the location of the selection": "Map view: where the photos are, and set the location of the selection",
   "Photos shown in the grid": "Photos shown in the grid",
   "Show all the photos of the selected folders and filters in the grid": "Show all the photos of the selected folders and filters in the grid",
-  "Show in the grid only the geolocated photos inside the visible map area. The grid follows the map when you move or zoom it; photos without a location are hidden.": "Show in the grid only the geolocated photos inside the visible map area. The grid follows the map when you move or zoom it; photos without a location are hidden.",
+  "Show only visible map photos": "Show in the grid only the geolocated photos inside the visible map area. The grid follows the map when you move or zoom it; photos without a location are hidden.",
   "Search a place…": "Search a place…",
   "Search a place": "Search a place",
   "No place found": "No place found",

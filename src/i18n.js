@@ -85,7 +85,8 @@ function setElementText(element, text) {
 const TRANSLATED_ATTRIBUTES = ['title', 'aria-label', 'placeholder', 'alt'];
 
 // Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
-// Le texte déjà présent dans index.html sert de valeur par défaut (français) avant l'application.
+// Visible text (data-i18n) already in index.html is only a French fallback shown before this runs (the window stays hidden until then).
+// title, aria-label and placeholder are NOT duplicated in the HTML: write only the data-i18n-<attribute> key, the text lives in the locale files.
 export function applyTranslations(root = document) {
   document.documentElement.lang = currentLanguage;
   for (const element of root.querySelectorAll('[data-i18n]')) setElementText(element, t(element.dataset.i18n));
