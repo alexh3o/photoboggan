@@ -1,4 +1,4 @@
-<!-- verified: d0d541a | sources: src/defaults.jsonc, src/settings-defaults.js, src/i18n.js, src/privacy.js, src-tauri/src/main.rs, src-tauri/src/privacy.rs, src-tauri/src/face_detect.rs, src-tauri/tauri.conf.json, src-tauri/tauri.dev.conf.json -->
+<!-- verified: f4a166d | sources: src/defaults.jsonc, src/settings-defaults.js, src/i18n.js, src/privacy.js, src-tauri/src/main.rs, src-tauri/src/privacy.rs, src-tauri/src/face_detect.rs, src-tauri/tauri.conf.json, src-tauri/tauri.dev.conf.json -->
 # Configuration
 
 Where each kind of setting or data lives, how a setting is read and defaulted, and how backend settings get their value. The key/default table is generated: `generated/config.md` (never copy it). Step-by-step for adding a setting: `recipes.md` §2. Application shell code (config file, storage move): `modules/app-shell.md`.
@@ -7,7 +7,7 @@ Where each kind of setting or data lives, how a setting is read and defaulted, a
 
 | Place | What | Lifetime | Written by |
 |---|---|---|---|
-| **Image files / `.xmp` sidecars** | Rating, colour, pick, keywords, title, description, faces, GPS, orientation | Permanent, source of truth | Metadata writers (`architecture.md` "Where state lives") |
+| **Image files / `.xmp` sidecars** | Rating, colour, pick, keywords, title, description, author & rights, faces, GPS, orientation | Permanent, source of truth | Metadata writers (`architecture.md` "Where state lives") |
 | **SQLite catalogue** `<data dir>/photos_library.db` | Photo index, keyword tree, albums, persons, private zones, hashes, embeddings | Permanent, mostly rebuildable by rescan (albums are not) | `db.rs` and feature modules |
 | **`config.json`** (OS app-config dir, struct `AppConfig` in `main.rs`) | `custom_data_dir`, `thumbnail_cache_size`, `thumbnail_quality`, `window_state`, `open_with_programs`, `privacy_sets` | Permanent | Backend commands only (`save_config`, atomic write) |
 | **Webview `localStorage`** | Every other UI preference (layout, sort, panels, language, theme, feature switches…) | Permanent per webview profile | Frontend |

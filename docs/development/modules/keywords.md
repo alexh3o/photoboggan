@@ -1,4 +1,4 @@
-<!-- verified: c2ee85e | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
+<!-- verified: f4a166d | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
 
 # Hierarchical keywords and description
 
@@ -12,7 +12,7 @@ Lets the user organise photos with a tree of keywords (e.g. `Places / France / P
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `keywords.rs`          | Tree and link tables, `run_write` (batch write + verify + catalogue update), create / rename / delete keyword, `set_metadata_read_order` |
 | `keywords-panel.js`    | Keywords tab of the right panel: checkbox tree, pending state, input with suggestions, context menu, create / rename / delete dialogs    |
-| `description-panel.js` | Description tab: title and description fields, same pending → Apply circuit                                                              |
+| `description-panel.js` | Description tab: title, description, author and rights fields (with `rights-presets.js`), same pending → Apply circuit                 |
 | `metadata-writes.js`   | The write circuit both tabs register in (see `metadata-read-write.md`)                                                                   |
 
 ## How it works
@@ -27,13 +27,13 @@ Lets the user organise photos with a tree of keywords (e.g. `Places / France / P
 
 ### Applying edits: `apply_metadata_changes` → `run_write`
 
-Input: `KeywordWriteItem { photo_id, path, keyword_ids?, title?, description?, faces?, gps? }`; every field optional, absent = untouched, empty title / description = remove. Optional `task_id` for progress and cancel.
+Input: `KeywordWriteItem { photo_id, path, keyword_ids?, title?, description?, author?, copyright?, credit?, usage_terms?, author_email?, faces?, gps? }`; every field optional, absent = untouched, empty string = remove. Optional `task_id` for progress and cancel.
 
 1. `WRITE_LOCK` (global mutex) and `semantic::PriorityGuard` (content analysis pauses) are taken: one batch at a time for keywords, rename, delete.
 2. The tree is loaded once (`nodes`) so paths can be computed (`node_path`). Items whose `id` + `path` pair is not in the catalogue fail with "Photo absente du catalogue"; duplicates of one photo are merged (last value per field).
 3. Faces: a photo with `faces == true` or with face changes pending (`faces::has_pending_face_write`) gets a plan from `faces::plan_face_write` (regions to write, person keywords to add or remove). A planning error fails that photo only. See `faces.md`.
 4. Files are written by a rayon pool of **3 threads**: each item checks the cancel flag, turns ids into paths (an id missing from the tree **fails the photo**, ignoring it would silently remove the keyword), builds a `MetadataUpdate` and calls `exif::write_metadata` inside `keep_cached_images` (thumbnails and previews are renamed to follow the changed file, not regenerated). `scan-progress` is emitted per file.
-5. Verification, in one catalogue transaction: the file is re-read with `exif::read_exif`; keywords (`normalized_paths`, case-insensitive), title / description (`text_mismatch`), face regions (`regions_mismatch`: same count and names) and GPS (`geolocation::gps_mismatch`) must match what was requested, otherwise the photo is a failure and **the catalogue is not touched** (the next sync rereads the file). On success `photos.keywords` / `title` / `caption` / `file_size` / `modified` / `effective_modified` (and GPS) are updated from the re-read (modified stays the image file's own mtime; `effective_modified` takes the later of the image's and its active sidecar's mtime, also returned in `KeywordWritten.effective_modified`), `finish_face_write` records faces, and `store_photo_keywords_in` refreshes the links. A face DB error marks the photo `file_size = -1` so the next sync rereads it.
+5. Verification, in one catalogue transaction: the file is re-read with `exif::read_exif`; keywords (`normalized_paths`, case-insensitive), title / description / author & rights (`text_mismatch`), face regions (`regions_mismatch`: same count and names) and GPS (`geolocation::gps_mismatch`) must match what was requested, otherwise the photo is a failure and **the catalogue is not touched** (the next sync rereads the file). On success `photos.keywords` / `title` / `caption` / `author` / `copyright` / `credit` / `usage_terms` / `author_email` / `file_size` / `modified` / `effective_modified` (and GPS) are updated from the re-read (modified stays the image file's own mtime; `effective_modified` takes the later of the image's and its active sidecar's mtime, also returned in `KeywordWritten.effective_modified`), `finish_face_write` records faces, and `store_photo_keywords_in` refreshes the links. A face DB error marks the photo `file_size = -1` so the next sync rereads it.
 6. Commit, then `semantic_keywords::on_keywords_changed()` (always after the commit, never before) so suggestions are rebuilt. If the commit fails every written photo is reported as failed. `faces::store_photo_faces` runs last.
    Result `KeywordWriteResult { written (with the keyword ids stored after re-read), failed, cancelled, deleted, unlinked_persons }`. `written.keyword_ids` can differ from the request because faces may add or remove person keywords.
 
@@ -56,13 +56,13 @@ Input: `KeywordWriteItem { photo_id, path, keyword_ids?, title?, description?, f
 
 ### Description tab (`description-panel.js`)
 
-Title and description come from the catalogue columns `title` and `caption` (already resolved by read priority). With several photos of different values the field is empty ("Multiple values"); typing replaces the value on all photos; a field returned to its initial text is untouched again. A field never touched is never written. First edit calls `exiftool_prewarm`. Ctrl+Enter applies everything pending, including keywords.
+Title and description come from the catalogue columns `title` and `caption` (already resolved by read priority); the lower half holds author and rights fields (`author`, `copyright`, `credit`, `usage_terms`, `author_email`, loaded on demand via `get_photo_rights`) and a preset bar (`rights-presets.js`). With several photos of different values the field is empty ("Multiple values"); typing replaces the value on all photos; a field returned to its initial text is untouched again. A field never touched is never written. First edit calls `exiftool_prewarm`. Ctrl+Enter applies everything pending, including keywords.
 
 ## Contracts
 
 - IPC: `get_keyword_tree`, `get_photo_keyword_ids`, `get_keyword_usage`, `apply_metadata_changes`, `create_keyword`, `get_keyword_delete_info`, `delete_keyword`, `rename_keyword`, `set_metadata_read_order`, `exiftool_prewarm`: `../generated/ipc-commands.md`. Error codes: `invalid_name`, `unknown_parent`, `unknown_keyword`, `duplicate`.
 - Events: `scan-progress` (per task id) during writes.
-- Database: `keyword_nodes`, `photo_keywords` (created by `init_schema`, called from `db::init_db`; orphan links of removed photos are deleted at each start); touches `photos` (`keywords`, `title`, `caption`, `file_size`, `modified`, `effective_modified`, GPS), `persons.keyword_node_id`, `faces.dirty`, `keyword_suggestion_rejections`.
+- Database: `keyword_nodes`, `photo_keywords` (created by `init_schema`, called from `db::init_db`; orphan links of removed photos are deleted at each start); touches `photos` (`keywords`, `title`, `caption`, `author`, `copyright`, `credit`, `usage_terms`, `author_email`, `file_size`, `modified`, `effective_modified`, GPS), `persons.keyword_node_id`, `faces.dirty`, `keyword_suggestion_rejections`.
 - Settings: `keywordsAutoApply`, `keywordsAutoApplyAsked`, `keywordFilterMode`, `sidePanelTab`, `keywordSuggestionsOpen` (`../generated/config.md`).
 
 ## Dependencies

@@ -1,4 +1,4 @@
-<!-- verified: c2ee85e | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: f4a166d | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
 
 # Business rules and invariants
 
@@ -22,7 +22,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 - Tests: `only_copy_left_by_exiftool_is_restored_never_deleted`, `temporary_file_is_kept_when_the_original_state_is_unclear`, `nothing_to_do_without_temporary_file`, `recoveries_of_one_operation_go_to_a_single_timestamped_log_never_overwritten`.
 
-**1.4 One write at a time per file.** `exiftool::path_lock` (16 striped mutexes keyed by path hash) is taken by both writers (`write_to` for ExifTool; `write_metadata` / `write_xmp_metadata` for the internal path). Keyword / title / description writes also take the global `WRITE_LOCK` (keywords.rs). Test: `same_path_writes_are_serialised_and_other_paths_are_not_blocked`, `concurrent_writes_to_one_file_leave_a_valid_file` (ignored).
+**1.4 One write at a time per file.** `exiftool::path_lock` (16 striped mutexes keyed by path hash) is taken by both writers (`write_to` for ExifTool; `write_metadata` / `write_xmp_metadata` for the internal path). Keyword / title / description / author & rights writes also take the global `WRITE_LOCK` (keywords.rs). Test: `same_path_writes_are_serialised_and_other_paths_are_not_blocked`, `concurrent_writes_to_one_file_leave_a_valid_file` (ignored).
 
 **1.5 A failed write is never shown as a success.** Every write is followed by a re-read and a comparison: `marking_mismatch` (rating / colour / pick, `update_photos_marking`), `text_mismatch`, `regions_mismatch`, `gps_mismatch` (`keywords::run_write`). The catalogue reflects the re-read, not the request.
 
@@ -40,7 +40,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 - ⚠ sensitive: a mistake here silently writes one photo's keywords into another's sidecar. Tests: `existing_compatible_sidecar_is_reused`, `shared_compatible_sidecar_is_never_written_each_image_gets_its_own`, `raw_and_jpeg_pair_keeps_writing_the_compatible_sidecar`, `removal_alone_does_not_create_a_sidecar`, `sidecar_names_replace_only_the_last_extension`, `shared_compatible_sidecar_is_copied_never_written` (ignored), `a_moved_or_copied_photo_never_adopts_a_sidecar_already_at_the_destination` (main).
 
-**2.3 Reading priority is user-defined and "first source with data wins".** Rating, colour, pick, title, description, GPS and the 5 hierarchical keyword formats each have an ordered list of sources (`*_SOURCE_IDS`, `*_PRIORITY`, `set_read_priority`, `HIERARCHY_IDS` in exif.rs), sent by the frontend at startup. A value 0 is an explicit answer; only an absent value falls through. A new order applies to files read afterwards (rescan). Settings are Rust statics: a test that changes them must be the only one doing so (AGENTS.md §5.H).
+**2.3 Reading priority is user-defined and "first source with data wins".** Rating, colour, pick, title, description, author and rights fields, GPS and the 5 hierarchical keyword formats each have an ordered list of sources (`*_SOURCE_IDS`, `*_PRIORITY`, `set_read_priority`, `HIERARCHY_IDS` in exif.rs), sent by the frontend at startup. A value 0 is an explicit answer; only an absent value falls through. A new order applies to files read afterwards (rescan). Settings are Rust statics: a test that changes them must be the only one doing so (AGENTS.md §5.H).
 
 **2.4 After any write, the file is re-read and the catalogue stores what was read**, so the database never claims a value the file does not hold (see 1.5).
 

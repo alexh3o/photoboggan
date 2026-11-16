@@ -156,7 +156,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `create_author_preset` | `rights.rs` | `name: String` | `AuthorPreset` | async pool | rights-presets.js ×2 |
 | `save_author_preset` | `rights.rs` | `id: i64, author: String, copyright: String, credit: String, usage_terms: String, author_email: String` | `AuthorPreset` | async pool | rights-presets.js |
 | `delete_author_preset` | `rights.rs` | `id: i64` | `()` | async pool | rights-presets.js |
-| `get_photo_rights` | `rights.rs` | `photo_ids: Vec<i64>` | `Vec<PhotoRights>` | async pool | info-author.js, description-panel.js |
+| `get_photo_rights` | `rights.rs` | `photo_ids: Vec<i64>` | `Vec<PhotoRights>` | async pool | description-panel.js, info-author.js |
 | `get_authors` | `rights.rs` | — | `Vec<AuthorCount>` | async pool | author-filters.js |
 | `semantic_keyword_candidates` | `semantic_keywords.rs` | `keyword_id: i64, scope: SearchScope` | `KeywordCandidates` | async pool | semantic-keywords.js, semantic-tagging.js |
 | `semantic_photo_suggestions` | `semantic_keywords.rs` | `photo_id: i64, excluded_keyword_ids: Option<Vec<i64>>` | `PhotoSuggestions` | async pool | semantic-tagging.js |

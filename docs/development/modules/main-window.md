@@ -1,4 +1,4 @@
-<!-- verified: d0d541a | sources: src/main.js, index.html, src/sidebar-search.js -->
+<!-- verified: f4a166d | sources: src/main.js, index.html, src/sidebar-search.js -->
 # Main window: photo loading, folder tree, task queue, settings modal, startup (main.js, part 1)
 
 ## Purpose

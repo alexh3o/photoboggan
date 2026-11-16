@@ -1,4 +1,4 @@
-<!-- verified: 3db3751 | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
+<!-- verified: f4a166d | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
 
 # Code map
 

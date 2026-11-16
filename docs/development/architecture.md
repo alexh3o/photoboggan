@@ -1,4 +1,4 @@
-<!-- verified: d0d541a | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
+<!-- verified: f4a166d | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
 
 # Architecture
 
@@ -61,7 +61,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 
 **3. Metadata write (rating, colour, pick)**: `update_photos_marking` (main.rs) → `keep_cached_images` → `exif::write_xmp_metadata` → `exiftool::write_marking` (ExifTool mode) or internal XMP edit; the marking is re-read (`exif::read_marking`) and any difference (`marking_mismatch`) is reported as a failure, never as written. Rotation follows the same shape (`rotate_photos` → `orientation.rs`).
 
-**4. Keyword / title / description apply**
+**4. Keyword / title / description / author & rights apply**
 
 1. Edits stay pending in the right-panel editors (`registerEditor`, `metadata-writes.js`) until Apply, Ctrl+Enter, a selection change or closing.
 2. `applyPending` merges all pending items per photo and calls `runLocked('apply_metadata_changes', …)`: direct `invoke` under 20 photos, a queued task (`kind: 'keywords'`) from 20 (`QUEUE_THRESHOLD`).

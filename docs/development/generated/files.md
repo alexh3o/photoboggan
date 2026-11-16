@@ -56,16 +56,16 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `config.md` | 153 |  |
-| `css.md` | 562 |  |
-| `db-schema.md` | 255 |  |
+| `config.md` | 154 |  |
+| `css.md` | 578 |  |
+| `db-schema.md` | 269 |  |
 | `events.md` | 11 |  |
-| `files.md` | 298 |  |
-| `ipc-commands.md` | 181 |  |
-| `module-deps.md` | 98 |  |
-| `symbols-js.md` | 1465 |  |
-| `symbols-rust.md` | 1339 |  |
-| `tests.md` | 451 |  |
+| `files.md` | 307 |  |
+| `ipc-commands.md` | 187 |  |
+| `module-deps.md` | 102 |  |
+| `symbols-js.md` | 1498 |  |
+| `symbols-rust.md` | 1380 |  |
+| `tests.md` | 490 |  |
 
 ## docs/development/modules
 
