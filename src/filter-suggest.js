@@ -60,10 +60,14 @@ export function createFilterSuggest({ input, list, getOptions, onPick, emptyText
       row.setAttribute('aria-selected', String(index === highlighted));
       const label = document.createElement('span');
       label.textContent = option.label;
-      const count = document.createElement('span');
-      count.className = 'keyword-suggestion-count';
-      count.textContent = String(option.count);
-      row.append(label, count);
+      row.append(label);
+      // `hideCount` : entrée sans nombre d'usage (préréglages d'auteur, voir rights-presets.js).
+      if (!option.hideCount) {
+        const count = document.createElement('span');
+        count.className = 'keyword-suggestion-count';
+        count.textContent = String(option.count);
+        row.append(count);
+      }
       // mousedown rather than click: the field keeps the focus (otherwise the list would close before the click).
       row.addEventListener('mousedown', event => {
         event.preventDefault();

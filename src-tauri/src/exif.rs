@@ -41,6 +41,13 @@ pub struct ExifMetadata {
     pub gps_sources: [Option<(f64, f64)>; 2],
     /// Flash déclenché (Some(true)), non déclenché (Some(false)) ou information absente (None) : tag EXIF Flash (bit 0), sinon XMP exif:Fired.
     pub flash: Option<bool>,
+    /// Auteur, copyright, crédit, conditions d'utilisation et e-mail de l'auteur retenus : la première source non vide dans l'ordre de priorité réglé
+    /// (voir AUTHOR_SOURCE_IDS et les listes voisines).
+    pub rights: Rights,
+    /// Valeur de chaque source de ces cinq champs, utile à la vérification après écriture.
+    pub rights_sources: RightsSources,
+    /// Structure XMP `Iptc4xmpCore:CreatorContactInfo` lue en entier (seul l'e-mail est modifiable dans l'interface ; les autres champs sont conservés à l'écriture).
+    pub contact: ContactInfo,
     /// Orientation EXIF et zones de visage (voir faces.rs).
     pub faces: crate::faces::PhotoFaces,
 }
@@ -186,6 +193,10 @@ struct JpegFields {
     object_name: Option<String>,
     caption: Option<String>,
     comment: Option<String>,
+    /// IPTC By-line (2:80, répétable), CopyrightNotice (2:116) et Credit (2:110).
+    by_lines: Vec<String>,
+    copyright: Option<String>,
+    credit: Option<String>,
 }
 
 /// Texte d'un champ binaire : UTF-8 s'il est valide, sinon Latin-1 (anciens commentaires JPEG).
@@ -232,6 +243,12 @@ fn read_jpeg_fields(path: &Path) -> JpegFields {
                         fields.object_name = clean_text(&String::from_utf8_lossy(value));
                     } else if record == 2 && dataset == 120 && fields.caption.is_none() {
                         fields.caption = clean_text(&String::from_utf8_lossy(value));
+                    } else if record == 2 && dataset == 80 {
+                        if let Some(name) = clean_title(&String::from_utf8_lossy(value)) { fields.by_lines.push(name); }
+                    } else if record == 2 && dataset == 116 && fields.copyright.is_none() {
+                        fields.copyright = clean_title(&String::from_utf8_lossy(value));
+                    } else if record == 2 && dataset == 110 && fields.credit.is_none() {
+                        fields.credit = clean_title(&String::from_utf8_lossy(value));
                     }
                     q += header + value_len;
                 }
@@ -264,6 +281,10 @@ struct ParsedXmp {
     face_regions: Option<Vec<crate::faces::FaceRegion>>,
     /// XMP `tiff:Orientation` (see orientation.rs): embedded packet first, then sidecar.
     orientation: Option<u32>,
+    /// Sources XMP de l'auteur et des droits (les autres emplacements des tableaux sont remplis par read_exif).
+    rights: RightsSources,
+    /// Structure XMP `Iptc4xmpCore:CreatorContactInfo` (paquet intégré, sinon sidecar).
+    contact: Option<ContactInfo>,
 }
 
 fn parse_xmp(path: &Path) -> ParsedXmp {
@@ -279,6 +300,8 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
     let mut gps: Option<(f64, f64)> = None;
     let mut flash: Option<bool> = None;
     let mut orientation: Option<u32> = None;
+    let mut rights = RightsSources::default();
+    let mut contact: Option<ContactInfo> = None;
     // Zones de visage : celles du paquet intégré, sinon celles du sidecar (pas de mélange des deux).
     let read_faces = crate::faces::reading_enabled();
     let mut face_regions: Vec<crate::faces::FaceRegion> = Vec::new();
@@ -302,6 +325,16 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         if gps.is_none() { gps = xmp_gps(xml); }
         if flash.is_none() { flash = xmp_flash_fired(xml); }
         if orientation.is_none() { orientation = xmp_orientation(xml); }
+        // Auteur et droits : chaque source manquante du paquet intégré est cherchée dans le sidecar.
+        if rights.author[0].is_none() { rights.author[0] = xmp_creators(xml); }
+        if rights.author[1].is_none() {
+            rights.author[1] = xmp_text(xml, "tiff:Artist").map(|text| split_authors(&text).join("; ")).filter(|text| !text.is_empty());
+        }
+        if rights.copyright[0].is_none() { rights.copyright[0] = xmp_text(xml, "dc:rights"); }
+        if rights.copyright[1].is_none() { rights.copyright[1] = xmp_text(xml, "tiff:Copyright"); }
+        if rights.credit[0].is_none() { rights.credit[0] = xmp_text(xml, "photoshop:Credit"); }
+        if rights.usage_terms[0].is_none() { rights.usage_terms[0] = xmp_text(xml, "xmpRights:UsageTerms"); }
+        if contact.is_none() { contact = parse_contact_info(xml); }
     };
     // Le fichier image fait foi quand il contient un paquet XMP.
     if let Some(embedded) = read_embedded_xmp(path) {
@@ -328,6 +361,8 @@ fn parse_xmp(path: &Path) -> ParsedXmp {
         flash,
         face_regions: read_faces.then_some(face_regions),
         orientation,
+        rights,
+        contact,
     }
 }
 
@@ -438,6 +473,188 @@ pub struct TextSources {
     pub description: [Option<String>; 9],
 }
 
+// ---------------------------------------------------------------------------
+// Auteur et droits : cinq champs (auteur, mention de copyright, crédit, conditions d'utilisation, e-mail de l'auteur), chacun lu dans plusieurs
+// sources (la première non vide dans l'ordre de priorité réglé l'emporte) et écrit dans toutes (voir MetadataUpdate et exiftool::metadata_args).
+// ---------------------------------------------------------------------------
+
+/// Sources de l'auteur, ordre par défaut : XMP dc:creator, XMP tiff:Artist, IPTC By-line, EXIF Artist.
+pub const AUTHOR_SOURCE_IDS: [&str; 4] = ["xmp-dc", "xmp-tiff", "iptc", "exif"];
+/// Sources de la mention de copyright, ordre par défaut : XMP dc:rights, XMP tiff:Copyright, IPTC CopyrightNotice, EXIF Copyright.
+pub const COPYRIGHT_SOURCE_IDS: [&str; 4] = ["xmp-dc", "xmp-tiff", "iptc", "exif"];
+/// Sources du crédit, ordre par défaut : XMP photoshop:Credit, IPTC Credit.
+pub const CREDIT_SOURCE_IDS: [&str; 2] = ["xmp-photoshop", "iptc"];
+/// Source des conditions d'utilisation : XMP xmpRights:UsageTerms.
+pub const USAGE_TERMS_SOURCE_IDS: [&str; 1] = ["xmp-rights"];
+/// Source de l'e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / CiEmailWork.
+pub const AUTHOR_EMAIL_SOURCE_IDS: [&str; 1] = ["xmp-iptc-core"];
+static AUTHOR_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
+static COPYRIGHT_PRIORITY: std::sync::RwLock<[usize; 4]> = std::sync::RwLock::new([0, 1, 2, 3]);
+static CREDIT_PRIORITY: std::sync::RwLock<[usize; 2]> = std::sync::RwLock::new([0, 1]);
+static USAGE_TERMS_PRIORITY: std::sync::RwLock<[usize; 1]> = std::sync::RwLock::new([0]);
+static AUTHOR_EMAIL_PRIORITY: std::sync::RwLock<[usize; 1]> = std::sync::RwLock::new([0]);
+
+const PHOTOSHOP_NS: &str = "http://ns.adobe.com/photoshop/1.0/";
+const XMP_RIGHTS_NS: &str = "http://ns.adobe.com/xap/1.0/rights/";
+const IPTC_CORE_NS: &str = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/";
+
+/// Auteur et droits retenus à la lecture (colonnes `author`, `copyright`, `credit`, `usage_terms` et `author_email` de la base). Plusieurs auteurs :
+/// « A; B ».
+#[derive(Default, Clone, Debug, PartialEq, serde::Serialize)]
+pub struct Rights {
+    pub author: String,
+    pub copyright: String,
+    pub credit: String,
+    pub usage_terms: String,
+    pub author_email: String,
+}
+
+/// Valeur de chaque source des champs d'auteur et de droits, dans l'ordre des `*_SOURCE_IDS` (None : absente ou vide).
+#[derive(Default, Clone, Debug)]
+pub struct RightsSources {
+    pub author: [Option<String>; 4],
+    pub copyright: [Option<String>; 4],
+    pub credit: [Option<String>; 2],
+    pub usage_terms: [Option<String>; 1],
+    pub author_email: [Option<String>; 1],
+}
+
+/// Structure XMP `Iptc4xmpCore:CreatorContactInfo` (coordonnées du créateur). L'interface n'en modifie que l'e-mail, mais toute la structure est lue
+/// et réécrite pour que les autres champs (adresse, téléphone, site web) ne soient jamais perdus.
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct ContactInfo {
+    /// CiAdrExtadr, CiAdrCity, CiAdrRegion, CiAdrPcode, CiAdrCtry.
+    pub address: String,
+    pub city: String,
+    pub region: String,
+    pub postal_code: String,
+    pub country: String,
+    /// CiTelWork, CiEmailWork, CiUrlWork.
+    pub phone: String,
+    pub email: String,
+    pub url: String,
+}
+
+impl ContactInfo {
+    fn is_empty(&self) -> bool {
+        *self == ContactInfo::default()
+    }
+}
+
+/// Auteurs d'une saisie : séparés par « ; », espaces de début et de fin retirés, entrées vides écartées.
+pub(crate) fn split_authors(text: &str) -> Vec<String> {
+    text.split(';').filter_map(clean_title).collect()
+}
+
+/// Auteurs de `dc:creator` (liste ordonnée `rdf:Seq`, ou texte simple écrit par certains outils), sous la forme « A; B ».
+fn xmp_creators(xml: &str) -> Option<String> {
+    let items = xmp_list_items(xml, "creator");
+    let authors: Vec<String> = if items.is_empty() {
+        xmp_text(xml, "dc:creator").iter().flat_map(|text| split_authors(text)).collect()
+    } else {
+        items.iter().flat_map(|item| split_authors(item)).collect()
+    };
+    (!authors.is_empty()).then(|| authors.join("; "))
+}
+
+/// Contenu de la première propriété XMP de nom local `local_name` écrite en élément (préfixe quelconque, casse ignorée) ; None si absente ou vide.
+fn xmp_struct_body<'a>(xml: &'a str, local_name: &str) -> Option<&'a str> {
+    let lower = xml.to_ascii_lowercase(); // mêmes positions que `xml` : seuls les caractères ASCII changent
+    let needle = format!(":{}", local_name.to_ascii_lowercase());
+    let bytes = lower.as_bytes();
+    let mut from = 0;
+    while let Some(relative) = lower[from..].find(&needle) {
+        let colon = from + relative;
+        let name_end = colon + needle.len();
+        from = name_end;
+        let mut prefix_start = colon;
+        while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
+        if prefix_start == colon || prefix_start == 0 || bytes[prefix_start - 1] != b'<' { continue; }
+        match bytes.get(name_end) {
+            Some(b'>') | Some(b'/') => {}
+            Some(next) if next.is_ascii_whitespace() => {}
+            _ => continue,
+        }
+        let open_end = name_end + lower[name_end..].find('>')?;
+        if bytes[open_end - 1] == b'/' { continue; }
+        let closing = format!("</{}{}", &lower[prefix_start..colon], needle);
+        let close = open_end + 1 + lower[open_end + 1..].find(&closing)?;
+        return Some(&xml[open_end + 1..close]);
+    }
+    None
+}
+
+/// Valeur du champ de nom local `local_name` dans le contenu d'une structure XMP, écrit en attribut (`pfx:Nom="…"`) ou en élément
+/// (`<pfx:Nom>…</pfx:Nom>`), préfixe quelconque. None si absent ou vide.
+fn xml_local_value(body: &str, local_name: &str) -> Option<String> {
+    let lower = body.to_ascii_lowercase();
+    let needle = format!(":{}", local_name.to_ascii_lowercase());
+    let bytes = lower.as_bytes();
+    let mut from = 0;
+    while let Some(relative) = lower[from..].find(&needle) {
+        let colon = from + relative;
+        let name_end = colon + needle.len();
+        from = name_end;
+        let mut prefix_start = colon;
+        while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
+        if prefix_start == colon || prefix_start == 0 { continue; }
+        let lead = bytes[prefix_start - 1];
+        let rest = &body[name_end..];
+        if lead.is_ascii_whitespace() {
+            // Attribut.
+            let Some(rest) = rest.trim_start().strip_prefix('=') else { continue; };
+            let rest = rest.trim_start();
+            let Some(quote) = rest.chars().next().filter(|c| *c == '"' || *c == '\'') else { continue; };
+            let value = &rest[1..];
+            let Some(end) = value.find(quote) else { continue; };
+            return clean_text(&decode_xml_entities(&value[..end]));
+        }
+        if lead != b'<' { continue; }
+        // Élément : le nom doit se terminer là (pas « CiEmailWorkX »).
+        match rest.chars().next() {
+            Some('>') | Some('/') => {}
+            Some(next) if next.is_ascii_whitespace() => {}
+            _ => continue,
+        }
+        let Some(open_end) = rest.find('>') else { continue; };
+        if rest[..open_end].ends_with('/') { continue; }
+        let text = &rest[open_end + 1..];
+        let Some(end) = text.find('<') else { continue; };
+        return clean_text(&decode_xml_entities(&text[..end]));
+    }
+    None
+}
+
+/// Structure `Iptc4xmpCore:CreatorContactInfo` d'un paquet XMP (champs en éléments ou en attributs d'un `rdf:Description` imbriqué).
+fn parse_contact_info(xml: &str) -> Option<ContactInfo> {
+    let body = xmp_struct_body(xml, "CreatorContactInfo")?;
+    let value = |local_name: &str| xml_local_value(body, local_name).unwrap_or_default();
+    Some(ContactInfo {
+        address: value("CiAdrExtadr"),
+        city: value("CiAdrCity"),
+        region: value("CiAdrRegion"),
+        postal_code: value("CiAdrPcode"),
+        country: value("CiAdrCtry"),
+        phone: value("CiTelWork"),
+        email: value("CiEmailWork"),
+        url: value("CiUrlWork"),
+    })
+}
+
+/// Élément XMP `Iptc4xmpCore:CreatorContactInfo` (forme d'ExifTool : structure `rdf:parseType="Resource"`), sans les champs vides.
+fn contact_info_element(contact: &ContactInfo) -> String {
+    let fields = [
+        ("CiAdrExtadr", &contact.address), ("CiAdrCity", &contact.city), ("CiAdrRegion", &contact.region), ("CiAdrPcode", &contact.postal_code),
+        ("CiAdrCtry", &contact.country), ("CiTelWork", &contact.phone), ("CiEmailWork", &contact.email), ("CiUrlWork", &contact.url),
+    ];
+    let mut element = String::from("<Iptc4xmpCore:CreatorContactInfo rdf:parseType=\"Resource\">");
+    for (name, value) in fields {
+        if !value.is_empty() { element.push_str(&format!("<Iptc4xmpCore:{name}>{}</Iptc4xmpCore:{name}>", xml_escape_text(value))); }
+    }
+    element.push_str("</Iptc4xmpCore:CreatorContactInfo>");
+    element
+}
+
 /// Indices de `order` dans `ids` : chaque identifiant doit y figurer une fois.
 pub(crate) fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -> Result<[usize; N], String> {
     if order.len() != N { return Err("invalid_order".to_string()); }
@@ -451,7 +668,8 @@ pub(crate) fn order_indices<const N: usize>(ids: &[&str; N], order: &[String]) -
 }
 
 /// Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »,
-/// « pick », « gps » ou « faces ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
+/// « pick », « gps », « faces », « author », « copyright », « credit », « usageTerms » ou « authorEmail ») : `order` liste une fois chacun des identifiants de ses sources (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS,
+/// AUTHOR_SOURCE_IDS, COPYRIGHT_SOURCE_IDS, CREDIT_SOURCE_IDS, USAGE_TERMS_SOURCE_IDS, AUTHOR_EMAIL_SOURCE_IDS,
 /// RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS, GPS_SOURCE_IDS, faces::REGION_SOURCE_IDS), du plus au moins prioritaire. Il s'applique aux prochaines lectures de fichiers (scan, relecture, synchronisation).
 pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
     fn store<T>(lock: &std::sync::RwLock<T>, value: T) {
@@ -466,6 +684,11 @@ pub fn set_read_priority(kind: &str, order: &[String]) -> Result<(), String> {
         "pick" => store(&PICK_PRIORITY, order_indices(&PICK_SOURCE_IDS, order)?),
         "gps" => store(&GPS_PRIORITY, order_indices(&GPS_SOURCE_IDS, order)?),
         "faces" => store(&crate::faces::REGION_PRIORITY, order_indices(&crate::faces::REGION_SOURCE_IDS, order)?),
+        "author" => store(&AUTHOR_PRIORITY, order_indices(&AUTHOR_SOURCE_IDS, order)?),
+        "copyright" => store(&COPYRIGHT_PRIORITY, order_indices(&COPYRIGHT_SOURCE_IDS, order)?),
+        "credit" => store(&CREDIT_PRIORITY, order_indices(&CREDIT_SOURCE_IDS, order)?),
+        "usageTerms" => store(&USAGE_TERMS_PRIORITY, order_indices(&USAGE_TERMS_SOURCE_IDS, order)?),
+        "authorEmail" => store(&AUTHOR_EMAIL_PRIORITY, order_indices(&AUTHOR_EMAIL_SOURCE_IDS, order)?),
         _ => return Err("invalid_kind".to_string()),
     }
     Ok(())
@@ -1035,6 +1258,12 @@ fn apply_parsed_xmp(meta: &mut ExifMetadata, parsed: ParsedXmp) {
     meta.gps_sources[1] = parsed.gps;
     meta.flash = parsed.flash;
     meta.faces.regions = parsed.face_regions;
+    meta.rights_sources.author[..2].clone_from_slice(&parsed.rights.author[..2]);
+    meta.rights_sources.copyright[..2].clone_from_slice(&parsed.rights.copyright[..2]);
+    meta.rights_sources.credit[0] = parsed.rights.credit[0].clone();
+    meta.rights_sources.usage_terms = parsed.rights.usage_terms;
+    meta.rights_sources.author_email[0] = parsed.contact.as_ref().map(|contact| contact.email.clone()).filter(|email| !email.is_empty());
+    meta.contact = parsed.contact.unwrap_or_default();
 }
 
 /// Note, couleur, fanion, titre, description et coordonnées GPS retenus : la première source présente dans l'ordre de priorité réglé.
@@ -1051,6 +1280,13 @@ fn resolve_values(meta: &mut ExifMetadata) {
     meta.caption = resolve_text(&meta.text_sources.description, &description_priority);
     let gps_priority = *lock_read(&GPS_PRIORITY);
     meta.gps = gps_priority.iter().find_map(|index| meta.gps_sources[*index]);
+    meta.rights = Rights {
+        author: resolve_text(&meta.rights_sources.author, &*lock_read(&AUTHOR_PRIORITY)),
+        copyright: resolve_text(&meta.rights_sources.copyright, &*lock_read(&COPYRIGHT_PRIORITY)),
+        credit: resolve_text(&meta.rights_sources.credit, &*lock_read(&CREDIT_PRIORITY)),
+        usage_terms: resolve_text(&meta.rights_sources.usage_terms, &*lock_read(&USAGE_TERMS_PRIORITY)),
+        author_email: resolve_text(&meta.rights_sources.author_email, &*lock_read(&AUTHOR_EMAIL_PRIORITY)),
+    };
 }
 
 fn lock_read<T>(lock: &std::sync::RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
@@ -1088,6 +1324,10 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     meta.text_sources.title[2] = jpeg.object_name;
     meta.text_sources.description[4] = jpeg.comment;
     meta.text_sources.description[8] = jpeg.caption;
+    let iptc_authors: Vec<String> = jpeg.by_lines.iter().flat_map(|name| split_authors(name)).collect();
+    meta.rights_sources.author[2] = (!iptc_authors.is_empty()).then(|| iptc_authors.join("; "));
+    meta.rights_sources.copyright[2] = jpeg.copyright;
+    meta.rights_sources.credit[1] = jpeg.credit;
     let mut xp_keywords: Vec<String> = Vec::new();
     // Internal writer + option: the EXIF metadata fields are ignored (it neither writes nor erases them); camera data is still read.
     let skip_exif_metadata = crate::exiftool::skip_exif_metadata();
@@ -1111,6 +1351,16 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
             }
             keep(&mut meta.text_sources.description[6], exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian())));
             keep(&mut meta.text_sources.description[7], exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text)));
+            // Auteur (EXIF Artist) et copyright (EXIF Copyright, photographe et éditeur éventuels séparés par « - »).
+            if let Some(Value::Ascii(parts)) = exif.get_field(Tag::Artist, In::PRIMARY).map(|field| &field.value) {
+                let text = parts.iter().map(|part| text_from_bytes(part)).collect::<Vec<_>>().join(" ");
+                let authors = split_authors(&text).join("; ");
+                keep(&mut meta.rights_sources.author[3], (!authors.is_empty()).then_some(authors));
+            }
+            if let Some(Value::Ascii(parts)) = exif.get_field(Tag::Copyright, In::PRIMARY).map(|field| &field.value) {
+                let text = parts.iter().map(|part| text_from_bytes(part)).filter(|part| !part.trim().is_empty()).collect::<Vec<_>>().join(" - ");
+                keep(&mut meta.rights_sources.copyright[3], clean_title(&text));
+            }
         }
         if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
             meta.date_taken = field.display_value().with_unit(&exif).to_string();
@@ -1778,6 +2028,13 @@ pub struct MetadataUpdate {
     pub regions: Option<RegionsUpdate>,
     /// Coordonnées GPS (geolocation.rs) : `Some(None)` les efface, `Some(Some((latitude, longitude)))` les écrit (restauration).
     pub gps: Option<Option<(f64, f64)>>,
+    /// Auteur (plusieurs auteurs séparés par « ; »), mention de copyright, crédit, conditions d'utilisation et e-mail de l'auteur : `None` = inchangé,
+    /// chaîne vide = retiré de toutes les sources.
+    pub author: Option<String>,
+    pub copyright: Option<String>,
+    pub credit: Option<String>,
+    pub usage_terms: Option<String>,
+    pub author_email: Option<String>,
 }
 
 /// Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
@@ -1816,6 +2073,37 @@ impl MetadataUpdate {
             || self.clean_description().is_some_and(|description| !description.is_empty())
             || self.regions.as_ref().is_some_and(|update| !update.regions.is_empty())
             || matches!(self.gps, Some(Some(_)))
+            || self.adds_rights()
+    }
+
+    /// Auteurs à écrire (séparés par « ; » dans la saisie), nettoyés ; liste vide pour les retirer.
+    pub fn author_list(&self) -> Option<Vec<String>> {
+        self.author.as_deref().map(split_authors)
+    }
+
+    /// Mention de copyright, crédit, conditions d'utilisation et e-mail : une seule ligne, espaces de début et de fin retirés ; chaîne vide pour retirer.
+    pub fn clean_copyright(&self) -> Option<String> {
+        self.copyright.as_deref().map(|text| clean_title(text).unwrap_or_default())
+    }
+
+    pub fn clean_credit(&self) -> Option<String> {
+        self.credit.as_deref().map(|text| clean_title(text).unwrap_or_default())
+    }
+
+    pub fn clean_usage_terms(&self) -> Option<String> {
+        self.usage_terms.as_deref().map(|text| clean_title(text).unwrap_or_default())
+    }
+
+    pub fn clean_author_email(&self) -> Option<String> {
+        self.author_email.as_deref().map(|text| clean_title(text).unwrap_or_default())
+    }
+
+    /// Vrai si l'écriture ajoute au moins une valeur d'auteur ou de droits (sinon elle ne fait que retirer).
+    fn adds_rights(&self) -> bool {
+        self.author_list().is_some_and(|authors| !authors.is_empty())
+            || [self.clean_copyright(), self.clean_credit(), self.clean_usage_terms(), self.clean_author_email()]
+                .iter()
+                .any(|value| value.as_deref().is_some_and(|text| !text.is_empty()))
     }
 }
 
@@ -1920,16 +2208,96 @@ fn update_xmp_texts(xml: &str, update: &MetadataUpdate) -> String {
     insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
 }
 
-/// Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, zones de visage, GPS).
+/// Ajoute `namespace` à la liste des espaces de noms à déclarer, une seule fois.
+fn push_namespace(namespaces: &mut Vec<(&'static str, &'static str)>, namespace: (&'static str, &'static str)) {
+    if !namespaces.contains(&namespace) { namespaces.push(namespace); }
+}
+
+/// Auteur, copyright, crédit, conditions d'utilisation et e-mail de l'auteur d'un paquet XMP : `dc:creator` (liste, un auteur par entrée) et
+/// `tiff:Artist` ; `dc:rights` et `tiff:Copyright` ; `photoshop:Credit` ; `xmpRights:UsageTerms` ; e-mail dans la structure
+/// `Iptc4xmpCore:CreatorContactInfo` (`CiEmailWork`), dont les autres champs sont conservés. Seul `x-default` est écrit pour `dc:rights` et
+/// `xmpRights:UsageTerms` : les autres langues sont effacées (les traductions de `tiff:Copyright` sont conservées). Un champ `None` est laissé tel quel,
+/// un champ vide est retiré.
+fn update_xmp_rights(xml: &str, update: &MetadataUpdate) -> String {
+    let author = update.author_list();
+    let copyright = update.clean_copyright();
+    let credit = update.clean_credit();
+    let usage_terms = update.clean_usage_terms();
+    let email = update.clean_author_email();
+    if author.is_none() && copyright.is_none() && credit.is_none() && usage_terms.is_none() && email.is_none() { return xml.to_string(); }
+    let mut updated = xml.to_string();
+    if !updated.contains("rdf:Description") {
+        if !update.adds_rights() { return updated; }
+        updated = EMPTY_XMP_PACKET.to_string();
+    }
+    let mut children = String::new();
+    let mut namespaces: Vec<(&'static str, &'static str)> = Vec::new();
+    if let Some(authors) = &author {
+        updated = remove_xmp_list_property(&updated, "creator", Some("dc"));
+        updated = remove_xmp_attribute(&updated, "dc:creator");
+        updated = remove_xmp_list_property(&updated, "Artist", Some("tiff"));
+        updated = remove_xmp_attribute(&updated, "tiff:Artist");
+        if !authors.is_empty() {
+            children.push_str(&xmp_list_element("dc:creator", "Seq", authors));
+            children.push_str(&format!("<tiff:Artist>{}</tiff:Artist>", xml_escape_text(&authors.join("; "))));
+            push_namespace(&mut namespaces, ("dc", DC_NS));
+            push_namespace(&mut namespaces, ("tiff", TIFF_NS));
+        }
+    }
+    if let Some(copyright) = &copyright {
+        let tiff_languages = xmp_other_language_items(&updated, "tiff:Copyright");
+        updated = remove_xmp_list_property(&updated, "rights", Some("dc"));
+        updated = remove_xmp_attribute(&updated, "dc:rights");
+        updated = remove_xmp_list_property(&updated, "Copyright", Some("tiff"));
+        updated = remove_xmp_attribute(&updated, "tiff:Copyright");
+        if !copyright.is_empty() {
+            children.push_str(&xmp_alt_element("dc:rights", copyright, &[]));
+            children.push_str(&xmp_alt_element("tiff:Copyright", copyright, &tiff_languages));
+            push_namespace(&mut namespaces, ("dc", DC_NS));
+            push_namespace(&mut namespaces, ("tiff", TIFF_NS));
+        }
+    }
+    if let Some(credit) = &credit {
+        updated = remove_xmp_list_property(&updated, "Credit", Some("photoshop"));
+        updated = remove_xmp_attribute(&updated, "photoshop:Credit");
+        if !credit.is_empty() {
+            children.push_str(&format!("<photoshop:Credit>{}</photoshop:Credit>", xml_escape_text(credit)));
+            push_namespace(&mut namespaces, ("photoshop", PHOTOSHOP_NS));
+        }
+    }
+    if let Some(terms) = &usage_terms {
+        updated = remove_xmp_list_property(&updated, "UsageTerms", Some("xmpRights"));
+        updated = remove_xmp_attribute(&updated, "xmpRights:UsageTerms");
+        if !terms.is_empty() {
+            children.push_str(&xmp_alt_element("xmpRights:UsageTerms", terms, &[]));
+            push_namespace(&mut namespaces, ("xmpRights", XMP_RIGHTS_NS));
+        }
+    }
+    if let Some(email) = &email {
+        // The whole structure is read, the e-mail replaced and the structure written back: address, phone and web address are kept.
+        let mut contact = parse_contact_info(&updated).unwrap_or_default();
+        contact.email = email.clone();
+        updated = remove_xmp_list_property(&updated, "CreatorContactInfo", None);
+        if !contact.is_empty() {
+            children.push_str(&contact_info_element(&contact));
+            push_namespace(&mut namespaces, ("Iptc4xmpCore", IPTC_CORE_NS));
+        }
+    }
+    if children.is_empty() { return updated; }
+    insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
+}
+
+/// Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, auteur et droits, zones de visage, GPS).
 fn update_xmp_all(xml: &str, update: &MetadataUpdate) -> String {
     let with_keywords = match &update.keywords {
         Some(paths) => update_xmp_keywords(xml, paths),
         None => xml.to_string(),
     };
     let with_texts = update_xmp_texts(&with_keywords, update);
+    let with_rights = update_xmp_rights(&with_texts, update);
     let with_regions = match &update.regions {
-        Some(regions) => update_xmp_regions(&with_texts, regions),
-        None => with_texts,
+        Some(regions) => update_xmp_regions(&with_rights, regions),
+        None => with_rights,
     };
     fix_microsoft_namespace(match update.gps {
         Some(gps) => update_xmp_gps(&with_regions, gps),
@@ -2227,12 +2595,16 @@ pub(crate) fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
     &text[..end]
 }
 
-/// Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120) ; `None` = inchangé, valeur vide = retiré.
+/// Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120), auteurs By-line (2:80, plusieurs),
+/// crédit (2:110), copyright CopyrightNotice (2:116) ; `None` = inchangé, valeur vide = retiré.
 #[derive(Default)]
 struct IptcChanges<'a> {
     keywords: Option<&'a [String]>,
     object_name: Option<&'a str>,
     caption: Option<&'a str>,
+    by_lines: Option<&'a [String]>,
+    copyright_notice: Option<&'a str>,
+    credit: Option<&'a str>,
 }
 
 impl IptcChanges<'_> {
@@ -2241,6 +2613,9 @@ impl IptcChanges<'_> {
         let mut values: Vec<(u8, &str)> = Vec::new();
         if let Some(name) = self.object_name.filter(|text| !text.is_empty()) { values.push((5, truncate_utf8(name, 64))); }
         for keyword in self.keywords.unwrap_or_default() { values.push((25, truncate_utf8(keyword, 64))); }
+        for author in self.by_lines.unwrap_or_default() { values.push((80, truncate_utf8(author, 32))); }
+        if let Some(credit) = self.credit.filter(|text| !text.is_empty()) { values.push((110, truncate_utf8(credit, 32))); }
+        if let Some(notice) = self.copyright_notice.filter(|text| !text.is_empty()) { values.push((116, truncate_utf8(notice, 128))); }
         if let Some(caption) = self.caption.filter(|text| !text.is_empty()) { values.push((120, truncate_utf8(caption, 2000))); }
         values.retain(|(_, value)| !value.is_empty());
         values
@@ -2252,7 +2627,10 @@ impl IptcChanges<'_> {
 /// (illisible, ou déclaré dans un autre jeu de caractères que l'UTF-8 alors que des valeurs non ASCII doivent y entrer).
 fn iptc_with(existing: Option<&[u8]>, changes: &IptcChanges) -> Option<Vec<u8>> {
     let mut datasets = match existing { Some(bytes) => parse_iptc_datasets(bytes)?, None => Vec::new() };
-    let replaced: Vec<u8> = [(changes.object_name.is_some(), 5u8), (changes.keywords.is_some(), 25), (changes.caption.is_some(), 120)]
+    let replaced: Vec<u8> = [
+        (changes.object_name.is_some(), 5u8), (changes.keywords.is_some(), 25), (changes.by_lines.is_some(), 80),
+        (changes.credit.is_some(), 110), (changes.copyright_notice.is_some(), 116), (changes.caption.is_some(), 120),
+    ]
         .into_iter().filter(|(changed, _)| *changed).map(|(_, number)| number).collect();
     datasets.retain(|dataset| !(dataset.record == 2 && replaced.contains(&dataset.dataset)));
     let values = changes.datasets();
@@ -2349,7 +2727,17 @@ fn write_jpeg_metadata(path: &Path, update: &MetadataUpdate) -> std::io::Result<
     let leaves = update.keywords.as_deref().map(keyword_leaves);
     let title = update.clean_title();
     let description = update.clean_description();
-    let changes = IptcChanges { keywords: leaves.as_deref(), object_name: title.as_deref(), caption: description.as_deref() };
+    let authors = update.author_list();
+    let copyright = update.clean_copyright();
+    let credit = update.clean_credit();
+    let changes = IptcChanges {
+        keywords: leaves.as_deref(),
+        object_name: title.as_deref(),
+        caption: description.as_deref(),
+        by_lines: authors.as_deref(),
+        copyright_notice: copyright.as_deref(),
+        credit: credit.as_deref(),
+    };
     output = jpeg_replace_iptc(&output, &changes)?;
     if let Some(description) = &description { output = jpeg_replace_comment(&output, description)?; }
     if output == data { return Ok(()); }
@@ -2506,6 +2894,48 @@ pub fn text_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) 
                 return Some(format!("Description relue différente ({})", DESCRIPTION_SOURCE_IDS[index]));
             }
         }
+    }
+    rights_mismatch(path, update, meta)
+}
+
+/// Vérification après écriture de l'auteur et des droits : mêmes sources que pour le titre (XMP toujours, IPTC pour un JPEG, EXIF pour un JPEG écrit
+/// par ExifTool), valeurs coupées à la longueur maximale du champ IPTC, `©` remplacé par `(c)` dans l'EXIF Copyright.
+fn rights_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) -> Option<String> {
+    let jpeg = matches!(path.extension().and_then(|value| value.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("jpg" | "jpeg"));
+    let with_exif = jpeg && crate::exiftool::is_enabled();
+    let sources = &meta.rights_sources;
+    // The source holds exactly `expected`, or nothing when `expected` is empty.
+    let differs = |actual: &Option<String>, expected: &str| *actual != (!expected.is_empty()).then(|| expected.to_string());
+    if let Some(authors) = update.author_list() {
+        let joined = authors.join("; ");
+        let iptc = authors.iter().map(|name| truncate_utf8(name, 32)).filter(|name| !name.is_empty()).collect::<Vec<_>>().join("; ");
+        let mut checks: Vec<(usize, String)> = vec![(0, joined.clone()), (1, joined.clone())];
+        if jpeg { checks.push((2, iptc)); }
+        if with_exif { checks.push((3, joined)); }
+        for (index, expected) in checks {
+            if differs(&sources.author[index], &expected) { return Some(format!("Auteur relu différent ({})", AUTHOR_SOURCE_IDS[index])); }
+        }
+    }
+    if let Some(copyright) = update.clean_copyright() {
+        let mut checks: Vec<(usize, String)> = vec![(0, copyright.clone()), (1, copyright.clone())];
+        if jpeg { checks.push((2, clean_title(truncate_utf8(&copyright, 128)).unwrap_or_default())); }
+        if with_exif { checks.push((3, copyright.replace('©', "(c)"))); }
+        for (index, expected) in checks {
+            if differs(&sources.copyright[index], &expected) { return Some(format!("Copyright relu différent ({})", COPYRIGHT_SOURCE_IDS[index])); }
+        }
+    }
+    if let Some(credit) = update.clean_credit() {
+        let mut checks: Vec<(usize, String)> = vec![(0, credit.clone())];
+        if jpeg { checks.push((1, clean_title(truncate_utf8(&credit, 32)).unwrap_or_default())); }
+        for (index, expected) in checks {
+            if differs(&sources.credit[index], &expected) { return Some(format!("Crédit relu différent ({})", CREDIT_SOURCE_IDS[index])); }
+        }
+    }
+    if let Some(terms) = update.clean_usage_terms() {
+        if differs(&sources.usage_terms[0], &terms) { return Some(format!("Conditions d'utilisation relues différentes ({})", USAGE_TERMS_SOURCE_IDS[0])); }
+    }
+    if let Some(email) = update.clean_author_email() {
+        if differs(&sources.author_email[0], &email) { return Some(format!("E-mail de l'auteur relu différent ({})", AUTHOR_EMAIL_SOURCE_IDS[0])); }
     }
     None
 }
@@ -2731,3 +3161,7 @@ pub fn read_metadata_details(path: &Path) -> MetadataDetails {
 #[cfg(test)]
 #[path = "tests/exif.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/exif_rights.rs"]
+mod rights_tests;

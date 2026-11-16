@@ -7,10 +7,15 @@
 //
 // Les valeurs affichées viennent de la base (colonnes `title` et `caption`), qui reflète le fichier selon l'ordre de priorité des sources réglé
 // dans les Paramètres (onglet Métadonnées, voir metadata-settings.js).
+//
+// La moitié basse de l'onglet porte l'auteur et les droits (auteur, mention de copyright, crédit, conditions d'utilisation, e-mail de l'auteur) :
+// cinq champs saisis, appliqués et abandonnés exactement comme le titre et la description (colonnes `author`, `copyright`, `credit`, `usage_terms`,
+// `author_email`, lues à la demande par get_photo_rights). Une ligne de préréglage au-dessus (rights-presets.js) remplace les cinq champs d'un coup.
 
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
 import { registerEditor, onLockChange, onPendingChange, notifyPendingChange, isWriteLocked, applyPending, hasSelectionEdits, resolvePendingSelection, isPromptOpen } from './metadata-writes.js';
+import { initRightsPresets } from './rights-presets.js';
 
 let host = null; // services de main.js, voir initDescriptionPanel
 let initialized = false;
@@ -22,7 +27,7 @@ let applyButton;
 let resetButton;
 
 // Photos ciblées (la sélection au moment du chargement) : valeurs enregistrées, par identifiant de photo.
-let targets = new Map(); // identifiant -> { id, path, title, description }
+let targets = new Map(); // identifiant -> { id, path, title, description, rights: { author, copyright, credit, usage_terms, author_email } }
 // Valeurs saisies : null tant que le champ n'a pas été modifié (il n'est alors pas écrit).
 let editedTitle = null;
 let editedDescription = null;
@@ -37,16 +42,53 @@ let refreshAfterPrompt = false;
 const cleanTitle = value => value.replace(/[\r\n]+/g, ' ').trim();
 const cleanDescription = value => value.replace(/\r\n?/g, '\n').trim();
 
+// Auteur et droits : `key` est le nom du champ côté backend (get_photo_rights, éléments d'écriture) ; `clean` suit les mêmes règles que exif.rs
+// (plusieurs auteurs séparés par « ; », entrées vides écartées, affichés « A; B »).
+const cleanAuthors = value => value.split(';').map(cleanTitle).filter(Boolean).join('; ');
+const RIGHTS_FIELDS = [
+  { key: 'author', id: 'description-author', clean: cleanAuthors },
+  { key: 'copyright', id: 'description-copyright', clean: cleanTitle },
+  { key: 'credit', id: 'description-credit', clean: cleanTitle },
+  { key: 'usage_terms', id: 'description-usage-terms', clean: cleanTitle },
+  { key: 'author_email', id: 'description-author-email', clean: cleanTitle },
+];
+const emptyRights = () => Object.fromEntries(RIGHTS_FIELDS.map(field => [field.key, '']));
+const noRightsEdits = () => Object.fromEntries(RIGHTS_FIELDS.map(field => [field.key, null]));
+let rightsInputs = {}; // clé -> champ de saisie
+let editedRights = noRightsEdits(); // saisie de chaque champ : null tant qu'il n'a pas été modifié
+let untouchedRights = emptyRights(); // valeur affichée quand le champ n'est pas modifié
+let presets = null; // ligne de préréglage, voir rights-presets.js
+let rightsLoadToken = 0;
+
 const isVisible = () => initialized && !exifPanel.classList.contains('hidden') && !pane.hidden;
 const currentTarget = () => host.getSelectedPhotos().filter(photo => Number.isFinite(photo.id) && photo.id > 0);
 const sameAsTargets = photos => photos.length === targets.size && photos.every(photo => targets.has(photo.id));
 
 const titleChangedFor = target => editedTitle !== null && cleanTitle(editedTitle) !== target.title;
 const descriptionChangedFor = target => editedDescription !== null && cleanDescription(editedDescription) !== target.description;
+const rightsChangedFor = (target, field) => editedRights[field.key] !== null && field.clean(editedRights[field.key]) !== (target.rights[field.key] ?? '');
+const rightsChanged = target => RIGHTS_FIELDS.some(field => rightsChangedFor(target, field));
+const isRightsDirty = () => [...targets.values()].some(rightsChanged);
 
 function isDirty() {
-  for (const target of targets.values()) if (titleChangedFor(target) || descriptionChangedFor(target)) return true;
+  for (const target of targets.values()) if (titleChangedFor(target) || descriptionChangedFor(target) || rightsChanged(target)) return true;
   return false;
+}
+
+// Valeur commune d'un champ d'auteur ou de droits aux photos ciblées, ou null si elles diffèrent.
+function commonRight(key) {
+  const values = [...targets.values()].map(target => target.rights[key] ?? '');
+  return values.every(value => value === values[0]) ? (values[0] ?? '') : null;
+}
+
+// Valeur visible dans un champ d'auteur ou de droits (vide pour « Valeurs multiples » non touché).
+const displayedRight = key => editedRights[key] ?? commonRight(key) ?? '';
+
+// La disquette des préréglages est rouge quand un champ a été modifié : par rapport aux valeurs du préréglage sélectionné, sinon par rapport aux fichiers.
+function presetModified() {
+  const selected = presets?.getSelected();
+  if (!selected) return isRightsDirty();
+  return RIGHTS_FIELDS.some(field => field.clean(displayedRight(field.key)) !== field.clean(selected[field.key] ?? ''));
 }
 
 // Valeur commune aux photos ciblées, ou null si elles diffèrent.
@@ -68,6 +110,8 @@ const descriptionEditor = {
     const kinds = [];
     if (values.some(titleChangedFor)) kinds.push('title');
     if (values.some(descriptionChangedFor)) kinds.push('description');
+    // L'auteur et les droits se saisissent dans cet onglet : même pastille que le titre et la description.
+    if (values.some(rightsChanged) && !kinds.includes('description')) kinds.push('description');
     return kinds;
   },
   // Seuls les champs modifiés, et seulement pour les photos dont la valeur change.
@@ -77,7 +121,8 @@ const descriptionEditor = {
       const item = { photo_id: target.id, path: target.path };
       if (titleChangedFor(target)) item.title = cleanTitle(editedTitle);
       if (descriptionChangedFor(target)) item.description = cleanDescription(editedDescription);
-      if ('title' in item || 'description' in item) items.push(item);
+      for (const field of RIGHTS_FIELDS) if (rightsChangedFor(target, field)) item[field.key] = field.clean(editedRights[field.key]);
+      if ('title' in item || 'description' in item || RIGHTS_FIELDS.some(field => field.key in item)) items.push(item);
     }
     return items;
   },
@@ -92,6 +137,7 @@ const descriptionEditor = {
       writtenIds.add(written.photo_id);
       target.title = written.title;
       target.description = written.description;
+      target.rights = Object.fromEntries(RIGHTS_FIELDS.map(field => [field.key, written[field.key] ?? '']));
     }
     const sent = new Map(items.map(item => [item.photo_id, item]));
     const served = (edited, clean, changedFor, field) => {
@@ -100,11 +146,19 @@ const descriptionEditor = {
     };
     if (editedTitle !== null && served(editedTitle, cleanTitle, titleChangedFor, 'title')) editedTitle = null;
     if (editedDescription !== null && served(editedDescription, cleanDescription, descriptionChangedFor, 'description')) editedDescription = null;
+    for (const field of RIGHTS_FIELDS) {
+      if (editedRights[field.key] === null) continue;
+      const value = field.clean(editedRights[field.key]);
+      const rightServed = [...targets.values()].every(target => !rightsChangedFor(target, field) || (writtenIds.has(target.id) && sent.get(target.id)?.[field.key] === value));
+      if (rightServed) editedRights[field.key] = null;
+    }
     render();
   },
   discard() {
     editedTitle = null;
     editedDescription = null;
+    editedRights = noRightsEdits();
+    presets?.clearSelection(); // les champs reprennent les valeurs des fichiers : plus de préréglage
     render();
   },
   // Photo renommée ou déplacée : sa saisie en attente sera écrite sous le nouveau chemin.
@@ -139,6 +193,11 @@ function render() {
   untouchedDescription = commonDescription ?? '';
   renderField(titleField, editedTitle, commonTitle);
   renderField(descriptionField, editedDescription, commonDescription);
+  for (const field of RIGHTS_FIELDS) {
+    const common = commonRight(field.key);
+    untouchedRights[field.key] = common ?? '';
+    renderField(rightsInputs[field.key], editedRights[field.key], common);
+  }
   updateState();
 }
 
@@ -148,12 +207,14 @@ function updateState() {
   const values = [...targets.values()];
   titleField.classList.toggle('pending', values.some(titleChangedFor));
   descriptionField.classList.toggle('pending', values.some(descriptionChangedFor));
+  for (const field of RIGHTS_FIELDS) rightsInputs[field.key].classList.toggle('pending', values.some(target => rightsChangedFor(target, field)));
+  presets?.setModified(presetModified());
   const locked = isWriteLocked();
   // « Appliquer » écrit aussi les mots-clés en attente (onglet Mots-clés).
   applyButton.disabled = !hasSelectionEdits() || locked;
   applyButton.title = locked ? t('Metadata writing in progress…') : t('Write the pending changes into the files (Ctrl+Enter)');
   resetButton.disabled = !isDirty();
-  resetButton.title = t('Put the title and description back to their saved values');
+  resetButton.title = t('Put the title, description, author and rights back to their saved values');
   notifyPendingChange(); // pastilles des onglets et boutons de l'onglet Mots-clés
 }
 
@@ -161,12 +222,34 @@ function updateState() {
 // Chargement et changement de sélection
 // ---------------------------------------------------------------------------
 
-function load(photos) {
-  targets = new Map(photos.map(photo => [photo.id, { id: photo.id, path: photo.path, title: photo.title || '', description: photo.caption || '' }]));
+// `keepPreset` : même sélection relue (rien en attente), le préréglage choisi reste affiché ; une autre sélection remet le champ de préréglage à blanc.
+function load(photos, { keepPreset = false } = {}) {
+  targets = new Map(photos.map(photo => [photo.id, { id: photo.id, path: photo.path, title: photo.title || '', description: photo.caption || '', rights: { ...emptyRights(), author: photo.author || '' } }]));
   editedTitle = null;
   editedDescription = null;
+  editedRights = noRightsEdits();
+  if (!keepPreset) presets?.clearSelection();
   prewarmed = false;
   render();
+  loadRights(photos.map(photo => photo.id));
+}
+
+// Auteur et droits des photos ciblées, lus dans la base (ils ne font pas partie de la liste des photos, sauf l'auteur). La saisie faite pendant la lecture
+// est conservée : seules les valeurs enregistrées changent.
+async function loadRights(ids) {
+  const token = ++rightsLoadToken;
+  if (!ids.length) return;
+  try {
+    const rows = await invoke('get_photo_rights', { photoIds: ids });
+    if (token !== rightsLoadToken) return;
+    for (const row of rows) {
+      const target = targets.get(row.photo_id);
+      if (target) target.rights = Object.fromEntries(RIGHTS_FIELDS.map(field => [field.key, row[field.key] ?? '']));
+    }
+    render();
+  } catch (error) {
+    console.error('Lecture de l\'auteur et des droits impossible', error);
+  }
 }
 
 // Appelée à chaque changement de sélection : mise à jour différée (une seule par image affichée), uniquement si l'onglet est visible.
@@ -185,7 +268,7 @@ async function reload() {
     const photos = currentTarget();
     if (sameAsTargets(photos)) {
       // Même sélection : la saisie en cours est conservée ; sans saisie, les valeurs sont relues (une écriture ou une relecture a pu les changer).
-      if (!isDirty()) load(photos);
+      if (!isDirty()) load(photos, { keepPreset: true });
       else updateState();
       return;
     }
@@ -204,7 +287,7 @@ async function reload() {
 // Initialisation
 // ---------------------------------------------------------------------------
 
-// Services fournis par main.js : getSelectedPhotos.
+// Services fournis par main.js : getSelectedPhotos, showToast.
 export function initDescriptionPanel(hostApi) {
   host = hostApi;
   exifPanel = document.getElementById('exif-panel');
@@ -213,7 +296,8 @@ export function initDescriptionPanel(hostApi) {
   descriptionField = document.getElementById('description-text');
   applyButton = document.getElementById('btn-description-apply');
   resetButton = document.getElementById('btn-description-reset');
-  if (![exifPanel, pane, titleField, descriptionField, applyButton, resetButton].every(Boolean)) {
+  rightsInputs = Object.fromEntries(RIGHTS_FIELDS.map(field => [field.key, document.getElementById(field.id)]));
+  if (![exifPanel, pane, titleField, descriptionField, applyButton, resetButton, ...Object.values(rightsInputs)].every(Boolean)) {
     console.error('Onglet Description : éléments introuvables dans index.html');
     return;
   }
@@ -235,6 +319,25 @@ export function initDescriptionPanel(hostApi) {
     onInput();
   });
   applyButton.addEventListener('click', () => applyPending());
+  for (const field of RIGHTS_FIELDS) {
+    const element = rightsInputs[field.key];
+    element.addEventListener('input', () => {
+      editedRights[field.key] = element.value === untouchedRights[field.key] ? null : element.value;
+      onInput();
+    });
+  }
+  // Ligne de préréglage : choisir un préréglage remplace les cinq champs par ses valeurs (même vides), à écrire comme une saisie.
+  presets = initRightsPresets({
+    applyPreset: preset => {
+      if (targets.size === 0) return;
+      for (const field of RIGHTS_FIELDS) editedRights[field.key] = preset[field.key] ?? '';
+      render();
+      onInput();
+    },
+    currentValues: () => Object.fromEntries(RIGHTS_FIELDS.map(field => [field.key, field.clean(displayedRight(field.key))])),
+    onChange: () => updateState(),
+    showToast: message => host.showToast?.(message),
+  });
   resetButton.addEventListener('click', () => descriptionEditor.discard());
   registerEditor(descriptionEditor);
   onLockChange(updateState);

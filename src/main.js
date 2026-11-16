@@ -21,7 +21,9 @@ import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsCh
 import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initStats } from './stats.js';
-import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById } from './keywords-panel.js';
+import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById, openSideTab } from './keywords-panel.js';
+import { initInfoAuthor, renderInfoAuthor } from './info-author.js';
+import { initAuthorFilters } from './author-filters.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
 import { reloadAllMaps } from './map-view.js';
@@ -178,6 +180,8 @@ let folderTreePhotos = [];
 const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
 // Filtre Format (type, marque de RAW, extension) : voir format-filters.js, qui porte aussi les listes d'extensions.
 const formatFilters = initFormatFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
+// Filtre Auteur (liste des auteurs de la base) : voir author-filters.js.
+const authorFilters = initAuthorFilters({ onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
 // Folders added to `currentFolderFilter` by Ctrl+click in the tree: the grid shows the photos of all of them (not persisted, reset by a plain click).
 let extraFolderFilters = [];
@@ -905,6 +909,7 @@ function prefilterFromState(state, dateRange = state.date ? parseDateFilter(stat
   const extensions = formatPrefilterExtensions(state);
   if (extensions) filter.extensions = extensions;
   Object.assign(filter, shootingPrefilter(state)); // gear and shooting values
+  Object.assign(filter, authorFilters.prefilter(state)); // authors (lowercase ASCII names only)
   if (state.folder?.path) {
     const prefix = `${normalizeFilterPath(state.folder.path)}/`;
     if (isAsciiText(prefix)) filter.folder = { prefix, recursive: Boolean(state.folder.recursive) };
@@ -1125,7 +1130,7 @@ function hasActiveFilters() {
   const hasFilename = hasFilenameFilters();
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
   return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all' || analysisFilter !== 'all'
-    || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats()
+    || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats() || authorFilters.hasAuthors()
     || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
 
@@ -1212,6 +1217,7 @@ function applyPhotoFilters({ keepState = true } = {}) {
     && matchesAnalysisFilter(photo)
     && shootingFilters.matches(photo)
     && formatFilters.matches(photo)
+    && authorFilters.matches(photo)
     && matchesRawSearchScope(photo)
     && matchesSemanticCut(photo)
     && matchesAlbumCriteria(photo));
@@ -1245,6 +1251,7 @@ function applyPhotoFilters({ keepState = true } = {}) {
     updateRatingAction();
     document.getElementById('exif-title').textContent = '-';
     document.getElementById('exif-caption').textContent = '-';
+    renderInfoAuthor(null);
     updateInfoFolder(null);
     refreshInfoRows();
   }
@@ -1337,6 +1344,7 @@ const clearFilterKinds = {
   gear: () => shootingFilters.clearGear(),
   shot: () => shootingFilters.clearShot(),
   format: () => formatFilters.reset(),
+  author: () => authorFilters.reset(),
 };
 
 // Types de filtre de chaque groupe de l'accordéon (data-filter-group), pour le × d'un groupe.
@@ -1347,7 +1355,7 @@ const filterGroupKinds = {
   date: ['date'],
   gear: ['gear'],
   shooting: ['shot'],
-  more: ['format', 'location', 'analysis'],
+  more: ['format', 'author', 'location', 'analysis'],
 };
 
 // Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent restent.
@@ -1404,6 +1412,7 @@ function captureFilterState() {
   if (locationFilter !== 'all') state.location = locationFilter;
   Object.assign(state, shootingFilters.capture()); // gear (appareil, objectif) et shot (focale, vitesse, ouverture, ISO, flash)
   Object.assign(state, formatFilters.capture()); // formats (type, marque de RAW, extensions)
+  Object.assign(state, authorFilters.capture()); // authors, excludedAuthors
   if (albumFolder) state.folder = albumFolder;
   if (albumMapZone) state.mapZone = albumMapZone;
   return state;
@@ -1486,6 +1495,7 @@ function applyFilterState(state) {
   setLocationFilter(state.location ?? 'all', { apply: false });
   shootingFilters.apply(state);
   formatFilters.apply(state);
+  authorFilters.apply(state);
   albumFolder = state.folder ?? null;
   albumMapZone = state.mapZone ?? null;
 }
@@ -1670,6 +1680,7 @@ function renderKeywordFilters() {
   keywordFilterSuggest?.refresh();
   renderFilterTags();
   shootingFilters.refreshOptions(); // listes des appareils et objectifs : la collection a pu changer
+  authorFilters.refreshAuthors(); // liste des auteurs de la base : idem
 }
 
 const hasKeywordFilters = () => keywordFilters.length > 0 || excludedKeywordFilters.length > 0;
@@ -2014,6 +2025,7 @@ function renderFilterSummaries() {
 
   shootingFilters.renderSummaries();
   formatFilters.renderSummaries();
+  authorFilters.renderSummaries();
   renderFilterTags();
   renderActiveFilterBadges();
   renderAlbumFilterInfo();
@@ -2029,7 +2041,7 @@ function updateFilterGroupStates() {
     date: dateFilter !== null,
     gear: shootingFilters.hasGear(),
     shooting: shootingFilters.hasShot(),
-    more: formatFilters.hasFormats() || locationFilter !== 'all' || analysisFilter !== 'all',
+    more: formatFilters.hasFormats() || authorFilters.hasAuthors() || locationFilter !== 'all' || analysisFilter !== 'all',
   };
   for (const group of filterGroups) group.dataset.active = String(Boolean(active[group.dataset.filterGroup]));
 }
@@ -2052,6 +2064,7 @@ function renderActiveFilterBadges() {
     [shootingFilters.hasGear(), 'gear', 'Gear'],
     [shootingFilters.hasShot(), 'shot', 'Shooting'],
     [formatFilters.hasFormats(), 'format', 'Format'],
+    [authorFilters.hasAuthors(), 'author', 'Author'],
     [pathFilter !== null, 'failed', 'Failed files'],
   ];
   // Chaque badge a sa croix : elle efface ce type de filtre sans déplier le bloc (les clés de `clearFilterKinds` sont les types ci-dessus).
@@ -3601,6 +3614,7 @@ function updateUIOnSelection() {
     renderInfoKeywords(photo);
     document.getElementById('exif-title').textContent = photo.title || '-';
     document.getElementById('exif-caption').textContent = decodeHtmlEntities(photo.caption) || '-';
+    renderInfoAuthor(photo);
   }
   // Groupe Lieu : positions de toute la sélection, la photo active mise en avant (voir location-panel.js).
   refreshLocation([...selectedIndices].map(index => photos[index]).filter(Boolean), photos[lastSelectedIndex]);
@@ -8307,6 +8321,7 @@ initMetadataWrites({
         photo.keywords = entry.keywords;
         photo.title = entry.title;
         photo.caption = entry.description;
+        photo.author = entry.author ?? photo.author; // auteur relu dans le fichier (filtre Auteur, panneau Info)
         if (Number.isFinite(entry.gps_lat) && Number.isFinite(entry.gps_lon)) { photo.gps_lat = entry.gps_lat; photo.gps_lon = entry.gps_lon; } // position écrite (mode Carte)
         rewritten.add(photo.path);
       }
@@ -8356,7 +8371,9 @@ initKeywordsPanel({
 });
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.
-initDescriptionPanel({ getSelectedPhotos });
+initDescriptionPanel({ getSelectedPhotos, showToast: message => showWriteToast(message) });
+// Section « Auteur » de l'onglet Info : un clic sur une valeur ouvre l'onglet Description.
+initInfoAuthor({ openDescription: () => openSideTab('description'), refreshRows: () => refreshInfoRows() });
 
 // Histogramme de la photo courante et écrêtage (voir histogram.js). Affiché en bas à droite du plein écran, sinon de l'aperçu (s'il est visible) ou de la grille ;
 // jamais en mode Comparer, ni dans les vues Carte, Personnes et Visages. La surcouche d'écrêtage ne se pose que sur l'image de l'aperçu et du plein écran.

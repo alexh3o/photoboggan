@@ -29,7 +29,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 55 | — |
 | `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 66 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
-| `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 20 | — |
+| `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 21 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
 | `--face-bar-reserve` | faces.css · `.faces-view` · `5.5rem` | 1 | — |
 | `--face-bar-scrollbar` | — | 1 | faces-grid.js |
@@ -107,6 +107,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--side-row-size` | styles.css · `:root` · `0.8rem` | 7 | — |
 | `--side-title-size` | styles.css · `:root` · `0.85rem` | 1 | — |
 | `--star-off` | styles.css · `:root` · `#666`<br>styles.css · (light) `:root[data-theme="light"]` · `#b8b8b8` | 1 | — |
+| `--tag-author-bg` | author-filters.css · `:root` · `#8a5a2b` | 1 | — |
+| `--tag-author-border` | author-filters.css · `:root` · `#c08a52` | 1 | — |
+| `--tag-author-hover` | author-filters.css · `:root` · `#9a6a3a` | 1 | — |
 | `--tag-camera-bg` | stats.css · `:root` · `#2000d8` | 1 | — |
 | `--tag-camera-border` | stats.css · `:root` · `#0a042b` | 1 | — |
 | `--tag-camera-hover` | stats.css · `:root` · `#5862f1` | 0 | — |
@@ -248,6 +251,19 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L35 Case « ne plus afficher » d'une fenêtre de confirmation
 - L38 En-tête de la section : boutons de recherche et « + » (même menu de création que le clic droit dans le vide). Leur cadre, leur ta…
 - L43 Raison d'un refus de dépôt, sous l'image glissée d'un album
+
+### src/author-filters.css (12 lines)
+
+- L1 Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres.
+
+### src/author-rights.css (42 lines)
+
+- L1 Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-pane…
+- L4 --- Onglet Info : ligne « Auteur » toujours affichée, champs d'auteur et de droits dépliables ---
+- L20 Plié : seuls le nom du champ, l'auteur et le chevron restent (les champs vides sont masqués par refreshInfoRows de main.js).
+- L23 --- Onglet Description : auteur et droits ---
+- L29 Disquette rouge : un champ d'auteur ou de droits a été modifié.
+- L32 --- Fenêtre « Author and Rights presets » ---
 
 ### src/duplicates.css (58 lines)
 

@@ -719,6 +719,10 @@ fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::
 /// - titre : XMP dc:title et acdsee:caption ; dans les JPEG, aussi IPTC ObjectName et EXIF XPTitle ;
 /// - description : XMP dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes ; dans les JPEG, aussi le commentaire JPEG,
 ///   EXIF ImageDescription, UserComment et XPComment, et IPTC Caption ;
+/// - auteur : XMP dc:creator et tiff:Artist ; dans les JPEG, aussi IPTC By-line et EXIF Artist ;
+/// - copyright : XMP dc:rights et tiff:Copyright ; dans les JPEG, aussi IPTC CopyrightNotice et EXIF Copyright (« © » devient « (c) ») ;
+/// - crédit : XMP photoshop:Credit ; dans les JPEG, aussi IPTC Credit ; conditions d'utilisation : XMP xmpRights:UsageTerms ;
+///   e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / CiEmailWork ;
 /// - zones de visage : MWG RegionInfo et Microsoft RegionInfoMP (mêmes champs que exif::update_xmp_regions ; ACDSee non écrit).
 pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -> std::io::Result<()> {
     let mut args = metadata_args(image_path, update);
@@ -823,6 +827,45 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             iptc_values.push(caption);
         }
     }
+    // Auteur et droits (exif::update_xmp_rights pour le XMP). Les valeurs IPTC sont coupées à la longueur de la norme comme à l'écriture interne.
+    if let Some(authors) = update.author_list() {
+        let joined = authors.join("; ");
+        push_list(&mut args, "XMP-dc:Creator", authors.clone());
+        args.push(assign("XMP-tiff:Artist", &joined));
+        if jpeg {
+            let by_lines: Vec<String> = authors.iter().map(|name| crate::exif::truncate_utf8(name, 32).to_string()).collect();
+            push_list(&mut args, "IPTC:By-line", by_lines.clone());
+            iptc_values.extend(by_lines);
+            args.push(assign("EXIF:Artist", &joined));
+        }
+    }
+    if let Some(copyright) = update.clean_copyright() {
+        // Sans suffixe de langue : seule l'entrée x-default est écrite, les autres langues de dc:rights sont effacées.
+        args.push(assign("XMP-dc:Rights", &copyright));
+        args.push(assign(&lang_alt_tag("XMP-tiff:Copyright", &copyright), &copyright));
+        if jpeg {
+            let notice = crate::exif::truncate_utf8(&copyright, 128).to_string();
+            args.push(assign("IPTC:CopyrightNotice", &notice));
+            iptc_values.push(notice);
+            // L'EXIF Copyright est de l'ASCII : « © » devient « (c) ».
+            args.push(assign("EXIF:Copyright", &copyright.replace('©', "(c)")));
+        }
+    }
+    if let Some(credit) = update.clean_credit() {
+        args.push(assign("XMP-photoshop:Credit", &credit));
+        if jpeg {
+            let iptc = crate::exif::truncate_utf8(&credit, 32).to_string();
+            args.push(assign("IPTC:Credit", &iptc));
+            iptc_values.push(iptc);
+        }
+    }
+    if let Some(terms) = update.clean_usage_terms() {
+        args.push(assign("XMP-xmpRights:UsageTerms", &terms)); // sans langue : les autres langues sont effacées
+    }
+    if let Some(email) = update.clean_author_email() {
+        // Champ de la structure CreatorContactInfo : ExifTool fusionne avec la structure existante, les autres champs sont conservés.
+        args.push(assign("XMP-iptcCore:CreatorWorkEmail", &email));
+    }
     if iptc_values.iter().any(|value| !value.is_ascii()) { args.push("-IPTC:CodedCharacterSet=UTF8".to_string()); }
     // Coordonnées GPS (geolocation.rs) : XMP exif:GPS… et, quand le fichier lui-même est écrit (JPEG, HEIC), le bloc GPS de l'EXIF.
     if let Some(gps) = update.gps {
@@ -902,3 +945,7 @@ pub fn write_orientation(image_path: &Path, orientation: u32) -> std::io::Result
 #[cfg(test)]
 #[path = "tests/exiftool.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/exiftool_rights.rs"]
+mod rights_tests;

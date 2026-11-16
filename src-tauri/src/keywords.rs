@@ -181,6 +181,17 @@ pub struct KeywordWriteItem {
     pub title: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    /// Auteur (plusieurs auteurs séparés par « ; »), mention de copyright, crédit, conditions d'utilisation, e-mail de l'auteur (chaîne vide = retiré).
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub copyright: Option<String>,
+    #[serde(default)]
+    pub credit: Option<String>,
+    #[serde(default)]
+    pub usage_terms: Option<String>,
+    #[serde(default)]
+    pub author_email: Option<String>,
     /// Écrire aussi les visages de la photo (zones et mots-clés des personnes, voir faces::plan_face_write). Une photo dont des visages attendent
     /// d'être écrits les écrit de toute façon, puisqu'elle est réécrite.
     #[serde(default)]
@@ -200,6 +211,9 @@ pub struct KeywordWritten {
     /// Titre et description retenus à la relecture du fichier (colonnes `title` et `caption`).
     pub title: String,
     pub description: String,
+    /// Auteur et droits retenus à la relecture du fichier (colonnes `author`, `copyright`, `credit`, `usage_terms`, `author_email`).
+    #[serde(flatten)]
+    pub rights: crate::exif::Rights,
     /// Coordonnées retenues à la relecture du fichier (colonnes `gps_lat` et `gps_lon`).
     pub gps_lat: Option<f64>,
     pub gps_lon: Option<f64>,
@@ -329,6 +343,11 @@ fn run_write(
                 if item.keyword_ids.is_some() { kept.keyword_ids = item.keyword_ids; }
                 if item.title.is_some() { kept.title = item.title; }
                 if item.description.is_some() { kept.description = item.description; }
+                if item.author.is_some() { kept.author = item.author; }
+                if item.copyright.is_some() { kept.copyright = item.copyright; }
+                if item.credit.is_some() { kept.credit = item.credit; }
+                if item.usage_terms.is_some() { kept.usage_terms = item.usage_terms; }
+                if item.author_email.is_some() { kept.author_email = item.author_email; }
                 if item.faces == Some(true) { kept.faces = Some(true); }
                 if item.gps.is_some() { kept.gps = item.gps; }
             }
@@ -390,6 +409,11 @@ fn run_write(
                     keywords: keyword_ids.map(|_| keyword_paths.unwrap_or_default()),
                     title: item.title.clone(),
                     description: item.description.clone(),
+                    author: item.author.clone(),
+                    copyright: item.copyright.clone(),
+                    credit: item.credit.clone(),
+                    usage_terms: item.usage_terms.clone(),
+                    author_email: item.author_email.clone(),
                     regions: plan.map(|plan| plan.regions.clone()),
                     gps: item.gps.map(Some),
                 };
@@ -448,6 +472,13 @@ fn run_write(
                         params![meta.keywords, meta.title, meta.caption, item.photo_id],
                     ),
                 };
+                // Auteur et droits : la base reflète la relecture du fichier (colonnes hors de la liste des photos, voir rights.rs).
+                let stored = stored.and_then(|_| {
+                    tx.execute(
+                        "UPDATE photos SET author = ?1, copyright = ?2, credit = ?3, usage_terms = ?4, author_email = ?5 WHERE id = ?6",
+                        params![meta.rights.author, meta.rights.copyright, meta.rights.credit, meta.rights.usage_terms, meta.rights.author_email, item.photo_id],
+                    )
+                });
                 // Coordonnées écrites : la base reflète la relecture (le déclencheur de geolocation.rs retire la sauvegarde d'un GPS effacé).
                 let stored = stored.and_then(|_| {
                     if item.gps.is_none() { return Ok(0); }
@@ -469,7 +500,7 @@ fn run_write(
                 keyword_batches.push((item.path.clone(), meta.keyword_paths));
                 face_batches.push((item.path.clone(), meta.faces));
                 written_paths.insert(item.photo_id, item.path);
-                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption, gps_lat: meta.gps.map(|gps| gps.0), gps_lon: meta.gps.map(|gps| gps.1), effective_modified });
+                written.push(KeywordWritten { photo_id: item.photo_id, keywords: meta.keywords, keyword_ids: Vec::new(), title: meta.title, description: meta.caption, rights: meta.rights, gps_lat: meta.gps.map(|gps| gps.0), gps_lon: meta.gps.map(|gps| gps.1), effective_modified });
             }
         }
     }
@@ -621,7 +652,7 @@ fn photos_carrying(conn: &Connection, ids: &[i64], dropped: &HashSet<i64>) -> Re
         let index = match index_of.get(&photo_id) {
             Some(index) => *index,
             None => {
-                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, faces: None, gps: None });
+                items.push(KeywordWriteItem { photo_id, path, keyword_ids: Some(Vec::new()), title: None, description: None, author: None, copyright: None, credit: None, usage_terms: None, author_email: None, faces: None, gps: None });
                 index_of.insert(photo_id, items.len() - 1);
                 items.len() - 1
             }
@@ -798,7 +829,8 @@ pub async fn rename_keyword(
     outcome.map_err(|error| error.to_string())?
 }
 
-/// Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps" or "faces"):
+/// Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
+/// "author", "copyright", "credit", "usageTerms" or "authorEmail"):
 /// `order` lists each of its source ids once, most important first (see exif::set_read_priority). It applies to the next file reads
 /// (scan, rescan, sync).
 #[tauri::command]

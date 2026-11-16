@@ -1,4 +1,4 @@
-<!-- verified: d5536cb | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js -->
+<!-- verified: d5536cb | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
 # Metadata reading and writing (EXIF / IPTC / XMP, ExifTool, sidecars)
 
 ## Purpose
@@ -13,6 +13,10 @@ Reads the metadata of a photo (camera data, rating, colour, pick, title, descrip
 | `metadata-settings.js` | Settings > Metadata: writer choice, ExifTool path and status, read-order tables |
 | `order-list.js` | Reorderable table component (drag handle / arrows), stores the order in localStorage |
 | `marking-settings.js` | Settings > Metadata > marking: colours and pick on/off |
+| `rights.rs` | Author and rights: presets table (`author_presets`), `get_photo_rights`, `get_authors` (see "Author and rights" below) |
+| `description-panel.js` | Title, description and the five author / rights fields of the Description tab |
+| `rights-presets.js` | Preset line of the Description tab (suggestions, manager window, floppy button) |
+| `info-author.js` | Foldable "Author" section of the Info tab |
 
 ## How it works
 
@@ -42,6 +46,29 @@ Entry points: `exif::write_metadata` (keywords, title, description, face regions
 6. EXIF is never modified by the internal path.
 
 The same field set is written by both writers; ExifTool adds the JPEG-only EXIF fields (XPKeywords, XPTitle, XPComment, ImageDescription, UserComment, Rating, RatingPercent). Lists of tags: doc comments of `exiftool::write_metadata` and `write_marking`. IPTC fields are cut to their legal length (`truncate_utf8`: ObjectName 64 bytes, Caption 2000, JPEG comment 65533); `text_mismatch` applies the same cuts when verifying.
+
+### Author and rights
+Five fields, each read from several schemes (first one with data in the user's order wins) and written to all of them by both writers (a field set to `None` in `MetadataUpdate` is untouched, `Some("")` removes it everywhere):
+
+| Field (`MetadataUpdate` / column) | XMP | IPTC | EXIF (ExifTool, JPEG only) | Source ids |
+|---|---|---|---|---|
+| Author (`author`) | `dc:creator` (`rdf:Seq`, one item per author), `tiff:Artist` | By-line 2:80 (one dataset per author, 32 bytes) | `Artist` | `xmp-dc`, `xmp-tiff`, `iptc`, `exif` |
+| Copyright notice (`copyright`) | `dc:rights`, `tiff:Copyright` (`©` kept) | CopyrightNotice 2:116 (128 bytes) | `Copyright` (`©` becomes `(c)`) | same four |
+| Credit (`credit`) | `photoshop:Credit` | Credit 2:110 (32 bytes) | - | `xmp-photoshop`, `iptc` |
+| Usage terms (`usage_terms`) | `xmpRights:UsageTerms` | - | - | `xmp-rights` |
+| Author e-mail (`author_email`) | `Iptc4xmpCore:CreatorContactInfo` / `CiEmailWork` | - | - | `xmp-iptc-core` |
+
+- Several authors are typed separated by `;` (`split_authors`: trimmed, empty entries dropped) and shown `A; B`. `dc:creator` and By-line get one item per author; `tiff:Artist` and EXIF `Artist` get the joined string.
+- `dc:rights` and `xmpRights:UsageTerms`: only `x-default` is written, every other language is erased (`update_xmp_rights` removes the property first; ExifTool writes the tag without a language suffix). The translations of `tiff:Copyright` are kept.
+- `CreatorContactInfo` is read whole (`parse_contact_info`: element or nested `rdf:Description` attribute forms, any prefix) into `ExifMetadata::contact` and rewritten whole when the e-mail changes (`contact_info_element`): address, phone and web address are never lost, and the structure disappears only when it becomes empty. ExifTool merges `XMP-iptcCore:CreatorWorkEmail` into the existing structure itself.
+- `ExifMetadata::rights` is the resolved value (`Rights`), `rights_sources` keeps each source (`RightsSources`) for `rights_mismatch`, called at the end of `text_mismatch` with the same source rules as the title (XMP always, IPTC for a JPEG, EXIF for a JPEG written by ExifTool), IPTC cuts and the `©` -> `(c)` conversion.
+- Reading priorities: kinds `author`, `copyright`, `credit`, `usageTerms`, `authorEmail` of `set_metadata_read_order` (storage keys `authorFormatOrder`… in `READ_ORDERS`).
+
+Storage (`db.rs`, `library_sync::read_photo`, `keywords::run_write`): five `photos` columns. Only `author` is part of `Photo` and `PHOTO_COLUMNS` (it travels with the photo list for the Author filter); the other four are `#[serde(skip)]` on `Photo` and read on demand by `rights::get_photo_rights` for the selection. `run_write` stores the values read back from the file in the same transaction as title and description and returns them in `KeywordWritten` (flattened `rights`). Photos read before these columns existed have empty values until a rescan.
+
+Presets (`rights.rs`): table `author_presets` (unique `name_key`, five value columns). `create_author_preset` returns the existing preset when the name exists (case ignored) and creates an empty one otherwise; `save_author_preset` replaces the five values; `delete_author_preset` only removes the preset. `get_authors` lists the individual authors of the catalogue (visible photos only, `A; B` counted for both, case variants merged) for the filter.
+
+Frontend: `description-panel.js` handles the five fields exactly like the title (null = untouched, `Multiple values`, pending dot on the Description tab, same Apply / Discard circuit through `metadata-writes.js`; items carry `author`, `copyright`, `credit`, `usage_terms`, `author_email`). `rights-presets.js` owns the preset line: choosing a preset fills all five fields as pending edits (blank values included), a new preset empties them, the floppy button replaces the selected preset (after confirmation) or creates one, and is red when a field differs from the selected preset (from the files when none is selected). `info-author.js` renders the Author section of the Info tab (fold state: `infoAuthorOpen` in `defaults.jsonc`); `author-filters.js` is the Author filter (see `filters-and-search.md`).
 
 Details worth knowing:
 - Keywords: all active paths go to six places (`dc:subject` leaves from `keyword_leaves`, and the five hierarchical formats; ACDSee as XML text); an empty list removes them.

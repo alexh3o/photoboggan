@@ -197,6 +197,19 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
   status TEXT NOT NULL DEFAULT 'pending'
 ```
 
+### author_presets  `rights.rs`
+
+```sql
+  id INTEGER PRIMARY KEY AUTOINCREMENT
+  name TEXT NOT NULL
+  name_key TEXT NOT NULL UNIQUE
+  author TEXT NOT NULL DEFAULT ''
+  copyright TEXT NOT NULL DEFAULT ''
+  credit TEXT NOT NULL DEFAULT ''
+  usage_terms TEXT NOT NULL DEFAULT ''
+  author_email TEXT NOT NULL DEFAULT ''
+```
+
 ### photo_embeddings  `semantic.rs`
 
 ```sql
@@ -246,6 +259,7 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
 - `idx_faces_photo` on `faces(photo_id)` · faces.rs
 - `idx_faces_person` on `faces(person_id)` · faces.rs
 - `idx_photo_keywords_keyword` on `photo_keywords(keyword_id)` · keywords.rs
+- `idx_photos_author` on `photos(author)` · rights.rs
 - `idx_photo_embeddings_model` on `photo_embeddings(model_id)` · semantic.rs
 
 

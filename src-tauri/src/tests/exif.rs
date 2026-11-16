@@ -791,7 +791,7 @@ fn malformed_jpeg_structure_is_refused_before_any_xmp_or_iptc_insertion() {
     bad.extend_from_slice(&good[2..]);
     assert!(jpeg_replace_xmp(&bad, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(3), ..Default::default() })).is_err());
     let keywords = vec!["a".to_string()];
-    let changes = IptcChanges { keywords: Some(&keywords), object_name: None, caption: None };
+    let changes = IptcChanges { keywords: Some(&keywords), object_name: None, caption: None, ..Default::default() };
     assert!(jpeg_replace_iptc(&bad, &changes).is_err());
     // A well-formed JPEG is still written.
     assert!(jpeg_replace_xmp(&good, &|xml| update_xmp_metadata(xml, XmpEdit { rating: Some(3), ..Default::default() })).is_ok());

@@ -154,6 +154,8 @@
   "semanticExcludedKeywords": [],
   // "Suggestions" block of the Keywords tab (keywords suggested for the selected photo): unfolded (true) | folded (false).
   "keywordSuggestionsOpen": true,
+  // "Author" section of the Info tab (author, copyright notice, credit, usage terms, author e-mail): unfolded (true) | folded (false).
+  "infoAuthorOpen": false,
   // Scans left unfinished (paused, or interrupted by quitting): they come back paused at the next launch. List of tasks, empty on a new installation.
   "pausedScanTasks": [],
 

@@ -179,6 +179,12 @@ export function setKeywordsCompareMode(active) {
   if (initialized) applyTab();
 }
 
+// Ouvre un onglet du panneau (clic sur une valeur du panneau Info : titre, description, auteur et droits) ; rien en mode Comparer pour les onglets d'édition.
+export function openSideTab(name) {
+  if (!initialized || (compareActive && EDITING_TABS.includes(name))) return;
+  setTab(name);
+}
+
 // Content search, "Add keyword" on the selected photos (results of "Find photos that may match", main.js): the keyword becomes a PENDING change of
 // the selection, exactly as a click on its checkbox. The panel is shown on the Keywords tab first (its state is loaded for the selection only while
 // it is visible). Returns the number of photos that received it, 0 when nothing was added (compare mode, selection not loaded in time, unknown keyword).

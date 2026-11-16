@@ -270,7 +270,7 @@
             <div class="filter-group-header">
               <button type="button" class="filter-group-toggle" aria-expanded="false" aria-controls="filter-body-more" data-i18n-aria-label="More filters"></button>
               <span class="filter-expanded-line"><span class="filter-group-title" data-i18n="More filters"></span></span>
-              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters"></span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span><span id="analysis-summary" class="filter-summary"></span></span>
+              <span class="filter-collapsed-line fit-lines"><span class="filter-group-title" data-i18n="More filters"></span><span id="format-summary" class="filter-summary"></span><span id="location-summary" class="filter-summary"></span><span id="analysis-summary" class="filter-summary"></span><span id="author-summary" class="filter-summary"></span></span>
               <button type="button" class="filter-group-clear" data-i18n-title="Clear this filter" data-i18n-aria-label="Clear this filter">×</button>
               <span class="filter-group-chevron" aria-hidden="true">▸</span>
             </div>
@@ -283,6 +283,16 @@
                 </div>
                 <div id="format-error" class="format-error" role="alert"></div>
                 <div id="format-tags" class="filter-tags" aria-live="polite"></div>
+              </div>
+              <!-- Auteur : liste des auteurs de la base (author-filters.js) -->
+              <div class="filter-subgroup">
+                <div class="filter-subtitle" data-i18n="Author"></div>
+                <div class="format-filter-field">
+                  <input id="author-filter-input" type="text" data-i18n-placeholder="Author..." data-i18n-aria-label="Author" data-i18n-title="Author filter help" autocomplete="off" spellcheck="false" />
+                  <ul id="author-filter-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                </div>
+                <div id="author-error" class="author-error" role="alert"></div>
+                <div id="author-tags" class="filter-tags" aria-live="polite"></div>
               </div>
               <div class="filter-subgroup">
                 <div class="filter-subtitle" data-i18n="Geolocation"></div>
@@ -512,6 +522,16 @@
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Keywords"></strong> <span id="exif-keywords">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Title"></strong> <span id="exif-title">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Description"></strong> <span id="exif-caption">-</span></li>
+          <!-- Section « Auteur » (info-author.js) : la ligne reste toujours affichée avec l'auteur ; le nom du champ ou le chevron plie / déplie les autres champs d'auteur et de droits (affichés seulement s'ils sont remplis). Un clic sur une valeur ouvre l'onglet Description. -->
+          <li class="exif-author-header" data-always>
+            <button type="button" id="exif-author-toggle" class="exif-author-toggle" aria-expanded="false" aria-controls="exif-author-details"><strong class="exif-label" data-i18n="Author"></strong></button>
+            <span class="exif-author-value-wrap"><span id="exif-author" class="exif-author-value">-</span></span>
+            <button type="button" id="exif-author-chevron" class="exif-author-chevron" aria-expanded="false" aria-controls="exif-author-details" data-i18n-title="Show the copyright and credit fields" data-i18n-aria-label="Show the copyright and credit fields"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          </li>
+          <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Copyright notice"></strong> <span id="exif-copyright">-</span></li>
+          <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Credit"></strong> <span id="exif-credit">-</span></li>
+          <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Usage terms"></strong> <span id="exif-usage-terms">-</span></li>
+          <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Author's email"></strong> <span id="exif-author-email">-</span></li>
         </ul>
         <!-- Lieu : coordonnées GPS de la sélection, lien OpenStreetMap et carte (voir location-panel.js) ; masqué sans photo géolocalisée -->
         <section id="location-panel" class="location-panel" aria-labelledby="location-panel-title" hidden>
@@ -562,6 +582,27 @@
           <input type="text" id="description-title" class="keyword-input description-input" autocomplete="off">
           <label class="description-field" for="description-text"><span data-i18n="Description"></span></label>
           <textarea id="description-text" class="keyword-input description-input description-textarea"></textarea>
+          <!-- Moitié basse : auteur et droits (description-panel.js, rights-presets.js). Le champ de préréglage est vide à l'ouverture du panneau ; en choisir un remplace les cinq champs par ses valeurs. -->
+          <div class="description-rights">
+            <div class="rights-preset-line">
+              <div class="keyword-input-wrap rights-preset-field">
+                <input type="text" id="rights-preset-input" class="keyword-input description-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="Author and rights preset…" data-i18n-aria-label="Author and rights preset">
+                <ul id="rights-preset-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+              </div>
+              <button type="button" id="btn-rights-presets" class="icon-button rights-preset-button" data-i18n-title="Manage the author and rights presets" data-i18n-aria-label="Manage the author and rights presets"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/></svg></button>
+              <button type="button" id="btn-rights-preset-save" class="icon-button rights-preset-button" data-i18n-title="Save the fields in the preset" data-i18n-aria-label="Save the fields in the preset"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg></button>
+            </div>
+            <label class="description-field" for="description-author"><span data-i18n="Author"></span></label>
+            <input type="text" id="description-author" class="keyword-input description-input" autocomplete="off" spellcheck="false" data-i18n-title="Several authors: separate them with a semicolon">
+            <label class="description-field" for="description-copyright"><span data-i18n="Copyright notice"></span></label>
+            <input type="text" id="description-copyright" class="keyword-input description-input" autocomplete="off" spellcheck="false">
+            <label class="description-field" for="description-credit"><span data-i18n="Credit"></span></label>
+            <input type="text" id="description-credit" class="keyword-input description-input" autocomplete="off" spellcheck="false">
+            <label class="description-field" for="description-usage-terms"><span data-i18n="Usage terms"></span></label>
+            <input type="text" id="description-usage-terms" class="keyword-input description-input" autocomplete="off" spellcheck="false">
+            <label class="description-field" for="description-author-email"><span data-i18n="Author's email"></span></label>
+            <input type="text" id="description-author-email" class="keyword-input description-input" autocomplete="off" spellcheck="false">
+          </div>
           <div class="keyword-actions">
             <button type="button" id="btn-description-apply" data-i18n="Write to files"></button>
             <button type="button" id="btn-description-reset" data-i18n="Discard changes"></button>
@@ -772,6 +813,11 @@
                   <option value="pick" data-i18n="Pick"></option>
                   <option value="faces" data-i18n="Face regions"></option>
                   <option value="gps" data-i18n="Location"></option>
+                  <option value="author" data-i18n="Author"></option>
+                  <option value="copyright" data-i18n="Copyright notice"></option>
+                  <option value="credit" data-i18n="Credit"></option>
+                  <option value="usageTerms" data-i18n="Usage terms"></option>
+                  <option value="authorEmail" data-i18n="Author's email"></option>
                 </select>
               </label>
               <ol id="metadata-order-list" class="keyword-format-order"></ol>

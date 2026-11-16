@@ -51,6 +51,19 @@ pub struct Photo {
     /// Orientation the interface applies on top of the webview's when it shows the original file (see orientation::Resolved).
     #[serde(default = "one")]
     pub view_fix: u32,
+    /// Auteur retenu à la lecture (voir exif::AUTHOR_SOURCE_IDS) ; plusieurs auteurs : « A; B ». Dans la liste des photos pour le filtre « Auteur ».
+    #[serde(default)]
+    pub author: String,
+    /// Copyright, crédit, conditions d'utilisation et e-mail de l'auteur : enregistrés avec la photo mais jamais envoyés avec la liste (l'interface les
+    /// demande pour la sélection, voir rights::get_photo_rights). Vides sur une photo lue par `photo_from_row`.
+    #[serde(skip)]
+    pub copyright: String,
+    #[serde(skip)]
+    pub credit: String,
+    #[serde(skip)]
+    pub usage_terms: String,
+    #[serde(skip)]
+    pub author_email: String,
 }
 
 fn one() -> u32 { 1 }
@@ -143,6 +156,12 @@ pub fn init_db(db_path: &str) -> DbPool {
     add_column(&conn, "photos", "gps_lon REAL");
     // Flash (1 déclenché, 0 non déclenché, NULL inconnu) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
     add_column(&conn, "photos", "flash INTEGER");
+    // Auteur et droits (voir exif::Rights) : remplis à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
+    add_column(&conn, "photos", "author TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "copyright TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "credit TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "usage_terms TEXT NOT NULL DEFAULT ''");
+    add_column(&conn, "photos", "author_email TEXT NOT NULL DEFAULT ''");
 
     conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
     conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
@@ -151,6 +170,8 @@ pub fn init_db(db_path: &str) -> DbPool {
 
     // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
     crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
+    // Auteurs par photo (rights.rs).
+    crate::rights::init_schema(&conn).expect("Author preset table could not be created");
     // Albums virtuels (dossiers, albums manuels et intelligents) : voir albums.rs.
     crate::albums::init_schema(&conn).expect("Album tables could not be created");
     // Visages et personnes : voir faces.rs.
@@ -224,7 +245,7 @@ pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), St
 
 /// Colonnes lues par `photo_from_row`, dans cet ordre.
 pub(crate) const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
-     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix, effective_modified";
+     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix, effective_modified, author";
 
 /// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
 /// jamais écartée de la liste parce qu'une de ses colonnes est vide.
@@ -262,6 +283,11 @@ pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo>
         flash: row.get::<_, Option<i64>>(23)?.map(|value| value != 0),
         view_fix: row.get::<_, Option<u32>>(24)?.filter(|value| (1..=8).contains(value)).unwrap_or(1),
         effective_modified: row.get::<_, Option<i64>>(25)?.unwrap_or_default(),
+        author: text(row, 26)?,
+        copyright: String::new(),
+        credit: String::new(),
+        usage_terms: String::new(),
+        author_email: String::new(),
     })
 }
 
@@ -312,6 +338,8 @@ pub struct PhotoPrefilter {
     pub geolocated: Option<bool>,
     /// Lowercase texts that must all appear in the file name (the path is searched: superset). ASCII only: SQLite `lower` ignores the rest.
     pub filenames: Vec<String>,
+    /// Lowercase authors that must all appear in the `author` text (substring: superset of the interface's whole-name match). ASCII only.
+    pub authors: Vec<String>,
     /// Accepted file extensions, lowercase, without the dot (any one of them).
     pub extensions: Vec<String>,
     /// Gear: the camera ("make model") / the lens must contain one of these lowercase texts.
@@ -411,6 +439,9 @@ fn prefilter_condition(filter: &PhotoPrefilter, first: usize, values: &mut Vec<r
     }
     for text in filter.filenames.iter().filter(|text| !text.is_empty()) {
         parts.push(format!("instr(lower(COALESCE(NULLIF(filename, ''), path)), {}) > 0", push(Value::Text(text.clone()), values)));
+    }
+    for author in filter.authors.iter().filter(|author| !author.is_empty()) {
+        parts.push(format!("instr(lower(COALESCE(author, '')), {}) > 0", push(Value::Text(author.clone()), values)));
     }
     if !filter.extensions.is_empty() {
         // LIKE ignores ASCII case, as the interface lowercases the extension.

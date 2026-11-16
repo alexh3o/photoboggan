@@ -1,10 +1,12 @@
-<!-- verified: c2ee85e | sources: src/shooting-filters.js, src/format-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
+<!-- verified: c2ee85e | sources: src/shooting-filters.js, src/format-filters.js, src/author-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/raw-settings.js, src/histogram.js, src/main.js, src-tauri/src/db.rs -->
 
 # Filters and search (sidebar filters, SQL prefilter, "Find the RAW", histogram)
 
 ## Purpose
 
 The Filters block of the sidebar narrows the displayed photos by rating, colour, pick, keywords, people, file name, date, location, gear, shooting values and format. Filtering is done **in the frontend** on the loaded list; for very large scopes the backend also applies a **SQL prefilter** before cutting the list at 50 000 photos. "Find the RAW" turns the criteria chosen in Settings into ordinary filters. The histogram overlay is a display aid that lives with them.
+
+**Author filter** (`author-filters.js`, "More filters" group, next to Format). Same shape as the format filter: a suggestion input (`filter-suggest.js`), included and excluded chips (Alt+Enter / menu), a folded summary in `#author-summary`, state `{ authors, excludedAuthors }` saved in smart albums by `capture` / `apply`. The suggestions come from the database (`rights::get_authors`: the individual authors of the visible photos with their photo counts, reloaded by `refreshAuthors` from `renderKeywordFilters` and at start), not from the loaded list. Matching is done in the frontend on `photo.author` (`A; B`, split on `;`, compared lowercase; several included authors are ANDed, like keywords). The SQL prefilter gets `PhotoPrefilter.authors`: only the lowercase ASCII included names (`authorPrefilter`), tested with `instr(lower(author), ?)`, so it is a superset of the frontend match (non-ASCII names and excluded names are left to the frontend because SQLite's `lower` only folds ASCII). The `photos.author` column is part of `PHOTO_COLUMNS` for this reason; the other rights columns are not.
 
 ## Files
 

@@ -1,0 +1,11 @@
+/* Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. */
+:root {
+  --tag-author-bg: #8a5a2b; --tag-author-border: #c08a52; --tag-author-hover: #9a6a3a;
+}
+.filter-tag.tag-author { background: var(--tag-author-bg); border-color: var(--tag-author-border); }
+button.filter-tag.tag-author:hover { background: var(--tag-author-hover); }
+
+#author-filter-input { width: 100%; min-width: 0; box-sizing: border-box; }
+#author-filter-input.invalid { border-color: #e74c3c; }
+.author-error { margin-top: 0.2rem; color: var(--danger-text); font-size: 0.7rem; }
+.author-error:empty { display: none; }

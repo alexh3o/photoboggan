@@ -102,6 +102,44 @@ const READ_ORDERS = {
       { id: 'exif', source: 'EXIF', schema: 'GPS', field: 'GPSLatitude / GPSLongitude' },
     ],
   },
+  // Author and rights (Description tab, see exif::AUTHOR_SOURCE_IDS and the lists next to it). Several authors are separated by ";".
+  author: {
+    storageKey: 'authorFormatOrder',
+    formats: [
+      { id: 'xmp-dc', source: 'XMP', schema: 'Dublin Core', field: 'dc:creator' },
+      { id: 'xmp-tiff', source: 'XMP', schema: 'TIFF', field: 'tiff:Artist' },
+      { id: 'iptc', source: 'IPTC', schema: 'Application', field: 'By-line' },
+      { id: 'exif', source: 'EXIF', schema: 'IFD0', field: 'Artist' },
+    ],
+  },
+  copyright: {
+    storageKey: 'copyrightFormatOrder',
+    formats: [
+      { id: 'xmp-dc', source: 'XMP', schema: 'Dublin Core', field: 'dc:rights' },
+      { id: 'xmp-tiff', source: 'XMP', schema: 'TIFF', field: 'tiff:Copyright' },
+      { id: 'iptc', source: 'IPTC', schema: 'Application', field: 'CopyrightNotice' },
+      { id: 'exif', source: 'EXIF', schema: 'IFD0', field: 'Copyright' },
+    ],
+  },
+  credit: {
+    storageKey: 'creditFormatOrder',
+    formats: [
+      { id: 'xmp-photoshop', source: 'XMP', schema: 'Photoshop', field: 'photoshop:Credit' },
+      { id: 'iptc', source: 'IPTC', schema: 'Application', field: 'Credit' },
+    ],
+  },
+  usageTerms: {
+    storageKey: 'usageTermsFormatOrder',
+    formats: [
+      { id: 'xmp-rights', source: 'XMP', schema: 'XMP Rights', field: 'xmpRights:UsageTerms' },
+    ],
+  },
+  authorEmail: {
+    storageKey: 'authorEmailFormatOrder',
+    formats: [
+      { id: 'xmp-iptc-core', source: 'XMP', schema: 'IPTC Core', field: 'iptcCore:CreatorWorkEmail' },
+    ],
+  },
 };
 
 // Format de fanion pick placé en tête de l'ordre de lecture : il décide des fanions proposés dans les boutons de marquage (main.js). `listener()` est

@@ -121,7 +121,7 @@ fn file_paths(path: &str) -> Vec<String> {
 }
 
 fn item(photo_id: i64, path: &str, keyword_ids: Option<Vec<i64>>) -> KeywordWriteItem {
-    KeywordWriteItem { photo_id, path: path.to_string(), keyword_ids, title: None, description: None, faces: None, gps: None }
+    KeywordWriteItem { photo_id, path: path.to_string(), keyword_ids, title: None, description: None, author: None, copyright: None, credit: None, usage_terms: None, author_email: None, faces: None, gps: None }
 }
 
 #[test]
@@ -217,6 +217,67 @@ fn delete_keeps_the_keyword_when_a_file_could_not_be_rewritten() {
     assert!(file_paths(&path).is_empty(), "the file that could be rewritten no longer carries it");
 }
 
+
+/// Auteur et droits : écrits dans le sidecar d'un PNG (la vérification d'un JPEG dépend du réglage global d'écriture, qu'un test rapide ne change pas),
+/// relus, puis enregistrés en base et renvoyés à l'interface. Une écriture qui ne les mentionne pas les laisse tels quels ; une chaîne vide les retire.
+#[test]
+fn run_write_stores_the_rights_read_back_in_the_catalog() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let png = dir.path().join("a.png");
+    std::fs::write(&png, png_bytes(8, 8)).unwrap();
+    let path = png.to_string_lossy().into_owned();
+    let photo = insert_photo(&conn, &path);
+    let env = write_env(dir.path());
+    let errors = |result: &KeywordWriteResult| result.failed.iter().map(|failure| failure.error.clone()).collect::<Vec<_>>();
+
+    let request = KeywordWriteItem {
+        author: Some("Ada; Bob".into()),
+        copyright: Some("© 2026 Ada".into()),
+        credit: Some("Agence".into()),
+        usage_terms: Some("Usage libre".into()),
+        author_email: Some("ada@example.org".into()),
+        ..item(photo, &path, None)
+    };
+    let result = run_write(&env, &pool, vec![request], None).unwrap();
+    assert!(result.failed.is_empty(), "{:?}", errors(&result));
+    let returned = &result.written[0].rights;
+    assert_eq!((returned.author.as_str(), returned.copyright.as_str(), returned.credit.as_str()), ("Ada; Bob", "© 2026 Ada", "Agence"));
+    assert_eq!((returned.usage_terms.as_str(), returned.author_email.as_str()), ("Usage libre", "ada@example.org"));
+    let expected = crate::rights::PhotoRights {
+        photo_id: photo,
+        author: "Ada; Bob".into(),
+        copyright: "© 2026 Ada".into(),
+        credit: "Agence".into(),
+        usage_terms: "Usage libre".into(),
+        author_email: "ada@example.org".into(),
+    };
+    assert_eq!(crate::rights::photo_rights(&conn, &[photo]).unwrap(), vec![expected.clone()]);
+    // The list of photos only carries the author.
+    let listed = crate::db::get_photos(&pool, 0, 10, None, true).unwrap();
+    assert_eq!((listed[0].author.as_str(), listed[0].copyright.as_str()), ("Ada; Bob", ""));
+
+    // A write that does not mention the rights leaves them as they are.
+    let title_only = KeywordWriteItem { title: Some("Titre".into()), ..item(photo, &path, None) };
+    let result = run_write(&env, &pool, vec![title_only], None).unwrap();
+    assert!(result.failed.is_empty(), "{:?}", errors(&result));
+    assert_eq!(crate::rights::photo_rights(&conn, &[photo]).unwrap(), vec![expected]);
+
+    // Emptied fields are removed from the file and from the catalog.
+    let clear = KeywordWriteItem {
+        author: Some(String::new()),
+        copyright: Some(String::new()),
+        credit: Some(String::new()),
+        usage_terms: Some(String::new()),
+        author_email: Some(String::new()),
+        ..item(photo, &path, None)
+    };
+    let result = run_write(&env, &pool, vec![clear], None).unwrap();
+    assert!(result.failed.is_empty(), "{:?}", errors(&result));
+    let cleared = crate::rights::photo_rights(&conn, &[photo]).unwrap();
+    assert_eq!(cleared, vec![crate::rights::PhotoRights { photo_id: photo, author: String::new(), copyright: String::new(), credit: String::new(), usage_terms: String::new(), author_email: String::new() }]);
+    assert_eq!(crate::db::get_photos(&pool, 0, 10, None, true).unwrap()[0].author, "");
+}
 
 /// Sets the modification date of `path` one hour back (so a sidecar written now is strictly newer, whatever the clock resolution).
 fn backdate(path: &Path) {

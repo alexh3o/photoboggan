@@ -6,10 +6,11 @@
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *style*: `map` alternative dark map style
+- [ ] *feat*: `UI` display date modified and created somewhere
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections
-- [ ] *refactor*: `grid` date modified sorting must see metadata writes
+- [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [ ] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
-- [ ] *fix*: `tree` reordering root folders in tree only works with arrows
+- [ ] *fix*: `tree` reordering root folders in tree needs a lic action after moving to register
 
 ## 💡 Ideas / Longer term / On hold
 

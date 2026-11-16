@@ -28,6 +28,7 @@ mod keywords;
 mod library_sync;
 mod orientation;
 mod resize;
+mod rights;
 mod stats;
 mod thumbnails;
 mod video;
@@ -1058,8 +1059,8 @@ fn insert_batch(conn: &rusqlite::Connection, photos: &[Photo]) -> rusqlite::Resu
     {
         let mut stmt = tx.prepare_cached(
             "INSERT INTO photos
-            (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, title, pick_flag, gps_lat, gps_lon, flash)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, file_size, rating, color_flag, keywords, caption, lens_model, title, pick_flag, gps_lat, gps_lon, flash, author, copyright, credit, usage_terms, author_email)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
                 filename=excluded.filename, date_taken=excluded.date_taken,
                 aperture=excluded.aperture, shutter_speed=excluded.shutter_speed,
@@ -1068,14 +1069,16 @@ fn insert_batch(conn: &rusqlite::Connection, photos: &[Photo]) -> rusqlite::Resu
                 height=excluded.height, file_size=excluded.file_size,
                 rating=excluded.rating, color_flag=excluded.color_flag,
                 keywords=excluded.keywords, caption=excluded.caption, lens_model=excluded.lens_model, title=excluded.title,
-                pick_flag=excluded.pick_flag, gps_lat=excluded.gps_lat, gps_lon=excluded.gps_lon, flash=excluded.flash"
+                pick_flag=excluded.pick_flag, gps_lat=excluded.gps_lat, gps_lon=excluded.gps_lon, flash=excluded.flash,
+                author=excluded.author, copyright=excluded.copyright, credit=excluded.credit, usage_terms=excluded.usage_terms, author_email=excluded.author_email"
         )?;
 
         for p in photos {
             stmt.execute(params![
                 p.path, p.filename, p.date_taken, p.aperture, p.shutter_speed,
                 p.iso, p.focal_length, p.manufacturer, p.camera_model, p.width, p.height, p.file_size,
-                p.rating, p.color_flag, p.keywords, p.caption, p.lens_model, p.title, p.pick_flag, p.gps_lat, p.gps_lon, p.flash
+                p.rating, p.color_flag, p.keywords, p.caption, p.lens_model, p.title, p.pick_flag, p.gps_lat, p.gps_lon, p.flash,
+                p.author, p.copyright, p.credit, p.usage_terms, p.author_email
             ])?;
         }
     }
@@ -2820,6 +2823,12 @@ fn main() {
             keywords::delete_keyword,
             keywords::rename_keyword,
             keywords::set_metadata_read_order,
+            rights::get_photo_rights,
+            rights::get_authors,
+            rights::list_author_presets,
+            rights::create_author_preset,
+            rights::save_author_preset,
+            rights::delete_author_preset,
             stats::get_collection_stats,
             stats::get_stats_filter_options,
             faces::set_face_reading,
