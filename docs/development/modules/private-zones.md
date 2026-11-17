@@ -1,4 +1,4 @@
-<!-- verified: 03c1da6 | sources: src-tauri/src/private_maps.rs, src/private-zones.js, src/private-zones-modal.js, src/zone-drawing.js -->
+<!-- verified: 216f059 | sources: src-tauri/src/private_maps.rs, src/private-zones.js, src/private-zones-modal.js, src/zone-drawing.js -->
 # Private zones and offline maps
 
 ## Purpose
