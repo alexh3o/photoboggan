@@ -470,7 +470,7 @@ fn add_xmp_item(data: &[u8], lay: &Layout, xmp: &str) -> Result<Vec<u8>, String>
     for (pos, bytes) in inserts.iter_mut() {
         if *pos == lay.iloc.end { bytes[..entry_final.len()].copy_from_slice(&entry_final); }
     }
-    inserts.sort_by(|a, b| b.0.cmp(&a.0));
+    inserts.sort_by_key(|insert| std::cmp::Reverse(insert.0));
     for (pos, bytes) in &inserts { out.splice(*pos..*pos, bytes.iter().copied()); }
     let box_size = u32::try_from(payload.len() + 8).map_err(|_| "XMP trop grand".to_string())?;
     out.extend_from_slice(&box_size.to_be_bytes());

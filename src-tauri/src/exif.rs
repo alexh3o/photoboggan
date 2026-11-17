@@ -65,8 +65,8 @@ fn xmp_value(xml: &str, names: &[&str]) -> Option<String> {
             if before_ok && after_ok {
                 let tail = &xml[after..];
                 let tail = tail.trim_start();
-                if tail.starts_with('=') {
-                    let value = tail[1..].trim_start();
+                if let Some(tail) = tail.strip_prefix('=') {
+                    let value = tail.trim_start();
                     if let Some(quote) = value.chars().next().filter(|c| *c == '"' || *c == '\'') {
                         let body = &value[quote.len_utf8()..];
                         if let Some(end) = body.find(quote) { return Some(body[..end].to_string()); }
@@ -228,7 +228,7 @@ fn read_jpeg_fields(path: &Path) -> JpegFields {
                     let mut value_len = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
                     let mut header = 5;
                     if value_len & 0x8000 != 0 {
-                        let n = (value_len & 0x7fff) as usize;
+                        let n = value_len & 0x7fff;
                         if n == 0 || n > 4 || q + 5 + n > iptc.len() { break; }
                         value_len = 0;
                         for byte in &iptc[q + 5..q + 5 + n] { value_len = (value_len << 8) | *byte as usize; }
@@ -1281,11 +1281,11 @@ fn resolve_values(meta: &mut ExifMetadata) {
     let gps_priority = *lock_read(&GPS_PRIORITY);
     meta.gps = gps_priority.iter().find_map(|index| meta.gps_sources[*index]);
     meta.rights = Rights {
-        author: resolve_text(&meta.rights_sources.author, &*lock_read(&AUTHOR_PRIORITY)),
-        copyright: resolve_text(&meta.rights_sources.copyright, &*lock_read(&COPYRIGHT_PRIORITY)),
-        credit: resolve_text(&meta.rights_sources.credit, &*lock_read(&CREDIT_PRIORITY)),
-        usage_terms: resolve_text(&meta.rights_sources.usage_terms, &*lock_read(&USAGE_TERMS_PRIORITY)),
-        author_email: resolve_text(&meta.rights_sources.author_email, &*lock_read(&AUTHOR_EMAIL_PRIORITY)),
+        author: resolve_text(&meta.rights_sources.author, &lock_read(&AUTHOR_PRIORITY)),
+        copyright: resolve_text(&meta.rights_sources.copyright, &lock_read(&COPYRIGHT_PRIORITY)),
+        credit: resolve_text(&meta.rights_sources.credit, &lock_read(&CREDIT_PRIORITY)),
+        usage_terms: resolve_text(&meta.rights_sources.usage_terms, &lock_read(&USAGE_TERMS_PRIORITY)),
+        author_email: resolve_text(&meta.rights_sources.author_email, &lock_read(&AUTHOR_EMAIL_PRIORITY)),
     };
 }
 
@@ -1468,7 +1468,7 @@ fn update_xmp_rating(xml: &str, rating: i32) -> String {
         if found_element { continue; }
 
         let mut found_attribute = false;
-        if let Some(start) = updated.find(&name) {
+        if let Some(start) = updated.find(name) {
             let mut pos = start + name.len();
             while updated.as_bytes().get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
             if updated.as_bytes().get(pos) == Some(&b'=') {
@@ -1794,22 +1794,17 @@ fn update_xmp_metadata(xml: &str, edit: XmpEdit) -> String {
     if !xml.contains("rdf:Description") && !edit.adds_values() { return xml.to_string(); }
     let mut updated = xml.to_string();
     if let Some(rating) = edit.rating { updated = update_xmp_rating(&updated, rating); }
-    if edit.label.is_some() || edit.pick.is_some() {
-        if !updated.contains("rdf:Description") {
-            // Rien à retirer d'un fichier sans XMP : le paquet n'est créé que pour écrire une valeur.
-            let adds = edit.label.is_some_and(|label| label.is_some()) || edit.pick.is_some_and(|pick| pick != "none");
-            if !adds { return updated; }
-            updated = EMPTY_XMP_PACKET.to_string();
-        }
+    if (edit.label.is_some() || edit.pick.is_some()) && !updated.contains("rdf:Description") {
+        // Rien à retirer d'un fichier sans XMP : le paquet n'est créé que pour écrire une valeur.
+        let adds = edit.label.is_some_and(|label| label.is_some()) || edit.pick.is_some_and(|pick| pick != "none");
+        if !adds { return updated; }
+        updated = EMPTY_XMP_PACKET.to_string();
     }
     if let Some(label) = edit.label {
         // label xmp standard
         updated = update_xmp_label(&updated, label);
         // Couleurs dans Photoshop Urgency et digiKam ColorLabel
-        let color_str = match label {
-            Some(val) => val,
-            None => "",
-        };
+        let color_str = label.unwrap_or_default();
         let urgency_val = if color_str.is_empty() { None } else { color_to_urgency_and_digikam(color_str) };
         updated = update_photoshop_urgency(&updated, urgency_val);
         updated = update_digikam_color_label(&updated, urgency_val);

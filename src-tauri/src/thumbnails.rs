@@ -169,7 +169,6 @@ use std::io::{Cursor, Read, Seek, SeekFrom};
 ///////
 /// EXTRACTEURS RAW
 ///////
-
 /// Extrait le flux JPEG de prévisualisation contenu dans un fichier RAW.
 pub fn extract_raw_preview(source: &Path) -> Result<Vec<u8>, String> {
     let mut file = File::open(source).map_err(|e| e.to_string())?;

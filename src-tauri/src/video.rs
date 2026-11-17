@@ -8,6 +8,7 @@
 //! - Windows : la vignette du Shell (IShellItemImageFactory), la même que celle de l'Explorateur. Elle utilise les codecs déjà
 //!   installés sur la machine : rien à distribuer avec l'application.
 //! - Repli, toutes plateformes : `ffmpeg` s'il est installé et accessible dans le PATH (jamais distribué avec l'application).
+//!
 //! Si aucune des deux ne fournit d'image, la miniature reste absente : l'interface affiche alors la case avec son icône « Play ».
 
 use std::fs;
@@ -64,14 +65,16 @@ fn shell_thumbnail(path: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usiz
         }
         let width = info.bmWidth;
         let height = info.bmHeight.abs();
-        let mut header = BITMAPINFO::default();
-        header.bmiHeader = BITMAPINFOHEADER {
-            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: width,
-            biHeight: -height, // hauteur négative : lignes lues de haut en bas
-            biPlanes: 1,
-            biBitCount: 32,
-            biCompression: 0, // BI_RGB
+        let mut header = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: width,
+                biHeight: -height, // hauteur négative : lignes lues de haut en bas
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: 0, // BI_RGB
+                ..Default::default()
+            },
             ..Default::default()
         };
         let mut bgra = vec![0u8; width as usize * height as usize * 4];

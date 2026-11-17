@@ -593,7 +593,7 @@ fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &P
     let mut removed = 0;
     for dir in [thumbnails_dir, raw_previews_dir] {
         for path in cache_files(dir) {
-            let is_cache_jpg = path.extension().map_or(false, |extension| extension == "jpg");
+            let is_cache_jpg = path.extension().is_some_and(|extension| extension == "jpg");
             if is_cache_jpg && !expected.contains(&path) && fs::remove_file(&path).is_ok() { removed += 1; }
         }
     }
@@ -893,7 +893,7 @@ async fn rescan_all_folders(app: tauri::AppHandle, state: State<'_, AppState>, t
 }
 
 fn path_segments(path: &str) -> Vec<&str> {
-    path.split(|character| character == '\\' || character == '/').filter(|segment| !segment.is_empty()).collect()
+    path.split(['\\', '/']).filter(|segment| !segment.is_empty()).collect()
 }
 
 // Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
@@ -1271,7 +1271,7 @@ fn write_photo_marking(
     let conn = pool.get().map_err(|error| error.to_string())?;
     // Le fichier vient d'être réécrit par l'application : sa nouvelle taille et sa date sont enregistrées avec les valeurs, dans une même
     // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
-    let metadata = fs::metadata(&path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
+    let metadata = fs::metadata(path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
     let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
     // `modified` = the image file's mtime (unchanged when only the sidecar was written); `effective_modified` also counts the sidecar's.
     let image_modified = library_sync::modified_millis(&metadata);
@@ -1282,7 +1282,7 @@ fn write_photo_marking(
         tx.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|error| error.to_string())?;
     }
     if let Some(flag) = color_flag {
-        tx.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(&flag), id]).map_err(|error| error.to_string())?;
+        tx.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(flag), id]).map_err(|error| error.to_string())?;
     }
     if let Some(pick) = pick {
         tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
@@ -1816,7 +1816,7 @@ fn get_folder_unrecognized_files(state: State<'_, AppState>, path: String) -> Re
             continue;
         }
         // 3. Ignorer les métadonnées sidecars .xmp
-        if entry_path.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("xmp")) {
+        if entry_path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("xmp")) {
             continue;
         }
         // Fichier non géré : on conserve le chemin relatif par rapport au dossier pour un affichage lisible
@@ -1889,7 +1889,7 @@ fn delete_folder(state: State<'_, AppState>, path: String) -> Result<Vec<String>
 // Un disque externe débranché ou un partage réseau coupé n'est donc jamais pris pour une suppression de photos.
 fn tracked_root_is_reachable(root: &str) -> bool {
     let root = Path::new(root);
-    root.is_dir() || root.parent().map_or(false, |parent| parent.is_dir())
+    root.is_dir() || root.parent().is_some_and(|parent| parent.is_dir())
 }
 
 fn is_inside_folder(folder: &str, path: &str) -> bool {
@@ -2156,7 +2156,7 @@ impl FileTaskProgress {
     }
 
     fn cancelled(&self) -> bool {
-        self.cancel.as_ref().map_or(false, |flag| flag.load(Ordering::Relaxed))
+        self.cancel.as_ref().is_some_and(|flag| flag.load(Ordering::Relaxed))
     }
 
     // À appeler après chaque fichier traité (réussi ou non) avec sa taille.
@@ -2224,7 +2224,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 failed.push(FileFailure { path: path.clone(), error: "Nom de fichier invalide".into() });
                 break 'file;
             };
-            if source.parent().map_or(false, |parent| lowercase_segments(parent) == destination_segments) {
+            if source.parent().is_some_and(|parent| lowercase_segments(parent) == destination_segments) {
                 skipped += 1;
                 break 'file;
             }

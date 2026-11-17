@@ -225,7 +225,9 @@ fn is_excluded(excluded: &[String], path: &str) -> bool {
 /// - fichier introuvable (dossier suivi joignable) : retiré ;
 /// - ligne sans date enregistrée (catalogue antérieur à cette colonne ou scan manuel) : on enregistre simplement la date
 ///   si la taille n'a pas changé, sans relire le fichier.
+///
 /// Un seul passage à la fois : un appel pendant une synchronisation en cours ne fait rien.
+///
 /// `excluded`: folders of paused scans, left alone (neither read nor checked for removals): the scan reads them when it is resumed,
 /// instead of the synchronization reading a whole paused root folder in the background.
 pub fn sync_library(pool: &DbPool, excluded: &[String]) -> Result<SyncChanges, String> {

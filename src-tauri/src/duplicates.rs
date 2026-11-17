@@ -9,6 +9,7 @@
 //! 1. image data length, from the headers only (a few KB per file) ;
 //! 2. hash of the first and last 64 KB of the image data ;
 //! 3. hash of the whole image data.
+//!
 //! Only files still sharing their key with another file go to the next stage. Results are cached in `photo_hashes` (key: size + modification date),
 //! so a second run reads almost nothing. Nothing runs, and the table stays empty, until the user starts a search.
 

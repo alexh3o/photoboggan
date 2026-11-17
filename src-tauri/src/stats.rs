@@ -248,7 +248,7 @@ impl Histogram {
 
 /// `^\d+(?:[.,]\d+)?$` as a number (the interface's `parseDecimal`).
 fn parse_decimal(text: &str) -> Option<f64> {
-    let (whole, fraction) = match text.split_once(|c| c == '.' || c == ',') {
+    let (whole, fraction) = match text.split_once(['.', ',']) {
         Some((whole, fraction)) => (whole, Some(fraction)),
         None => (text, None),
     };
@@ -344,7 +344,7 @@ impl NameCounts {
 
 /// Lower-case extension of a path without the dot ("" when it has none).
 fn extension_of(path: &str) -> String {
-    let name = path.rsplit(|c| c == '/' || c == '\\').next().unwrap_or(path);
+    let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
     match name.rfind('.') {
         Some(dot) if dot + 1 < name.len() => name[dot + 1..].to_lowercase(),
         _ => String::new(),

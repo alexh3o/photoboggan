@@ -7,6 +7,7 @@
 //! * drafts are ignored, and so are releases whose tag is not `v<x>.<y>.<z>` (e.g. `face-models-1`, which does not hold the application);
 //! * pre-releases are offered only if the user asked for them, or if the installed version is itself a beta (suffix `-beta`, `-rc`…);
 //! * comparison on the three numbers only: the `-beta` suffix of the Linux .deb is ignored, the matching Windows version has none.
+//!
 //! The version always comes from the tag, never from file names (release v0.4.2 holds files named 0.4.1).
 //!
 //! Download and install: the interface never provides a URL or a path. The backend finds the installer in the release itself (repository

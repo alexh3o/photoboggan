@@ -76,45 +76,45 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 
 ## duplicates.rs (39)
 
-- *enum* `pub Scope` · L51 — What to scan. Folder paths follow the catalog convention (`/` or `\`, compared after normalisation).
-- *struct* `pub Request` · L59
-- *struct* `pub Report` · L69
-- `pub init_schema` · L91 — Cache of the hashes. `mode`: 0 = whole file, 1 = image data only. A row is valid while the file keeps its size and modification date.
-- *struct* `Layout` · L114
-- `Layout::len` · L121
-- `pub extension_of` · L126
-- `layout_of` · L130
-- `merge` · L147 — Joins ranges that touch each other.
-- `read_u8` · L158
-- `jpeg_ranges` · L165 — JPEG: the segments that are not metadata (everything but APPn and COM, except APP14 "Adobe" which sets the colour transform), then the scan…
-- `jpeg_header` · L176 — Walks the segments before the scan (seeking over their content). Returns the kept segments and the offset of the SOS marker.
-- `jpeg_end` · L222 — End of the image: just after the last EOI marker of the file tail (data appended after it, like a trailing preview, is not image data).
-- `png_ranges` · L231 — PNG: signature, then the chunks that carry pixels or their interpretation. Text, EXIF, time and colour profile chunks are left out.
-- `webp_ranges` · L266 — WebP: the bitstream, alpha and animation chunks. The RIFF size and the VP8X flags change with metadata, so they are left out.
-- `finish` · L302
-- `interrupted` · L309
-- `feed` · L313
-- `full_hash` · L328
-- `partial_hash` · L338 — Start and end of the largest range (the scan, in practice): enough to tell apart almost every pair of files of the same length.
-- *struct* `pub DataHash` · L358 — Image-data hash (mode 1: metadata left out where the format allows it) of one file, and the file version it was computed from, in the
-- `pub is_video` · L368 — Videos are never hashed (whole files of several GB, and the duplicate search does not compare them).
-- `file_version` · L373 — Size and modification date (ms) of a file, the key of a cached hash.
-- `pub current_version` · L379 — Size and modification date of a file as `photo_hashes` keys them (compare with a cached `DataHash` before reading the file).
-- `pub image_data_hash` · L385 — Reads one file and computes its image-data hash: layout (headers only), then every image byte. Fails when the file changed while it was
-- `pub cached_data_hashes` · L400 — Full image-data hashes already in `photo_hashes` (mode 1, current layout version) for these photos. The caller compares their version
-- `pub remember_data_hash` · L425 — Stores a hash computed outside a duplicate search, so that search does not read the file again. The partial hash of the row is kept when
-- *struct* `Entry` · L443
-- *struct* `Cached` · L457
-- `to_hash` · L466
-- `load_cache` · L470
-- `save_dirty` · L492
-- `normalize` · L520
-- *struct* `pub Candidate` · L525 — A photo of the catalog taken into a search.
-- `pub load_candidates` · L537 — Photos of the scope, then (when asked) the rest of the library. Videos are left out.
-- `pub name_candidates` · L591 — For the search by file name, which runs in the interface (the name pattern is a JavaScript regular expression): path, shooting date and
-- `regroup` · L602 — Splits each group by `key`; keeps the buckets of two or more files holding at least one scanned photo. Entries without a key are dropped.
-- `fill_hashes` · L618 — Computes the missing hashes of the files still in a group, in parallel.
-- `pub run` · L667 — Finds groups of identical images. `progress` receives a fraction between 0 and 1. A cancelled run returns what it has found so far (no grou…
+- *enum* `pub Scope` · L52 — What to scan. Folder paths follow the catalog convention (`/` or `\`, compared after normalisation).
+- *struct* `pub Request` · L60
+- *struct* `pub Report` · L70
+- `pub init_schema` · L92 — Cache of the hashes. `mode`: 0 = whole file, 1 = image data only. A row is valid while the file keeps its size and modification date.
+- *struct* `Layout` · L115
+- `Layout::len` · L122
+- `pub extension_of` · L127
+- `layout_of` · L131
+- `merge` · L148 — Joins ranges that touch each other.
+- `read_u8` · L159
+- `jpeg_ranges` · L166 — JPEG: the segments that are not metadata (everything but APPn and COM, except APP14 "Adobe" which sets the colour transform), then the scan…
+- `jpeg_header` · L177 — Walks the segments before the scan (seeking over their content). Returns the kept segments and the offset of the SOS marker.
+- `jpeg_end` · L223 — End of the image: just after the last EOI marker of the file tail (data appended after it, like a trailing preview, is not image data).
+- `png_ranges` · L232 — PNG: signature, then the chunks that carry pixels or their interpretation. Text, EXIF, time and colour profile chunks are left out.
+- `webp_ranges` · L267 — WebP: the bitstream, alpha and animation chunks. The RIFF size and the VP8X flags change with metadata, so they are left out.
+- `finish` · L303
+- `interrupted` · L310
+- `feed` · L314
+- `full_hash` · L329
+- `partial_hash` · L339 — Start and end of the largest range (the scan, in practice): enough to tell apart almost every pair of files of the same length.
+- *struct* `pub DataHash` · L359 — Image-data hash (mode 1: metadata left out where the format allows it) of one file, and the file version it was computed from, in the
+- `pub is_video` · L369 — Videos are never hashed (whole files of several GB, and the duplicate search does not compare them).
+- `file_version` · L374 — Size and modification date (ms) of a file, the key of a cached hash.
+- `pub current_version` · L380 — Size and modification date of a file as `photo_hashes` keys them (compare with a cached `DataHash` before reading the file).
+- `pub image_data_hash` · L386 — Reads one file and computes its image-data hash: layout (headers only), then every image byte. Fails when the file changed while it was
+- `pub cached_data_hashes` · L401 — Full image-data hashes already in `photo_hashes` (mode 1, current layout version) for these photos. The caller compares their version
+- `pub remember_data_hash` · L426 — Stores a hash computed outside a duplicate search, so that search does not read the file again. The partial hash of the row is kept when
+- *struct* `Entry` · L444
+- *struct* `Cached` · L458
+- `to_hash` · L467
+- `load_cache` · L471
+- `save_dirty` · L493
+- `normalize` · L521
+- *struct* `pub Candidate` · L526 — A photo of the catalog taken into a search.
+- `pub load_candidates` · L538 — Photos of the scope, then (when asked) the rest of the library. Videos are left out.
+- `pub name_candidates` · L592 — For the search by file name, which runs in the interface (the name pattern is a JavaScript regular expression): path, shooting date and
+- `regroup` · L603 — Splits each group by `key`; keeps the buckets of two or more files holding at least one scanned photo. Entries without a key are dropped.
+- `fill_hashes` · L619 — Computes the missing hashes of the files still in a group, in parallel.
+- `pub run` · L668 — Finds groups of identical images. `progress` receives a fraction between 0 and 1. A cancelled run returns what it has found so far (no grou…
 
 ## exif.rs (165)
 
@@ -207,82 +207,82 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `set_description_attribute` · L1759 — Remplace une propriété XMP par un attribut du premier rdf:Description (la propriété existante, en attribut ou en élément, est retirée avant…
 - `update_xmp_pick` · L1780 — Écrit le fanion pick dans les trois formats : digiKam:PickLabel (0 à 3), xmpDM:pick (-1, 0, 1) et xmpDM:good (True / False, retiré sans fan…
 - `update_xmp_metadata` · L1792 — Applique uniquement ce qui est demandé (voir XmpEdit).
-- `pub write_xmp_metadata` · L1825 — Écrit la note, la couleur et/ou le fanion pick (voir `XmpEdit` : seules les valeurs fournies sont modifiées), sans toucher au reste du fich…
-- `set_xmp_orientation` · L1852 — XMP `tiff:Orientation` set to `orientation` (packet created when there is none). The MicrosoftPhoto namespace of an old packet is fixed
-- `pub write_xmp_orientation` · L1859 — Lossless rotation with the internal writer (see orientation.rs): XMP `tiff:Orientation` only, never the EXIF tag nor the image data.
-- `fix_microsoft_namespace` · L1889 — Paquet XMP dont la déclaration du namespace MicrosoftPhoto est corrigée : les versions précédentes l'écrivaient sans le « / » final.
-- `xml_escape_text` · L1895
-- `remove_xmp_list_property` · L1901 — Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
-- `xmp_list_element` · L1935 — Élément XMP liste : `<nom><rdf:Bag><rdf:li>…</rdf:li></rdf:Bag></nom>` (ou `rdf:Seq`).
-- `insert_description_children` · L1947 — Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élém…
-- `update_xmp_keywords` · L1985 — Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
-- *struct* `pub MetadataUpdate` · L2022 — Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
-- *struct* `pub RegionWrite` · L2042 — Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
-- *struct* `pub RegionsUpdate` · L2052 — Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
-- `pub MetadataUpdate::clean_title` · L2060 — Titre à écrire, nettoyé (une ligne) ; chaîne vide pour le retirer.
-- `pub MetadataUpdate::clean_description` · L2065 — Description à écrire, nettoyée ; chaîne vide pour la retirer.
-- `pub MetadataUpdate::adds_values` · L2070 — Vrai si l'écriture ajoute au moins une valeur (sinon elle ne fait que retirer : un sidecar absent n'est pas créé).
-- `pub MetadataUpdate::author_list` · L2080 — Auteurs à écrire (séparés par « ; » dans la saisie), nettoyés ; liste vide pour les retirer.
-- `pub MetadataUpdate::clean_copyright` · L2085 — Mention de copyright, crédit, conditions d'utilisation et e-mail : une seule ligne, espaces de début et de fin retirés ; chaîne vide pour r…
-- `pub MetadataUpdate::clean_credit` · L2089
-- `pub MetadataUpdate::clean_usage_terms` · L2093
-- `pub MetadataUpdate::clean_author_email` · L2097
-- `MetadataUpdate::adds_rights` · L2102 — Vrai si l'écriture ajoute au moins une valeur d'auteur ou de droits (sinon elle ne fait que retirer).
-- `pub keyword_leaves` · L2111 — Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
-- `xmp_other_language_items` · L2127 — Entrées d'une liste de langues XMP (`rdf:Alt`) autres que `x-default` (ex. `fr-FR` ajoutée par digiKam), telles qu'écrites dans le
-- `xmp_alt_element` · L2155 — Élément XMP « liste de langues » : la valeur par défaut `<rdf:li xml:lang="x-default">…</rdf:li>` suivie des autres langues
-- `update_xmp_texts` · L2165 — Remplace le titre (dc:title, acdsee:caption) et/ou la description (dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes)
-- `push_namespace` · L2212 — Ajoute `namespace` à la liste des espaces de noms à déclarer, une seule fois.
-- `update_xmp_rights` · L2221 — Auteur, copyright, crédit, conditions d'utilisation et e-mail de l'auteur d'un paquet XMP : `dc:creator` (liste, un auteur par entrée) et
-- `update_xmp_all` · L2291 — Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, auteur et droits, zones de visage, GPS).
-- `pub xmp_gps_coordinate` · L2309 — Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.
-- `pub update_xmp_gps` · L2317 — Coordonnées GPS du paquet XMP : toutes les propriétés `exif:GPS…` (position, altitude, heure, version…) sont retirées, puis, pour une
-- `pub update_xmp_regions` · L2358 — Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
-- `pub read_face_regions` · L2406 — Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
-- `pub rotate_xmp_regions` · L2416 — Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
-- `jpeg_replace_comment` · L2431 — JPEG dont les commentaires (segments COM) sont remplacés par un seul contenant `text` (aucun si `text` est vide), placé après les segments
-- `jpeg_insert_position` · L2468 — Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
-- `invalid_data` · L2478
-- `check_jpeg_structure` · L2485 — JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien …
-- `jpeg_replace_xmp` · L2493
-- `find_jpeg_photoshop_segment` · L2534 — Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
-- *struct* `PhotoshopResource` · L2540
-- `parse_photoshop_resources` · L2543 — Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
-- *struct* `IptcDataset` · L2564
-- `parse_iptc_datasets` · L2567 — Jeux de données d'un bloc IPTC-IIM ; `None` si le bloc est mal formé (il n'est alors pas modifié).
-- `pub truncate_utf8` · L2591
-- *struct* `IptcChanges` · L2601 — Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120), auteurs By-line (2:80, plusieurs),
-- `IptcChanges::datasets` · L2612 — Nouveaux jeux de données (numéro, valeur), coupés à la longueur maximale de la norme (64 octets ; 2000 pour la description).
-- `iptc_with` · L2628 — Nouveau bloc IPTC : les jeux de données concernés par `changes` sont remplacés, tout le reste est recopié tel quel.
-- `jpeg_replace_iptc` · L2658 — JPEG dont les jeux de données IPTC concernés par `changes` sont remplacés. Les autres ressources Photoshop et jeux de données IPTC sont
-- `pub write_file_atomically` · L2708
-- `write_jpeg_metadata` · L2723 — JPEG : XMP, IPTC et commentaire réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
-- `pub image_gone` · L2747
-- *struct* `pub SidecarTarget` · L2752 — Sidecar an image's metadata is written to (see `sidecar_target`).
-- `pub sidecar_target` · L2766 — XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
-- `pub has_same_stem_sibling` · L2779 — True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
-- `shares_sidecar_with_sidecar_writer` · L2784 — Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
-- `same_stem_siblings` · L2792
-- `pub read_sidecar` · L2804 — Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
-- `pub active_sidecar` · L2810 — The sidecar an image reads, if it exists: `photo.ext.xmp`, else `photo.xmp` (the same choice as `read_sidecar`, which reads it). Its
-- `pub sidecar_candidates` · L2818 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
-- `write_xmp_sidecar_with` · L2824 — XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
-- `pub write_metadata` · L2844 — Écrit les modifications `update` (mots-clés, titre, description) dans le fichier, en une seule écriture :
-- `pub write_metadata_internal` · L2850 — The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
-- `pub text_mismatch` · L2870 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
-- `rights_mismatch` · L2903 — Vérification après écriture de l'auteur et des droits : mêmes sources que pour le titre (XMP toujours, IPTC pour un JPEG, EXIF pour un JPEG…
-- *struct* `pub MetadataEntry` · L2948
-- *struct* `pub MetadataDetails` · L2954
-- `detail_entry` · L2963
-- `read_exif_entries` · L2973
-- `read_xmp_packet` · L2989 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
-- `pub xml_tag_end` · L2995 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
-- `xml_attributes` · L3008
-- `list_xmp_properties` · L3025 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
-- `iptc_dataset_name` · L3083
-- `collect_iptc_datasets` · L3097 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
-- `read_iptc_entries` · L3126
-- `pub read_metadata_details` · L3141 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
+- `pub write_xmp_metadata` · L1820 — Écrit la note, la couleur et/ou le fanion pick (voir `XmpEdit` : seules les valeurs fournies sont modifiées), sans toucher au reste du fich…
+- `set_xmp_orientation` · L1847 — XMP `tiff:Orientation` set to `orientation` (packet created when there is none). The MicrosoftPhoto namespace of an old packet is fixed
+- `pub write_xmp_orientation` · L1854 — Lossless rotation with the internal writer (see orientation.rs): XMP `tiff:Orientation` only, never the EXIF tag nor the image data.
+- `fix_microsoft_namespace` · L1884 — Paquet XMP dont la déclaration du namespace MicrosoftPhoto est corrigée : les versions précédentes l'écrivaient sans le « / » final.
+- `xml_escape_text` · L1890
+- `remove_xmp_list_property` · L1896 — Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
+- `xmp_list_element` · L1930 — Élément XMP liste : `<nom><rdf:Bag><rdf:li>…</rdf:li></rdf:Bag></nom>` (ou `rdf:Seq`).
+- `insert_description_children` · L1942 — Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élém…
+- `update_xmp_keywords` · L1980 — Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
+- *struct* `pub MetadataUpdate` · L2017 — Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
+- *struct* `pub RegionWrite` · L2037 — Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
+- *struct* `pub RegionsUpdate` · L2047 — Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
+- `pub MetadataUpdate::clean_title` · L2055 — Titre à écrire, nettoyé (une ligne) ; chaîne vide pour le retirer.
+- `pub MetadataUpdate::clean_description` · L2060 — Description à écrire, nettoyée ; chaîne vide pour la retirer.
+- `pub MetadataUpdate::adds_values` · L2065 — Vrai si l'écriture ajoute au moins une valeur (sinon elle ne fait que retirer : un sidecar absent n'est pas créé).
+- `pub MetadataUpdate::author_list` · L2075 — Auteurs à écrire (séparés par « ; » dans la saisie), nettoyés ; liste vide pour les retirer.
+- `pub MetadataUpdate::clean_copyright` · L2080 — Mention de copyright, crédit, conditions d'utilisation et e-mail : une seule ligne, espaces de début et de fin retirés ; chaîne vide pour r…
+- `pub MetadataUpdate::clean_credit` · L2084
+- `pub MetadataUpdate::clean_usage_terms` · L2088
+- `pub MetadataUpdate::clean_author_email` · L2092
+- `MetadataUpdate::adds_rights` · L2097 — Vrai si l'écriture ajoute au moins une valeur d'auteur ou de droits (sinon elle ne fait que retirer).
+- `pub keyword_leaves` · L2106 — Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
+- `xmp_other_language_items` · L2122 — Entrées d'une liste de langues XMP (`rdf:Alt`) autres que `x-default` (ex. `fr-FR` ajoutée par digiKam), telles qu'écrites dans le
+- `xmp_alt_element` · L2150 — Élément XMP « liste de langues » : la valeur par défaut `<rdf:li xml:lang="x-default">…</rdf:li>` suivie des autres langues
+- `update_xmp_texts` · L2160 — Remplace le titre (dc:title, acdsee:caption) et/ou la description (dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes)
+- `push_namespace` · L2207 — Ajoute `namespace` à la liste des espaces de noms à déclarer, une seule fois.
+- `update_xmp_rights` · L2216 — Auteur, copyright, crédit, conditions d'utilisation et e-mail de l'auteur d'un paquet XMP : `dc:creator` (liste, un auteur par entrée) et
+- `update_xmp_all` · L2286 — Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, auteur et droits, zones de visage, GPS).
+- `pub xmp_gps_coordinate` · L2304 — Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.
+- `pub update_xmp_gps` · L2312 — Coordonnées GPS du paquet XMP : toutes les propriétés `exif:GPS…` (position, altitude, heure, version…) sont retirées, puis, pour une
+- `pub update_xmp_regions` · L2353 — Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
+- `pub read_face_regions` · L2401 — Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
+- `pub rotate_xmp_regions` · L2411 — Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
+- `jpeg_replace_comment` · L2426 — JPEG dont les commentaires (segments COM) sont remplacés par un seul contenant `text` (aucun si `text` est vide), placé après les segments
+- `jpeg_insert_position` · L2463 — Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
+- `invalid_data` · L2473
+- `check_jpeg_structure` · L2480 — JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien …
+- `jpeg_replace_xmp` · L2488
+- `find_jpeg_photoshop_segment` · L2529 — Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
+- *struct* `PhotoshopResource` · L2535
+- `parse_photoshop_resources` · L2538 — Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
+- *struct* `IptcDataset` · L2559
+- `parse_iptc_datasets` · L2562 — Jeux de données d'un bloc IPTC-IIM ; `None` si le bloc est mal formé (il n'est alors pas modifié).
+- `pub truncate_utf8` · L2586
+- *struct* `IptcChanges` · L2596 — Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120), auteurs By-line (2:80, plusieurs),
+- `IptcChanges::datasets` · L2607 — Nouveaux jeux de données (numéro, valeur), coupés à la longueur maximale de la norme (64 octets ; 2000 pour la description).
+- `iptc_with` · L2623 — Nouveau bloc IPTC : les jeux de données concernés par `changes` sont remplacés, tout le reste est recopié tel quel.
+- `jpeg_replace_iptc` · L2653 — JPEG dont les jeux de données IPTC concernés par `changes` sont remplacés. Les autres ressources Photoshop et jeux de données IPTC sont
+- `pub write_file_atomically` · L2703
+- `write_jpeg_metadata` · L2718 — JPEG : XMP, IPTC et commentaire réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
+- `pub image_gone` · L2742
+- *struct* `pub SidecarTarget` · L2747 — Sidecar an image's metadata is written to (see `sidecar_target`).
+- `pub sidecar_target` · L2761 — XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
+- `pub has_same_stem_sibling` · L2774 — True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
+- `shares_sidecar_with_sidecar_writer` · L2779 — Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
+- `same_stem_siblings` · L2787
+- `pub read_sidecar` · L2799 — Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
+- `pub active_sidecar` · L2805 — The sidecar an image reads, if it exists: `photo.ext.xmp`, else `photo.xmp` (the same choice as `read_sidecar`, which reads it). Its
+- `pub sidecar_candidates` · L2813 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
+- `write_xmp_sidecar_with` · L2819 — XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
+- `pub write_metadata` · L2839 — Écrit les modifications `update` (mots-clés, titre, description) dans le fichier, en une seule écriture :
+- `pub write_metadata_internal` · L2845 — The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
+- `pub text_mismatch` · L2865 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
+- `rights_mismatch` · L2898 — Vérification après écriture de l'auteur et des droits : mêmes sources que pour le titre (XMP toujours, IPTC pour un JPEG, EXIF pour un JPEG…
+- *struct* `pub MetadataEntry` · L2943
+- *struct* `pub MetadataDetails` · L2949
+- `detail_entry` · L2958
+- `read_exif_entries` · L2968
+- `read_xmp_packet` · L2984 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
+- `pub xml_tag_end` · L2990 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
+- `xml_attributes` · L3003
+- `list_xmp_properties` · L3020 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
+- `iptc_dataset_name` · L3078
+- `collect_iptc_datasets` · L3092 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
+- `read_iptc_entries` · L3121
+- `pub read_metadata_details` · L3136 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
 
 ## exiftool.rs (54)
 
@@ -372,11 +372,11 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `landmarks_blob` · L540
 - `landmarks_from_blob` · L544
 - `pending_faces` · L552 — Visages sans empreinte du modèle actuel (zones importées, visages du lot 2) des photos visées, par photo.
-- `store_detections` · L586 — Enregistre les visages détectés d'une photo, fusionnés avec ceux déjà en base (spec §7.1) :
-- *struct* `pub ScanFailure` · L686
-- *struct* `pub DetectionReport` · L692
-- `load_session` · L703 — Charge un modèle ONNX (session libérée à la fin de la tâche).
-- `pub detect_faces` · L716 — Détection et reconnaissance des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ;
+- `store_detections` · L587 — Enregistre les visages détectés d'une photo, fusionnés avec ceux déjà en base (spec §7.1) :
+- *struct* `pub ScanFailure` · L687
+- *struct* `pub DetectionReport` · L693
+- `load_session` · L704 — Charge un modèle ONNX (session libérée à la fin de la tâche).
+- `pub detect_faces` · L717 — Détection et reconnaissance des visages d'une sélection (`photo_ids`) ou d'un dossier (`folder`, sous-dossiers selon `recursive`) ;
 
 ## face_models.rs (18)
 
@@ -442,90 +442,90 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `ensure_person` · L444 — Identifiant de la personne de ce nom (casse ignorée), créée si elle n'existe pas.
 - `auto_link_person` · L453 — Liaison automatique d'une personne non liée : au nœud de l'arbre qui porte son nom, s'il est le seul et n'est lié à aucune autre personne.
 - `mark_geometry_change` · L477 — Photo relue dont les proportions ont changé depuis son scan de visages (rotation des pixels, recadrage : spec §4.2) : marquée « à revérifie…
-- `pub store_photo_faces` · L503 — Enregistre, pour chaque photo (identifiée par son chemin), ce que la lecture de ses fichiers a appris : orientation EXIF, changement de
-- `store_photo_faces_in` · L516 — Corps de `store_photo_faces`, dans la transaction de l'appelant : toute erreur de base l'interrompt (rien n'est enregistré à moitié).
-- *struct* `pub FaceCover` · L614 — Visage représentatif d'une personne : de quoi découper sa vignette dans la miniature de la photo (orientation à appliquer à la zone).
-- *struct* `pub PersonInfo` · L626
-- `pub get_persons` · L642 — Toutes les personnes, avec leur nombre de photos au catalogue (0 pour une personne en attente d'attribution) et leur visage représentatif
-- `pub get_face_index` · L713 — Paires (photo, personne) de tout le catalogue : sert au filtre « Personnes » de la grille.
-- `pub get_face_counts` · L734 — Number of faces per photo (every photo of the catalogue that has at least one; a photo absent from the list has none): feeds the face-count
-- *struct* `pub FaceInfo` · L750
-- *struct* `pub PhotoFacesInfo` · L762
-- `pub get_photo_faces` · L771 — Visages d'une photo (repère de l'image stockée) et son orientation EXIF. Les visages « filtrés » ne sont jamais renvoyés ; les « ignorés » …
-- `pub link_person_keyword` · L817 — Relie une personne à un nœud de l'arbre des mots-clés (None : la délie). Un nœud ne peut être lié qu'à une seule personne
-- *struct* `pub FaceItem` · L842 — Visage de la vue Visages : de quoi découper sa vignette (chemin de la photo, orientation), son état et son nom (personne attribuée,
-- `pub get_faces_for_photos` · L865 — Visages des photos `photo_ids` (celles affichées dans la vue Photos). Les photos « à revérifier » sont écartées jusqu'à leur rescan (§4.2).
-- `pub get_face_scan_index` · L911 — Statut de scan des photos (filtre de la vue Photos) : (photo, à revérifier ?) pour les photos scannées avec le modèle actuel ou à revérifie…
-- `pub in_transaction` · L925 — Exécute `body` dans une transaction : validée si `body` réussit, annulée sinon (y compris en cas de panique). Une erreur de validation est
-- `ids_json` · L932
-- `pub confirm_faces` · L938 — Valider : les visages attribués automatiquement ou suggérés deviennent « confirmés » pour leur personne. Renvoie le nombre de visages valid…
-- `valid_person_name` · L952 — Caractères refusés dans un nom de personne (mêmes règles que les mots-clés : séparateurs de niveaux et de liste).
-- `resolve_person` · L961 — Personne désignée pour « Nommer » : une personne existante (`person_id`), la personne d'un mot-clé de l'arbre (`keyword_id` : créée et reli…
-- `pub assign_faces` · L1014 — Nommer : les visages deviennent « confirmés » pour la personne désignée (voir resolve_person). Renvoie l'identifiant de la personne.
-- `set_faces_unknown_in` · L1039 — Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
-- `pub set_faces_unknown` · L1050
-- `pub ignore_faces` · L1058 — Ignorer : visage écarté volontairement (inconnu dans la foule, faux visage) ; il n'est plus attribué ni proposé.
-- `pub unignore_faces` · L1072 — Ne plus ignorer : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
-- `pub mark_faces_not_a_face` · L1085 — N'est pas un visage : fausse détection. Comme « ignoré », le visage n'est ni attribué, ni proposé, ni écrit dans les fichiers (une zone déjà
-- `pub unmark_faces_not_a_face` · L1099 — Annule « N'est pas un visage » : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
-- *struct* `pub FaceSnapshot` · L1111 — Review state of one face, as captured before an action so that the action can be undone (Ctrl+Z in the Faces view).
-- `pub snapshot_faces` · L1123 — Captures the review state of `face_ids` (see `restore_faces`).
-- `pub restore_faces` · L1152 — Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped. `dirty` returns to its captured value
-- `pub recognize_faces` · L1184 — Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.
-- *struct* `pub FaceWritePlan` · L1195 — Ce qu'une écriture doit mettre dans un fichier pour ses visages : zones nommées et mots-clés actifs qui en découlent.
-- `pub has_pending_face_write` · L1208 — La photo a des visages à écrire (visage modifié, ou zone à retirer).
-- `id_set` · L1217
-- `pub plan_face_write` · L1227 — Plan d'écriture des visages d'une photo :
-- `pub finish_face_write` · L1263 — Après une écriture vérifiée : mots-clés posés par la reconnaissance notés (ou oubliés), visages de la photo écrits.
-- `pub mark_photo_for_write` · L1276 — Photo dont un visage nommé disparaît de la base (rescan, effacement) : sa zone est à retirer du fichier.
-- `pub get_pending_face_writes` · L1282 — Photos dont les visages attendent d'être écrits dans les fichiers : (identifiant, chemin).
-- `pub discard_pending_face_writes` · L1293 — Abandonner les visages en attente d'écriture : chaque photo concernée retrouve les visages que son fichier contient. Les modifications
-- `pending_face_writes` · L1332 — Photos dont les visages attendent d'être écrits : (identifiant, chemin).
-- *struct* `pub KeywordChange` · L1344
-- *struct* `pub FaceKeywordConflict` · L1351 — Mot-clé d'une personne retiré à la main d'une photo alors qu'un de ses visages nommés y reste (spec §6.3).
-- `pub face_keyword_conflicts` · L1361 — Avant d'appliquer des mots-clés modifiés : retraits qui contredisent un visage nommé (mot-clé présent sur la photo, absent de la nouvelle l…
-- `pub erase_face_data` · L1394 — « Effacer les données de visages » : les visages des photos sont supprimés de la base, les photos redeviennent « non scannées » et sont
-- `pub cluster_unknown_faces` · L1419 — Groupes de visages inconnus qui se ressemblent, parmi ceux des photos `photo_ids` (vue de gestion) : DBSCAN sur leurs empreintes. Deux visa…
-- `pub rename_person` · L1446 — Renomme une personne non reliée à un mot-clé (pour une personne reliée, le nom affiché et écrit est celui du mot-clé : c'est lui qu'on reno…
-- `pub set_person_alias` · L1470 — Alias d'une personne (None ou texte vide : retiré). Affichage seulement : les fichiers et le filtre Personnes gardent le nom du mot-clé.
-- `pub set_person_hidden` · L1480 — Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (face_recognize::attribute_faces), et l'interface la cache.
-- `pub set_person_cover` · L1489 — Visage représentatif choisi par l'utilisateur (vue de gestion) : il doit être attribué à cette personne.
-- *struct* `pub PersonDeleteInfo` · L1502 — Ce que la suppression d'une personne touche (fenêtre d'alerte) : visages encore rattachés et photos qui les portent.
-- `pub person_delete_info` · L1509
-- `pub delete_person` · L1529 — Supprime une personne et ses caractéristiques de reconnaissance (ses visages confirmés ne servent plus de référence). Ses visages restants
-- `delete_person_rows` · L1538 — Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
-- `merge_rows` · L1557 — Fusion en base (voir merge_persons), dans la transaction de l'appelant.
-- `undo_merge_rows` · L1590 — Annulation en base (voir undo_person_merge), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentat…
-- *struct* `pub MergeResult` · L1625 — Résultat d'une fusion : identifiant du journal (pour l'annuler) et nombre de visages passés à la personne gardée.
-- `pub merge_persons` · L1634 — Fusionne `from_person_id` dans `into_person_id` : les visages de la première passent à la seconde (à réécrire : nom des zones et mot-clé
-- *struct* `pub MergeInfo` · L1649 — Fusion annulable, absorbée par une personne (menu de cette personne).
-- `pub get_person_merges` · L1657
-- `pub undo_person_merge` · L1678 — Annule une fusion : la personne absorbée est recréée (même identifiant, nom, masquage ; mot-clé lié s'il existe encore et n'a pas été relié
-- `pub get_persons_without_faces` · L1700 — Personnes sans aucun visage attribué (« Nettoyer les personnes sans visage », Paramètres > Visages) : (identifiant, nom affiché).
-- `pub delete_persons` · L1715 — Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
-- `pub add_manual_face` · L1733 — Ajoute une zone dessinée à la main sur une photo (`rect` : x, y, w, h normalisés, repère de l'image STOCKÉE) pour la personne désignée
-- `pub delete_faces` · L1766 — Supprime des zones de visage (plein écran) : les photos dont une zone nommée disparaît sont à réécrire. Un visage détecté supprimé peut
-- `pub person_covers_dir` · L1782 — Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).
-- `remove_person_covers` · L1787 — Supprime les vignettes d'une personne, sauf `keep` (la vignette à jour).
-- `pub get_person_cover` · L1802 — Vignette d'une personne pour la vue Personnes : son visage représentatif (choisi, à défaut le plus grand), recadré en carré autour du visage
-- `render_face_cover` · L1832 — Recadre le visage `rect` (normalisé, repère de l'image stockée) dans un carré de 1,6 fois son plus grand côté, depuis l'original décodé à u…
+- `pub store_photo_faces` · L504 — Enregistre, pour chaque photo (identifiée par son chemin), ce que la lecture de ses fichiers a appris : orientation EXIF, changement de
+- `store_photo_faces_in` · L517 — Corps de `store_photo_faces`, dans la transaction de l'appelant : toute erreur de base l'interrompt (rien n'est enregistré à moitié).
+- *struct* `pub FaceCover` · L615 — Visage représentatif d'une personne : de quoi découper sa vignette dans la miniature de la photo (orientation à appliquer à la zone).
+- *struct* `pub PersonInfo` · L627
+- `pub get_persons` · L643 — Toutes les personnes, avec leur nombre de photos au catalogue (0 pour une personne en attente d'attribution) et leur visage représentatif
+- `pub get_face_index` · L714 — Paires (photo, personne) de tout le catalogue : sert au filtre « Personnes » de la grille.
+- `pub get_face_counts` · L735 — Number of faces per photo (every photo of the catalogue that has at least one; a photo absent from the list has none): feeds the face-count
+- *struct* `pub FaceInfo` · L751
+- *struct* `pub PhotoFacesInfo` · L763
+- `pub get_photo_faces` · L772 — Visages d'une photo (repère de l'image stockée) et son orientation EXIF. Les visages « filtrés » ne sont jamais renvoyés ; les « ignorés » …
+- `pub link_person_keyword` · L818 — Relie une personne à un nœud de l'arbre des mots-clés (None : la délie). Un nœud ne peut être lié qu'à une seule personne
+- *struct* `pub FaceItem` · L843 — Visage de la vue Visages : de quoi découper sa vignette (chemin de la photo, orientation), son état et son nom (personne attribuée,
+- `pub get_faces_for_photos` · L866 — Visages des photos `photo_ids` (celles affichées dans la vue Photos). Les photos « à revérifier » sont écartées jusqu'à leur rescan (§4.2).
+- `pub get_face_scan_index` · L912 — Statut de scan des photos (filtre de la vue Photos) : (photo, à revérifier ?) pour les photos scannées avec le modèle actuel ou à revérifie…
+- `pub in_transaction` · L926 — Exécute `body` dans une transaction : validée si `body` réussit, annulée sinon (y compris en cas de panique). Une erreur de validation est
+- `ids_json` · L933
+- `pub confirm_faces` · L939 — Valider : les visages attribués automatiquement ou suggérés deviennent « confirmés » pour leur personne. Renvoie le nombre de visages valid…
+- `valid_person_name` · L953 — Caractères refusés dans un nom de personne (mêmes règles que les mots-clés : séparateurs de niveaux et de liste).
+- `resolve_person` · L962 — Personne désignée pour « Nommer » : une personne existante (`person_id`), la personne d'un mot-clé de l'arbre (`keyword_id` : créée et reli…
+- `pub assign_faces` · L1015 — Nommer : les visages deviennent « confirmés » pour la personne désignée (voir resolve_person). Renvoie l'identifiant de la personne.
+- `set_faces_unknown_in` · L1040 — Inconnu : la personne attribuée ou suggérée est retirée ; le visage reste inconnu (`unknown_locked`) : l'attribution ne le propose plus à
+- `pub set_faces_unknown` · L1051
+- `pub ignore_faces` · L1059 — Ignorer : visage écarté volontairement (inconnu dans la foule, faux visage) ; il n'est plus attribué ni proposé.
+- `pub unignore_faces` · L1073 — Ne plus ignorer : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
+- `pub mark_faces_not_a_face` · L1086 — N'est pas un visage : fausse détection. Comme « ignoré », le visage n'est ni attribué, ni proposé, ni écrit dans les fichiers (une zone déjà
+- `pub unmark_faces_not_a_face` · L1100 — Annule « N'est pas un visage » : le visage redevient « inconnu » (la prochaine attribution peut le reconnaître).
+- *struct* `pub FaceSnapshot` · L1112 — Review state of one face, as captured before an action so that the action can be undone (Ctrl+Z in the Faces view).
+- `pub snapshot_faces` · L1124 — Captures the review state of `face_ids` (see `restore_faces`).
+- `pub restore_faces` · L1153 — Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped. `dirty` returns to its captured value
+- `pub recognize_faces` · L1185 — Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.
+- *struct* `pub FaceWritePlan` · L1196 — Ce qu'une écriture doit mettre dans un fichier pour ses visages : zones nommées et mots-clés actifs qui en découlent.
+- `pub has_pending_face_write` · L1209 — La photo a des visages à écrire (visage modifié, ou zone à retirer).
+- `id_set` · L1218
+- `pub plan_face_write` · L1228 — Plan d'écriture des visages d'une photo :
+- `pub finish_face_write` · L1264 — Après une écriture vérifiée : mots-clés posés par la reconnaissance notés (ou oubliés), visages de la photo écrits.
+- `pub mark_photo_for_write` · L1277 — Photo dont un visage nommé disparaît de la base (rescan, effacement) : sa zone est à retirer du fichier.
+- `pub get_pending_face_writes` · L1283 — Photos dont les visages attendent d'être écrits dans les fichiers : (identifiant, chemin).
+- `pub discard_pending_face_writes` · L1294 — Abandonner les visages en attente d'écriture : chaque photo concernée retrouve les visages que son fichier contient. Les modifications
+- `pending_face_writes` · L1333 — Photos dont les visages attendent d'être écrits : (identifiant, chemin).
+- *struct* `pub KeywordChange` · L1345
+- *struct* `pub FaceKeywordConflict` · L1352 — Mot-clé d'une personne retiré à la main d'une photo alors qu'un de ses visages nommés y reste (spec §6.3).
+- `pub face_keyword_conflicts` · L1362 — Avant d'appliquer des mots-clés modifiés : retraits qui contredisent un visage nommé (mot-clé présent sur la photo, absent de la nouvelle l…
+- `pub erase_face_data` · L1395 — « Effacer les données de visages » : les visages des photos sont supprimés de la base, les photos redeviennent « non scannées » et sont
+- `pub cluster_unknown_faces` · L1420 — Groupes de visages inconnus qui se ressemblent, parmi ceux des photos `photo_ids` (vue de gestion) : DBSCAN sur leurs empreintes. Deux visa…
+- `pub rename_person` · L1447 — Renomme une personne non reliée à un mot-clé (pour une personne reliée, le nom affiché et écrit est celui du mot-clé : c'est lui qu'on reno…
+- `pub set_person_alias` · L1471 — Alias d'une personne (None ou texte vide : retiré). Affichage seulement : les fichiers et le filtre Personnes gardent le nom du mot-clé.
+- `pub set_person_hidden` · L1481 — Masque ou affiche une personne : masquée, elle n'est plus attribuée ni proposée (face_recognize::attribute_faces), et l'interface la cache.
+- `pub set_person_cover` · L1490 — Visage représentatif choisi par l'utilisateur (vue de gestion) : il doit être attribué à cette personne.
+- *struct* `pub PersonDeleteInfo` · L1503 — Ce que la suppression d'une personne touche (fenêtre d'alerte) : visages encore rattachés et photos qui les portent.
+- `pub person_delete_info` · L1510
+- `pub delete_person` · L1530 — Supprime une personne et ses caractéristiques de reconnaissance (ses visages confirmés ne servent plus de référence). Ses visages restants
+- `delete_person_rows` · L1539 — Suppression d'une personne en base (voir delete_person), dans la transaction de l'appelant.
+- `merge_rows` · L1558 — Fusion en base (voir merge_persons), dans la transaction de l'appelant.
+- `undo_merge_rows` · L1591 — Annulation en base (voir undo_person_merge), dans la transaction de l'appelant. `person` : nom, clé du nom, mot-clé lié, visage représentat…
+- *struct* `pub MergeResult` · L1626 — Résultat d'une fusion : identifiant du journal (pour l'annuler) et nombre de visages passés à la personne gardée.
+- `pub merge_persons` · L1635 — Fusionne `from_person_id` dans `into_person_id` : les visages de la première passent à la seconde (à réécrire : nom des zones et mot-clé
+- *struct* `pub MergeInfo` · L1650 — Fusion annulable, absorbée par une personne (menu de cette personne).
+- `pub get_person_merges` · L1658
+- `pub undo_person_merge` · L1679 — Annule une fusion : la personne absorbée est recréée (même identifiant, nom, masquage ; mot-clé lié s'il existe encore et n'a pas été relié
+- `pub get_persons_without_faces` · L1701 — Personnes sans aucun visage attribué (« Nettoyer les personnes sans visage », Paramètres > Visages) : (identifiant, nom affiché).
+- `pub delete_persons` · L1716 — Supprime plusieurs personnes (nettoyage), comme delete_person. Renvoie le nombre de personnes supprimées.
+- `pub add_manual_face` · L1734 — Ajoute une zone dessinée à la main sur une photo (`rect` : x, y, w, h normalisés, repère de l'image STOCKÉE) pour la personne désignée
+- `pub delete_faces` · L1767 — Supprime des zones de visage (plein écran) : les photos dont une zone nommée disparaît sont à réécrire. Un visage détecté supprimé peut
+- `pub person_covers_dir` · L1783 — Dossier des vignettes de la vue Personnes (dans les données de l'application, déplacé avec elles).
+- `remove_person_covers` · L1788 — Supprime les vignettes d'une personne, sauf `keep` (la vignette à jour).
+- `pub get_person_cover` · L1803 — Vignette d'une personne pour la vue Personnes : son visage représentatif (choisi, à défaut le plus grand), recadré en carré autour du visage
+- `render_face_cover` · L1833 — Recadre le visage `rect` (normalisé, repère de l'image stockée) dans un carré de 1,6 fois son plus grand côté, depuis l'original décodé à u…
 
 ## geolocation.rs (14)
 
-- `pub init_schema` · L21
-- *struct* `pub GeoPhoto` · L37
-- *struct* `pub GeoFailure` · L46
-- *struct* `pub GeoWriteResult` · L54
-- `pub get_erased_location_ids` · L66 — Photos dont les coordonnées effacées sont sauvegardées (menu « Restaurer la géolocalisation »).
-- `pub erase_refusal` · L74 — Raison pour laquelle le GPS de ce fichier ne peut pas être effacé par le chemin d'écriture actif, s'il y en a une.
-- `now_millis` · L81
-- `pub gps_mismatch` · L89 — Message d'erreur si les coordonnées relues dans le fichier ne sont pas celles écrites (aussi utilisé par l'écriture du mode Carte, keywords…
-- `write_one` · L100 — Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
-- `load_targets` · L132 — Photos visées : (identifiant, chemin, coordonnées en base).
-- `run` · L146
-- `run_command` · L209
-- `pub erase_geolocation` · L220 — Efface la géolocalisation des photos (coordonnées sauvegardées avant). Avec `task_id`, tâche de la file (progression, arrêt).
-- `pub restore_geolocation` · L226 — Réécrit les coordonnées sauvegardées des photos. Avec `task_id`, tâche de la file (progression, arrêt).
+- `pub init_schema` · L22
+- *struct* `pub GeoPhoto` · L38
+- *struct* `pub GeoFailure` · L47
+- *struct* `pub GeoWriteResult` · L55
+- `pub get_erased_location_ids` · L67 — Photos dont les coordonnées effacées sont sauvegardées (menu « Restaurer la géolocalisation »).
+- `pub erase_refusal` · L75 — Raison pour laquelle le GPS de ce fichier ne peut pas être effacé par le chemin d'écriture actif, s'il y en a une.
+- `now_millis` · L82
+- `pub gps_mismatch` · L90 — Message d'erreur si les coordonnées relues dans le fichier ne sont pas celles écrites (aussi utilisé par l'écriture du mode Carte, keywords…
+- `write_one` · L101 — Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
+- `load_targets` · L133 — Photos visées : (identifiant, chemin, coordonnées en base).
+- `run` · L147
+- `run_command` · L207
+- `pub erase_geolocation` · L218 — Efface la géolocalisation des photos (coordonnées sauvegardées avant). Avec `task_id`, tâche de la file (progression, arrêt).
+- `pub restore_geolocation` · L224 — Réécrit les coordonnées sauvegardées des photos. Avec `task_id`, tâche de la file (progression, arrêt).
 
 ## heif.rs (33)
 
@@ -586,7 +586,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `flatten` · L208 — Aplatit un pixel transparent sur fond blanc (le JPEG de la miniature n'a pas de transparence).
 - `pub decode_png` · L215 — Décode un PNG. `want_pixels` faux : le fichier est entièrement décodé et contrôlé, mais les pixels ne sont pas convertis en RGB (vecteur vi…
 - `pub decode_webp` · L227 — Décode un WebP (première image s'il est animé). `want_pixels` faux : décodage complet, mais pas de conversion en RGB (vecteur vide renvoyé).
-- `pub check_jpeg_structure` · L254 — Structural check of a JPEG, from its markers only (no entropy decoding, well under a millisecond per file).
+- `pub check_jpeg_structure` · L255 — Structural check of a JPEG, from its markers only (no entropy decoding, well under a millisecond per file).
 - `check_file` · L321 — Analyse un fichier. `Err` = fichier suspect (message affiché dans le rapport).
 - `pub run` · L385 — Parcourt le dossier (sous-dossiers compris) et renvoie le rapport. `progress` reçoit l'avancement de 0 à 1 (environ tous les 1 %) ;
 - `csv_field` · L528 — Champ CSV entre guillemets. Une valeur qui commence par = + - @ est précédée d'une apostrophe : sinon Excel la prendrait pour une formule.
@@ -650,7 +650,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub is_photo_file` · L158
 - `pub read_photo` · L172 — Photo relue depuis son fichier, avec les chemins de ses mots-clés hiérarchiques et ses visages (enregistrés à part, voir keywords.rs et fac…
 - `is_excluded` · L217 — The path is one of the `excluded` folders or lies inside one.
-- `pub sync_library` · L231 — Compare les dossiers suivis au catalogue :
+- `pub sync_library` · L233 — Compare les dossiers suivis au catalogue :
 
 ## main.rs (167)
 
@@ -881,29 +881,29 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 
 ## privacy.rs (23)
 
-- *struct* `pub PathCriterion` · L20 — Un critère de chemin : texte (la casse et les « / » de bord sont normalisés ici), complet (élément de chemin entier) ou partiel (sous-chaîn…
-- *struct* `pub DateRange` · L29 — Plage de dates inclusive. Bornes au format `YYYYMMDDHHmmss` (une date incomplète couvre toute sa période : « 2024 » va du 1er janvier
-- *struct* `pub PrivacySet` · L36
-- `PrivacySet::is_empty` · L44 — Sans critère exploitable, l'ensemble ne masque rien.
-- `read_active` · L53
-- `apply` · L58 — Applique les ensembles actifs : leurs critères se cumulent (une photo est masquée dès qu'elle répond à un critère de l'un d'eux).
-- `pub restore` · L70 — Au démarrage, avant que l'interface ne parle : reprend les ensembles actifs enregistrés dans `config.json`, pour qu'aucune photo masquée
-- `pub set_privacy_sets` · L77 — Ensembles actifs (liste vide : confidentialité désactivée ou « Off »), envoyés par l'interface au démarrage et à chaque changement.
-- `pub is_active` · L92 — Vrai si un ensemble qui masque quelque chose est actif (sert à interdire la suppression de dossiers).
-- `keyword_keys` · L97 — Clés de comparaison des mots-clés (même règle que `keywords::name_key` : espaces de bord retirés, minuscules).
-- `clean_path_text` · L105 — Texte de critère de chemin : minuscules, « \ » devenu « / », « / » de bord retirés.
-- `digits` · L109
-- `quote` · L114 — Littéral SQL texte : apostrophes doublées, caractères NUL retirés.
-- `date_taken_digits` · L119 — Date de prise de vue réduite à 14 chiffres `YYYYMMDDHHmmss` (« 2024:05:01 12:00:00 », « 2024-05-01T12:00:00 »… ; complétée par des zéros).
-- `file_date_digits` · L127 — Date du fichier au même format : date de création (`created`, ms depuis 1970) si elle est connue, sinon date de modification (`modified`) t…
-- `pad_start` · L135 — Borne de début complétée à 14 chiffres par des zéros (« 2024 » → « 20240000000000 » : toute l'année est ≥).
-- `pad_end` · L140 — Borne de fin complétée à 14 chiffres par des 9 (« 2024 » → « 20249999999999 » : toute l'année est ≤).
-- `private_test` · L146 — Test SQL « cette photo est privée » d'un ensemble, `prefix` étant celui des colonnes de `photos` (« » ou « p. »). None : rien à tester.
-- `pub visible_condition` · L197 — Condition SQL à ajouter (avec AND) aux requêtes qui lisent `photos` : « les photos que l'ensemble actif ne masque pas ». Vaut « 1 » sans
-- `pub hidden_persons_sql` · L206 — SQL des identifiants des personnes masquées : celles dont le mot-clé lié (`persons.keyword_node_id`) est un mot-clé de l'ensemble actif.
-- `pub visible_person_condition` · L219 — Condition SQL « `column` (identifiant de personne) n'est pas une personne masquée » ; vaut « 1 » si aucune ne l'est.
-- `pub is_private_folder` · L229 — Le dossier (chemin du disque) est-il masqué par un critère de CHEMIN de l'ensemble actif ? Les dossiers dont toutes les photos sont masquées
-- `pub get_privacy_hidden_keywords` · L247 — Mots-clés masqués par l'ensemble actif (clés en minuscules) : l'interface les retire des listes de filtres de mots-clés,
+- *struct* `pub PathCriterion` · L21 — Un critère de chemin : texte (la casse et les « / » de bord sont normalisés ici), complet (élément de chemin entier) ou partiel (sous-chaîn…
+- *struct* `pub DateRange` · L30 — Plage de dates inclusive. Bornes au format `YYYYMMDDHHmmss` (une date incomplète couvre toute sa période : « 2024 » va du 1er janvier
+- *struct* `pub PrivacySet` · L37
+- `PrivacySet::is_empty` · L45 — Sans critère exploitable, l'ensemble ne masque rien.
+- `read_active` · L54
+- `apply` · L59 — Applique les ensembles actifs : leurs critères se cumulent (une photo est masquée dès qu'elle répond à un critère de l'un d'eux).
+- `pub restore` · L71 — Au démarrage, avant que l'interface ne parle : reprend les ensembles actifs enregistrés dans `config.json`, pour qu'aucune photo masquée
+- `pub set_privacy_sets` · L78 — Ensembles actifs (liste vide : confidentialité désactivée ou « Off »), envoyés par l'interface au démarrage et à chaque changement.
+- `pub is_active` · L93 — Vrai si un ensemble qui masque quelque chose est actif (sert à interdire la suppression de dossiers).
+- `keyword_keys` · L98 — Clés de comparaison des mots-clés (même règle que `keywords::name_key` : espaces de bord retirés, minuscules).
+- `clean_path_text` · L106 — Texte de critère de chemin : minuscules, « \ » devenu « / », « / » de bord retirés.
+- `digits` · L110
+- `quote` · L115 — Littéral SQL texte : apostrophes doublées, caractères NUL retirés.
+- `date_taken_digits` · L120 — Date de prise de vue réduite à 14 chiffres `YYYYMMDDHHmmss` (« 2024:05:01 12:00:00 », « 2024-05-01T12:00:00 »… ; complétée par des zéros).
+- `file_date_digits` · L128 — Date du fichier au même format : date de création (`created`, ms depuis 1970) si elle est connue, sinon date de modification (`modified`) t…
+- `pad_start` · L136 — Borne de début complétée à 14 chiffres par des zéros (« 2024 » → « 20240000000000 » : toute l'année est ≥).
+- `pad_end` · L141 — Borne de fin complétée à 14 chiffres par des 9 (« 2024 » → « 20249999999999 » : toute l'année est ≤).
+- `private_test` · L147 — Test SQL « cette photo est privée » d'un ensemble, `prefix` étant celui des colonnes de `photos` (« » ou « p. »). None : rien à tester.
+- `pub visible_condition` · L198 — Condition SQL à ajouter (avec AND) aux requêtes qui lisent `photos` : « les photos que l'ensemble actif ne masque pas ». Vaut « 1 » sans
+- `pub hidden_persons_sql` · L207 — SQL des identifiants des personnes masquées : celles dont le mot-clé lié (`persons.keyword_node_id`) est un mot-clé de l'ensemble actif.
+- `pub visible_person_condition` · L220 — Condition SQL « `column` (identifiant de personne) n'est pas une personne masquée » ; vaut « 1 » si aucune ne l'est.
+- `pub is_private_folder` · L230 — Le dossier (chemin du disque) est-il masqué par un critère de CHEMIN de l'ensemble actif ? Les dossiers dont toutes les photos sont masquées
+- `pub get_privacy_hidden_keywords` · L248 — Mots-clés masqués par l'ensemble actif (clés en minuscules) : l'interface les retire des listes de filtres de mots-clés,
 
 ## private_maps.rs (74)
 
@@ -1323,57 +1323,57 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub DecodedPng` · L110 — PNG décodé en RGB 8 bits ; la transparence éventuelle est un plan à part (`alpha`).
 - `pub decode_png` · L121 — Décode un PNG (palettes, niveaux de gris et 16 bits ramenés au RGB(A) 8 bits). `want_pixels` faux : le fichier est entièrement décodé et co…
 - `pub jpeg_size` · L159 — Dimensions d'une miniature déjà présente dans le cache (lecture de l'en-tête uniquement).
-- `pub extract_raw_preview` · L174 — Extrait le flux JPEG de prévisualisation contenu dans un fichier RAW.
-- `tiff_rgb_thumbnail_jpeg` · L222 — Vignette RGB 8 bits non compressée de l'IFD0 d'un fichier TIFF (DNG de téléphone), encodée en JPEG. None si l'IFD0 n'est pas de ce type :
-- `jpeg_stream_end` · L273 — Fin (exclue) du flux JPEG qui commence en `start` (marqueur SOI). Les segments sont parcourus par leur longueur : une vignette EXIF intégré…
-- `largest_jpeg_in` · L308 — Plus grand flux JPEG complet (au moins 20 Ko, pour éviter les minuscules icônes 160x120) du tampon : (début, longueur).
-- `find_embedded_jpeg_stream` · L336 — Recherche un flux JPEG intégré dans le fichier (méthode rapide par segments de 512 Ko)
-- `find_cr3_preview` · L374 — Extraction spécifique pour Canon CR3 (boîte PRVW)
-- `pub decode_scaled_jpeg_reader` · L399 — Décode un flux JPEG en RGB avec réduction DCT d'échelle proportionnelle à max_side.
-- `pub decode_scaled_rgb` · L418
-- `orientation_of` · L440 — Orientation (1 à 8) d'un EXIF déjà lu, None si le tag est absent ou hors plage.
-- `lenient_exif` · L447 — Lecture tolérante : un RAW dont une entrée IFD est mal formée (fréquent) garde les champs déjà lus au lieu de perdre tout l'EXIF.
-- `pub read_orientation` · L454 — Orientation to apply to the decoded pixels (1 to 8), 1 if absent or unreadable: EXIF tag or XMP `tiff:Orientation`, whichever wins
-- `pub exif_orientation` · L465 — EXIF orientation tag of the file itself (the one the webview applies to an image it shows), None if absent.
-- `pub raw_display_orientation` · L470 — Orientation of a RAW preview, sidecar `tiff:Orientation` included (a lossless rotation writes it there, see orientation.rs).
-- `pub is_raw_extension` · L480 — `extension` without the dot, any case.
-- `pub is_raw_path` · L484
-- `container_orientation` · L489 — Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).
-- `cr3_box` · L494 — Contenu d'une boîte du conteneur ISO BMFF d'un CR3 (nom de 4 octets) : ici un bloc TIFF autonome.
-- `tiff_as_exif_ifd` · L509 — Bloc TIFF de la boîte CMT2 d'un CR3 : son IFD0 est directement l'IFD Exif, que kamadak-exif classerait alors comme IFD TIFF (ISO, ouverture,
-- `pub read_exif_sources` · L533 — EXIF d'un fichier, une ou plusieurs sources à lire dans l'ordre (la dernière l'emporte pour une même valeur) :
-- `pub raw_orientation` · L565 — Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
-- `pub preview_with_orientation` · L581 — Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme l…
-- `pub resize_to_fit` · L610
-- `axis_weights` · L620 — Pour chaque pixel de destination : premier pixel source concerné et poids normalisés (recouvrement exact).
-- `pub resize_area` · L637 — Réduction par moyenne des aires (séparable : horizontal puis vertical).
-- `pub apply_orientation` · L674 — Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
-- `pub write_jpeg` · L698 — Writes a cache thumbnail at the quality chosen in the settings.
-- `pub write_jpeg_with_quality` · L703 — Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
+- `pub extract_raw_preview` · L173 — ////
+- `tiff_rgb_thumbnail_jpeg` · L221 — Vignette RGB 8 bits non compressée de l'IFD0 d'un fichier TIFF (DNG de téléphone), encodée en JPEG. None si l'IFD0 n'est pas de ce type :
+- `jpeg_stream_end` · L272 — Fin (exclue) du flux JPEG qui commence en `start` (marqueur SOI). Les segments sont parcourus par leur longueur : une vignette EXIF intégré…
+- `largest_jpeg_in` · L307 — Plus grand flux JPEG complet (au moins 20 Ko, pour éviter les minuscules icônes 160x120) du tampon : (début, longueur).
+- `find_embedded_jpeg_stream` · L335 — Recherche un flux JPEG intégré dans le fichier (méthode rapide par segments de 512 Ko)
+- `find_cr3_preview` · L373 — Extraction spécifique pour Canon CR3 (boîte PRVW)
+- `pub decode_scaled_jpeg_reader` · L398 — Décode un flux JPEG en RGB avec réduction DCT d'échelle proportionnelle à max_side.
+- `pub decode_scaled_rgb` · L417
+- `orientation_of` · L439 — Orientation (1 à 8) d'un EXIF déjà lu, None si le tag est absent ou hors plage.
+- `lenient_exif` · L446 — Lecture tolérante : un RAW dont une entrée IFD est mal formée (fréquent) garde les champs déjà lus au lieu de perdre tout l'EXIF.
+- `pub read_orientation` · L453 — Orientation to apply to the decoded pixels (1 to 8), 1 if absent or unreadable: EXIF tag or XMP `tiff:Orientation`, whichever wins
+- `pub exif_orientation` · L464 — EXIF orientation tag of the file itself (the one the webview applies to an image it shows), None if absent.
+- `pub raw_display_orientation` · L469 — Orientation of a RAW preview, sidecar `tiff:Orientation` included (a lossless rotation writes it there, see orientation.rs).
+- `pub is_raw_extension` · L479 — `extension` without the dot, any case.
+- `pub is_raw_path` · L483
+- `container_orientation` · L488 — Orientation du fichier lui-même (EXIF d'un JPEG, IFD0 d'un RAW basé sur TIFF, boîte CMT1 d'un CR3, JPEG intégré d'un RAF).
+- `cr3_box` · L493 — Contenu d'une boîte du conteneur ISO BMFF d'un CR3 (nom de 4 octets) : ici un bloc TIFF autonome.
+- `tiff_as_exif_ifd` · L508 — Bloc TIFF de la boîte CMT2 d'un CR3 : son IFD0 est directement l'IFD Exif, que kamadak-exif classerait alors comme IFD TIFF (ISO, ouverture,
+- `pub read_exif_sources` · L532 — EXIF d'un fichier, une ou plusieurs sources à lire dans l'ordre (la dernière l'emporte pour une même valeur) :
+- `pub raw_orientation` · L564 — Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
+- `pub preview_with_orientation` · L580 — Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme l…
+- `pub resize_to_fit` · L609
+- `axis_weights` · L619 — Pour chaque pixel de destination : premier pixel source concerné et poids normalisés (recouvrement exact).
+- `pub resize_area` · L636 — Réduction par moyenne des aires (séparable : horizontal puis vertical).
+- `pub apply_orientation` · L673 — Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
+- `pub write_jpeg` · L697 — Writes a cache thumbnail at the quality chosen in the settings.
+- `pub write_jpeg_with_quality` · L702 — Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
 
 ## update_check.rs (15)
 
-- *struct* `Version` · L43 — Version `x.y.z` avec un éventuel suffixe de pré-version (la partie après le premier « - »).
-- `parse_version` · L49 — Lit « 1.2.3 », « v1.2.3 » ou « 1.2.3-beta.1 » ; None si le texte n'a pas cette forme (« face-models-1 »).
-- *struct* `pub UpdateAsset` · L64 — Installeur joint à la release pour ce système. Seuls le nom et la taille vont à l'interface.
-- *struct* `pub UpdateInfo` · L76
-- `current_platform` · L94 — Système pour lequel la release publie un installeur.
-- `is_safe_file_name` · L99 — Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
-- `pick_asset` · L105 — Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du…
-- `pick_latest` · L129 — Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
-- `fetch_info` · L160 — Interroge GitHub (bloquant : à appeler hors du fil principal).
-- `pub check_for_update` · L180 — Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
-- `update_dir` · L192
-- `copy_verified` · L198 — Copie `reader` dans `<target>.part` en calculant la somme SHA-256, puis renomme le fichier si taille et somme sont celles attendues.
-- `file_sha256` · L232 — Somme SHA-256 d'un fichier.
-- `pub download_update` · L247 — Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
-- `pub install_update` · L301 — Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'ins…
+- *struct* `Version` · L44 — Version `x.y.z` avec un éventuel suffixe de pré-version (la partie après le premier « - »).
+- `parse_version` · L50 — Lit « 1.2.3 », « v1.2.3 » ou « 1.2.3-beta.1 » ; None si le texte n'a pas cette forme (« face-models-1 »).
+- *struct* `pub UpdateAsset` · L65 — Installeur joint à la release pour ce système. Seuls le nom et la taille vont à l'interface.
+- *struct* `pub UpdateInfo` · L77
+- `current_platform` · L95 — Système pour lequel la release publie un installeur.
+- `is_safe_file_name` · L100 — Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
+- `pick_asset` · L106 — Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du…
+- `pick_latest` · L130 — Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
+- `fetch_info` · L161 — Interroge GitHub (bloquant : à appeler hors du fil principal).
+- `pub check_for_update` · L181 — Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
+- `update_dir` · L193
+- `copy_verified` · L199 — Copie `reader` dans `<target>.part` en calculant la somme SHA-256, puis renomme le fichier si taille et somme sont celles attendues.
+- `file_sha256` · L233 — Somme SHA-256 d'un fichier.
+- `pub download_update` · L248 — Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
+- `pub install_update` · L302 — Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'ins…
 
 ## video.rs (6)
 
-- `pub is_video_path` · L20
-- `pub system_thumbnail` · L36 — Image fixe d'une vidéo fournie par Windows (RGB, largeur, hauteur), au plus `max_side` px sur le grand côté
-- `shell_thumbnail` · L45 — Appel Shell lui-même, dans le fil dédié de `system_thumbnail` (COM y est initialisé puis libéré).
-- `pub system_thumbnail` · L116
-- `run_ffmpeg` · L129 — Une extraction `ffmpeg` à la position `seek` (secondes) dans `temp`. Un JPEG n'est renvoyé que si ffmpeg s'est terminé normalement : après …
-- `pub ffmpeg_frame_jpeg` · L190 — Image fixe d'une vidéo extraite par `ffmpeg` (JPEG pleine taille, réduit ensuite par l'appelant), si `ffmpeg` est installé.
+- `pub is_video_path` · L21
+- `pub system_thumbnail` · L37 — Image fixe d'une vidéo fournie par Windows (RGB, largeur, hauteur), au plus `max_side` px sur le grand côté
+- `shell_thumbnail` · L46 — Appel Shell lui-même, dans le fil dédié de `system_thumbnail` (COM y est initialisé puis libéré).
+- `pub system_thumbnail` · L119
+- `run_ffmpeg` · L132 — Une extraction `ffmpeg` à la position `seek` (secondes) dans `temp`. Un JPEG n'est renvoyé que si ffmpeg s'est terminé normalement : après …
+- `pub ffmpeg_frame_jpeg` · L193 — Image fixe d'une vidéo extraite par `ffmpeg` (JPEG pleine taille, réduit ensuite par l'appelant), si `ffmpeg` est installé.

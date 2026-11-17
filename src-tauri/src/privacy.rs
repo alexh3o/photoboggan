@@ -4,6 +4,7 @@
 //!   du chemin du dossier). Le nom du fichier n'est jamais comparé ;
 //! - mots-clés : correspondance exacte avec un mot-clé actif de la photo (dernier niveau, voir keywords.rs) ;
 //! - plages de dates inclusives : date de prise de vue, ou à défaut date du fichier (voir `date_taken_digits` / `file_date_digits`).
+//!
 //! Tous les textes se comparent sans tenir compte de la casse (ASCII dans le chemin : `lower` de SQLite ; Unicode pour les mots-clés).
 //!
 //! L'ensemble ACTIF est une donnée de l'interface (réglages en localStorage), envoyée ici au démarrage et à chaque changement

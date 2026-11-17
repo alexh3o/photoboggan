@@ -6,6 +6,7 @@
 //! - Restaurer : les coordonnées sauvegardées sont réécrites par le chemin d'écriture actif.
 //! - La sauvegarde disparaît dès que la photo retrouve des coordonnées (restauration, ou relecture d'un fichier géolocalisé entre-temps par un
 //!   autre logiciel) et avec la photo : déclencheurs SQLite sur la table `photos`, qui couvrent tous les chemins d'écriture de la base.
+//!
 //! Après écriture, le fichier est relu et la base reflète cette relecture ; un écart est signalé comme un échec.
 
 use rusqlite::params;
@@ -162,10 +163,7 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
             let saved: Option<(f64, f64)> = conn
                 .query_row("SELECT lat, lon FROM erased_locations WHERE photo_id = ?1", [photo_id], |row| Ok((row.get(0)?, row.get(1)?)))
                 .ok();
-            match saved {
-                Some(coordinates) => Some(write_one(&conn, &cache_dirs, photo_id, &path, Some(coordinates))),
-                None => None, // rien à restaurer
-            }
+            saved.map(|coordinates| write_one(&conn, &cache_dirs, photo_id, &path, Some(coordinates)))
         } else {
             // Coordonnées lues dans le fichier (la base peut avoir du retard) ; sans GPS, rien à effacer.
             let meta = crate::exif::read_exif(Path::new(&path));

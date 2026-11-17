@@ -57,7 +57,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 154 |  |
-| `css.md` | 578 |  |
+| `css.md` | 579 |  |
 | `db-schema.md` | 269 |  |
 | `events.md` | 11 |  |
 | `files.md` | 307 |  |
@@ -217,25 +217,25 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `db.rs` | 659 |  |
-| `duplicates.rs` | 765 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
-| `exif.rs` | 3168 |  |
+| `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
+| `exif.rs` | 3163 |  |
 | `exiftool.rs` | 952 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
-| `face_detect.rs` | 802 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
+| `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
 | `face_recognize.rs` | 320 | Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère de … |
-| `faces.rs` | 1867 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
-| `geolocation.rs` | 233 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
+| `faces.rs` | 1868 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
+| `geolocation.rs` | 231 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `heif.rs` | 509 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 844 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
-| `library_sync.rs` | 361 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
+| `library_sync.rs` | 363 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
 | `main.rs` | 3138 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 146 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
 | `phash.rs` | 201 | Perceptual hash (pHash) of an image, for the "similar images" search (similar.rs). The image is reduced to 32x32 grey levels, a 2D DCT keeps its 8x8 lowest frequencies, and each of the 63 AC coefficients becomes one bit… |
 | `place_search.rs` | 74 | Recherche d'un lieu par son nom (mode Carte, champ de recherche de la barre de la carte), pour aller y placer la carte. Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propr… |
-| `privacy.rs` | 250 | Photos privées : ensembles de confidentialité. Un ensemble actif masque, partout où le backend lit le catalogue, les photos qui répondent à AU MOINS UN de ses critères (OU entre critères) : - parties de chemin de dossie… |
+| `privacy.rs` | 251 | Photos privées : ensembles de confidentialité. Un ensemble actif masque, partout où le backend lit le catalogue, les photos qui répondent à AU MOINS UN de ses critères (OU entre critères) : - parties de chemin de dossie… |
 | `private_maps.rs` | 1156 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
 | `resize.rs` | 575 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `rights.rs` | 229 | Auteur et droits : préréglages d'auteur (table `author_presets`), lecture à la demande des champs de droits des photos et liste des auteurs du catalogue (filtre « Auteur »). Les cinq champs (auteur, mention de copyright… |
@@ -246,9 +246,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `similar.rs` | 351 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `stats.rs` | 710 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
-| `thumbnails.rs` | 727 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
-| `update_check.rs` | 328 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
-| `video.rs` | 210 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
+| `thumbnails.rs` | 726 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
+| `update_check.rs` | 329 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
+| `video.rs` | 213 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
 ## src-tauri/src/tests
 

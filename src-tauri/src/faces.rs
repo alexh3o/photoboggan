@@ -250,10 +250,10 @@ fn field_value(scope: &str, local: &str) -> Option<String> {
         let before = bytes[start - 1];
         if before == b'<' {
             // Élément : texte jusqu'à la balise fermante (un élément qui contient d'autres balises est une structure, pas une valeur).
-            let Some(tag_end) = crate::exif::xml_tag_end(scope, start - 1) else { return None; };
+            let tag_end = crate::exif::xml_tag_end(scope, start - 1)?;
             if bytes[tag_end - 1] == b'/' { continue; }
             let body = &scope[tag_end + 1..];
-            let Some(text_end) = body.find('<') else { return None; };
+            let text_end = body.find('<')?;
             if body[text_end..].starts_with("</") {
                 return Some(crate::exif::decode_xml_entities(body[..text_end].trim()));
             }
@@ -264,7 +264,7 @@ fn field_value(scope: &str, local: &str) -> Option<String> {
             let value = value.trim_start();
             let Some(quote) = value.chars().next().filter(|c| *c == '"' || *c == '\'') else { continue; };
             let body = &value[1..];
-            let Some(end) = body.find(quote) else { return None; };
+            let end = body.find(quote)?;
             return Some(crate::exif::decode_xml_entities(body[..end].trim()));
         }
     }
@@ -499,6 +499,7 @@ fn mark_geometry_change(conn: &Connection, photo_id: i64, width: i64, height: i6
 /// - zone nommée : personne du fichier, « confirmée » (sauf visage ignoré par l'utilisateur) ;
 /// - zone sans nom : un visage confirmé redevient « inconnu » (son nom a été retiré dans l'autre logiciel), les autres gardent leur état ;
 /// - zone importée absente du fichier : supprimée.
+///
 /// À appeler après l'insertion des photos et de leurs mots-clés (la liaison automatique cherche les nœuds de l'arbre).
 pub fn store_photo_faces(conn: &Connection, items: &[(String, PhotoFaces)]) -> bool {
     if items.is_empty() { return true; }

@@ -197,7 +197,7 @@ fn sniff(source: &Path) -> Format {
         Format::Png
     } else if read >= 12 && &header[..4] == b"RIFF" && &header[8..12] == b"WEBP" {
         Format::WebP
-    } else if read >= 12 && &header[4..8] == b"ftyp" && HEIF_BRANDS.iter().any(|brand| &header[8..12] == &brand[..]) {
+    } else if read >= 12 && &header[4..8] == b"ftyp" && HEIF_BRANDS.iter().any(|brand| header[8..12] == brand[..]) {
         Format::Heif
     } else {
         Format::Other
@@ -250,6 +250,7 @@ pub(crate) fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, 
 /// - progressive: every coefficient of every component (DC, then AC 1..63) must be refined down to bit 0, with each refinement
 ///   scan following the previous precision (`Ah` = previous `Al`), as every common encoder produces;
 /// - sequential: every component must be covered by a scan.
+///
 /// Anything unusual (unsupported coding, truncated header, no frame) is left to the decoder, which reports it more precisely.
 pub(crate) fn check_jpeg_structure(data: &[u8]) -> Result<(), String> {
     if data.len() < 4 || data[..2] != [0xff, 0xd8] { return Ok(()); }
@@ -299,8 +300,7 @@ pub(crate) fn check_jpeg_structure(data: &[u8]) -> Result<(), String> {
                     let Some(component) = component_ids.iter().position(|&id| id == segment[1 + index * 2]) else { return Ok(()) };
                     covered[component] = true;
                     if !progressive { continue; }
-                    for coefficient in first..=last.min(63) {
-                        let state = &mut precision[component][coefficient];
+                    for state in precision[component].iter_mut().take(last.min(63) + 1).skip(first) {
                         if high != 0 && *state != Some(high) {
                             return Err(format!("Inconsistent progressive JPEG: refinement scan {scans} has no matching previous scan (damaged file)"));
                         }

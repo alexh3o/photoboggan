@@ -1,4 +1,4 @@
-<!-- verified: 109c858 | sources: src-tauri/src/stats.rs, src/stats.js, src/stats.css -->
+<!-- verified: b71d737 | sources: src-tauri/src/stats.rs, src/stats.js, src/stats.css -->
 # Collection statistics
 
 Spec: `dev_tools/Evolutions/feat stats.txt`.

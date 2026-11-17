@@ -582,6 +582,7 @@ const REVIEW_MATCH_SIMILARITY: f32 = 0.80;
 /// - les zones importées ou manuelles, et les visages confirmés ou ignorés, sont toujours conservés ;
 /// - les détections automatiques non confirmées sans correspondance sont remplacées ; les nouvelles détections arrivent « inconnues »
 ///   (ou « filtrées » sous les seuils) et sont attribuées ensuite (face_recognize::attribute_faces).
+///
 /// Erreur de base : renvoyée (la transaction de l'appelant est alors annulée et la photo signalée en échec).
 fn store_detections(conn: &Connection, target: &Target, analysis: &Analysis, current: &FaceSettings) -> rusqlite::Result<()> {
     struct Existing { id: i64, rect: [f64; 4], origin: String, state: String, person_id: Option<i64>, embedding: Option<Vec<f32>> }

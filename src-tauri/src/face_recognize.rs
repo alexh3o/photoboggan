@@ -192,7 +192,7 @@ pub fn dbscan(faces: &[(i64, Vec<f32>)], min_similarity: f32, min_points: usize)
             }
         }
     }
-    clusters.sort_by(|a, b| b.len().cmp(&a.len()));
+    clusters.sort_by_key(|cluster| std::cmp::Reverse(cluster.len()));
     clusters
 }
 

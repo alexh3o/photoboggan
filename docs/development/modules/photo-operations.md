@@ -1,4 +1,4 @@
-<!-- verified: f4a166d | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs -->
+<!-- verified: b71d737 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs -->
 
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 
