@@ -382,13 +382,13 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/guide.js (7)
 
-- `keyLabel(key)` · L104
-- `renderCombo(combo)` · L107 — Une alternative de touches : « Ctrl + Clic ».
-- `renderKeys(row)` · L118
-- `renderRow(row)` · L133
-- `render(container)` · L160
-- `applyFilter(container, query, emptyMessage)` · L175 — Recherche : une ligne reste affichée si tous les mots saisis figurent dans son texte (ou dans le titre de son groupe) ; un groupe sans ligne
-- `export initGuide()` · L192
+- `keyLabel(key)` · L105
+- `renderCombo(combo)` · L108 — Une alternative de touches : « Ctrl + Clic ».
+- `renderKeys(row)` · L119
+- `renderRow(row)` · L134
+- `render(container)` · L161
+- `applyFilter(container, query, emptyMessage)` · L176 — Recherche : une ligne reste affichée si tous les mots saisis figurent dans son texte (ou dans le titre de son groupe) ; un groupe sans ligne
+- `export initGuide()` · L193
 
 ## src/histogram.js (19)
 
@@ -529,7 +529,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export onMapAccessChanged()` · L171 — Mode hors ligne ou option « Afficher une carte » changés : effet immédiat, sans redémarrage.
 - `export initLocationPanel(options = {})` · L179 — `showToast` vient de main.js (message après la copie des coordonnées).
 
-## src/main.js (401)
+## src/main.js (408)
 
 - `photoUrl(photo)` · L215
 - `versionSuffix(path)` · L219 — Same suffix on the cached images (thumbnail, extracted preview): a lossless rotation written in a sidecar regenerates them under the same n…
@@ -860,78 +860,85 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `togglePreviewActualSize(anchor, targetSlot = null)` · L7130 — 100 % (1 pixel image = 1 pixel écran) ; si toutes les images y sont déjà, retour à la vue entière.
 - `wheelZoomSteps(event)` · L7139 — Nombre de crans de zoom correspondant à un événement de molette, ou 0 si aucun cran n'est atteint : une molette à crans donne un cran par
 - `endPreviewDrag(event)` · L7191
-- `stopGridInertia()` · L7275 — Arrête l'inertie en cours ; renvoie true si la grille était encore en train de défiler.
-- `startGridInertia(velocity)` · L7282
-- `releaseGridInertia(samples, releaseTime)` · L7306 — Vitesse mesurée sur les derniers instants du glissement (pointeur immobile avant le relâchement = pas d'inertie).
-- `endGridDrag(event)` · L7351
-- `folderItemAt(x, y)` · L7386
-- `dragModeFrom(modifiers)` · L7393 — Mode du glissement d'après les touches tenues À CET INSTANT (Maj : déplacer, Ctrl : copier ; Maj l'emporte), null si aucune. Les touches pe…
-- `albumDropAction(drag)` · L7399 — Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine), null (à demander) ou '…
-- `paintPhotoDragBadge(drag)` · L7406 — Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt dem…
-- `updatePhotoDragState(drag, x, y, modifiers)` · L7420 — Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule d…
-- `askCopyOrMove(event, targets, onCopy, onMove)` · L7438 — Photos lâchées sans Maj ni Ctrl sur un dossier du disque ou un album : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
-- `albumItemAt(x, y)` · L7450 — Album manuel de la section Albums sous le curseur (cible d'ajout de photos).
-- `albumNodeAt(x, y)` · L7456 — N'importe quelle ligne de la section Albums sous le curseur (pour expliquer pourquoi un album intelligent ou un dossier virtuel refuse les …
-- `startPhotoDrag(drag)` · L7462 — Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
-- `clearPhotoDragVisuals(drag)` · L7496
-- `endPhotoDrag(event, released)` · L7529
-- `onPhotoDragModifierKey(event)` · L7565 — Maj ou Ctrl pressé ou relâché pendant le glissement (souris immobile) : mode et badge changent aussitôt.
-- `applyDeletedFolder(deletedPath, removedPaths)` · L7583 — Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, d…
-- `deleteFolderToTrash(path, { permanent = false } = {})` · L7600 — Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirm…
-- `renamePhotoOnDisk(photo, newName)` · L7622 — Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvé…
-- `renameFolderOnDisk(path, newName)` · L7640 — Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nou…
-- `movePhotosToFolder(targets, folderPath)` · L7674 — Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent a…
-- `copyPhotosToFolder(targets, folderPath)` · L7710
-- `applyMovedPhotos(moved)` · L7747 — Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrou…
-- `matchesLocationFilter(photo)` · L7778
-- `setLocationFilter(value, { apply = true } = {})` · L7784
-- `matchesAnalysisFilter(photo)` · L7801 — With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
-- `refreshAnalysedIds()` · L7806
-- `setAnalysisFilter(value, { apply = true } = {})` · L7818
-- `extractTimeKey(text)` · L7844 — Extrait la date et l'heure d'un texte EXIF quel que soit le séparateur (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
-- `photoTimeKey(photo)` · L7851
-- `photoDateKey(photo)` · L7857 — Jour de prise de vue au format AAAAMMJJ, ou null.
-- `matchesDateFilter(photo)` · L7863 — Le filtre couvre du premier au dernier instant de la période saisie, bornes incluses.
-- `isValidDateKey(key)` · L7869
-- `parseDateToken(token)` · L7879 — Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss : renvoie le premier et le dernier instant
-- `parseDateFilter(text)` · L7900
-- `updateDateFilterUI(error = '')` · L7915
-- `setDateFilterFromInput()` · L7923 — Applique le contenu du champ : vide = pas de filtre ; saisie incomplète ou invalide = filtre précédent conservé.
-- `weekdayLabels()` · L7953 — Initiales des jours (semaine commençant le lundi) et mois, selon la langue courante : le 1er janvier 2024 est un lundi.
-- `pickerMonthFormatter()` · L7954
-- `isDatePickerOpen()` · L7961
-- `closeDatePicker()` · L7965
-- `todayDateKey()` · L7969
-- `latestPhotoDateKey()` · L7974
-- `positionDatePicker()` · L7983
-- `renderDatePicker()` · L7994
-- `openDatePicker()` · L8023
-- `applyPickerSelection()` · L8037
-- `pickDate(key)` · L8045 — 1er clic : jour unique (filtre appliqué tout de suite). 2e clic : plage, ou même jour pour valider le jour unique.
-- `removePhotosFromLibrary(paths, { keepSelection = false } = {})` · L8097 — ==========================================
-- `getSelectedPhotos()` · L8361
-- `setPhotoGridVisible(visible)` · L8418 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
-- `thumbnailUrlFor(sourcePath, isWanted = ()` · L8428 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
-- `semanticDelta()` · L8478 — ==========================================
-- `semanticRankOrder(a, b)` · L8483 — Position in the answer (decreasing score); the source photo of a similar-content search is -1, photos outside the answer come last.
-- `loadSemanticPhotos()` · L8490 — The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
-- `matchesSemanticCut(photo)` · L8495 — Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
-- `renderSemanticBanner()` · L8503
-- `renderSemanticKeywordActions()` · L8564 — Keyword -> photos: actions on the selected photos. Disabled while nothing is selected.
-- `abandonSemanticSearch()` · L8608 — Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
-- `exitSemanticSearch()` · L8619 — "Close" and Escape.
-- `showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyw…)` · L8628 — Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave…
-- `findSimilarContent(photo)` · L8661 — "Find similar content" (menu of one photo). The interface does not know whether the photo has an embedding: the backend says so, and the us…
-- `findKeywordCandidates({ id, name })` · L8686 — "Find photos that may match" (menu of a keyword): the candidates of the backend (examples or name score, threshold already applied, never t…
-- `syncLibraryWithDisk()` · L8813
-- `requestLibrarySync()` · L8832
-- `runRequestedSync()` · L8837
-- `refreshLibraryAfterSync(changes)` · L8844 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
-- `restorePanelsVisibility()` · L8888
-- `restoreStartupFolder()` · L8918 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
-- `sendInternetAllowed()` · L8957
-- `sendVerifyMoves()` · L8975
-- `refreshStorageLocationUI()` · L8987 — ==========================================
+- `isTextEntryFocused()` · L7268
+- `instantZoomSlotUnderPointer()` · L7276 — Slot under the pointer: the fullscreen photo when fullscreen is open, else the preview cell hovered (null if none).
+- `isInstantZoomValid()` · L7287 — The photo shown changed (arrows, new selection, fullscreen closed) while the key was held: there is nothing left to drive or to restore.
+- `instantZoomCenterAt(clientX, clientY)` · L7294 — Pointer position -> point of the image (proportions). The mapping is absolute over the image fitted in its cell, so that at press time the …
+- `panInstantZoom()` · L7308
+- `startInstantZoom()` · L7316
+- `endInstantZoom()` · L7335 — Puts back the zoom level and centre of before the key was pressed (only for photos still displayed).
+- `stopGridInertia()` · L7415 — Arrête l'inertie en cours ; renvoie true si la grille était encore en train de défiler.
+- `startGridInertia(velocity)` · L7422
+- `releaseGridInertia(samples, releaseTime)` · L7446 — Vitesse mesurée sur les derniers instants du glissement (pointeur immobile avant le relâchement = pas d'inertie).
+- `endGridDrag(event)` · L7491
+- `folderItemAt(x, y)` · L7526
+- `dragModeFrom(modifiers)` · L7533 — Mode du glissement d'après les touches tenues À CET INSTANT (Maj : déplacer, Ctrl : copier ; Maj l'emporte), null si aucune. Les touches pe…
+- `albumDropAction(drag)` · L7539 — Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine), null (à demander) ou '…
+- `paintPhotoDragBadge(drag)` · L7546 — Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt dem…
+- `updatePhotoDragState(drag, x, y, modifiers)` · L7560 — Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule d…
+- `askCopyOrMove(event, targets, onCopy, onMove)` · L7578 — Photos lâchées sans Maj ni Ctrl sur un dossier du disque ou un album : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
+- `albumItemAt(x, y)` · L7590 — Album manuel de la section Albums sous le curseur (cible d'ajout de photos).
+- `albumNodeAt(x, y)` · L7596 — N'importe quelle ligne de la section Albums sous le curseur (pour expliquer pourquoi un album intelligent ou un dossier virtuel refuse les …
+- `startPhotoDrag(drag)` · L7602 — Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
+- `clearPhotoDragVisuals(drag)` · L7636
+- `endPhotoDrag(event, released)` · L7669
+- `onPhotoDragModifierKey(event)` · L7705 — Maj ou Ctrl pressé ou relâché pendant le glissement (souris immobile) : mode et badge changent aussitôt.
+- `applyDeletedFolder(deletedPath, removedPaths)` · L7723 — Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, d…
+- `deleteFolderToTrash(path, { permanent = false } = {})` · L7740 — Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirm…
+- `renamePhotoOnDisk(photo, newName)` · L7762 — Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvé…
+- `renameFolderOnDisk(path, newName)` · L7780 — Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nou…
+- `movePhotosToFolder(targets, folderPath)` · L7814 — Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent a…
+- `copyPhotosToFolder(targets, folderPath)` · L7850
+- `applyMovedPhotos(moved)` · L7887 — Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrou…
+- `matchesLocationFilter(photo)` · L7918
+- `setLocationFilter(value, { apply = true } = {})` · L7924
+- `matchesAnalysisFilter(photo)` · L7941 — With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
+- `refreshAnalysedIds()` · L7946
+- `setAnalysisFilter(value, { apply = true } = {})` · L7958
+- `extractTimeKey(text)` · L7984 — Extrait la date et l'heure d'un texte EXIF quel que soit le séparateur (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
+- `photoTimeKey(photo)` · L7991
+- `photoDateKey(photo)` · L7997 — Jour de prise de vue au format AAAAMMJJ, ou null.
+- `matchesDateFilter(photo)` · L8003 — Le filtre couvre du premier au dernier instant de la période saisie, bornes incluses.
+- `isValidDateKey(key)` · L8009
+- `parseDateToken(token)` · L8019 — Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss : renvoie le premier et le dernier instant
+- `parseDateFilter(text)` · L8040
+- `updateDateFilterUI(error = '')` · L8055
+- `setDateFilterFromInput()` · L8063 — Applique le contenu du champ : vide = pas de filtre ; saisie incomplète ou invalide = filtre précédent conservé.
+- `weekdayLabels()` · L8093 — Initiales des jours (semaine commençant le lundi) et mois, selon la langue courante : le 1er janvier 2024 est un lundi.
+- `pickerMonthFormatter()` · L8094
+- `isDatePickerOpen()` · L8101
+- `closeDatePicker()` · L8105
+- `todayDateKey()` · L8109
+- `latestPhotoDateKey()` · L8114
+- `positionDatePicker()` · L8123
+- `renderDatePicker()` · L8134
+- `openDatePicker()` · L8163
+- `applyPickerSelection()` · L8177
+- `pickDate(key)` · L8185 — 1er clic : jour unique (filtre appliqué tout de suite). 2e clic : plage, ou même jour pour valider le jour unique.
+- `removePhotosFromLibrary(paths, { keepSelection = false } = {})` · L8237 — ==========================================
+- `getSelectedPhotos()` · L8501
+- `setPhotoGridVisible(visible)` · L8558 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
+- `thumbnailUrlFor(sourcePath, isWanted = ()` · L8568 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
+- `semanticDelta()` · L8618 — ==========================================
+- `semanticRankOrder(a, b)` · L8623 — Position in the answer (decreasing score); the source photo of a similar-content search is -1, photos outside the answer come last.
+- `loadSemanticPhotos()` · L8630 — The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
+- `matchesSemanticCut(photo)` · L8635 — Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
+- `renderSemanticBanner()` · L8643
+- `renderSemanticKeywordActions()` · L8704 — Keyword -> photos: actions on the selected photos. Disabled while nothing is selected.
+- `abandonSemanticSearch()` · L8748 — Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
+- `exitSemanticSearch()` · L8759 — "Close" and Escape.
+- `showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyw…)` · L8768 — Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave…
+- `findSimilarContent(photo)` · L8801 — "Find similar content" (menu of one photo). The interface does not know whether the photo has an embedding: the backend says so, and the us…
+- `findKeywordCandidates({ id, name })` · L8826 — "Find photos that may match" (menu of a keyword): the candidates of the backend (examples or name score, threshold already applied, never t…
+- `syncLibraryWithDisk()` · L8953
+- `requestLibrarySync()` · L8972
+- `runRequestedSync()` · L8977
+- `refreshLibraryAfterSync(changes)` · L8984 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
+- `restorePanelsVisibility()` · L9028
+- `restoreStartupFolder()` · L9058 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
+- `sendInternetAllowed()` · L9097
+- `sendVerifyMoves()` · L9115
+- `refreshStorageLocationUI()` · L9127 — ==========================================
 
 ## src/map-config.js (5)
 

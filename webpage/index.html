@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#181a1b">
+  <meta name="description" content="photoboggan is a fast, local desktop photo library manager for browsing, sorting and rediscovering your pictures.">
+  <title>photoboggan — Your photos, within reach</title>
+  <link rel="icon" type="image/png" href="../screenshots/logo256.png">
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f0f3f1;
+      --muted: #a1aaa5;
+      --paper: #181a1b;
+      --card: #222526;
+      --line: #353a3b;
+      --green: #8ed5a8;
+      --green-dark: #a3e2b8;
+      --mint: #293a31;
+      --orange: #e8ad69;
+      --radius: 1.4rem;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--paper); line-height: 1.6; }
+    a { color: inherit; }
+    .wrap { width: min(1120px, calc(100% - 2.5rem)); margin-inline: auto; }
+    header { padding: 1.35rem 0; }
+    .nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .brand { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-size: 1.1rem; font-weight: 760; letter-spacing: -.04em; }
+    .brand img { width: 2.25rem; height: 2.25rem; border-radius: .7rem; }
+    .nav-links { display: flex; align-items: center; gap: 1.5rem; color: var(--muted); font-size: .9rem; }
+    .nav-links a { text-decoration: none; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-links .nav-cta { padding: .62rem 1rem; border-radius: 999px; color: #181a1b; background: var(--green); }
+    .hero { display: grid; grid-template-columns: .88fr 1.12fr; align-items: center; gap: 3.5rem; padding: 5rem 0 5.5rem; }
+    .eyebrow { display: inline-flex; align-items: center; gap: .5rem; color: var(--green-dark); font-size: .78rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .eyebrow::before { width: .45rem; height: .45rem; border-radius: 50%; background: var(--orange); content: ""; }
+    h1 { max-width: 12ch; margin: 1rem 0 1.2rem; font-size: clamp(3.25rem, 6.5vw, 5.7rem); line-height: .98; letter-spacing: -.075em; }
+    h1 span { color: var(--green); }
+    .hero-copy { max-width: 31rem; color: var(--muted); font-size: 1.13rem; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 1.8rem; }
+    .button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; min-height: 3rem; padding: .75rem 1.15rem; border: 1px solid transparent; border-radius: 999px; font-size: .92rem; font-weight: 680; text-decoration: none; transition: transform .18s ease, background .18s ease; }
+    .button:hover { transform: translateY(-2px); }
+    .button-primary { color: #181a1b; background: var(--green); }
+    .button-primary:hover { background: var(--green-dark); }
+    .button-secondary { border-color: var(--line); background: #222526; }
+    .button-secondary:hover { background: #2a2e2f; }
+    .hero-note { margin-top: 1.15rem; color: #88928c; font-size: .8rem; }
+    code { color: var(--green-dark); font-size: .82em; overflow-wrap: anywhere; }
+    .hero-visual { position: relative; padding: .75rem; border: 1px solid var(--line); border-radius: 1.8rem; background: #222526; box-shadow: 0 28px 80px rgba(0,0,0,.35); transform: rotate(1deg); }
+    .hero-visual img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; object-position: top left; border-radius: 1.15rem; }
+    .visual-tag { position: absolute; right: -1.2rem; bottom: 1.8rem; display: flex; align-items: center; gap: .65rem; padding: .75rem .95rem; border: 1px solid var(--line); border-radius: 1rem; background: #252929; box-shadow: 0 12px 35px rgba(0,0,0,.32); font-size: .82rem; font-weight: 650; transform: rotate(-1deg); }
+    .visual-tag span { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: .65rem; background: var(--mint); color: var(--green); }
+    .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .trust-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; padding: 1.2rem 0; }
+    .trust-item { display: flex; align-items: center; justify-content: center; gap: .6rem; color: #c3ccc6; font-size: .88rem; font-weight: 610; }
+    .trust-item b { color: var(--green); font-size: 1.05rem; }
+    section { padding: 5.5rem 0; }
+    .section-head { max-width: 40rem; margin: 0 auto 2.5rem; text-align: center; }
+    .section-head h2 { margin: .65rem 0; font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.08; letter-spacing: -.06em; }
+    .section-head p { margin: 0; color: var(--muted); }
+    .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem; }
+    .feature-tile { height: 15rem; perspective: 1100px; cursor: pointer; outline: none; }
+    .feature-tile:focus-visible { border-radius: var(--radius); outline: 2px solid var(--green); outline-offset: 3px; }
+    .tile-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2,.75,.25,1); }
+    .feature-tile:hover .tile-inner, .feature-tile.is-flipped .tile-inner { transform: rotateY(180deg); }
+    .tile-face { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 1.3rem; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, #25292a, #202324); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+    .tile-front h3 { margin: 1rem 0 0; font-size: 1.04rem; line-height: 1.25; letter-spacing: -.025em; }
+    .tile-back { justify-content: center; transform: rotateY(180deg); background: linear-gradient(145deg, #29382f, #222a26); }
+    .tile-back p { margin: 0; color: #d0dbd3; font-size: .88rem; line-height: 1.55; }
+    .tile-back strong { color: var(--green-dark); font-weight: 680; }
+    .tile-hint { margin-top: auto; padding-top: .9rem; color: #87918a; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
+    .tile-hint::after { content: "↩"; }
+    @media (hover: none) { .tile-hint::after { content: "Tap to explore"; } }
+    .feature-icon { display: grid; width: 2.7rem; height: 2.7rem; place-items: center; border-radius: .85rem; color: var(--green-dark); background: var(--mint); font-size: 1.2rem; }
+    .feature-icon svg { width: 1.35rem; height: 1.35rem; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .feature h3 { margin: 1.1rem 0 .35rem; font-size: 1.08rem; letter-spacing: -.025em; }
+    .feature p { margin: 0; color: var(--muted); font-size: .92rem; }
+    .gallery { padding-top: 1rem; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .gallery-item { overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+    .gallery-item img { display: block; width: 100%; height: 13rem; object-fit: cover; object-position: top left; background: #292d2e; }
+    .gallery-item figcaption { display: grid; gap: .18rem; padding: 1rem 1.1rem 1.1rem; }
+    .gallery-item figcaption strong { font-size: .93rem; }
+    .gallery-item figcaption span { color: var(--muted); font-size: .82rem; }
+    .gallery-wide { grid-column: span 2; }
+    .showcase { padding-top: 1rem; }
+    .showcase-card { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 3rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: 1.8rem; background: #222526; }
+    .showcase-card img { display: block; width: 100%; border: 1px solid rgba(255,255,255,.08); border-radius: 1.1rem; box-shadow: 0 15px 40px rgba(0,0,0,.32); }
+    .showcase-copy { padding: 1rem 2rem 1rem 0; }
+    .showcase-copy h2 { margin: .8rem 0; font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1.08; letter-spacing: -.055em; }
+    .showcase-copy p { color: var(--muted); }
+    .showcase-copy ul { display: grid; gap: .55rem; padding: 0; list-style: none; color: #c3ccc6; font-size: .92rem; }
+    .showcase-copy li::before { margin-right: .55rem; color: var(--green); content: "✓"; font-weight: 800; }
+    .final-cta { padding: 1rem 0 5.5rem; }
+    .cta-box { padding: 3.5rem 1.5rem; border: 1px solid var(--line); border-radius: 1.8rem; color: var(--ink); background: #222526; text-align: center; }
+    .cta-box h2 { margin: 0 0 .65rem; font-size: clamp(2rem, 4vw, 3.2rem); letter-spacing: -.06em; }
+    .cta-box p { margin: 0 auto 1.4rem; color: var(--muted); }
+    .cta-box .button { color: #181a1b; background: var(--green); }
+    footer { padding: 1.4rem 0 2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+    .footer-row { display: flex; justify-content: space-between; gap: 1rem; }
+    footer a { color: var(--green-dark); text-decoration: none; }
+    @media (max-width: 800px) {
+      .hero { grid-template-columns: 1fr; gap: 2.5rem; padding: 3.5rem 0 4rem; }
+      h1 { max-width: 11ch; }
+      .hero-visual { margin-inline: .4rem; }
+      .features { grid-template-columns: repeat(2, 1fr); }
+      .feature-tile { height: 14rem; }
+      .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+      .gallery-wide { grid-column: span 2; }
+      .showcase-card { grid-template-columns: 1fr; gap: 1rem; }
+      .showcase-copy { padding: 1rem; }
+    }
+    @media (max-width: 560px) {
+      .wrap { width: min(100% - 1.5rem, 1120px); }
+      .nav-links { gap: .8rem; font-size: .82rem; }
+      .nav-links a:first-child { display: none; }
+      .nav-links .nav-cta { padding: .55rem .8rem; }
+      .hero { padding-top: 2.8rem; }
+      h1 { font-size: clamp(3rem, 14vw, 4.3rem); }
+      .hero-copy { font-size: 1rem; }
+      .visual-tag { right: -.3rem; bottom: .8rem; font-size: .72rem; }
+      .trust-row { grid-template-columns: 1fr; gap: .6rem; padding: 1rem 0; }
+      .trust-item { justify-content: flex-start; }
+      section { padding: 4rem 0; }
+      .features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+      .feature-tile { height: 15rem; }
+      .tile-face { padding: .9rem; }
+      .tile-front h3 { font-size: .92rem; }
+      .tile-back p { font-size: .78rem; }
+      .gallery-grid { grid-template-columns: 1fr; }
+      .gallery-wide { grid-column: auto; }
+      .feature { min-height: 0; }
+      .footer-row { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="nav wrap" aria-label="Main navigation">
+      <a class="brand" href="#home"><img src="../screenshots/logo256.png" alt=""><span>photoboggan</span></a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#approach">Approach</a>
+        <a class="nav-cta" href="https://github.com/alexh3o/photoboggan">View on GitHub <span aria-hidden="true">↗</span></a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap hero" id="home">
+      <div>
+        <span class="eyebrow">For the casual but organized photographers</span>
+        <h1>Fast, Smart,<br>Local, Private<br><span>photo viewer & manager.</span></h1>
+        <p class="hero-copy">Organize once, then spend more time enjoying and exploring your collection. Smooth, photo-first and ready for libraries of 200,000+ images.</p>
+        <div class="actions">
+          <a class="button button-primary" href="https://github.com/alexh3o/photoboggan/releases">Get photoboggan <span aria-hidden="true">↗</span></a>
+          <a class="button button-secondary" href="https://github.com/alexh3o/photoboggan">Explore the project</a>
+        </div>
+        <p class="hero-note">A silly name. A serious photo tool. · Free · Open source</p>
+      </div>
+      <div class="hero-visual">
+        <img src="../screenshots/main_view_complete.jpg" alt="photoboggan main view showing a photo library, filters and preview">
+        <div class="visual-tag"><span aria-hidden="true">⌁</span> Your whole library, at a glance</div>
+      </div>
+    </div>
+
+    <div class="trust">
+      <div class="wrap trust-row">
+        <div class="trust-item"><b>◎</b> Your folders stay yours</div>
+        <div class="trust-item"><b>↯</b> Built for 200k+ photos</div>
+        <div class="trust-item"><b>◈</b> Photo-first, privacy-minded</div>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">A fast path from camera roll to collection</span>
+          <h2>Everything you need.<br>Nothing in the way.</h2>
+          <p>Hover, tap or press Enter on a tile for details.</p>
+        </div>
+        <!--
+          Feature icon artwork is based on Lucide icons (https://lucide.dev), ISC License.
+          Copyright (c) 2022 Lucide Contributors
+          Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+          THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+        -->
+        <div class="features">
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-browse-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div><h3 id="tile-browse-title">Browse at full speed</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Grab and release to scroll. SQLite, virtual pagination of up to <strong>50,000 thumbnails</strong> and a 256-folder cache keep large libraries fluid.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-cull-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg></div><h3 id="tile-cull-title">Cull and keyword fast</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Set <strong>stars, color labels and pick flags</strong> from rating bars or shortcuts, with optional auto-advance. Batch keywording preserves untouched keywords.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-faces-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m18 0V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="10" r="3"/><path d="M7 21v-1a5 5 0 0 1 10 0v1"/></svg></div><h3 id="tile-faces-title">Face review, locally</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Optional, off by default: <strong>YuNet</strong> detects faces and <strong>SFace</strong> recognizes people on your device. Multiple centroids adapt to age; review high-confidence matches first, and picks improve recognition. Batch actions keep the photo in context.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-maps-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></div><h3 id="tile-maps-title">Map and geotag</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Optional <strong>MapLibre GL</strong> maps: browse geotagged shots, drag photos to add locations, and erase GPS data. Cache OpenFreeMap tile zones to avoid repeat provider requests, or use local MBTiles.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-content-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/><path d="m19 14 1.1 3.1L23 18l-2.9 1-1.1 3-1-3-3-1 3-.9L19 14Z"/></svg></div><h3 id="tile-content-title">Search image content</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Optional local <strong>SigLIP 2</strong> analysis: search by text, find similar scenes and suggest keywords from tagged lookalikes. A first scan is needed and can take hours for 100k+ photos.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-duplicates-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></div><h3 id="tile-duplicates-title">Find duplicates</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>After an initial perceptual-hash scan, find <strong>exact duplicates</strong> and very similar-looking photos.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-private-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9 7-.2 1-.9 2.1-1.8 3.1M6.2 6.2C3.8 7.7 2.2 10 2 12c.5 2.5 4 7 10 7 1.3 0 2.5-.3 3.6-.8"/></svg></div><h3 id="tile-private-title">Privacy and private photos</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Quickly hide or reveal photos using combined <strong>folder/path, keyword and date-range rules</strong>. Offline mode blocks outside connections; download face/content models and map files manually for local use.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-filters-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10m-7 5h4"/><circle cx="8" cy="7" r="2"/><circle cx="15" cy="12" r="2"/></svg></div><h3 id="tile-filters-title">Filter every way</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Filter filenames, formats, included/excluded keywords, map area, ratings, colors, picks, author, people, camera and lens—plus aperture, shutter, ISO, focal length and flash. Enter dates directly or use the calendar.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-formats-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8m-8 4h8"/></svg></div><h3 id="tile-formats-title">RAW, video and more</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>RAW photos use their <strong>embedded JPEG preview</strong>; videos use the operating system thumbnail and player. No RAW demosaicing or in-app video playback.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-fileops-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 3 14 21l-4-8-8-4 19-6Z"/><path d="M21 3 10 13"/></svg></div><h3 id="tile-fileops-title">Useful file actions</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Batch resize or copy, rename, rotate losslessly through metadata, reveal a file or its containing folder in the OS file manager, and match a JPEG to its RAW with tunable rules. Set <strong>Open with</strong> apps by Raster, RAW or Video.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-preview-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M19 3v4m-2-2h4"/></svg></div><h3 id="tile-preview-title">Zoom in and inspect</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Preview and fullscreen views offer instant <strong>1:1 zoom and pan</strong>, gradual zoom, optional face overlays, histogram, clipped highlights/shadows and photo info.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-compare-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/><path d="M7 8h.01M17 8h.01"/></svg></div><h3 id="tile-compare-title">Compare and select</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Compare <strong>2–4 photos</strong> with linked or independent zoom and pan; rate or delete a subselection. Chain Ctrl/Shift-clicks to build multiple selection groups in any direction.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-ui-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div><h3 id="tile-ui-title">Make the interface yours</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Toggle library, filters, preview, photo info, keywords, description and toolbar panels. Choose square, masonry or justified layouts; adjust spacing, sort by date taken/modified or filename, theme, fonts, text and panel sizes. Dim other photos on selection.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-metadata-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8m-8 4h8m-8 4h5"/></svg></div><h3 id="tile-metadata-title">Metadata that travels</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Write embedded metadata with <strong>ExifTool</strong> for broad format support, or the faster internal XMP/IPTC writer. Read EXIF, IPTC, XMP and common app schemes with editable source priority; risky EXIF writes stay excluded internally.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-safety-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></div><h3 id="tile-safety-title">Files stay safe</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Only metadata is edited: image data is never touched or recompressed. Writes are atomic and verified. On failure, photoboggan attempts restoration and warns if a <code>.tmp</code> file needs manual recovery; file operations flag conflicts and hidden files.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-queue-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div><h3 id="tile-queue-title">Stay responsive</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Significant work runs in a <strong>low-priority task queue</strong> with progress, pause and cancel. After the first library, thumbnail and optional AI scans, daily work feels instant; integrity checks take longer.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-integrity-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m8 12 2.5 2.5L16 9"/></svg></div><h3 id="tile-integrity-title">Check and maintain</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Integrity scans check for corruption and generate missing thumbnails. Choose database, thumbnail and private-map storage locations (an SSD helps), plus thumbnail resolution for face-review clarity.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-albums-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg></div><h3 id="tile-albums-title">Albums and statistics</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Create manual virtual albums or dynamic smart albums. Nest smart albums inside manual or smart albums to refine filters, and explore collection statistics by gear, exposure, dates, ratings and time.</p></div></div></article>
+          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-extras-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3m.1 4h.01"/></svg></div><h3 id="tile-extras-title">Shortcuts and small extras</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Shortcuts throughout, an in-app guide, contextual tooltips, slideshow and version update checks. Update checks pause in Offline mode.</p></div></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="gallery" aria-labelledby="gallery-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">A look inside the app</span>
+          <h2 id="gallery-title">Tools that stay out of the way.</h2>
+          <p>A flexible interface that keeps your photos in focus and useful controls close at hand.</p>
+        </div>
+        <div class="gallery-grid">
+          <figure class="gallery-item gallery-wide">
+            <img src="../screenshots/display_options_en.jpg" alt="photoboggan layout, thumbnail size and theme settings">
+            <figcaption><strong>Your view, your way</strong><span>Adjust layout, sorting, thumbnail size and theme.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/faces_review.jpg" alt="Face review screen with recognized people">
+            <figcaption><strong>Review detected faces</strong><span>Confirm or correct suggested people.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/filters_active_folded.jpg" alt="Combined filters for rating, color, filename, keywords and date">
+            <figcaption><strong>Refine your search</strong><span>Combine filters to narrow down your library.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/fullscreen-rating.jpg" alt="Full-screen photo with rating bar">
+            <figcaption><strong>Sort in full screen</strong><span>Rate and flag photos as you move through them.</span></figcaption>
+          </figure>
+          <figure class="gallery-item gallery-wide">
+            <img src="../screenshots/integrity_check_report_fr.jpg" alt="Photo folder integrity check report">
+            <figcaption><strong>Check your collection</strong><span>Find damaged files and generate missing thumbnails.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/exif_panel.jpg" alt="Photo EXIF metadata panel">
+            <figcaption><strong>See the details</strong><span>Review photo and camera metadata.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="showcase" id="approach">
+      <div class="wrap showcase-card">
+        <img src="../screenshots/compare.jpg" alt="photoboggan compare mode showing photos side by side">
+        <div class="showcase-copy">
+          <span class="eyebrow">Simple by design</span>
+          <h2>Your library.<br>Your rules.</h2>
+          <p>For 25 years, I’ve been photographing as a hobbyist and dad. I built photoboggan to make time with a collection about enjoying and exploring photos, not repeating the same organizing chores.</p>
+          <ul>
+            <li>Your photos stay on your computer</li>
+            <li>Your ratings and keywords stay interoperable</li>
+            <li>Smart tools are optional and run locally</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta">
+      <div class="wrap cta-box">
+        <h2>Ready to rediscover your photos?</h2>
+        <p>Explore the project, get the latest release and see what’s new on GitHub.</p>
+        <a class="button" href="https://github.com/alexh3o/photoboggan">Visit the GitHub repository <span aria-hidden="true">↗</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-row">
+      <span>© photoboggan · Free software under GPL-3.0</span>
+      <a href="https://github.com/alexh3o/photoboggan">Source code on GitHub ↗</a>
+    </div>
+  </footer>
+  <script>
+    const hoverTiles = window.matchMedia("(hover: hover) and (pointer: fine)");
+    document.querySelectorAll(".feature-tile").forEach((tile) => {
+      const back = tile.querySelector(".tile-back");
+      const setOpen = (open) => {
+        tile.setAttribute("aria-expanded", String(open));
+        back.setAttribute("aria-hidden", String(!open));
+      };
+      const toggle = () => {
+        const open = !tile.classList.contains("is-flipped");
+        tile.classList.toggle("is-flipped", open);
+        setOpen(open);
+      };
+
+      tile.addEventListener("pointerenter", (event) => {
+        if (event.pointerType === "mouse") setOpen(true);
+      });
+      tile.addEventListener("pointerleave", (event) => {
+        if (event.pointerType === "mouse" && !tile.classList.contains("is-flipped")) setOpen(false);
+      });
+      tile.addEventListener("click", () => {
+        if (!hoverTiles.matches) toggle();
+      });
+      tile.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggle();
+        } else if (event.key === "Escape") {
+          tile.classList.remove("is-flipped");
+          setOpen(false);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
