@@ -9,7 +9,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1520 |  |
+| `index.html` | 1517 |  |
 | `package.json` | 29 |  |
 | `README.md` | 204 |  |
 | `TODO.md` | 64 |  |
@@ -110,7 +110,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `app-fonts.js` | 30 | Interface fonts offered in Settings > Appearance. This list is the single place to register a font: the select is built from it and main.js applies the chosen stack to --app-font. To add a font (all four steps are requi… |
 | `author-filters.css` | 12 | Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `author-filters.js` | 181 | Filtre « Auteur » du groupe « Plus de filtres » : les auteurs des photos (champ Auteur des métadonnées, voir rights.rs et exif::AUTHOR_SOURCE_IDS). La liste proposée vient de la base (commande get_authors : les auteurs … |
-| `author-rights.css` | 42 | Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-panel.js, rights-presets.js : ligne de préréglage et fenêtre des préréglages). |
+| `author-rights.css` | 34 | Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-panel.js, rights-presets.js : ligne de préréglage et fenêtre des préréglages). |
 | `defaults.jsonc` | 195 |  |
 | `description-panel.js` | 363 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
@@ -131,7 +131,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 119 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
-| `info-author.js` | 107 | Section « Auteur » de l'onglet Info : l'auteur de la photo active et, en dépliant, sa mention de copyright, son crédit, ses conditions d'utilisation et l'e-mail de l'auteur (voir rights.rs et exif::Rights). - La ligne «… |
+| `info-author.js` | 107 | Section « Photographe » de l'onglet Info : l'auteur de la photo active et, en dépliant, sa mention de copyright, son crédit, ses conditions d'utilisation et l'e-mail de l'auteur (voir rights.rs et exif::Rights). - Le ti… |
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 137 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
@@ -302,5 +302,5 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1797 |  |
-| `fr.json` | 1797 |  |
+| `en.json` | 1798 |  |
+| `fr.json` | 1798 |  |

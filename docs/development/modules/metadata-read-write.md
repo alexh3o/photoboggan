@@ -1,4 +1,4 @@
-<!-- verified: f4a166d | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
+<!-- verified: 8e1b249 | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
 # Metadata reading and writing (EXIF / IPTC / XMP, ExifTool, sidecars)
 
 ## Purpose

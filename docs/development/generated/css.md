@@ -256,14 +256,15 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 - L1 Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres.
 
-### src/author-rights.css (42 lines)
+### src/author-rights.css (34 lines)
 
 - L1 Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-pane…
-- L4 --- Onglet Info : ligne « Auteur » toujours affichée, champs d'auteur et de droits dépliables ---
-- L20 Plié : seuls le nom du champ, l'auteur et le chevron restent (les champs vides sont masqués par refreshInfoRows de main.js).
-- L23 --- Onglet Description : auteur et droits ---
-- L29 Disquette rouge : un champ d'auteur ou de droits a été modifié.
-- L32 --- Fenêtre « Author and Rights presets » ---
+- L4 --- Onglet Info : titre de section « Photographe » (toute la ligne plie / déplie) et lignes d'auteur et de droits ---
+- L7 Le texte du titre est dans un <span> : sans ceci, la règle des valeurs (`.exif-section li span`) lui donnerait leur couleur et le…
+- L12 Plié : seuls le titre et la ligne « Auteur » restent (les champs vides sont masqués par refreshInfoRows de main.js).
+- L15 --- Onglet Description : auteur et droits ---
+- L21 Disquette rouge : un champ d'auteur ou de droits a été modifié.
+- L24 --- Fenêtre « Author and Rights presets » ---
 
 ### src/duplicates.css (58 lines)
 
