@@ -10,7 +10,7 @@
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [ ] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
-- [ ] *fix*: `tree` reordering root folders in tree needs a lic action after moving to register
+- [ ] *fix*: `tree` reordering root folders in tree needs a click action after moving to register
 
 ## 💡 Ideas / Longer term / On hold
 
@@ -20,7 +20,7 @@
 - [ ] *feat*: `files` sd card import
 - [ ] *feat*: `viewing` instant zoom
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
-- [ ] *feat*: `metadata` copyright and creator writing
+- [x] *feat*: `metadata` copyright and creator writing
 - [ ] *feat*: `metadata` lens metadata writing
 - [ ] *feat*: `metadata` exif time shift
 - [ ] *feat*: `files` prevent deletion of photos with stars
