@@ -228,6 +228,8 @@
   "Copy to clipboard": "Copy to clipboard",
   "Zoom in / out": "Zoom in / out",
   "Actual size / fit": "Actual size (1:1) / fit to window",
+  "Actual size while the key is held": "Actual size (1:1) while the key is held",
+  "Move the mouse to pan, mouse wheel to change the zoom. Releasing the key brings back the previous zoom": "Move the mouse to pan, wheel to change the zoom. Releasing the key brings back the previous zoom",
   "Mouse wheel": "Wheel",
   "Open with": "Open with",
   "Choose…": "Choose…",

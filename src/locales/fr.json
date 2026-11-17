@@ -228,6 +228,8 @@
   "Copy to clipboard": "Copier dans le presse-papiers",
   "Zoom in / out": "Zoom avant / arrière",
   "Actual size / fit": "Taille réelle (1:1) / image entière",
+  "Actual size while the key is held": "Taille réelle (1:1) tant que la touche est maintenue",
+  "Move the mouse to pan, mouse wheel to change the zoom. Releasing the key brings back the previous zoom": "Déplacez la souris pour naviguer dans l'image, molette pour changer le zoom. Relâcher la touche rétablit le zoom précédent",
   "Mouse wheel": "Molette",
   "Open with": "Ouvrir avec",
   "Choose…": "Choisir…",

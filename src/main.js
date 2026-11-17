@@ -7254,6 +7254,146 @@ document.getElementById('btn-toggle-compare').addEventListener('click', event =>
 });
 
 // ==========================================
+// INSTANT ZOOM (hold Z)
+// ==========================================
+// Holding Z over an image of the preview (compare mode included) or over the fullscreen photo shows it at 1 image pixel = 1 screen pixel. While the key
+// is held, the mouse position chooses the displayed area (the whole image is reachable by moving across the fitted image) and the wheel changes the
+// zoom. Releasing Z puts back the zoom level and the centre that were active before. In compare mode every loaded preview follows (same rule as the
+// + / - / * keys: only the hovered one when "Desynchronise" is on).
+const INSTANT_ZOOM_LEVEL = 1; // 1:1, same value as togglePreviewActualSize
+let instantZoom = null; // while Z is held: { target, photoPath, saved, sharedCenter, signature, fullscreen }
+let instantZoomPointer = null; // last known pointer position (a key event carries none)
+let instantZoomFrame = 0; // pending animation frame of the pan
+
+function isTextEntryFocused() {
+  const active = document.activeElement;
+  return active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement
+    || (active instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes(active.type))
+    || (active instanceof HTMLElement && active.isContentEditable);
+}
+
+// Slot under the pointer: the fullscreen photo when fullscreen is open, else the preview cell hovered (null if none).
+function instantZoomSlotUnderPointer() {
+  if (!instantZoomPointer) return null;
+  const element = document.elementFromPoint(instantZoomPointer.x, instantZoomPointer.y);
+  if (!(element instanceof Element)) return null;
+  if (isFullscreen) return fullscreenView.contains(element) && fullscreenSlot.naturalWidth > 0 ? fullscreenSlot : null;
+  const cell = element.closest('.preview-cell');
+  const slot = cell ? previewSlots.find(candidate => candidate.cell === cell) : null;
+  return slot && slot.naturalWidth > 0 ? slot : null;
+}
+
+// The photo shown changed (arrows, new selection, fullscreen closed) while the key was held: there is nothing left to drive or to restore.
+function isInstantZoomValid() {
+  if (!instantZoom || instantZoom.fullscreen !== isFullscreen) return false;
+  return isFullscreen ? fullscreenSlot.photo?.path === instantZoom.photoPath : previewSlots.includes(instantZoom.target);
+}
+
+// Pointer position -> point of the image (proportions). The mapping is absolute over the image fitted in its cell, so that at press time the point
+// under the cursor is the one shown at the centre, and moving across the fitted image sweeps the whole picture.
+function instantZoomCenterAt(clientX, clientY) {
+  const slot = instantZoom.target;
+  const rect = slot.cell.getBoundingClientRect();
+  const fitScale = slot.fit / (window.devicePixelRatio || 1);
+  const fitWidth = slot.naturalWidth * fitScale;
+  const fitHeight = slot.naturalHeight * fitScale;
+  if (!(fitWidth > 0 && fitHeight > 0)) return null;
+  const clamp01 = value => Math.min(1, Math.max(0, value));
+  return {
+    x: clamp01((clientX - rect.left - (rect.width - fitWidth) / 2) / fitWidth),
+    y: clamp01((clientY - rect.top - (rect.height - fitHeight) / 2) / fitHeight),
+  };
+}
+
+function panInstantZoom() {
+  if (!instantZoomPointer || !isInstantZoomValid()) return;
+  const center = instantZoomCenterAt(instantZoomPointer.x, instantZoomPointer.y);
+  if (!center) return;
+  setPreviewCenter(instantZoom.target, clampPreviewCenter(instantZoom.target, center.x, center.y)); // shared centre, or the slot's own one
+  renderPreviewTransforms();
+}
+
+function startInstantZoom() {
+  const target = instantZoomSlotUnderPointer();
+  if (!target) return false;
+  const slots = previewSlotsToAffect(target);
+  if (!slots.length) return false;
+  instantZoom = {
+    target,
+    saved: slots.map(slot => ({ slot, photoPath: slot.photo?.path, zoom: slot.zoom, center: { ...slot.center } })),
+    photoPath: target.photo?.path, // the fullscreen slot is reused from photo to photo: identify the photo by its path
+    sharedCenter: { ...previewCenter },
+    signature: previewSignature,
+    fullscreen: isFullscreen,
+  };
+  zoomPreview(() => INSTANT_ZOOM_LEVEL, null, target);
+  panInstantZoom();
+  return true;
+}
+
+// Puts back the zoom level and centre of before the key was pressed (only for photos still displayed).
+function endInstantZoom() {
+  if (!instantZoom) return;
+  const state = instantZoom;
+  const valid = isInstantZoomValid();
+  instantZoom = null;
+  cancelAnimationFrame(instantZoomFrame);
+  instantZoomFrame = 0;
+  if (!valid) return;
+  for (const { slot, photoPath, zoom, center } of state.saved) {
+    if (slot.photo?.path !== photoPath || (slot !== fullscreenSlot && !previewSlots.includes(slot))) continue;
+    slot.zoom = zoom;
+    slot.center = center;
+  }
+  if (previewSignature === state.signature) previewCenter = state.sharedCenter;
+  renderPreviewTransforms();
+  state.saved.forEach(({ slot }) => showZoomIndicator(slot));
+}
+
+// Capture phase: the key must win over the other handlers (e.g. the letter keys of the Faces view) once it has been taken.
+window.addEventListener('keydown', event => {
+  if (event.key.toLowerCase() !== 'z' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return; // Ctrl+Z stays the undo
+  if (instantZoom) { // key repeat while held
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
+  if (event.repeat || document.querySelector('.modal:not(.hidden)')) return;
+  if (!isFullscreen && isTextEntryFocused()) return; // typing a "z" in a text field
+  if (startInstantZoom()) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}, true);
+
+window.addEventListener('keyup', event => {
+  if (event.key.toLowerCase() === 'z') endInstantZoom();
+}, true);
+window.addEventListener('blur', endInstantZoom); // focus lost while held: no keyup will come
+document.addEventListener('visibilitychange', () => { if (document.hidden) endInstantZoom(); });
+
+window.addEventListener('pointermove', event => {
+  instantZoomPointer = { x: event.clientX, y: event.clientY };
+  if (!instantZoom || event.buttons !== 0) return; // a button held: the usual drag panning keeps the hand
+  if (!isInstantZoomValid()) { endInstantZoom(); return; }
+  if (!instantZoomFrame) {
+    instantZoomFrame = requestAnimationFrame(() => { instantZoomFrame = 0; panInstantZoom(); });
+  }
+}, { capture: true, passive: true });
+
+// The wheel zooms instead of changing photo (fullscreen) or zooming around the cursor (preview), and keeps the same limits as the + / - keys.
+window.addEventListener('wheel', event => {
+  if (!instantZoom) return;
+  if (!isInstantZoomValid()) { endInstantZoom(); return; }
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const steps = wheelZoomSteps(event);
+  if (!steps) return;
+  zoomPreviewSteps(-steps, null, instantZoom.target);
+  panInstantZoom(); // zoomPreview resets the centre when the fitted view comes back
+}, { capture: true, passive: false });
+
+// ==========================================
 // DÉFILEMENT DE LA GRILLE AU GLISSER
 // ==========================================
 const GRID_DRAG_THRESHOLD = 5; // pixels avant de considérer un glissement (sinon c'est un clic)

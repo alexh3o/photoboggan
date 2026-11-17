@@ -51,6 +51,7 @@ const GROUPS = [
     { a: 'Previous / next photo', tag: 'Preview and fullscreen', k: [['←'], ['→']], sep: 'slash' },
     { a: 'Zoom in / out', k: [['+'], ['-']], sep: 'slash' },
     { a: 'Actual size / fit', k: [['*']] },
+    { a: 'Actual size while the key is held', d: 'Move the mouse to pan, mouse wheel to change the zoom. Releasing the key brings back the previous zoom', tag: 'Preview and fullscreen', k: [['Z']] },
     { a: 'Toggle compare mode', k: [['X']] },
     { a: 'Compare: select a photo', d: 'To rate, color or delete it', k: [['Click']] },
     { a: 'Compare: select all photos', d: 'Press again to clear', k: [['A']] },
