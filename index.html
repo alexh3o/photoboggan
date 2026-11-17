@@ -522,12 +522,9 @@
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Keywords"></strong> <span id="exif-keywords">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Title"></strong> <span id="exif-title">-</span></li>
           <li data-group="metadata" data-always><strong class="exif-label" data-i18n="Description"></strong> <span id="exif-caption">-</span></li>
-          <!-- Section « Auteur » (info-author.js) : la ligne reste toujours affichée avec l'auteur ; le nom du champ ou le chevron plie / déplie les autres champs d'auteur et de droits (affichés seulement s'ils sont remplis). Un clic sur une valeur ouvre l'onglet Description. -->
-          <li class="exif-author-header" data-always>
-            <button type="button" id="exif-author-toggle" class="exif-author-toggle" aria-expanded="false" aria-controls="exif-author-details"><strong class="exif-label" data-i18n="Author"></strong></button>
-            <span class="exif-author-value-wrap"><span id="exif-author" class="exif-author-value">-</span></span>
-            <button type="button" id="exif-author-chevron" class="exif-author-chevron" aria-expanded="false" aria-controls="exif-author-details" data-i18n-title="Show the copyright and credit fields" data-i18n-aria-label="Show the copyright and credit fields"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
-          </li>
+          <!-- Section « Photographe » (info-author.js) : titre de section comme « Metadata », dont toute la ligne plie / déplie les champs de droits (affichés seulement s'ils sont remplis). La ligne « Auteur » reste toujours affichée ; un clic sur elle, ou sur un autre champ, ouvre l'onglet Description. -->
+          <li class="exif-group-title exif-author-title" id="exif-author-title" data-group-title="author" role="button" tabindex="0" aria-expanded="false" data-i18n-title="Show the copyright and credit fields"><span data-i18n="Photographer"></span><svg class="exif-author-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></li>
+          <li class="exif-author-row" data-group="author" data-always><strong class="exif-label" data-i18n="Author"></strong> <span id="exif-author">-</span></li>
           <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Copyright notice"></strong> <span id="exif-copyright">-</span></li>
           <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Credit"></strong> <span id="exif-credit">-</span></li>
           <li class="exif-author-detail" data-group="author"><strong class="exif-label" data-i18n="Usage terms"></strong> <span id="exif-usage-terms">-</span></li>

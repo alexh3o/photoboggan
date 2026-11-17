@@ -1,23 +1,15 @@
 /* Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-panel.js,
    rights-presets.js : ligne de préréglage et fenêtre des préréglages). */
 
-/* --- Onglet Info : ligne « Auteur » toujours affichée, champs d'auteur et de droits dépliables --- */
-#exif-data .exif-author-header { display: flex; align-items: baseline; gap: 0.4rem; }
-.exif-author-toggle {
-  background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-align: left;
-}
-.exif-author-toggle:hover .exif-label, .exif-author-toggle:focus-visible .exif-label { text-decoration: underline; }
-.exif-author-value-wrap { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.exif-author-value { cursor: pointer; }
-.exif-author-value:hover { text-decoration: underline; }
-.exif-author-chevron {
-  display: inline-flex; align-items: center; background: none; border: none; padding: 0 0.1rem; margin-left: auto; color: inherit; cursor: pointer;
-  opacity: 0.8; align-self: center;
-}
-.exif-author-chevron:hover { opacity: 1; }
-.exif-author-chevron svg { transition: transform 0.15s; }
-.exif-author-chevron.open svg { transform: rotate(180deg); }
-/* Plié : seuls le nom du champ, l'auteur et le chevron restent (les champs vides sont masqués par refreshInfoRows de main.js). */
+/* --- Onglet Info : titre de section « Photographe » (toute la ligne plie / déplie) et lignes d'auteur et de droits --- */
+#exif-data .exif-author-title { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; cursor: pointer; user-select: none; }
+#exif-data .exif-author-title:hover { filter: brightness(1.15); }
+/* Le texte du titre est dans un <span> : sans ceci, la règle des valeurs (`.exif-section li span`) lui donnerait leur couleur et leur taille au lieu de celles des titres de section. */
+#exif-data .exif-author-title > span { display: inline; margin-top: 0; color: inherit; font-size: inherit; font-weight: inherit; }
+.exif-author-chevron { flex: none; opacity: 0.8; transition: transform 0.15s; }
+.exif-author-title:hover .exif-author-chevron { opacity: 1; }
+.exif-author-title.open .exif-author-chevron { transform: rotate(180deg); }
+/* Plié : seuls le titre et la ligne « Auteur » restent (les champs vides sont masqués par refreshInfoRows de main.js). */
 #exif-data.exif-author-collapsed .exif-author-detail { display: none !important; }
 
 /* --- Onglet Description : auteur et droits --- */
