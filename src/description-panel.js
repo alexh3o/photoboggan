@@ -179,10 +179,20 @@ const descriptionEditor = {
 // Rendu
 // ---------------------------------------------------------------------------
 
+// Auto-growing fields (copyright, usage terms: `.rights-textarea`): the height follows the text, up to the max-height of the CSS (then the field scrolls).
+// Nothing to measure while the tab is hidden: the ResizeObserver set in initDescriptionPanel grows the field once it is visible.
+function autoGrow(element) {
+  if (!element.offsetParent) return;
+  element.style.height = 'auto';
+  // scrollHeight does not include the borders, and the field is border-box.
+  element.style.height = `${element.scrollHeight + element.offsetHeight - element.clientHeight}px`;
+}
+
 function renderField(field, edited, common) {
   field.value = edited ?? common ?? '';
   field.placeholder = edited === null && common === null ? t('Multiple values') : '';
   field.disabled = targets.size === 0;
+  if (field.classList.contains('rights-textarea')) autoGrow(field);
 }
 
 function render() {
@@ -303,6 +313,17 @@ export function initDescriptionPanel(hostApi) {
   }
   initialized = true;
 
+  // Auto-growing fields: measured again when their width changes (panel resized, tab shown after having been hidden). Only a width change counts,
+  // so the height set by autoGrow does not trigger the observer again.
+  const growObserver = new ResizeObserver(entries => {
+    for (const { target, contentRect } of entries) {
+      if (target.dataset.growWidth === String(contentRect.width)) continue;
+      target.dataset.growWidth = String(contentRect.width);
+      autoGrow(target);
+    }
+  });
+  for (const element of Object.values(rightsInputs)) if (element.classList.contains('rights-textarea')) growObserver.observe(element);
+
   const onInput = () => {
     // Mode ExifTool : un processus est démarré à la première modification, pour que « Appliquer » ne paie pas son démarrage.
     if (!prewarmed && isDirty()) {
@@ -321,7 +342,15 @@ export function initDescriptionPanel(hostApi) {
   applyButton.addEventListener('click', () => applyPending());
   for (const field of RIGHTS_FIELDS) {
     const element = rightsInputs[field.key];
+    const growing = element.classList.contains('rights-textarea');
+    // A rights value is a single line (same rule as exif.rs): Enter does nothing in these fields (Ctrl+Enter still applies, see below).
+    if (growing) element.addEventListener('keydown', event => { if (event.key === 'Enter') event.preventDefault(); });
     element.addEventListener('input', () => {
+      if (growing) {
+        // A pasted line break becomes a space, as cleanTitle does when the value is written.
+        if (/[\r\n]/.test(element.value)) element.value = element.value.replace(/[\r\n]+/g, ' ');
+        autoGrow(element);
+      }
       editedRights[field.key] = element.value === untouchedRights[field.key] ? null : element.value;
       onInput();
     });

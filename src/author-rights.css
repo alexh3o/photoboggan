@@ -1,9 +1,14 @@
-/* Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-panel.js,
-   rights-presets.js : ligne de préréglage et fenêtre des préréglages). */
+/* Author and rights: "Author and rights" section of the Info tab (info-author.js) and lower half of the Description tab (description-panel.js,
+   rights-presets.js: preset line and presets window). */
 
-/* --- Onglet Info : titre de section « Photographe » (toute la ligne plie / déplie) et lignes d'auteur et de droits --- */
-#exif-data .exif-author-title { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; cursor: pointer; user-select: none; }
-#exif-data .exif-author-title:hover { filter: brightness(1.15); }
+/* --- Info tab: section title (the whole row folds / unfolds) and author and rights rows --- */
+#exif-data .exif-author-title { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; cursor: pointer; user-select: none; }
+/* Same hover highlight as the editable rows (keywords.css): a pseudo-element wider than the row. It starts under the separator line, so the line keeps the width of the other section titles. */
+#exif-data .exif-author-title::before { content: ""; position: absolute; z-index: -1; inset: 0 -0.4rem -0.2rem; border-radius: 0 0 4px 4px; pointer-events: none; }
+#exif-data .exif-author-title:not(.no-details):hover::before, #exif-data .exif-author-title:not(.no-details):focus-visible::before { background: var(--control-bg); }
+/* Nothing to unfold (no copyright, credit, usage terms or e-mail): plain heading, no chevron. The chevron keeps its room, so the title does not move. */
+#exif-data .exif-author-title.no-details { cursor: default; }
+.exif-author-title.no-details .exif-author-chevron { visibility: hidden; }
 /* Le texte du titre est dans un <span> : sans ceci, la règle des valeurs (`.exif-section li span`) lui donnerait leur couleur et leur taille au lieu de celles des titres de section. */
 #exif-data .exif-author-title > span { display: inline; margin-top: 0; color: inherit; font-size: inherit; font-weight: inherit; }
 .exif-author-chevron { flex: none; opacity: 0.8; transition: transform 0.15s; }
@@ -12,14 +17,17 @@
 /* Plié : seuls le titre et la ligne « Auteur » restent (les champs vides sont masqués par refreshInfoRows de main.js). */
 #exif-data.exif-author-collapsed .exif-author-detail { display: none !important; }
 
-/* --- Onglet Description : auteur et droits --- */
-.description-rights { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--border-color, rgba(128, 128, 128, 0.35)); }
-.rights-preset-line { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.4rem; }
+/* --- Description tab: author and rights --- */
+/* Column of labels and fields: same rhythm as the title / description block above (gap, plus the top margin of `.description-field`). */
+.description-rights { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--border-color, rgba(128, 128, 128, 0.35)); }
+.rights-preset-line { display: flex; align-items: center; gap: 0.3rem; }
 .rights-preset-field { flex: 1; min-width: 0; }
 .rights-preset-field .description-input { width: 100%; box-sizing: border-box; }
 .rights-preset-button { flex: none; display: inline-flex; align-items: center; justify-content: center; }
-/* Disquette rouge : un champ d'auteur ou de droits a été modifié. */
-.rights-preset-button.modified { color: #e74c3c; border-color: #e74c3c; }
+/* Floppy disk: muted while the fields match the files (or the selected preset), amber (--pending-color, like the pending dot of the tabs and the marker of the fields) once a field was modified. */
+.rights-preset-button.modified { color: var(--pending-color); border-color: var(--pending-color); }
+/* Copyright and usage terms: one line to start with, growing with the text up to three lines, then scrolling (height set by autoGrow in description-panel.js). */
+.rights-textarea { resize: none; overflow-y: auto; font-family: inherit; line-height: 1.35; max-height: calc(3 * 1.35 * 0.78rem + 12px); }
 
 /* --- Fenêtre « Author and Rights presets » --- */
 .rights-presets-card { width: min(28rem, 92vw); }

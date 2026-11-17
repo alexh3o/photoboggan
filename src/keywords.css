@@ -19,9 +19,12 @@
 .side-tab-btn:disabled { opacity: 0.45; cursor: default; background: transparent; }
 /* Pastille : l'onglet porte des modifications pas encore écrites dans les fichiers */
 .side-tab-btn.pending::after { content: "●"; margin-left: 0.3rem; font-size: 0.6rem; vertical-align: 0.1em; color: var(--pending-color); }
-/* Lignes de l'onglet Info qui mènent à un onglet d'édition */
-#exif-data li.exif-editable { cursor: pointer; }
-#exif-data li.exif-editable:hover, #exif-data li.exif-editable:focus-visible { background: var(--control-bg); outline: none; }
+/* Info tab rows that lead to an editing tab. The hover / focus highlight is a pseudo-element wider than the row (0.4rem on each side, 0.2rem above and
+   below): it overflows the text without changing the layout. The section title of author-rights.css uses the same highlight. */
+#exif-data li.exif-editable { position: relative; isolation: isolate; cursor: pointer; }
+#exif-data li.exif-editable::before { content: ""; position: absolute; z-index: -1; inset: -0.2rem -0.4rem; border-radius: 4px; pointer-events: none; }
+#exif-data li.exif-editable:hover::before, #exif-data li.exif-editable:focus-visible::before { background: var(--control-bg); }
+#exif-data li.exif-editable:focus-visible { outline: none; }
 .side-tab-pane { flex: 1 1 auto; min-height: 0; padding: 1rem; overflow-y: auto; }
 .side-tab-pane[hidden] { display: none; }
 
@@ -72,8 +75,9 @@
 /* Panneau Info : une description sur plusieurs lignes garde ses retours à la ligne */
 #exif-caption { white-space: pre-line; }
 
-/* Onglet Description : titre (une ligne), description (prend la place restante), puis boutons, voir description-panel.js */
-#exif-tab-description { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem; overflow: hidden; }
+/* Description tab: title (one line), description (takes the remaining room), author and rights, then the buttons, see description-panel.js. The tab scrolls
+   when its fields do not fit (small window, large text size); the buttons stay in view at the bottom (sticky, see below). */
+#exif-tab-description { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem 0.6rem 0; overflow: hidden auto; scroll-padding-bottom: 5rem; }
 #exif-tab-description[hidden] { display: none; }
 .description-field { color: var(--text-muted); font-size: 0.72rem; font-weight: 600; }
 .description-field:not(:first-child) { margin-top: 0.4rem; }
@@ -81,7 +85,8 @@
 .description-input::placeholder { font-style: italic; }
 /* Champ modifié dont la valeur n'est pas encore écrite dans les fichiers */
 .description-input.pending { box-shadow: inset 2px 0 0 var(--pending-color); }
-#exif-tab-description .keyword-actions { margin-top: 0.4rem; }
+/* Buttons pinned to the bottom of the tab; the negative side margins and the padding give the background the full width of the tab. */
+#exif-tab-description .keyword-actions { position: sticky; bottom: 0; z-index: 1; margin: 0.4rem -0.6rem 0; padding: 0.4rem 0.6rem 0.6rem; background: var(--bg-panel); }
 
 /* Fenêtre à choix multiples (modifications en attente, échec d'écriture) */
 .keyword-dialog { width: min(28rem, calc(100vw - 2.5rem)); padding: 1rem 1.125rem; }

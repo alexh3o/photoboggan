@@ -1,11 +1,12 @@
-// Section « Photographe » de l'onglet Info : l'auteur de la photo active et, en dépliant, sa mention de copyright, son crédit, ses conditions d'utilisation et
-// l'e-mail de l'auteur (voir rights.rs et exif::Rights).
+// "Author and rights" section of the Info tab: the author of the active photo and, when unfolded, its copyright notice, credit, usage terms and the
+// author's e-mail (see rights.rs and exif::Rights).
 //
-// - Le titre de section « Photographe » (même style que « Metadata ») porte le chevron ; toute sa ligne plie / déplie les autres champs (état mémorisé :
-//   clé `infoAuthorOpen` de defaults.jsonc). Ces champs ne sont affichés que s'ils sont remplis (refreshInfoRows de main.js).
-// - La ligne « Auteur » reste toujours affichée, même vide. Elle et les autres champs sont des lignes entières cliquables, surlignées au survol comme le titre
-//   et la description : un clic ouvre l'onglet Description pour les modifier.
-// - L'auteur vient de la liste des photos (champ `author`) ; les autres champs, qui n'y figurent pas, sont demandés à la base pour la seule photo active.
+// - The section title (same style as "Metadata") carries the chevron; the whole row folds / unfolds the other fields (state kept in the `infoAuthorOpen`
+//   key of defaults.jsonc). Those fields are shown only when filled (refreshInfoRows in main.js). The chevron is shown only when at least one of them is
+//   filled: with nothing to unfold, the title is a plain heading.
+// - The "Author" row is always shown, even when empty. It and the other fields are whole clickable rows, highlighted on hover like the title and the
+//   description: a click opens the Description tab and puts the cursor in the matching field.
+// - The author comes from the photo list (`author` field); the other fields, which are not in it, are asked from the database for the active photo only.
 import './author-rights.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
@@ -18,22 +19,61 @@ const DETAIL_FIELDS = [
   ['exif-usage-terms', 'usage_terms'],
   ['exif-author-email', 'author_email'],
 ];
+// Input of the Description tab edited by each row of this section (a click on the row puts the cursor there).
+const EDIT_INPUT_IDS = {
+  'exif-author': 'description-author',
+  'exif-copyright': 'description-copyright',
+  'exif-credit': 'description-credit',
+  'exif-usage-terms': 'description-usage-terms',
+  'exif-author-email': 'description-author-email',
+};
 
-let host = null; // { openDescription(), refreshRows() }, voir initInfoAuthor
+let host = null; // { openDescription(), refreshRows() }, see initInfoAuthor
 let list;
 let titleRow;
 let authorValue;
-let token = 0; // une lecture de la base plus récente rend caduque celle qui est en cours
+let token = 0; // a more recent database read makes the one in progress obsolete
+let isOpen = false; // the rights fields are unfolded
+let hasDetails = false; // at least one of the rights fields is filled for the active photo
 
-function applyOpen(open) {
-  list.classList.toggle('exif-author-collapsed', !open);
-  titleRow.setAttribute('aria-expanded', String(open));
-  titleRow.title = t(open ? 'Hide the copyright and credit fields' : 'Show the copyright and credit fields');
-  titleRow.classList.toggle('open', open);
+// Folded / unfolded look of the section. Without anything to unfold, the title is a plain heading: no chevron, not a button.
+function applyOpen() {
+  if (!list || !titleRow) return; // section elements missing from index.html (see initInfoAuthor)
+  list.classList.toggle('exif-author-collapsed', !isOpen);
+  titleRow.classList.toggle('open', isOpen);
+  titleRow.classList.toggle('no-details', !hasDetails);
+  if (hasDetails) {
+    titleRow.setAttribute('role', 'button');
+    titleRow.tabIndex = 0;
+    titleRow.setAttribute('aria-expanded', String(isOpen));
+    titleRow.title = t(isOpen ? 'Hide the copyright and credit fields' : 'Show the copyright and credit fields');
+  } else {
+    titleRow.removeAttribute('role');
+    titleRow.removeAttribute('aria-expanded');
+    titleRow.removeAttribute('title');
+    titleRow.tabIndex = -1;
+  }
+}
+
+// Opens the Description tab and puts the cursor in the field matching the clicked row. The tab is filled a moment after it appears (the selection is
+// read when it becomes visible), so the focus is tried again on the next frames, as focusSideTabField does (keywords-panel.js).
+function openDescriptionAt(inputId) {
+  host.openDescription();
+  const field = document.getElementById(inputId);
+  if (!field) return;
+  const focus = () => {
+    if (document.activeElement === field || field.disabled) return;
+    field.focus();
+    field.select?.();
+    field.scrollIntoView({ block: 'nearest' }); // the tab scrolls when its fields do not all fit
+  };
+  focus();
+  requestAnimationFrame(focus);
+  setTimeout(focus, 150);
 }
 
 /**
- * Branche la section. `openDescription()` : ouvre l'onglet Description ; `refreshRows()` : masque les lignes vides de l'onglet Info (main.js).
+ * Wires the section. `openDescription()`: opens the Description tab; `refreshRows()`: hides the empty rows of the Info tab (main.js).
  */
 export function initInfoAuthor({ openDescription, refreshRows }) {
   host = { openDescription, refreshRows };
@@ -44,38 +84,41 @@ export function initInfoAuthor({ openDescription, refreshRows }) {
     console.error('Section Photographe : éléments introuvables dans index.html');
     return;
   }
-  let open = readBool(OPEN_STORAGE_KEY);
+  isOpen = readBool(OPEN_STORAGE_KEY);
   const setOpen = value => {
-    open = value;
-    writeStored(OPEN_STORAGE_KEY, open);
-    applyOpen(open);
+    isOpen = value;
+    writeStored(OPEN_STORAGE_KEY, isOpen);
+    applyOpen();
     host.refreshRows();
   };
-  // Toute la ligne du titre plie / déplie.
-  titleRow.addEventListener('click', () => setOpen(!open));
+  // The whole title row folds / unfolds, but only when there is something to unfold.
+  titleRow.addEventListener('click', () => { if (hasDetails) setOpen(!isOpen); });
   titleRow.addEventListener('keydown', event => {
-    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(!open); }
+    if (hasDetails && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setOpen(!isOpen); }
   });
 
-  // Les lignes entières mènent à l'onglet où on les modifie (comme le titre et la description : classe `exif-editable`, surlignage de la ligne).
-  const makeEditable = (row, label) => {
+  // Whole rows lead to the tab where they are edited, with the cursor in the matching field (like the title and the description: `exif-editable`
+  // class, row highlight).
+  const makeEditable = (row, label, inputId) => {
     row.classList.add('exif-editable');
     row.tabIndex = 0;
     row.setAttribute('role', 'button');
     row.title = label;
-    row.addEventListener('click', () => host.openDescription());
+    row.addEventListener('click', () => openDescriptionAt(inputId));
     row.addEventListener('keydown', event => {
-      if (event.key === 'Enter') { event.preventDefault(); host.openDescription(); }
+      if (event.key === 'Enter') { event.preventDefault(); openDescriptionAt(inputId); }
     });
   };
   const editLabel = () => t('Edit in the Description tab');
-  const editableRows = [authorValue, ...DETAIL_FIELDS.map(([id]) => document.getElementById(id))].map(element => element?.closest('li')).filter(Boolean);
-  for (const row of editableRows) makeEditable(row, editLabel());
+  const editableRows = Object.entries(EDIT_INPUT_IDS)
+    .map(([valueId, inputId]) => [document.getElementById(valueId)?.closest('li'), inputId])
+    .filter(([row]) => row);
+  for (const [row, inputId] of editableRows) makeEditable(row, editLabel(), inputId);
   onLanguageChange(() => {
-    for (const row of editableRows) row.title = editLabel();
-    applyOpen(open);
+    for (const [row] of editableRows) row.title = editLabel();
+    applyOpen();
   });
-  applyOpen(open);
+  applyOpen();
 }
 
 function setDetails(rights) {
@@ -83,9 +126,12 @@ function setDetails(rights) {
     const element = document.getElementById(id);
     if (element) element.textContent = rights?.[field] || '-';
   }
+  // The chevron (and the folding) only make sense when at least one field is filled.
+  hasDetails = DETAIL_FIELDS.some(([, field]) => Boolean(rights?.[field]));
+  applyOpen();
 }
 
-/** Affiche l'auteur et les droits de la photo active (`photo` : élément de la liste affichée). */
+/** Shows the author and rights of the active photo (`photo`: element of the displayed list). */
 export function renderInfoAuthor(photo) {
   if (!host || !authorValue) return;
   const current = ++token;

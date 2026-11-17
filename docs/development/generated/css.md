@@ -14,7 +14,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 1 | — |
-| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 16 | — |
+| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 17 | — |
 | `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 23 | — |
 | `--btn-text` | styles.css · `:root` · `#fff`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 12 | — |
 | `--card-bg` | styles.css · `:root` · `#222`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 13 | — |
@@ -26,7 +26,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--clipping-pulse-max-opacity` | histogram.css · `:root` · `0.5` | 1 | — |
 | `--clipping-pulse-min-opacity` | histogram.css · `:root` · `0.05` | 1 | — |
 | `--clipping-shadow-color` | histogram.css · `:root` · `rgba(0, 90, 255, 0.9)` | 0 | — |
-| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 55 | — |
+| `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 56 | — |
 | `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 66 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 21 | — |
@@ -89,7 +89,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--histogram-text` | histogram.css · `:root` · `#f2f2f2` | 2 | — |
 | `--histogram-width` | histogram.css · `:root` · `13rem` | 1 | — |
 | `--item-size` | styles.css · `:root` · `160px` | 2 | — |
-| `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 6 | — |
+| `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 8 | — |
 | `--pending-on` | styles.css · `:root` · `#000`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 1 | — |
 | `--pick-color` | styles.css · `.filter-summary .pick-indicator.pick-none` · `#f5f5f5`<br>styles.css · `.pick-picked` · `#2ecc71`<br>styles.css · `.pick-rejected` · `#e74c3c`<br>styles.css · `.pick-pending` · `#f1c40f`<br>styles.css · `.pick-none` · `#95a5a6`<br>styles.css · `.marking-pick .pick-square, #pick-filter-bar .pic…` · `var(--pick-state-color)` | 8 | — |
 | `--pick-state-color` | styles.css · `.marking-pick .pick-none, #pick-filter-bar .pick-…` · `#f5f5f5`<br>styles.css · `.marking-pick .pick-pending, #pick-filter-bar .pi…` · `#f1c40f`<br>styles.css · `.marking-pick .pick-picked, #pick-filter-bar .pic…` · `#2ecc71`<br>styles.css · `.marking-pick .pick-rejected, #pick-filter-bar .p…` · `#e74c3c` | 1 | — |
@@ -223,6 +223,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 1 | faces.css | `.face-tile.selected` |
 | 1 | faces.css | `.face-overlay` |
 | 1 | faces.css | `.face-overlay.preview-faces` |
+| 1 | keywords.css | `#exif-tab-description .keyword-actions` |
 | 1 | semantic.css | `.semantic-score` |
 | 1 | semantic.css | `.semantic-suggested` |
 | 1 | styles.css | `.mode-group > button.active` |
@@ -236,6 +237,8 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 1 | styles.css | `.video-play-badge` |
 | 1 | styles.css | `.marking-panel` |
 | 1 | styles.css | `.marking-bar .marking-clear` |
+| -1 | author-rights.css | `#exif-data .exif-author-title::before` |
+| -1 | keywords.css | `#exif-data li.exif-editable::before` |
 
 ## Sections per stylesheet
 
@@ -256,15 +259,19 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 - L1 Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres.
 
-### src/author-rights.css (34 lines)
+### src/author-rights.css (42 lines)
 
-- L1 Auteur et droits : section « Auteur » de l'onglet Info (info-author.js) et moitié basse de l'onglet Description (description-pane…
-- L4 --- Onglet Info : titre de section « Photographe » (toute la ligne plie / déplie) et lignes d'auteur et de droits ---
-- L7 Le texte du titre est dans un <span> : sans ceci, la règle des valeurs (`.exif-section li span`) lui donnerait leur couleur et le…
-- L12 Plié : seuls le titre et la ligne « Auteur » restent (les champs vides sont masqués par refreshInfoRows de main.js).
-- L15 --- Onglet Description : auteur et droits ---
-- L21 Disquette rouge : un champ d'auteur ou de droits a été modifié.
-- L24 --- Fenêtre « Author and Rights presets » ---
+- L1 Author and rights: "Author and rights" section of the Info tab (info-author.js) and lower half of the Description tab (descriptio…
+- L4 --- Info tab: section title (the whole row folds / unfolds) and author and rights rows ---
+- L6 Same hover highlight as the editable rows (keywords.css): a pseudo-element wider than the row. It starts under the separator line…
+- L9 Nothing to unfold (no copyright, credit, usage terms or e-mail): plain heading, no chevron. The chevron keeps its room, so the ti…
+- L12 Le texte du titre est dans un <span> : sans ceci, la règle des valeurs (`.exif-section li span`) lui donnerait leur couleur et le…
+- L17 Plié : seuls le titre et la ligne « Auteur » restent (les champs vides sont masqués par refreshInfoRows de main.js).
+- L20 --- Description tab: author and rights ---
+- L21 Column of labels and fields: same rhythm as the title / description block above (gap, plus the top margin of `.description-field`…
+- L27 Floppy disk: muted while the fields match the files (or the selected preset), amber (--pending-color, like the pending dot of the…
+- L29 Copyright and usage terms: one line to start with, growing with the text up to three lines, then scrolling (height set by autoGro…
+- L32 --- Fenêtre « Author and Rights presets » ---
 
 ### src/duplicates.css (58 lines)
 
@@ -341,33 +348,34 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L61 Mode noir / blanc : bords adoucis (flou) et pulsation entre une opacité minimale et une opacité maximale < 1 (reste translucide).
 - L71 Options d'affichage > Histogramme : deux réglages par ligne.
 
-### src/keywords.css (137 lines)
+### src/keywords.css (142 lines)
 
 - L1 PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywor…
 - L4 Le panneau passe en colonne : barre d'onglets en haut, puis le contenu de l'onglet affiché (qui défile seul).
 - L6 Masqué, le panneau ignore la largeur choisie à la main (style en ligne) ; pendant le glissement, pas d'animation.
 - L10 Poignée de redimensionnement, à gauche du panneau (comme celle de la barre latérale)
 - L20 Pastille : l'onglet porte des modifications pas encore écrites dans les fichiers
-- L22 Lignes de l'onglet Info qui mènent à un onglet d'édition
-- L28 Onglet Mots-clés : barre du filtre d'affichage, arborescence (prend la place restante), puis zone de saisie et boutons
-- L38 Mot-clé dont l'état a été modifié et pas encore écrit dans les fichiers
-- L45 Petite case à cocher à trois états : vide (aucune photo de la sélection), remplie (quelques-unes), cochée (toutes)
-- L54 Bas du panneau : saisie rapide (liste d'autocomplétion au-dessus du champ) et boutons
-- L60 Same list opened below its field (keyword filter of the sidebar), across both filter columns.
-- L72 Panneau Info : une description sur plusieurs lignes garde ses retours à la ligne
-- L75 Onglet Description : titre (une ligne), description (prend la place restante), puis boutons, voir description-panel.js
-- L82 Champ modifié dont la valeur n'est pas encore écrite dans les fichiers
-- L86 Fenêtre à choix multiples (modifications en attente, échec d'écriture)
-- L90 Long lists in a dialog (every failed file of a batch): the text scrolls, the buttons stay in view
-- L93 Boutons colorés des questions d'écriture : écrire (bleu), écrire plus tard (orange), abandonner / quitter sans écrire (rouge)
-- L101 Pastille du filtre « fichiers en échec »
-- L105 Fenêtre de saisie du nom d'un mot-clé
-- L110 Paramètres : liste ordonnable de la priorité de lecture des formats hiérarchiques
-- L111 Tableau à hauteur fixe de 6 lignes : changer de type de métadonnée ne décale pas le reste de la fenêtre.
-- L119 Three parts per format: source pill, schema, technical field. Pill and schema share one size; the field is a bit larger than befo…
-- L128 Flat keyword fields: same rows without handle or arrows.
-- L131 Format not read right now (e.g. EXIF with the internal writer): greyed out, still movable.
-- L133 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
+- L22 Info tab rows that lead to an editing tab. The hover / focus highlight is a pseudo-element wider than the row (0.4rem on each sid…
+- L31 Onglet Mots-clés : barre du filtre d'affichage, arborescence (prend la place restante), puis zone de saisie et boutons
+- L41 Mot-clé dont l'état a été modifié et pas encore écrit dans les fichiers
+- L48 Petite case à cocher à trois états : vide (aucune photo de la sélection), remplie (quelques-unes), cochée (toutes)
+- L57 Bas du panneau : saisie rapide (liste d'autocomplétion au-dessus du champ) et boutons
+- L63 Same list opened below its field (keyword filter of the sidebar), across both filter columns.
+- L75 Panneau Info : une description sur plusieurs lignes garde ses retours à la ligne
+- L78 Description tab: title (one line), description (takes the remaining room), author and rights, then the buttons, see description-p…
+- L86 Champ modifié dont la valeur n'est pas encore écrite dans les fichiers
+- L88 Buttons pinned to the bottom of the tab; the negative side margins and the padding give the background the full width of the tab.
+- L91 Fenêtre à choix multiples (modifications en attente, échec d'écriture)
+- L95 Long lists in a dialog (every failed file of a batch): the text scrolls, the buttons stay in view
+- L98 Boutons colorés des questions d'écriture : écrire (bleu), écrire plus tard (orange), abandonner / quitter sans écrire (rouge)
+- L106 Pastille du filtre « fichiers en échec »
+- L110 Fenêtre de saisie du nom d'un mot-clé
+- L115 Paramètres : liste ordonnable de la priorité de lecture des formats hiérarchiques
+- L116 Tableau à hauteur fixe de 6 lignes : changer de type de métadonnée ne décale pas le reste de la fenêtre.
+- L124 Three parts per format: source pill, schema, technical field. Pill and schema share one size; the field is a bit larger than befo…
+- L133 Flat keyword fields: same rows without handle or arrows.
+- L136 Format not read right now (e.g. EXIF with the internal writer): greyed out, still movable.
+- L138 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
 
 ### src/map-mode.css (60 lines)
 

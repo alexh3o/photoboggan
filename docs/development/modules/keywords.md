@@ -56,7 +56,7 @@ Input: `KeywordWriteItem { photo_id, path, keyword_ids?, title?, description?, a
 
 ### Description tab (`description-panel.js`)
 
-Title and description come from the catalogue columns `title` and `caption` (already resolved by read priority); the lower half holds author and rights fields (`author`, `copyright`, `credit`, `usage_terms`, `author_email`, loaded on demand via `get_photo_rights`) and a preset bar (`rights-presets.js`). With several photos of different values the field is empty ("Multiple values"); typing replaces the value on all photos; a field returned to its initial text is untouched again. A field never touched is never written. First edit calls `exiftool_prewarm`. Ctrl+Enter applies everything pending, including keywords.
+Title and description come from the catalogue columns `title` and `caption` (already resolved by read priority); the lower half holds author and rights fields (`author`, `copyright`, `credit`, `usage_terms`, `author_email`, loaded on demand via `get_photo_rights`) and a preset bar (`rights-presets.js`). With several photos of different values the field is empty ("Multiple values"); typing replaces the value on all photos; a field returned to its initial text is untouched again. A field never touched is never written. First edit calls `exiftool_prewarm`. Ctrl+Enter applies everything pending, including keywords. The tab scrolls when its fields do not fit (small window, large interface size) while the "Write to files" / "Discard changes" buttons stay pinned at the bottom (`position: sticky`). Copyright and usage terms are auto-growing text areas (one to three lines, still single-line values), and the preset line has its own label, "Author and rights presets".
 
 ## Contracts
 

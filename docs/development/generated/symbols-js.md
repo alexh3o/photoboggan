@@ -80,7 +80,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `byId(id)` · L43
 - `export initAuthorFilters({ onChange })` · L49
 
-## src/description-panel.js (26)
+## src/description-panel.js (27)
 
 - `cleanTitle(value)` · L42 — Mêmes règles que le backend (exif.rs, clean_title / clean_text) : le titre tient sur une ligne, espaces de début et de fin retirés.
 - `cleanDescription(value)` · L43
@@ -100,14 +100,15 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `displayedRight(key)` · L85 — Valeur visible dans un champ d'auteur ou de droits (vide pour « Valeurs multiples » non touché).
 - `presetModified()` · L88 — La disquette des préréglages est rouge quand un champ a été modifié : par rapport aux valeurs du préréglage sélectionné, sinon par rapport …
 - `commonValue(field)` · L95 — Valeur commune aux photos ciblées, ou null si elles diffèrent.
-- `renderField(field, edited, common)` · L182
-- `render()` · L188
-- `updateState()` · L205 — Boutons et marque « modifié » des champs (sans toucher à leur contenu, pour ne pas gêner la saisie).
-- `load(photos, { keepPreset = false } = {})` · L226 — `keepPreset` : même sélection relue (rien en attente), le préréglage choisi reste affiché ; une autre sélection remet le champ de préréglag…
-- `loadRights(ids)` · L239 — Auteur et droits des photos ciblées, lus dans la base (ils ne font pas partie de la liste des photos, sauf l'auteur). La saisie faite penda…
-- `export refreshDescriptionPanel()` · L256 — Appelée à chaque changement de sélection : mise à jour différée (une seule par image affichée), uniquement si l'onglet est visible.
-- `reload()` · L265
-- `export initDescriptionPanel(hostApi)` · L291 — Services fournis par main.js : getSelectedPhotos, showToast.
+- `autoGrow(element)` · L184 — Auto-growing fields (copyright, usage terms: `.rights-textarea`): the height follows the text, up to the max-height of the CSS (then the fi…
+- `renderField(field, edited, common)` · L191
+- `render()` · L198
+- `updateState()` · L215 — Boutons et marque « modifié » des champs (sans toucher à leur contenu, pour ne pas gêner la saisie).
+- `load(photos, { keepPreset = false } = {})` · L236 — `keepPreset` : même sélection relue (rien en attente), le préréglage choisi reste affiché ; une autre sélection remet le champ de préréglag…
+- `loadRights(ids)` · L249 — Auteur et droits des photos ciblées, lus dans la base (ils ne font pas partie de la liste des photos, sauf l'auteur). La saisie faite penda…
+- `export refreshDescriptionPanel()` · L266 — Appelée à chaque changement de sélection : mise à jour différée (une seule par image affichée), uniquement si l'onglet est visible.
+- `reload()` · L275
+- `export initDescriptionPanel(hostApi)` · L301 — Services fournis par main.js : getSelectedPhotos, showToast.
 
 ## src/duplicate-names.js (5)
 
@@ -428,12 +429,13 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export onLanguageChange(listener)` · L100 — Pour re-générer les textes construits en JavaScript quand la langue change.
 - `export setLanguage(language)` · L105
 
-## src/info-author.js (4)
+## src/info-author.js (5)
 
-- `applyOpen(open)` · L28
-- `export initInfoAuthor({ openDescription, refreshRows })` · L38
-- `setDetails(rights)` · L81
-- `export renderInfoAuthor(photo)` · L89 — Affiche l'auteur et les droits de la photo active (`photo` : élément de la liste affichée).
+- `applyOpen()` · L40 — Folded / unfolded look of the section. Without anything to unfold, the title is a plain heading: no chevron, not a button.
+- `openDescriptionAt(inputId)` · L60 — Opens the Description tab and puts the cursor in the field matching the clicked row. The tab is filled a moment after it appears (the selec…
+- `export initInfoAuthor({ openDescription, refreshRows })` · L78
+- `setDetails(rights)` · L124
+- `export renderInfoAuthor(photo)` · L135 — Shows the author and rights of the active photo (`photo`: element of the displayed list).
 
 ## src/keywords-panel.js (71)
 

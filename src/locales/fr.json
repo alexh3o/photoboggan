@@ -1793,5 +1793,6 @@
   "Author filter help": "Choisir un auteur dans la liste (plusieurs auteurs : la photo doit les porter tous). Alt + Entrée ou Alt + clic : exclure",
   "Unknown author": "Auteur inconnu",
   "No matching author": "Aucun auteur correspondant",
-  "Photographer": "Photographe"
+  "Author and rights": "Auteur et droits",
+  "Author and rights presets": "Presets Auteur et Droits"
 }
