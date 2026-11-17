@@ -826,7 +826,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
             if cancel.load(Ordering::Relaxed) || writer_gone.load(Ordering::Relaxed) { return; }
             // Progression : un événement environ tous les 1 % du dossier. Valeur approximative : l'ordre d'arrivée entre threads n'est pas garanti.
             let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-            if finished % step == 0 || finished == total {
+            if finished.is_multiple_of(step) || finished == total {
                 publish(finished as f64 / total as f64);
             }
             let path_str = entry.path().to_string_lossy().to_string();
@@ -2182,7 +2182,7 @@ fn carry_cache_file(old: Option<PathBuf>, new: Option<PathBuf>) {
     if !old.is_file() { return; }
     match new {
         // Le nouveau nom peut tomber dans un autre sous-dossier de répartition, éventuellement pas encore créé.
-        Some(new) if new != old && new.parent().map_or(true, |parent| fs::create_dir_all(parent).is_ok()) && fs::rename(&old, &new).is_ok() => {}
+        Some(new) if new != old && new.parent().is_none_or(|parent| fs::create_dir_all(parent).is_ok()) && fs::rename(&old, &new).is_ok() => {}
         _ => { let _ = fs::remove_file(&old); }
     }
 }

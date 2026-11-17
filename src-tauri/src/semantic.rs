@@ -196,7 +196,7 @@ pub fn image_tensor(rgb: &[u8], width: usize, height: usize, model: &ModelSpec) 
     let resized = resize_bilinear(rgb, width, height, size, size);
     let plane = size * size;
     let mut tensor = vec![0f32; 3 * plane];
-    for (index, pixel) in resized.chunks_exact(3).enumerate() {
+    for (index, pixel) in resized.as_chunks::<3>().0.iter().enumerate() {
         for channel in 0..3 {
             tensor[channel * plane + index] = (pixel[channel] as f32 / 255.0 - model.mean[channel]) / model.std[channel];
         }

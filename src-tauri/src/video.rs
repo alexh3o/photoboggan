@@ -85,7 +85,7 @@ fn shell_thumbnail(path: &Path, max_side: usize) -> Result<(Vec<u8>, usize, usiz
         if lines == 0 {
             return Err("Lecture des pixels de la miniature impossible".into());
         }
-        let rgb: Vec<u8> = bgra.chunks_exact(4).flat_map(|pixel| [pixel[2], pixel[1], pixel[0]]).collect();
+        let rgb: Vec<u8> = bgra.as_chunks::<4>().0.iter().flat_map(|pixel| [pixel[2], pixel[1], pixel[0]]).collect();
         Ok((rgb, width as usize, height as usize))
     }
 

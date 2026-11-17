@@ -618,11 +618,11 @@ fn private_tile_in(zones: &[LoadedZone], files: &mut HashMap<i64, rusqlite::Conn
     let mut found = None;
     for zone in &touching {
         let id = zone.id;
-        if !files.contains_key(&id) {
+        if let std::collections::hash_map::Entry::Vacant(e) = files.entry(id) {
             let path = dir.join(&zone.file);
             if !path.is_file() { continue; }
             let Ok(conn) = rusqlite::Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else { continue; };
-            files.insert(id, conn);
+            e.insert(conn);
         }
         match files.get(&id).and_then(|conn| read_tile(conn, z, x, y)) {
             Some(tile) if !tile.is_empty() => { found = Some(tile); break; }

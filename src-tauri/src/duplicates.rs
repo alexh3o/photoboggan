@@ -648,7 +648,7 @@ fn fill_hashes(
                     if full { full_hash(&mut file, &layout.ranges, cancel).ok() } else { partial_hash(&mut file, &layout.ranges, cancel).ok() }
                 })();
                 let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished % 32 == 0 {
+                if finished.is_multiple_of(32) {
                     progress(range.0 + (range.1 - range.0) * finished as f64 / total as f64);
                 }
                 (index, hash)
@@ -712,7 +712,7 @@ pub fn run(pool: &DbPool, request: &Request, cancel: &AtomicBool, progress: &(dy
                     unreadable.fetch_add(1, Ordering::Relaxed);
                 }
                 let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished % 64 == 0 {
+                if finished.is_multiple_of(64) {
                     progress(0.3 * finished as f64 / total as f64);
                 }
                 entry

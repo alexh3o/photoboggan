@@ -766,7 +766,7 @@ fn exif_xp_text(field: &exif::Field) -> Option<String> {
         Value::Undefined(bytes, _) => bytes,
         _ => return None,
     };
-    let units: Vec<u16> = bytes.chunks_exact(2).map(|pair| u16::from_le_bytes([pair[0], pair[1]])).take_while(|unit| *unit != 0).collect();
+    let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|pair| u16::from_le_bytes([pair[0], pair[1]])).take_while(|unit| *unit != 0).collect();
     Some(String::from_utf16_lossy(&units))
 }
 
@@ -777,7 +777,7 @@ fn exif_user_comment(field: &exif::Field, little_endian: bool) -> Option<String>
     if bytes.len() < 8 { return None; }
     let (code, text) = bytes.split_at(8);
     if code == b"UNICODE\0" {
-        let units: Vec<u16> = text.chunks_exact(2)
+        let units: Vec<u16> = text.as_chunks::<2>().0.iter()
             .map(|pair| if little_endian { u16::from_le_bytes([pair[0], pair[1]]) } else { u16::from_be_bytes([pair[0], pair[1]]) })
             .collect();
         return clean_text(&String::from_utf16_lossy(&units));
@@ -1907,7 +1907,7 @@ fn remove_xmp_list_property(xml: &str, local_name: &str, only_prefix: Option<&st
         while prefix_start > 0 && (bytes[prefix_start - 1].is_ascii_alphanumeric() || bytes[prefix_start - 1] == b'_' || bytes[prefix_start - 1] == b'-') { prefix_start -= 1; }
         let is_open_tag = prefix_start < colon && prefix_start > 0 && bytes[prefix_start - 1] == b'<';
         let ends_here = bytes.get(name_end) == Some(&b'>') || bytes.get(name_end) == Some(&b'/') || bytes.get(name_end).is_some_and(|byte| byte.is_ascii_whitespace());
-        let prefix_ok = only_prefix.map_or(true, |wanted| &updated[prefix_start..colon] == wanted);
+        let prefix_ok = only_prefix.is_none_or(|wanted| &updated[prefix_start..colon] == wanted);
         if !(is_open_tag && ends_here && prefix_ok) { from = name_end; continue; }
         let Some(open_end_relative) = lower[name_end..].find('>') else { break; };
         let open_end = name_end + open_end_relative;
@@ -2543,14 +2543,14 @@ fn parse_photoshop_resources(payload: &[u8]) -> (Vec<PhotoshopResource>, Vec<u8>
         let name_length = payload[p + 6] as usize;
         let name_start = p + 7;
         let mut q = name_start + name_length;
-        if (1 + name_length) % 2 != 0 { q += 1; }
+        if !(1 + name_length).is_multiple_of(2) { q += 1; }
         if q + 4 > payload.len() { break; }
         let size = u32::from_be_bytes([payload[q], payload[q + 1], payload[q + 2], payload[q + 3]]) as usize;
         let data_start = q + 4;
         if data_start + size > payload.len() { break; }
         resources.push(PhotoshopResource { id, name: payload[name_start..name_start + name_length].to_vec(), data: payload[data_start..data_start + size].to_vec() });
         p = data_start + size;
-        if size % 2 != 0 { p += 1; }
+        if !size.is_multiple_of(2) { p += 1; }
     }
     let trailer = payload.get(p..).map(|rest| rest.to_vec()).unwrap_or_default();
     (resources, trailer)

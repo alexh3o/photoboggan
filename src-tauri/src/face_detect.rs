@@ -544,7 +544,7 @@ fn landmarks_blob(landmarks: &[f32; 10]) -> Vec<u8> {
 fn landmarks_from_blob(blob: &[u8]) -> Option<[f32; 10]> {
     if blob.len() != 40 { return None; }
     let mut landmarks = [0f32; 10];
-    for (index, bytes) in blob.chunks_exact(4).enumerate() { landmarks[index] = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]); }
+    for (index, bytes) in blob.as_chunks::<4>().0.iter().enumerate() { landmarks[index] = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]); }
     Some(landmarks)
 }
 

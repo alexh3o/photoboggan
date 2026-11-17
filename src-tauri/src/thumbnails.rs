@@ -139,14 +139,14 @@ pub(crate) fn decode_png<R: std::io::BufRead + Seek>(source: R, want_pixels: boo
         png::ColorType::Rgba => {
             let mut rgb = Vec::with_capacity(pixel_count * 3);
             let mut alpha = Vec::with_capacity(pixel_count);
-            for pixel in data.chunks_exact(4) { rgb.extend_from_slice(&pixel[..3]); alpha.push(pixel[3]); }
+            for pixel in data.as_chunks::<4>().0 { rgb.extend_from_slice(&pixel[..3]); alpha.push(pixel[3]); }
             (rgb, Some(alpha))
         }
         png::ColorType::Grayscale => (data.iter().flat_map(|&value| [value, value, value]).collect(), None),
         png::ColorType::GrayscaleAlpha => {
             let mut rgb = Vec::with_capacity(pixel_count * 3);
             let mut alpha = Vec::with_capacity(pixel_count);
-            for pixel in data.chunks_exact(2) { rgb.extend_from_slice(&[pixel[0], pixel[0], pixel[0]]); alpha.push(pixel[1]); }
+            for pixel in data.as_chunks::<2>().0 { rgb.extend_from_slice(&[pixel[0], pixel[0], pixel[0]]); alpha.push(pixel[1]); }
             (rgb, Some(alpha))
         }
         png::ColorType::Indexed => return Err("Indexed PNG not supported".into()),
@@ -232,7 +232,7 @@ fn tiff_rgb_thumbnail_jpeg(file: &mut File) -> Option<Vec<u8>> {
     file.read_exact(&mut entries).ok()?;
     // Valeurs numériques d'une entrée : inline (SHORT / LONG, une seule) ou lues à l'adresse indiquée (liste de bandes).
     let mut read_values = |tag: u16| -> Option<Vec<u32>> {
-        let entry = entries.chunks_exact(12).find(|e| short([e[0], e[1]]) == tag)?;
+        let entry = entries.as_chunks::<12>().0.iter().find(|e| short([e[0], e[1]]) == tag)?;
         let (kind, n) = (short([entry[2], entry[3]]), long([entry[4], entry[5], entry[6], entry[7]]) as usize);
         let size = match kind { 3 => 2, 4 => 4, _ => return None };
         if n == 0 || n > 100_000 { return None; }
@@ -319,7 +319,7 @@ fn largest_jpeg_in(buffer: &[u8]) -> Option<(usize, usize)> {
                     continue;
                 };
                 let len = end - start;
-                if len >= 20_000 && largest_jpeg.map_or(true, |(_, best)| len > best) {
+                if len >= 20_000 && largest_jpeg.is_none_or(|(_, best)| len > best) {
                     largest_jpeg = Some((start, len));
                 }
                 i = end;
@@ -343,14 +343,14 @@ fn find_embedded_jpeg_stream(file: &mut File) -> Result<Vec<u8>, String> {
     // Certains RAW (Pentax PEF) rangent le grand JPEG à la fin du fichier, après les données du capteur : si la tête ne donne qu'une petite image,
     // la fin du fichier est aussi parcourue.
     let file_len = file.metadata().map_err(|e| e.to_string())?.len();
-    let small = largest_jpeg.map_or(true, |(_, len)| len < 500_000);
+    let small = largest_jpeg.is_none_or(|(_, len)| len < 500_000);
     if small && file_len > max_search as u64 {
         let tail_start = file_len.saturating_sub(8 * 1024 * 1024).max(max_search as u64);
         let mut tail = Vec::new();
         file.seek(SeekFrom::Start(tail_start)).map_err(|e| e.to_string())?;
         file.by_ref().take(8 * 1024 * 1024).read_to_end(&mut tail).map_err(|e| e.to_string())?;
         if let Some((start, len)) = largest_jpeg_in(&tail) {
-            if largest_jpeg.map_or(true, |(_, best)| len > best) { return Ok(tail[start..start + len].to_vec()); }
+            if largest_jpeg.is_none_or(|(_, best)| len > best) { return Ok(tail[start..start + len].to_vec()); }
         }
     }
 
@@ -513,7 +513,7 @@ fn tiff_as_exif_ifd(tiff: &[u8]) -> Vec<u8> {
     let long = |value: u32| if little { value.to_le_bytes() } else { value.to_be_bytes() };
     let original_ifd = word([tiff[4], tiff[5], tiff[6], tiff[7]]);
     let mut output = tiff.to_vec();
-    if output.len() % 2 != 0 { output.push(0); }
+    if !output.len().is_multiple_of(2) { output.push(0); }
     let new_ifd = output.len() as u32;
     output.extend_from_slice(&short(1));
     output.extend_from_slice(&short(0x8769));

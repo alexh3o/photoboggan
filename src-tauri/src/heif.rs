@@ -169,7 +169,7 @@ struct Layout {
 fn parse(d: &[u8]) -> Option<Layout> {
     let tops = children(d, 0, d.len())?;
     if tops.iter().any(|b| &b.kind == b"moov") { return None; } // séquences : offsets absolus ailleurs, non gérés
-    let last_is_open = tops.last().map_or(true, |b| b.open);
+    let last_is_open = tops.last().is_none_or(|b| b.open);
     let meta = *tops.iter().find(|b| &b.kind == b"meta")?;
     let kids = children(d, meta.payload() + 4, meta.end)?;
     let find = |k: &[u8; 4]| kids.iter().find(|b| &b.kind == k).copied();
@@ -385,7 +385,7 @@ fn add_xmp_item(data: &[u8], lay: &Layout, xmp: &str) -> Result<Vec<u8>, String>
     if lay.locs.iter().any(|l| l.cm == 2) { return Err("construction iloc par item".into()); }
     let new_id = lay.infe.iter().map(|i| i.id).chain(lay.locs.iter().map(|l| l.id)).max().unwrap_or(0) + 1;
     let wide = new_id > 0xffff || lay.primary > 0xffff;
-    if wide && (lay.iloc_ver < 2 || lay.iref.map_or(true, |r| r.1 == 0)) { return Err("identifiants d'item trop grands".into()); }
+    if wide && (lay.iloc_ver < 2 || lay.iref.is_none_or(|r| r.1 == 0)) { return Err("identifiants d'item trop grands".into()); }
 
     // infe (version 2, ou 3 pour un identifiant > 65535)
     let infe_ver: u8 = if new_id > 0xffff { 3 } else { 2 };
@@ -405,11 +405,11 @@ fn add_xmp_item(data: &[u8], lay: &Layout, xmp: &str) -> Result<Vec<u8>, String>
     if lay.iloc_ver < 2 { entry.extend_from_slice(&(new_id as u16).to_be_bytes()); } else { entry.extend_from_slice(&new_id.to_be_bytes()); }
     if lay.iloc_ver >= 1 { entry.extend_from_slice(&[0, 0]); }
     entry.extend_from_slice(&[0, 0]);
-    entry.extend(std::iter::repeat(0u8).take(lay.base_size));
+    entry.extend(std::iter::repeat_n(0u8, lay.base_size));
     entry.extend_from_slice(&1u16.to_be_bytes());
-    entry.extend(std::iter::repeat(0u8).take(lay.idx_size));
+    entry.extend(std::iter::repeat_n(0u8, lay.idx_size));
     let off_at = entry.len();
-    entry.extend(std::iter::repeat(0u8).take(lay.off_size + lay.len_size));
+    entry.extend(std::iter::repeat_n(0u8, lay.off_size + lay.len_size));
 
     // référence cdsc : l'item XMP décrit l'image principale
     let ref_wide = lay.iref.map_or(wide, |r| r.1 != 0);
@@ -444,7 +444,7 @@ fn add_xmp_item(data: &[u8], lay: &Layout, xmp: &str) -> Result<Vec<u8>, String>
     let ok = add_u32(&mut out, lay.iinf.start, infe.len())
         && add_u32(&mut out, lay.iloc.start, entry.len())
         && add_u32(&mut out, lay.meta.start, total)
-        && lay.iref.map_or(true, |(r, _)| add_u32(&mut out, r.start, cdsc.len()));
+        && lay.iref.is_none_or(|(r, _)| add_u32(&mut out, r.start, cdsc.len()));
     if !ok { return Err("taille de boîte dépassée".into()); }
     let iinf_count = uint(data, lay.iinf_count_pos, lay.iinf_count_size).ok_or("compteur iinf")? + 1;
     let iloc_count = uint(data, lay.iloc_count_pos, lay.iloc_count_size).ok_or("compteur iloc")? + 1;

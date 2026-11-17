@@ -234,7 +234,7 @@ pub fn run(pool: &DbPool, thumbnails_dir: &Path, request: &Request, cancel: &Ato
                     }
                 })();
                 let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished % 32 == 0 {
+                if finished.is_multiple_of(32) {
                     progress(0.8 * finished as f64 / total as f64);
                 }
                 let (fingerprint, fresh) = outcome?;
@@ -304,7 +304,7 @@ pub fn run(pool: &DbPool, thumbnails_dir: &Path, request: &Request, cancel: &Ato
                     }
                 }
                 let finished = compared.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished % 64 == 0 {
+                if finished.is_multiple_of(64) {
                     progress(0.8 + 0.2 * finished as f64 / scope_total as f64);
                 }
                 found

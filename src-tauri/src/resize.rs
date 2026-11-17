@@ -343,13 +343,13 @@ fn resize_raster(raster: Raster, width: usize, height: usize) -> Raster {
         return Raster { rgb: thumbnails::resize_area(&rgb, source_width, source_height, width, height), alpha: None, width, height };
     };
     // Avec transparence : moyenne sur des couleurs prémultipliées, sinon les pixels transparents (souvent noirs) assombrissent les bords.
-    for (pixel, &a) in rgb.chunks_exact_mut(3).zip(&alpha) {
+    for (pixel, &a) in rgb.as_chunks_mut::<3>().0.iter_mut().zip(&alpha) {
         for channel in pixel { *channel = ((*channel as u32 * a as u32 + 127) / 255) as u8; }
     }
     let mut rgb = thumbnails::resize_area(&rgb, source_width, source_height, width, height);
     let alpha_as_rgb: Vec<u8> = alpha.iter().flat_map(|&a| [a, a, a]).collect();
-    let alpha: Vec<u8> = thumbnails::resize_area(&alpha_as_rgb, source_width, source_height, width, height).chunks_exact(3).map(|pixel| pixel[0]).collect();
-    for (pixel, &a) in rgb.chunks_exact_mut(3).zip(&alpha) {
+    let alpha: Vec<u8> = thumbnails::resize_area(&alpha_as_rgb, source_width, source_height, width, height).as_chunks::<3>().0.iter().map(|pixel| pixel[0]).collect();
+    for (pixel, &a) in rgb.as_chunks_mut::<3>().0.iter_mut().zip(&alpha) {
         if a == 0 || a == 255 { continue; }
         for channel in pixel { *channel = ((*channel as u32 * 255 + a as u32 / 2) / a as u32).min(255) as u8; }
     }
@@ -362,7 +362,7 @@ fn orient_raster(raster: Raster, orientation: u32) -> Raster {
     let (rgb, new_width, new_height) = thumbnails::apply_orientation(rgb, width, height, orientation);
     let alpha = alpha.map(|alpha| {
         let as_rgb: Vec<u8> = alpha.iter().flat_map(|&a| [a, a, a]).collect();
-        thumbnails::apply_orientation(as_rgb, width, height, orientation).0.chunks_exact(3).map(|pixel| pixel[0]).collect()
+        thumbnails::apply_orientation(as_rgb, width, height, orientation).0.as_chunks::<3>().0.iter().map(|pixel| pixel[0]).collect()
     });
     Raster { rgb, alpha, width: new_width, height: new_height }
 }
@@ -374,7 +374,7 @@ fn encode_jpeg(raster: &Raster, options: &ResizeOptions, metadata: &SourceMetada
     let flattened;
     let rgb: &[u8] = match &raster.alpha {
         Some(alpha) => {
-            flattened = raster.rgb.chunks_exact(3).zip(alpha).flat_map(|(pixel, &a)| {
+            flattened = raster.rgb.as_chunks::<3>().0.iter().zip(alpha).flat_map(|(pixel, &a)| {
                 pixel.iter().map(move |&c| ((c as u32 * a as u32 + 255 * (255 - a as u32) + 127) / 255) as u8)
             }).collect::<Vec<u8>>();
             &flattened
@@ -426,7 +426,7 @@ fn encode_png(raster: &Raster, options: &ResizeOptions, icc: Option<&[u8]>) -> R
         match &raster.alpha {
             Some(alpha) => {
                 let mut interleaved = Vec::with_capacity(raster.rgb.len() / 3 * 4);
-                for (pixel, &a) in raster.rgb.chunks_exact(3).zip(alpha) { interleaved.extend_from_slice(pixel); interleaved.push(a); }
+                for (pixel, &a) in raster.rgb.as_chunks::<3>().0.iter().zip(alpha) { interleaved.extend_from_slice(pixel); interleaved.push(a); }
                 writer.write_image_data(&interleaved)
             }
             None => writer.write_image_data(&raster.rgb),

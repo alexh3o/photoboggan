@@ -217,7 +217,7 @@ pub(crate) fn decode_png(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, u
     let png = thumbnails::decode_png(BufReader::with_capacity(256 * 1024, file), want_pixels, true)?;
     if !want_pixels { return Ok((Vec::new(), png.width, png.height)); }
     let rgb = match png.alpha {
-        Some(alpha) => png.rgb.chunks_exact(3).zip(&alpha).flat_map(|(pixel, &a)| flatten([pixel[0], pixel[1], pixel[2]], a)).collect(),
+        Some(alpha) => png.rgb.as_chunks::<3>().0.iter().zip(&alpha).flat_map(|(pixel, &a)| flatten([pixel[0], pixel[1], pixel[2]], a)).collect(),
         None => png.rgb,
     };
     Ok((rgb, png.width, png.height))
@@ -237,7 +237,7 @@ pub(crate) fn decode_webp(source: &Path, want_pixels: bool) -> Result<(Vec<u8>, 
     if width == 0 || height == 0 || buffer.len() != width * height * channels { return Err("Inconsistent WebP dimensions".into()); }
     if !want_pixels { return Ok((Vec::new(), width, height)); }
     let rgb: Vec<u8> = if has_alpha {
-        buffer.chunks_exact(4).flat_map(|pixel| flatten([pixel[0], pixel[1], pixel[2]], pixel[3])).collect()
+        buffer.as_chunks::<4>().0.iter().flat_map(|pixel| flatten([pixel[0], pixel[1], pixel[2]], pixel[3])).collect()
     } else {
         buffer
     };
@@ -487,12 +487,12 @@ pub fn run(
             }
             // Valeur approximative : l'ordre d'arrivée entre threads n'est pas garanti.
             let done = finished.fetch_add(1, Ordering::Relaxed) + 1;
-            if done % step == 0 || done == total { progress(done as f64 / total.max(1) as f64); }
+            if done.is_multiple_of(step) || done == total { progress(done as f64 / total.max(1) as f64); }
         });
     });
 
     let mut suspects = suspects.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
-    suspects.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    suspects.sort_by_key(|a| a.path.to_lowercase());
     let mut timings: Vec<ExtensionStat> = timings_by_extension
         .into_inner()
         .unwrap_or_else(|poisoned| poisoned.into_inner())

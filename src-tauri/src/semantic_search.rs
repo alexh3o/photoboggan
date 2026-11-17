@@ -126,7 +126,7 @@ impl Index {
             let stamp: Stamp = (row.get(1).map_err(|error| error.to_string())?, row.get(2).map_err(|error| error.to_string())?);
             let blob = row.get_ref(3).map_err(|error| error.to_string())?.as_blob().map_err(|error| error.to_string())?;
             if blob.len() != dim * 2 { continue; }
-            index.set_halves(photo_id, stamp, blob.chunks_exact(2).map(|pair| u16::from_le_bytes([pair[0], pair[1]])));
+            index.set_halves(photo_id, stamp, blob.as_chunks::<2>().0.iter().map(|pair| u16::from_le_bytes([pair[0], pair[1]])));
         }
         Ok(index)
     }
