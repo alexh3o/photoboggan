@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#181a1b">
   <meta name="description" content="photoboggan is a fast, local desktop photo library manager for browsing, sorting and rediscovering your pictures.">
   <title>photoboggan — Your photos, within reach</title>
-  <link rel="icon" type="image/png" href="../screenshots/logo256.png">
+  <link rel="icon" type="image/png" href="screenshots/logo256.png">
   <style>
     :root {
       color-scheme: dark;
@@ -50,7 +50,7 @@
     .button-secondary:hover { background: #2a2e2f; }
     .hero-note { margin-top: 1.15rem; color: #88928c; font-size: .8rem; }
     code { color: var(--green-dark); font-size: .82em; overflow-wrap: anywhere; }
-    .hero-visual { position: relative; padding: .75rem; border: 1px solid var(--line); border-radius: 1.8rem; background: #222526; box-shadow: 0 28px 80px rgba(0,0,0,.35); transform: rotate(1deg); }
+    .hero-visual { position: relative; padding: .24rem; border: 1px solid var(--line); border-radius: 1.4rem; background: #222526; box-shadow: 0 18px 54px rgba(0,0,0,.32); transform: rotate(.35deg); }
     .hero-visual img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; object-position: top left; border-radius: 1.15rem; }
     .hero-visual video { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; border-radius: 1.15rem; background: #111; }
     .visual-tag { position: absolute; right: -1.2rem; bottom: 1.8rem; display: flex; align-items: center; gap: .65rem; padding: .75rem .95rem; border: 1px solid var(--line); border-radius: 1rem; background: #252929; box-shadow: 0 12px 35px rgba(0,0,0,.32); font-size: .82rem; font-weight: 650; transform: rotate(-1deg); }
@@ -64,19 +64,26 @@
     .section-head h2 { margin: .65rem 0; font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.08; letter-spacing: -.06em; }
     .section-head p { margin: 0; color: var(--muted); }
     .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem; }
-    .feature-tile { height: 15rem; perspective: 1100px; cursor: pointer; outline: none; }
+    .feature-tile { height: 15rem; perspective: 1100px; cursor: pointer; outline: none; --tile-accent: #8dbbff; --tile-icon-bg: #23344a; --tile-back-start: #2a3b55; --tile-back-end: #242c37; }
+    .feature-tile:nth-child(8n + 2) { --tile-accent: #f0b16c; --tile-icon-bg: #42301f; --tile-back-start: #3c3021; --tile-back-end: #292623; }
+    .feature-tile:nth-child(8n + 3) { --tile-accent: #c1a3ff; --tile-icon-bg: #332947; --tile-back-start: #392e4c; --tile-back-end: #262431; }
+    .feature-tile:nth-child(8n + 4) { --tile-accent: #77d8c5; --tile-icon-bg: #203d37; --tile-back-start: #23433b; --tile-back-end: #242c2c; }
+    .feature-tile:nth-child(8n + 5) { --tile-accent: #ff9c91; --tile-icon-bg: #432a2b; --tile-back-start: #452c2d; --tile-back-end: #2d2528; }
+    .feature-tile:nth-child(8n + 6) { --tile-accent: #92d9f5; --tile-icon-bg: #213a47; --tile-back-start: #263e4c; --tile-back-end: #232b30; }
+    .feature-tile:nth-child(8n + 7) { --tile-accent: #cadb82; --tile-icon-bg: #384222; --tile-back-start: #3a4426; --tile-back-end: #2a3024; }
+    .feature-tile:nth-child(8n) { --tile-accent: #f0a9d0; --tile-icon-bg: #432a3d; --tile-back-start: #432b3e; --tile-back-end: #2c252b; }
     .feature-tile:focus-visible { border-radius: var(--radius); outline: 2px solid var(--green); outline-offset: 3px; }
     .tile-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2,.75,.25,1); }
     .feature-tile:hover .tile-inner, .feature-tile.is-flipped .tile-inner { transform: rotateY(180deg); }
     .tile-face { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 1.3rem; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, #25292a, #202324); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
     .tile-front h3 { margin: 1rem 0 0; font-size: 1.04rem; line-height: 1.25; letter-spacing: -.025em; }
-    .tile-back { justify-content: center; transform: rotateY(180deg); background: linear-gradient(145deg, #29382f, #222a26); }
+    .tile-back { justify-content: center; transform: rotateY(180deg); background: linear-gradient(145deg, var(--tile-back-start), var(--tile-back-end)); }
     .tile-back p { margin: 0; color: #d0dbd3; font-size: .88rem; line-height: 1.55; }
-    .tile-back strong { color: var(--green-dark); font-weight: 680; }
+    .tile-back strong { color: var(--tile-accent); font-weight: 680; }
     .tile-hint { margin-top: auto; padding-top: .9rem; color: #87918a; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
     .tile-hint::after { content: "↩"; }
     @media (hover: none) { .tile-hint::after { content: "Tap to explore"; } }
-    .feature-icon { display: grid; width: 2.7rem; height: 2.7rem; place-items: center; border-radius: .85rem; color: var(--green-dark); background: var(--mint); font-size: 1.2rem; }
+    .feature-icon { display: grid; width: 2.7rem; height: 2.7rem; place-items: center; border-radius: .85rem; color: var(--tile-accent); background: var(--tile-icon-bg); font-size: 1.2rem; }
     .feature-icon svg { width: 1.35rem; height: 1.35rem; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; fill: none; }
     .feature h3 { margin: 1.1rem 0 .35rem; font-size: 1.08rem; letter-spacing: -.025em; }
     .feature p { margin: 0; color: var(--muted); font-size: .92rem; }
@@ -143,7 +150,7 @@
 <body>
   <header>
     <nav class="nav wrap" aria-label="Main navigation">
-      <a class="brand" href="#home"><img src="../screenshots/logo256.png" alt=""><span>photoboggan</span></a>
+      <a class="brand" href="#home"><img src="screenshots/logo256.png" alt=""><span>photoboggan</span></a>
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#approach">Approach</a>
@@ -165,7 +172,7 @@
         <p class="hero-note">A silly name. A serious photo tool. · Free · Open source</p>
       </div>
       <div class="hero-visual">
-        <video autoplay muted loop playsinline controls preload="auto" poster="../screenshots/main_view_complete.jpg" aria-label="A quick tour of photoboggan">
+        <video autoplay muted loop playsinline controls preload="auto" poster="screenshots/main_view_complete.jpg" aria-label="A quick tour of photoboggan">
           <source src="photoboggan_quickshow.webm" type="video/webm">
           Your browser does not support embedded video.
         </video>
@@ -227,51 +234,51 @@
         </div>
         <div class="gallery-grid">
           <figure class="gallery-item">
-            <img src="../screenshots/display_options.jpg" alt="photoboggan display settings for grid layout, thumbnail size and theme" loading="lazy">
+            <img src="screenshots/display_options.jpg" alt="photoboggan display settings for grid layout, thumbnail size and theme" loading="lazy">
             <figcaption><strong>Your view, your way</strong><span>Adjust layout, spacing, thumbnail size and theme.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/map_thumbnails.jpg" alt="Photo library beside a map with geotagged photo thumbnails" loading="lazy">
+            <img src="screenshots/map_thumbnails.jpg" alt="Photo library beside a map with geotagged photo thumbnails" loading="lazy">
             <figcaption><strong>Browse on the map</strong><span>See locations and photos side by side.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/panel_thumbnails_keywording.jpg" alt="Photo grid and keyword editing panel" loading="lazy">
+            <img src="screenshots/panel_thumbnails_keywording.jpg" alt="Photo grid and keyword editing panel" loading="lazy">
             <figcaption><strong>Keyword as you browse</strong><span>Apply tags while keeping the selected photo in view.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/panel_thumbnails_preview.jpg" alt="Photo grid with a large preview panel" loading="lazy">
+            <img src="screenshots/panel_thumbnails_preview.jpg" alt="Photo grid with a large preview panel" loading="lazy">
             <figcaption><strong>Keep a preview close</strong><span>Browse thumbnails beside a large image preview.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/fullscreen_rating.jpg" alt="Full-screen photo with a rating bar" loading="lazy">
+            <img src="screenshots/fullscreen_rating.jpg" alt="Full-screen photo with a rating bar" loading="lazy">
             <figcaption><strong>Rate in full screen</strong><span>Mark photos as you move through the collection.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/thumbnails_only.jpg" alt="Wide photo thumbnail grid without side panels" loading="lazy">
+            <img src="screenshots/thumbnails_only.jpg" alt="Wide photo thumbnail grid without side panels" loading="lazy">
             <figcaption><strong>Make room for photos</strong><span>Hide panels for an immersive thumbnail view.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/preview_strip.jpg" alt="Large photo preview with a vertical strip of thumbnails" loading="lazy">
+            <img src="screenshots/preview_strip.jpg" alt="Large photo preview with a vertical strip of thumbnails" loading="lazy">
             <figcaption><strong>Browse and preview</strong><span>Keep neighboring shots within easy reach.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/context_menu_find_similar.jpg" alt="Context menu with find similar, duplicates and RAW actions" loading="lazy">
+            <img src="screenshots/context_menu_find_similar.jpg" alt="Context menu with find similar, duplicates and RAW actions" loading="lazy">
             <figcaption><strong>Find the next step</strong><span>Open similar-image, duplicate and RAW searches from a photo.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/faces_review.jpg" alt="Face review screen with recognized people" loading="lazy">
+            <img src="screenshots/faces_review.jpg" alt="Face review screen with recognized people" loading="lazy">
             <figcaption><strong>Review detected faces</strong><span>Confirm or correct suggested people.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/filters_active_folded.jpg" alt="Combined filters for rating, color, filename, keywords and date" loading="lazy">
+            <img src="screenshots/filters_active_folded.jpg" alt="Combined filters for rating, color, filename, keywords and date" loading="lazy">
             <figcaption><strong>Refine your search</strong><span>Combine filters to narrow down your library.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/settings_private_photos_fr.jpg" alt="Private photo rules for folder paths, keywords and date ranges" loading="lazy">
+            <img src="screenshots/settings_private_photos_fr.jpg" alt="Private photo rules for folder paths, keywords and date ranges" loading="lazy">
             <figcaption><strong>Keep private photos private</strong><span>Hide photos with rules that match your needs.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/integrity_check_report_fr.jpg" alt="Photo folder integrity check report" loading="lazy">
+            <img src="screenshots/integrity_check_report_fr.jpg" alt="Photo folder integrity check report" loading="lazy">
             <figcaption><strong>Check your collection</strong><span>Find damaged files and generate missing thumbnails.</span></figcaption>
           </figure>
         </div>
@@ -280,7 +287,7 @@
 
     <section class="showcase" id="approach">
       <div class="wrap showcase-card">
-        <img src="../screenshots/compare.jpg" alt="photoboggan compare mode showing photos side by side" loading="lazy">
+        <img src="screenshots/compare.jpg" alt="photoboggan compare mode showing photos side by side" loading="lazy">
         <div class="showcase-copy">
           <span class="eyebrow">Simple by design</span>
           <h2>Your library.<br>Your rules.</h2>
