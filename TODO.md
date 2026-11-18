@@ -3,34 +3,33 @@
 ## 🚀 Next in line
 
 - [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear
-- [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
-- [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *style*: `map` alternative dark map style
 - [x] *feat*: `UI` display date modified and created somewhere
-- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections
+- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of info
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
-- [ ] *fix*: `tree` reordering root folders in tree needs a click action after moving to register
 
-## 💡 Ideas / Longer term / On hold
+## 💡 Ideas / Longer term / On hold / Secondary
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [ ] *feat*: `files` batch renaming
 - [ ] *feat*: `files` sd card import
-- [ ] *feat*: `viewing` instant zoom
+- [x] *feat*: `viewing` instant zoom
 - [x] *feat*: `metadata` copyright and creator writing
 - [ ] *feat*: `metadata` lens metadata writing
 - [ ] *feat*: `metadata` exif time shift
-- [ ] *feat*: `files` prevent deletion of photos with stars
-- [ ] *feat*: user scripts
+- [ ] *feat*: `scripts` user scripts (launch integration with selected scans and actions)
+- [ ] *fix*: `tree` reordering root folders with grips in serttings sometimes leaves them pending and needing a click confirmation
+- [ ] *feat*: `grid` option to hide RAW by default
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
-- [ ] *feat*: `semantic` offer a way to reanalyse content already analyzed ?
 - [ ] *feat*: add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
+- [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
+- [ ] *feat*: `files` prevent deletion of photos with stars
 
 ## ❄️ Cold storage
 

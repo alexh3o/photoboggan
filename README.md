@@ -20,14 +20,7 @@
 
 ### Why photoboggan?
 
-photoboggan was created for amateur, family, and hobby photo collections—for people who love their photos but don't want to spend hours fighting software just to sort or enjoy them again. I regularly use and appreciate the excellent [digiKam](https://www.digikam.org/), but for daily **sorting**, **culling** after a weekend, or simply **browsing** pictures, I wanted something lighter and faster.
-
-As my own library grew past **200,000 files over 20 years**, I needed a **simple, responsive, and unobtrusive** tool to:
-
-- **Organize effortlessly**: compare, select, sort, rate, tag keywords, recognize faces, and place photos on a map;
-- **Rediscover pictures**: enjoy an adjustable, clutter-free interface with **100% local AI search** alongside classic filters (keywords, dates, people, gear, exposure…).
-
-**photoboggan** is not trying to include every conceivable editing tool—it focuses on giving you a fast, pleasant workflow while keeping your files safe and portable.
+After 25 years of photographing as a hobbyist and a then a dad, I wanted less time spent repeating organizing chores and more time enjoying the collection. It works directly with your existing folders: no import step, proprietary library or duplicate photo vault. Its interface keeps photos in focus, adapts to your workflow and stays responsive with collections of **200,000+ photos**.
 
 📖 **[User guide](docs/USER_GUIDE.md)**
 
@@ -38,7 +31,7 @@ As my own library grew past **200,000 files over 20 years**, I needed a **simple
 ⚠️ The application is young and should be considered **beta** software. Use it at your own risk and always keep a **healthy, complete backup of your photos**. That said, file safety is our non-negotiable priority (see below).
 
 - **Windows**: tested, stable, and used daily.
-- **Linux (`.deb`)**: works well, though it could use broader testing—give it a try and share feedback!
+- **Linux (`.deb`)**: works, but I have only tested it quickly on some releases : it needs testing—give it a try and share feedback!
 - **macOS & other Linux packages**: not published yet, but builds can be added if testers are interested. Feel free to open an issue.
 
 Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` for Ubuntu/Debian. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
@@ -96,13 +89,14 @@ Downloads are available on the [Releases page](https://github.com/alexh3o/photob
   - **Flexible selection & instant keyboard marking**: 0–5 stars, colors, and pick/reject flags (`Shift`+`P` / `Shift`+`X`), in the grid or fullscreen (`Alt`+key to mark and advance), plus **lossless rotation** and **20-step Undo (`Ctrl+Z`)**.
   - **Side-by-side Compare**: up to 4 photos at once with synchronized or unlinked zoom/pan and per-shot rating or deletion.
   - **Hierarchical keywords, titles & descriptions**: editable tree, staged batch changes (`Unify`, `Ctrl+Enter`) or auto-apply.
+  - Apply **author and copyright metadata** quickly with presets
   - **Rich filtering**: combine (or exclude with `Alt`) ratings, colors, picks, keywords, dates/calendar, filenames, people, face count, camera, lens, focal length, shutter speed, aperture, ISO, flash, format, and geolocation.
 
 - 📚 **Virtual & Smart Albums**
   Organize with virtual folders, manual albums (without duplicating files), and **nestable smart albums** based on saved filters—a smart album placed inside another album inherits and refines its parent's rules.
 
 - 🛠️ **Complete toolkit & customizable UI**
-  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task manager with pause/cancel/ETA.
+  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task queue manager with pause/cancel/ETA.
 
 See [Screenshots](#screenshots) for a closer look.  
 Available languages: 🇬🇧 *English* and 🇫🇷 *French* (more welcome!).
@@ -133,15 +127,18 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 ### Screenshots
 
+![Batch keywording beside the photo grid](webpage/screenshots/main_view_light.jpg "Batch keywording")
+
+*Main View* (navigation, filters, preview & info panels can be enabled or disabled, thumbnails can be resized to a narrow column)
+
 ![Faces Review](/webpage/screenshots/faces_review.jpg "Faces Review")
 
 *Faces Review* (after detection and recognition, recognized faces can be confirmed or changed in batches and others set manually)
 
-![Display Options](/webpage/screenshots/display_options_en.jpg "Display Options")
+![Display Options](/webpage/screenshots/display_options.jpg "Display Options")
 *Display Options* (dark/light theme, thumbnails size & layout, sorting, group separators...)
 
-![Main View](/webpage/screenshots/main_view_complete.jpg "Main View")
-*Main View* (navigation, filters, preview & info panels can be enabled or disabled, thumbnails can be resized to a narrow column)
+
 
 ![EXIF metadata](/webpage/screenshots/exif_panel.jpg "EXIF metadata")
 *EXIF metadata display*
@@ -149,8 +146,8 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 ![Thumbnails only](/webpage/screenshots/thumbnails-only.jpg "Thumbnails only")
 *Thumbnails only* (scroll with mouse wheel or grab and slide!)
 
-![Fullscreen rating](/webpage/screenshots/fullscreen-rating.jpg "Fullscreen rating")
-*Fullscreen rating* (press R to toggle rating bar, D to toggle photo information)
+![Fullscreen rating](/webpage/screenshots/fullscreen.jpg "Fullscreen rating")
+*Fullscreen* (press R to toggle rating bar, D to toggle photo information)
 
 <table>
   <tr>
@@ -188,13 +185,13 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 <table>
   <tr>
-    <td><img title="Folders settings" src="/webpage/screenshots/settings_data_en.jpg" alt="Folders settings" width="300" /></td>
-    <td><img title="Display settings" src="/webpage/screenshots/settings_display.jpg" alt="Display settings" width="300" /></td>
-    <td><img title="Open with... settings" src="/webpage/screenshots/settings_openwith_en.jpg" alt="Open with... settings" width="300" /></td>
+    <td><img title="Folders settings" src="/webpage/screenshots/settings_data.jpg" alt="Folders settings" height="300" /></td>
+    <td><img title="Display settings" src="/webpage/screenshots/sort_options.jpg" alt="Display settings" height="300" /></td>
+    <td><img title="Open with... settings" src="/webpage/screenshots/settings_private_photos_fr.jpg" alt="Private photos settings" height="300" /></td>
   </tr>
 </table>
 
-*Settings* (data folder, photo folders, external programs, language, display...)
+*Settings* (data folder, sort options,private photos...)
 
 ---
 
