@@ -51,7 +51,7 @@ Downloads are available on the [Releases page](https://github.com/alexh3o/photob
   - Full interoperability with **digiKam, Lightroom, ACDSee, Windows Photos**, and OS file managers: writes standard embedded XMP/IPTC (JPEG), **in-place XMP in HEIC/HEIF**, or `.xmp` sidecars (RAW, PNG, video), with configurable read priority between formats and your choice of **ExifTool** or the **built-in writer**.
 
 - 🔒 **100% local by default, with an explicit Offline Mode**
-  Your photos never leave your computer. Online features (map tiles, place search, model downloads, update checks) are strictly opt-in, and flipping **Offline Mode** in Settings blocks all network connections across the app.
+  Your photos never leave your computer. Online features (map tiles, place search, model downloads, update checks) are strictly opt-in, **local model/map imports work fully offline**, and flipping **Offline Mode** in Settings blocks all network connections across the app.
 
 - ⚡ **Built for speed at 200k+ photos**
   Smooth scrolling, instant **embedded RAW previews** (no slow CPU demosaicing), **resumable folder scans** (pause anytime and pick up later, even after restarting), and quiet background sync for external changes.
@@ -84,19 +84,22 @@ Downloads are available on the [Releases page](https://github.com/alexh3o/photob
   - **Private Zones**: draw areas (like *Home*) or import offline map files (MBTiles). Any photo inside a private zone forces the map into strict local-only mode so those coordinates are never sent online.
   - **Erase & Restore GPS**: strip coordinates from files before sharing while keeping a restorable local backup.
 
+- 🙈 **Private Photos mode**  
+  Quickly hide or reveal photos across the entire app (grid, counts, albums, duplicates, faces) without touching files on disk, using cumulative rules by folder path, keyword, or date range—with an optional shield lock and folder-deletion safeguard.
+
 - ⭐ **Fast daily culling & workflow**
 
   - **Flexible selection & instant keyboard marking**: 0–5 stars, colors, and pick/reject flags (`Shift`+`P` / `Shift`+`X`), in the grid or fullscreen (`Alt`+key to mark and advance), plus **lossless rotation** and **20-step Undo (`Ctrl+Z`)**.
   - **Side-by-side Compare**: up to 4 photos at once with synchronized or unlinked zoom/pan and per-shot rating or deletion.
   - **Hierarchical keywords, titles & descriptions**: editable tree, staged batch changes (`Unify`, `Ctrl+Enter`) or auto-apply.
   - Apply **author and copyright metadata** quickly with presets
-  - **Rich filtering**: combine (or exclude with `Alt`) ratings, colors, picks, keywords, dates/calendar, filenames, people, face count, camera, lens, focal length, shutter speed, aperture, ISO, flash, format, and geolocation.
+  - **Rich filtering**: combine (or exclude with `Alt`) ratings, colors, picks, keywords, dates/calendar, filenames, people, face count, author, camera, lens, focal length, shutter speed, aperture, ISO, flash, format, and geolocation.
 
 - 📚 **Virtual & Smart Albums**
   Organize with virtual folders, manual albums (without duplicating files), and **nestable smart albums** based on saved filters—a smart album placed inside another album inherits and refines its parent's rules.
 
 - 🛠️ **Complete toolkit & customizable UI**
-  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task queue manager with pause/cancel/ETA.
+  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, UI font, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task queue manager with pause/cancel/ETA.
 
 See [Screenshots](#screenshots) for a closer look.  
 Available languages: 🇬🇧 *English* and 🇫🇷 *French* (more welcome!).
@@ -137,8 +140,6 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 ![Display Options](/webpage/screenshots/display_options.jpg "Display Options")
 *Display Options* (dark/light theme, thumbnails size & layout, sorting, group separators...)
-
-
 
 ![EXIF metadata](/webpage/screenshots/exif_panel.jpg "EXIF metadata")
 *EXIF metadata display*

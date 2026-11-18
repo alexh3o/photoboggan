@@ -8,9 +8,30 @@
   <meta property="og:title" content="photoboggan — Fast, local, privacy-first photo manager">
   <meta property="og:description" content="Browse, cull, geotag, and rediscover 200,000+ photos directly in your folders. Zero lock-in, atomic metadata writes, and optional 100% local AI.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="screenshots/panel_thumbnails_preview.jpg">
+  <meta property="og:url" content="https://alexh3o.github.io/photoboggan/">
+  <meta property="og:image" content="https://alexh3o.github.io/photoboggan/screenshots/panel_thumbnails_preview.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="photoboggan — Fast, local, privacy-first photo manager">
+  <meta name="twitter:description" content="Browse, cull, geotag, and rediscover 200,000+ photos directly in your folders. Zero lock-in, atomic metadata writes, optional 100% local AI.">
+  <meta name="twitter:image" content="https://alexh3o.github.io/photoboggan/screenshots/panel_thumbnails_preview.jpg">
   <title>photoboggan — Your folders. Your privacy. 200k+ photos.</title>
   <link rel="icon" type="image/png" href="screenshots/logo256.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "photoboggan",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Windows, Linux",
+    "description": "Fast, privacy-first desktop photo viewer and manager for 200,000+ photo libraries. Zero copy, atomic metadata writes, optional 100% local AI.",
+    "softwareVersion": "beta",
+    "license": "https://www.gnu.org/licenses/gpl-3.0",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "url": "https://alexh3o.github.io/photoboggan/",
+    "downloadUrl": "https://github.com/alexh3o/photoboggan/releases",
+    "codeRepository": "https://github.com/alexh3o/photoboggan"
+  }
+  </script>
   <style>
     :root {
       color-scheme: dark;
@@ -22,7 +43,7 @@
       --line-strong: rgba(255, 255, 255, 0.16);
       --ink: #f1f4f2;
       --muted: #9ea8a2;
-      --soft: #7b857f;
+      --soft: #8a948e;
       --green: #8ed5a8;
       --green-bright: #a8e6be;
       --green-dim: rgba(142, 213, 168, 0.12);
@@ -55,6 +76,23 @@
     a { color: inherit; }
     img, video { max-width: 100%; }
     button { font: inherit; color: inherit; }
+
+    /* Skip link (accessibility) */
+    .skip-link {
+      position: absolute;
+      left: 1rem;
+      top: -3rem;
+      z-index: 100;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      background: var(--green);
+      color: #111315;
+      font-weight: 700;
+      text-decoration: none;
+      transition: top 0.15s ease;
+    }
+
+    .skip-link:focus { top: 1rem; }
 
     .wrap {
       width: min(1160px, calc(100% - 2.5rem));
@@ -816,12 +854,144 @@
     .disclaimer {
       margin-top: 1.1rem;
       padding: 0.85rem 1rem;
-      border: 1px solid rgba(15, 196, 118, 0.603);
+      border: 1px solid rgba(232, 173, 105, 0.32);
       border-radius: var(--radius-sm);
       background: rgba(232, 173, 105, 0.07);
-      color: #2a9a65;
+      color: #e9d4b8;
       font-size: 0.84rem;
     }
+
+    /* Platform chips under hero */
+    .platform-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1.4rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.32rem 0.8rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--bg-elev);
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .chip svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    /* Network transparency table */
+    .network-map {
+      margin-top: 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-elev);
+      overflow: hidden;
+    }
+
+    .network-map table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+
+    .network-map th,
+    .network-map td {
+      padding: 0.7rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    .network-map th {
+      color: var(--soft);
+      font-size: 0.74rem;
+      font-weight: 680;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .network-map tr:last-child td { border-bottom: 0; }
+
+    .network-map td:first-child { color: var(--ink); font-weight: 620; white-space: nowrap; }
+    .network-map td { color: var(--muted); }
+
+    .net-tag {
+      display: inline-block;
+      padding: 0.12rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 680;
+      white-space: nowrap;
+    }
+
+    .net-off { background: var(--green-dim); color: var(--green); }
+    .net-opt { background: var(--amber-dim); color: var(--amber); }
+
+    /* FAQ */
+    .faq-list {
+      max-width: 46rem;
+      margin: 0 auto;
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .faq-item {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      overflow: hidden;
+    }
+
+    .faq-item[open] { border-color: var(--line-strong); background: var(--bg-elev); }
+
+    .faq-item summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.2rem;
+      cursor: pointer;
+      font-weight: 640;
+      font-size: 0.96rem;
+      list-style: none;
+    }
+
+    .faq-item summary::-webkit-details-marker { display: none; }
+
+    .faq-item summary::after {
+      content: "+";
+      flex: none;
+      color: var(--green);
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1;
+      transition: transform 0.15s ease;
+    }
+
+    .faq-item[open] summary::after { content: "−"; }
+
+    .faq-item .faq-body {
+      padding: 0 1.2rem 1.1rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .faq-item .faq-body strong { color: var(--ink); font-weight: 620; }
     /* Final CTA */
     .final-cta { padding: 1.5rem 0 5rem; }
 
@@ -987,6 +1157,8 @@
       .frame-caption { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
       .lightbox { padding: 0.75rem; }
       .lightbox-bar { flex-direction: column; align-items: flex-start; }
+      .network-map { overflow-x: auto; }
+      .network-map table { min-width: 560px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -996,6 +1168,7 @@
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <nav class="nav wrap" aria-label="Main navigation">
       <a class="brand" href="#home">
@@ -1008,18 +1181,19 @@
         <a href="#safety" class="nav-hide-sm">Safety &amp; Privacy</a>
         <a href="#features">Features</a>
         <a href="#gallery" class="nav-hide-sm">Screenshots</a>
+        <a href="#faq" class="nav-hide-sm">FAQ</a>
         <a href="#platforms" class="nav-hide-sm">Download</a>
         <a class="nav-cta" href="https://github.com/alexh3o/photoboggan/releases">Get App <span aria-hidden="true">↗</span></a>
       </div>
     </nav>
   </header>
 
-  <main>
+  <main id="main">
     <!-- Hero -->
     <section class="wrap hero" id="home">
       <div>
         <span class="eyebrow">Desktop photo viewer &amp; manager</span>
-        <h1>Fast, smart,<br>local, private<br><span>photo viewer<br>& manager.</span></h1>
+        <h1>Your folders.<br>Your metadata.<br><span>Blazing-fast browsing.</span></h1>
         <p class="hero-copy">
           Organize once, then enjoy your collection without lag. No proprietary vault, no import step, no cloud lock-in—built in Rust and vanilla JS for speed, interoperability, and file safety.
         </p>
@@ -1035,6 +1209,17 @@
           <span>·</span>
           <span><strong>EN / FR</strong> interface</span>
         </div>
+        <div class="platform-chips" aria-label="Available platforms">
+          <span class="chip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5l7-1v7H3zM12 4.3 21 3v8.5h-9zM3 13h7v6.5l-7-1zM12 13h9v7.5L12 19z"/></svg>
+            Windows 10+ · .msi
+          </span>
+          <span class="chip">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>
+            Linux · .deb
+          </span>
+          <span class="chip">Tauri v2 · Rust · vanilla JS</span>
+        </div>
       </div>
 
       <div class="hero-frame">
@@ -1043,7 +1228,7 @@
           <span>In-place on disk</span>
         </div>
         <div class="hero-media">
-          <video autoplay muted loop playsinline controls preload="metadata" poster="screenshots/panel_thumbnails_preview.jpg" aria-label="Quick tour of photoboggan">
+          <video autoplay muted loop playsinline preload="metadata" poster="screenshots/panel_thumbnails_preview.jpg" aria-label="Quick tour of photoboggan">
             <source src="photoboggan_quickshow.webm" type="video/webm">
             Your browser does not support embedded video.
           </video>
@@ -1082,7 +1267,7 @@
       <div class="wrap">
         <div class="section-head">
           <span class="eyebrow">Built for daily flow</span>
-          <h2>One fluid workspace.<br>Several ways to work &  explore.</h2>
+          <h2>One fluid workspace.<br>Several ways to work &amp; explore.</h2>
           <p>Toggle only the panels you need: folder tree, albums & filters; preview; keywords, info & description; map — and inspect every screenshot in full resolution.</p>
         </div>
 
@@ -1272,6 +1457,45 @@
             </p>
           </article>
         </div>
+
+        <div class="network-map" aria-label="Complete list of possible network calls">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Feature</th>
+                <th scope="col">What connects, where, and when</th>
+                <th scope="col">Default</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Library, culling, keywording</td>
+                <td>Nothing. Core browsing, rating, and metadata writing never touch the network—everything stays on your disk.</td>
+                <td><span class="net-tag net-off">0 calls</span></td>
+              </tr>
+              <tr>
+                <td>Maps &amp; geocoding</td>
+                <td>Map tiles are fetched from <code>openfreemap.org</code> only while a map panel is open and only for the visible zone. Private Zones are always served from disk—never requested online.</td>
+                <td><span class="net-tag net-opt">Off by default</span></td>
+              </tr>
+              <tr>
+                <td>AI models (faces, content search)</td>
+                <td>Model downloads from verified sources only if you enable them. Import files manually instead and the app never connects.</td>
+                <td><span class="net-tag net-opt">Off by default</span></td>
+              </tr>
+              <tr>
+                <td>Update check</td>
+                <td>A single GitHub Releases lookup for new versions, with SHA-256 verification. Skip it entirely in Offline Mode.</td>
+                <td><span class="net-tag net-opt">Opt-in</span></td>
+              </tr>
+              <tr>
+                <td>Telemetry, analytics, accounts</td>
+                <td>There are none. No account, no tracking, no crash reporter phoning home.</td>
+                <td><span class="net-tag net-off">Never</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -1284,7 +1508,7 @@
         </div>
 
         <div class="filter-bar" role="group" aria-label="Filter features by category">
-          <button class="filter-btn is-active" data-filter="all">All (18)</button>
+          <button class="filter-btn is-active" data-filter="all">All (20)</button>
           <button class="filter-btn" data-filter="workflow">Workflow &amp; UI</button>
           <button class="filter-btn" data-filter="metadata">Metadata &amp; Safety</button>
           <button class="filter-btn" data-filter="ai">AI, Maps &amp; Search</button>
@@ -1453,6 +1677,24 @@
             <h3>Resumable Queue &amp; Verified Updates</h3>
             <p>Pause, resume across restarts, or cancel scans with live ETA. Optional GitHub update checks verify installer SHA-256 digests twice before launch.</p>
           </article>
+
+          <article class="feat-card" data-category="metadata">
+            <div class="feat-top">
+              <span class="pill-icon pill-amber" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></span>
+              <span class="feat-cat">Metadata &amp; Safety</span>
+            </div>
+            <h3>Lossless Rotation</h3>
+            <p>Rotate by flipping the orientation tag only—pixels are never decoded or recompressed. Formats that cannot rotate safely (HEIC, videos) are excluded up front.</p>
+          </article>
+
+          <article class="feat-card" data-category="files">
+            <div class="feat-top">
+              <span class="pill-icon pill-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="7" cy="18" r="1.6"/></svg></span>
+              <span class="feat-cat">Files &amp; Maintenance</span>
+            </div>
+            <h3>Storage &amp; Display You Control</h3>
+            <p>Choose where the database, thumbnail cache, and offline maps live (pick a SSD!), set the cache resolution, sort by date taken/modified/filename, and show any file in your OS explorer.</p>
+          </article>
         </div>
       </div>
     </section>
@@ -1482,7 +1724,7 @@
             </div>
             <figcaption>
               <strong>Hierarchical Keywording</strong>
-              <span>Tag batches with live autocomplete, merge keywords between photos...</span>
+              <span>Tag batches with live autocomplete, and merge keywords across photos.</span>
             </figcaption>
           </figure>
 
@@ -1522,7 +1764,7 @@
             </div>
             <figcaption>
               <strong>All thumbnails only</strong>
-              <span>Remove all panels and toolbar, reduce thumbnails size to have a whole sight .</span>
+              <span>Remove all panels and toolbar, reduce thumbnails size to see the whole shoot at a glance.</span>
             </figcaption>
           </figure>
         </div>
@@ -1646,7 +1888,7 @@
 
           <figure class="gallery-card" data-lightbox="screenshots/statistics.jpg" data-title="Collection Statistics" data-desc="See your collection in time and numbers.">
             <div class="gallery-thumb">
-              <img src="screenshots/statistics.jpg" alt="Display options modal for grid layout, theme, and accent colors" loading="lazy">
+              <img src="screenshots/statistics.jpg" alt="Collection statistics dashboard with charts and counters" loading="lazy">
             </div>
             <figcaption>
               <strong>Collection Statistics</strong>
@@ -1657,7 +1899,7 @@
           
           <figure class="gallery-card" data-lightbox="screenshots/resize_action.jpg" data-title="Batch Resize" data-desc="Batch resize your collection to another folder.">
             <div class="gallery-thumb">
-              <img src="screenshots/resize_action.jpg" alt="Display options modal for grid layout, theme, and accent colors" loading="lazy">
+              <img src="screenshots/resize_action.jpg" alt="Batch resize dialog with target size and folder options" loading="lazy">
             </div>
             <figcaption>
               <strong>Batch Resize</strong>
@@ -1685,6 +1927,61 @@
             </figcaption>
           </figure>
 
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" aria-labelledby="faq-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Honest answers</span>
+          <h2 id="faq-title">Frequently asked questions</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary>Is my photo library really safe? Do you ever touch my pixels?</summary>
+            <div class="faq-body">
+              <strong>Never.</strong> photoboggan only edits the metadata part of your files (EXIF, IPTC, XMP). Image data is never decoded, recompressed, or rewritten. Every write is atomic (staged to a temporary file first), verified by an immediate read-back, and automatic recovery kicks in if anything fails. Even rotation is lossless: only the orientation tag changes.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>How is this different from digiKam or Lightroom?</summary>
+            <div class="faq-body">
+              Catalog applications like lightroom ask you to <strong>import</strong> your photos into their own database and workflow. photoboggan does the opposite: your folders on disk stay the single source of truth. There is no import step, no proprietary vault, and nothing to export when you leave—metadata is written in standard formats that digiKam, Lightroom, ACDSee, and Windows Explorer read natively.
+              Digikam does much more than photoboggan, but this has a cost in visuals, simplicity of UI and general responsiveness, while you probably don't need all the features on a daily basis.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Can it really handle 200,000+ photos?</summary>
+            <div class="faq-body">
+              Yes. The grid is virtualized (50,000 thumbnails per page), thumbnails are cached in a 256-folder hashed layout, RAW files display their embedded JPEG preview (no slow demosaicing), and a multi-threaded Rust backend with SQLite keeps everything responsive. Initial scan and thumbnail generation take a while—after that, everything is near-instant.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Do the AI features send my photos anywhere?</summary>
+            <div class="faq-body">
+              <strong>No.</strong> Face detection (YuNet), face recognition (SFace), and content search (SigLIP 2) all run 100% locally via ONNX Runtime. They are disabled by default and have zero impact when off. You can even import the models manually for a fully air-gapped setup.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>What file formats are supported?</summary>
+            <div class="faq-body">
+              All common raster formats (JPEG, PNG, WebP, HEIC/HEIF, TIFF…), RAW files from major manufacturers via their embedded previews, and videos (thumbnail + open in your OS player). Metadata is written inside JPEG/HEIC files, and into standard <code>.xmp</code> sidecars for RAW, PNG, and videos—compatible with other tools.
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Is it free? Where does the money come from?</summary>
+            <div class="faq-body">
+              photoboggan is <strong>free and open source under GPL-3.0</strong>, with no ads, no telemetry, and no paid tier. It is a passion project by a hobbyist photographer, developed with heavy AI assistance that was reviewed, tested, and audited at every step.
+            </div>
+          </details>
         </div>
       </div>
     </section>
@@ -1769,9 +2066,12 @@
       });
     });
 
-    // Feature category filter
+    // Feature category filter (count label computed, never hardcoded)
     const filterButtons = Array.from(document.querySelectorAll('.filter-btn'));
     const featureCards = Array.from(document.querySelectorAll('.feat-card'));
+
+    const allBtn = filterButtons.find((btn) => btn.dataset.filter === 'all');
+    if (allBtn) allBtn.textContent = `All (${featureCards.length})`;
 
     filterButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1853,6 +2153,19 @@
         heroVideo.pause();
       }
     }
+
+    // Open external links in a new tab, safely
+    document.querySelectorAll('a[href^="http"]').forEach((link) => {
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    });
+
+    // Preload the neighbor screenshots while the lightbox is open
+    const lightboxPreload = new Image();
+    document.getElementById('lightbox-next').addEventListener('click', () => {
+      const next = triggers[(activeIndex + 1) % triggers.length];
+      if (next) lightboxPreload.src = next.dataset.lightbox;
+    });
   </script>
 </body>
 </html>
