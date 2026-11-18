@@ -8,6 +8,7 @@
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of info
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
+- [ ] *perf*: `fullscreen` slight lag when changing photo
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -26,7 +27,7 @@
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
-- [ ] *feat*: add "scan for new items" to accelerate discovery of new elements
+- [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
 - [ ] *feat*: `files` prevent deletion of photos with stars

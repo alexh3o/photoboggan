@@ -3,352 +3,1856 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#181a1b">
-  <meta name="description" content="photoboggan is a fast, local desktop photo library manager for browsing, sorting and rediscovering your pictures.">
-  <title>photoboggan — Your photos, within reach</title>
+  <meta name="theme-color" content="#111315">
+  <meta name="description" content="photoboggan is a fast, privacy-first desktop photo viewer and manager built in Rust and vanilla JS for libraries of 200,000+ images. Zero copy, atomic metadata writes, optional local AI.">
+  <meta property="og:title" content="photoboggan — Fast, local, privacy-first photo manager">
+  <meta property="og:description" content="Browse, cull, geotag, and rediscover 200,000+ photos directly in your folders. Zero lock-in, atomic metadata writes, and optional 100% local AI.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="screenshots/panel_thumbnails_preview.jpg">
+  <title>photoboggan — Your folders. Your privacy. 200k+ photos.</title>
   <link rel="icon" type="image/png" href="screenshots/logo256.png">
   <style>
     :root {
       color-scheme: dark;
-      --ink: #f0f3f1;
-      --muted: #a1aaa5;
-      --paper: #181a1b;
-      --card: #222526;
-      --line: #353a3b;
+      --bg: #111315;
+      --bg-elev: #171a1d;
+      --card: #1c2024;
+      --card-hover: #22272c;
+      --line: rgba(255, 255, 255, 0.09);
+      --line-strong: rgba(255, 255, 255, 0.16);
+      --ink: #f1f4f2;
+      --muted: #9ea8a2;
+      --soft: #7b857f;
       --green: #8ed5a8;
-      --green-dark: #a3e2b8;
-      --mint: #293a31;
-      --orange: #e8ad69;
-      --radius: 1.4rem;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --green-bright: #a8e6be;
+      --green-dim: rgba(142, 213, 168, 0.12);
+      --amber: #e8ad69;
+      --amber-dim: rgba(232, 173, 105, 0.13);
+      --blue: #86b9f7;
+      --blue-dim: rgba(134, 185, 247, 0.12);
+      --purple: #bea4ff;
+      --purple-dim: rgba(190, 164, 255, 0.12);
+      --radius-sm: 0.75rem;
+      --radius: 1.15rem;
+      --radius-lg: 1.6rem;
+      --shadow: 0 20px 55px rgba(0, 0, 0, 0.42);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
+
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
-    body { margin: 0; color: var(--ink); background: var(--paper); line-height: 1.6; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(65rem 38rem at 78% -4%, rgba(142, 213, 168, 0.08), transparent 60%),
+        radial-gradient(50rem 30rem at 12% 8%, rgba(134, 185, 247, 0.05), transparent 60%),
+        var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
     a { color: inherit; }
-    .wrap { width: min(1120px, calc(100% - 2.5rem)); margin-inline: auto; }
-    header { padding: 1.35rem 0; }
-    .nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-    .brand { display: inline-flex; align-items: center; gap: .7rem; text-decoration: none; font-size: 1.1rem; font-weight: 760; letter-spacing: -.04em; }
-    .brand img { width: 2.25rem; height: 2.25rem; border-radius: .7rem; }
-    .nav-links { display: flex; align-items: center; gap: 1.5rem; color: var(--muted); font-size: .9rem; }
-    .nav-links a { text-decoration: none; }
+    img, video { max-width: 100%; }
+    button { font: inherit; color: inherit; }
+
+    .wrap {
+      width: min(1160px, calc(100% - 2.5rem));
+      margin-inline: auto;
+    }
+
+    /* Header */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: rgba(17, 19, 21, 0.82);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      min-height: 4.1rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      text-decoration: none;
+      font-size: 1.08rem;
+      font-weight: 760;
+      letter-spacing: -0.03em;
+    }
+
+    .brand img {
+      width: 2.05rem;
+      height: 2.05rem;
+      border-radius: 0.55rem;
+    }
+
+    .brand-tag {
+      padding: 0.14rem 0.48rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      color: var(--amber);
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.35rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      transition: color 0.16s ease;
+    }
+
     .nav-links a:hover { color: var(--ink); }
-    .nav-links .nav-cta { padding: .62rem 1rem; border-radius: 999px; color: #181a1b; background: var(--green); }
-    .hero { display: grid; grid-template-columns: .88fr 1.12fr; align-items: center; gap: 3.5rem; padding: 5rem 0 5.5rem; }
-    .eyebrow { display: inline-flex; align-items: center; gap: .5rem; color: var(--green-dark); font-size: .78rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-    .eyebrow::before { width: .45rem; height: .45rem; border-radius: 50%; background: var(--orange); content: ""; }
-    h1 { max-width: 12ch; margin: 1rem 0 1.2rem; font-size: clamp(3.25rem, 6.5vw, 5.7rem); line-height: .98; letter-spacing: -.075em; }
-    h1 span { color: var(--green); }
-    .hero-copy { max-width: 31rem; color: var(--muted); font-size: 1.13rem; }
-    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 1.8rem; }
-    .button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; min-height: 3rem; padding: .75rem 1.15rem; border: 1px solid transparent; border-radius: 999px; font-size: .92rem; font-weight: 680; text-decoration: none; transition: transform .18s ease, background .18s ease; }
-    .button:hover { transform: translateY(-2px); }
-    .button-primary { color: #181a1b; background: var(--green); }
-    .button-primary:hover { background: var(--green-dark); }
-    .button-secondary { border-color: var(--line); background: #222526; }
-    .button-secondary:hover { background: #2a2e2f; }
-    .hero-note { margin-top: 1.15rem; color: #88928c; font-size: .8rem; }
-    code { color: var(--green-dark); font-size: .82em; overflow-wrap: anywhere; }
-    .hero-visual { position: relative; padding: .24rem; border: 1px solid var(--line); border-radius: 1.4rem; background: #222526; box-shadow: 0 18px 54px rgba(0,0,0,.32); transform: rotate(.35deg); }
-    .hero-visual img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; object-position: top left; border-radius: 1.15rem; }
-    .hero-visual video { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; border-radius: 1.15rem; background: #111; }
-    .visual-tag { position: absolute; right: -1.2rem; bottom: 1.8rem; display: flex; align-items: center; gap: .65rem; padding: .75rem .95rem; border: 1px solid var(--line); border-radius: 1rem; background: #252929; box-shadow: 0 12px 35px rgba(0,0,0,.32); font-size: .82rem; font-weight: 650; transform: rotate(-1deg); }
-    .visual-tag span { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: .65rem; background: var(--mint); color: var(--green); }
-    .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .trust-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; padding: 1.2rem 0; }
-    .trust-item { display: flex; align-items: center; justify-content: center; gap: .6rem; color: #c3ccc6; font-size: .88rem; font-weight: 610; }
-    .trust-item b { color: var(--green); font-size: 1.05rem; }
-    section { padding: 5.5rem 0; }
-    .section-head { max-width: 40rem; margin: 0 auto 2.5rem; text-align: center; }
-    .section-head h2 { margin: .65rem 0; font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.08; letter-spacing: -.06em; }
-    .section-head p { margin: 0; color: var(--muted); }
-    .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem; }
-    .feature-tile { height: 15rem; perspective: 1100px; cursor: pointer; outline: none; --tile-accent: #8dbbff; --tile-icon-bg: #23344a; --tile-back-start: #2a3b55; --tile-back-end: #242c37; }
-    .feature-tile:nth-child(8n + 2) { --tile-accent: #f0b16c; --tile-icon-bg: #42301f; --tile-back-start: #3c3021; --tile-back-end: #292623; }
-    .feature-tile:nth-child(8n + 3) { --tile-accent: #c1a3ff; --tile-icon-bg: #332947; --tile-back-start: #392e4c; --tile-back-end: #262431; }
-    .feature-tile:nth-child(8n + 4) { --tile-accent: #77d8c5; --tile-icon-bg: #203d37; --tile-back-start: #23433b; --tile-back-end: #242c2c; }
-    .feature-tile:nth-child(8n + 5) { --tile-accent: #ff9c91; --tile-icon-bg: #432a2b; --tile-back-start: #452c2d; --tile-back-end: #2d2528; }
-    .feature-tile:nth-child(8n + 6) { --tile-accent: #92d9f5; --tile-icon-bg: #213a47; --tile-back-start: #263e4c; --tile-back-end: #232b30; }
-    .feature-tile:nth-child(8n + 7) { --tile-accent: #cadb82; --tile-icon-bg: #384222; --tile-back-start: #3a4426; --tile-back-end: #2a3024; }
-    .feature-tile:nth-child(8n) { --tile-accent: #f0a9d0; --tile-icon-bg: #432a3d; --tile-back-start: #432b3e; --tile-back-end: #2c252b; }
-    .feature-tile:focus-visible { border-radius: var(--radius); outline: 2px solid var(--green); outline-offset: 3px; }
-    .tile-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2,.75,.25,1); }
-    .feature-tile:hover .tile-inner, .feature-tile.is-flipped .tile-inner { transform: rotateY(180deg); }
-    .tile-face { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 1.3rem; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, #25292a, #202324); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-    .tile-front h3 { margin: 1rem 0 0; font-size: 1.04rem; line-height: 1.25; letter-spacing: -.025em; }
-    .tile-back { justify-content: center; transform: rotateY(180deg); background: linear-gradient(145deg, var(--tile-back-start), var(--tile-back-end)); }
-    .tile-back p { margin: 0; color: #d0dbd3; font-size: .88rem; line-height: 1.55; }
-    .tile-back strong { color: var(--tile-accent); font-weight: 680; }
-    .tile-hint { margin-top: auto; padding-top: .9rem; color: #87918a; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; }
-    .tile-hint::after { content: "↩"; }
-    @media (hover: none) { .tile-hint::after { content: "Tap to explore"; } }
-    .feature-icon { display: grid; width: 2.7rem; height: 2.7rem; place-items: center; border-radius: .85rem; color: var(--tile-accent); background: var(--tile-icon-bg); font-size: 1.2rem; }
-    .feature-icon svg { width: 1.35rem; height: 1.35rem; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-    .feature h3 { margin: 1.1rem 0 .35rem; font-size: 1.08rem; letter-spacing: -.025em; }
-    .feature p { margin: 0; color: var(--muted); font-size: .92rem; }
-    .gallery { padding-top: 1rem; }
-    .gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-    .gallery-item { overflow: hidden; margin: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
-    .gallery-item img { display: block; width: 100%; height: 13rem; object-fit: cover; object-position: top left; background: #292d2e; }
-    .gallery-item figcaption { display: grid; gap: .18rem; padding: 1rem 1.1rem 1.1rem; }
-    .gallery-item figcaption strong { font-size: .93rem; }
-    .gallery-item figcaption span { color: var(--muted); font-size: .82rem; }
-    .gallery-wide { grid-column: span 2; }
-    .showcase { padding-top: 1rem; }
-    .showcase-card { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 3rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: 1.8rem; background: #222526; }
-    .showcase-card img { display: block; width: 100%; border: 1px solid rgba(255,255,255,.08); border-radius: 1.1rem; box-shadow: 0 15px 40px rgba(0,0,0,.32); }
-    .showcase-copy { padding: 1rem 2rem 1rem 0; }
-    .showcase-copy h2 { margin: .8rem 0; font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: 1.08; letter-spacing: -.055em; }
-    .showcase-copy p { color: var(--muted); }
-    .showcase-copy ul { display: grid; gap: .55rem; padding: 0; list-style: none; color: #c3ccc6; font-size: .92rem; }
-    .showcase-copy li::before { margin-right: .55rem; color: var(--green); content: "✓"; font-weight: 800; }
-    .final-cta { padding: 1rem 0 5.5rem; }
-    .cta-box { padding: 3.5rem 1.5rem; border: 1px solid var(--line); border-radius: 1.8rem; color: var(--ink); background: #222526; text-align: center; }
-    .cta-box h2 { margin: 0 0 .65rem; font-size: clamp(2rem, 4vw, 3.2rem); letter-spacing: -.06em; }
-    .cta-box p { margin: 0 auto 1.4rem; color: var(--muted); }
-    .cta-box .button { color: #181a1b; background: var(--green); }
-    footer { padding: 1.4rem 0 2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
-    .footer-row { display: flex; justify-content: space-between; gap: 1rem; }
-    footer a { color: var(--green-dark); text-decoration: none; }
-    @media (max-width: 800px) {
-      .hero { grid-template-columns: 1fr; gap: 2.5rem; padding: 3.5rem 0 4rem; }
-      h1 { max-width: 11ch; }
-      .hero-visual { margin-inline: .4rem; }
-      .features { grid-template-columns: repeat(2, 1fr); }
-      .feature-tile { height: 14rem; }
+
+    .nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.52rem 0.95rem;
+      border-radius: 999px;
+      color: #111315 !important;
+      background: var(--green);
+      font-weight: 680;
+    }
+
+    .nav-cta:hover { background: var(--green-bright); }
+
+    /* Shared UI */
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--green);
+      font-size: 0.78rem;
+      font-weight: 720;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--amber);
+      content: "";
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-height: 2.95rem;
+      padding: 0.72rem 1.2rem;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-size: 0.92rem;
+      font-weight: 680;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    }
+
+    .button:hover { transform: translateY(-1px); }
+
+    .button-primary {
+      color: #111315;
+      background: var(--green);
+    }
+
+    .button-primary:hover { background: var(--green-bright); }
+
+    .button-secondary {
+      border-color: var(--line-strong);
+      background: var(--card);
+      color: var(--ink);
+    }
+
+    .button-secondary:hover { background: var(--card-hover); }
+
+    .button-ghost {
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .button-ghost:hover { color: var(--ink); }
+
+    section { padding: 5.2rem 0; }
+
+    .section-head {
+      max-width: 44rem;
+      margin: 0 auto 2.6rem;
+      text-align: center;
+    }
+
+    .section-head h2 {
+      margin: 0.65rem 0 0.75rem;
+      font-size: clamp(1.95rem, 3.8vw, 3rem);
+      line-height: 1.08;
+      letter-spacing: -0.05em;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    /* Hero */
+    .hero {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      align-items: center;
+      gap: 3rem;
+      padding: 4.5rem 0 4.2rem;
+    }
+
+    .hero h1 {
+      margin: 0.95rem 0 1.15rem;
+      font-size: clamp(2.55rem, 5vw, 4.15rem);
+      line-height: 1.02;
+      letter-spacing: -0.055em;
+    }
+
+    .hero h1 span { color: var(--green); }
+
+    .hero-copy {
+      max-width: 33rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 1.75rem;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem 1.1rem;
+      margin-top: 1.2rem;
+      color: var(--soft);
+      font-size: 0.82rem;
+    }
+
+    .hero-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .hero-meta strong {
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .hero-frame {
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elev);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .frame-chrome {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: #14171a;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .frame-dots {
+      display: inline-flex;
+      gap: 0.38rem;
+    }
+
+    .frame-dots i {
+      width: 0.56rem;
+      height: 0.56rem;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.18);
+      display: block;
+    }
+
+    .hero-media {
+      position: relative;
+      background: #0d0f11;
+    }
+
+    .hero-media video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+    }
+
+    .frame-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.7rem 1rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .frame-caption strong { color: var(--ink); font-weight: 620; }
+
+    /* Pillars strip */
+    .pillars {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      padding: 1.5rem 0;
+    }
+
+    .pillar {
+      padding: 0.4rem 0.75rem;
+      border-left: 1px solid var(--line);
+    }
+
+    .pillar:first-child { border-left: 0; padding-left: 0; }
+
+    .pillar-val {
+      display: block;
+      font-size: 1.15rem;
+      font-weight: 740;
+      letter-spacing: -0.025em;
+      color: var(--green);
+    }
+
+    .pillar-label {
+      display: block;
+      margin-top: 0.2rem;
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    /* Interactive Workflow Spotlight */
+    .spotlight-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .tab-btn {
+      padding: 0.58rem 1.05rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--bg-elev);
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 620;
+      cursor: pointer;
+      transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--ink);
+      border-color: var(--line-strong);
+    }
+
+    .tab-btn[aria-selected="true"] {
+      color: #111315;
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .spotlight-panel {
+      display: none;
+      grid-template-columns: 1.25fr 0.75fr;
+      align-items: center;
+      gap: 2.2rem;
+      padding: 1.4rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elev);
+    }
+
+    .spotlight-panel.is-active { display: grid; }
+
+    .spotlight-shot {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #0d0f11;
+      cursor: zoom-in;
+    }
+
+    .spotlight-shot img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      object-position: center top;
+      transition: transform 0.25s ease;
+    }
+
+    .spotlight-shot.is-contain img {
+      object-fit: contain;
+      object-position: center;
+      padding: 0.5rem;
+    }
+
+    .spotlight-shot:hover img { transform: scale(1.015); }
+
+    .shot-zoom-hint {
+      position: absolute;
+      right: 0.75rem;
+      bottom: 0.75rem;
+      padding: 0.3rem 0.65rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: rgba(17, 19, 21, 0.86);
+      color: var(--ink);
+      font-size: 0.74rem;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .spotlight-copy { padding: 0.5rem 0.6rem; }
+
+    .spotlight-badge {
+      display: inline-block;
+      margin-bottom: 0.65rem;
+      padding: 0.22rem 0.65rem;
+      border-radius: 999px;
+      background: var(--green-dim);
+      color: var(--green);
+      font-size: 0.74rem;
+      font-weight: 680;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .spotlight-badge.is-optional {
+      background: var(--amber-dim);
+      color: var(--amber);
+    }
+
+    .spotlight-copy h3 {
+      margin: 0 0 0.7rem;
+      font-size: 1.55rem;
+      line-height: 1.18;
+      letter-spacing: -0.035em;
+    }
+
+    .spotlight-copy p {
+      margin: 0 0 1.1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .check-list {
+      display: grid;
+      gap: 0.58rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.9rem;
+      color: #d0d8d3;
+    }
+
+    .check-list li {
+      position: relative;
+      padding-left: 1.35rem;
+    }
+
+    .check-list li::before {
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--green);
+      font-weight: 800;
+      content: "✓";
+    }
+
+    /* Safety & Architecture */
+    .safety-section {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.85rem;
+      margin-bottom: 2rem;
+    }
+
+    .pipeline-step {
+      position: relative;
+      padding: 1.1rem 1.15rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+    }
+
+    .pipeline-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.7rem;
+      height: 1.7rem;
+      border-radius: 0.5rem;
+      background: var(--green-dim);
+      color: var(--green);
+      font-size: 0.8rem;
+      font-weight: 760;
+      margin-bottom: 0.6rem;
+    }
+
+    .pipeline-step h4 {
+      margin: 0 0 0.35rem;
+      font-size: 0.96rem;
+      letter-spacing: -0.02em;
+    }
+
+    .pipeline-step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .safety-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .safety-card {
+      padding: 1.45rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--bg-elev);
+    }
+
+    .safety-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin: 0 0 0.6rem;
+      font-size: 1.08rem;
+      letter-spacing: -0.025em;
+    }
+
+    .safety-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.58;
+    }
+
+    .pill-icon {
+      display: grid;
+      place-items: center;
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 0.65rem;
+      flex: none;
+    }
+
+    .pill-icon svg {
+      width: 1.15rem;
+      height: 1.15rem;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    .pill-green { color: var(--green); background: var(--green-dim); }
+    .pill-amber { color: var(--amber); background: var(--amber-dim); }
+    .pill-blue { color: var(--blue); background: var(--blue-dim); }
+    .pill-purple { color: var(--purple); background: var(--purple-dim); }
+
+    /* Filterable Feature Grid (All content visible immediately) */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.45rem;
+      margin-bottom: 1.8rem;
+    }
+
+    .filter-btn {
+      padding: 0.45rem 0.9rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .filter-btn:hover { color: var(--ink); border-color: var(--line-strong); }
+    .filter-btn.is-active {
+      color: var(--ink);
+      background: var(--card-hover);
+      border-color: var(--green);
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.95rem;
+    }
+
+    .feat-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      padding: 1.25rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      transition: border-color 0.16s ease, background 0.16s ease;
+    }
+
+    .feat-card:hover {
+      border-color: var(--line-strong);
+      background: var(--card-hover);
+    }
+
+    .feat-card[hidden] { display: none; }
+
+    .feat-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .feat-cat {
+      font-size: 0.7rem;
+      font-weight: 680;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--soft);
+    }
+
+    .feat-card h3 {
+      margin: 0.15rem 0 0;
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+    }
+
+    .feat-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.87rem;
+      line-height: 1.55;
+    }
+
+    .feat-card strong {
+      color: var(--ink);
+      font-weight: 620;
+    }
+
+    /* Gallery with uncropped 16:10 frames & Lightbox */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .gallery-card {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      overflow: hidden;
+      cursor: zoom-in;
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    .gallery-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--line-strong);
+    }
+
+    .gallery-thumb {
+      position: relative;
+      background: #0d0f11;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+    }
+
+    .gallery-thumb img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .gallery-thumb.is-contain img {
+      object-fit: contain;
+      padding: 0.35rem;
+    }
+
+    .gallery-card figcaption {
+      display: grid;
+      gap: 0.2rem;
+      padding: 0.95rem 1.05rem 1.05rem;
+    }
+
+    .gallery-card figcaption strong { font-size: 0.94rem; }
+    .gallery-card figcaption span { color: var(--muted); font-size: 0.82rem; line-height: 1.45; }
+
+    /* Story + Platforms */
+    .story-platforms {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 1.25rem;
+    }
+
+    .panel-box {
+      padding: 1.8rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elev);
+    }
+
+    .panel-box h2, .panel-box h3 {
+      margin: 0.55rem 0 0.75rem;
+      letter-spacing: -0.04em;
+    }
+
+    .panel-box h2 { font-size: clamp(1.6rem, 2.8vw, 2.2rem); line-height: 1.1; }
+
+    .panel-box p {
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .platform-list {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1.1rem;
+    }
+
+    .platform-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--card);
+    }
+
+    .platform-row strong { display: block; font-size: 0.94rem; }
+    .platform-row span { display: block; color: var(--muted); font-size: 0.82rem; margin-top: 0.15rem; }
+
+    .status-badge {
+      flex: none;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 680;
+    }
+
+    .status-ready { background: var(--green-dim); color: var(--green); }
+    .status-beta { background: var(--amber-dim); color: var(--amber); }
+    .status-soon { background: rgba(255, 255, 255, 0.06); color: var(--muted); }
+
+    .beta-callout {
+      margin-top: 1.1rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid rgba(232, 173, 105, 0.32);
+      border-radius: var(--radius-sm);
+      background: rgba(232, 173, 105, 0.07);
+      color: #e9d4b8;
+      font-size: 0.84rem;
+    }
+
+    .disclaimer {
+      margin-top: 1.1rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid rgba(15, 196, 118, 0.603);
+      border-radius: var(--radius-sm);
+      background: rgba(232, 173, 105, 0.07);
+      color: #2a9a65;
+      font-size: 0.84rem;
+    }
+    /* Final CTA */
+    .final-cta { padding: 1.5rem 0 5rem; }
+
+    .cta-box {
+      padding: 3.2rem 1.8rem;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      background:
+        radial-gradient(36rem 18rem at 50% 0%, rgba(142, 213, 168, 0.12), transparent 70%),
+        var(--bg-elev);
+      text-align: center;
+    }
+
+    .cta-box h2 {
+      margin: 0 0 0.65rem;
+      font-size: clamp(1.9rem, 3.6vw, 2.9rem);
+      letter-spacing: -0.05em;
+    }
+
+    .cta-box p {
+      max-width: 34rem;
+      margin: 0 auto 1.5rem;
+      color: var(--muted);
+    }
+
+    .cta-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+
+    /* Footer */
+    footer {
+      padding: 1.6rem 0 2.4rem;
+      border-top: 1px solid var(--line);
+      color: var(--soft);
+      font-size: 0.82rem;
+    }
+
+    .footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.8rem 1.5rem;
+    }
+
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.2rem;
+    }
+
+    footer a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    footer a:hover { color: var(--green); }
+
+    /* Lightbox */
+    .lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      place-items: center;
+      padding: 1.5rem;
+      background: rgba(8, 10, 11, 0.92);
+      backdrop-filter: blur(8px);
+    }
+
+    .lightbox.is-open { display: grid; }
+
+    .lightbox-inner {
+      position: relative;
+      width: min(1180px, 100%);
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .lightbox-stage {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      max-height: 80vh;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: #0b0d0e;
+      overflow: hidden;
+    }
+
+    .lightbox-stage img {
+      display: block;
+      max-width: 100%;
+      max-height: 78vh;
+      object-fit: contain;
+    }
+
+    .lightbox-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .lightbox-bar strong { color: var(--ink); display: block; font-size: 0.96rem; }
+
+    .lightbox-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex: none;
+    }
+
+    .icon-btn {
+      display: inline-grid;
+      place-items: center;
+      width: 2.35rem;
+      height: 2.35rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .icon-btn:hover { background: var(--card-hover); }
+
+    /* Focus rings */
+    :focus-visible {
+      outline: 2px solid var(--green);
+      outline-offset: 2px;
+    }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      .hero { grid-template-columns: 1fr; gap: 2.2rem; padding-top: 3rem; }
+      .pillars-grid { grid-template-columns: repeat(2, 1fr); }
+      .pillar:nth-child(odd) { border-left: 0; padding-left: 0; }
+      .spotlight-panel.is-active { grid-template-columns: 1fr; }
+      .pipeline { grid-template-columns: repeat(2, 1fr); }
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
       .gallery-grid { grid-template-columns: repeat(2, 1fr); }
-      .gallery-wide { grid-column: span 2; }
-      .showcase-card { grid-template-columns: 1fr; gap: 1rem; }
-      .showcase-copy { padding: 1rem; }
+      .story-platforms { grid-template-columns: 1fr; }
     }
-    @media (max-width: 560px) {
-      .wrap { width: min(100% - 1.5rem, 1120px); }
-      .nav-links { gap: .8rem; font-size: .82rem; }
-      .nav-links a:first-child { display: none; }
-      .nav-links .nav-cta { padding: .55rem .8rem; }
-      .hero { padding-top: 2.8rem; }
-      h1 { font-size: clamp(3rem, 14vw, 4.3rem); }
-      .hero-copy { font-size: 1rem; }
-      .visual-tag { right: -.3rem; bottom: .8rem; font-size: .72rem; }
-      .trust-row { grid-template-columns: 1fr; gap: .6rem; padding: 1rem 0; }
-      .trust-item { justify-content: flex-start; }
-      section { padding: 4rem 0; }
-      .features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
-      .feature-tile { height: 15rem; }
-      .tile-face { padding: .9rem; }
-      .tile-front h3 { font-size: .92rem; }
-      .tile-back p { font-size: .78rem; }
-      .gallery-grid { grid-template-columns: 1fr; }
-      .gallery-wide { grid-column: auto; }
-      .feature { min-height: 0; }
-      .footer-row { flex-direction: column; }
+
+    @media (max-width: 640px) {
+      .wrap { width: min(100% - 1.5rem, 1160px); }
+      .nav-hide-sm { display: none; }
+      .nav-links { gap: 0.85rem; font-size: 0.84rem; }
+      section { padding: 3.8rem 0; }
+      .pillars-grid { grid-template-columns: 1fr; }
+      .pillar { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 0.8rem; }
+      .pillar:first-child { border-top: 0; padding-top: 0; }
+      .pipeline, .safety-grid, .feature-grid, .gallery-grid { grid-template-columns: 1fr; }
+      .frame-caption { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
+      .lightbox { padding: 0.75rem; }
+      .lightbox-bar { flex-direction: column; align-items: flex-start; }
     }
-    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition-duration: .01ms !important; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: 0.01ms !important; }
+    }
   </style>
 </head>
 <body>
-  <header>
+  <header class="site-header">
     <nav class="nav wrap" aria-label="Main navigation">
-      <a class="brand" href="#home"><img src="screenshots/logo256.png" alt=""><span>photoboggan</span></a>
+      <a class="brand" href="#home">
+        <img src="screenshots/logo256.png" alt="">
+        <span>photoboggan</span>
+        <span class="brand-tag">Beta</span>
+      </a>
       <div class="nav-links">
+        <a href="#workflow">Workflow</a>
+        <a href="#safety" class="nav-hide-sm">Safety &amp; Privacy</a>
         <a href="#features">Features</a>
-        <a href="#approach">Approach</a>
-        <a class="nav-cta" href="https://github.com/alexh3o/photoboggan">View on GitHub <span aria-hidden="true">↗</span></a>
+        <a href="#gallery" class="nav-hide-sm">Screenshots</a>
+        <a href="#platforms" class="nav-hide-sm">Download</a>
+        <a class="nav-cta" href="https://github.com/alexh3o/photoboggan/releases">Get App <span aria-hidden="true">↗</span></a>
       </div>
     </nav>
   </header>
 
   <main>
-    <div class="wrap hero" id="home">
+    <!-- Hero -->
+    <section class="wrap hero" id="home">
       <div>
-        <span class="eyebrow">For the casual but organized photographers</span>
-        <h1>Fast, Smart,<br>Local, Private<br><span>photo viewer & manager.</span></h1>
-        <p class="hero-copy">Organize once, then spend more time enjoying and exploring your collection. Smooth, photo-first and ready for libraries of 200,000+ images.</p>
-        <div class="actions">
-          <a class="button button-primary" href="https://github.com/alexh3o/photoboggan/releases">Get photoboggan <span aria-hidden="true">↗</span></a>
-          <a class="button button-secondary" href="https://github.com/alexh3o/photoboggan">Explore the project</a>
+        <span class="eyebrow">Desktop photo viewer &amp; manager</span>
+        <h1>Fast, smart,<br>local, private<br><span>photo viewer<br>& manager.</span></h1>
+        <p class="hero-copy">
+          Organize once, then enjoy your collection without lag. No proprietary vault, no import step, no cloud lock-in—built in Rust and vanilla JS for speed, interoperability, and file safety.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/alexh3o/photoboggan/releases">Download latest release <span aria-hidden="true">↗</span></a>
+          <a class="button button-secondary" href="https://github.com/alexh3o/photoboggan">Source on GitHub</a>
+          <a class="button button-ghost" href="#workflow">See how it works ↓</a>
         </div>
-        <p class="hero-note">A silly name. A serious photo tool. · Free · Open source</p>
+        <div class="hero-meta">
+          <span><strong>Free &amp; GPL-3.0</strong> open source</span>
+          <span>·</span>
+          <span><strong>Offline-first</strong> (0 network calls by default)</span>
+          <span>·</span>
+          <span><strong>EN / FR</strong> interface</span>
+        </div>
       </div>
-      <div class="hero-visual">
-        <video autoplay muted loop playsinline controls preload="auto" poster="screenshots/main_view_complete.jpg" aria-label="A quick tour of photoboggan">
-          <source src="photoboggan_quickshow.webm" type="video/webm">
-          Your browser does not support embedded video.
-        </video>
-        <div class="visual-tag"><span aria-hidden="true">⌁</span> Your whole library, at a glance</div>
+
+      <div class="hero-frame">
+        <div class="frame-chrome" aria-hidden="true">
+          <span><strong>photoboggan</strong> — Library · Preview · Info</span>
+          <span>In-place on disk</span>
+        </div>
+        <div class="hero-media">
+          <video autoplay muted loop playsinline controls preload="metadata" poster="screenshots/panel_thumbnails_preview.jpg" aria-label="Quick tour of photoboggan">
+            <source src="photoboggan_quickshow.webm" type="video/webm">
+            Your browser does not support embedded video.
+          </video>
+        </div>
+        <div class="frame-caption">
+          <span><strong>Flexible UI</strong> to adapt your workflow</span>
+          <span>Rust + SQLite WAL + Tauri</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pillars -->
+    <div class="pillars">
+      <div class="wrap pillars-grid">
+        <div class="pillar">
+          <span class="pillar-val">Zero copy</span>
+          <span class="pillar-label">Your disk folders stay the single source of truth—no duplicate library or lock-in.</span>
+        </div>
+        <div class="pillar">
+          <span class="pillar-val">0 pixels touched</span>
+          <span class="pillar-label">Metadata edits never re-encode image data. Atomic writes with read-back check.</span>
+        </div>
+        <div class="pillar">
+          <span class="pillar-val">200k+ ready</span>
+          <span class="pillar-label">Virtual grid (50k/page), 256-folder cache, DCT scaling, and embedded RAW previews.</span>
+        </div>
+        <div class="pillar">
+          <span class="pillar-val">100% local AI</span>
+          <span class="pillar-label">Optional face recognition &amp; SigLIP 2 content search run entirely on your machine.</span>
+        </div>
       </div>
     </div>
 
-    <div class="trust">
-      <div class="wrap trust-row">
-        <div class="trust-item"><b>◎</b> Your folders stay yours</div>
-        <div class="trust-item"><b>↯</b> Built for 200k+ photos</div>
-        <div class="trust-item"><b>◈</b> Photo-first, privacy-minded</div>
-      </div>
-    </div>
+    <!-- Interactive Workflow Spotlight -->
+    <section id="workflow">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Built for daily flow</span>
+          <h2>One fluid workspace.<br>Several ways to work &  explore.</h2>
+          <p>Toggle only the panels you need: folder tree, albums & filters; preview; keywords, info & description; map — and inspect every screenshot in full resolution.</p>
+        </div>
 
+        <div class="spotlight-tabs" role="tablist" aria-label="Workflow views">
+          <button class="tab-btn" role="tab" aria-selected="true" aria-controls="panel-browse" id="tab-browse">1. Browse &amp; Cull</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-compare" id="tab-compare">2. Compare &amp; Keyword</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-ai" id="tab-ai">3. Local AI &amp; Faces</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-maps" id="tab-maps">4. Maps &amp; Private Zones</button>
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-organize" id="tab-organize">5. Deduplicate &amp; Filter</button>
+        </div>
+
+        <div class="spotlight-panel is-active" role="tabpanel" id="panel-browse" aria-labelledby="tab-browse">
+          <div class="spotlight-shot" data-lightbox="screenshots/thumbnails_only.jpg" data-title="Immersive thumbnail grid" data-desc="Hide side panels for an unobstructed view with justified, masonry, square, or framed layouts.">
+            <img src="screenshots/thumbnails_only.jpg" alt="photoboggan unobstructed justified thumbnail grid">
+            <span class="shot-zoom-hint">Click to enlarge ↗</span>
+          </div>
+          <div class="spotlight-copy">
+            <span class="spotlight-badge">Photos first</span>
+            <h3>Fluid virtual grid &amp; instant 1:1 inspection</h3>
+            <p>Scroll massive collections with mouse wheel, drag-and-slide or keyboard navigation, then switch seamlessly to full screen without losing focus.</p>
+            <ul class="check-list">
+              <li>Justified (uncropped), masonry, square, and framed layouts</li>
+              <li>Instant <strong>1:1 zoom &amp; pan</strong> by holding <code>Z</code> under the cursor</li>
+              <li>Stars (0–5), color labels, and pick/reject flags with auto-advance</li>
+              <li>Live histogram, highlight/shadow clipping alerts, and 20-step Undo (<code>Ctrl+Z</code>)</li>
+              <li>Embedded JPEG previews for RAW files—no slow CPU demosaicing</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="spotlight-panel" role="tabpanel" id="panel-compare" aria-labelledby="tab-compare">
+          <div class="spotlight-shot" data-lightbox="screenshots/compare.jpg" data-title="Side-by-side Compare mode" data-desc="Compare 2 to 4 shots with synchronized or independent zoom/pan and sub-selection marking.">
+            <img src="screenshots/compare.jpg" alt="photoboggan side-by-side compare mode with three owl photos" loading="lazy">
+            <span class="shot-zoom-hint">Click to enlarge ↗</span>
+          </div>
+          <div class="spotlight-copy">
+            <span class="spotlight-badge">Fast culling &amp; tagging</span>
+            <h3>Compare 2–4 shots &amp; batch-tag safely</h3>
+            <p>Pick the sharpest frame side-by-side, then apply hierarchical keywords, titles, descriptions, and author/copyright presets in one clean batch.</p>
+            <ul class="check-list">
+              <li>Synchronized zoom and pan across 2–4 photos, unlinkable at any time</li>
+              <li>Sub-select winners or rejects right inside Compare mode</li>
+              <li>Batch keyword editing preserves existing untouched keywords on each photo</li>
+              <li>Author &amp; copyright presets (<code>dc:creator</code>, <code>dc:rights</code>, credit, usage terms)</li>
+              <li>Chain multiple <code>Ctrl</code> / <code>Shift</code> clicks to build multi-group selections</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="spotlight-panel" role="tabpanel" id="panel-ai" aria-labelledby="tab-ai">
+          <div class="spotlight-shot" data-lightbox="screenshots/faces_review.jpg" data-title="Local face detection &amp; recognition review" data-desc="YuNet &amp; SFace run locally with confidence sorting, batch actions, and instant photo context.">
+            <img src="screenshots/faces_review.jpg" alt="photoboggan face review view with recognized people and context preview" loading="lazy">
+            <span class="shot-zoom-hint">Click to enlarge ↗</span>
+          </div>
+          <div class="spotlight-copy">
+            <span class="spotlight-badge is-optional">Optional · Off by default</span>
+            <h3>On-device Face Review &amp; Content Search</h3>
+            <p>Zero impact when disabled. Download verified ONNX models (or import them offline) only if you want local AI assistance.</p>
+            <ul class="check-list">
+              <li><strong>YuNet + SFace</strong> face detection &amp; multi-centroid recognition (adapts as people age)</li>
+              <li>Review high-confidence matches first, cluster unknown faces, and draw missing boxes</li>
+              <li><strong>SigLIP 2</strong> text search (<em>"beach at sunset"</em>) &amp; visual similarity search</li>
+              <li>Two-way keyword suggestions—never written to files without your explicit Apply</li>
+              <li>Background scan automatically pauses whenever you browse, tag, or generate thumbnails</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="spotlight-panel" role="tabpanel" id="panel-maps" aria-labelledby="tab-maps">
+          <div class="spotlight-shot" data-lightbox="screenshots/map_thumbnails.jpg" data-title="Map view &amp; drag-and-drop geotagging" data-desc="Browse geotagged photos, filter the grid by the visible map zone, and keep sensitive places offline.">
+            <img src="screenshots/map_thumbnails.jpg" alt="photoboggan map mode beside the photo thumbnail grid" loading="lazy">
+            <span class="shot-zoom-hint">Click to enlarge ↗</span>
+          </div>
+          <div class="spotlight-copy">
+            <span class="spotlight-badge is-optional">Optional · Strict privacy rules</span>
+            <h3>Geotagging that never leaks your home</h3>
+            <p>Browse photos on vector maps, drag selections onto the map to tag locations, or strip GPS coordinates cleanly before sharing.</p>
+            <ul class="check-list">
+              <li>Filter the grid to the visible map area or search places on demand</li>
+              <li><strong>Private Zones</strong>: draw areas (e.g., Home) or import local <code>.mbtiles</code></li>
+              <li>Any tile touching a private zone is served from disk—<strong>never</strong> requested online</li>
+              <li>Cache map zones locally to eliminate repeat tile provider requests</li>
+              <li>Erase GPS before sharing while keeping a restorable local backup</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="spotlight-panel" role="tabpanel" id="panel-organize" aria-labelledby="tab-organize">
+          <div class="spotlight-shot is-contain" data-lightbox="screenshots/context_menu_find_similar.jpg" data-title="3-way duplicate search &amp; Find the RAW" data-desc="Find exact image duplicates, perceptual lookalikes, filename matches, or jump straight to a JPEG's RAW.">
+            <img src="screenshots/context_menu_find_similar.jpg" alt="photoboggan context menu showing Find RAW, Identical, Similar, and Similar content" loading="lazy">
+            <span class="shot-zoom-hint">Click to enlarge ↗</span>
+          </div>
+          <div class="spotlight-copy">
+            <span class="spotlight-badge">Clean up &amp; rediscover</span>
+            <h3>3-way Duplicate Finder, Smart Albums &amp; Stats</h3>
+            <p>Uncover duplicates without false positives on burst shots, combine deep EXIF/keyword filters, and organize with zero file duplication.</p>
+            <ul class="check-list">
+              <li><strong>Identical image data</strong> (ignores metadata changes so re-tagged copies match)</li>
+              <li><strong>Perceptual similarity (pHash)</strong> handles resize/rotation while ignoring bursts</li>
+              <li>Rank duplicates with custom <strong>"Best Copy"</strong> rules &amp; jump from JPEG to matching RAW</li>
+              <li>Manual &amp; <strong>nestable smart albums</strong> that inherit and refine parent filters</li>
+              <li>Collection statistics across cameras, lenses, exposure settings, dates, and tags</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Safety & Architecture -->
+    <section class="safety-section" id="safety">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Engineered for trust</span>
+          <h2>Your originals are sacred.</h2>
+          <p>Every metadata write and file operation follows strict safety invariants—verified by automated unit and ExifTool integration tests.</p>
+        </div>
+
+        <div class="pipeline" aria-label="Metadata safety pipeline">
+          <div class="pipeline-step">
+            <span class="pipeline-num">1</span>
+            <h4>Stage &amp; Lock</h4>
+            <p>Edits stay staged until Apply. Per-file locks serialize writes so two operations never race on one image.</p>
+          </div>
+          <div class="pipeline-step">
+            <span class="pipeline-num">2</span>
+            <h4>Atomic Write</h4>
+            <p>Writes go to a temporary file first, flushed before rename. Pixels are never decoded or recompressed.</p>
+          </div>
+          <div class="pipeline-step">
+            <span class="pipeline-num">3</span>
+            <h4>Read-back Verify</h4>
+            <p>Every written file or <code>.xmp</code> sidecar is immediately re-read. Any mismatch is reported—never masked as success.</p>
+          </div>
+          <div class="pipeline-step">
+            <span class="pipeline-num">4</span>
+            <h4>Recover &amp; Sync</h4>
+            <p>On failure, ExifTool temp copies are preserved or restored automatically, and the SQLite catalog reflects reality.</p>
+          </div>
+        </div>
+
+        <div class="safety-grid">
+          <article class="safety-card">
+            <h3>
+              <span class="pill-icon pill-green" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg>
+              </span>
+              Interoperable XMP, IPTC &amp; Sidecars
+            </h3>
+            <p>
+              Choose the bundled persistent <strong>ExifTool</strong> pool (gold standard across formats) or the fast native Rust XMP/IPTC writer. JPEG and HEIC/HEIF are updated in-container; RAW, PNG, and video metadata live in standard sidecars without overwriting shared <code>photo.xmp</code> pairs. Configure your own read-priority order across digiKam, Lightroom, Media Pro, Microsoft, and ACDSee schemes.
+            </p>
+          </article>
+
+          <article class="safety-card">
+            <h3>
+              <span class="pill-icon pill-amber" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9 7-.2 1-.9 2.1-1.8 3.1M6.2 6.2C3.8 7.7 2.2 10 2 12c.5 2.5 4 7 10 7 1.3 0 2.5-.3 3.6-.8"/></svg>
+              </span>
+              Private Photos &amp; Explicit Offline Mode
+            </h3>
+            <p>
+              Define cumulative <strong>Privacy Sets</strong> (by folder path, keyword, or date range) to hide sensitive photos across the grid, albums, people, and duplicate searches—restored before the UI even renders, with folder deletion blocked while active. Need total isolation? Flip <strong>Offline Mode</strong> to block every backend &amp; map network call across the app.
+            </p>
+          </article>
+
+          <article class="safety-card">
+            <h3>
+              <span class="pill-icon pill-blue" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/></svg>
+              </span>
+              Safe File Moves, Trash &amp; Integrity Scans
+            </h3>
+            <p>
+              Cross-drive file moves verify <strong>SHA-256 checksums</strong> before removing originals. Deletions go to your OS trash (with explicit warning before permanent deletion on network/removable drives). Built-in <strong>Integrity Check</strong> scans folders for truncated JPEGs or corrupt PNG/WebP/HEIC/RAW previews while generating missing thumbnails in one pass.
+            </p>
+          </article>
+
+          <article class="safety-card">
+            <h3>
+              <span class="pill-icon pill-purple" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/></svg>
+              </span>
+              Lean Native Stack, Zero Bloat
+            </h3>
+            <p>
+              Powered by <strong>Tauri v2</strong>, a multi-threaded <strong>Rust</strong> backend, <strong>SQLite WAL</strong>, and a pure vanilla JS frontend (no Electron, no React/framework overhead). Place your catalog and thumbnail cache on a fast SSD, pause/resume long scans across restarts, and verify GitHub update installers by published SHA-256 digests.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Complete Feature Matrix -->
     <section id="features">
       <div class="wrap">
         <div class="section-head">
-          <span class="eyebrow">A fast path from camera roll to collection</span>
-          <h2>Everything you need.<br>Nothing in the way.</h2>
-          <p>Hover, tap or press Enter on a tile for details.</p>
+          <span class="eyebrow">Full capability overview</span>
+          <h2>Everything you need in a clean UI.</h2>
         </div>
-        <!--
-          Feature icon artwork is based on Lucide icons (https://lucide.dev), ISC License.
-          Copyright (c) 2022 Lucide Contributors
-          Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
-          THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-        -->
-        <div class="features">
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-browse-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></div><h3 id="tile-browse-title">Browse at full speed</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Grab and release to scroll. SQLite, virtual pagination of up to <strong>50,000 thumbnails</strong> and a 256-folder cache keep large libraries fluid.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-cull-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg></div><h3 id="tile-cull-title">Cull and keyword fast</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Set <strong>stars, color labels and pick flags</strong> from rating bars or shortcuts, with optional auto-advance. Batch keywording preserves untouched keywords.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-faces-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m18 0V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="10" r="3"/><path d="M7 21v-1a5 5 0 0 1 10 0v1"/></svg></div><h3 id="tile-faces-title">Face review, locally</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Optional, off by default: <strong>YuNet</strong> detects faces and <strong>SFace</strong> recognizes people on your device. Multiple centroids adapt to age; review high-confidence matches first, and picks improve recognition. Batch actions keep the photo in context.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-maps-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></div><h3 id="tile-maps-title">Map and geotag</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Optional <strong>MapLibre GL</strong> maps: browse geotagged shots, drag photos to add locations, and erase GPS data. Cache OpenFreeMap tile zones to avoid repeat provider requests, or use local MBTiles.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-content-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/><path d="m19 14 1.1 3.1L23 18l-2.9 1-1.1 3-1-3-3-1 3-.9L19 14Z"/></svg></div><h3 id="tile-content-title">Search image content</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Optional local <strong>SigLIP 2</strong> analysis: search by text, find similar scenes and suggest keywords from tagged lookalikes. A first scan is needed and can take hours for 100k+ photos.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-duplicates-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></div><h3 id="tile-duplicates-title">Find duplicates</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>After an initial perceptual-hash scan, find <strong>exact duplicates</strong> and very similar-looking photos.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-private-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c5 0 8.5 4.5 9 7-.2 1-.9 2.1-1.8 3.1M6.2 6.2C3.8 7.7 2.2 10 2 12c.5 2.5 4 7 10 7 1.3 0 2.5-.3 3.6-.8"/></svg></div><h3 id="tile-private-title">Privacy and private photos</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Quickly hide or reveal photos using combined <strong>folder/path, keyword and date-range rules</strong>. Offline mode blocks outside connections; download face/content models and map files manually for local use.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-filters-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10m-7 5h4"/><circle cx="8" cy="7" r="2"/><circle cx="15" cy="12" r="2"/></svg></div><h3 id="tile-filters-title">Filter every way</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Filter filenames, formats, included/excluded keywords, map area, ratings, colors, picks, author, people, camera and lens—plus aperture, shutter, ISO, focal length and flash. Enter dates directly or use the calendar.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-formats-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8m-8 4h8"/></svg></div><h3 id="tile-formats-title">RAW, video and more</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>RAW photos use their <strong>embedded JPEG preview</strong>; videos use the operating system thumbnail and player. No RAW demosaicing or in-app video playback.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-fileops-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 3 14 21l-4-8-8-4 19-6Z"/><path d="M21 3 10 13"/></svg></div><h3 id="tile-fileops-title">Useful file actions</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Batch resize or copy, rename, rotate losslessly through metadata, reveal a file or its containing folder in the OS file manager, and match a JPEG to its RAW with tunable rules. Set <strong>Open with</strong> apps by Raster, RAW or Video.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-preview-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M19 3v4m-2-2h4"/></svg></div><h3 id="tile-preview-title">Zoom in and inspect</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Preview and fullscreen views offer instant <strong>1:1 zoom and pan</strong>, gradual zoom, optional face overlays, histogram, clipped highlights/shadows and photo info.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-compare-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/><path d="M7 8h.01M17 8h.01"/></svg></div><h3 id="tile-compare-title">Compare and select</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Compare <strong>2–4 photos</strong> with linked or independent zoom and pan; rate or delete a subselection. Chain Ctrl/Shift-clicks to build multiple selection groups in any direction.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-ui-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div><h3 id="tile-ui-title">Make the interface yours</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Toggle library, filters, preview, photo info, keywords, description and toolbar panels. Choose square, masonry or justified layouts; adjust spacing, sort by date taken/modified or filename, theme, fonts, text and panel sizes. Dim other photos on selection.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-metadata-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8m-8 4h8m-8 4h5"/></svg></div><h3 id="tile-metadata-title">Metadata that travels</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Write embedded metadata with <strong>ExifTool</strong> for broad format support, or the faster internal XMP/IPTC writer. Read EXIF, IPTC, XMP and common app schemes with editable source priority; risky EXIF writes stay excluded internally.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-safety-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></div><h3 id="tile-safety-title">Files stay safe</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Only metadata is edited: image data is never touched or recompressed. Writes are atomic and verified. On failure, photoboggan attempts restoration and warns if a <code>.tmp</code> file needs manual recovery; file operations flag conflicts and hidden files.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-queue-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div><h3 id="tile-queue-title">Stay responsive</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Significant work runs in a <strong>low-priority task queue</strong> with progress, pause and cancel. After the first library, thumbnail and optional AI scans, daily work feels instant; integrity checks take longer.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-integrity-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m8 12 2.5 2.5L16 9"/></svg></div><h3 id="tile-integrity-title">Check and maintain</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Integrity scans check for corruption and generate missing thumbnails. Choose database, thumbnail and private-map storage locations (an SSD helps), plus thumbnail resolution for face-review clarity.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-albums-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg></div><h3 id="tile-albums-title">Albums and statistics</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Create manual virtual albums or dynamic smart albums. Nest smart albums inside manual or smart albums to refine filters, and explore collection statistics by gear, exposure, dates, ratings and time.</p></div></div></article>
-          <article class="feature-tile" role="button" tabindex="0" aria-expanded="false" aria-labelledby="tile-extras-title"><div class="tile-inner"><div class="tile-face tile-front"><div class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3m.1 4h.01"/></svg></div><h3 id="tile-extras-title">Shortcuts and small extras</h3><span class="tile-hint"></span></div><div class="tile-face tile-back" aria-hidden="true"><p>Shortcuts throughout, an in-app guide, contextual tooltips, slideshow and version update checks. Update checks pause in Offline mode.</p></div></div></article>
+
+        <div class="filter-bar" role="group" aria-label="Filter features by category">
+          <button class="filter-btn is-active" data-filter="all">All (18)</button>
+          <button class="filter-btn" data-filter="workflow">Workflow &amp; UI</button>
+          <button class="filter-btn" data-filter="metadata">Metadata &amp; Safety</button>
+          <button class="filter-btn" data-filter="ai">AI, Maps &amp; Search</button>
+          <button class="filter-btn" data-filter="files">Files &amp; Maintenance</button>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feat-card" data-category="workflow">
+            <div class="feat-top">
+              <span class="pill-icon pill-green" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+              <span class="feat-cat">Workflow &amp; UI</span>
+            </div>
+            <h3>Virtual Grid &amp; 4 Layouts</h3>
+            <p>Justified (uncropped), masonry, square, and framed views with 50k-photo pagination, date/folder separators, and drag-inertia scrolling.</p>
+          </article>
+
+          <article class="feat-card" data-category="workflow">
+            <div class="feat-top">
+              <span class="pill-icon pill-green" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+              <span class="feat-cat">Workflow &amp; UI</span>
+            </div>
+            <h3>Fullscreen, 1:1 Hold-Z &amp; Slideshow</h3>
+            <p>Neighbor preloading, hold <strong>Z</strong> for instant 1:1 cursor zoom, live RGB/luma histogram, clipped highlight/shadow overlay, and configurable slideshow.</p>
+          </article>
+
+          <article class="feat-card" data-category="workflow">
+            <div class="feat-top">
+              <span class="pill-icon pill-green" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="16" rx="1"/><rect x="13" y="4" width="8" height="16" rx="1"/></svg></span>
+              <span class="feat-cat">Workflow &amp; UI</span>
+            </div>
+            <h3>Compare 2–4 Photos</h3>
+            <p>Inspect sharp focus side-by-side with linked or unlinked zoom/pan, sub-selection checkmarks, and instant rating or deletion.</p>
+          </article>
+
+          <article class="feat-card" data-category="workflow">
+            <div class="feat-top">
+              <span class="pill-icon pill-green" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg></span>
+              <span class="feat-cat">Workflow &amp; UI</span>
+            </div>
+            <h3>Fast Culling &amp; 20-Step Undo</h3>
+            <p>Stars, color labels, and pick/reject flags (<code>Shift+P</code>/<code>X</code>) with <code>Alt</code>+key auto-advance, lossless metadata rotation, and 20-step Undo.</p>
+          </article>
+
+          <article class="feat-card" data-category="workflow">
+            <div class="feat-top">
+              <span class="pill-icon pill-green" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
+              <span class="feat-cat">Workflow &amp; UI</span>
+            </div>
+            <h3>Customizable Workspace</h3>
+            <p>Toggle every panel, pick dark or light theme, customize accent colors, text/panel sizing, hover dimming, and browse the built-in shortcut guide.</p>
+          </article>
+
+          <article class="feat-card" data-category="workflow">
+            <div class="feat-top">
+              <span class="pill-icon pill-green" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="5" rx="1"/><rect x="13" y="10" width="8" height="11" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/></svg></span>
+              <span class="feat-cat">Workflow &amp; UI</span>
+            </div>
+            <h3>Virtual &amp; Nestable Smart Albums</h3>
+            <p>Group hand-picked shots into manual albums or create dynamic smart albums—even nested inside other albums to refine parent filter rules.</p>
+          </article>
+
+          <article class="feat-card" data-category="metadata">
+            <div class="feat-top">
+              <span class="pill-icon pill-amber" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8m-8 4h8m-8 4h5"/></svg></span>
+              <span class="feat-cat">Metadata &amp; Safety</span>
+            </div>
+            <h3>Hierarchical Keywords &amp; Author Presets</h3>
+            <p>Manage structured keyword trees, batch-edit with <strong>Unify</strong> without clobbering untouched tags, and recall Author &amp; Copyright presets.</p>
+          </article>
+
+          <article class="feat-card" data-category="metadata">
+            <div class="feat-top">
+              <span class="pill-icon pill-amber" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+              <span class="feat-cat">Metadata &amp; Safety</span>
+            </div>
+            <h3>Dual Writer &amp; Read Priority</h3>
+            <p>Use bundled ExifTool or the fast native writer. Customize source priority per field across EXIF, IPTC, and XMP (digiKam, Lightroom, ACDSee, MS).</p>
+          </article>
+
+          <article class="feat-card" data-category="metadata">
+            <div class="feat-top">
+              <span class="pill-icon pill-amber" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></span>
+              <span class="feat-cat">Metadata &amp; Safety</span>
+            </div>
+            <h3>Safe Sidecars, RAW &amp; Video</h3>
+            <p>RAW uses embedded JPEG previews (zero demosaicing); video opens in your OS player. Sidecar logic protects shared <code>photo.xmp</code> pairs from collisions.</p>
+          </article>
+
+          <article class="feat-card" data-category="metadata">
+            <div class="feat-top">
+              <span class="pill-icon pill-amber" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+              <span class="feat-cat">Metadata &amp; Safety</span>
+            </div>
+            <h3>Private Photos &amp; Offline Mode</h3>
+            <p>Hide sensitive folders, keywords, or date ranges behind a lockable shield. Offline Mode disables all map, place, model, and update network calls.</p>
+          </article>
+
+          <article class="feat-card" data-category="ai">
+            <div class="feat-top">
+              <span class="pill-icon pill-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M7 12h10m-7 5h4"/><circle cx="8" cy="7" r="2"/><circle cx="15" cy="12" r="2"/></svg></span>
+              <span class="feat-cat">AI, Maps &amp; Search</span>
+            </div>
+            <h3>Deep Exhaustive Filtering</h3>
+            <p>Combine or exclude (<code>Alt</code>) filename, format, keywords, date/calendar, camera, lens, focal length, aperture, shutter, ISO, flash, people, and map bounds.</p>
+          </article>
+
+          <article class="feat-card" data-category="ai">
+            <div class="feat-top">
+              <span class="pill-icon pill-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m18 0V5a2 2 0 0 0-2-2h-4M3 15v4a2 2 0 0 0 2 2h4m6 0h4a2 2 0 0 0 2-2v-4"/><circle cx="12" cy="10" r="3"/><path d="M7 21v-1a5 5 0 0 1 10 0v1"/></svg></span>
+              <span class="feat-cat">AI, Maps &amp; Search</span>
+            </div>
+            <h3>Local Face Detection &amp; Review</h3>
+            <p>Optional YuNet + SFace pipeline with live threshold tuning, unknown-face clustering, manual boxes, person merging (with undo), and XMP region write-back.</p>
+          </article>
+
+          <article class="feat-card" data-category="ai">
+            <div class="feat-top">
+              <span class="pill-icon pill-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/></svg></span>
+              <span class="feat-cat">AI, Maps &amp; Search</span>
+            </div>
+            <h3>SigLIP 2 Content Search &amp; Tag Help</h3>
+            <p>Optional on-device semantic search by text or visual similarity, live relevance slider, and two-way keyword suggestions from your own vocabulary.</p>
+          </article>
+
+          <article class="feat-card" data-category="ai">
+            <div class="feat-top">
+              <span class="pill-icon pill-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span>
+              <span class="feat-cat">AI, Maps &amp; Search</span>
+            </div>
+            <h3>Maps, Geotagging &amp; Private Zones</h3>
+            <p>Optional MapLibre GL maps with drag-to-geotag, reversible GPS erase/restore, offline zone downloads, MBTiles import, and strict Private Zones.</p>
+          </article>
+
+          <article class="feat-card" data-category="ai">
+            <div class="feat-top">
+              <span class="pill-icon pill-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></span>
+              <span class="feat-cat">AI, Maps &amp; Search</span>
+            </div>
+            <h3>3-Way Duplicates &amp; Find the RAW</h3>
+            <p>Detect identical pixel payloads, pHash visual lookalikes (ignoring bursts), or matching names. Rank with "Best Copy" rules and match JPEGs to RAWs.</p>
+          </article>
+
+          <article class="feat-card" data-category="files">
+            <div class="feat-top">
+              <span class="pill-icon pill-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 3 14 21l-4-8-8-4 19-6Z"/></svg></span>
+              <span class="feat-cat">Files &amp; Maintenance</span>
+            </div>
+            <h3>Batch Resize, Move, Copy &amp; Open With</h3>
+            <p>Resize batches preserving ICC profiles &amp; rotated face regions, copy/move with SHA-256 verification and conflict UI, and set per-type external editors.</p>
+          </article>
+
+          <article class="feat-card" data-category="files">
+            <div class="feat-top">
+              <span class="pill-icon pill-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></span>
+              <span class="feat-cat">Files &amp; Maintenance</span>
+            </div>
+            <h3>Integrity Check &amp; Collection Stats</h3>
+            <p>Verify JPEG/PNG/WebP/HEIC/RAW integrity with CSV export, purge orphan thumbnails, move cache to an SSD, and inspect library statistics.</p>
+          </article>
+
+          <article class="feat-card" data-category="files">
+            <div class="feat-top">
+              <span class="pill-icon pill-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></span>
+              <span class="feat-cat">Files &amp; Maintenance</span>
+            </div>
+            <h3>Resumable Queue &amp; Verified Updates</h3>
+            <p>Pause, resume across restarts, or cancel scans with live ETA. Optional GitHub update checks verify installer SHA-256 digests twice before launch.</p>
+          </article>
         </div>
       </div>
     </section>
 
-    <section class="gallery" aria-labelledby="gallery-title">
+    <!-- Uncropped Screenshot Gallery with Lightbox -->
+    <section id="gallery" aria-labelledby="gallery-title">
       <div class="wrap">
         <div class="section-head">
-          <span class="eyebrow">A look inside the app</span>
-          <h2 id="gallery-title">Tools that stay out of the way.</h2>
-          <p>A flexible interface that keeps your photos in focus and useful controls close at hand.</p>
+          <span class="eyebrow">Inside the interface</span>
+          <h2 id="gallery-title">Every panel when you need it.</h2>
         </div>
+
         <div class="gallery-grid">
-          <figure class="gallery-item">
-            <img src="screenshots/display_options.jpg" alt="photoboggan display settings for grid layout, thumbnail size and theme" loading="lazy">
-            <figcaption><strong>Your view, your way</strong><span>Adjust layout, spacing, thumbnail size and theme.</span></figcaption>
+          <figure class="gallery-card" data-lightbox="screenshots/panel_thumbnails_preview.jpg" data-title="Split grid &amp; preview" data-desc="Browse thumbnails beside a large live preview with instant ratings and filters.">
+            <div class="gallery-thumb">
+              <img src="screenshots/panel_thumbnails_preview.jpg" alt="Photo grid alongside large preview panel" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Split Grid &amp; Preview</strong>
+              <span>Browse thumbnails beside a large image preview.</span>
+            </figcaption>
           </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/map_thumbnails.jpg" alt="Photo library beside a map with geotagged photo thumbnails" loading="lazy">
-            <figcaption><strong>Browse on the map</strong><span>See locations and photos side by side.</span></figcaption>
+
+          <figure class="gallery-card" data-lightbox="screenshots/panel_thumbnails_keywording.jpg" data-title="Hierarchical keywording" data-desc="Assign hierarchical tags by batch while keeping the selected photos visible.">
+            <div class="gallery-thumb">
+              <img src="screenshots/panel_thumbnails_keywording.jpg" alt="Photo grid and hierarchical keyword editing panel" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Hierarchical Keywording</strong>
+              <span>Tag batches with live autocomplete, merge keywords between photos...</span>
+            </figcaption>
           </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/panel_thumbnails_keywording.jpg" alt="Photo grid and keyword editing panel" loading="lazy">
-            <figcaption><strong>Keyword as you browse</strong><span>Apply tags while keeping the selected photo in view.</span></figcaption>
+
+          <figure class="gallery-card" data-lightbox="screenshots/fullscreen_rating.jpg" data-title="Full-screen culling" data-desc="Rate, color-tag, and advance through your shoot in an unobstructed view.">
+            <div class="gallery-thumb">
+              <img src="screenshots/fullscreen_rating.jpg" alt="Full-screen photo with floating star rating bar" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Full-Screen Culling</strong>
+              <span>Rate and advance directly from the keyboard.</span>
+            </figcaption>
           </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/panel_thumbnails_preview.jpg" alt="Photo grid with a large preview panel" loading="lazy">
-            <figcaption><strong>Keep a preview close</strong><span>Browse thumbnails beside a large image preview.</span></figcaption>
+
+          <figure class="gallery-card" data-lightbox="screenshots/fullscreen.jpg" data-title="EXIF overlay in full screen" data-desc="Toggle camera, lens, exposure settings, and timestamp overlays on demand.">
+            <div class="gallery-thumb">
+              <img src="screenshots/fullscreen.jpg" alt="Full-screen photo displaying camera and exposure EXIF overlay" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Full-Screen Metadata</strong>
+              <span>Camera, lens, and exposure details at a glance.</span>
+            </figcaption>
           </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/fullscreen_rating.jpg" alt="Full-screen photo with a rating bar" loading="lazy">
-            <figcaption><strong>Rate in full screen</strong><span>Mark photos as you move through the collection.</span></figcaption>
+
+          <figure class="gallery-card" data-lightbox="screenshots/preview_strip.jpg" data-title="Filmstrip &amp; large preview" data-desc="Keep neighboring shots in a vertical strip while inspecting details.">
+            <div class="gallery-thumb">
+              <img src="screenshots/preview_strip.jpg" alt="Large preview beside a narrow vertical thumbnail strip" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Vertical Filmstrip</strong>
+              <span>Resize panels down to a narrow strip for focused review.</span>
+            </figcaption>
           </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/thumbnails_only.jpg" alt="Wide photo thumbnail grid without side panels" loading="lazy">
-            <figcaption><strong>Make room for photos</strong><span>Hide panels for an immersive thumbnail view.</span></figcaption>
-          </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/preview_strip.jpg" alt="Large photo preview with a vertical strip of thumbnails" loading="lazy">
-            <figcaption><strong>Browse and preview</strong><span>Keep neighboring shots within easy reach.</span></figcaption>
-          </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/context_menu_find_similar.jpg" alt="Context menu with find similar, duplicates and RAW actions" loading="lazy">
-            <figcaption><strong>Find the next step</strong><span>Open similar-image, duplicate and RAW searches from a photo.</span></figcaption>
-          </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/faces_review.jpg" alt="Face review screen with recognized people" loading="lazy">
-            <figcaption><strong>Review detected faces</strong><span>Confirm or correct suggested people.</span></figcaption>
-          </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/filters_active_folded.jpg" alt="Combined filters for rating, color, filename, keywords and date" loading="lazy">
-            <figcaption><strong>Refine your search</strong><span>Combine filters to narrow down your library.</span></figcaption>
-          </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/settings_private_photos_fr.jpg" alt="Private photo rules for folder paths, keywords and date ranges" loading="lazy">
-            <figcaption><strong>Keep private photos private</strong><span>Hide photos with rules that match your needs.</span></figcaption>
-          </figure>
-          <figure class="gallery-item">
-            <img src="screenshots/integrity_check_report_fr.jpg" alt="Photo folder integrity check report" loading="lazy">
-            <figcaption><strong>Check your collection</strong><span>Find damaged files and generate missing thumbnails.</span></figcaption>
+
+          <figure class="gallery-card" data-lightbox="screenshots/small_thumbnails_only.jpg" data-title="All thumbnails only" data-desc="Switch layouts, spacing, themes, text scale, and selection accent colors.">
+            <div class="gallery-thumb">
+              <img src="screenshots/small_thumbnails_only.jpg" alt="All thumbnails only" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>All thumbnails only</strong>
+              <span>Remove all panels and toolbar, reduce thumbnails size to have a whole sight .</span>
+            </figcaption>
           </figure>
         </div>
       </div>
     </section>
 
-    <section class="showcase" id="approach">
-      <div class="wrap showcase-card">
-        <img src="screenshots/compare.jpg" alt="photoboggan compare mode showing photos side by side" loading="lazy">
-        <div class="showcase-copy">
-          <span class="eyebrow">Simple by design</span>
-          <h2>Your library.<br>Your rules.</h2>
-          <p>For 25 years, I’ve been photographing as a hobbyist and dad. I built photoboggan to make time with a collection about enjoying and exploring photos, not repeating the same organizing chores.</p>
-          <ul>
-            <li>Your photos stay on your computer</li>
-            <li>Your ratings and keywords stay interoperable</li>
-            <li>Smart tools are optional and run locally</li>
+    <!-- Story & Platforms -->
+    <section id="platforms">
+      <div class="wrap story-platforms">
+        <div class="panel-box">
+          <span class="eyebrow">Why photoboggan exists</span>
+          <h2>A silly name. A serious photo tool.</h2>
+          <p>
+            After 25 years of taking photos as a passionate hobbyist and dad, I wanted less time spent repeating organizing chores and more time enjoying the collection.
+          </p>
+          <p>
+            photoboggan doesn’t ask you to surrender your files to a proprietary catalog or upload family memories to the cloud. Keep your own folder structure, write industry-standard metadata, and turn on optional AI or map tools only when you want them.
+          </p>
+          <ul class="check-list" style="margin-top: 1.1rem;">
+            <li>Available in <strong>English</strong> and <strong>French</strong>, & easily extendable</li>
+            <li>Compatible with digiKam, Lightroom, ACDSee, and Windows Photos</li>
+            <li>Zero telemetry—check updates only if you opt in</li>
           </ul>
+          <div class="disclaimer">
+            <strong>AI/LLM disclaimer:</strong> I have more experience in photography techniques and developping than in code developping. Claude & friends helped make photoboggan possible, but they were micro-managed, under scrutiny, controlled & audited !
+          </div>
+        </div>
+
+        <div class="panel-box">
+          <span class="eyebrow">Platforms &amp; Status</span>
+          <h3>Get photoboggan</h3>
+          <div class="platform-list">
+            <div class="platform-row">
+              <div>
+                <strong>Windows (.msi)</strong>
+                <span>English &amp; French installers. Tested daily on real collections.</span>
+              </div>
+              <span class="status-badge status-ready">Daily driver</span>
+            </div>
+            <div class="platform-row">
+              <div>
+                <strong>Linux (.deb)</strong>
+                <span>Ubuntu / Debian package (uses system <code>perl</code> for ExifTool). Feedback welcome!</span>
+              </div>
+              <span class="status-badge status-beta">Needs testers</span>
+            </div>
+            <div class="platform-row">
+              <div>
+                <strong>macOS &amp; other packages</strong>
+                <span>Not published yet—open an issue on GitHub if you’d like to help test.</span>
+              </div>
+              <span class="status-badge status-soon">On request</span>
+            </div>
+          </div>
+          <div class="beta-callout">
+            <strong>Beta software notice:</strong> photoboggan treats file safety as priority #1, but it is still young software—always keep a healthy backup of your photos.
+          </div>
         </div>
       </div>
     </section>
 
+
+    <!-- More screenshots -->
+    <section id="more-screens" aria-labelledby="gallery2-title">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Behind the photos...</span>
+          <h2 id="more-screens-title">More tuning and possibilities....</h2>
+        </div>
+
+        <div class="gallery-grid">
+          <figure class="gallery-card" data-lightbox="screenshots/settings_open_with.jpg" data-title="Open with... Settings" data-desc="Choose favorite external apps to open your files with per type (photos, RAW, Videos).">
+            <div class="gallery-thumb">
+              <img src="screenshots/settings_open_with.jpg" alt="Open with... Settings" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Open with...</strong>
+              <span>Choose favorite external apps to open your files with per type (photos, RAW, Videos).</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/display_options.jpg" data-title="Display options" data-desc="Tune interface to your needs and taste.">
+            <div class="gallery-thumb">
+              <img src="screenshots/display_options.jpg" alt="Display options" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Display options</strong>
+              <span>Tune interface to your needs and taste</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/settings-misc-private.jpg" data-title="Private photos" data-desc="Set rules to filter sensitive photos out. They can be called quickly from main view and cumulated.">
+            <div class="gallery-thumb">
+              <img src="screenshots/settings-misc-private.jpg" alt="Private photos" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Private photos</strong>
+              <span>Set rules to filter sensitive photos out. They can be called quickly from main view and cumulated.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/offline_maps_creation.jpg" data-title="Set private maps" data-desc="Download maps to be offline & private in app, or import MBTiles.">
+            <div class="gallery-thumb">
+              <img src="screenshots/offline_maps_creation.jpg" alt="Download maps to be offline & private in app, or import MBTiles." loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Set private maps</strong>
+              <span>Download maps to be offline & private in app, or import MBTiles.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/in_app_guide.jpg" data-title="In-app shortcuts guide" data-desc="Hit G and see a searchable list of all keyboard & mouse shortcuts / actions.">
+            <div class="gallery-thumb">
+              <img src="screenshots/in_app_guide.jpg" alt="In-app shortcuts guide" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>In-app shortcuts guide</strong>
+              <span>Hit [G] and see a searchable list of all keyboard & mouse shortcuts / actions.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/statistics.jpg" data-title="Collection Statistics" data-desc="See your collection in time and numbers.">
+            <div class="gallery-thumb">
+              <img src="screenshots/statistics.jpg" alt="Display options modal for grid layout, theme, and accent colors" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Collection Statistics</strong>
+              <span>See your collection in time and numbers.</span>
+            </figcaption>
+          </figure>
+
+          
+          <figure class="gallery-card" data-lightbox="screenshots/resize_action.jpg" data-title="Batch Resize" data-desc="Batch resize your collection to another folder.">
+            <div class="gallery-thumb">
+              <img src="screenshots/resize_action.jpg" alt="Display options modal for grid layout, theme, and accent colors" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Batch Resize</strong>
+              <span>Batch resize your collection to another folder before sharing.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/integrity_check_report.jpg" data-title="Integrity check" data-desc="Scan your collection for corrupted files. Above results are from a scan on my corrupted file set for benchmarking.">
+            <div class="gallery-thumb">
+              <img src="screenshots/integrity_check_report.jpg" alt="Integrity check" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Integrity check</strong>
+              <span>Scan your collection for corrupted files. Above results are from a scan on my corrupted file set for benchmarking.</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/settings_general.jpg" data-title="Essential Settings" data-desc="Set the watched photo folders, data storage location, enable 100% offline mode...">
+            <div class="gallery-thumb">
+              <img src="screenshots/settings_general.jpg" alt="Essential Settings" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Essential Settings</strong>
+              <span>Set the watched photo folders, data storage location, enable 100% offline mode...</span>
+            </figcaption>
+          </figure>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
     <section class="final-cta">
       <div class="wrap cta-box">
-        <h2>Ready to rediscover your photos?</h2>
-        <p>Explore the project, get the latest release and see what’s new on GitHub.</p>
-        <a class="button" href="https://github.com/alexh3o/photoboggan">Visit the GitHub repository <span aria-hidden="true">↗</span></a>
+        <h2>Ready to rediscover your photo library?</h2>
+        <p>Download the latest release on GitHub, read the user guide, or inspect every line of Rust and JavaScript source code.</p>
+        <div class="cta-actions">
+          <a class="button button-primary" href="https://github.com/alexh3o/photoboggan/releases">Download on GitHub Releases <span aria-hidden="true">↗</span></a>
+          <a class="button button-secondary" href="https://github.com/alexh3o/photoboggan/blob/main/docs/USER_GUIDE.md">Read User Guide <span aria-hidden="true">↗</span></a>
+          <a class="button button-secondary" href="https://github.com/alexh3o/photoboggan">View Source (GPL-3.0)</a>
+        </div>
       </div>
     </section>
   </main>
 
   <footer>
     <div class="wrap footer-row">
-      <span>© photoboggan · Free software under GPL-3.0</span>
-      <a href="https://github.com/alexh3o/photoboggan">Source code on GitHub ↗</a>
+      <span>© photoboggan · Free &amp; open-source software under GPL-3.0</span>
+      <div class="footer-links">
+        <a href="https://github.com/alexh3o/photoboggan">GitHub Repository</a>
+        <a href="https://github.com/alexh3o/photoboggan/releases">Releases</a>
+        <a href="https://github.com/alexh3o/photoboggan/blob/main/docs/USER_GUIDE.md">User Guide</a>
+        <a href="https://github.com/alexh3o/photoboggan/issues">Report an Issue</a>
+      </div>
     </div>
   </footer>
-  <script>
-    const hoverTiles = window.matchMedia("(hover: hover) and (pointer: fine)");
-    document.querySelectorAll(".feature-tile").forEach((tile) => {
-      const back = tile.querySelector(".tile-back");
-      const setOpen = (open) => {
-        tile.setAttribute("aria-expanded", String(open));
-        back.setAttribute("aria-hidden", String(!open));
-      };
-      const toggle = () => {
-        const open = !tile.classList.contains("is-flipped");
-        tile.classList.toggle("is-flipped", open);
-        setOpen(open);
-      };
 
-      tile.addEventListener("pointerenter", (event) => {
-        if (event.pointerType === "mouse") setOpen(true);
+  <!-- Lightbox Modal -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-labelledby="lightbox-title" aria-hidden="true">
+    <div class="lightbox-inner">
+      <div class="lightbox-stage">
+        <img id="lightbox-img" src="" alt="">
+      </div>
+      <div class="lightbox-bar">
+        <div>
+          <strong id="lightbox-title"></strong>
+          <span id="lightbox-desc"></span>
+        </div>
+        <div class="lightbox-controls">
+          <button type="button" class="icon-btn" id="lightbox-prev" aria-label="Previous screenshot">←</button>
+          <button type="button" class="icon-btn" id="lightbox-next" aria-label="Next screenshot">→</button>
+          <button type="button" class="icon-btn" id="lightbox-close" aria-label="Close lightbox">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Workflow tabs (keyboard accessible: ArrowLeft / ArrowRight / Home / End)
+    const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+    const panels = Array.from(document.querySelectorAll('.spotlight-panel'));
+
+    function activateTab(tab) {
+      const targetId = tab.getAttribute('aria-controls');
+      tabs.forEach((btn) => {
+        const selected = btn === tab;
+        btn.setAttribute('aria-selected', String(selected));
+        btn.tabIndex = selected ? 0 : -1;
       });
-      tile.addEventListener("pointerleave", (event) => {
-        if (event.pointerType === "mouse" && !tile.classList.contains("is-flipped")) setOpen(false);
+      panels.forEach((panel) => {
+        panel.classList.toggle('is-active', panel.id === targetId);
       });
-      tile.addEventListener("click", () => {
-        if (!hoverTiles.matches) toggle();
-      });
-      tile.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
+    }
+
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = index === 0 ? 0 : -1;
+      tab.addEventListener('click', () => activateTab(tab));
+      tab.addEventListener('keydown', (event) => {
+        let nextIndex = null;
+        if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+        else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = tabs.length - 1;
+        if (nextIndex !== null) {
           event.preventDefault();
-          toggle();
-        } else if (event.key === "Escape") {
-          tile.classList.remove("is-flipped");
-          setOpen(false);
+          tabs[nextIndex].focus();
+          activateTab(tabs[nextIndex]);
         }
       });
     });
+
+    // Feature category filter
+    const filterButtons = Array.from(document.querySelectorAll('.filter-btn'));
+    const featureCards = Array.from(document.querySelectorAll('.feat-card'));
+
+    filterButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const filter = btn.dataset.filter;
+        filterButtons.forEach((b) => b.classList.toggle('is-active', b === btn));
+        featureCards.forEach((card) => {
+          card.hidden = filter !== 'all' && card.dataset.category !== filter;
+        });
+      });
+    });
+
+    // Screenshot Lightbox
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxTitle = document.getElementById('lightbox-title');
+    const lightboxDesc = document.getElementById('lightbox-desc');
+    const triggers = Array.from(document.querySelectorAll('[data-lightbox]'));
+    let activeIndex = 0;
+    let lastFocused = null;
+
+    function showLightboxIndex(index) {
+      activeIndex = (index + triggers.length) % triggers.length;
+      const item = triggers[activeIndex];
+      const thumbImg = item.querySelector('img');
+      lightboxImg.src = item.dataset.lightbox;
+      lightboxImg.alt = thumbImg ? thumbImg.alt : item.dataset.title || '';
+      lightboxTitle.textContent = item.dataset.title || '';
+      lightboxDesc.textContent = item.dataset.desc || '';
+    }
+
+    function openLightbox(index) {
+      lastFocused = document.activeElement;
+      showLightboxIndex(index);
+      lightbox.classList.add('is-open');
+      lightbox.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      document.getElementById('lightbox-close').focus();
+    }
+
+    function closeLightbox() {
+      lightbox.classList.remove('is-open');
+      lightbox.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      if (lastFocused && typeof lastFocused.focus === 'function') lastFocused.focus();
+    }
+
+    triggers.forEach((item, index) => {
+      item.setAttribute('tabindex', '0');
+      item.setAttribute('role', 'button');
+      item.addEventListener('click', () => openLightbox(index));
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openLightbox(index);
+        }
+      });
+    });
+
+    document.getElementById('lightbox-prev').addEventListener('click', () => showLightboxIndex(activeIndex - 1));
+    document.getElementById('lightbox-next').addEventListener('click', () => showLightboxIndex(activeIndex + 1));
+    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+
+    lightbox.addEventListener('click', (event) => {
+      if (event.target === lightbox) closeLightbox();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (!lightbox.classList.contains('is-open')) return;
+      if (event.key === 'Escape') closeLightbox();
+      else if (event.key === 'ArrowLeft') showLightboxIndex(activeIndex - 1);
+      else if (event.key === 'ArrowRight') showLightboxIndex(activeIndex + 1);
+    });
+
+    // Respect reduced motion for autoplay video
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const heroVideo = document.querySelector('.hero-media video');
+      if (heroVideo) {
+        heroVideo.removeAttribute('autoplay');
+        heroVideo.pause();
+      }
+    }
   </script>
 </body>
 </html>
