@@ -57,6 +57,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `duplicates-modal` | duplicates, i18n, raw-settings | main |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults | main |
 | `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | faces-grid, main, persons-view, stats |
+| `file-dates` | i18n | main |
 | `filter-suggest` | i18n | author-filters, faces-panel, format-filters, keywords-panel, main, privacy, rights-presets, semantic-exclusions, shooting-filters, stats |
 | `filter-tags` | i18n, photo-actions | author-filters, faces-panel, format-filters, main, privacy, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | main |
@@ -64,11 +65,11 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `geo-tools` | i18n, metadata-writes, photo-actions | main |
 | `guide` | i18n | main |
 | `histogram` | i18n, settings-defaults | main |
-| `i18n` | settings-defaults | albums-panel, author-filters, description-panel, duplicates, duplicates-modal, faces-grid, faces-panel, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, update-check |
+| `i18n` | settings-defaults | albums-panel, author-filters, description-panel, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, update-check |
 | `info-author` | i18n, settings-defaults | main |
 | `keywords-panel` | filter-suggest, i18n, metadata-writes, photo-actions, semantic-settings, semantic-tagging | main |
 | `location-panel` | i18n, map-config, map-view, maps-settings, private-zones, private-zones-modal, settings-defaults | main, map-mode |
-| `main` | albums-panel, app-fonts, author-filters, description-panel, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, persons-view, photo-actions, privacy, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, sidebar-search, slideshow, stats, toolbar-a11y, update-check | photo-actions |
+| `main` | albums-panel, app-fonts, author-filters, description-panel, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, persons-view, photo-actions, privacy, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, sidebar-search, slideshow, stats, toolbar-a11y, update-check | photo-actions |
 | `map-config` | settings-defaults | location-panel, map-tile-protocol, map-view, private-zones-modal |
 | `map-mode` | i18n, location-panel, map-view, maps-settings, metadata-writes, place-search, private-zones, private-zones-modal, settings-defaults | main |
 | `map-tile-protocol` | map-config, settings-defaults | map-view |

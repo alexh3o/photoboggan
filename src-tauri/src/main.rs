@@ -1448,6 +1448,26 @@ fn get_photo_details(path: String) -> exif::MetadataDetails {
     exif::read_metadata_details(Path::new(&path))
 }
 
+// File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file systems)
+// or the file is not found (unplugged disk). Used by the tooltip of the "Date taken" row of the Info tab.
+#[derive(serde::Serialize)]
+struct FileDates {
+    created: Option<i64>,
+    modified: Option<i64>,
+}
+
+#[tauri::command(async)]
+fn get_file_dates(path: String) -> FileDates {
+    let to_millis = |time: std::io::Result<std::time::SystemTime>| -> Option<i64> {
+        let elapsed = time.ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+        i64::try_from(elapsed.as_millis()).ok()
+    };
+    match std::fs::metadata(&path) {
+        Ok(metadata) => FileDates { created: to_millis(metadata.created()), modified: to_millis(metadata.modified()) },
+        Err(_) => FileDates { created: None, modified: None },
+    }
+}
+
 // Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom compatible
 // digiKam, dernière extension remplacée) peut être partagé avec une paire RAW + JPEG : il n'est supprimé que si aucun autre fichier de même nom
 // (hors .xmp) n'existe dans le dossier. Un « IMG.2024.cr2 » ne vise donc jamais « IMG.xmp ».
@@ -2796,6 +2816,7 @@ fn main() {
             update_photos_marking,
             rotate_photos,
             get_photo_details,
+            get_file_dates,
             delete_photos,
             delete_folder,
             get_folder_unrecognized_files,

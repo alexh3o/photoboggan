@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="/screenshots/logo256.png" alt="photoboggan" width="128" />
+  <img src="/webpage/screenshots/logo256.png" alt="photoboggan" width="128" />
 </p>
 
 <h1 align="center">photoboggan</h1>
@@ -133,54 +133,54 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 ### Screenshots
 
-![Faces Review](/screenshots/faces_review.jpg "Faces Review")
+![Faces Review](/webpage/screenshots/faces_review.jpg "Faces Review")
 
 *Faces Review* (after detection and recognition, recognized faces can be confirmed or changed in batches and others set manually)
 
-![Display Options](/screenshots/display_options_en.jpg "Display Options")
+![Display Options](/webpage/screenshots/display_options_en.jpg "Display Options")
 *Display Options* (dark/light theme, thumbnails size & layout, sorting, group separators...)
 
-![Main View](/screenshots/main_view_complete.jpg "Main View")
+![Main View](/webpage/screenshots/main_view_complete.jpg "Main View")
 *Main View* (navigation, filters, preview & info panels can be enabled or disabled, thumbnails can be resized to a narrow column)
 
-![EXIF metadata](/screenshots/exif_panel.jpg "EXIF metadata")
+![EXIF metadata](/webpage/screenshots/exif_panel.jpg "EXIF metadata")
 *EXIF metadata display*
 
-![Thumbnails only](/screenshots/thumbnails-only.jpg "Thumbnails only")
+![Thumbnails only](/webpage/screenshots/thumbnails-only.jpg "Thumbnails only")
 *Thumbnails only* (scroll with mouse wheel or grab and slide!)
 
-![Fullscreen rating](/screenshots/fullscreen-rating.jpg "Fullscreen rating")
+![Fullscreen rating](/webpage/screenshots/fullscreen-rating.jpg "Fullscreen rating")
 *Fullscreen rating* (press R to toggle rating bar, D to toggle photo information)
 
 <table>
   <tr>
-    <td><img title="Rating & Color tag panel" src="/screenshots/labels_panel.jpg" alt="Rating & Color tag panel" height="200" /></td>
-    <td><img title="Rating & Color tag bar" src="/screenshots/labels_bar.jpg" alt="Rating & Color tag bar" height="200" /></td>
+    <td><img title="Rating & Color tag panel" src="/webpage/screenshots/labels_panel.jpg" alt="Rating & Color tag panel" height="200" /></td>
+    <td><img title="Rating & Color tag bar" src="/webpage/screenshots/labels_bar.jpg" alt="Rating & Color tag bar" height="200" /></td>
   </tr>
 </table>
 
 *Edit rating & color tag* for one photo or a selection
 
-![Compare Mode](/screenshots/compare.jpg "Compare Mode")
+![Compare Mode](/webpage/screenshots/compare.jpg "Compare Mode")
 *Compare Mode* (zoom them all together, unlink to zoom or move a single one, rate or delete independently)
 
-![Actions & Selection](/screenshots/selection_actions.jpg "Actions & Selection")
+![Actions & Selection](/webpage/screenshots/selection_actions.jpg "Actions & Selection")
 *Flexible selection & Actions* (several groups of consecutive and non-consecutive photos, using `Ctrl` and `Shift` + clicks)
 
-![Batch resizing](/screenshots/resize_action.jpg "Batch resizing")
+![Batch resizing](/webpage/screenshots/resize_action.jpg "Batch resizing")
 *Batch resizing*
 
-![Integrity Check Report](/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
+![Integrity Check Report](/webpage/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
 *Integrity Check* scans a folder for corrupted files and lets you decide what to do. It generates missing thumbnails at the same time.
 
-![Shortcuts](/screenshots/shortcuts_guide.jpg "Shortcuts")
+![Shortcuts](/webpage/screenshots/shortcuts_guide.jpg "Shortcuts")
 *Shortcuts*
 
 <table>
   <tr>
-    <td><img title="Rating filters" src="/screenshots/filters_rating.jpg" alt="Rating filters" height="200" /></td>
-    <td><img title="Keywords & filename filters" src="/screenshots/filters_words.jpg" alt="Keywords & filename filters" height="200" /></td>
-    <td><img title="Rating, color tag, filename, keywords and flexible date filters" src="/screenshots/filters_active_folded.jpg" alt="Rating, color tag, filename, keywords and flexible date filters" height="200" /></td>
+    <td><img title="Rating filters" src="/webpage/screenshots/filters_rating.jpg" alt="Rating filters" height="200" /></td>
+    <td><img title="Keywords & filename filters" src="/webpage/screenshots/filters_words.jpg" alt="Keywords & filename filters" height="200" /></td>
+    <td><img title="Rating, color tag, filename, keywords and flexible date filters" src="/webpage/screenshots/filters_active_folded.jpg" alt="Rating, color tag, filename, keywords and flexible date filters" height="200" /></td>
   </tr>
 </table>
 
@@ -188,9 +188,9 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 <table>
   <tr>
-    <td><img title="Folders settings" src="/screenshots/settings_data_en.jpg" alt="Folders settings" width="300" /></td>
-    <td><img title="Display settings" src="/screenshots/settings_display.jpg" alt="Display settings" width="300" /></td>
-    <td><img title="Open with... settings" src="/screenshots/settings_openwith_en.jpg" alt="Open with... settings" width="300" /></td>
+    <td><img title="Folders settings" src="/webpage/screenshots/settings_data_en.jpg" alt="Folders settings" width="300" /></td>
+    <td><img title="Display settings" src="/webpage/screenshots/settings_display.jpg" alt="Display settings" width="300" /></td>
+    <td><img title="Open with... settings" src="/webpage/screenshots/settings_openwith_en.jpg" alt="Open with... settings" width="300" /></td>
   </tr>
 </table>
 

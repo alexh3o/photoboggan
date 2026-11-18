@@ -31,6 +31,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 21 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
+| `--duplicate-meta-height` | duplicates.css · `:root` · `calc(0.68rem * 1.2 + 4px)` | 1 | — |
 | `--face-bar-reserve` | faces.css · `.faces-view` · `5.5rem` | 1 | — |
 | `--face-bar-scrollbar` | — | 1 | faces-grid.js |
 | `--face-bar-width` | faces.css · `.faces-view` · `4.75rem` | 1 | — |
@@ -210,6 +211,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 4 | styles.css | `.folder-tree-sticky` |
 | 3 | map-mode.css | `.map-drop-hint` |
 | 2 | duplicates.css | `.best-badge` |
+| 2 | duplicates.css | `.thumbnail:has(.duplicate-meta:not([hidden])) .meta-overlay` |
 | 2 | keywords.css | `#exif-resizer` |
 | 2 | styles.css | `#sidebar-resizer` |
 | 2 | styles.css | `.geo-badge` |
@@ -273,13 +275,14 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L29 Copyright and usage terms: one line to start with, growing with the text up to three lines, then scrolling (height set by autoGro…
 - L32 --- Fenêtre « Author and Rights presets » ---
 
-### src/duplicates.css (58 lines)
+### src/duplicates.css (61 lines)
 
 - L1 Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on…
 - L8 Window "Find duplicates > More…" (duplicates-modal.js)
 - L29 Results: stronger group separator (the groups are the structure of this view), and the medal of the best copy of each group.
 - L36 Dimensions and size of each copy, along the bottom edge of its thumbnail (duplicate results only).
-- L40 Floating panel "Best copy" (duplicates-modal.js): under the banner of the results, stays open while the grid is used.
+- L40 Stars (and colour / pick marks) of a duplicate result: above the band, not under it (the band would dim them and could overlap it…
+- L43 Floating panel "Best copy" (duplicates-modal.js): under the banner of the results, stays open while the grid is used.
 
 ### src/faces.css (273 lines)
 

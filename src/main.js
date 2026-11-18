@@ -23,6 +23,7 @@ import { initGuide } from './guide.js';
 import { initStats } from './stats.js';
 import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById, openSideTab } from './keywords-panel.js';
 import { initInfoAuthor, renderInfoAuthor } from './info-author.js';
+import { initFileDates, renderFileDates } from './file-dates.js';
 import { initAuthorFilters } from './author-filters.js';
 import { initDescriptionPanel, refreshDescriptionPanel } from './description-panel.js';
 import { initLocationPanel, refreshLocation, onMapAccessChanged } from './location-panel.js';
@@ -1252,6 +1253,7 @@ function applyPhotoFilters({ keepState = true } = {}) {
     document.getElementById('exif-title').textContent = '-';
     document.getElementById('exif-caption').textContent = '-';
     renderInfoAuthor(null);
+    renderFileDates(null);
     updateInfoFolder(null);
     refreshInfoRows();
   }
@@ -3600,6 +3602,7 @@ function updateUIOnSelection() {
 
     document.getElementById('exif-filename').textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '-';
     updateInfoFolder(photo);
+    renderFileDates(photo);
     document.getElementById('exif-date').textContent = photo.date_taken || '-';
     // Fabricant et modèle regroupés en un seul champ « Camera », séparés par une espace.
     document.getElementById('exif-camera').textContent =
@@ -8514,6 +8517,8 @@ initKeywordsPanel({
 initDescriptionPanel({ getSelectedPhotos, showToast: message => showWriteToast(message) });
 // Section « Auteur » de l'onglet Info : un clic sur une valeur ouvre l'onglet Description.
 initInfoAuthor({ openDescription: () => openSideTab('description'), refreshRows: () => refreshInfoRows() });
+// Tooltip of the "Date taken" row: creation and modification dates of the file (read from the disk on hover).
+initFileDates();
 
 // Histogramme de la photo courante et écrêtage (voir histogram.js). Affiché en bas à droite du plein écran, sinon de l'aperçu (s'il est visible) ou de la grille ;
 // jamais en mode Comparer, ni dans les vues Carte, Personnes et Visages. La surcouche d'écrêtage ne se pose que sur l'image de l'aperçu et du plein écran.

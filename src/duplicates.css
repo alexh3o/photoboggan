@@ -34,8 +34,11 @@
 .best-badge svg { width: 1rem; height: 1rem; }
 
 /* Dimensions and size of each copy, along the bottom edge of its thumbnail (duplicate results only). */
-.duplicate-meta { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 2px 6px; overflow: hidden; background: #000a; color: #fff; font-size: 0.68rem; text-align: center; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+:root { --duplicate-meta-height: calc(0.68rem * 1.2 + 4px); } /* height of the band below: line-height 1.2 + 2 x 2px of padding */
+.duplicate-meta { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 2px 6px; overflow: hidden; background: #000a; color: #fff; font-size: 0.68rem; line-height: 1.2; text-align: center; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
 .duplicate-meta[hidden] { display: none; }
+/* Stars (and colour / pick marks) of a duplicate result: above the band, not under it (the band would dim them and could overlap its text). */
+.thumbnail:has(.duplicate-meta:not([hidden])) .meta-overlay { bottom: var(--duplicate-meta-height); z-index: 2; }
 
 /* Floating panel "Best copy" (duplicates-modal.js): under the banner of the results, stays open while the grid is used. */
 .duplicates-keep-panel { position: fixed; z-index: 7; width: min(24rem, calc(100vw - 1rem)); max-height: calc(100vh - 9rem); overflow-y: auto; box-sizing: border-box; padding: 0.7rem 0.9rem 0.8rem; background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--control-border); border-radius: 8px; box-shadow: 0 8px 24px #0009; font-size: 0.8rem; }

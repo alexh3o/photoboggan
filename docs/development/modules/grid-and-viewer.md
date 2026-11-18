@@ -1,4 +1,4 @@
-<!-- verified: f23d0b8 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, index.html -->
+<!-- verified: a0e7610 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, index.html -->
 # Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, slideshow (main.js, part 2)
 
 ## Purpose
@@ -10,6 +10,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 | `src/main.js` | Sections: format helpers at the top (thumbnail loading, display URLs), "VIRTUAL SCROLLING", "GESTION DU PLEIN ÉCRAN ET NAVIGATION", "SELECTION MULTIPLE", "UNDO", "LOSSLESS ROTATION", "TRI DES MINIATURES", "MARQUAGE", "APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER", "DÉFILEMENT DE LA GRILLE AU GLISSER", "DÉPLACEMENT ET COPIE … VERS L'ARBORESCENCE" (drag and drop onto the folder tree), "MENU CONTEXTUEL DES MINIATURES" (`removePhotosFromLibrary`) |
 | `src/slideshow.js` | Slideshow as a state of full screen: timer, delay / loop / random settings (`slideshowDelay`, `slideshowLoop`, `slideshowRandom`), `initSlideshow`, `startSlideshow`, `stopSlideshow`, `notifySlideshowPhotoShown`, `peekNextSlideshowPhoto` |
 | `src/toolbar-a11y.js` | `initToolbarAria`: one `MutationObserver` per toolbar toggle keeps `aria-pressed` equal to the `active` class (which other modules toggle) |
+| `src/file-dates.js` | Tooltip of the Info tab's "Date taken" row: creation and modification dates of the active photo's file (`initFileDates`, `renderFileDates`); backend counterpart `get_file_dates` in `main.rs` |
 
 ## How it works
 
@@ -39,7 +40,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 `openFullscreen(index)` → selects that photo only, `loadFullscreenPhoto` → `showFullscreenPhoto` (probes the image off-screen, then applies size/zoom in one step so no stretched frame appears; `fullscreenLoadToken` discards stale loads), `preloadFullscreenImages` (±2 neighbours + the next slideshow photo, `fullscreenImageCache` keyed **by index**, so it is cleared on any re-sort). Grid navigation (`navigateToPhotoIndex`, arrows, wheel) keeps the active thumbnail visible with `scrollPhotoIntoView`; Up/Down (`navigateGridRow`) first pick the photo above/below from `photoLayouts` boxes (nearest facing edge, then closest centre; works in every layout). `updateUIOnSelection` then reloads. Zoom/pan share the preview's slot logic (`layoutPreviewSlot`, `fullscreenSlot`). An image error calls `checkPhotoMissing`. Closing stops the slideshow.
 
 ### Selection and Info panel
-`handleSelection(index, event)`: Shift = range from `lastSelectedIndex` (stops at the compare limit), Ctrl = toggle, plain = replace. `canAddToSelection` enforces `MAX_COMPARE` = 4 **only in compare mode**. `updateUIOnSelection` is the single fan-out after a selection change: keywords/description/location panels, `renderVisibleItems`, rating/colour bars, `renderPreview`, Info panel fields, map, histogram. The Info panel's Folder row shows the active photo's folder in All Photos, when subfolders are included, and in manual or smart album views; clicking it navigates to that folder in the tree.
+`handleSelection(index, event)`: Shift = range from `lastSelectedIndex` (stops at the compare limit), Ctrl = toggle, plain = replace. `canAddToSelection` enforces `MAX_COMPARE` = 4 **only in compare mode**. `updateUIOnSelection` is the single fan-out after a selection change: keywords/description/location panels, `renderVisibleItems`, rating/colour bars, `renderPreview`, Info panel fields, map, histogram. The Info panel's Folder row shows the active photo's folder in All Photos, when subfolders are included, and in manual or smart album views; clicking it navigates to that folder in the tree. Hovering the "Date taken" row shows a tooltip with the **file's** creation and modification dates (`file-dates.js`): `updateUIOnSelection` calls `renderFileDates(photo)` (or `null` with no photo), which only remembers the active path and clears the previous tooltip; the dates are read from the disk by `get_file_dates` on `mouseenter` (one `stat`, nothing is read while browsing), and a stale answer is dropped (counter + path check). They are never taken from the catalogue: `photos.created` is not part of `Photo`, and `photo.modified` is only the last value the scan stored. A date the file system does not provide (creation date on some Linux file systems) or a missing file (unplugged disk) is shown as "-".
 
 ### Preview and compare
 `renderPreview` fills `previewSlots` (one per selected photo in compare mode, shared centre unless "Desynchronise"), zoom steps ×1.4 up to 200 %. In compare mode with several photos, commands (rating, colour, delete, rotation) target only the **sub-selection** (`compareSubSelection`, circle-check marks in the preview): `commandTargetPhotos`. Context-menu commands always target the right-clicked photo. Leaving compare restores the preview's previous visibility.
@@ -76,7 +77,7 @@ A view with more than 50 000 matching photos (prefilter applied) is shown one pa
 - `slideshow.js` reads its settings with `readBool` / `readNumber` (delay 1–60 s; values `"1"` / `"0"` saved by versions up to 0.6.11 still understood); the context menu offers `SLIDESHOW_DELAYS`.
 
 ## Contracts
-- IPC commands: `get_cached_thumbnail_paths`, `generate_thumbnail`, `save_thumbnail_cache`, `get_raw_preview_path`, `update_photos_marking`, `rotate_photos`, `open_video_externally`, `remove_missing_photos` (`../generated/ipc-commands.md`).
+- IPC commands: `get_cached_thumbnail_paths`, `generate_thumbnail`, `save_thumbnail_cache`, `get_raw_preview_path`, `update_photos_marking`, `rotate_photos`, `open_video_externally`, `remove_missing_photos`, `get_file_dates` (`../generated/ipc-commands.md`).
 - Events: none.
 - Database: none directly (`photos` rows come back from the list commands).
 - Settings: `thumbnailLayout`, `thumbnailSpacing`, `thumbnailSize`, `markingPlacement`, `dimUnselectedOnHover`, `slideshow*`, `photoSortKey`/`photoSortOrder`/`photo*Separator` (`../generated/config.md`).
