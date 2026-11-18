@@ -52,6 +52,7 @@
     code { color: var(--green-dark); font-size: .82em; overflow-wrap: anywhere; }
     .hero-visual { position: relative; padding: .75rem; border: 1px solid var(--line); border-radius: 1.8rem; background: #222526; box-shadow: 0 28px 80px rgba(0,0,0,.35); transform: rotate(1deg); }
     .hero-visual img { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; object-position: top left; border-radius: 1.15rem; }
+    .hero-visual video { display: block; width: 100%; aspect-ratio: 1.5; object-fit: cover; border-radius: 1.15rem; background: #111; }
     .visual-tag { position: absolute; right: -1.2rem; bottom: 1.8rem; display: flex; align-items: center; gap: .65rem; padding: .75rem .95rem; border: 1px solid var(--line); border-radius: 1rem; background: #252929; box-shadow: 0 12px 35px rgba(0,0,0,.32); font-size: .82rem; font-weight: 650; transform: rotate(-1deg); }
     .visual-tag span { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: .65rem; background: var(--mint); color: var(--green); }
     .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
@@ -164,7 +165,10 @@
         <p class="hero-note">A silly name. A serious photo tool. · Free · Open source</p>
       </div>
       <div class="hero-visual">
-        <img src="../screenshots/main_view_complete.jpg" alt="photoboggan main view showing a photo library, filters and preview">
+        <video autoplay muted loop playsinline controls preload="auto" poster="../screenshots/main_view_complete.jpg" aria-label="A quick tour of photoboggan">
+          <source src="photoboggan_quickshow.webm" type="video/webm">
+          Your browser does not support embedded video.
+        </video>
         <div class="visual-tag"><span aria-hidden="true">⌁</span> Your whole library, at a glance</div>
       </div>
     </div>
@@ -222,29 +226,53 @@
           <p>A flexible interface that keeps your photos in focus and useful controls close at hand.</p>
         </div>
         <div class="gallery-grid">
-          <figure class="gallery-item gallery-wide">
-            <img src="../screenshots/display_options_en.jpg" alt="photoboggan layout, thumbnail size and theme settings">
-            <figcaption><strong>Your view, your way</strong><span>Adjust layout, sorting, thumbnail size and theme.</span></figcaption>
+          <figure class="gallery-item">
+            <img src="../screenshots/display_options.jpg" alt="photoboggan display settings for grid layout, thumbnail size and theme" loading="lazy">
+            <figcaption><strong>Your view, your way</strong><span>Adjust layout, spacing, thumbnail size and theme.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/faces_review.jpg" alt="Face review screen with recognized people">
+            <img src="../screenshots/map_thumbnails.jpg" alt="Photo library beside a map with geotagged photo thumbnails" loading="lazy">
+            <figcaption><strong>Browse on the map</strong><span>See locations and photos side by side.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/panel_thumbnails_keywording.jpg" alt="Photo grid and keyword editing panel" loading="lazy">
+            <figcaption><strong>Keyword as you browse</strong><span>Apply tags while keeping the selected photo in view.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/panel_thumbnails_preview.jpg" alt="Photo grid with a large preview panel" loading="lazy">
+            <figcaption><strong>Keep a preview close</strong><span>Browse thumbnails beside a large image preview.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/fullscreen_rating.jpg" alt="Full-screen photo with a rating bar" loading="lazy">
+            <figcaption><strong>Rate in full screen</strong><span>Mark photos as you move through the collection.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/thumbnails_only.jpg" alt="Wide photo thumbnail grid without side panels" loading="lazy">
+            <figcaption><strong>Make room for photos</strong><span>Hide panels for an immersive thumbnail view.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/preview_strip.jpg" alt="Large photo preview with a vertical strip of thumbnails" loading="lazy">
+            <figcaption><strong>Browse and preview</strong><span>Keep neighboring shots within easy reach.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/context_menu_find_similar.jpg" alt="Context menu with find similar, duplicates and RAW actions" loading="lazy">
+            <figcaption><strong>Find the next step</strong><span>Open similar-image, duplicate and RAW searches from a photo.</span></figcaption>
+          </figure>
+          <figure class="gallery-item">
+            <img src="../screenshots/faces_review.jpg" alt="Face review screen with recognized people" loading="lazy">
             <figcaption><strong>Review detected faces</strong><span>Confirm or correct suggested people.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/filters_active_folded.jpg" alt="Combined filters for rating, color, filename, keywords and date">
+            <img src="../screenshots/filters_active_folded.jpg" alt="Combined filters for rating, color, filename, keywords and date" loading="lazy">
             <figcaption><strong>Refine your search</strong><span>Combine filters to narrow down your library.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/fullscreen-rating.jpg" alt="Full-screen photo with rating bar">
-            <figcaption><strong>Sort in full screen</strong><span>Rate and flag photos as you move through them.</span></figcaption>
-          </figure>
-          <figure class="gallery-item gallery-wide">
-            <img src="../screenshots/integrity_check_report_fr.jpg" alt="Photo folder integrity check report">
-            <figcaption><strong>Check your collection</strong><span>Find damaged files and generate missing thumbnails.</span></figcaption>
+            <img src="../screenshots/settings_private_photos_fr.jpg" alt="Private photo rules for folder paths, keywords and date ranges" loading="lazy">
+            <figcaption><strong>Keep private photos private</strong><span>Hide photos with rules that match your needs.</span></figcaption>
           </figure>
           <figure class="gallery-item">
-            <img src="../screenshots/exif_panel.jpg" alt="Photo EXIF metadata panel">
-            <figcaption><strong>See the details</strong><span>Review photo and camera metadata.</span></figcaption>
+            <img src="../screenshots/integrity_check_report_fr.jpg" alt="Photo folder integrity check report" loading="lazy">
+            <figcaption><strong>Check your collection</strong><span>Find damaged files and generate missing thumbnails.</span></figcaption>
           </figure>
         </div>
       </div>
@@ -252,7 +280,7 @@
 
     <section class="showcase" id="approach">
       <div class="wrap showcase-card">
-        <img src="../screenshots/compare.jpg" alt="photoboggan compare mode showing photos side by side">
+        <img src="../screenshots/compare.jpg" alt="photoboggan compare mode showing photos side by side" loading="lazy">
         <div class="showcase-copy">
           <span class="eyebrow">Simple by design</span>
           <h2>Your library.<br>Your rules.</h2>
