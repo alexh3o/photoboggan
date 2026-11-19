@@ -158,7 +158,7 @@ Map tiles come from OpenFreeMap, so the location of displayed photos is sent to 
 
 **Settings > Metadata > Labels** lets you turn **color labels** and **pick / reject flags** on or off. Pick flags are **off by default**. A turned-off feature is still read from the files but is no longer shown (filters, indicators, buttons) or modified (shortcuts ignored); `Shift`+`P` and `Shift`+`X` then keep their usual meaning. Rescan the collection to load the flags of photos already cataloged.
 
-Ratings, colors and flags are written to your files right away (see [File safety](#6-file-safety)). You can also **cancel** a rating, color or flag, and `Ctrl`+`Z` undoes the latest rating, color, flag or rotation (up to 20 changes back).
+Ratings, colors and flags are written to your files right away (see [File safety](#6-file-safety)). You can also **cancel** a rating, color or flag, and `Ctrl`+`Z` undoes the latest rating, color, flag, rotation or batch rename (up to 20 changes back).
 
 ### Albums
 
@@ -187,6 +187,7 @@ Right-click a photo or selection for the context menu:
 | **Copy** (`Ctrl`+`C`)           | Copies the files to the clipboard.                                                                                                            |
 | **Copy to…** (`C`)              | Copies to a folder you choose.                                                                                                                |
 | **Resize…** (`S`)               | Batch resize into new files (see below).                                                                                                      |
+| **Rename…** (`F2`)               | One photo: its new name. Several photos: batch rename (see below).                                                                            |
 | **Show in file explorer** (`E`) |                                                                                                                                               |
 | **Open with** (`O`)             | Programs of **Settings > Open with** for the file type (rendered images, RAW, videos), in your order, or **Choose…**. `O` uses the first one. |
 
@@ -195,6 +196,8 @@ You can also **drag** photos onto a folder in the tree: `Shift`+drag to **move**
 Right-click a folder for **Rescan folder data**, **Integrity check**, **New subfolder…**, **Rename folder…**, **Open in file explorer**, and **Delete folder…** (subfolders only). A folder scan or rescan can be **paused** and resumed from the **Running tasks** window; interrupted scans stay paused and can be resumed at the next launch.
 
 **Resize:** choose the longest side (px) or a percentage, JPEG/PNG output, quality, whether to keep metadata (JPEG only), a destination folder and a filename suffix. Resizing creates **new files** and can never overwrite the original photo: with no suffix you must pick another destination folder. If the new name already belongs to a different existing file, you choose *Replace*, *Increment name* or *Skip*. Videos are ignored.
+
+**Batch rename:** select several photos and press `F2` (or right-click > **Rename…**). Build a *recipe* of steps that are applied in order to each file name (the extension is kept): **Replace text** (case-sensitive, optionally only the n-th occurrence), **Insert text** (at a position counted from the start or the end of the name) and **Delete characters** (at least one character must remain). The texts can contain variables, for example `{filename}` (original name), `{date_taken(YYYYMMDD_hhmmss;nodate)}` (date taken, written with the ISO 8601 symbols `YYYY MM DD hh mm ss`; the second value is used when the photo has no date), `{camera}`, `{lens}`, `{counter(3;1)}` (number in grid order, 3 digits, starting at 1) and `{author(initials)}` (`Jean-Pierre Dupont` gives `JpD`); the `?` buttons list every option, and `\` cancels the effect of the next character. The preview shows every new name, page by page, and nothing happens until you click **Rename**. Recipes can be saved and reused. A photo whose new name would be the same as another one (case ignored) or as an existing file is **left unchanged**, and listed at the end (the rest of the batch goes on); `.xmp` sidecars follow their photo. From 20 photos it runs as a background task you can stop. `Ctrl`+`Z` undoes the whole batch, including the part already done if you stopped it.
 
 > **Deleting:** files go to the trash, so they can be restored. On USB drives and network locations Windows has no trash: Photoboggan warns you that deletion is then **permanent**. Deleting a photo keeps its `.xmp` sidecar file. Deleting a folder also removes files Photoboggan does not manage; it lists them before you confirm.
 
@@ -265,6 +268,7 @@ Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity che
 | Writing faces / **Erase face data…**                   | Changes face-region metadata (and keywords set by face recognition). |
 | Rotating                                               | Changes metadata only                                                |
 | Move, Copy to…, drag and drop                          | Moves or copies files (and their sidecars).                          |
+| Rename, batch rename                                   | Renames files (and their sidecars); never overwrites an existing file. |
 | Resize                                                 | Creates new files; it cannot replace the original files.             |
 | Delete                                                 | Trash (or permanent on drives without one).                          |
 | New subfolder                                          | Creates a folder.                                                    |

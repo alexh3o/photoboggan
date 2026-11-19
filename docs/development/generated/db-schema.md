@@ -25,6 +25,15 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
   PRIMARY KEY (album_id, photo_id)
 ```
 
+### rename_presets  `batch_rename.rs`
+
+```sql
+  id INTEGER PRIMARY KEY AUTOINCREMENT
+  name TEXT NOT NULL
+  name_key TEXT NOT NULL UNIQUE
+  steps TEXT NOT NULL DEFAULT '[]'
+```
+
 ### folders  `db.rs`
 
 ```sql

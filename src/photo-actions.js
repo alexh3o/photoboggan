@@ -1720,8 +1720,9 @@ async function openThumbnailMenu(event, index, source = 'grid') {
     menuButton(t('Copy'), () => copyPhotosToClipboard(targets), { shortcut: 'Ctrl+C' }),
     menuButton(t('Copy to…'), () => copyPhotosTo(targets), { shortcut: 'C' }),
   );
-  // Un renommage vise un seul fichier : absent d'une sélection multiple.
+  // One file: plain rename; several: batch rename (batch-rename.js), same entry and same shortcut.
   if (targets.length === 1) menuItems.push(menuButton(t('Rename…'), () => renamePhoto(photo), { shortcut: 'F2' }));
+  else if (api.batchRename) menuItems.push(menuButton(t('Rename…'), () => api.batchRename(targets), { shortcut: 'F2' }));
 
   // L'option « Redimensionner… » n'apparaît que pour les photos réelles
   if (hasResizablePhotos) {

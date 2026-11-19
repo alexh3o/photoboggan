@@ -80,6 +80,45 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `byId(id)` · L43
 - `export initAuthorFilters({ onChange })` · L49
 
+## src/batch-rename-engine.js (21)
+
+- `export RecipeError()` · L20 — Error of a recipe: a stable code (translated by the dialog) and its parameters.
+- `export newStep(type)` · L29
+- `export splitFileName(fileName)` · L38 — { stem, ext } of a file name: the extension is what follows the last dot, a leading dot does not start one (as in the backend).
+- `unescapeText(raw)` · L47
+- `sanitize(value)` · L48
+- `codePoints(text)` · L49
+- `parseInteger(raw, { min, fallback, code, params = {} })` · L51
+- `export parseTemplate(text)` · L63
+- `export parseDate(text)` · L113 — { year, month, day, hour, minute, second } read from the EXIF date text of a photo, or null (absent or unreadable).
+- `export formatDate(format, date)` · L124 — Formats `date` with a format written with ISO 8601 symbols (Y M D h m s; a doubled symbol gives the leading zero; YY / YYY: last digits of …
+- `noParams(name, params)` · L166
+- `defaultOf(raw)` · L167
+- `initialsOf(author)` · L234 — "Jean-Pierre Dupont" gives "JpD": the first letter of each word, in capitals, and of each following part of a compound first name, in lower…
+- `compile(text, count)` · L241
+- `expand(text, context)` · L251 — The text with its variables replaced for one photo (`context`: { stem, photo, index, count }).
+- `forbiddenLiterals(text)` · L258 — Characters of the literal parts of `text` (outside the variables) that a file name cannot hold.
+- `checkDirection(raw)` · L266
+- `checkStep(step, count)` · L272
+- `export validateRecipe(steps, count)` · L297 — Mistakes of the recipe itself, before any photo: [{ step: index, code, params }]. A recipe with mistakes is never applied. `count`: photos …
+- `applyStep(step, name, context)` · L310
+- `export evaluate(steps, context)` · L349
+
+## src/batch-rename.js (12)
+
+- `export initBatchRename(options)` · L20
+- `baseName(path)` · L24
+- `element(tag, className = '', text = '')` · L26
+- `button(label, className = '', title = '')` · L33
+- `recipeErrorText({ code, params = {} })` · L43 — ==========================================
+- `backendFailureText(code, detail)` · L67
+- `stepLabel(type)` · L83
+- `runBatch(items, onDone)` · L88 — ==========================================
+- `runDirect(items, onDone)` · L104
+- `finishBatch(result, stopped, error)` · L124 — End of a batch: interface updated, Ctrl+Z armed, one toast (its button lists the failures, otherwise it undoes the batch).
+- `undoBatch(renamed)` · L150 — Ctrl+Z: the same batch the other way round (each photo takes back the name it had). Not stacked again.
+- `export openBatchRename(targets)` · L180 — ==========================================
+
 ## src/description-panel.js (27)
 
 - `cleanTitle(value)` · L42 — Mêmes règles que le backend (exif.rs, clean_title / clean_text) : le titre tient sur une ligne, espaces de début et de fin retirés.
@@ -535,416 +574,417 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export onMapAccessChanged()` · L171 — Mode hors ligne ou option « Afficher une carte » changés : effet immédiat, sans redémarrage.
 - `export initLocationPanel(options = {})` · L179 — `showToast` vient de main.js (message après la copie des coordonnées).
 
-## src/main.js (408)
+## src/main.js (409)
 
-- `photoUrl(photo)` · L216
-- `versionSuffix(path)` · L220 — Same suffix on the cached images (thumbnail, extracted preview): a lossless rotation written in a sidecar regenerates them under the same n…
-- `orientationMatrix(orientation, width, height)` · L229 — LOSSLESS ROTATION (orientation.rs): the webview turns an original it shows by its EXIF tag only. When the orientation that wins is an XMP
-- `swapsSides(orientation)` · L242 — Orientations that exchange width and height (quarter turns).
-- `export isRawPath(path)` · L245 — Ajout extracteur RAW (liste des extensions : format-filters.js)
-- `markFormatPlaceholder(element, path)` · L252 — RAW sans JPEG intégré exploitable (jamais dématricé) : les lettres de l'extension (minuscules) s'affichent en gros sur la miniature de la g…
-- `export isVideoPath(path)` · L266 — VIDÉOS : indexées comme les photos, mais jamais affichées ni lues dans l'application. Le backend en extrait une image fixe (miniature de la…
-- `createVideoPlayBadge()` · L271
-- `needsGeneratedPreview(path)` · L280 — Le webview ne sait pas afficher les RAW, les HEIC / HEIF ni lire les vidéos : le backend fournit une image JPEG (aperçu RAW / HEIC, image f…
-- `getPhotoDisplayUrl(photo)` · L286
-- `readableTextColor(hex)` · L348 — Texte noir ou blanc, selon celui qui contraste le plus avec la couleur du bouton activé (rapport WCAG ≥ 4,5:1 pour toutes les couleurs
-- `applyAppearance()` · L354
-- `applyDimUnselected()` · L365
-- `snapTextSize(value)` · L386
-- `applyTextSize()` · L392
-- `stepTextSize(delta)` · L404 — « − » / « + » instead of a slider: the settings window is sized in rem, so it resizes with the text and would move
-- `applyAppFont()` · L418
-- `forgetCachedImagePaths(paths)` · L493 — Fichiers dont seules les métadonnées viennent d'être réécrites : côté Rust, leur miniature et leur aperçu en cache ont été renommés pour
-- `scheduleJustifiedRelayout(photo = null)` · L510
-- `lookupCachedThumbnail(sourcePath)` · L528
-- `flushThumbnailLookups()` · L540
-- `takeNextThumbnailGeneration()` · L566
-- `pumpThumbnailGenerationQueue()` · L599
-- `schedulePump()` · L612
-- `enqueueThumbnailGeneration(image, sourcePath, run)` · L620
-- `enqueueStandaloneThumbnailGeneration(isWanted, run, onDrop)` · L627 — Generation requested outside the grid (face crops, people avatars): same queue and same concurrency limit, so that a view showing thousands
-- `learnPhotoAspectRatio(photo, ratio)` · L633 — Apprend le ratio réel de la miniature (dimensions EXIF absentes ou fausses en base) et relance la disposition justifiée.
-- `updatePhotoAspectRatio(image, photo, original = false)` · L644 — `original`: the image is the original file shown by the webview, still to be turned by `photo.view_fix` (cached thumbnails already are).
-- `showCachedThumbnail(image, cachedPath, photo)` · L651 — Affiche une miniature du cache dans l'image et apprend son ratio réel au chargement.
-- `generateThumbnailInWebview(image, sourcePath, photo)` · L666
-- `loadThumbnail(image, sourcePath, photo)` · L690
-- `cacheThumbnail(image, sourcePath, viewFix = 1)` · L730 — `viewFix`: orientation still to apply to the image (see orientationMatrix): the cached thumbnail is stored turned, like the backend ones.
-- `checkPhotoMissing(sourcePath)` · L784 — Résout à true si la photo était bien introuvable sur le disque (elle a alors été retirée du catalogue et de la grille).
-- `flushMissingChecks()` · L793
-- `normalizeFolderPath(path)` · L814
-- `readFolderOrder()` · L816 — Saved order (normalized paths): array of strings, the default when absent or unreadable.
-- `applyFolderOrder(list)` · L830 — `list` (folders returned by the backend) in display order: the saved order first, then the folders unknown to it (added since),
-- `saveFolderOrder()` · L835 — Saves the current order of `folders`; called only after an explicit reorder (adding/removing a folder keeps the saved order as is).
-- `loadFolders()` · L839
-- `queryPhotoPage(folderFilter, prefilter = null, offset = 0)` · L849 — `offset`: first photo of the page (0 for the first page; the grid pages through views larger than PHOTO_LOAD_LIMIT, see "PAGINATION DE LA G…
-- `queryFolderPhotos(folder, prefilter = null, offset = 0)` · L863 — Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains anothe…
-- `displayedPhotoFolders()` · L878 — Displayed folders (null = whole catalogue), as queried by `queryFolderPhotos` for the current view.
-- `countDisplayedPhotos(prefilter = null)` · L884 — Photos of the displayed folders in the catalogue (optionally prefiltered), or null if a count failed.
-- `isAsciiText(text)` · L890 — SQLite's lower() only folds ASCII letters: a text with other characters is left to the interface (the prefilter must never miss a photo).
-- `prefilterFromState(state, dateRange = state.date ? parseDateFilter(state.date)` · L894 — Prefilter of a filter state (`captureFilterState` form): the conditions the backend applies before the cut, a superset of
-- `buildSqlPrefilter()` · L928 — Filters the backend can apply before the cut: the sidebar filters, the folder and map area of the open smart album, and the criteria of its
-- `sqlPrefilter()` · L939
-- `prefilterKey(prefilter)` · L941 — Pending positions stay out of the key: a photo placed on the map is already loaded, so placing one must not read the list again.
-- `readDisplayedFolderPhotos(folder)` · L946 — Reads the displayed folders: on a large folder, prefiltered (counted first to know). Returns { list, cap, large, key, page, pageCount }.
-- `adoptListResult(result)` · L970 — Adopts what readDisplayedFolderPhotos (or another source: albums, searches) returned: cap warning, large scope, prefilter, current page.
-- `photoPageOffset(page)` · L996
-- `renderPhotoPager()` · L1000
-- `goToPhotoPage(target)` · L1031 — Goes to another page: pending keyword / title / description edits are applied or dropped first (same question as a selection change, Cancel…
-- `schedulePrefilterReload()` · L1068
-- `loadPhotos()` · L1082
-- `isRatingFilterActive()` · L1115
-- `matchesRatingFilter(photo, filter = ratingFilter)` · L1120 — Une photo passe si elle est non notée (pastille cochée) ou si sa note correspond aux étoiles choisies (au moins N ou exactement N).
-- `hasActiveFilters()` · L1127
-- `updateGridEmptyState()` · L1141
-- `updateFilteredPhotosCount()` · L1155 — Nombre de photos affichées, dans l'en-tête du bloc Filtres : « 12 480 photos » sans filtre, « 342 sur 12 480 photos » avec (le total donne …
-- `applyPhotoFilters({ keepState = true } = {})` · L1197
-- `renderInfoKeywords(photo)` · L1273 — Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
-- `resetAllFilters()` · L1364 — Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent res…
-- `clearFilterKindsAndApply(kinds)` · L1371 — Efface les filtres d'un groupe (ou d'un seul type pour un badge) puis relance le filtrage une seule fois.
-- `clearAllFilters()` · L1376
-- `normalizeFilterPath(value)` · L1395
-- `lastPathSegment(path)` · L1396
-- `captureFilterState()` · L1399 — Critères propres affichés par les contrôles de filtrage, plus le dossier et la zone de carte déjà enregistrés dans l'album ouvert.
-- `filterStateSignature()` · L1423
-- `captureCurrentView()` · L1426 — « Vue actuelle » à enregistrer dans un album : hors album, le dossier affiché et la zone visible de la carte en font partie.
-- `matchesFilterState(photo, state)` · L1437 — Une photo satisfait-elle tous les critères d'un état enregistré ? (même sens que les filtres de la barre latérale)
-- `matchesAlbumCriteria(photo)` · L1472 — Critères d'album qui s'ajoutent aux filtres de la barre latérale : ceux des parents et les critères propres sans contrôle (dossier, zone de…
-- `applyFilterState(state)` · L1478 — Charge un état enregistré dans les contrôles (ils ont été remis à zéro avant) sans relancer le filtrage.
-- `syncSmartAlbumWithSelection()` · L1506 — Appelée quand l'album affiché change : entre dans un album intelligent (ses filtres remplacent tout filtre précédent) ou en sort (filtres r…
-- `saveActiveSmartAlbum()` · L1523 — Disquette : enregistre les modifications de l'album ouvert (critères propres seulement). Renvoie vrai si c'est enregistré.
-- `saveCurrentViewInto(albumId)` · L1538 — « Enregistrer la vue actuelle dans cet album » : écrase les critères d'un album intelligent par ceux de la vue affichée.
-- `scheduleAlbumCounts()` · L1564
-- `computeAlbumCounts()` · L1569
-- `describeFilterState(state)` · L1618 — Libellés courts des critères d'un état, pour les étiquettes grisées des filtres hérités.
-- `renderAlbumFilterInfo()` · L1634 — Bloc sous les badges des filtres : critères hérités des parents (grisés, non modifiables) et critères propres sans contrôle (dossier, zone …
-- `renderKeywordFilters()` · L1676
-- `hasKeywordFilters()` · L1688
-- `matchesKeywordFilters(photo, included = keywordFilters, excluded = excludedKeywor…)` · L1692 — A photo passes if it carries every included keyword and none of the excluded ones (whole keywords, as stored).
-- `matchesKeywordFiltersOrSuggested(photo)` · L1701 — Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword filtering"): every included k…
-- `keywordSuggestionViewKey()` · L1717 — Cheap key of "the view" for the suggestions: they are searched again only when the filter or this key changes (never null in a plain view).
-- `keywordSuggestionScope()` · L1723 — Scope of the suggestions = the view (same as the content search); filters are not part of it, they apply to the suggested photos afterwards.
-- `setKeywordFilter(keyword, exclude)` · L1729 — Puts a keyword in the included or excluded list (and out of the other one). Neither re-renders nor filters: the caller does.
-- `addKeywordFilter(value, exclude = false)` · L1735
-- `hasFilenameFilters()` · L1748
-- `matchesFilenameFilters(photo, included = filenameFilters, excluded = excludedFilen…)` · L1751 — Every included text in the file name, and none of the excluded ones (case ignored). Excluded texts never reach the backend prefilter.
-- `renderFilenameFilters()` · L1757
-- `setFilenameFilter(text, exclude)` · L1762 — Puts a text in the included or excluded filename list (and out of the other one). Neither re-renders nor filters: the caller does.
-- `addFilenameFilter(value, exclude = false)` · L1770 — `exclude` (Alt+Enter): the file name must not contain the text.
-- `setExpandedFilterGroups(names)` · L1791 — `names` : groupes (data-filter-group) à laisser dépliés ; tous les autres sont repliés.
-- `focusKeywordFilterField()` · L1831 — Shift+K: shows the library panel, the Filters block and the Keywords / Name group (others stay as they are), then the keyword filter field.
-- `removableFilterTag(target)` · L1845 — Middle-click on a filter chip removes it, in an open group as on a folded line or a badge of the folded Filters block. The chip's own × (or,
-- `renderFilterTags()` · L1862 — Étiquettes des mots-clés (bleu) et des noms de fichier (vert), sur une ligne commune : boutons à croix quand le groupe est déplié,
-- `fitCollapsedTags()` · L1925 — Lignes repliées (classe fit-lines) : au plus deux lignes. Si les étiquettes ne tiennent pas, les dernières sont masquées et remplacées par …
-- `fitCollapsedLine(line)` · L1929
-- `formatDateFilterBound(key, isEnd)` · L1963 — Bornes du filtre de date au format AAAAMMJJHHmmss -> « 01/05/2024 » ; l'heure n'est ajoutée que si elle diffère de celle par défaut de la b…
-- `renderFilterSummaries()` · L1972 — Résumés affichés sur les lignes repliées : note (badge) et couleurs (pastilles), dates de début et de fin, étiquettes.
-- `updateFilterGroupStates()` · L2038 — Marque chaque groupe de l'accordéon actif ou non (data-active) : seuls les groupes actifs montrent leur × d'effacement.
-- `renderActiveFilterBadges()` · L2053 — Badges du bloc Filtres replié : un par type de filtre actif (note, couleur, mots-clés, nom de fichier, personnes, date, fichiers en échec),
-- `decodeHtmlEntities(text)` · L2080
-- `renderFolderTree({ fromCounts = false } = {})` · L2089 — ==========================================
-- `folderCountElement(count, scope)` · L2230
-- `scheduleFolderCounts()` · L2242 — Re-reads the catalogue folders and their counts (once per burst of redraws), whether or not counts are shown: the tree needs
-- `refreshDiskFolders()` · L2282 — Relit les sous-dossiers du disque puis redessine l'arborescence ; sans l'option, la liste est vidée et rien n'est lu.
-- `addCreatedFolder(parentPath, name)` · L2293 — Appelé après la création d'un sous-dossier : il apparaît tout de suite dans l'arborescence, dossier parent déplié.
-- `rememberCurrentFolder()` · L2299 — Mémorise le dossier ouvert dans l'arbre (null = Toutes les photos), relu au démarrage si l'utilisateur l'a choisi.
-- `selectFolder(path)` · L2303
-- `toggleFolderFold(key, expanded)` · L2324 — Folds / unfolds a folder row (its arrow, a double-click). `expanded`: whether the row is unfolded now. While the quick search filters the t…
-- `toggleFolderInSelection(path)` · L2386 — Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
-- `pinnedFolderRows({ depths, parents, ends, topOf, listEnd, scrollTop, pitch, …)` · L2441 — Which rows are pinned for a scroll position. Pure: the geometry comes in through `topOf(index)` (offsetTop of a row, growing with the index…
-- `stickyFolderMetrics(row)` · L2471 — Size of the rows of the tree: `height` of a row, `pitch` = distance between two rows (height + margin), `maxSlots` = pinned rows the panel …
-- `makeStickyFolderCopy(row)` · L2479 — Copy of a real row for the layer. Its buttons leave the tab order (the real row is the one to reach by keyboard).
-- `updateStickyFolders()` · L2488 — Draws the pinned rows for the current scroll position. Cheap enough to run on every scroll frame: a few binary searches, copies are reused.
-- `scheduleStickyFolders()` · L2520
-- `indexStickyFolders()` · L2529 — Called by every render of the tree: reads the structure of the new rows (depths, parent and end of each subtree), then draws the layer.
-- `revealFolderRow(row)` · L2547 — Scrolls a row into view below the pinned rows that would otherwise hide it (`scroll-padding-top` is honoured by scrollIntoView).
-- `matchesRawSearchScope(photo)` · L2580 — Ce que les filtres ne savent pas exprimer : « Sous-dossiers » (les photos du dossier de l'image lui-même ne comptent pas, le dossier de dép…
-- `renderRawSearchBanner()` · L2586
-- `setIncludeSubfoldersTemporarily(value)` · L2598 — L'option « Inclure les sous-dossiers » change de valeur sans être mémorisée : c'est un réglage du mode, pas un choix de l'utilisateur.
-- `abandonRawSearch()` · L2605 — Termine le mode sans rouvrir la vue d'avant : remet l'option sous-dossiers et les filtres d'avant la recherche (sauf ceux d'un album intell…
-- `exitRawSearch()` · L2616 — Bouton « Revenir à la vue précédente » et Échap.
-- `restoreViewSnapshot(snapshot)` · L2624 — Reopens the view saved before a results mode (folder or album, scroll, selection). The caller has already left the mode.
-- `currentViewScope()` · L2648 — « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossi…
-- `isAllPhotosView()` · L2658
-- `showPhotoInItsFolder(photo, { anyView = false } = {})` · L2660 — `anyView`: also allowed from a folder view with subfolders included (Info panel "Folder" link), where the photo may lie below the open fold…
-- `captureViewSnapshot(album = getSelectedAlbum()` · L2692 — Everything needed to come back to the current view after a results mode (folder or album, filters, scroll, selection).
-- `findRawFor(photo)` · L2707
-- `photoAspectRatio(photo)` · L2761 — ==========================================
-- `layoutPhotoRange(start, end, offsetY, width, gap)` · L2767 — Dispose les photos [start, end[ (indices dans photos) à partir de la hauteur offsetY ; renvoie la hauteur occupée par ce groupe.
-- `separatorHeight()` · L2842
-- `thumbnailGap()` · L2854 — Espace entre deux cases de la grille, en pixels. « Normal » : 6 px entre les cases, auxquels s'ajoute la marge intérieure de 4 px de chaque…
-- `updateVirtualScroller()` · L2860
-- `createBestBadge()` · L2886
-- `renderVisibleItems()` · L2894
-- `renderVisibleSeparators(top, bottom)` · L3043 — Lignes de séparation visibles (dates ou dossiers) : créées à l'arrivée dans la zone affichée, retirées quand elles en sortent, comme les mi…
-- `formatGridScrollPosition(photo)` · L3073
-- `updateGridScrollPosition()` · L3087
-- `openVideoExternally(photo)` · L3126 — ==========================================
-- `openFullscreen(index)` · L3134
-- `closeFullscreen()` · L3161
-- `export getIsFullscreen()` · L3177
-- `layoutFullscreenSlot()` · L3182 — Positionne et zoome l'image du plein écran avec la même logique que l'aperçu (rien à faire tant que la fenêtre est masquée).
-- `loadFullscreenPhoto(photo)` · L3193 — Affiche la photo en plein écran. Zoom et position repartent de la vue entière seulement quand l'image change : un simple
-- `showFullscreenPhoto(photo, url)` · L3199
-- `clearFullscreenImage()` · L3234
-- `navigatePhoto(direction)` · L3246
-- `navigateGridRow(step)` · L3254 — Up / Down arrow in the grid: selects the photo above (step -1) or below (step 1) the current one. Works with every layout (square, justifie…
-- `scrollPhotoIntoView(index)` · L3283 — Scrolls the grid the minimum needed to show the whole thumbnail of photo `index`.
-- `navigateToPhotoIndex(index)` · L3294
-- `showFullscreenRatingForAWhile()` · L3308
-- `updateFullscreenRatingStars()` · L3321
-- `formatFullscreenDate(photo)` · L3340 — « samedi 12 septembre 2026, 12h36 » (l'heure n'est ajoutée que si la date EXIF en contient une).
-- `fullscreenCameraName(photo)` · L3355 — Fabricant + modèle, sans répéter le fabricant quand le modèle le contient déjà (« NIKON CORPORATION » + « NIKON D850 » -> « NIKON D850 »).
-- `updateFullscreenInfo()` · L3363
-- `fullscreenPopoverOpen()` · L3410
-- `closeFullscreenPopovers()` · L3414
-- `toggleFullscreenPopover(button, popover)` · L3421 — Opens `popover` (closing the other one); the 3 s countdown of the row is suspended while a popover is open.
-- `syncFullscreenMarking()` · L3431 — Brings the dot, the flag, the summary and its visibility in line with the current photo.
-- `toggleFullscreenInfo()` · L3448
-- `preloadFullscreenImages(index)` · L3454
-- `endFullscreenDrag(event)` · L3519
-- `handleSelection(index, event)` · L3540 — ==========================================
-- `toggleSelectAllPhotos()` · L3568 — Ctrl+A (hors mode Comparer) : sélectionne toutes les photos affichées dans la grille, ou les désélectionne toutes si elles le sont déjà.
-- `updateUIOnSelection()` · L3586
-- `updateInfoFolder(photo)` · L3632 — Info tab "Folder" row: the folder of the active photo, shown when the folder view does not already tell it ("All photos", subfolders
-- `refreshInfoRows()` · L3650 — Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
-- `formatAperture(value)` · L3662 — Normalise ouverture (« f/4 ») et vitesse (« 1/100 s »), y compris les valeurs déjà en base avec un préfixe ou un suffixe en double.
-- `formatShutterSpeed(value)` · L3667
-- `showPhotoDimensions(photo)` · L3673 — Affiche les dimensions ; si la base n'en a pas (0 x 0), on les apprend depuis l'image réelle.
-- `updateRatingAction()` · L3703 — Met à jour les contrôles de marquage (panneau Info et barre flottante) d'après la sélection : nombre de photos, étoiles, couleur, emplaceme…
-- `showWriteToast(message, isWriting = false, action = null, duration = null)` · L3724 — `action` (facultatif) : { label, onClick } ajoute un bouton au toast (ex. « Annuler ») et le garde plus longtemps à l'écran.
-- `createColorSquare(flag)` · L3746 — Carré de couleur cliquable, utilisé par la barre de filtre et par la barre d'écriture.
-- `setColorSquareChecked(button, checked)` · L3760
-- `updateColorAction()` · L3766 — Contrôles de marquage : met en évidence la couleur de la photo de référence de la sélection (une seule couleur possible).
-- `updatePickAction()` · L3778 — Met en évidence le fanion pick de la photo de référence de la sélection (un seul possible) ; le drapeau de la barre flottante en prend la c…
-- `setSelectionColorFlag(flag, explicitTargets = null)` · L3786 — `explicitTargets` (menu contextuel) : photos précises à marquer, à la place de la sélection.
-- `setSelectionPickFlag(flag, { toggle = true, photos: explicitTargets = null } = {})` · L3810 — Fanion pick de la sélection. `toggle` (raccourcis Maj+P / Maj+X) : si toutes les photos visées ont déjà ce fanion, il est retiré ; sans `to…
-- `failureSummary(failures)` · L3831 — Échecs d'écriture de la note, de la couleur ou du fanion : leur nombre et la raison du premier (ex. ExifTool introuvable).
-- `writeMarking(targets, fields, { startMessage, doneMessage, apply, refilt…)` · L3846
-- `undoMarking(property, entries, refilter)` · L3894 — Gives each photo of an earlier marking write its previous value back (`entries`: { id, path, value }), in one command. The photos are
-- `pushUndo(run)` · L3916
-- `runUndo(entry = undoStack.at(-1)` · L3924 — Undoes `entry` (default: the latest action), once: it leaves the stack. False if there is nothing (left) to undo.
-- `undoToastAction(entry)` · L3932
-- `setSelectionRating(rating, explicitTargets = null)` · L3935 — `explicitTargets` (menu contextuel) : photos précises à noter, à la place de la sélection.
-- `export isRotatablePath(path)` · L3962 — ==========================================
-- `rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {})` · L3969 — `quarterTurns`: 1 right, -1 left, 2 for 180°. `explicitTargets` (context menu): photos to turn, instead of the selection.
-- `undoRotation(entries, quarterTurns)` · L4015 — Undo of a rotation (see runUndo): the opposite rotation, on its photos wherever the view is now.
-- `refreshRotatedPhotos(turned, quarterTurns, reordered = false)` · L4023 — Turned photos: their cached images are regenerated by the backend; the grid, the preview and the fullscreen view load them again.
-- `renderSettingsFolderList()` · L4415 — ==========================================
-- `startFolderDrag(event, item, handle)` · L4482 — Dragging the handle: the row changes place as soon as the pointer passes the middle of a neighbour; the order is saved on release
-- `openAbout()` · L4525
-- `closeAbout()` · L4535
-- `openGuide()` · L4583
-- `closeGuide()` · L4586
-- `toggleTopBar()` · L4629 — ==========================================
-- `setToolbarLabels(show)` · L4642
-- `fitToolbar()` · L4653 — Narrow window: the bar drops every button label and keeps the icons (`.compact`). The decision is "do the buttons, with their labels, fit?",
-- `hideTopBarPeek()` · L4691
-- `syncThumbnailSpacingWithLayout()` · L4827 — L'option « Aucun » est grisée en disposition Encadrée ; si elle était choisie, l'espacement passe à « Petit » (et ce choix est mémorisé).
-- `photoModifiedTime(photo)` · L4862 — Modification date of a photo for the sort, the separators and the position pill: the later of the image file's own date (`modified`) and
-- `applyEffectiveModified(entries)` · L4871 — Reports the effective modification dates returned by a metadata write (`entries`: [photoId, date] pairs, 0 or missing = unknown and ignored…
-- `photoSortValue(photo)` · L4890 — Valeur de tri d'une photo ; null = information absente (ces photos restent en fin de liste, quel que soit l'ordre).
-- `activeSeparator()` · L4897 — Séparateur actif selon le critère de tri : 'none', 'day', 'week', 'month', 'year' (tri par date) ou 'folder' (tri par nom de fichier).
-- `photoFolder(photo)` · L4902 — Dossier d'une photo (chemin sans le nom de fichier) et ses segments, calculés une fois pour le tri et le regroupement.
-- `compareFolders(a, b)` · L4912 — Compare les dossiers segment par segment (le dossier parent passe avant ses sous-dossiers), avec le même ordre naturel que les noms de fich…
-- `photoSortDateParts(photo)` · L4927 — Jour de la photo pour le critère de tri par date (prise de vue ou modification), ou null si la date est absente ou invalide.
-- `isoWeekOf({ year, month, day })` · L4942 — Semaine ISO 8601 (du lundi au dimanche, la semaine 1 contient le 4 janvier) : année ISO et numéro de semaine.
-- `separatorGroupKey(photo, mode)` · L4952 — Identifiant du groupe d'une photo : deux photos voisines (la liste est déjà triée) de même identifiant sont dans le même groupe.
-- `separatorText(photo, mode)` · L4969 — Texte de la ligne de séparation d'un groupe, d'après sa première photo ; title = infobulle (chemin complet pour un dossier).
-- `computePhotoGroups()` · L4995 — Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
-- `comparePhotosForSort(a, b)` · L5014
-- `sortOrderHint(key, order)` · L5057
-- `updateSortUI()` · L5063 — Boutons radio de la modale, aides de l'ordre selon le critère, et infobulle du bouton de la barre du haut (ordre actif au survol).
-- `scrollToPhotoIndex(index)` · L5080 — Amène la photo dans la zone visible si elle n'y est pas : après un changement de tri, la photo sélectionnée a changé de place.
-- `applySortChange()` · L5090
-- `openSortModal()` · L5107
-- `closeSortModal()` · L5113
-- `openDisplayModal()` · L5138
-- `closeDisplayModal()` · L5143
-- `createAccentSwatches(input, className)` · L5164 — Pastilles de la palette, placées avant le sélecteur de couleur personnalisée `input` (noms traduits avec la langue, voir applyTranslations).
-- `syncAppearanceControls()` · L5183
-- `setActiveButtonColor(color)` · L5190
-- `setSelectionColor(color)` · L5196
-- `setExifPanelWidth(requestedWidth)` · L5414 — Applique la largeur demandée, bornée pour laisser de la place à la barre latérale et à la grille ; renvoie la largeur retenue.
-- `ratingStarLabel(stars)` · L5471 — Texte lisible du filtre courant (infobulle du badge) ; ratingStarLabel décrit l'effet d'un clic sur l'étoile N.
-- `ratingFilterDescription()` · L5474
-- `updateRatingFilterControls()` · L5482 — Reflète l'état du filtre sur les contrôles : étoiles remplies jusqu'à N (« au moins ») ou N seule (« exactement »), libellés accessibles.
-- `createPickSquare(flag)` · L5533 — Carré de fanion pick cliquable (filtre : quatre états ; marquage : retenu et rejeté), même présentation que les carrés de couleur.
-- `createMarkingStars()` · L5587 — Cinq étoiles : un clic sur la note active l'efface (voir setSelectionRating).
-- `createMarkingColors()` · L5610 — Couleurs : une seule possible, un nouveau clic sur la couleur active l'efface (voir setSelectionColorFlag).
-- `fillMarkingPickBar(bar)` · L5633
-- `createMarkingPick()` · L5640 — Choix de fanion pick : un clic pose le fanion choisi sur la sélection (ceux déjà au même état ne sont pas réécrits).
-- `closeMarkingColorPopover()` · L5668
-- `closeMarkingPickPopover()` · L5672
-- `isInfoTabVisible()` · L5733 — Le panneau Info compte comme « ouvert » quand il est affiché avec son onglet Info (le seul qui porte la section Marquage).
-- `updateMarkingPlacement()` · L5737
-- `folderBaseName(path)` · L5816
-- `normalizeTaskPath(path)` · L5817
-- `taskName(task)` · L5818
-- `taskPercent(task)` · L5819
-- `activeTaskCount()` · L5823 — A 'ready' task has finished and only waits for the user to show its results: it stays in the list (and warns before quitting) but is not wo…
-- `isSemanticLaneTask(task)` · L5827 — Content analysis: its own lane, in parallel with the main queue (see pumpSemanticQueue). It counts in activeTaskCount (closing the applicat…
-- `foregroundTaskCount()` · L5828
-- `isResumableTask(task)` · L5834
-- `taskStatusText(task)` · L5836
-- `formatTaskDuration(ms)` · L5854 — Durée lisible : « 45 s », « 3 min 05 s », « 1 h 02 min ».
-- `taskTimingText(task)` · L5871 — Temps écoulé et estimation du temps restant d'une tâche en cours (extrapolation linéaire de l'avancement ;
-- `taskCoversFolder(task, path)` · L5884 — Une tâche couvre un dossier quand c'est le sien, l'un de ses sous-dossiers, ou que la tâche relit toute la collection.
-- `syncChildren(container, wanted)` · L5892 — Place les éléments dans l'ordre voulu sans toucher à ceux qui y sont déjà (un bouton déplacé pendant un clic perdrait ce clic).
-- `buildTaskToast(task)` · L5899
-- `buildTaskRow(task)` · L5923
-- `syncTaskUI()` · L5964 — Met l'affichage en phase avec les tâches : toasts, lignes de la fenêtre des actions et bouton sablier.
-- `showTaskToast(name, percent)` · L6057 — Toast d'une opération courte hors scan (déplacement des données, vidage du cache) : un seul à la fois, affiché avec son pourcentage.
-- `hideTaskToast()` · L6067
-- `openTasksModal()` · L6074
-- `closeTasksModal()` · L6082
-- `confirmCloseWithRunningTasks()` · L6089 — Fermeture de l'application : si des tâches de la file sont actives ou en attente, le dire avant de les interrompre. Renvoie true si l'on pe…
-- `reloadPhotosAfterRescan()` · L6161 — Recharge les photos après un rescan. L'arborescence est construite depuis la liste complète de la collection : quand un dossier est
-- `removeOrStopTask(task)` · L6171 — Retire une tâche en attente de la file, ou demande l'arrêt de la tâche en cours (les photos déjà lues restent dans le catalogue ;
-- `dropScanTasksForFolder(path)` · L6191 — Un dossier retiré de la liste des dossiers suivis ne doit plus être scanné : ses tâches en attente sont retirées, celle en cours est arrêté…
-- `hasFileTask()` · L6199
-- `enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResul…)` · L6205 — Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours…
-- `pumpScanQueue()` · L6253 — Exécute les tâches une par une, dans l'ordre de la file. L'analyse du contenu (famille « semantic ») n'en fait pas partie : elle dure des h…
-- `pumpSemanticQueue()` · L6271
-- `stopSemanticTasks()` · L6285 — Arrête les analyses du contenu : celles en attente quittent la file, celle en cours est interrompue (désactivation de la fonction).
-- `runScanTask(task)` · L6289
-- `pauseTask(task)` · L6335 — Pauses a resumable scan: a waiting one leaves the queue at once, a running one stops (runScanTask then keeps it as 'paused').
-- `resumeTask(task)` · L6350 — Resumes a paused scan: it goes first among the waiting tasks, so it starts as soon as the running task has finished.
-- `refreshAfterPausedScan()` · L6364 — After a pause, the photos read so far are added to the grid without the full reload (which redraws the grid from scratch and makes it flash…
-- `pausedScanFolders()` · L6372 — Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
-- `saveResumableTasks()` · L6375 — Remembers the unfinished resumable scans (running, waiting or paused): after a restart they come back paused (restorePausedTasks).
-- `restorePausedTasks()` · L6385 — At startup: the scans left unfinished last time come back paused (only those whose folder is still tracked), with a toast to tell so.
-- `checkFolderIntegrity(path)` · L6410 — Vérification d'intégrité d'un dossier de l'arborescence (sous-dossiers compris), lancée depuis son menu contextuel : chaque fichier est déc…
-- `rescanFolder(path)` · L6415 — Rescan d'un dossier de l'arborescence (sous-dossiers compris), lancé depuis son menu contextuel.
-- `indexDuplicateGroups()` · L6429 — Groups of the mode with the members found in the catalog, ranked. Called after each load of the mode's photos (loadedPhotos is up to date).
-- `photoFormat(path)` · L6455 — File format shown and compared in the duplicate results: the extension in capitals (JPEG and JFIF count as JPG).
-- `rankDuplicateGroups()` · L6461 — Position of each group in the chosen order, and group and rank of each photo (read by the grid sort).
-- `computeDuplicateSeparators()` · L6470 — Separators of the grid: one per group, as groups of consecutive photos (the list is already sorted by group). The label gives the group num…
-- `renderDuplicateBanner()` · L6494
-- `rankDuplicatesAgain()` · L6520 — "Best copy…": the order of the criteria changes who wears the medal. The groups are ranked again at once; the selection is emptied, because…
-- `selectDuplicatesExceptBest()` · L6538 — Cleanup, first step: selects every copy except the best one of each group, among the photos displayed. Nothing is deleted here: the selecti…
-- `abandonDuplicateSearch()` · L6572 — Ends the mode without reopening the previous view: puts back the sub-folder option and the filters of before the search (except those of a …
-- `exitDuplicateSearch()` · L6584 — "Back" button and Escape.
-- `showDuplicateResults(result, titleKey, label, context)` · L6592 — Returns false when the user declined to leave a modified smart album (nothing shown).
-- `showReadyDuplicateResults(task)` · L6621 — "Show" (toast or tasks window): opens the results of a finished search, then the task leaves the list.
-- `removeReadyTask(task)` · L6633
-- `handleDuplicatesResult(result, stopped, error, titleKey, label, task, context)` · L6642 — A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in t…
-- `runIdenticalSearch({ scope, compareWithLibrary }, settings, task, setPercent)` · L6663 — Hash of the image data and/or file name, as one task. The name search runs here (its pattern is a JavaScript regular expression, the backen…
-- `findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings)` · L6713 — `kind`: 'identical' | 'similar'.
-- `openDuplicatesDialog(spec)` · L6734 — "More…" window (duplicates-modal.js): the user picks the kind and the settings, then the search starts with them.
-- `canAddToSelection(index)` · L6763
-- `showCompareLimitToast()` · L6767
-- `limitSelectionForCompare()` · L6771
-- `isCompareMultiple()` · L6784 — Comparaison de plusieurs photos : les cases de l'aperçu servent alors à choisir les photos visées par les commandes.
-- `commandTargetIndices()` · L6791 — Photos (indices dans photos) visées par les notes, les couleurs et la suppression au clavier, et par la barre latérale.
-- `commandTargetPhotos()` · L6796
-- `commandReferencePhoto()` · L6801 — Photo dont la note et la couleur sont affichées dans la barre latérale.
-- `pruneCompareSubSelection()` · L6807 — Retire de la sous-sélection les photos qui ne font plus partie de la comparaison (changement de sélection, suppression, fin du mode Compare…
-- `syncPreviewSubSelection()` · L6817 — Repères circle-check-big des cases de l'aperçu, d'après la sous-sélection.
-- `toggleCompareSubSelection(photo)` · L6822
-- `positionPreviewMarks(slot, cellWidth, cellHeight)` · L6831 — Place les repères (sous-sélection, étoiles, couleur et badge de zoom) dans les coins de l'image
-- `showZoomIndicator(slot)` · L6850 — Affiche le pourcentage de zoom pendant 2 secondes puis l'estompe
-- `toggleAllCompareSubSelection()` · L6862 — Touche A : sous-sélectionne toutes les photos comparées, ou les désélectionne toutes si elles le sont déjà.
-- `notifyNoCompareTarget()` · L6871
-- `previewCssScale(slot)` · L6876 — Échelle exprimée en pixels écran réels par pixel image (1 = 100 %). Échelle CSS = échelle / devicePixelRatio.
-- `previewDisplaySize(slot)` · L6880
-- `clampPreviewCenter(slot, x, y)` · L6885
-- `setSlotImageSize(slot, width, height)` · L6898 — Size of the image of a slot (preview cell, comparison, fullscreen). The element keeps the size the webview gives it (`width` × `height`);
-- `layoutPreviewSlot(slot)` · L6909
-- `renderPreviewTransforms()` · L6940
-- `createPreviewSlot(photo)` · L6945
-- `currentPreviewPhotos()` · L7006 — Mode normal : la photo courante. Mode Comparer : la sélection (4 max), dans l'ordre de la grille.
-- `syncPreviewMeta()` · L7016 — Étoiles et pastille de couleur affichées en bas des cases de l'aperçu, d'après l'état actuel des photos.
-- `renderPreview()` · L7027
-- `previewSlotFromEvent(event)` · L7050
-- `previewAnchorAt(slot, clientX, clientY)` · L7056 — Point de l'image situé sous le curseur (en proportion de l'image), pour zoomer autour de lui.
-- `previewCenterOf(slot)` · L7070 — Centre de la zone affichée : propre à chaque image en mode désynchronisé, sinon partagé.
-- `setPreviewCenter(slot, center)` · L7074
-- `previewSlotsToAffect(targetSlot)` · L7080 — En mode désynchronisé, une action vise l'image concernée ; sinon elle s'applique à toutes.
-- `updatePreviewSyncMode()` · L7088 — Applique le passage synchronisé / désynchronisé sans déplacer les images à l'écran.
-- `zoomPreview(computeTarget, anchor, targetSlot = null)` · L7102 — computeTarget(slot, échelleActuelle) renvoie la nouvelle échelle, ou null pour la vue entière.
-- `zoomPreviewSteps(steps, anchor, targetSlot = null)` · L7128
-- `togglePreviewActualSize(anchor, targetSlot = null)` · L7133 — 100 % (1 pixel image = 1 pixel écran) ; si toutes les images y sont déjà, retour à la vue entière.
-- `wheelZoomSteps(event)` · L7142 — Nombre de crans de zoom correspondant à un événement de molette, ou 0 si aucun cran n'est atteint : une molette à crans donne un cran par
-- `endPreviewDrag(event)` · L7194
-- `isTextEntryFocused()` · L7271
-- `instantZoomSlotUnderPointer()` · L7279 — Slot under the pointer: the fullscreen photo when fullscreen is open, else the preview cell hovered (null if none).
-- `isInstantZoomValid()` · L7290 — The photo shown changed (arrows, new selection, fullscreen closed) while the key was held: there is nothing left to drive or to restore.
-- `instantZoomCenterAt(clientX, clientY)` · L7297 — Pointer position -> point of the image (proportions). The mapping is absolute over the image fitted in its cell, so that at press time the …
-- `panInstantZoom()` · L7311
-- `startInstantZoom()` · L7319
-- `endInstantZoom()` · L7338 — Puts back the zoom level and centre of before the key was pressed (only for photos still displayed).
-- `stopGridInertia()` · L7418 — Arrête l'inertie en cours ; renvoie true si la grille était encore en train de défiler.
-- `startGridInertia(velocity)` · L7425
-- `releaseGridInertia(samples, releaseTime)` · L7449 — Vitesse mesurée sur les derniers instants du glissement (pointeur immobile avant le relâchement = pas d'inertie).
-- `endGridDrag(event)` · L7494
-- `folderItemAt(x, y)` · L7529
-- `dragModeFrom(modifiers)` · L7536 — Mode du glissement d'après les touches tenues À CET INSTANT (Maj : déplacer, Ctrl : copier ; Maj l'emporte), null si aucune. Les touches pe…
-- `albumDropAction(drag)` · L7542 — Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine), null (à demander) ou '…
-- `paintPhotoDragBadge(drag)` · L7549 — Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt dem…
-- `updatePhotoDragState(drag, x, y, modifiers)` · L7563 — Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule d…
-- `askCopyOrMove(event, targets, onCopy, onMove)` · L7581 — Photos lâchées sans Maj ni Ctrl sur un dossier du disque ou un album : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
-- `albumItemAt(x, y)` · L7593 — Album manuel de la section Albums sous le curseur (cible d'ajout de photos).
-- `albumNodeAt(x, y)` · L7599 — N'importe quelle ligne de la section Albums sous le curseur (pour expliquer pourquoi un album intelligent ou un dossier virtuel refuse les …
-- `startPhotoDrag(drag)` · L7605 — Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
-- `clearPhotoDragVisuals(drag)` · L7639
-- `endPhotoDrag(event, released)` · L7672
-- `onPhotoDragModifierKey(event)` · L7708 — Maj ou Ctrl pressé ou relâché pendant le glissement (souris immobile) : mode et badge changent aussitôt.
-- `applyDeletedFolder(deletedPath, removedPaths)` · L7726 — Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, d…
-- `deleteFolderToTrash(path, { permanent = false } = {})` · L7743 — Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirm…
-- `renamePhotoOnDisk(photo, newName)` · L7765 — Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvé…
-- `renameFolderOnDisk(path, newName)` · L7783 — Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nou…
-- `movePhotosToFolder(targets, folderPath)` · L7817 — Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent a…
-- `copyPhotosToFolder(targets, folderPath)` · L7853
-- `applyMovedPhotos(moved)` · L7890 — Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrou…
-- `matchesLocationFilter(photo)` · L7921
-- `setLocationFilter(value, { apply = true } = {})` · L7927
-- `matchesAnalysisFilter(photo)` · L7944 — With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
-- `refreshAnalysedIds()` · L7949
-- `setAnalysisFilter(value, { apply = true } = {})` · L7961
-- `extractTimeKey(text)` · L7987 — Extrait la date et l'heure d'un texte EXIF quel que soit le séparateur (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
-- `photoTimeKey(photo)` · L7994
-- `photoDateKey(photo)` · L8000 — Jour de prise de vue au format AAAAMMJJ, ou null.
-- `matchesDateFilter(photo)` · L8006 — Le filtre couvre du premier au dernier instant de la période saisie, bornes incluses.
-- `isValidDateKey(key)` · L8012
-- `parseDateToken(token)` · L8022 — Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss : renvoie le premier et le dernier instant
-- `parseDateFilter(text)` · L8043
-- `updateDateFilterUI(error = '')` · L8058
-- `setDateFilterFromInput()` · L8066 — Applique le contenu du champ : vide = pas de filtre ; saisie incomplète ou invalide = filtre précédent conservé.
-- `weekdayLabels()` · L8096 — Initiales des jours (semaine commençant le lundi) et mois, selon la langue courante : le 1er janvier 2024 est un lundi.
-- `pickerMonthFormatter()` · L8097
-- `isDatePickerOpen()` · L8104
-- `closeDatePicker()` · L8108
-- `todayDateKey()` · L8112
-- `latestPhotoDateKey()` · L8117
-- `positionDatePicker()` · L8126
-- `renderDatePicker()` · L8137
-- `openDatePicker()` · L8166
-- `applyPickerSelection()` · L8180
-- `pickDate(key)` · L8188 — 1er clic : jour unique (filtre appliqué tout de suite). 2e clic : plage, ou même jour pour valider le jour unique.
-- `removePhotosFromLibrary(paths, { keepSelection = false } = {})` · L8240 — ==========================================
-- `getSelectedPhotos()` · L8504
-- `setPhotoGridVisible(visible)` · L8563 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
-- `thumbnailUrlFor(sourcePath, isWanted = ()` · L8573 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
-- `semanticDelta()` · L8623 — ==========================================
-- `semanticRankOrder(a, b)` · L8628 — Position in the answer (decreasing score); the source photo of a similar-content search is -1, photos outside the answer come last.
-- `loadSemanticPhotos()` · L8635 — The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
-- `matchesSemanticCut(photo)` · L8640 — Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
-- `renderSemanticBanner()` · L8648
-- `renderSemanticKeywordActions()` · L8709 — Keyword -> photos: actions on the selected photos. Disabled while nothing is selected.
-- `abandonSemanticSearch()` · L8753 — Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
-- `exitSemanticSearch()` · L8764 — "Close" and Escape.
-- `showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyw…)` · L8773 — Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave…
-- `findSimilarContent(photo)` · L8806 — "Find similar content" (menu of one photo). The interface does not know whether the photo has an embedding: the backend says so, and the us…
-- `findKeywordCandidates({ id, name })` · L8831 — "Find photos that may match" (menu of a keyword): the candidates of the backend (examples or name score, threshold already applied, never t…
-- `syncLibraryWithDisk()` · L8958
-- `requestLibrarySync()` · L8977
-- `runRequestedSync()` · L8982
-- `refreshLibraryAfterSync(changes)` · L8989 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
-- `restorePanelsVisibility()` · L9033
-- `restoreStartupFolder()` · L9063 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
-- `sendInternetAllowed()` · L9102
-- `sendVerifyMoves()` · L9120
-- `refreshStorageLocationUI()` · L9132 — ==========================================
+- `photoUrl(photo)` · L217
+- `versionSuffix(path)` · L221 — Same suffix on the cached images (thumbnail, extracted preview): a lossless rotation written in a sidecar regenerates them under the same n…
+- `orientationMatrix(orientation, width, height)` · L230 — LOSSLESS ROTATION (orientation.rs): the webview turns an original it shows by its EXIF tag only. When the orientation that wins is an XMP
+- `swapsSides(orientation)` · L243 — Orientations that exchange width and height (quarter turns).
+- `export isRawPath(path)` · L246 — Ajout extracteur RAW (liste des extensions : format-filters.js)
+- `markFormatPlaceholder(element, path)` · L253 — RAW sans JPEG intégré exploitable (jamais dématricé) : les lettres de l'extension (minuscules) s'affichent en gros sur la miniature de la g…
+- `export isVideoPath(path)` · L267 — VIDÉOS : indexées comme les photos, mais jamais affichées ni lues dans l'application. Le backend en extrait une image fixe (miniature de la…
+- `createVideoPlayBadge()` · L272
+- `needsGeneratedPreview(path)` · L281 — Le webview ne sait pas afficher les RAW, les HEIC / HEIF ni lire les vidéos : le backend fournit une image JPEG (aperçu RAW / HEIC, image f…
+- `getPhotoDisplayUrl(photo)` · L287
+- `readableTextColor(hex)` · L349 — Texte noir ou blanc, selon celui qui contraste le plus avec la couleur du bouton activé (rapport WCAG ≥ 4,5:1 pour toutes les couleurs
+- `applyAppearance()` · L355
+- `applyDimUnselected()` · L366
+- `snapTextSize(value)` · L387
+- `applyTextSize()` · L393
+- `stepTextSize(delta)` · L405 — « − » / « + » instead of a slider: the settings window is sized in rem, so it resizes with the text and would move
+- `applyAppFont()` · L419
+- `forgetCachedImagePaths(paths)` · L494 — Fichiers dont seules les métadonnées viennent d'être réécrites : côté Rust, leur miniature et leur aperçu en cache ont été renommés pour
+- `scheduleJustifiedRelayout(photo = null)` · L511
+- `lookupCachedThumbnail(sourcePath)` · L529
+- `flushThumbnailLookups()` · L541
+- `takeNextThumbnailGeneration()` · L567
+- `pumpThumbnailGenerationQueue()` · L600
+- `schedulePump()` · L613
+- `enqueueThumbnailGeneration(image, sourcePath, run)` · L621
+- `enqueueStandaloneThumbnailGeneration(isWanted, run, onDrop)` · L628 — Generation requested outside the grid (face crops, people avatars): same queue and same concurrency limit, so that a view showing thousands
+- `learnPhotoAspectRatio(photo, ratio)` · L634 — Apprend le ratio réel de la miniature (dimensions EXIF absentes ou fausses en base) et relance la disposition justifiée.
+- `updatePhotoAspectRatio(image, photo, original = false)` · L645 — `original`: the image is the original file shown by the webview, still to be turned by `photo.view_fix` (cached thumbnails already are).
+- `showCachedThumbnail(image, cachedPath, photo)` · L652 — Affiche une miniature du cache dans l'image et apprend son ratio réel au chargement.
+- `generateThumbnailInWebview(image, sourcePath, photo)` · L667
+- `loadThumbnail(image, sourcePath, photo)` · L691
+- `cacheThumbnail(image, sourcePath, viewFix = 1)` · L731 — `viewFix`: orientation still to apply to the image (see orientationMatrix): the cached thumbnail is stored turned, like the backend ones.
+- `checkPhotoMissing(sourcePath)` · L785 — Résout à true si la photo était bien introuvable sur le disque (elle a alors été retirée du catalogue et de la grille).
+- `flushMissingChecks()` · L794
+- `normalizeFolderPath(path)` · L815
+- `readFolderOrder()` · L817 — Saved order (normalized paths): array of strings, the default when absent or unreadable.
+- `applyFolderOrder(list)` · L831 — `list` (folders returned by the backend) in display order: the saved order first, then the folders unknown to it (added since),
+- `saveFolderOrder()` · L836 — Saves the current order of `folders`; called only after an explicit reorder (adding/removing a folder keeps the saved order as is).
+- `loadFolders()` · L840
+- `queryPhotoPage(folderFilter, prefilter = null, offset = 0)` · L850 — `offset`: first photo of the page (0 for the first page; the grid pages through views larger than PHOTO_LOAD_LIMIT, see "PAGINATION DE LA G…
+- `queryFolderPhotos(folder, prefilter = null, offset = 0)` · L864 — Photos of a folder; for the folder being displayed, the Ctrl+click extra folders are merged in (duplicates removed when one contains anothe…
+- `displayedPhotoFolders()` · L879 — Displayed folders (null = whole catalogue), as queried by `queryFolderPhotos` for the current view.
+- `countDisplayedPhotos(prefilter = null)` · L885 — Photos of the displayed folders in the catalogue (optionally prefiltered), or null if a count failed.
+- `isAsciiText(text)` · L891 — SQLite's lower() only folds ASCII letters: a text with other characters is left to the interface (the prefilter must never miss a photo).
+- `prefilterFromState(state, dateRange = state.date ? parseDateFilter(state.date)` · L895 — Prefilter of a filter state (`captureFilterState` form): the conditions the backend applies before the cut, a superset of
+- `buildSqlPrefilter()` · L929 — Filters the backend can apply before the cut: the sidebar filters, the folder and map area of the open smart album, and the criteria of its
+- `sqlPrefilter()` · L940
+- `prefilterKey(prefilter)` · L942 — Pending positions stay out of the key: a photo placed on the map is already loaded, so placing one must not read the list again.
+- `readDisplayedFolderPhotos(folder)` · L947 — Reads the displayed folders: on a large folder, prefiltered (counted first to know). Returns { list, cap, large, key, page, pageCount }.
+- `adoptListResult(result)` · L971 — Adopts what readDisplayedFolderPhotos (or another source: albums, searches) returned: cap warning, large scope, prefilter, current page.
+- `photoPageOffset(page)` · L997
+- `renderPhotoPager()` · L1001
+- `goToPhotoPage(target)` · L1032 — Goes to another page: pending keyword / title / description edits are applied or dropped first (same question as a selection change, Cancel…
+- `schedulePrefilterReload()` · L1069
+- `loadPhotos()` · L1083
+- `isRatingFilterActive()` · L1116
+- `matchesRatingFilter(photo, filter = ratingFilter)` · L1121 — Une photo passe si elle est non notée (pastille cochée) ou si sa note correspond aux étoiles choisies (au moins N ou exactement N).
+- `hasActiveFilters()` · L1128
+- `updateGridEmptyState()` · L1142
+- `updateFilteredPhotosCount()` · L1156 — Nombre de photos affichées, dans l'en-tête du bloc Filtres : « 12 480 photos » sans filtre, « 342 sur 12 480 photos » avec (le total donne …
+- `applyPhotoFilters({ keepState = true } = {})` · L1198
+- `renderInfoKeywords(photo)` · L1274 — Mots-clés du panneau d'infos sous forme d'étiquettes cliquables (même aspect que celles du filtre) : un clic remplace les mots-clés filtrés
+- `resetAllFilters()` · L1365 — Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent res…
+- `clearFilterKindsAndApply(kinds)` · L1372 — Efface les filtres d'un groupe (ou d'un seul type pour un badge) puis relance le filtrage une seule fois.
+- `clearAllFilters()` · L1377
+- `normalizeFilterPath(value)` · L1396
+- `lastPathSegment(path)` · L1397
+- `captureFilterState()` · L1400 — Critères propres affichés par les contrôles de filtrage, plus le dossier et la zone de carte déjà enregistrés dans l'album ouvert.
+- `filterStateSignature()` · L1424
+- `captureCurrentView()` · L1427 — « Vue actuelle » à enregistrer dans un album : hors album, le dossier affiché et la zone visible de la carte en font partie.
+- `matchesFilterState(photo, state)` · L1438 — Une photo satisfait-elle tous les critères d'un état enregistré ? (même sens que les filtres de la barre latérale)
+- `matchesAlbumCriteria(photo)` · L1473 — Critères d'album qui s'ajoutent aux filtres de la barre latérale : ceux des parents et les critères propres sans contrôle (dossier, zone de…
+- `applyFilterState(state)` · L1479 — Charge un état enregistré dans les contrôles (ils ont été remis à zéro avant) sans relancer le filtrage.
+- `syncSmartAlbumWithSelection()` · L1507 — Appelée quand l'album affiché change : entre dans un album intelligent (ses filtres remplacent tout filtre précédent) ou en sort (filtres r…
+- `saveActiveSmartAlbum()` · L1524 — Disquette : enregistre les modifications de l'album ouvert (critères propres seulement). Renvoie vrai si c'est enregistré.
+- `saveCurrentViewInto(albumId)` · L1539 — « Enregistrer la vue actuelle dans cet album » : écrase les critères d'un album intelligent par ceux de la vue affichée.
+- `scheduleAlbumCounts()` · L1565
+- `computeAlbumCounts()` · L1570
+- `describeFilterState(state)` · L1619 — Libellés courts des critères d'un état, pour les étiquettes grisées des filtres hérités.
+- `renderAlbumFilterInfo()` · L1635 — Bloc sous les badges des filtres : critères hérités des parents (grisés, non modifiables) et critères propres sans contrôle (dossier, zone …
+- `renderKeywordFilters()` · L1677
+- `hasKeywordFilters()` · L1689
+- `matchesKeywordFilters(photo, included = keywordFilters, excluded = excludedKeywor…)` · L1693 — A photo passes if it carries every included keyword and none of the excluded ones (whole keywords, as stored).
+- `matchesKeywordFiltersOrSuggested(photo)` · L1702 — Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword filtering"): every included k…
+- `keywordSuggestionViewKey()` · L1718 — Cheap key of "the view" for the suggestions: they are searched again only when the filter or this key changes (never null in a plain view).
+- `keywordSuggestionScope()` · L1724 — Scope of the suggestions = the view (same as the content search); filters are not part of it, they apply to the suggested photos afterwards.
+- `setKeywordFilter(keyword, exclude)` · L1730 — Puts a keyword in the included or excluded list (and out of the other one). Neither re-renders nor filters: the caller does.
+- `addKeywordFilter(value, exclude = false)` · L1736
+- `hasFilenameFilters()` · L1749
+- `matchesFilenameFilters(photo, included = filenameFilters, excluded = excludedFilen…)` · L1752 — Every included text in the file name, and none of the excluded ones (case ignored). Excluded texts never reach the backend prefilter.
+- `renderFilenameFilters()` · L1758
+- `setFilenameFilter(text, exclude)` · L1763 — Puts a text in the included or excluded filename list (and out of the other one). Neither re-renders nor filters: the caller does.
+- `addFilenameFilter(value, exclude = false)` · L1771 — `exclude` (Alt+Enter): the file name must not contain the text.
+- `setExpandedFilterGroups(names)` · L1792 — `names` : groupes (data-filter-group) à laisser dépliés ; tous les autres sont repliés.
+- `focusKeywordFilterField()` · L1832 — Shift+K: shows the library panel, the Filters block and the Keywords / Name group (others stay as they are), then the keyword filter field.
+- `removableFilterTag(target)` · L1846 — Middle-click on a filter chip removes it, in an open group as on a folded line or a badge of the folded Filters block. The chip's own × (or,
+- `renderFilterTags()` · L1863 — Étiquettes des mots-clés (bleu) et des noms de fichier (vert), sur une ligne commune : boutons à croix quand le groupe est déplié,
+- `fitCollapsedTags()` · L1926 — Lignes repliées (classe fit-lines) : au plus deux lignes. Si les étiquettes ne tiennent pas, les dernières sont masquées et remplacées par …
+- `fitCollapsedLine(line)` · L1930
+- `formatDateFilterBound(key, isEnd)` · L1964 — Bornes du filtre de date au format AAAAMMJJHHmmss -> « 01/05/2024 » ; l'heure n'est ajoutée que si elle diffère de celle par défaut de la b…
+- `renderFilterSummaries()` · L1973 — Résumés affichés sur les lignes repliées : note (badge) et couleurs (pastilles), dates de début et de fin, étiquettes.
+- `updateFilterGroupStates()` · L2039 — Marque chaque groupe de l'accordéon actif ou non (data-active) : seuls les groupes actifs montrent leur × d'effacement.
+- `renderActiveFilterBadges()` · L2054 — Badges du bloc Filtres replié : un par type de filtre actif (note, couleur, mots-clés, nom de fichier, personnes, date, fichiers en échec),
+- `decodeHtmlEntities(text)` · L2081
+- `renderFolderTree({ fromCounts = false } = {})` · L2090 — ==========================================
+- `folderCountElement(count, scope)` · L2231
+- `scheduleFolderCounts()` · L2243 — Re-reads the catalogue folders and their counts (once per burst of redraws), whether or not counts are shown: the tree needs
+- `refreshDiskFolders()` · L2283 — Relit les sous-dossiers du disque puis redessine l'arborescence ; sans l'option, la liste est vidée et rien n'est lu.
+- `addCreatedFolder(parentPath, name)` · L2294 — Appelé après la création d'un sous-dossier : il apparaît tout de suite dans l'arborescence, dossier parent déplié.
+- `rememberCurrentFolder()` · L2300 — Mémorise le dossier ouvert dans l'arbre (null = Toutes les photos), relu au démarrage si l'utilisateur l'a choisi.
+- `selectFolder(path)` · L2304
+- `toggleFolderFold(key, expanded)` · L2325 — Folds / unfolds a folder row (its arrow, a double-click). `expanded`: whether the row is unfolded now. While the quick search filters the t…
+- `toggleFolderInSelection(path)` · L2387 — Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
+- `pinnedFolderRows({ depths, parents, ends, topOf, listEnd, scrollTop, pitch, …)` · L2442 — Which rows are pinned for a scroll position. Pure: the geometry comes in through `topOf(index)` (offsetTop of a row, growing with the index…
+- `stickyFolderMetrics(row)` · L2472 — Size of the rows of the tree: `height` of a row, `pitch` = distance between two rows (height + margin), `maxSlots` = pinned rows the panel …
+- `makeStickyFolderCopy(row)` · L2480 — Copy of a real row for the layer. Its buttons leave the tab order (the real row is the one to reach by keyboard).
+- `updateStickyFolders()` · L2489 — Draws the pinned rows for the current scroll position. Cheap enough to run on every scroll frame: a few binary searches, copies are reused.
+- `scheduleStickyFolders()` · L2521
+- `indexStickyFolders()` · L2530 — Called by every render of the tree: reads the structure of the new rows (depths, parent and end of each subtree), then draws the layer.
+- `revealFolderRow(row)` · L2548 — Scrolls a row into view below the pinned rows that would otherwise hide it (`scroll-padding-top` is honoured by scrollIntoView).
+- `matchesRawSearchScope(photo)` · L2581 — Ce que les filtres ne savent pas exprimer : « Sous-dossiers » (les photos du dossier de l'image lui-même ne comptent pas, le dossier de dép…
+- `renderRawSearchBanner()` · L2587
+- `setIncludeSubfoldersTemporarily(value)` · L2599 — L'option « Inclure les sous-dossiers » change de valeur sans être mémorisée : c'est un réglage du mode, pas un choix de l'utilisateur.
+- `abandonRawSearch()` · L2606 — Termine le mode sans rouvrir la vue d'avant : remet l'option sous-dossiers et les filtres d'avant la recherche (sauf ceux d'un album intell…
+- `exitRawSearch()` · L2617 — Bouton « Revenir à la vue précédente » et Échap.
+- `restoreViewSnapshot(snapshot)` · L2625 — Reopens the view saved before a results mode (folder or album, scroll, selection). The caller has already left the mode.
+- `currentViewScope()` · L2649 — « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossi…
+- `isAllPhotosView()` · L2659
+- `showPhotoInItsFolder(photo, { anyView = false } = {})` · L2661 — `anyView`: also allowed from a folder view with subfolders included (Info panel "Folder" link), where the photo may lie below the open fold…
+- `captureViewSnapshot(album = getSelectedAlbum()` · L2693 — Everything needed to come back to the current view after a results mode (folder or album, filters, scroll, selection).
+- `findRawFor(photo)` · L2708
+- `photoAspectRatio(photo)` · L2762 — ==========================================
+- `layoutPhotoRange(start, end, offsetY, width, gap)` · L2768 — Dispose les photos [start, end[ (indices dans photos) à partir de la hauteur offsetY ; renvoie la hauteur occupée par ce groupe.
+- `separatorHeight()` · L2843
+- `thumbnailGap()` · L2855 — Espace entre deux cases de la grille, en pixels. « Normal » : 6 px entre les cases, auxquels s'ajoute la marge intérieure de 4 px de chaque…
+- `updateVirtualScroller()` · L2861
+- `createBestBadge()` · L2887
+- `renderVisibleItems()` · L2895
+- `renderVisibleSeparators(top, bottom)` · L3044 — Lignes de séparation visibles (dates ou dossiers) : créées à l'arrivée dans la zone affichée, retirées quand elles en sortent, comme les mi…
+- `formatGridScrollPosition(photo)` · L3074
+- `updateGridScrollPosition()` · L3088
+- `openVideoExternally(photo)` · L3127 — ==========================================
+- `openFullscreen(index)` · L3135
+- `closeFullscreen()` · L3162
+- `export getIsFullscreen()` · L3178
+- `layoutFullscreenSlot()` · L3183 — Positionne et zoome l'image du plein écran avec la même logique que l'aperçu (rien à faire tant que la fenêtre est masquée).
+- `loadFullscreenPhoto(photo)` · L3194 — Affiche la photo en plein écran. Zoom et position repartent de la vue entière seulement quand l'image change : un simple
+- `showFullscreenPhoto(photo, url)` · L3200
+- `clearFullscreenImage()` · L3235
+- `navigatePhoto(direction)` · L3247
+- `navigateGridRow(step)` · L3255 — Up / Down arrow in the grid: selects the photo above (step -1) or below (step 1) the current one. Works with every layout (square, justifie…
+- `scrollPhotoIntoView(index)` · L3284 — Scrolls the grid the minimum needed to show the whole thumbnail of photo `index`.
+- `navigateToPhotoIndex(index)` · L3295
+- `showFullscreenRatingForAWhile()` · L3309
+- `updateFullscreenRatingStars()` · L3322
+- `formatFullscreenDate(photo)` · L3341 — « samedi 12 septembre 2026, 12h36 » (l'heure n'est ajoutée que si la date EXIF en contient une).
+- `fullscreenCameraName(photo)` · L3356 — Fabricant + modèle, sans répéter le fabricant quand le modèle le contient déjà (« NIKON CORPORATION » + « NIKON D850 » -> « NIKON D850 »).
+- `updateFullscreenInfo()` · L3364
+- `fullscreenPopoverOpen()` · L3411
+- `closeFullscreenPopovers()` · L3415
+- `toggleFullscreenPopover(button, popover)` · L3422 — Opens `popover` (closing the other one); the 3 s countdown of the row is suspended while a popover is open.
+- `syncFullscreenMarking()` · L3432 — Brings the dot, the flag, the summary and its visibility in line with the current photo.
+- `toggleFullscreenInfo()` · L3449
+- `preloadFullscreenImages(index)` · L3455
+- `endFullscreenDrag(event)` · L3520
+- `handleSelection(index, event)` · L3541 — ==========================================
+- `toggleSelectAllPhotos()` · L3569 — Ctrl+A (hors mode Comparer) : sélectionne toutes les photos affichées dans la grille, ou les désélectionne toutes si elles le sont déjà.
+- `updateUIOnSelection()` · L3587
+- `updateInfoFolder(photo)` · L3633 — Info tab "Folder" row: the folder of the active photo, shown when the folder view does not already tell it ("All photos", subfolders
+- `refreshInfoRows()` · L3651 — Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
+- `formatAperture(value)` · L3663 — Normalise ouverture (« f/4 ») et vitesse (« 1/100 s »), y compris les valeurs déjà en base avec un préfixe ou un suffixe en double.
+- `formatShutterSpeed(value)` · L3668
+- `showPhotoDimensions(photo)` · L3674 — Affiche les dimensions ; si la base n'en a pas (0 x 0), on les apprend depuis l'image réelle.
+- `updateRatingAction()` · L3704 — Met à jour les contrôles de marquage (panneau Info et barre flottante) d'après la sélection : nombre de photos, étoiles, couleur, emplaceme…
+- `showWriteToast(message, isWriting = false, action = null, duration = null)` · L3725 — `action` (facultatif) : { label, onClick } ajoute un bouton au toast (ex. « Annuler ») et le garde plus longtemps à l'écran.
+- `createColorSquare(flag)` · L3747 — Carré de couleur cliquable, utilisé par la barre de filtre et par la barre d'écriture.
+- `setColorSquareChecked(button, checked)` · L3761
+- `updateColorAction()` · L3767 — Contrôles de marquage : met en évidence la couleur de la photo de référence de la sélection (une seule couleur possible).
+- `updatePickAction()` · L3779 — Met en évidence le fanion pick de la photo de référence de la sélection (un seul possible) ; le drapeau de la barre flottante en prend la c…
+- `setSelectionColorFlag(flag, explicitTargets = null)` · L3787 — `explicitTargets` (menu contextuel) : photos précises à marquer, à la place de la sélection.
+- `setSelectionPickFlag(flag, { toggle = true, photos: explicitTargets = null } = {})` · L3811 — Fanion pick de la sélection. `toggle` (raccourcis Maj+P / Maj+X) : si toutes les photos visées ont déjà ce fanion, il est retiré ; sans `to…
+- `failureSummary(failures)` · L3832 — Échecs d'écriture de la note, de la couleur ou du fanion : leur nombre et la raison du premier (ex. ExifTool introuvable).
+- `writeMarking(targets, fields, { startMessage, doneMessage, apply, refilt…)` · L3847
+- `undoMarking(property, entries, refilter)` · L3895 — Gives each photo of an earlier marking write its previous value back (`entries`: { id, path, value }), in one command. The photos are
+- `pushUndo(run)` · L3917
+- `runUndo(entry = undoStack.at(-1)` · L3925 — Undoes `entry` (default: the latest action), once: it leaves the stack. False if there is nothing (left) to undo.
+- `undoToastAction(entry)` · L3933
+- `setSelectionRating(rating, explicitTargets = null)` · L3936 — `explicitTargets` (menu contextuel) : photos précises à noter, à la place de la sélection.
+- `export isRotatablePath(path)` · L3963 — ==========================================
+- `rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {})` · L3970 — `quarterTurns`: 1 right, -1 left, 2 for 180°. `explicitTargets` (context menu): photos to turn, instead of the selection.
+- `undoRotation(entries, quarterTurns)` · L4016 — Undo of a rotation (see runUndo): the opposite rotation, on its photos wherever the view is now.
+- `refreshRotatedPhotos(turned, quarterTurns, reordered = false)` · L4024 — Turned photos: their cached images are regenerated by the backend; the grid, the preview and the fullscreen view load them again.
+- `renderSettingsFolderList()` · L4417 — ==========================================
+- `startFolderDrag(event, item, handle)` · L4484 — Dragging the handle: the row changes place as soon as the pointer passes the middle of a neighbour; the order is saved on release
+- `openAbout()` · L4527
+- `closeAbout()` · L4537
+- `openGuide()` · L4585
+- `closeGuide()` · L4588
+- `toggleTopBar()` · L4631 — ==========================================
+- `setToolbarLabels(show)` · L4644
+- `fitToolbar()` · L4655 — Narrow window: the bar drops every button label and keeps the icons (`.compact`). The decision is "do the buttons, with their labels, fit?",
+- `hideTopBarPeek()` · L4693
+- `syncThumbnailSpacingWithLayout()` · L4829 — L'option « Aucun » est grisée en disposition Encadrée ; si elle était choisie, l'espacement passe à « Petit » (et ce choix est mémorisé).
+- `photoModifiedTime(photo)` · L4864 — Modification date of a photo for the sort, the separators and the position pill: the later of the image file's own date (`modified`) and
+- `applyEffectiveModified(entries)` · L4873 — Reports the effective modification dates returned by a metadata write (`entries`: [photoId, date] pairs, 0 or missing = unknown and ignored…
+- `photoSortValue(photo)` · L4892 — Valeur de tri d'une photo ; null = information absente (ces photos restent en fin de liste, quel que soit l'ordre).
+- `activeSeparator()` · L4899 — Séparateur actif selon le critère de tri : 'none', 'day', 'week', 'month', 'year' (tri par date) ou 'folder' (tri par nom de fichier).
+- `photoFolder(photo)` · L4904 — Dossier d'une photo (chemin sans le nom de fichier) et ses segments, calculés une fois pour le tri et le regroupement.
+- `compareFolders(a, b)` · L4914 — Compare les dossiers segment par segment (le dossier parent passe avant ses sous-dossiers), avec le même ordre naturel que les noms de fich…
+- `photoSortDateParts(photo)` · L4929 — Jour de la photo pour le critère de tri par date (prise de vue ou modification), ou null si la date est absente ou invalide.
+- `isoWeekOf({ year, month, day })` · L4944 — Semaine ISO 8601 (du lundi au dimanche, la semaine 1 contient le 4 janvier) : année ISO et numéro de semaine.
+- `separatorGroupKey(photo, mode)` · L4954 — Identifiant du groupe d'une photo : deux photos voisines (la liste est déjà triée) de même identifiant sont dans le même groupe.
+- `separatorText(photo, mode)` · L4971 — Texte de la ligne de séparation d'un groupe, d'après sa première photo ; title = infobulle (chemin complet pour un dossier).
+- `computePhotoGroups()` · L4997 — Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
+- `comparePhotosForSort(a, b)` · L5016
+- `sortOrderHint(key, order)` · L5059
+- `updateSortUI()` · L5065 — Boutons radio de la modale, aides de l'ordre selon le critère, et infobulle du bouton de la barre du haut (ordre actif au survol).
+- `scrollToPhotoIndex(index)` · L5082 — Amène la photo dans la zone visible si elle n'y est pas : après un changement de tri, la photo sélectionnée a changé de place.
+- `applySortChange()` · L5092
+- `openSortModal()` · L5109
+- `closeSortModal()` · L5115
+- `openDisplayModal()` · L5140
+- `closeDisplayModal()` · L5145
+- `createAccentSwatches(input, className)` · L5166 — Pastilles de la palette, placées avant le sélecteur de couleur personnalisée `input` (noms traduits avec la langue, voir applyTranslations).
+- `syncAppearanceControls()` · L5185
+- `setActiveButtonColor(color)` · L5192
+- `setSelectionColor(color)` · L5198
+- `setExifPanelWidth(requestedWidth)` · L5416 — Applique la largeur demandée, bornée pour laisser de la place à la barre latérale et à la grille ; renvoie la largeur retenue.
+- `ratingStarLabel(stars)` · L5473 — Texte lisible du filtre courant (infobulle du badge) ; ratingStarLabel décrit l'effet d'un clic sur l'étoile N.
+- `ratingFilterDescription()` · L5476
+- `updateRatingFilterControls()` · L5484 — Reflète l'état du filtre sur les contrôles : étoiles remplies jusqu'à N (« au moins ») ou N seule (« exactement »), libellés accessibles.
+- `createPickSquare(flag)` · L5535 — Carré de fanion pick cliquable (filtre : quatre états ; marquage : retenu et rejeté), même présentation que les carrés de couleur.
+- `createMarkingStars()` · L5589 — Cinq étoiles : un clic sur la note active l'efface (voir setSelectionRating).
+- `createMarkingColors()` · L5612 — Couleurs : une seule possible, un nouveau clic sur la couleur active l'efface (voir setSelectionColorFlag).
+- `fillMarkingPickBar(bar)` · L5635
+- `createMarkingPick()` · L5642 — Choix de fanion pick : un clic pose le fanion choisi sur la sélection (ceux déjà au même état ne sont pas réécrits).
+- `closeMarkingColorPopover()` · L5670
+- `closeMarkingPickPopover()` · L5674
+- `isInfoTabVisible()` · L5735 — Le panneau Info compte comme « ouvert » quand il est affiché avec son onglet Info (le seul qui porte la section Marquage).
+- `updateMarkingPlacement()` · L5739
+- `folderBaseName(path)` · L5818
+- `normalizeTaskPath(path)` · L5819
+- `taskName(task)` · L5820
+- `taskPercent(task)` · L5821
+- `activeTaskCount()` · L5825 — A 'ready' task has finished and only waits for the user to show its results: it stays in the list (and warns before quitting) but is not wo…
+- `isSemanticLaneTask(task)` · L5829 — Content analysis: its own lane, in parallel with the main queue (see pumpSemanticQueue). It counts in activeTaskCount (closing the applicat…
+- `foregroundTaskCount()` · L5830
+- `isResumableTask(task)` · L5836
+- `taskStatusText(task)` · L5838
+- `formatTaskDuration(ms)` · L5856 — Durée lisible : « 45 s », « 3 min 05 s », « 1 h 02 min ».
+- `taskTimingText(task)` · L5873 — Temps écoulé et estimation du temps restant d'une tâche en cours (extrapolation linéaire de l'avancement ;
+- `taskCoversFolder(task, path)` · L5886 — Une tâche couvre un dossier quand c'est le sien, l'un de ses sous-dossiers, ou que la tâche relit toute la collection.
+- `syncChildren(container, wanted)` · L5894 — Place les éléments dans l'ordre voulu sans toucher à ceux qui y sont déjà (un bouton déplacé pendant un clic perdrait ce clic).
+- `buildTaskToast(task)` · L5901
+- `buildTaskRow(task)` · L5925
+- `syncTaskUI()` · L5966 — Met l'affichage en phase avec les tâches : toasts, lignes de la fenêtre des actions et bouton sablier.
+- `showTaskToast(name, percent)` · L6059 — Toast d'une opération courte hors scan (déplacement des données, vidage du cache) : un seul à la fois, affiché avec son pourcentage.
+- `hideTaskToast()` · L6069
+- `openTasksModal()` · L6076
+- `closeTasksModal()` · L6084
+- `confirmCloseWithRunningTasks()` · L6091 — Fermeture de l'application : si des tâches de la file sont actives ou en attente, le dire avant de les interrompre. Renvoie true si l'on pe…
+- `reloadPhotosAfterRescan()` · L6163 — Recharge les photos après un rescan. L'arborescence est construite depuis la liste complète de la collection : quand un dossier est
+- `removeOrStopTask(task)` · L6173 — Retire une tâche en attente de la file, ou demande l'arrêt de la tâche en cours (les photos déjà lues restent dans le catalogue ;
+- `dropScanTasksForFolder(path)` · L6193 — Un dossier retiré de la liste des dossiers suivis ne doit plus être scanné : ses tâches en attente sont retirées, celle en cours est arrêté…
+- `hasFileTask()` · L6201
+- `queuedPathsBeingChanged()` · L6203 — Photos that a move or a batch rename of the queue is going to change the path of: metadata is not written to them meanwhile (see writeMarki…
+- `enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResul…)` · L6209 — Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours…
+- `pumpScanQueue()` · L6257 — Exécute les tâches une par une, dans l'ordre de la file. L'analyse du contenu (famille « semantic ») n'en fait pas partie : elle dure des h…
+- `pumpSemanticQueue()` · L6275
+- `stopSemanticTasks()` · L6289 — Arrête les analyses du contenu : celles en attente quittent la file, celle en cours est interrompue (désactivation de la fonction).
+- `runScanTask(task)` · L6293
+- `pauseTask(task)` · L6339 — Pauses a resumable scan: a waiting one leaves the queue at once, a running one stops (runScanTask then keeps it as 'paused').
+- `resumeTask(task)` · L6354 — Resumes a paused scan: it goes first among the waiting tasks, so it starts as soon as the running task has finished.
+- `refreshAfterPausedScan()` · L6368 — After a pause, the photos read so far are added to the grid without the full reload (which redraws the grid from scratch and makes it flash…
+- `pausedScanFolders()` · L6376 — Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
+- `saveResumableTasks()` · L6379 — Remembers the unfinished resumable scans (running, waiting or paused): after a restart they come back paused (restorePausedTasks).
+- `restorePausedTasks()` · L6389 — At startup: the scans left unfinished last time come back paused (only those whose folder is still tracked), with a toast to tell so.
+- `checkFolderIntegrity(path)` · L6414 — Vérification d'intégrité d'un dossier de l'arborescence (sous-dossiers compris), lancée depuis son menu contextuel : chaque fichier est déc…
+- `rescanFolder(path)` · L6419 — Rescan d'un dossier de l'arborescence (sous-dossiers compris), lancé depuis son menu contextuel.
+- `indexDuplicateGroups()` · L6433 — Groups of the mode with the members found in the catalog, ranked. Called after each load of the mode's photos (loadedPhotos is up to date).
+- `photoFormat(path)` · L6459 — File format shown and compared in the duplicate results: the extension in capitals (JPEG and JFIF count as JPG).
+- `rankDuplicateGroups()` · L6465 — Position of each group in the chosen order, and group and rank of each photo (read by the grid sort).
+- `computeDuplicateSeparators()` · L6474 — Separators of the grid: one per group, as groups of consecutive photos (the list is already sorted by group). The label gives the group num…
+- `renderDuplicateBanner()` · L6498
+- `rankDuplicatesAgain()` · L6524 — "Best copy…": the order of the criteria changes who wears the medal. The groups are ranked again at once; the selection is emptied, because…
+- `selectDuplicatesExceptBest()` · L6542 — Cleanup, first step: selects every copy except the best one of each group, among the photos displayed. Nothing is deleted here: the selecti…
+- `abandonDuplicateSearch()` · L6576 — Ends the mode without reopening the previous view: puts back the sub-folder option and the filters of before the search (except those of a …
+- `exitDuplicateSearch()` · L6588 — "Back" button and Escape.
+- `showDuplicateResults(result, titleKey, label, context)` · L6596 — Returns false when the user declined to leave a modified smart album (nothing shown).
+- `showReadyDuplicateResults(task)` · L6625 — "Show" (toast or tasks window): opens the results of a finished search, then the task leaves the list.
+- `removeReadyTask(task)` · L6637
+- `handleDuplicatesResult(result, stopped, error, titleKey, label, task, context)` · L6646 — A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in t…
+- `runIdenticalSearch({ scope, compareWithLibrary }, settings, task, setPercent)` · L6667 — Hash of the image data and/or file name, as one task. The name search runs here (its pattern is a JavaScript regular expression, the backen…
+- `findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings)` · L6717 — `kind`: 'identical' | 'similar'.
+- `openDuplicatesDialog(spec)` · L6738 — "More…" window (duplicates-modal.js): the user picks the kind and the settings, then the search starts with them.
+- `canAddToSelection(index)` · L6767
+- `showCompareLimitToast()` · L6771
+- `limitSelectionForCompare()` · L6775
+- `isCompareMultiple()` · L6788 — Comparaison de plusieurs photos : les cases de l'aperçu servent alors à choisir les photos visées par les commandes.
+- `commandTargetIndices()` · L6795 — Photos (indices dans photos) visées par les notes, les couleurs et la suppression au clavier, et par la barre latérale.
+- `commandTargetPhotos()` · L6800
+- `commandReferencePhoto()` · L6805 — Photo dont la note et la couleur sont affichées dans la barre latérale.
+- `pruneCompareSubSelection()` · L6811 — Retire de la sous-sélection les photos qui ne font plus partie de la comparaison (changement de sélection, suppression, fin du mode Compare…
+- `syncPreviewSubSelection()` · L6821 — Repères circle-check-big des cases de l'aperçu, d'après la sous-sélection.
+- `toggleCompareSubSelection(photo)` · L6826
+- `positionPreviewMarks(slot, cellWidth, cellHeight)` · L6835 — Place les repères (sous-sélection, étoiles, couleur et badge de zoom) dans les coins de l'image
+- `showZoomIndicator(slot)` · L6854 — Affiche le pourcentage de zoom pendant 2 secondes puis l'estompe
+- `toggleAllCompareSubSelection()` · L6866 — Touche A : sous-sélectionne toutes les photos comparées, ou les désélectionne toutes si elles le sont déjà.
+- `notifyNoCompareTarget()` · L6875
+- `previewCssScale(slot)` · L6880 — Échelle exprimée en pixels écran réels par pixel image (1 = 100 %). Échelle CSS = échelle / devicePixelRatio.
+- `previewDisplaySize(slot)` · L6884
+- `clampPreviewCenter(slot, x, y)` · L6889
+- `setSlotImageSize(slot, width, height)` · L6902 — Size of the image of a slot (preview cell, comparison, fullscreen). The element keeps the size the webview gives it (`width` × `height`);
+- `layoutPreviewSlot(slot)` · L6913
+- `renderPreviewTransforms()` · L6944
+- `createPreviewSlot(photo)` · L6949
+- `currentPreviewPhotos()` · L7010 — Mode normal : la photo courante. Mode Comparer : la sélection (4 max), dans l'ordre de la grille.
+- `syncPreviewMeta()` · L7020 — Étoiles et pastille de couleur affichées en bas des cases de l'aperçu, d'après l'état actuel des photos.
+- `renderPreview()` · L7031
+- `previewSlotFromEvent(event)` · L7054
+- `previewAnchorAt(slot, clientX, clientY)` · L7060 — Point de l'image situé sous le curseur (en proportion de l'image), pour zoomer autour de lui.
+- `previewCenterOf(slot)` · L7074 — Centre de la zone affichée : propre à chaque image en mode désynchronisé, sinon partagé.
+- `setPreviewCenter(slot, center)` · L7078
+- `previewSlotsToAffect(targetSlot)` · L7084 — En mode désynchronisé, une action vise l'image concernée ; sinon elle s'applique à toutes.
+- `updatePreviewSyncMode()` · L7092 — Applique le passage synchronisé / désynchronisé sans déplacer les images à l'écran.
+- `zoomPreview(computeTarget, anchor, targetSlot = null)` · L7106 — computeTarget(slot, échelleActuelle) renvoie la nouvelle échelle, ou null pour la vue entière.
+- `zoomPreviewSteps(steps, anchor, targetSlot = null)` · L7132
+- `togglePreviewActualSize(anchor, targetSlot = null)` · L7137 — 100 % (1 pixel image = 1 pixel écran) ; si toutes les images y sont déjà, retour à la vue entière.
+- `wheelZoomSteps(event)` · L7146 — Nombre de crans de zoom correspondant à un événement de molette, ou 0 si aucun cran n'est atteint : une molette à crans donne un cran par
+- `endPreviewDrag(event)` · L7198
+- `isTextEntryFocused()` · L7275
+- `instantZoomSlotUnderPointer()` · L7283 — Slot under the pointer: the fullscreen photo when fullscreen is open, else the preview cell hovered (null if none).
+- `isInstantZoomValid()` · L7294 — The photo shown changed (arrows, new selection, fullscreen closed) while the key was held: there is nothing left to drive or to restore.
+- `instantZoomCenterAt(clientX, clientY)` · L7301 — Pointer position -> point of the image (proportions). The mapping is absolute over the image fitted in its cell, so that at press time the …
+- `panInstantZoom()` · L7315
+- `startInstantZoom()` · L7323
+- `endInstantZoom()` · L7342 — Puts back the zoom level and centre of before the key was pressed (only for photos still displayed).
+- `stopGridInertia()` · L7422 — Arrête l'inertie en cours ; renvoie true si la grille était encore en train de défiler.
+- `startGridInertia(velocity)` · L7429
+- `releaseGridInertia(samples, releaseTime)` · L7453 — Vitesse mesurée sur les derniers instants du glissement (pointeur immobile avant le relâchement = pas d'inertie).
+- `endGridDrag(event)` · L7498
+- `folderItemAt(x, y)` · L7533
+- `dragModeFrom(modifiers)` · L7540 — Mode du glissement d'après les touches tenues À CET INSTANT (Maj : déplacer, Ctrl : copier ; Maj l'emporte), null si aucune. Les touches pe…
+- `albumDropAction(drag)` · L7546 — Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine), null (à demander) ou '…
+- `paintPhotoDragBadge(drag)` · L7553 — Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt dem…
+- `updatePhotoDragState(drag, x, y, modifiers)` · L7567 — Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule d…
+- `askCopyOrMove(event, targets, onCopy, onMove)` · L7585 — Photos lâchées sans Maj ni Ctrl sur un dossier du disque ou un album : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
+- `albumItemAt(x, y)` · L7597 — Album manuel de la section Albums sous le curseur (cible d'ajout de photos).
+- `albumNodeAt(x, y)` · L7603 — N'importe quelle ligne de la section Albums sous le curseur (pour expliquer pourquoi un album intelligent ou un dossier virtuel refuse les …
+- `startPhotoDrag(drag)` · L7609 — Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
+- `clearPhotoDragVisuals(drag)` · L7643
+- `endPhotoDrag(event, released)` · L7676
+- `onPhotoDragModifierKey(event)` · L7712 — Maj ou Ctrl pressé ou relâché pendant le glissement (souris immobile) : mode et badge changent aussitôt.
+- `applyDeletedFolder(deletedPath, removedPaths)` · L7730 — Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, d…
+- `deleteFolderToTrash(path, { permanent = false } = {})` · L7747 — Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirm…
+- `renamePhotoOnDisk(photo, newName)` · L7769 — Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvé…
+- `renameFolderOnDisk(path, newName)` · L7787 — Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nou…
+- `movePhotosToFolder(targets, folderPath)` · L7821 — Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent a…
+- `copyPhotosToFolder(targets, folderPath)` · L7857
+- `applyMovedPhotos(moved)` · L7894 — Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrou…
+- `matchesLocationFilter(photo)` · L7928
+- `setLocationFilter(value, { apply = true } = {})` · L7934
+- `matchesAnalysisFilter(photo)` · L7951 — With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
+- `refreshAnalysedIds()` · L7956
+- `setAnalysisFilter(value, { apply = true } = {})` · L7968
+- `extractTimeKey(text)` · L7994 — Extrait la date et l'heure d'un texte EXIF quel que soit le séparateur (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
+- `photoTimeKey(photo)` · L8001
+- `photoDateKey(photo)` · L8007 — Jour de prise de vue au format AAAAMMJJ, ou null.
+- `matchesDateFilter(photo)` · L8013 — Le filtre couvre du premier au dernier instant de la période saisie, bornes incluses.
+- `isValidDateKey(key)` · L8019
+- `parseDateToken(token)` · L8029 — Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss : renvoie le premier et le dernier instant
+- `parseDateFilter(text)` · L8050
+- `updateDateFilterUI(error = '')` · L8065
+- `setDateFilterFromInput()` · L8073 — Applique le contenu du champ : vide = pas de filtre ; saisie incomplète ou invalide = filtre précédent conservé.
+- `weekdayLabels()` · L8103 — Initiales des jours (semaine commençant le lundi) et mois, selon la langue courante : le 1er janvier 2024 est un lundi.
+- `pickerMonthFormatter()` · L8104
+- `isDatePickerOpen()` · L8111
+- `closeDatePicker()` · L8115
+- `todayDateKey()` · L8119
+- `latestPhotoDateKey()` · L8124
+- `positionDatePicker()` · L8133
+- `renderDatePicker()` · L8144
+- `openDatePicker()` · L8173
+- `applyPickerSelection()` · L8187
+- `pickDate(key)` · L8195 — 1er clic : jour unique (filtre appliqué tout de suite). 2e clic : plage, ou même jour pour valider le jour unique.
+- `removePhotosFromLibrary(paths, { keepSelection = false } = {})` · L8247 — ==========================================
+- `getSelectedPhotos()` · L8525
+- `setPhotoGridVisible(visible)` · L8584 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
+- `thumbnailUrlFor(sourcePath, isWanted = ()` · L8594 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
+- `semanticDelta()` · L8644 — ==========================================
+- `semanticRankOrder(a, b)` · L8649 — Position in the answer (decreasing score); the source photo of a similar-content search is -1, photos outside the answer come last.
+- `loadSemanticPhotos()` · L8656 — The photos of the answer, read again each time the mode reloads (a rescan, a metadata write).
+- `matchesSemanticCut(photo)` · L8661 — Relative threshold of §7.1: a result stays while cos >= best - delta. The source photo of a similar-content search always stays.
+- `renderSemanticBanner()` · L8669
+- `renderSemanticKeywordActions()` · L8730 — Keyword -> photos: actions on the selected photos. Disabled while nothing is selected.
+- `abandonSemanticSearch()` · L8774 — Ends the mode without reopening the previous view (same contract as abandonDuplicateSearch).
+- `exitSemanticSearch()` · L8785 — "Close" and Escape.
+- `showSemanticResults({ label, answer, scope, viewScope, sourcePhoto = null, keyw…)` · L8794 — Opens the mode on a backend answer. `spec`: { label, answer, scope, viewScope, sourcePhoto }. Returns false when the user declined to leave…
+- `findSimilarContent(photo)` · L8827 — "Find similar content" (menu of one photo). The interface does not know whether the photo has an embedding: the backend says so, and the us…
+- `findKeywordCandidates({ id, name })` · L8852 — "Find photos that may match" (menu of a keyword): the candidates of the backend (examples or name score, threshold already applied, never t…
+- `syncLibraryWithDisk()` · L8979
+- `requestLibrarySync()` · L8998
+- `runRequestedSync()` · L9003
+- `refreshLibraryAfterSync(changes)` · L9010 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
+- `restorePanelsVisibility()` · L9054
+- `restoreStartupFolder()` · L9084 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
+- `sendInternetAllowed()` · L9123
+- `sendVerifyMoves()` · L9141
+- `refreshStorageLocationUI()` · L9153 — ==========================================
 
 ## src/map-config.js (5)
 
@@ -1188,19 +1228,19 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `buildOpenWithItem(targets, section)` · L1615 — « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
 - `onMenuKeydown(event)` · L1641
 - `openThumbnailMenu(event, index, source = 'grid')` · L1676
-- `confirmUnrecognizedFilesDialog(folderName, files)` · L1835 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
-- `confirmAndDeleteFolder(path)` · L1859 — Supprime un dossier de l'arborescence : première confirmation habituelle,
-- `openFolderMenu(event, folderItem)` · L1895 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
-- `openAllPhotosMenu(event, item)` · L1949 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
-- `export openContextMenuAt(event, items)` · L1967 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
-- `showContextMenu(menu, event)` · L1983 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
-- `findTargetPhoto(target)` · L2005 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
-- `isTextField(field)` · L2036
-- `fieldExtraItems(field)` · L2039 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
-- `pasteIntoField(field)` · L2062 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
-- `openTextFieldMenu(event, field)` · L2075 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
-- `onContextMenu(event)` · L2104 — Remplace le menu contextuel du navigateur
-- `export initPhotoActions(options)` · L2147 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
+- `confirmUnrecognizedFilesDialog(folderName, files)` · L1836 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
+- `confirmAndDeleteFolder(path)` · L1860 — Supprime un dossier de l'arborescence : première confirmation habituelle,
+- `openFolderMenu(event, folderItem)` · L1896 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
+- `openAllPhotosMenu(event, item)` · L1950 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
+- `export openContextMenuAt(event, items)` · L1968 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
+- `showContextMenu(menu, event)` · L1984 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
+- `findTargetPhoto(target)` · L2006 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
+- `isTextField(field)` · L2037
+- `fieldExtraItems(field)` · L2040 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
+- `pasteIntoField(field)` · L2063 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
+- `openTextFieldMenu(event, field)` · L2076 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
+- `onContextMenu(event)` · L2105 — Remplace le menu contextuel du navigateur
+- `export initPhotoActions(options)` · L2148 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
 
 ## src/place-search.js (5)
 

@@ -11,8 +11,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `CLAUDE.md` | 2 |  |
 | `index.html` | 1518 |  |
 | `package.json` | 29 |  |
-| `README_v2.md` | 136 |  |
-| `README.md` | 204 |  |
+| `README.md` | 202 |  |
 | `TODO.md` | 65 |  |
 | `vite.config.js` | 15 |  |
 
@@ -34,8 +33,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `FEATURES.md` | 228 |  |
-| `USER_GUIDE.md` | 433 |  |
+| `FEATURES.md` | 152 |  |
+| `USER_GUIDE.md` | 437 |  |
 
 ## docs/development
 
@@ -60,14 +59,14 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 154 |  |
-| `css.md` | 587 |  |
+| `css.md` | 590 |  |
 | `db-schema.md` | 269 |  |
 | `events.md` | 11 |  |
-| `files.md` | 314 |  |
-| `ipc-commands.md` | 187 |  |
-| `module-deps.md` | 102 |  |
-| `symbols-js.md` | 1507 |  |
-| `symbols-rust.md` | 1380 |  |
+| `files.md` | 317 |  |
+| `ipc-commands.md` | 188 |  |
+| `module-deps.md` | 103 |  |
+| `symbols-js.md` | 1513 |  |
+| `symbols-rust.md` | 1382 |  |
 | `tests.md` | 490 |  |
 
 ## docs/development/modules
@@ -86,7 +85,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `main-window.md` | 86 |  |
 | `maps-and-geolocation.md` | 80 |  |
 | `metadata-read-write.md` | 129 |  |
-| `photo-operations.md` | 102 |  |
+| `photo-operations.md` | 116 |  |
 | `privacy.md` | 70 |  |
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 65 |  |
@@ -114,6 +113,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `author-filters.css` | 12 | Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `author-filters.js` | 181 | Filtre « Auteur » du groupe « Plus de filtres » : les auteurs des photos (champ Auteur des métadonnées, voir rights.rs et exif::AUTHOR_SOURCE_IDS). La liste proposée vient de la base (commande get_authors : les auteurs … |
 | `author-rights.css` | 42 | Author and rights: "Author and rights" section of the Info tab (info-author.js) and lower half of the Description tab (description-panel.js, rights-presets.js: preset line and presets window). |
+| `batch-rename-engine.js` | 367 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
+| `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
+| `batch-rename.js` | 608 |  |
 | `defaults.jsonc` | 195 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
@@ -139,7 +141,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 9187 |  |
+| `main.js` | 9208 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -151,7 +153,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `metadata-writes.js` | 616 | Écriture des métadonnées éditées dans le panneau de droite (onglets Mots-clés et Description) : un seul circuit pour les deux onglets. Chaque onglet est un « éditeur » qui garde ses modifications en attente (voir regist… |
 | `order-list.js` | 144 | Tableau ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats d'un type de métadonnée (mots-clés, titre, description, note, couleur). Plusieurs tableaux peuvent partager le même élément : seul… |
 | `persons-view.js` | 211 | Vue Personnes (lot 5a) : une grosse vignette par personne, à la place de la grille des photos (bouton « Visages » de la barre du haut). - Vignette : le visage représentatif recadré depuis la photo d'origine, à la résolu… |
-| `photo-actions.js` | 2166 |  |
+| `photo-actions.js` | 2167 |  |
 | `place-search.js` | 68 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `privacy.css` | 58 | Photos privées (privacy.js) : bouclier du panneau Filtres, liste des ensembles et zone de réglage de Paramètres > Divers. |
 | `privacy.js` | 515 | Photos privées : ensembles de confidentialité dont les photos restent masquées (le masquage lui-même est fait côté Rust, voir privacy.rs). Un ensemble = un nom + des critères, tous insensibles à la casse (une photo est … |
@@ -220,7 +222,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
-| `db.rs` | 659 |  |
+| `batch_rename.rs` | 838 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
+| `db.rs` | 661 |  |
 | `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 3163 |  |
 | `exiftool.rs` | 952 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
@@ -233,7 +236,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 844 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
 | `library_sync.rs` | 363 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 3159 |  |
+| `main.rs` | 3165 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 146 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -259,6 +262,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
+| `batch_rename.rs` | 293 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
 | `db.rs` | 379 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
 | `duplicates.rs` | 287 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 254 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
@@ -306,11 +310,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1803 |  |
-| `fr.json` | 1803 |  |
+| `en.json` | 1891 |  |
+| `fr.json` | 1891 |  |
 
 ## webpage
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `index.html` | 355 |  |
+| `index.html` | 2172 |  |

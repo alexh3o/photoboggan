@@ -2,10 +2,10 @@
 
 ## 🚀 Next in line
 
-- [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear
-- [ ] *style*: `map` alternative dark map style
-- [x] *feat*: `UI` display date modified and created somewhere
-- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of info
+- [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
+- [ ] *style*: `map` alternative (more visible) dark map style
+- [x] *feat*: `UI` display date modified and date created somewhere
+- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
 - [ ] *perf*: `fullscreen` slight lag when changing photo
@@ -15,21 +15,21 @@
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [ ] *feat*: `files` batch renaming
-- [ ] *feat*: `files` sd card import
+- [ ] *feat*: `files` **sd card import**
 - [x] *feat*: `viewing` instant zoom
 - [x] *feat*: `metadata` copyright and creator writing
-- [ ] *feat*: `metadata` lens metadata writing
-- [ ] *feat*: `metadata` exif time shift
-- [ ] *feat*: `scripts` user scripts (launch integration with selected scans and actions)
-- [ ] *fix*: `tree` reordering root folders with grips in serttings sometimes leaves them pending and needing a click confirmation
+- [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion
+- [ ] *feat*: `metadata` **exif time shift** (to fix bad camera settings afterwards)
+- [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)
+- [ ] *fix*: `tree` reordering root folders with grips in settings sometimes leaves them pending and needing a click confirmation
 - [ ] *feat*: `grid` option to hide RAW by default
+- [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `help` app tour
 - [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
-- [ ] *feat*: `semantic` differentiate never analysed from analysed but modified photos
 - [ ] *feat*: `files` prevent deletion of photos with stars
 
 ## ❄️ Cold storage

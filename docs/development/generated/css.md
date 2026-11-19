@@ -9,7 +9,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 50 | — |
 | `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
-| `--active-button` | styles.css · `:root` · `#1e72ad` | 30 | main.js |
+| `--active-button` | styles.css · `:root` · `#1e72ad` | 31 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
@@ -27,9 +27,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--clipping-pulse-min-opacity` | histogram.css · `:root` · `0.05` | 1 | — |
 | `--clipping-shadow-color` | histogram.css · `:root` · `rgba(0, 90, 255, 0.9)` | 0 | — |
 | `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 56 | — |
-| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 66 | — |
+| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 67 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
-| `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 21 | — |
+| `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 25 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
 | `--duplicate-meta-height` | duplicates.css · `:root` · `calc(0.68rem * 1.2 + 4px)` | 1 | — |
 | `--face-bar-reserve` | faces.css · `.faces-view` · `5.5rem` | 1 | — |
@@ -97,10 +97,10 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--pill-color` | keywords.css · `.format-source-xmp` · `#4d94e0`<br>keywords.css · `.format-source-iptc` · `#d9993a`<br>keywords.css · `.format-source-exif` · `#4fb37c`<br>keywords.css · `.format-source-jpeg` · `#a37fd6` | 3 | — |
 | `--preview-bg` | styles.css · `:root` · `#111`<br>styles.css · (light) `:root[data-theme="light"]` · `#dadada` | 3 | — |
 | `--resizer-bg` | styles.css · `:root` · `#292929`<br>styles.css · (light) `:root[data-theme="light"]` · `#cfcfcf` | 3 | — |
-| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 14 | — |
+| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 16 | — |
 | `--selected-border` | styles.css · `:root` · `#15932a` | 8 | main.js |
 | `--selected-contrast` | — | 1 | main.js |
-| `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 29 | — |
+| `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 30 | — |
 | `--share` | — | 2 | stats.js |
 | `--side-block-gap` | styles.css · `:root` · `1rem` | 2 | — |
 | `--side-meta-size` | styles.css · `:root` · `0.7rem` | 11 | — |
@@ -146,12 +146,12 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-rating-text` | styles.css · `:root` · `#ffd43b` | 1 | — |
 | `--tag-shot-bg` | shooting-filters.css · `:root` · `#865130` | 1 | — |
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
-| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 27 | — |
-| `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 31 | — |
+| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 29 | — |
+| `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 34 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 3 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 64 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 67 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 78 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 80 | — |
 | `--thumb-bg` | styles.css · `:root` · `#1a1a1a`<br>styles.css · (light) `:root[data-theme="light"]` · `#d4d4d4` | 3 | — |
 | `--thumb-corner-size` | styles.css · `:root` · `1.75rem` | 4 | — |
 | `--thumb-hover-scale` | styles.css · `:root` · `1.03` | 1 | — |
@@ -274,6 +274,10 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L27 Floppy disk: muted while the fields match the files (or the selected preset), amber (--pending-color, like the pending dot of the…
 - L29 Copyright and usage terms: one line to start with, growing with the text up to three lines, then scrolling (height set by autoGro…
 - L32 --- Fenêtre « Author and Rights presets » ---
+
+### src/batch-rename.css (46 lines)
+
+- L1 BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview.
 
 ### src/duplicates.css (61 lines)
 

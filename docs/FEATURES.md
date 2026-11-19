@@ -2,24 +2,24 @@
 
 I've been taking photos as a passionate amateur and then a passionate dad for 25 years. To me, photos need to be organized & prepared before entering a collection so they can be found again, but this is a repetitive & time consuming process. Ideally, computer time should be spent more for enjoying & exploring your photo collection than working on it.
 
-So photoboggan is made for the hobbyist and family photographer and intends to be (or offer):
+So photoboggan is made for the hobbyist and family photographer and intends to offer:
 
-- **Smooth**: no feature was allowed to impact fluidity
-- **Photos first** visually: unobstructed views, no distracting effects
+- **Smooth** UI: no feature was allowed to impact fluidity
+- **Photos first** aesthetics: unobstructed views, no distracting effects
 - **Flexible UI** organization 
-- Respectful of **privacy**
-- Capable of handling **200k+ photo collections**
+- Respect of **privacy**
+- Effortless handling of **200k+ photo collections**
 - Fastest workflow to **enter photos in an organized collection**
   - Rate & cull
   - Face tag
   - Geotag
 - Fastest possible UI to **view and find** your photos
-- **Safe for the photo files**
+- **Safety for the photo files**
   - **Atomic writes** for metadata edits
   - **Error handling & recovery** (restores the initial file, warns if restoring cannot be done so you can manually recover the temp file)
   - **Image pixel data is never touched, written, or recompressed** — photoboggan only edits metadata parts (or sidecars)
   - Warnings or blockers during file/folder operations (existing files, trashless drives, hidden private photos...)
-- More serious than its name suggests
+- More seriousness than its name suggests
 
 ---
 
@@ -38,7 +38,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to b
 - **Compare mode** for 2 to 4 photos with synchronized zoom & pan (toggleable anytime) and direct sub-selection to rate or delete
 - **Slideshow** with configurable options
 - **Find RAW** matching your JPEG, with tunable pattern rules to fit your folder organization
-- **Disk synchronization** at startup, on window focus, and lazily when missing files are encountered
+- **Disk synchronization** at startup, on window focus, and lazily when missing / modified files are encountered
 
 ## Selection, Rating & Culling
 
@@ -53,7 +53,11 @@ So photoboggan is made for the hobbyist and family photographer and intends to b
   - Smart albums (dynamically updated from saved filter criteria)
   - Virtual folders to organize albums
   - **Nested smart albums** inside manual or smart albums to filter down further
-- **Fast keywording workflow**: hierarchical keyword tree with batch editing that respects untouched keywords on individual photos
+- **Fast keywording workflow**:
+  - hierarchical keyword tree (add, create, rename)
+  - auto-completion with a list sorted by shortest match first, followed by your most frequent keywords
+  - batch editing that respects untouched keywords on individual photos
+  - shortcuts to start tagging immediately, write to files, activate ancestors
 - **Title & description** editing (single or batch)
 - **Batch author & copyright info**, with quick creation and recall of author presets
 - Quick search directly inside the Folders, Albums, and People sidebar blocks
@@ -62,7 +66,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to b
 
 - **Multi-criteria filtering** (with include/exclude tags and autocomplete):
   - Filename & file format
-  - Keywords (presence or absence)
+  - Keywords (included or excluded)
   - Location (visible map bounds)
   - Rating, color label & pick flag
   - Exposure settings: aperture, shutter speed, ISO, focal length, flash
@@ -70,6 +74,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to b
   - Author
   - People in the photo
   - Date ranges via calendar picker or fast & flexible direct date-range input
+  - ...
 - **Content analysis & search** with **SigLIP 2** *(optional, 100% local AI, disabled by default; requires an initial scan — a few hours for 100k+ photos)*:
   - Natural-language **text search** (with relevance cut slider)
   - **Find similar images** (same place, type of photo, mood...)
@@ -82,12 +87,14 @@ So photoboggan is made for the hobbyist and family photographer and intends to b
 ## People & Faces *(optional, 100% local AI, disabled by default)*
 
 - **Detection with YuNet** and **recognition with SFace**, supporting multiple centroids per person to accommodate age variation through life
-- **Fast, reliable face review workflow**:
-  - Recognized faces sorted by algorithm certainty so you know where to focus
+- **Fast, reliable faces review workflow**:
+  - Recognized faces are sorted by algorithm confidence so you know where to focus
   - Recognition learns and adjusts instantly from your confirmations
   - Batch operations & keyboard shortcuts
   - Available photo preview panel to keep faces in context
-- **Group unknown faces** automatically (clustering) and draw **manual face regions**
+  - Delayed write to files to limit disk accesses
+- **Group unknown faces** by similarity automatically (clustering) 
+- Draw **manual face regions** in previews and fullscreen views
 - Person aliases, cover photos, undoable person merges, and conflict resolution when syncing people with keywords
 
 ## Maps & Geolocation *(optional, disabled by default)*
@@ -125,7 +132,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to b
 - **Batch resize** to a folder
 - **Batch lossless rotation** (no recompression, via orientation metadata only; pixel data is never modified)
 - **Undo** support for quick corrections)
-- **Renaming** *(batch renaming to come)*
+- **Renaming** (one photo, `F2`) and **batch renaming**: build a recipe of steps (replace, insert or delete text) using variables (date taken in ISO 8601 symbols, camera, lens, counter, author), reuse saved recipes, review a full before → after preview, with collisions detected up front (nothing is overwritten, `.xmp` sidecars follow), and undo the whole batch
 - **Delete to OS trash** (with upfront warnings when a drive has no trash and deletion will be permanent)
 - **Open with**: editable list of external apps per file type (Raster / RAW / Video)
 - **Show in OS explorer** and **Show in its folder** (from albums, search results, or whole-collection views)

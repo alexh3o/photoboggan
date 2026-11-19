@@ -20,6 +20,7 @@ import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './fi
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, choiceDialog, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
+import { initBatchRename, openBatchRename } from './batch-rename.js';
 import { initStats } from './stats.js';
 import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById, openSideTab } from './keywords-panel.js';
 import { initInfoAuthor, renderInfoAuthor } from './info-author.js';
@@ -3876,7 +3877,7 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     // Photos of a move in progress or waiting would change path while being written (the backend lock makes the write fail cleanly
     // anyway): refused with the same message as the other file operations. Only those photos: the others stay editable during a long
     // transfer. A rename (photoMoveRunning, no path list, a split second) blocks everything. Copies and resizing do not move files.
-    const moving = new Set(scanTasks.filter(task => task.kind === 'move').flatMap(task => task.args?.paths ?? []));
+    const moving = queuedPathsBeingChanged();
     if (photoMoveRunning || photosArg.some(photo => moving.has(photo.path))) {
       showWriteToast(t('Wait for the running file task to finish.'));
       return undefined;
@@ -3999,7 +4000,7 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {
   };
   const run = () => {
     // Same rule as the other metadata writes (see writeMarking): photos of a move in progress are not written.
-    const moving = new Set(scanTasks.filter(task => task.kind === 'move').flatMap(task => task.args?.paths ?? []));
+    const moving = queuedPathsBeingChanged();
     if (photoMoveRunning || photosArg.some(photo => moving.has(photo.path))) {
       showWriteToast(t('Wait for the running file task to finish.'));
       return undefined;
@@ -4265,13 +4266,14 @@ window.addEventListener('keydown', (e) => {
     }
     return;
   }
-  // F2 : renomme la photo sélectionnée, comme « Renommer… » du menu contextuel. Une seule photo ; une sélection multiple ne fait rien.
-  // Les dossiers ne se renomment que par le menu contextuel (avec un aperçu actif, F2 viserait la photo de l'aperçu).
+  // F2: renames the selected photo, like "Rename…" of the context menu; several photos: batch rename (batch-rename.js).
+  // Folders can only be renamed from the context menu (with a preview open, F2 would target the previewed photo).
   if (e.key === 'F2' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
     e.preventDefault();
     if (e.repeat || document.querySelector('.modal:not(.hidden)')) return;
     const targetPhotos = commandTargetPhotos();
     if (targetPhotos.length === 1) renamePhoto(targetPhotos[0]);
+    else if (targetPhotos.length > 1) openBatchRename(targetPhotos);
     return;
   }
   // Suppression
@@ -6195,8 +6197,10 @@ function dropScanTasksForFolder(path) {
 }
 
 // Tâches sur des fichiers (déplacement, copie, redimensionnement) : famille « files », attendent leur tour sans jamais être refusées comme doublon.
-const FILE_TASK_KINDS = ['move', 'copy', 'resize'];
+const FILE_TASK_KINDS = ['move', 'copy', 'resize', 'rename'];
 const hasFileTask = () => scanTasks.some(task => FILE_TASK_KINDS.includes(task.kind));
+// Photos that a move or a batch rename of the queue is going to change the path of: metadata is not written to them meanwhile (see writeMarking).
+const queuedPathsBeingChanged = () => new Set(scanTasks.flatMap(task => (task.kind === 'move' ? task.args?.paths ?? [] : task.kind === 'rename' ? (task.args?.items ?? []).map(item => item.path) : [])));
 
 // Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours ou en attente
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
@@ -7889,10 +7893,13 @@ async function copyPhotosToFolder(targets, folderPath) {
 // chemin, puis la liste est relue depuis la base sans remonter la grille : une photo déplacée hors du dossier affiché en disparaît.
 async function applyMovedPhotos(moved) {
   const destinations = new Map(moved.map(item => [item.from, item.to]));
+  // A batch rename can chain or swap names (1 to 2 while 2 to 3): a photo object seen twice (it can be in both lists) is renamed only once.
+  const renamedPhotos = new Set();
   const rename = list => {
     for (const photo of list) {
       const destination = destinations.get(photo.path);
-      if (!destination) continue;
+      if (!destination || renamedPhotos.has(photo)) continue;
+      renamedPhotos.add(photo);
       thumbnailCacheLookups.delete(photo.path);
       rawPreviewPromises.delete(photo.path);
       photo.path = destination;
@@ -8294,6 +8301,19 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   }
 }
 
+// Batch rename (batch-rename.js): access to the grid and to the file operations.
+initBatchRename({
+  getPhotos: () => photos,
+  getReferencePhoto: () => photos[lastSelectedIndex],
+  showToast: showWriteToast,
+  enqueueTask: task => enqueueScanTask(task),
+  applyMoved: applyMovedPhotos,
+  isBusy: () => photoMoveRunning || hasFileTask(),
+  setBusy: busy => { photoMoveRunning = busy; },
+  pushUndo,
+  undoToastAction,
+});
+
 initPhotoActions({
   // "Turn" submenu (lossless rotation, see rotatePhotos): only the HEIC / HEIF and videos of the targets are left out.
   isRotatablePath,
@@ -8345,6 +8365,7 @@ initPhotoActions({
     setPick: (photos, flag) => setSelectionPickFlag(flag, { toggle: false, photos }),
   },
   renamePhoto: renamePhotoOnDisk,
+  batchRename: targets => openBatchRename(targets),
   renameFolder: renameFolderOnDisk,
   // Sous-menu « Visages » (voir faces-panel.js) : affiché quand la détection est activée, il ouvre la fenêtre de lancement d'un scan.
   faceDetectionEnabled: isFaceDetectionEnabled,

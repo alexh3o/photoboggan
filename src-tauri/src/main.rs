@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod albums;
+mod batch_rename;
 mod db;
 mod duplicates;
 mod exif;
@@ -2780,6 +2781,11 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             // Déclaration des commandes
+            batch_rename::preview_rename_batch,
+            batch_rename::rename_photos,
+            batch_rename::list_rename_presets,
+            batch_rename::save_rename_preset,
+            batch_rename::delete_rename_preset,
             get_storage_location,
             change_storage_location,
             clear_thumbnail_cache,

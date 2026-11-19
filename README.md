@@ -20,7 +20,7 @@
 
 ### Why photoboggan?
 
-After 25 years of photographing as a hobbyist and a then a dad, I wanted less time spent repeating organizing chores and more time enjoying the collection. It works directly with your existing folders: no import step, proprietary library or duplicate photo vault. Its interface keeps photos in focus, adapts to your workflow and stays responsive with collections of **200,000+ photos**.
+After 25 years of photographing as a hobbyist and then a dad, I wanted less time spent repeating organizing chores and more time enjoying the collection. It works directly with your existing folders: no import step, proprietary library or duplicate photo vault. Its interface keeps photos in focus, adapts to your workflow and stays responsive with collections of **200,000+ photos**.
 
 📖 **[User guide](docs/USER_GUIDE.md)**
 
@@ -31,7 +31,7 @@ After 25 years of photographing as a hobbyist and a then a dad, I wanted less ti
 ⚠️ The application is young and should be considered **beta** software. Use it at your own risk and always keep a **healthy, complete backup of your photos**. That said, file safety is our non-negotiable priority (see below).
 
 - **Windows**: tested, stable, and used daily.
-- **Linux (`.deb`)**: works, but I have only tested it quickly on some releases : it needs testing—give it a try and share feedback!
+- **Linux (`.deb`)**: works, but I have only tested it quickly on some releases: it needs testing—give it a try and share feedback!
 - **macOS & other Linux packages**: not published yet, but builds can be added if testers are interested. Feel free to open an issue.
 
 Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` for Ubuntu/Debian. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
@@ -188,11 +188,11 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
   <tr>
     <td><img title="Folders settings" src="/webpage/screenshots/settings_data.jpg" alt="Folders settings" height="300" /></td>
     <td><img title="Display settings" src="/webpage/screenshots/sort_options.jpg" alt="Display settings" height="300" /></td>
-    <td><img title="Open with... settings" src="/webpage/screenshots/settings_private_photos_fr.jpg" alt="Private photos settings" height="300" /></td>
+    <td><img title="Private photos settings" src="/webpage/screenshots/settings_private_photos_fr.jpg" alt="Private photos settings" height="300" /></td>
   </tr>
 </table>
 
-*Settings* (data folder, sort options,private photos...)
+*Settings* (data folder, sort options, private photos...)
 
 ---
 

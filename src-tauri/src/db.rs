@@ -172,6 +172,8 @@ pub fn init_db(db_path: &str) -> DbPool {
     crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
     // Auteurs par photo (rights.rs).
     crate::rights::init_schema(&conn).expect("Author preset table could not be created");
+    // Recettes de renommage en lot enregistrées : voir batch_rename.rs.
+    crate::batch_rename::init_schema(&conn).expect("Rename preset table could not be created");
     // Albums virtuels (dossiers, albums manuels et intelligents) : voir albums.rs.
     crate::albums::init_schema(&conn).expect("Album tables could not be created");
     // Visages et personnes : voir faces.rs.
