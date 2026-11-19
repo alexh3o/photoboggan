@@ -14,8 +14,7 @@
 
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
-- [ ] *feat*: `files` batch renaming
-- [ ] *feat*: `files` **sd card import**
+- [x] *feat*: `files` **batch renaming**
 - [x] *feat*: `viewing` instant zoom
 - [x] *feat*: `metadata` copyright and creator writing
 - [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion
@@ -31,6 +30,7 @@
 - [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `files` prevent deletion of photos with stars
+- [ ] *feat*: `files` **sd card import
 
 ## ❄️ Cold storage
 
