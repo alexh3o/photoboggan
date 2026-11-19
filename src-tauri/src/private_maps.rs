@@ -23,7 +23,7 @@ const PROVIDER: &str = "https://tiles.openfreemap.org";
 /// TileJSON du jeu de tuiles vectorielles : donne l'adresse versionnée des tuiles (renouvelée chaque semaine par le fournisseur).
 const TILEJSON_URL: &str = "https://tiles.openfreemap.org/planet";
 /// Styles enregistrés pour la carte privée (thème clair et thème sombre, voir src/map-config.js).
-const STYLES: [&str; 2] = ["liberty", "dark"];
+const STYLES: [&str; 2] = ["liberty", "fiord"];
 /// Plages de caractères enregistrées pour chaque police du style : latin de base, latin étendu, ponctuation générale.
 const GLYPH_RANGES: [&str; 3] = ["0-255", "256-511", "8192-8447"];
 

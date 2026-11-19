@@ -1,4 +1,4 @@
-// Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « dark »
+// Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « fiord »
 // (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écrits dans src-tauri/resources/map-style/ (versionnés, ressource Tauri
 // « map-style », voir tauri.conf.json) avec la même disposition que le style téléchargé avec une zone (private_maps.rs) :
 //   styles/<style>.json, sprites/sprite[@2x].json|png, fonts/<police>/<plage>.pbf
@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROVIDER = 'https://tiles.openfreemap.org';
-const STYLES = ['liberty', 'dark'];
+const STYLES = ['liberty', 'fiord'];
 const GLYPH_RANGES = ['0-255', '256-511', '8192-8447'];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');

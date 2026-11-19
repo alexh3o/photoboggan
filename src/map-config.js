@@ -13,7 +13,7 @@ export const MAP_PROVIDER = {
   // Un style par thème de l'application (noms des styles du fournisseur, aussi enregistrés pour la carte privée : private_maps::STYLES).
   styles: {
     light: 'liberty',
-    dark: 'dark',
+    dark: 'fiord',
   },
 };
 
