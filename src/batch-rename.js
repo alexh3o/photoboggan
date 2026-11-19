@@ -2,7 +2,7 @@ import './batch-rename.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp } from './i18n.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
-import { isWriteLocked, failureDetailsAction } from './metadata-writes.js';
+import { isWriteLocked, showFailureDetails } from './metadata-writes.js';
 import { newStep, splitFileName, validateRecipe, evaluate, STEP_TYPES } from './batch-rename-engine.js';
 
 // Batch rename (F2 or "Rename…" of the context menu on several photos). The dialog builds a recipe of steps (replace, insert, delete), shows the
@@ -94,7 +94,7 @@ function runBatch(items, onDone) {
       args: { items },
       labelKey: 'Renaming files ({count})',
       labelParams: { count: items.length },
-      onResult: (result, stopped, error) => onDone(result, stopped, error),
+      onResult: (result, stopped, error, queuedTask) => onDone(result, stopped, error, queuedTask),
     });
     return;
   }
@@ -120,8 +120,22 @@ async function runDirect(items, onDone) {
   await onDone(result, false, failure);
 }
 
-// End of a batch: interface updated, Ctrl+Z armed, one toast (its button lists the failures, otherwise it undoes the batch).
-async function finishBatch(result, stopped, error) {
+// The failures of a batch stay in the tasks window ("Show errors" / "Dismiss") instead of a toast that closes by itself: the task of the queue that
+// just ran, or a new entry when the batch ran at once.
+function keepFailures(failures, queuedTask, count, notes = []) {
+  const options = { title: t('Some files could not be renamed'), failures, notes };
+  deps.keepTaskReady(queuedTask ?? null, {
+    kind: 'rename',
+    labelKey: 'Renaming files ({count})',
+    labelParams: { count },
+    readyText: tp('{count} file not renamed', failures.length),
+    showLabel: t('Show errors'),
+    onShow: () => showFailureDetails(options),
+  });
+}
+
+// End of a batch: interface updated, Ctrl+Z armed, one toast (with the "Undo" button); the failures are kept in the tasks window.
+async function finishBatch(result, stopped, error, queuedTask) {
   if (error) {
     deps.showToast(t('Rename failed: {error}', { error }));
     return;
@@ -135,8 +149,8 @@ async function finishBatch(result, stopped, error) {
     undoEntry = deps.pushUndo(() => undoBatch(renamed));
   }
   const failures = result.failed.map(failure => ({ path: failure.path, error: backendFailureText(failure.code, failure.detail) }));
-  const details = failureDetailsAction(t('Some files could not be renamed'), failures, { notes: [renamed.length ? t('Ctrl+Z gives the files that were renamed their previous names back.') : ''] });
-  const action = details ?? (undoEntry ? deps.undoToastAction(undoEntry) : null);
+  if (failures.length) keepFailures(failures, queuedTask, renamed.length + failures.length + result.unchanged, [renamed.length ? t('Ctrl+Z gives the files that were renamed their previous names back.') : '']);
+  const action = undoEntry ? deps.undoToastAction(undoEntry) : null;
   const parts = [];
   if (renamed.length) parts.push(tp('{count} file renamed', renamed.length));
   if (result.unchanged) parts.push(tp('{count} file unchanged', result.unchanged));
@@ -159,7 +173,7 @@ function undoBatch(renamed) {
     deps.pushUndo(() => undoBatch(renamed));
     return;
   }
-  runBatch(items, async (result, stopped, error) => {
+  runBatch(items, async (result, stopped, error, queuedTask) => {
     if (error) {
       deps.showToast(t('Rename failed: {error}', { error }));
       return;
@@ -167,10 +181,10 @@ function undoBatch(renamed) {
     if (!result) return;
     if (result.renamed.length) await deps.applyMoved(result.renamed);
     const failures = result.failed.map(failure => ({ path: failure.path, error: backendFailureText(failure.code, failure.detail) }));
-    const details = failureDetailsAction(t('Some files could not be renamed'), failures);
+    if (failures.length) keepFailures(failures, queuedTask, result.renamed.length + failures.length);
     const parts = [tp('Renaming undone for {count} file', result.renamed.length)];
     if (failures.length) parts.push(tp('{count} file not renamed', failures.length));
-    deps.showToast(parts.join(' · '), false, details);
+    deps.showToast(parts.join(' · '));
   });
 }
 
@@ -312,6 +326,7 @@ export async function openBatchRename(targets) {
     renderStepErrors();
     scheduleCheck();
     renderPreview();
+    saveButton.disabled = state.steps.length === 0; // a recipe can be saved as soon as it has a step
   }
 
   // --- Rendering of the preview

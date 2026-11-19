@@ -5836,7 +5836,7 @@ const RESUMABLE_TASK_KINDS = ['add', 'rescan-all', 'rescan-folder'];
 const isResumableTask = task => RESUMABLE_TASK_KINDS.includes(task.kind);
 
 function taskStatusText(task) {
-  if (task.status === 'ready') return tp('Results ready: {count} group', task.groupCount);
+  if (task.status === 'ready') return task.readyText ?? tp('Results ready: {count} group', task.groupCount);
   if (task.status === 'waiting') return t('Waiting');
   if (task.status === 'paused') return `${taskPercent(task)} % · ${t('Paused')}`;
   if (task.pauseRequested) return t('Pausing…');
@@ -5917,7 +5917,7 @@ function buildTaskToast(task) {
   show.type = 'button';
   show.className = 'task-toast-show';
   show.hidden = true;
-  show.addEventListener('click', () => showReadyDuplicateResults(task));
+  show.addEventListener('click', () => showReadyTask(task));
   toast.append(text, show, close);
   return toast;
 }
@@ -5944,7 +5944,7 @@ function buildTaskRow(task) {
   const action = document.createElement('button');
   action.type = 'button';
   action.className = 'task-item-action';
-  action.addEventListener('click', () => (task.status === 'ready' ? showReadyDuplicateResults(task) : removeOrStopTask(task)));
+  action.addEventListener('click', () => (task.status === 'ready' ? showReadyTask(task) : removeOrStopTask(task)));
   // A finished duplicate search whose results are not shown yet: "Show" (the main button) or "Dismiss" (this one).
   const dismiss = document.createElement('button');
   dismiss.type = 'button';
@@ -5976,7 +5976,7 @@ function syncTaskUI() {
     textElement.textContent = `${taskName(task)} · ${taskStatusText(task)}`;
     const showButton = toast.querySelector('.task-toast-show');
     showButton.hidden = task.status !== 'ready';
-    showButton.textContent = t('Show');
+    showButton.textContent = task.showLabel ?? t('Show');
     // Dossier en cours d'analyse (vérification d'intégrité), sur une seconde ligne.
     if (task.detail && task.status === 'running') {
       const detail = document.createElement('span');
@@ -6020,7 +6020,7 @@ function syncTaskUI() {
     bar.querySelector('span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
     row.classList.toggle('ready', task.status === 'ready');
     const action = row.querySelector('.task-item-action');
-    action.textContent = task.status === 'ready' ? t('Show') : task.status === 'waiting' || task.status === 'paused' ? t('Remove from queue') : t('Stop');
+    action.textContent = task.status === 'ready' ? task.showLabel ?? t('Show') : task.status === 'waiting' || task.status === 'paused' ? t('Remove from queue') : t('Stop');
     action.disabled = task.stopRequested;
     const pause = row.querySelector('.task-item-pause');
     pause.hidden = !isResumableTask(task) || !['waiting', 'running', 'paused'].includes(task.status);
@@ -6198,9 +6198,9 @@ function dropScanTasksForFolder(path) {
 
 // Tâches sur des fichiers (déplacement, copie, redimensionnement) : famille « files », attendent leur tour sans jamais être refusées comme doublon.
 const FILE_TASK_KINDS = ['move', 'copy', 'resize', 'rename'];
-const hasFileTask = () => scanTasks.some(task => FILE_TASK_KINDS.includes(task.kind));
+const hasFileTask = () => scanTasks.some(task => FILE_TASK_KINDS.includes(task.kind) && task.status !== 'ready'); // a finished task kept in the list only shows its errors
 // Photos that a move or a batch rename of the queue is going to change the path of: metadata is not written to them meanwhile (see writeMarking).
-const queuedPathsBeingChanged = () => new Set(scanTasks.flatMap(task => (task.kind === 'move' ? task.args?.paths ?? [] : task.kind === 'rename' ? (task.args?.items ?? []).map(item => item.path) : [])));
+const queuedPathsBeingChanged = () => new Set(scanTasks.filter(task => task.status !== 'ready').flatMap(task => (task.kind === 'move' ? task.args?.paths ?? [] : task.kind === 'rename' ? (task.args?.items ?? []).map(item => item.path) : [])));
 
 // Met une tâche en file d'attente ; elle démarre tout de suite si rien ne tourne. Elle est refusée, avec un message, quand une tâche en cours ou en attente
 // couvre déjà ce dossier (même dossier, dossier parent, ou relecture de toute la collection). Renvoie true si la tâche est en file.
@@ -6632,6 +6632,26 @@ async function showReadyDuplicateResults(task) {
   } finally {
     task.showing = false;
   }
+}
+
+// "Show" of a finished task kept in the list: what the task offers itself (`onShow`, e.g. the failures of a batch rename, which stay in the list until
+// "Dismiss"), otherwise the results of a duplicate search.
+async function showReadyTask(task) {
+  if (task.onShow) await task.onShow(task);
+  else await showReadyDuplicateResults(task);
+}
+
+// A finished task that has something to show (`readyText`, `showLabel`, `onShow`) stays in the list ('ready') until it is dismissed: the task that
+// just ran (`task`), or a new entry for an operation that did not go through the queue (`task` omitted, `properties` gives its name).
+function keepTaskReady(task, properties) {
+  if (!task) {
+    scanTaskCounter += 1;
+    task = { id: `scan-${Date.now()}-${scanTaskCounter}`, path: null, percent: 100, stopRequested: false, toastHidden: false };
+    scanTasks.push(task);
+  }
+  Object.assign(task, { status: 'ready' }, properties);
+  task.toastHidden = !tasksModal.classList.contains('hidden'); // the tasks window already shows it
+  syncTaskUI();
 }
 
 function removeReadyTask(task) {
@@ -8312,6 +8332,7 @@ initBatchRename({
   setBusy: busy => { photoMoveRunning = busy; },
   pushUndo,
   undoToastAction,
+  keepTaskReady,
 });
 
 initPhotoActions({

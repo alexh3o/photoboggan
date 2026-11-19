@@ -535,13 +535,16 @@ fn try_unit(unit: &mut Unit) -> Step {
 fn park(unit: &mut Unit, counter: &mut usize, conn: &rusqlite::Connection) -> Result<(), String> {
     let parent = unit.source.parent().map(Path::to_path_buf).ok_or("Dossier introuvable")?;
     *counter += 1;
-    let image_temp = parent.join(format!(".photoboggan-rename-{}-{}.tmp", std::process::id(), *counter));
+    // The temporary name keeps the extension (the photo stays a photo for the catalogue) and its moved sidecar becomes its own `.xmp`: if the
+    // application were killed while a file is parked, the photo would still be there, with its metadata, under this name.
+    let extension = unit.source.extension().map(|extension| format!(".{}", extension.to_string_lossy())).unwrap_or_default();
+    let image_temp = parent.join(format!(".photoboggan-rename-{}-{}{}", std::process::id(), *counter, extension));
     fs::rename(&unit.img_at, &image_temp).map_err(|error| error.to_string())?;
     let previous = std::mem::replace(&mut unit.img_at, image_temp);
     let moved_sidecar = unit.sidecar.as_ref().filter(|sidecar| !sidecar.copy).map(|sidecar| sidecar.from.clone());
     let mut sidecar_temp = None;
     if let Some(from) = moved_sidecar {
-        let temp = parent.join(format!(".photoboggan-rename-{}-{}-sidecar.tmp", std::process::id(), *counter));
+        let temp = appended_sidecar(&unit.img_at); // img_at is the temporary photo name here
         let current = unit.sidecar_at.clone().unwrap_or(from);
         if let Err(error) = fs::rename(&current, &temp) {
             let _ = fs::rename(&unit.img_at, &previous);

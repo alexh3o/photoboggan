@@ -45,13 +45,14 @@ One line per term, built from the terms used by the other docs. Module docs hold
 
 - **Task / queue**: long operations run through `enqueueScanTask` (`main.js`): one per `task_id`, one toast each, listed in the "Running tasks" (hourglass) modal, cancellable (`cancel_scan` flag).
 - **Task family** (`familyOf`): grouping that only decides which tasks are refused as duplicates; families do not run in parallel (`main-window.md`).
-- **`ready` / `paused` task**: `ready` = finished search waiting for "Show" (duplicates); `paused` = user pause, resumable (`resumeSince`).
+- **`ready` / `paused` task**: `ready` = finished task kept in the list until "Dismiss": a duplicate search waiting for "Show", or a batch rename that left some photos unrenamed ("Show errors", `keepTaskReady`); `paused` = user pause, resumable (`resumeSince`).
 - **Semantic lane**: separate queue for content analysis (`pumpSemanticQueue`).
 - **`PriorityGuard`**: RAII marker of a foreground task; the semantic scan pauses while one exists.
 - **Dirty (face)**: a face edit not yet written to the files.
 
 ## Features
 
+- **Batch rename recipe**: the ordered steps (replace / insert / delete, with variables) that compute the new name of every selected photo; saved ones live in `rename_presets` (`modules/photo-operations.md`). Not to be confused with `recipes.md`.
 - **Face region**: a rectangle (MWG, Microsoft, ACDSee formats) naming a person; **imported / detected / manual** is its origin.
 - **Face states**: `unknown`, `auto` (attributed, not yet confirmed), `suggested` ("To confirm"), `confirmed`, `ignored`, `not_face`, `filtered` (`faces.md`).
 - **Person**: named identity linked to a keyword node; shown under the keyword's name; **alias** is display-only; **merge** is undoable.

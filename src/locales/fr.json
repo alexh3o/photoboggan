@@ -1886,5 +1886,6 @@
   "Recipe name": "Nom de la recette",
   "Delete the recipe “{name}”?": "Supprimer la recette « {name} » ?",
   "One photo: its new name. Several photos: batch rename": "Une photo : son nouveau nom. Plusieurs photos : renommage en lot",
-  "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo": "Note, couleur, fanion pick, rotation ou renommage en lot ; jusqu’à 20 modifications en arrière. La vue Visages a sa propre annulation"
+  "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo": "Note, couleur, fanion pick, rotation ou renommage en lot ; jusqu’à 20 modifications en arrière. La vue Visages a sa propre annulation",
+  "Show errors": "Afficher les erreurs"
 }

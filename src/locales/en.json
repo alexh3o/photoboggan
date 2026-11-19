@@ -1886,5 +1886,6 @@
   "Recipe name": "Recipe name",
   "Delete the recipe “{name}”?": "Delete the recipe “{name}”?",
   "One photo: its new name. Several photos: batch rename": "One photo: its new name. Several photos: batch rename",
-  "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo": "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo"
+  "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo": "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo",
+  "Show errors": "Show errors"
 }

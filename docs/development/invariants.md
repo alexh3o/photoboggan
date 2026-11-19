@@ -52,6 +52,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 - A metadata write changes size and mtime: `keep_cached_images` renames the cached files to their new names instead of regenerating them. Any new write path must go through it.
 - Listing the cache must use `cache_files` (two levels); writing a cache file must create its parent directory (`write_cache_file` does). Test: `cache_files_are_spread_over_subfolders_and_listed_recursively`.
 - Orphans (old names) are removed by `purge_orphan_cache` (button in Settings, and end of a full rescan).
+- A rename or a move changes the path, which is part of the name: `carry_cache_file` (single rename, move, batch rename) carries the thumbnail and the RAW preview to their new names. Everything else keyed to a photo (albums, keywords, faces, hashes, embeddings) uses `photo_id`, size and mtime, which a rename keeps.
 
 **3.2 Hash layouts.** `duplicates::LAYOUT_VERSION` (which bytes of a file are hashed) and `phash::ALGO_VERSION` (perceptual hash algorithm) are stored with each cached hash; rows with another version are ignored. Changing the hashed bytes or the algorithm **requires** a bump, otherwise duplicate results are silently wrong. The semantic index also re-analyses rows "with another hash version" (it stores `duplicates::LAYOUT_VERSION` as `hash_version`, so a layout bump also re-analyses images; test `rows_without_a_hash_or_with_another_hash_version_are_analysed_again_then_hashed`). Embeddings carry their `model_id`.
 
@@ -72,7 +73,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 ## 6. Long tasks
 
-- Every scan, rescan, integrity check, copy / move / resize, keyword write of 20+ photos, face detection, model download, duplicate search, private-zone download, update download and content analysis goes through `enqueueScanTask` (main.js), never a bare `invoke` with its own progress UI.
+- Every scan, rescan, integrity check, copy / move / resize, batch rename of 20+ photos, keyword write of 20+ photos, face detection, model download, duplicate search, private-zone download, update download and content analysis goes through `enqueueScanTask` (main.js), never a bare `invoke` with its own progress UI.
 - Each task has a unique id (`scan-<time>-<n>`) passed as `taskId`; the backend reports progress with `scan-progress` for that id and checks `scan_cancel_flag(task_id)`; it must call `release_scan_cancel_flag` when done. A stopped task keeps what was done (no rollback) and must leave no half-installed file.
 - Heavy backend work runs in `spawn_blocking` / rayon, never in a plain `#[tauri::command] fn` (main thread).
 
