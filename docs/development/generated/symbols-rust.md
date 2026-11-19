@@ -81,23 +81,23 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `is_already_exists` · L492
 - `try_unit` · L497 — Tries the unit: the photo takes its new name together with its sidecar, or nothing changes.
 - `park` · L535 — Sets the unit aside under a temporary name in the same folder (photo and moved sidecar), to break a swap or a case-only change.
-- `restore` · L570 — Puts a parked unit back under its own name; otherwise says where it stayed.
-- `commit` · L592 — Catalogue and caches after a successful rename.
-- `pub execute` · L607
-- *struct* `TaskHooks` · L686
-- `TaskHooks::cancelled` · L689
-- `TaskHooks::advance` · L690
-- `split_tracked` · L698 — Photos of the batch known to the catalogue; the others are failures.
-- `pub preview_rename_batch` · L712 — Preview: what the batch would do, photo by photo, without changing anything (collisions with files on the disk, path length, sidecars...).
-- `pub rename_photos` · L734 — Renames the batch. Started by the task queue (`task_id`) beyond a few photos: progress published, stop possible between two photos
-- `pub init_schema` · L765
-- *struct* `pub RenamePreset` · L779
-- `list_presets` · L786
-- `save_preset` · L795 — Saves a recipe (same name, ignoring case: it is replaced) and returns the list.
-- `delete_preset` · L809
-- `pub list_rename_presets` · L815
-- `pub save_rename_preset` · L822
-- `pub delete_rename_preset` · L829
+- `restore` · L573 — Puts a parked unit back under its own name; otherwise says where it stayed.
+- `commit` · L595 — Catalogue and caches after a successful rename.
+- `pub execute` · L610
+- *struct* `TaskHooks` · L689
+- `TaskHooks::cancelled` · L692
+- `TaskHooks::advance` · L693
+- `split_tracked` · L701 — Photos of the batch known to the catalogue; the others are failures.
+- `pub preview_rename_batch` · L715 — Preview: what the batch would do, photo by photo, without changing anything (collisions with files on the disk, path length, sidecars...).
+- `pub rename_photos` · L737 — Renames the batch. Started by the task queue (`task_id`) beyond a few photos: progress published, stop possible between two photos
+- `pub init_schema` · L768
+- *struct* `pub RenamePreset` · L782
+- `list_presets` · L789
+- `save_preset` · L798 — Saves a recipe (same name, ignoring case: it is replaced) and returns the list.
+- `delete_preset` · L812
+- `pub list_rename_presets` · L818
+- `pub save_rename_preset` · L825
+- `pub delete_rename_preset` · L832
 
 ## db.rs (23)
 

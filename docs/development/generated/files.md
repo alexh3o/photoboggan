@@ -34,7 +34,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `FEATURES.md` | 152 |  |
-| `USER_GUIDE.md` | 437 |  |
+| `USER_GUIDE.md` | 528 |  |
 
 ## docs/development
 
@@ -42,12 +42,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `_PROGRESS.md` | 208 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 102 |  |
+| `architecture.md` | 104 |  |
 | `build-release.md` | 87 |  |
 | `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
-| `glossary.md` | 82 |  |
-| `invariants.md` | 90 |  |
+| `glossary.md` | 83 |  |
+| `invariants.md` | 91 |  |
 | `README.md` | 56 |  |
 | `recipes.md` | 114 |  |
 | `style.md` | 59 |  |
@@ -59,15 +59,15 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 154 |  |
-| `css.md` | 590 |  |
-| `db-schema.md` | 269 |  |
+| `css.md` | 594 |  |
+| `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 317 |  |
-| `ipc-commands.md` | 188 |  |
-| `module-deps.md` | 103 |  |
-| `symbols-js.md` | 1513 |  |
-| `symbols-rust.md` | 1382 |  |
-| `tests.md` | 490 |  |
+| `files.md` | 321 |  |
+| `ipc-commands.md` | 193 |  |
+| `module-deps.md` | 106 |  |
+| `symbols-js.md` | 1553 |  |
+| `symbols-rust.md` | 1433 |  |
+| `tests.md` | 514 |  |
 
 ## docs/development/modules
 
@@ -115,7 +115,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `author-rights.css` | 42 | Author and rights: "Author and rights" section of the Info tab (info-author.js) and lower half of the Description tab (description-panel.js, rights-presets.js: preset line and presets window). |
 | `batch-rename-engine.js` | 367 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
-| `batch-rename.js` | 608 |  |
+| `batch-rename.js` | 623 |  |
 | `defaults.jsonc` | 195 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
@@ -141,7 +141,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 9208 |  |
+| `main.js` | 9229 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -222,7 +222,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
-| `batch_rename.rs` | 838 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
+| `batch_rename.rs` | 841 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
 | `db.rs` | 661 |  |
 | `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 3163 |  |
@@ -310,8 +310,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1891 |  |
-| `fr.json` | 1891 |  |
+| `en.json` | 1892 |  |
+| `fr.json` | 1892 |  |
 
 ## webpage
 
