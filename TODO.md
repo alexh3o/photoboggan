@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
-- [ ] *style*: `map` alternative (more visible) dark map style
+- [x] *style*: `map` more visible dark map style
 - [x] *feat*: `UI` display date modified and date created somewhere
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [x] *refactor*: `grid` date modified sorting must see metadata writes

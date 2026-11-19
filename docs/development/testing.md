@@ -1,4 +1,4 @@
-<!-- verified: a0e7610 | sources: src-tauri/src/test_support.rs, .github/workflows/tests.yml, src-tauri/Cargo.toml -->
+<!-- verified: 6891c22 | sources: src-tauri/src/test_support.rs, .github/workflows/tests.yml, src-tauri/Cargo.toml -->
 # Testing
 
 ## Purpose

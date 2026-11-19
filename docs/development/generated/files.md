@@ -65,7 +65,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `files.md` | 321 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 106 |  |
-| `symbols-js.md` | 1553 |  |
+| `symbols-js.md` | 1556 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
@@ -98,7 +98,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `fetch-exiftool.mjs` | 106 | Télécharge la distribution officielle d'ExifTool dans src-tauri/vendor/exiftool/, embarquée dans l'application (ressource Tauri « exiftool », voir tauri.conf.json et src-tauri/src/exiftool.rs). Les binaires ne sont pas … |
-| `fetch-map-style.mjs` | 58 | Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « fiord » (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écri… |
+| `fetch-map-style.mjs` | 58 | Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « fiord » (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écr… |
 | `gen-docs.mjs` | 445 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
