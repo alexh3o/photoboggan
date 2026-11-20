@@ -1,4 +1,4 @@
-<!-- verified: 9806244 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, index.html, src/styles.css -->
+<!-- verified: 42b3f57 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, index.html, src/styles.css -->
 # Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, slideshow (main.js, part 2)
 
 ## Purpose

@@ -1,4 +1,4 @@
-<!-- verified: f2d6ff7 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: 42b3f57 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
