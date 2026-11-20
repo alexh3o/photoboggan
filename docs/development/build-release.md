@@ -1,4 +1,4 @@
-<!-- verified: 7d1c85a | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
+<!-- verified: 5510914 | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
 # Build, packaging and release
 
 ## Purpose
@@ -19,7 +19,7 @@ How to build and run photoboggan, which assets come from outside the repository,
 ## How it works
 
 ### Prerequisites
-Node 20 (CI), Rust stable (heic-rs needs Rust 1.85+, see the comment in `Cargo.toml`), the Tauri v2 platform requirements: on Linux `libwebkit2gtk-4.1-dev`, `build-essential`, `libssl-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev` (the list used by both workflows); on Linux the app also needs `perl` at run time for ExifTool (`bundle.linux.deb.depends`). Then `npm install`.
+Node 22 (CI), Rust stable (heic-rs needs Rust 1.85+, see the comment in `Cargo.toml`), the Tauri v2 platform requirements: on Linux `libwebkit2gtk-4.1-dev`, `build-essential`, `libssl-dev`, `libgtk-3-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev` (the list used by both workflows), plus `libfuse2` and `patchelf` for the AppImage bundler (release workflow only); on Linux the app also needs `perl` at run time for ExifTool (`bundle.linux.deb.depends`). Then `npm install`.
 
 ### Development loop
 ```bash
@@ -42,30 +42,31 @@ npm run build            # frontend only (Vite, output dist/)
 Models and ONNX Runtime are never in the installer (AGENTS.md §5.I). `dev_tools/` is ignored by Git.
 
 ### Production build and packages
-`npm run tauri build` runs `beforeBuildCommand` (`npm run fetch-exiftool && npm run build`) then compiles and bundles for `targets: ["msi", "deb"]` (a `.msi` on Windows, a `.deb` on Linux). Bundled resources: `vendor/exiftool/` → `exiftool/` and `resources/map-style/` → `map-style/`; `LICENSE.rtf` as licence file. The webview CSP (`tauri.conf.json`): only `'self'`, IPC and asset protocol, plus `https://tiles.openfreemap.org` in `connect-src` for map tiles (the one webview network access, `../architecture.md`); the asset protocol scope is `**` (the webview reads image files directly).
+`npm run tauri build` runs `beforeBuildCommand` (`npm run fetch-exiftool && npm run build`) then compiles and bundles for `targets: ["msi", "deb", "appimage"]` (a `.msi` on Windows; a `.deb` and an `.AppImage` on Linux; Tauri skips the targets that do not apply to the host platform). Bundled resources: `vendor/exiftool/` → `exiftool/` and `resources/map-style/` → `map-style/`; `LICENSE.rtf` as licence file. The webview CSP (`tauri.conf.json`): only `'self'`, IPC and asset protocol, plus `https://tiles.openfreemap.org` in `connect-src` for map tiles (the one webview network access, `../architecture.md`); the asset protocol scope is `**` (the webview reads image files directly).
 - Windows MSI (WiX): one MSI per language, English default (`wix/en-US.wxl`, `wix/fr-FR.wxl` hold the installer texts); images `icons/msibanner.bmp` and `icons/msidialog.bmp` (the left panel is 164 px wide, AGENTS.md §5.I). Installer file names end in `_en-US.msi` and `_fr-FR.msi`; the updater picks `_en-US.msi` first.
 - Linux `.deb` depends on `perl`.
-- The release must keep one `.msi` and one `.deb`, otherwise the update dialog sends the user to the GitHub page.
+- Linux `.AppImage` has no dependency metadata and bundles neither WebKitGTK nor Perl: the user must have `libwebkit2gtk-4.1` and `perl` (ExifTool) installed. The in-app updater keeps selecting the `.deb` (`modules/updates.md`).
+- The release must keep one `.msi` and one `.deb`, otherwise the update dialog sends the user to the GitHub page. The `.AppImage` is an additional manual install option and is ignored by the updater.
 
 ### CI workflows
 The release workflow passes the `TAURI_PRIVATE_KEY` and `TAURI_PRIVATE_KEY_PASSWORD` GitHub secrets to Tauri as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; `bundle.createUpdaterArtifacts` must remain enabled so signed updater bundles are produced.
 - `tests.yml`: push to `main` and every pull request; `ubuntu-22.04` and `windows-latest`; builds the frontend, `cargo test`, and on Windows the ExifTool integration tests (`testing.md`).
-- `release.yml`: triggered by pushing a tag `v*`. Matrix: `ubuntu-22.04` with `--bundles deb`, and `windows-latest`. Steps: checkout with full history; Node 20; Rust stable; on Linux only, install `git-cliff` (`cargo install git-cliff`) and generate the changelog of the latest tag (`git cliff --latest --strip header`) into an environment variable; Linux system libraries; `npm install`; then `tauri-apps/tauri-action@v0` creates the GitHub release for the tag as a **draft and pre-release** with the binaries attached. The Linux job writes the changelog as the release body; the Windows job sets the body to "Release for Windows". The Linux job passes `appVersion` = `<tag>-beta`, but it has no visible effect: the published `.deb` names follow the version of `tauri.conf.json` (`photoboggan_0.6.10_amd64.deb`; older releases had `-alpha` / `-beta` suffixes). The updater ignores suffixes anyway (three numbers only).
+- `release.yml`: triggered by pushing a tag `v*`. A `create-release` job checks out the full history, installs `git-cliff` (`cargo install git-cliff`), generates the changelog of the latest tag (`git cliff --latest --strip header`) and creates the GitHub release for the tag as a **draft and pre-release** (`gh release create --notes-file`), exposing its id. The `publish-release` matrix (`ubuntu-22.04` with `--bundles deb,appimage`; `windows-latest` with the `bundle.targets` defaults) then builds and uploads the bundles with `tauri-apps/tauri-action@v0`, given that id. Creating the release once beforehand is deliberate: tauri-action never updates an existing release, so it kept the body of whichever platform created the draft first. The build jobs use Node 22 and `npm install`; all jobs use Rust stable; the Windows job's Linux-only targets are skipped with a warning. The `.deb` and `.AppImage` names follow the version of `tauri.conf.json` (`photoboggan_<version>_amd64.deb`, `photoboggan_<version>_amd64.AppImage`); the updater ignores suffixes anyway (three numbers only).
 
 ### Release procedure (as implied by the files)
 1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (they must stay equal; `Cargo.lock` follows `Cargo.toml`). The updater compares the installed version (`app.package_info()`) with release tags.
-2. Commit, tag `v<x>.<y>.<z>` and push the tag; wait for both jobs.
-3. Check the draft: one `.msi` per language, one `.deb`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it); the flag is cleared by hand when publishing (no workflow step does it; the published v0.6.4–v0.6.10 are stable).
+2. Commit, tag `v<x>.<y>.<z>` and push the tag; wait for the workflow.
+3. Check the draft: one `.msi` per language, one `.deb`, one `.AppImage`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it); the flag is cleared by hand when publishing (no workflow step does it; the published v0.6.4–v0.6.10 are stable).
 4. Tags that are not `v<x>.<y>.<z>` (`face-models-1`, `semantic-models-1`) are model assets and are ignored by the updater.
 
 ### Platform differences
 Platform code is isolated by `cfg`: `windows` crate (Shell video thumbnails, Job object around ExifTool, drive types for `has_trash`), `hide_console_window`, installer launch (`msiexec` vs `xdg-open`), ExifTool launcher (`exiftool.exe` vs `perl exiftool`), drive flush in `flush_to_disk`. Rules: `../invariants.md` §8.
 
 ## Contracts
-- IPC / events / database / settings: none. External contract: the updater requires release tags `v<x>.<y>.<z>`, `.msi` / `.deb` assets and GitHub digests (`modules/updates.md`).
+- IPC / events / database / settings: none. External contract: the updater requires release tags `v<x>.<y>.<z>`, `.msi` / `.deb` assets and GitHub digests (`modules/updates.md`); the `.AppImage` is published for manual installation only.
 
 ## Dependencies
-- Uses: Tauri CLI and `tauri-action`, Vite, git-cliff, SourceForge and GitHub downloads.
+- Uses: Tauri CLI and `tauri-action`, Vite, git-cliff, the GitHub CLI (`gh`), SourceForge and GitHub downloads.
 - Used by: `modules/updates.md` (asset names), `modules/metadata-read-write.md` (bundled ExifTool), `modules/private-zones.md` and `modules/maps-and-geolocation.md` (bundled map style), face and semantic modules (manifests compiled from `face_models.json` / `semantic_models.json`).
 
 ## Invariants and sensitive areas
@@ -83,4 +84,4 @@ CI runs `tests.yml` only. No test covers the build scripts or the release workfl
 3. New downloadable asset: follow the model scripts (pinned hash and size, manifest compiled in, release never modified).
 
 ## Open questions
-none. The changelog uses git-cliff's built-in default configuration (there is no `cliff.toml`). Possible cleanup: drop the ineffective `appVersion` line of `release.yml`.
+none. The changelog uses git-cliff's built-in default configuration (there is no `cliff.toml`).

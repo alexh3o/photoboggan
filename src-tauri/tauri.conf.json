@@ -64,7 +64,7 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": ["msi", "deb"],
+    "targets": ["msi", "deb", "appimage"],
     "licenseFile": "LICENSE.rtf",
     "icon": [
       "icons/32x32.png",

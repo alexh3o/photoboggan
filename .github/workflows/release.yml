@@ -3,13 +3,67 @@ name: "Publish Cross-Platform Release"
 on:
   push:
     tags:
-      - 'v*' # Se déclenche quand vous poussez un tag (ex: v1.0.0)
+      - 'v*' # Tag push (e.g. v1.0.0)
+
+permissions:
+  contents: write
 
 jobs:
+  # Create the draft release once, with the changelog as its body. tauri-action
+  # never updates an existing release, so letting both matrix jobs create it
+  # made the body depend on which platform finished first.
+  create-release:
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.release.outputs.id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # git-cliff needs the full history
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install git-cliff
+        run: cargo install git-cliff
+
+      - name: Generate changelog
+        run: git cliff --latest --strip header > CHANGELOG.md
+
+      - name: Create or update the draft release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          # Draft releases are not returned by the releases/tags endpoint, so list them.
+          find_id() {
+            gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq "map(select(.tag_name == \"$tag\" and .draft)) | .[0].id"
+          }
+          id=$(find_id)
+          if [ "$id" = "null" ] || [ -z "$id" ]; then
+            gh release create "$tag" \
+              --draft \
+              --prerelease \
+              --title "Release $tag" \
+              --notes-file CHANGELOG.md
+            id=$(find_id)
+          else
+            # Re-run for the same tag: refresh the notes of the existing draft.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
+              -f "body=$(cat CHANGELOG.md)" > /dev/null
+          fi
+          if [ "$id" = "null" ] || [ -z "$id" ]; then
+            echo "Draft release for $tag not found after creation." >&2
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
   publish-release:
-    permissions:
-      contents: write
-    
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
@@ -24,34 +78,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0 # Nécessaire pour que git-cliff récupère tout l'historique
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      # Installation directe de git-cliff via Cargo (uniquement sur Linux)
-      - name: Install git-cliff
-        if: matrix.platform == 'ubuntu-22.04'
-        run: cargo install git-cliff
-
-      # Génération du Changelog et stockage dans une variable d'environnement GitHub
-      - name: Generate Changelog
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          changelog=$(git cliff --latest --strip header)
-          {
-            echo 'content<<EOF'
-            echo "$changelog"
-            echo 'EOF'
-          } >> $GITHUB_ENV
-
-      # Installation des dépendances système pour Linux (WebKitGTK, etc.)
+      # System libraries Tauri needs on Linux (WebKitGTK, etc.) plus what the
+      # AppImage bundler requires (libfuse2 to run linuxdeploy, patchelf).
       - name: Install Linux system dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -72,7 +109,7 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      # Compilation et publication en mode Draft (Brouillon) avec les binaires joints
+      # Build the bundles and upload them to the draft release created above.
       - name: Build and Release Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
@@ -81,11 +118,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
           NO_STRIP: "true"
         with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
-          releaseName: "Release ${{ github.ref_name }}"
-          releaseBody: ${{ matrix.platform == 'ubuntu-22.04' && env.content || 'Release for Windows' }}
-          releaseDraft: true
-          prerelease: true
           args: ${{ matrix.args }}
-          # Ajout du suffixe beta uniquement pour la version Linux (deb)
-          appVersion: ${{ matrix.platform == 'ubuntu-22.04' && format('{0}-beta', github.ref_name) || '' }}

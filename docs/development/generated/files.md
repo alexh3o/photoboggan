@@ -19,7 +19,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 92 |  |
+| `release.yml` | 124 |  |
 | `static.yml` | 38 |  |
 | `tests.yml` | 77 |  |
 
@@ -43,7 +43,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `_PROGRESS.md` | 208 |  |
 | `_TEMPLATE.md` | 62 |  |
 | `architecture.md` | 104 |  |
-| `build-release.md` | 87 |  |
+| `build-release.md` | 88 |  |
 | `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
 | `glossary.md` | 83 |  |
