@@ -30,11 +30,17 @@ After 25 years of photographing as a hobbyist and then a dad, I wanted less time
 
 ⚠️ The application is young and should be considered **beta** software. Use it at your own risk and always keep a **healthy, complete backup of your photos**. That said, file safety is our non-negotiable priority (see below).
 
+#### Releases
+
 - **Windows**: tested, stable, and used daily.
 - **Linux (`.deb`, `AppImage`)**: works, but I only test it quickly on some releases: it needs testing—give it a try and tell me!
-- **macOS and others**: maybe later, when stability is reached on windows and linux.
 
 Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` / `AppImage`for Ubuntu-Debian / Linux. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
+
+#### Building from Source
+
+Photoboggan can be also built from source for other platforms (MacOS, Linux).
+See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies and compilation instructions.
 
 ---
 
