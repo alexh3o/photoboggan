@@ -10,8 +10,8 @@
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
 - [x] *perf*: `fullscreen` slight lag when changing photo
-- [ ] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
-- [ ] *refactor*: `semantic` allow larger scores
+- [x] *fix*: `tree` folded state is not remembered
+- [x] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
 - [ ] *chore*: `linux` add appimage in github workflows
 - [ ] *fix*: `linux` deb update download works but opening the download with app manager does nothing
 - [ ] *fix*: `linux` no thumbnails on linux
@@ -36,6 +36,7 @@
 - [ ] *feat*: `files` prevent deletion of photos with stars
 - [ ] *feat*: `files` **sd card** import
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
+- [ ] *refactor*: `semantic` allow larger scores
 
 ## ❄️ Cold storage
 

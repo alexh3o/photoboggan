@@ -30,7 +30,7 @@ const GROUPS = [
     { a: 'Undo the last change', d: 'Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo', tag: 'Grid and fullscreen', k: [['Ctrl', 'Z']] },
     { a: 'Show in file explorer', k: [['E']] },
     { a: 'Open with the first program', d: 'Settings > Open with', k: [['O']] },
-    { a: 'Information Sheet', k: [['I']] },
+    { a: 'Information Sheet', k: [['J']] },
   ] },
   { title: 'Mouse', rows: [
     { a: 'Context menu', d: 'Info, delete, copy and more', k: [['Right-click']] },
@@ -59,7 +59,7 @@ const GROUPS = [
   { title: 'Panels (show / hide)', rows: [
     { a: 'Library panel', k: [['N']] },
     { a: 'Preview', k: [['P']] },
-    { a: 'Info panel', k: [['J']] },
+    { a: 'Info panel', k: [['I']] },
     { a: 'Keywords panel', k: [['K']] },
     { a: 'Description panel', tag: 'Normal view', k: [['D']] },
     { a: 'Toolbar', k: [['T']] },

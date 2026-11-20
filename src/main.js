@@ -4170,8 +4170,8 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
 // F      : Fullscreen toggle
 // G      : Shortcut guide
 // H      : Histogram: off / displayed / displayed with clippings
-// I      : Info sheet
-// J      : Info panel
+// I      : Info panel
+// J      : Info sheet
 // K      : Keywords panel
 // Ctrl+K : Keywords panel: all keywords / keywords of the selection
 // N      : panneau Bibliothèque
@@ -4315,11 +4315,11 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
     if (toggleFaceRegions()) return;
   }
-  // I, E, C et Suppr : sans modificateur, et jamais derrière une fenêtre ouverte (Paramètres, question…), où elles viseraient les photos masquées.
+  // J, E, C et Suppr : sans modificateur, et jamais derrière une fenêtre ouverte (Paramètres, question…), où elles viseraient les photos masquées.
   const modalOpen = Boolean(document.querySelector('.modal:not(.hidden)'));
   const plainKey = !e.ctrlKey && !e.metaKey && !e.altKey && !modalOpen;
   // Modale info
-  if (e.key.toLowerCase() === 'i' && plainKey) {
+  if (e.key.toLowerCase() === 'j' && plainKey) {
     if (photos[lastSelectedIndex]) {
       showPhotoInfo(photos[lastSelectedIndex]);
       return;
@@ -4403,11 +4403,11 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // Bascule des panneaux et modes :
-  // X : mode Comparer | P : aperçu | N : panneau Filtres (gauche) | J : panneau Info (droite)
+  // X : mode Comparer | P : aperçu | N : panneau Filtres (gauche) | I : panneau Info (droite)
   // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte.
-  // J / K / D : panneau de droite, onglet Info, Mots-clés ou Description (voir keywords-panel.js). Inactif en plein écran (où D affiche les
+  // I / K / D : panneau de droite, onglet Info, Mots-clés ou Description (voir keywords-panel.js). Inactif en plein écran (où D affiche les
   // informations de la photo, ci-dessus) ou lorsqu'une fenêtre modale est ouverte.
-  const sideTabByKey = { j: 'info', k: 'keywords', d: 'description' };
+  const sideTabByKey = { i: 'info', k: 'keywords', d: 'description' };
   const sideTab = sideTabByKey[e.key.toLowerCase()];
   if (sideTab && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
