@@ -431,7 +431,7 @@ export async function showFailureDialog(result, retry) {
     message: `${t('{written} written · {failed} failed', { written: result.written.length, failed: result.failed.length })}\n\n${failureLines(result.failed)}`,
     scrollable: true,
     buttons: [
-      { label: t('No'), value: 'no', cancel: true },
+      { label: t('Close'), value: 'no', cancel: true },
       { label: t('Retry'), value: 'retry', primary: true },
       { label: t('Show'), value: 'show' },
     ],

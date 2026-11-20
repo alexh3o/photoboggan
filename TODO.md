@@ -2,7 +2,7 @@
 
 ## 🚀 Next in line
 
-- [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
+- [x] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
 - [x] *fix*: `rename` add a delete all feature or authorize deleting more than filename length
 - [x] *style*: `map` more visible dark map style
 - [x] *feat*: `UI` display date modified and date created somewhere
@@ -27,6 +27,7 @@
 - [ ] *fix*: `tree` reordering root folders with grips in settings sometimes leaves them pending and needing a click confirmation
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
+- [ ] *chore*: `language` add a recipe for languages implementation
 
 ## ⚖️ Undecided
 
