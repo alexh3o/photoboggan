@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="/webpage/screenshots/logo256.png" alt="photoboggan" width="128" />
+  <img src="webpage/screenshots/logo256.png" alt="photoboggan" width="128" />
 </p>
 
 <h1 align="center">photoboggan</h1>
@@ -31,10 +31,10 @@ After 25 years of photographing as a hobbyist and then a dad, I wanted less time
 ⚠️ The application is young and should be considered **beta** software. Use it at your own risk and always keep a **healthy, complete backup of your photos**. That said, file safety is our non-negotiable priority (see below).
 
 - **Windows**: tested, stable, and used daily.
-- **Linux (`.deb`)**: works, but I have only tested it quickly on some releases: it needs testing—give it a try and share feedback!
-- **macOS & other Linux packages**: maybe later, when stability is reached on windows and linux.
+- **Linux (`.deb`, `AppImage`)**: works, but I only test it quickly on some releases: it needs testing—give it a try and tell me!
+- **macOS and others**: maybe later, when stability is reached on windows and linux.
 
-Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` for Ubuntu/Debian. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
+Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` / `AppImage`for Ubuntu-Debian / Linux. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
 
 ---
 
@@ -99,7 +99,7 @@ Downloads are available on the [Releases page](https://github.com/alexh3o/photob
   Organize with virtual folders, manual albums (without duplicating files), and **nestable smart albums** based on saved filters—a smart album placed inside another album inherits and refines its parent's rules.
 
 - 🛠️ **Complete toolkit & customizable UI**
-  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, UI font, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task queue manager with pause/cancel/ETA.
+  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, UI font, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch rename** filenames with templates and variables, **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task queue manager with pause/cancel/ETA.
 
 See [Screenshots](#screenshots) for a closer look.  
 Available languages: 🇬🇧 *English* and 🇫🇷 *French* (more welcome!).
@@ -134,20 +134,20 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 *Main View* (navigation, filters, preview & info panels can be enabled or disabled, thumbnails can be resized to a narrow column)
 
-![Faces Review](/webpage/screenshots/faces_review.jpg "Faces Review")
+![Faces Review](webpage/screenshots/faces_review.jpg "Faces Review")
 
 *Faces Review* (after detection and recognition, recognized faces can be confirmed or changed in batches and others set manually)
 
-![Display Options](/webpage/screenshots/display_options.jpg "Display Options")
+![Display Options](webpage/screenshots/display_options.jpg "Display Options")
 *Display Options* (dark/light theme, thumbnails size & layout, sorting, group separators...)
 
-![EXIF metadata](/webpage/screenshots/exif_panel.jpg "EXIF metadata")
+![EXIF metadata](webpage/screenshots/exif_panel.jpg "EXIF metadata")
 *EXIF metadata display*
 
-![Thumbnails only](/webpage/screenshots/thumbnails-only.jpg "Thumbnails only")
+![Thumbnails only](webpage/screenshots/thumbnails-only.jpg "Thumbnails only")
 *Thumbnails only* (scroll with mouse wheel or grab and slide!)
 
-![Fullscreen rating](/webpage/screenshots/fullscreen.jpg "Fullscreen rating")
+![Fullscreen rating](webpage/screenshots/fullscreen.jpg "Fullscreen rating")
 *Fullscreen* (press R to toggle rating bar, D to toggle photo information)
 
 <table>
@@ -159,26 +159,26 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 *Edit rating & color tag* for one photo or a selection
 
-![Compare Mode](/webpage/screenshots/compare.jpg "Compare Mode")
+![Compare Mode](webpage/screenshots/compare.jpg "Compare Mode")
 *Compare Mode* (zoom them all together, unlink to zoom or move a single one, rate or delete independently)
 
-![Actions & Selection](/webpage/screenshots/selection_actions.jpg "Actions & Selection")
+![Actions & Selection](webpage/screenshots/selection_actions.jpg "Actions & Selection")
 *Flexible selection & Actions* (several groups of consecutive and non-consecutive photos, using `Ctrl` and `Shift` + clicks)
 
-![Batch resizing](/webpage/screenshots/resize_action.jpg "Batch resizing")
+![Batch resizing](webpage/screenshots/resize_action.jpg "Batch resizing")
 *Batch resizing*
 
-![Integrity Check Report](/webpage/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
+![Integrity Check Report](webpage/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
 *Integrity Check* scans a folder for corrupted files and lets you decide what to do. It generates missing thumbnails at the same time.
 
-![Shortcuts](/webpage/screenshots/shortcuts_guide.jpg "Shortcuts")
+![Shortcuts](webpage/screenshots/shortcuts_guide.jpg "Shortcuts")
 *Shortcuts*
 
 <table>
   <tr>
-    <td><img title="Rating filters" src="/webpage/screenshots/filters_rating.jpg" alt="Rating filters" height="200" /></td>
-    <td><img title="Keywords & filename filters" src="/webpage/screenshots/filters_words.jpg" alt="Keywords & filename filters" height="200" /></td>
-    <td><img title="Rating, color tag, filename, keywords and flexible date filters" src="/webpage/screenshots/filters_active_folded.jpg" alt="Rating, color tag, filename, keywords and flexible date filters" height="200" /></td>
+    <td><img title="Rating filters" src="webpage/screenshots/filters_rating.jpg" alt="Rating filters" height="200" /></td>
+    <td><img title="Keywords & filename filters" src="webpage/screenshots/filters_words.jpg" alt="Keywords & filename filters" height="200" /></td>
+    <td><img title="Rating, color tag, filename, keywords and flexible date filters" src="webpage/screenshots/filters_active_folded.jpg" alt="Rating, color tag, filename, keywords and flexible date filters" height="200" /></td>
   </tr>
 </table>
 
@@ -186,9 +186,9 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 <table>
   <tr>
-    <td><img title="Folders settings" src="/webpage/screenshots/settings_data.jpg" alt="Folders settings" height="300" /></td>
-    <td><img title="Display settings" src="/webpage/screenshots/sort_options.jpg" alt="Display settings" height="300" /></td>
-    <td><img title="Private photos settings" src="/webpage/screenshots/settings_private_photos_fr.jpg" alt="Private photos settings" height="300" /></td>
+    <td><img title="Folders settings" src="webpage/screenshots/settings_data.jpg" alt="Folders settings" height="300" /></td>
+    <td><img title="Display settings" src="webpage/screenshots/sort_options.jpg" alt="Display settings" height="300" /></td>
+    <td><img title="Private photos settings" src="webpage/screenshots/settings-misc-private.jpg" alt="Private photos settings" height="300" /></td>
   </tr>
 </table>
 
