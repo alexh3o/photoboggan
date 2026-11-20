@@ -52,20 +52,20 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `recipes.md` | 114 |  |
 | `style.md` | 59 |  |
 | `testing.md` | 76 |  |
-| `troubleshooting.md` | 72 |  |
+| `troubleshooting.md` | 74 |  |
 
 ## docs/development/generated
 
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 157 |  |
-| `css.md` | 599 |  |
+| `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
 | `files.md` | 321 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 106 |  |
-| `symbols-js.md` | 1563 |  |
+| `symbols-js.md` | 1564 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
@@ -188,7 +188,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `Cargo.toml` | 70 |  |
 | `face_models.json` | 44 |  |
 | `semantic_models.json` | 69 |  |
-| `tauri.conf.json` | 93 |  |
+| `tauri.conf.json` | 96 |  |
 | `tauri.dev.conf.json` | 5 |  |
 
 ## src-tauri/capabilities
