@@ -1957,6 +1957,11 @@ function openAllPhotosMenu(event, item) {
     menuHeader(t('All photos')),
     buildDuplicatesItem({ scope: { kind: 'all' }, label: t('All photos'), compareWithLibrary: false }),
   );
+  // Same entries as the right-click menu of the "Folders" title (built by main.js), below a separator.
+  const foldersItems = api.foldersMenuItems?.() ?? [];
+  if (foldersItems.length) {
+    menu.append(menuSeparator(), ...foldersItems.map(entry => menuButton(entry.label, entry.onSelect, { title: entry.title, disabled: Boolean(entry.disabled) })));
+  }
   contextTarget = item;
   item.classList.add('context-target');
   showContextMenu(menu, event);

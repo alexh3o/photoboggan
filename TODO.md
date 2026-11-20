@@ -18,7 +18,7 @@
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
-- [ ] *style*: `thumbnails` add rounded corners option (force small gap minimum)
+- [x] *style*: `thumbnails` add rounded corners option (force small gap minimum)
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [x] *feat*: `files` **batch renaming**
 - [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion

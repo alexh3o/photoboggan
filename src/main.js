@@ -2381,16 +2381,16 @@ initSidebarSearch({
   },
 });
 
-// Right-click on the "Folders" title: fold every folder, or unfold the ancestors of the folders holding the selected photos.
-document.getElementById('folders-toggle').addEventListener('contextmenu', event => {
+// Entries of the Folders menu (right-click on the "Folders" title, also appended to the "All photos" menu): fold every folder, or unfold the
+// ancestors of the folders holding the selected photos. Built each time a menu opens, since the selection changes.
+function foldersMenuItems() {
   const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
   const selectedFolders = new Set();
   for (const index of selectedIndices) {
     const path = photos[index]?.path;
     if (path) selectedFolders.add(normalize(path.slice(0, Math.max(path.search(/[\\/][^\\/]*$/), 0))));
   }
-  openContextMenuAt(event, [
-    { header: t('Folders') },
+  return [
     { label: t('Collapse all'), title: t('Fold every folder'), onSelect: () => {
       folderTreeExpanded.clear();
       folderTreeInitialized = true; // otherwise the tracked folders would be unfolded again as on first display
@@ -2409,7 +2409,11 @@ document.getElementById('folders-toggle').addEventListener('contextmenu', event 
         renderFolderTree();
       },
     },
-  ]);
+  ];
+}
+
+document.getElementById('folders-toggle').addEventListener('contextmenu', event => {
+  openContextMenuAt(event, [{ header: t('Folders') }, ...foldersMenuItems()]);
 });
 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
@@ -8459,6 +8463,8 @@ initBatchRename({
 });
 
 initPhotoActions({
+  // "Collapse all" / "Expand to the selected photo" entries, shared by the Folders title menu and the "All photos" menu (photo-actions.js).
+  foldersMenuItems,
   // "Turn" submenu (lossless rotation, see rotatePhotos): only the HEIC / HEIF and videos of the targets are left out.
   isRotatablePath,
   rotatePhotos: (targets, quarterTurns) => rotatePhotos(quarterTurns, targets),
