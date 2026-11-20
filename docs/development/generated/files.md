@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1518 |  |
 | `package.json` | 29 |  |
 | `README.md` | 202 |  |
-| `TODO.md` | 65 |  |
+| `TODO.md` | 66 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -22,6 +22,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `release.yml` | 89 |  |
 | `static.yml` | 38 |  |
 | `tests.yml` | 77 |  |
+
+## .traces
+
+| File | Lines | Leading comment |
+|---|---:|---|
+| `Trace-20261120T074928.json` | 22730 |  |
+| `Trace-20261120T083419.json` | 27051 |  |
 
 ## .vscode
 
@@ -34,7 +41,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `FEATURES.md` | 152 |  |
-| `USER_GUIDE.md` | 528 |  |
+| `USER_GUIDE.md` | 556 |  |
 
 ## docs/development
 
@@ -113,9 +120,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `author-filters.css` | 12 | Filtre Auteur (author-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `author-filters.js` | 181 | Filtre « Auteur » du groupe « Plus de filtres » : les auteurs des photos (champ Auteur des métadonnées, voir rights.rs et exif::AUTHOR_SOURCE_IDS). La liste proposée vient de la base (commande get_authors : les auteurs … |
 | `author-rights.css` | 42 | Author and rights: "Author and rights" section of the Info tab (info-author.js) and lower half of the Description tab (description-panel.js, rights-presets.js: preset line and presets window). |
-| `batch-rename-engine.js` | 367 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
+| `batch-rename-engine.js` | 379 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
-| `batch-rename.js` | 623 |  |
+| `batch-rename.js` | 643 |  |
 | `defaults.jsonc` | 195 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
@@ -310,8 +317,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1892 |  |
-| `fr.json` | 1892 |  |
+| `en.json` | 1896 |  |
+| `fr.json` | 1896 |  |
 
 ## webpage
 

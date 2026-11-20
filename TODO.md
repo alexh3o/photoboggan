@@ -3,7 +3,7 @@
 ## 🚀 Next in line
 
 - [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
-- [ ] *fix*: `rename` add a delete all feature or authorize deleting more than filename length
+- [x] *fix*: `rename` add a delete all feature or authorize deleting more than filename length
 - [x] *style*: `map` more visible dark map style
 - [x] *feat*: `UI` display date modified and date created somewhere
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
@@ -11,6 +11,7 @@
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
 - [ ] *perf*: `fullscreen` slight lag when changing photo
 - [ ] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
+- [ ] *refactor*: `semantic` allow larger scores
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

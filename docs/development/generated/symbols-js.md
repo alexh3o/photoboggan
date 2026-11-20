@@ -80,45 +80,47 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `byId(id)` · L43
 - `export initAuthorFilters({ onChange })` · L49
 
-## src/batch-rename-engine.js (21)
+## src/batch-rename-engine.js (22)
 
-- `export RecipeError()` · L20 — Error of a recipe: a stable code (translated by the dialog) and its parameters.
-- `export newStep(type)` · L29
-- `export splitFileName(fileName)` · L38 — { stem, ext } of a file name: the extension is what follows the last dot, a leading dot does not start one (as in the backend).
-- `unescapeText(raw)` · L47
-- `sanitize(value)` · L48
-- `codePoints(text)` · L49
-- `parseInteger(raw, { min, fallback, code, params = {} })` · L51
-- `export parseTemplate(text)` · L63
-- `export parseDate(text)` · L113 — { year, month, day, hour, minute, second } read from the EXIF date text of a photo, or null (absent or unreadable).
-- `export formatDate(format, date)` · L124 — Formats `date` with a format written with ISO 8601 symbols (Y M D h m s; a doubled symbol gives the leading zero; YY / YYY: last digits of …
-- `noParams(name, params)` · L166
-- `defaultOf(raw)` · L167
-- `initialsOf(author)` · L234 — "Jean-Pierre Dupont" gives "JpD": the first letter of each word, in capitals, and of each following part of a compound first name, in lower…
-- `compile(text, count)` · L241
-- `expand(text, context)` · L251 — The text with its variables replaced for one photo (`context`: { stem, photo, index, count }).
-- `forbiddenLiterals(text)` · L258 — Characters of the literal parts of `text` (outside the variables) that a file name cannot hold.
-- `checkDirection(raw)` · L266
-- `checkStep(step, count)` · L272
-- `export validateRecipe(steps, count)` · L297 — Mistakes of the recipe itself, before any photo: [{ step: index, code, params }]. A recipe with mistakes is never applied. `count`: photos …
-- `applyStep(step, name, context)` · L310
-- `export evaluate(steps, context)` · L349
+- `export RecipeError()` · L21 — Error of a recipe: a stable code (translated by the dialog) and its parameters.
+- `export newStep(type)` · L30
+- `export normalizeSteps(steps)` · L40 — The "blank" step is unique and always first: the first one goes to the front, the others are dropped.
+- `export splitFileName(fileName)` · L46 — { stem, ext } of a file name: the extension is what follows the last dot, a leading dot does not start one (as in the backend).
+- `unescapeText(raw)` · L55
+- `sanitize(value)` · L56
+- `codePoints(text)` · L57
+- `parseInteger(raw, { min, fallback, code, params = {} })` · L59
+- `export parseTemplate(text)` · L71
+- `export parseDate(text)` · L121 — { year, month, day, hour, minute, second } read from the EXIF date text of a photo, or null (absent or unreadable).
+- `export formatDate(format, date)` · L132 — Formats `date` with a format written with ISO 8601 symbols (Y M D h m s; a doubled symbol gives the leading zero; YY / YYY: last digits of …
+- `noParams(name, params)` · L174
+- `defaultOf(raw)` · L175
+- `initialsOf(author)` · L242 — "Jean-Pierre Dupont" gives "JpD": the first letter of each word, in capitals, and of each following part of a compound first name, in lower…
+- `compile(text, count)` · L249
+- `expand(text, context)` · L259 — The text with its variables replaced for one photo (`context`: { stem, photo, index, count }).
+- `forbiddenLiterals(text)` · L266 — Characters of the literal parts of `text` (outside the variables) that a file name cannot hold.
+- `checkDirection(raw)` · L274
+- `checkStep(step, count)` · L280
+- `export validateRecipe(steps, count)` · L307 — Mistakes of the recipe itself, before any photo: [{ step: index, code, params }]. A recipe with mistakes is never applied. `count`: photos …
+- `applyStep(step, name, context)` · L321
+- `export evaluate(steps, context)` · L361
 
-## src/batch-rename.js (13)
+## src/batch-rename.js (14)
 
 - `export initBatchRename(options)` · L20
 - `baseName(path)` · L24
 - `element(tag, className = '', text = '')` · L26
 - `button(label, className = '', title = '')` · L33
 - `recipeErrorText({ code, params = {} })` · L43 — ==========================================
-- `backendFailureText(code, detail)` · L67
-- `stepLabel(type)` · L83
-- `runBatch(items, onDone)` · L88 — ==========================================
-- `runDirect(items, onDone)` · L104
-- `keepFailures(failures, queuedTask, count, notes = [])` · L125 — The failures of a batch stay in the tasks window ("Show errors" / "Dismiss") instead of a toast that closes by itself: the task of the queu…
-- `finishBatch(result, stopped, error, queuedTask)` · L138 — End of a batch: interface updated, Ctrl+Z armed, one toast (with the "Undo" button); the failures are kept in the tasks window.
-- `undoBatch(renamed)` · L164 — Ctrl+Z: the same batch the other way round (each photo takes back the name it had). Not stacked again.
-- `export openBatchRename(targets)` · L194 — ==========================================
+- `backendFailureText(code, detail)` · L68
+- `stepLabel(type)` · L85
+- `titled(node, text)` · L86
+- `runBatch(items, onDone)` · L94 — ==========================================
+- `runDirect(items, onDone)` · L110
+- `keepFailures(failures, queuedTask, count, notes = [])` · L131 — The failures of a batch stay in the tasks window ("Show errors" / "Dismiss") instead of a toast that closes by itself: the task of the queu…
+- `finishBatch(result, stopped, error, queuedTask)` · L144 — End of a batch: interface updated, Ctrl+Z armed, one toast (with the "Undo" button); the failures are kept in the tasks window.
+- `undoBatch(renamed)` · L170 — Ctrl+Z: the same batch the other way round (each photo takes back the name it had). Not stacked again.
+- `export openBatchRename(targets)` · L200 — ==========================================
 
 ## src/description-panel.js (27)
 

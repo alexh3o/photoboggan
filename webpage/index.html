@@ -856,8 +856,8 @@
       padding: 0.85rem 1rem;
       border: 1px solid rgba(232, 173, 105, 0.32);
       border-radius: var(--radius-sm);
-      background: rgba(232, 173, 105, 0.07);
-      color: #0bd6a3;
+      background: var(--green-dim);
+      color: var(--ink);
       font-size: 0.84rem;
     }
 
@@ -1268,7 +1268,7 @@
         <div class="section-head">
           <span class="eyebrow">Built for daily flow</span>
           <h2>One fluid workspace.<br>Several ways to work &amp; explore.</h2>
-          <p>Toggle only the panels you need: folder tree, albums & filters; preview; keywords, info & description; map — and inspect every screenshot in full resolution.</p>
+          <p>Toggle only the panels you need: folder tree, albums &amp; filters; preview; keywords, info &amp; description; map — and inspect every screenshot in full resolution.</p>
         </div>
 
         <div class="spotlight-tabs" role="tablist" aria-label="Workflow views">
@@ -1475,7 +1475,7 @@
               </tr>
               <tr>
                 <td>Maps &amp; geocoding</td>
-                <td>Map tiles are fetched from <code>openfreemap.org</code> only while a map panel is open and only for the visible zone. Private Zones are always served from disk—never requested online.</td>
+                <td>Map tiles are fetched from <code>openfreemap.org</code> only while a map panel is open and only for the visible zone. Private Zones are always served from disk—never requested online. Searching places calls Nominatim (OpenStreetMap).</td>
                 <td><span class="net-tag net-opt">Off by default</span></td>
               </tr>
               <tr>
@@ -1656,8 +1656,17 @@
               <span class="pill-icon pill-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 3 14 21l-4-8-8-4 19-6Z"/></svg></span>
               <span class="feat-cat">Files &amp; Maintenance</span>
             </div>
-            <h3>Batch Resize, Move, Copy &amp; Open With</h3>
-            <p>Resize batches preserving ICC profiles &amp; rotated face regions, copy/move with SHA-256 verification and conflict UI, and set per-type external editors.</p>
+            <h3>Batch Resize, Rename, Move, Copy</h3>
+            <p>Resize batches preserving ICC profiles &amp; rotated face regions, rename with variables and result preview, copy/move with SHA-256 verification and conflict UI.</p>
+          </article>
+
+          <article class="feat-card" data-category="files">
+            <div class="feat-top">
+              <span class="pill-icon pill-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/><path d="m21 3-9 9"/><path d="M15 3h6v6"/></svg></span>
+              <span class="feat-cat">Files &amp; Maintenance</span>
+            </div>
+            <h3>Open With your other Applications</h3>
+            <p>Set your favorite applications distinctively of file type (raster, RAW, video) and launch them from photo's context menu. Reorder them so you can launch the favorite by just hitting 'O'.</p>
           </article>
 
           <article class="feat-card" data-category="files">
@@ -1693,7 +1702,7 @@
               <span class="feat-cat">Files &amp; Maintenance</span>
             </div>
             <h3>Storage &amp; Display You Control</h3>
-            <p>Choose where the database, thumbnail cache, and offline maps live (pick a SSD!), set the cache resolution, sort by date taken/modified/filename, and show any file in your OS explorer.</p>
+            <p>Choose where the database, thumbnail cache, and offline maps live (pick an SSD!), set the cache resolution, sort by date taken/modified/filename, and show any file in your OS explorer.</p>
           </article>
         </div>
       </div>
@@ -1764,7 +1773,7 @@
             </div>
             <figcaption>
               <strong>All thumbnails only</strong>
-              <span>Remove all panels and toolbar, reduce thumbnails size to see the whole shoot at a glance.</span>
+              <span>Remove all panels and toolbar, reduce the thumbnail size to see the whole shoot at a glance.</span>
             </figcaption>
           </figure>
         </div>
@@ -1784,12 +1793,12 @@
             photoboggan doesn’t ask you to surrender your files to a proprietary catalog or upload family memories to the cloud. Keep your own folder structure, write industry-standard metadata, and turn on optional AI or map tools only when you want them.
           </p>
           <ul class="check-list" style="margin-top: 1.1rem;">
-            <li>Available in <strong>English</strong> and <strong>French</strong>, & easily extendable</li>
+            <li>Available in <strong>English</strong> and <strong>French</strong>, and easily extendable</li>
             <li>Compatible with digiKam, Lightroom, ACDSee, and Windows Photos</li>
             <li>Zero telemetry—check updates only if you opt in</li>
           </ul>
           <div class="disclaimer">
-            <strong>AI/LLM disclaimer:</strong> I have more experience in photography techniques and developping than in code developping. Claude & friends helped make photoboggan possible, but they were micro-managed, under scrutiny, controlled & audited !
+            <strong>AI/LLM disclaimer:</strong> I have more experience in photography techniques and developing than in code developing. Claude &amp; friends helped make photoboggan possible, but they were micro-managed, under scrutiny, controlled and audited!
           </div>
         </div>
 
@@ -1828,20 +1837,20 @@
 
 
     <!-- More screenshots -->
-    <section id="more-screens" aria-labelledby="gallery2-title">
+    <section id="more-screens" aria-labelledby="more-screens-title">
       <div class="wrap">
         <div class="section-head">
-          <span class="eyebrow">Behind the photos...</span>
-          <h2 id="more-screens-title">More tuning and possibilities....</h2>
+          <span class="eyebrow">Behind the photos…</span>
+          <h2 id="more-screens-title">More tuning and possibilities…</h2>
         </div>
 
         <div class="gallery-grid">
-          <figure class="gallery-card" data-lightbox="screenshots/settings_open_with.jpg" data-title="Open with... Settings" data-desc="Choose favorite external apps to open your files with per type (photos, RAW, Videos).">
+          <figure class="gallery-card" data-lightbox="screenshots/settings_open_with.jpg" data-title="Open with… Settings" data-desc="Choose favorite external apps to open your files with per type (photos, RAW, Videos).">
             <div class="gallery-thumb">
-              <img src="screenshots/settings_open_with.jpg" alt="Open with... Settings" loading="lazy">
+              <img src="screenshots/settings_open_with.jpg" alt="Open with… Settings" loading="lazy">
             </div>
             <figcaption>
-              <strong>Open with...</strong>
+              <strong>Open with…</strong>
               <span>Choose favorite external apps to open your files with per type (photos, RAW, Videos).</span>
             </figcaption>
           </figure>
@@ -1866,23 +1875,23 @@
             </figcaption>
           </figure>
 
-          <figure class="gallery-card" data-lightbox="screenshots/offline_maps_creation.jpg" data-title="Set private maps" data-desc="Download maps to be offline & private in app, or import MBTiles.">
+          <figure class="gallery-card" data-lightbox="screenshots/offline_maps_creation.jpg" data-title="Set private maps" data-desc="Download maps to be offline and private in app, or import MBTiles.">
             <div class="gallery-thumb">
-              <img src="screenshots/offline_maps_creation.jpg" alt="Download maps to be offline & private in app, or import MBTiles." loading="lazy">
+              <img src="screenshots/offline_maps_creation.jpg" alt="Download maps to be offline &amp; private in app, or import MBTiles." loading="lazy">
             </div>
             <figcaption>
               <strong>Set private maps</strong>
-              <span>Download maps to be offline & private in app, or import MBTiles.</span>
+              <span>Download maps to be offline and private in app, or import MBTiles.</span>
             </figcaption>
           </figure>
 
-          <figure class="gallery-card" data-lightbox="screenshots/in_app_guide.jpg" data-title="In-app shortcuts guide" data-desc="Hit G and see a searchable list of all keyboard & mouse shortcuts / actions.">
+          <figure class="gallery-card" data-lightbox="screenshots/in_app_guide.jpg" data-title="In-app shortcuts guide" data-desc="Hit G and see a searchable list of all keyboard and mouse shortcuts / actions.">
             <div class="gallery-thumb">
               <img src="screenshots/in_app_guide.jpg" alt="In-app shortcuts guide" loading="lazy">
             </div>
             <figcaption>
               <strong>In-app shortcuts guide</strong>
-              <span>Hit [G] and see a searchable list of all keyboard & mouse shortcuts / actions.</span>
+              <span>Hit [G] and see a searchable list of all keyboard and mouse shortcuts / actions.</span>
             </figcaption>
           </figure>
 
@@ -1907,23 +1916,33 @@
             </figcaption>
           </figure>
 
-          <figure class="gallery-card" data-lightbox="screenshots/integrity_check_report.jpg" data-title="Integrity check" data-desc="Scan your collection for corrupted files. Above results are from a scan on my corrupted file set for benchmarking.">
+          <figure class="gallery-card" data-lightbox="screenshots/integrity_check_report.jpg" data-title="Integrity check" data-desc="Scan your collection for corrupted files (example scan on a test set of intentionally corrupted files).">
             <div class="gallery-thumb">
               <img src="screenshots/integrity_check_report.jpg" alt="Integrity check" loading="lazy">
             </div>
             <figcaption>
               <strong>Integrity check</strong>
-              <span>Scan your collection for corrupted files. Above results are from a scan on my corrupted file set for benchmarking.</span>
+              <span>Scan your collection for corrupted files (example scan on a test set of intentionally corrupted files).</span>
             </figcaption>
           </figure>
 
-          <figure class="gallery-card" data-lightbox="screenshots/settings_general.jpg" data-title="Essential Settings" data-desc="Set the watched photo folders, data storage location, enable 100% offline mode...">
+          <figure class="gallery-card" data-lightbox="screenshots/settings_general.jpg" data-title="Essential Settings" data-desc="Set the watched photo folders, data storage location, enable 100% offline mode…">
             <div class="gallery-thumb">
               <img src="screenshots/settings_general.jpg" alt="Essential Settings" loading="lazy">
             </div>
             <figcaption>
               <strong>Essential Settings</strong>
-              <span>Set the watched photo folders, data storage location, enable 100% offline mode...</span>
+              <span>Set the watched photo folders, data storage location, enable 100% offline mode…</span>
+            </figcaption>
+          </figure>
+
+          <figure class="gallery-card" data-lightbox="screenshots/batch_rename.jpg" data-title="Batch rename" data-desc="Rename pictures in batches and automatically insert author, date and time taken, counters, make replacements…">
+            <div class="gallery-thumb">
+              <img src="screenshots/batch_rename.jpg" alt="Batch rename" loading="lazy">
+            </div>
+            <figcaption>
+              <strong>Batch rename</strong>
+              <span>Rename pictures in batches and automatically insert author, date and time taken, counters, make replacements…</span>
             </figcaption>
           </figure>
 
@@ -1950,8 +1969,8 @@
           <details class="faq-item">
             <summary>How is this different from digiKam or Lightroom?</summary>
             <div class="faq-body">
-              Catalog applications like lightroom ask you to <strong>import</strong> your photos into their own database and workflow. photoboggan does the opposite: your folders on disk stay the single source of truth. There is no import step, no proprietary vault, and nothing to export when you leave—metadata is written in standard formats that digiKam, Lightroom, ACDSee, and Windows Explorer read natively.
-              Digikam does much more than photoboggan, but this has a cost in visuals, simplicity of UI and general responsiveness, while you probably don't need all the features on a daily basis.
+              Catalog applications like Lightroom ask you to <strong>import</strong> your photos into their own database and workflow. photoboggan does the opposite: your folders on disk stay the single source of truth. There is no import step, no proprietary vault, and nothing to export when you leave—metadata is written in standard formats that digiKam, Lightroom, ACDSee, and Windows Explorer read natively.
+              digiKam does much more than photoboggan, but this has a cost in visuals, simplicity of UI and general responsiveness, while you probably don't need all the features on a daily basis.
             </div>
           </details>
 
@@ -1972,7 +1991,7 @@
           <details class="faq-item">
             <summary>What file formats are supported?</summary>
             <div class="faq-body">
-              All common raster formats (JPEG, PNG, WebP, HEIC/HEIF, TIFF…), RAW files from major manufacturers via their embedded previews, and videos (thumbnail + open in your OS player). Metadata is written inside JPEG/HEIC files, and into standard <code>.xmp</code> sidecars for RAW, PNG, and videos—compatible with other tools.
+              All common raster formats (JPEG, PNG, WebP, HEIC/HEIF…), RAW files from major manufacturers via their embedded previews, and videos (thumbnail + open in your OS player). Metadata is written inside JPEG/HEIC files, and into standard <code>.xmp</code> sidecars for RAW, PNG, and videos—compatible with other tools.
             </div>
           </details>
 

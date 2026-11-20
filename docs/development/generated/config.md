@@ -13,7 +13,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `appLanguage` | `"en"` | i18n.js |
 | `appTheme` | `"dark"` | main.js |
 | `burstMs` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
-| `checkUpdates` | `true` | update-check.js |
+| `checkUpdates` | `false` | update-check.js |
 | `clippingMode` | `"bw"` | histogram.js |
 | `clippingRange` | `3` | histogram.js |
 | `colorLabelEnabled` | `true` | marking-settings.js |
@@ -99,7 +99,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Keys: 1889 (en) / 1889 (fr)
+- Keys: 1893 (en) / 1893 (fr)
 - In en.json but missing from fr.json: none
 - In fr.json but missing from en.json: none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none
