@@ -481,6 +481,10 @@ const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullsc
 fullscreenSlot.zoomBadge = document.getElementById('fullscreen-zoom-badge');
 fullscreenSlot.zoomTimeout = null;let fullscreenLoadToken = 0;
 let fullscreenDrag = null;
+// Full screen navigation: direction of the last move (1 forward, -1 back). The photos ahead in that direction are the ones decoded in advance.
+let fullscreenDirection = 1;
+// Settings > Storage > Thumbnail cache: while the full-resolution photo decodes, show its cached thumbnail (off by default).
+let fullscreenThumbnailPreload = readBool('fullscreenThumbnailPreload');
 const sidebarPanel = document.getElementById('sidebar-panel');
 const folderTree = document.getElementById('folder-tree');
 const settingsModal = document.getElementById('settings-modal');
@@ -3202,8 +3206,10 @@ function showFullscreenPhoto(photo, url) {
   if (fullscreenSlot.url === url) { updateFullscreenInfo(); syncHistogram(); notifySlideshowPhotoShown(photo); return; } // même image (ex. changement de note) : la photo associée a pu changer
   fullscreenSlot.url = url;
   const token = ++fullscreenLoadToken;
+  let sharpShown = false; // the full-resolution image (or the error) has replaced the previous photo
   const apply = loaded => {
     if (token !== fullscreenLoadToken) return; // une autre photo a été demandée entre-temps
+    sharpShown = true;
     setSlotImageSize(fullscreenSlot, loaded.naturalWidth, loaded.naturalHeight);
     fullscreenSlot.zoom = null;
     fullscreenSlot.center = { x: 0.5, y: 0.5 };
@@ -3213,10 +3219,13 @@ function showFullscreenPhoto(photo, url) {
     syncHistogram(); // surcouche d'écrêtage de l'image qui vient d'être affichée
     notifySlideshowPhotoShown(photo); // diaporama : le délai avant la photo suivante court à partir de l'affichage
   };
-  const probe = new Image();
-  probe.onload = () => apply(probe);
-  probe.onerror = () => {
+  // The element that preloadFullscreenImages already started loading and decoding is reused; otherwise a new one is started here.
+  const index = photos[lastSelectedIndex] === photo ? lastSelectedIndex : -1;
+  const preloaded = index >= 0 ? fullscreenImageCache.get(index) : null;
+  const probe = preloaded?._displayUrl === url ? preloaded : new Image();
+  const onUnreadable = () => {
     if (token !== fullscreenLoadToken) return;
+    sharpShown = true;
     updateFullscreenInfo();
     // Image illisible : l'élément affiche l'erreur, ce qui lance la vérification de fichier manquant (écouteur « error » plus bas).
     fullscreenSlot.naturalWidth = 0;
@@ -3225,11 +3234,44 @@ function showFullscreenPhoto(photo, url) {
     fullscreenImg.src = url;
     notifySlideshowPhotoShown(photo); // image illisible : le diaporama passe quand même à la suivante après le délai
   };
-  probe.src = url;
-  if (probe.complete && probe.naturalWidth > 0) { // déjà en mémoire (aperçu, préchargement) : pas d'attente
-    probe.onload = null;
-    apply(probe);
+  if (probe !== preloaded) {
+    probe._displayUrl = url;
+    probe.src = url;
   }
+  // decode() rather than onload: the (large) image is decoded off the main thread BEFORE it replaces the previous one. Assigning it to the
+  // visible <img> straight after the load made the compositor wait for the decode (about 200 ms for 40 MP), which froze the window.
+  probe.decode().then(() => apply(probe), onUnreadable);
+  if (fullscreenThumbnailPreload) showFullscreenThumbnail(photo, token, () => sharpShown);
+}
+
+// Option "Use thumbnails as fast fullscreen preload": if the sharp image is not shown after this delay (it was not decoded in advance), the
+// cached thumbnail takes its place so that the change of photo looks immediate.
+const FULLSCREEN_THUMBNAIL_DELAY_MS = 40;
+
+// The thumbnail is displayed at the size the photo will have, so the sharp image replaces it without any jump: the thumbnail keeps its ratio and
+// takes the longest side of the real image (the catalogue size, whatever the orientation), or of the window when the catalogue has none.
+// Cached thumbnails are already turned by the backend, hence view_fix 1 (see setSlotImageSize). Nothing is shown when the photo has no
+// cached thumbnail; the grid's cache lookup is reused.
+function showFullscreenThumbnail(photo, token, isSharpShown) {
+  const outdated = () => token !== fullscreenLoadToken || !isFullscreen || isSharpShown();
+  setTimeout(async () => {
+    if (outdated()) return;
+    const cachedPath = await lookupCachedThumbnail(photo.path);
+    if (!cachedPath || outdated()) return;
+    const url = convertFileSrc(cachedPath) + versionSuffix(photo.path);
+    const thumbnail = new Image();
+    thumbnail.src = url;
+    try { await thumbnail.decode(); } catch { return; }
+    if (outdated() || !(thumbnail.naturalWidth > 0 && thumbnail.naturalHeight > 0)) return;
+    const ratio = thumbnail.naturalWidth / thumbnail.naturalHeight;
+    const longest = Math.max(photo.width || 0, photo.height || 0) || Math.max(fullscreenView.clientWidth, fullscreenView.clientHeight) * (window.devicePixelRatio || 1);
+    setSlotImageSize(fullscreenSlot, Math.round(ratio >= 1 ? longest : longest * ratio), Math.round(ratio >= 1 ? longest / ratio : longest), 1);
+    fullscreenSlot.zoom = null;
+    fullscreenSlot.center = { x: 0.5, y: 0.5 };
+    updateFullscreenInfo(); // the information follows the picture on screen
+    fullscreenImg.src = url;
+    layoutFullscreenSlot();
+  }, FULLSCREEN_THUMBNAIL_DELAY_MS);
 }
 
 function clearFullscreenImage() {
@@ -3296,6 +3338,7 @@ function navigateToPhotoIndex(index) {
   if (photos.length === 0) return;
   const newIndex = Math.max(0, Math.min(photos.length - 1, index));
   if (newIndex === lastSelectedIndex) return;
+  fullscreenDirection = newIndex > lastSelectedIndex ? 1 : -1;
   
   lastSelectedIndex = newIndex;
   selectedIndices.clear();
@@ -3469,12 +3512,49 @@ function preloadFullscreenImages(index) {
       image.onerror = () => checkPhotoMissing(photoPath);
       getPhotoDisplayUrl(photo).then(url => {
         if (url && fullscreenImageCache.get(i) === image) {
+          image._displayUrl = url;
           image.src = url;
+          queueFullscreenDecode(image);
         }
       });
     }
   }
   for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
+  // Loading is not enough: Chromium decodes lazily, when the image is first painted. The photos in the direction of travel are decoded now.
+  const offsets = [];
+  for (let step = 1; step <= FULLSCREEN_DECODE_AHEAD; step++) offsets.push(step * fullscreenDirection);
+  for (let step = 1; step <= FULLSCREEN_DECODE_BEHIND; step++) offsets.push(-step * fullscreenDirection);
+  fullscreenDecodeWanted = new Set(offsets.map(offset => fullscreenImageCache.get(index + offset)).filter(Boolean));
+  fullscreenDecodeWanted.forEach(queueFullscreenDecode);
+}
+
+// A 40 MP JPEG weighs about 170 MB once decoded, and the decoded images are kept in a limited cache: only a few photos are decoded in advance,
+// one at a time, and a photo that is no longer wanted when its turn comes is skipped.
+const FULLSCREEN_DECODE_AHEAD = 2;
+const FULLSCREEN_DECODE_BEHIND = 1;
+let fullscreenDecodeWanted = new Set();
+const fullscreenDecodeQueue = [];
+let fullscreenDecodeRunning = false;
+
+function queueFullscreenDecode(image) {
+  if (!image._displayUrl || image._decodeQueued || !fullscreenDecodeWanted.has(image)) return;
+  image._decodeQueued = true;
+  fullscreenDecodeQueue.push(image);
+  pumpFullscreenDecodes();
+}
+
+async function pumpFullscreenDecodes() {
+  if (fullscreenDecodeRunning) return;
+  fullscreenDecodeRunning = true;
+  try {
+    let image;
+    while ((image = fullscreenDecodeQueue.shift())) {
+      if (!fullscreenDecodeWanted.has(image)) { image._decodeQueued = false; continue; } // may be wanted again later
+      try { await image.decode(); } catch { /* unreadable image: the error handler of the element reports a missing file */ }
+    }
+  } finally {
+    fullscreenDecodeRunning = false;
+  }
 }
 
 // Navigation à la molette en plein écran ; avec Ctrl, la molette zoome autour du curseur (comme dans l'aperçu) au lieu de changer de photo.
@@ -5282,6 +5362,15 @@ if (thumbnailQualitySelect) {
     }
   });
 }
+// Full screen (Settings > Storage > Thumbnail cache): show the cached thumbnail while the sharp photo decodes. Off by default.
+const fullscreenThumbnailPreloadToggle = document.getElementById('fullscreen-thumbnail-preload-toggle');
+if (fullscreenThumbnailPreloadToggle) {
+  fullscreenThumbnailPreloadToggle.checked = fullscreenThumbnailPreload;
+  fullscreenThumbnailPreloadToggle.addEventListener('change', () => {
+    fullscreenThumbnailPreload = fullscreenThumbnailPreloadToggle.checked;
+    localStorage.setItem('fullscreenThumbnailPreload', String(fullscreenThumbnailPreload));
+  });
+}
 // Gestionnaire du sélecteur de taille des miniatures en cache
 const thumbnailCacheSelect = document.getElementById('thumbnail-cache-size-select');
 if (thumbnailCacheSelect) {
@@ -6919,8 +7008,9 @@ function clampPreviewCenter(slot, x, y) {
 // Size of the image of a slot (preview cell, comparison, fullscreen). The element keeps the size the webview gives it (`width` × `height`);
 // naturalWidth / naturalHeight are those of the picture as displayed, after the orientation still to apply (`photo.view_fix`, see
 // orientationMatrix), which layoutPreviewSlot adds to the transform. The whole layout (fit, zoom, faces) then works on the displayed picture.
-function setSlotImageSize(slot, width, height) {
-  slot.viewFix = slot.photo?.view_fix ?? 1;
+// `viewFix` is the photo's by default; a cached thumbnail is already turned, so the fullscreen thumbnail passes 1.
+function setSlotImageSize(slot, width, height, viewFix = slot.photo?.view_fix ?? 1) {
+  slot.viewFix = viewFix;
   slot.rawWidth = width;
   slot.rawHeight = height;
   const swapped = swapsSides(slot.viewFix);
