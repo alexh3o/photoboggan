@@ -38,27 +38,25 @@ jobs:
         run: |
           set -euo pipefail
           tag="$GITHUB_REF_NAME"
-          # Draft releases are not returned by the releases/tags endpoint, so list them.
-          find_id() {
-            gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              --jq "map(select(.tag_name == \"$tag\" and .draft)) | .[0].id"
-          }
-          id=$(find_id)
-          if [ "$id" = "null" ] || [ -z "$id" ]; then
-            gh release create "$tag" \
-              --draft \
-              --prerelease \
-              --title "Release $tag" \
-              --notes-file CHANGELOG.md
-            id=$(find_id)
-          else
+
+          # `gh release view` is GraphQL-backed and finds drafts by tag, unlike
+          # the REST releases/tags endpoint. Reuse a draft left by a previous run.
+          id=$(gh release view "$tag" --json databaseId,isDraft \
+            --jq 'select(.isDraft) | .databaseId' 2>/dev/null || true)
+          if [ -n "$id" ]; then
             # Re-run for the same tag: refresh the notes of the existing draft.
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" \
               -f "body=$(cat CHANGELOG.md)" > /dev/null
-          fi
-          if [ "$id" = "null" ] || [ -z "$id" ]; then
-            echo "Draft release for $tag not found after creation." >&2
-            exit 1
+          else
+            # Read the id from the creation response: the releases list is
+            # eventually consistent and a fresh draft can be missing from it.
+            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$tag" \
+              -f name="Release $tag" \
+              -f body="$(cat CHANGELOG.md)" \
+              -F draft=true \
+              -F prerelease=true \
+              --jq '.id')
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 

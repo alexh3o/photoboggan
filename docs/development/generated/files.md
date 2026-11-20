@@ -19,7 +19,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 124 |  |
+| `release.yml` | 122 |  |
 | `static.yml` | 38 |  |
 | `tests.yml` | 77 |  |
 
@@ -50,7 +50,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `invariants.md` | 91 |  |
 | `README.md` | 56 |  |
 | `recipes.md` | 114 |  |
-| `style.md` | 59 |  |
+| `style.md` | 69 |  |
 | `testing.md` | 76 |  |
 | `troubleshooting.md` | 74 |  |
 
