@@ -91,6 +91,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `startupView` | `"all"` | main.js |
 | `textSize` | `100` | main.js |
 | `thumbnailCacheSize` | `1024` | main.js |
+| `thumbnailCorners` | `"no"` | main.js |
 | `thumbnailLayout` | `"justified"` | main.js |
 | `thumbnailQuality` | `"normal"` | main.js |
 | `thumbnailSize` | `512` | main.js |
@@ -101,7 +102,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Keys: 1896 (en) / 1896 (fr)
+- Keys: 1901 (en) / 1901 (fr)
 - In en.json but missing from fr.json: none
 - In fr.json but missing from en.json: none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none

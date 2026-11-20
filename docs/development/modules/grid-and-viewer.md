@@ -1,4 +1,4 @@
-<!-- verified: f2d6ff7 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, index.html -->
+<!-- verified: 9806244 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, index.html, src/styles.css -->
 # Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, slideshow (main.js, part 2)
 
 ## Purpose
@@ -20,9 +20,10 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 ### Virtual grid (⚠ sensitive, pixel-exact)
 1. `updateVirtualScroller` measures `gridContainer.clientWidth − 2·GRID_SIDE_MARGIN` (8 px, room for the 3 % hover zoom without a horizontal scrollbar), computes `photoLayouts` (`{index, x, y, width, height}`) and `separatorLayouts`, and sets the height of `scrollContent`. With separators (`computePhotoGroups`: by day/week/month/year when sorted by date, by folder when sorted by name, duplicate groups in duplicate mode, none for content search) each group is laid out on its own.
 2. `layoutPhotoRange` does one group: **square/framed** (columns from `thumbnailSize` capped by `devicePixelRatio`), **justified** (rows filled until the row height fits under the ceiling `thumbnailSize / ratio`; the last row of a group is **not stretched**, left-aligned, height capped), **masonry** (shortest column first, ratio clamped 0.2–5, height capped by the cache resolution `thumbnailCacheSize`, `object-fit: cover`). A photo is never displayed larger than its cached thumbnail (the cap is on the longest side).
-3. `renderVisibleItems` binary-searches `photoLayouts` for the visible window plus one screen of overscan (`THUMBNAIL_OVERSCAN_SCREENS`), creates missing DOM nodes (cached in `renderedThumbnailNodes`) and only writes style/class when a value changed (`div._transform`, `_width`…). Nodes are positioned with `translate3d`; selection is a class and an outline-like `.selection-ring` element, never a size change (AGENTS.md §7: no reflow). Scrolling also shows the temporary `#grid-scroll-position` pill: its first visible photo gives the taken/modified date or filename used by the active sort.
-4. `photoAspectRatio` = ratio learnt from the loaded image, else EXIF width/height from the catalogue, else 1. When a thumbnail loads with a different ratio, `learnPhotoAspectRatio` → `scheduleJustifiedRelayout` (80 ms debounce, ignored for masonry except videos, whose size is not in the catalogue).
-5. Layout rules in px are in AGENTS.md §5.A / §7: use `rem` only outside these calculations.
+3. Display > Thumbnails Grid also stores `thumbnailCorners` (`no`, `light`, `medium`, `strong`, `max`). CSS applies percentage radii; `max` is 100%, which makes square thumbnails circular. Rounded corners require a gap, so choosing any rounded value changes `thumbnailSpacing` from `none` to `small` and disables `none` until rounding is turned off.
+4. `renderVisibleItems` binary-searches `photoLayouts` for the visible window plus one screen of overscan (`THUMBNAIL_OVERSCAN_SCREENS`), creates missing DOM nodes (cached in `renderedThumbnailNodes`) and only writes style/class when a value changed (`div._transform`, `_width`…). Nodes are positioned with `translate3d`; selection is a class and an outline-like `.selection-ring` element, never a size change (AGENTS.md §7: no reflow). Scrolling also shows the temporary `#grid-scroll-position` pill: its first visible photo gives the taken/modified date or filename used by the active sort.
+5. `photoAspectRatio` = ratio learnt from the loaded image, else EXIF width/height from the catalogue, else 1. When a thumbnail loads with a different ratio, `learnPhotoAspectRatio` → `scheduleJustifiedRelayout` (80 ms debounce, ignored for masonry except videos, whose size is not in the catalogue).
+6. Layout rules in px are in AGENTS.md §5.A / §7: use `rem` only outside these calculations.
 
 ### Thumbnail pipeline of the grid
 1. `loadThumbnail(image, path, photo)` → `lookupCachedThumbnail`: all paths requested in one render are collected and sent in batches of 128 to `get_cached_thumbnail_paths` (memoised per path in `thumbnailCacheLookups`).
@@ -83,7 +84,7 @@ A view with more than 50 000 matching photos (prefilter applied) is shown one pa
 - IPC commands: `get_cached_thumbnail_paths`, `generate_thumbnail`, `save_thumbnail_cache`, `get_raw_preview_path`, `update_photos_marking`, `rotate_photos`, `open_video_externally`, `remove_missing_photos`, `get_file_dates` (`../generated/ipc-commands.md`).
 - Events: none.
 - Database: none directly (`photos` rows come back from the list commands).
-- Settings: `thumbnailLayout`, `thumbnailSpacing`, `thumbnailSize`, `fullscreenThumbnailPreload`, `markingPlacement`, `dimUnselectedOnHover`, `slideshow*`, `photoSortKey`/`photoSortOrder`/`photo*Separator` (`../generated/config.md`).
+- Settings: `thumbnailLayout`, `thumbnailSpacing`, `thumbnailCorners`, `thumbnailSize`, `fullscreenThumbnailPreload`, `markingPlacement`, `dimUnselectedOnHover`, `slideshow*`, `photoSortKey`/`photoSortOrder`/`photo*Separator` (`../generated/config.md`).
 
 ## Dependencies
 - Uses: `filters` (via `applyPhotoFilters`), `metadata-writes.js` (`runLocked`), `photo-actions.js` (context menu, delete/move), faces/map/histogram modules refreshed by `updateUIOnSelection`.

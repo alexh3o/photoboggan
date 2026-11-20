@@ -24,6 +24,8 @@
   "thumbnailLayout": "justified",
   // "auto" (none for the justified layout, normal otherwise) | "none" | "small" | "normal".
   "thumbnailSpacing": "none",
+  // Thumbnail corner rounding: "no" | "light" | "medium" | "strong" | "max".
+  "thumbnailCorners": "no",
   // Thumbnail display size in px: 96 to 1024, multiple of 16 (also capped by thumbnailCacheSize).
   "thumbnailSize": 512,
   // Badge on geolocated photos.

@@ -445,13 +445,15 @@ let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
 // Encadrée (framed) : grille carrée où chaque photo entière (non recadrée) s'inscrit dans sa case ; portrait et paysage de même ratio ont la même taille.
 let thumbnailLayout = ['square', 'framed', 'justified', 'masonry'].includes(storedThumbnailLayout) ? storedThumbnailLayout : DEFAULTS.thumbnailLayout;
-// ESPACEMENT DES MINIATURES (mémorisé localement), commun à toutes les dispositions : aucun, petit (0,25 rem) ou normal (marge et cadre historiques de la cascade).
-// Sans choix enregistré, on garde l'aspect d'avant ce réglage : vue justifiée sans espace, autres dispositions espacées.
+// Thumbnail spacing is shared by every layout: none, small (0.25 rem), or normal (the historic masonry margin and frame).
+// Without a saved choice, preserve the previous appearance: no gap for justified layout, spacing for other layouts.
 const THUMBNAIL_SPACINGS = ['none', 'small', 'normal'];
 const storedThumbnailSpacing = localStorage.getItem('thumbnailSpacing');
 let thumbnailSpacing = THUMBNAIL_SPACINGS.includes(storedThumbnailSpacing) ? storedThumbnailSpacing
   : DEFAULTS.thumbnailSpacing !== 'auto' ? DEFAULTS.thumbnailSpacing : (thumbnailLayout === 'justified' ? 'none' : 'normal');
-// En disposition Encadrée, l'espacement « Aucun » est interdit (les cadres se toucheraient) : voir syncThumbnailSpacingWithLayout.
+let thumbnailCorners = readChoice('thumbnailCorners', ['no', 'light', 'medium', 'strong', 'max']);
+document.documentElement.dataset.thumbnailCorners = thumbnailCorners;
+// Framed layout and rounded corners both require at least a small gap between thumbnails.
 // TRI DES MINIATURES (critère et ordre mémorisés localement). Par défaut : date de prise de vue, de la plus récente à la plus ancienne (ordre historique de la grille).
 const SORT_KEYS = ['taken', 'modified', 'name'];
 const storedSortKey = localStorage.getItem('photoSortKey');
@@ -4928,11 +4930,12 @@ document.getElementById('btn-toggle-preview').addEventListener('click', event =>
   requestAnimationFrame(updateVirtualScroller);
 });
 const thumbnailSpacingSelect = document.getElementById('thumbnail-spacing');
-// L'option « Aucun » est grisée en disposition Encadrée ; si elle était choisie, l'espacement passe à « Petit » (et ce choix est mémorisé).
+const thumbnailCornersSelect = document.getElementById('thumbnail-corners');
+thumbnailCornersSelect.value = thumbnailCorners;
 function syncThumbnailSpacingWithLayout() {
-  const framed = thumbnailLayout === 'framed';
-  thumbnailSpacingSelect.querySelector('option[value="none"]').disabled = framed;
-  if (framed && thumbnailSpacing === 'none') {
+  const requiresGap = thumbnailLayout === 'framed' || thumbnailCorners !== 'no';
+  thumbnailSpacingSelect.querySelector('option[value="none"]').disabled = requiresGap;
+  if (requiresGap && thumbnailSpacing === 'none') {
     thumbnailSpacing = 'small';
     localStorage.setItem('thumbnailSpacing', thumbnailSpacing);
   }
@@ -4949,6 +4952,13 @@ syncThumbnailSpacingWithLayout();
 thumbnailSpacingSelect.addEventListener('change', event => {
   thumbnailSpacing = event.target.value;
   localStorage.setItem('thumbnailSpacing', thumbnailSpacing);
+  updateVirtualScroller();
+});
+thumbnailCornersSelect.addEventListener('change', event => {
+  thumbnailCorners = event.target.value;
+  localStorage.setItem('thumbnailCorners', thumbnailCorners);
+  document.documentElement.dataset.thumbnailCorners = thumbnailCorners;
+  syncThumbnailSpacingWithLayout();
   updateVirtualScroller();
 });
 // ==========================================
