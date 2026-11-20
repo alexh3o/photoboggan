@@ -1,4 +1,4 @@
-<!-- verified: 42b3f57 | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
+<!-- verified: 334098e | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
 # Application shell: AppState, IPC registry, windows, settings, i18n, startup
 
 ## Purpose
@@ -8,7 +8,7 @@ The shell is everything that exists before and around the features: where the da
 | File | Role |
 |---|---|
 | `src-tauri/src/main.rs` | `AppState`, `AppDataPaths`, `AppConfig` (`config.json`), window state, `fn main`, storage location commands |
-| `src-tauri/tauri.conf.json` | One window `main` (hidden, undecorated, min 900×500), CSP, asset protocol scope `**`, bundle targets (msi, deb), bundled resources |
+| `src-tauri/tauri.conf.json` | One window `main` (hidden, undecorated, min 900×500), CSP, asset protocol scope `**` with `requireLiteralLeadingDot: false` (`~/.local` on Linux), bundle targets (msi, deb), bundled resources |
 | `src-tauri/capabilities/default.json` | Window permissions granted to the `main` window (show, minimize, maximize, close, destroy, fullscreen, drag…) |
 | `src/defaults.jsonc` | Default value of every localStorage setting of a new install (also read by `face_detect.rs`, section `faceSettings`) |
 | `src/settings-defaults.js` | Parses it (`DEFAULTS`), reads saved values (`readStored`, `readBool`, `readChoice`, `readNumber`, `isOffline`) and writes them (`writeStored`) |

@@ -1,4 +1,4 @@
-<!-- verified: e9e8852 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs -->
+<!-- verified: e9e8852 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
 # Troubleshooting
 
 Only problems visible in the code. Each entry: symptom → likely cause (named) → how to check → what to do. Entries that rest on a reading of one place only are marked `⚠ unverified`.
@@ -28,6 +28,8 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 **Keywords / title written to the wrong place, or a sidecar next to a RAW looks unexpected.** Cause: sidecar targeting (`sidecar_target`): `photo.ext.xmp`, or an existing `photo.xmp` that is the image's own; a `photo.xmp` shared by two sidecar-writing images (RAW + DNG, HEIC + MOV) is never written. Check `logs/sidecar-conflicts_*.log` (renames made to avoid conflicts) and `modules/metadata-read-write.md`. HEIC / HEIF are written inside the container (sidecar only as an internal-writer fallback, AGENTS.md §5.C).
 
 **Thumbnail or preview looks stale or wrong after a code change.** Cause: the cache name is a hash of path, size, mtime and `PREVIEW_VERSION` (`thumbnail_cache_file`). After changing what a thumbnail contains, bump `PREVIEW_VERSION` (see `modules/thumbnails-and-previews.md`). To rebuild without losing data, clear the thumbnail cache (`clear_thumbnail_cache`, called only when the cache size is changed in Settings > Storage, after a confirmation; "Remove orphan thumbnails" in the same tab only removes old names, `purge_orphan_cache`); the cache holds only derived files. Never use a flat `read_dir` on the cache (256 subfolders, AGENTS.md §5.A).
+
+**On Linux, thumbnails (or any image) fail to load: the asset URL answers `403 (Forbidden)`.** Cause: the asset protocol scope check (`tauri::scope::fs::Scope::is_allowed`) refuses paths with a component starting with `.` on Unix unless `requireLiteralLeadingDot` is false; the default data folder is `<home>/.local/share/com.alexh3o.photoboggan/`, so cached thumbnails fall outside a plain `["**"]` scope. Check: the backend prints `asset protocol not configured to allow the path: <path>`. Fix in place since the scope became `{ "allow": ["**"], "requireLiteralLeadingDot": false }` in `tauri.conf.json`; a build older than that change must be rebuilt (`convertFileSrc` URLs themselves are correct).
 
 **PNG / CMYK JPEG thumbnails drawn by the webview.** Not a bug: the backend fails on some formats and the webview draws the thumbnail and stores it with `save_thumbnail_cache` (`architecture.md`, flow 2).
 
