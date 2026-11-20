@@ -27,6 +27,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `faceSettings` | `{"scanRaw":false,"minSizePermille":6,"minConfiden…` | faces-panel.js |
 | `facesViewSort` | `"grid"` | faces-grid.js |
 | `folderOrder` | `[]` | main.js |
+| `folderTreeExpanded` | `null` | main.js |
 | `fullscreenFacesVisible` | `"hover"` | faces-panel.js |
 | `fullscreenInfoVisible` | `false` | main.js |
 | `fullscreenThumbnailPreload` | `false` | main.js |

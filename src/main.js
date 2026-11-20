@@ -2188,6 +2188,7 @@ function renderFolderTree({ fromCounts = false } = {}) {
     renderNode(root, folderTree, 0, true);
   }
   folderTreeInitialized = true;
+  saveFolderTreeExpanded(); // the real fold state (never the temporary one of the quick search) survives a restart
   // Quick search without any result ("All photos" stays, it is the pinned row of the list).
   if (searching && folders.length > 0 && !roots.some(root => root.searchShown)) {
     const none = document.createElement('li');
@@ -2275,7 +2276,28 @@ function scheduleFolderCounts() {
     renderFolderTree({ fromCounts: true });
   }, 150);
 }
-const folderTreeExpanded = new Set();
+// Fold state of the tree (normalized paths of the unfolded folders), remembered between launches: `saveFolderTreeExpanded` runs after each draw.
+const FOLDER_TREE_EXPANDED_KEY = 'folderTreeExpanded';
+// Saved list of unfolded folders, or null when nothing valid is saved (first launch): the roots then start unfolded, see `folderTreeInitialized`.
+function readFolderTreeExpanded() {
+  const stored = readStored(FOLDER_TREE_EXPANDED_KEY);
+  if (stored === null) return null;
+  try {
+    const parsed = JSON.parse(stored);
+    if (Array.isArray(parsed) && parsed.every(path => typeof path === 'string')) return parsed;
+  } catch { /* unreadable value: treated as nothing saved */ }
+  return null;
+}
+const savedFolderTreeExpanded = readFolderTreeExpanded();
+const folderTreeExpanded = new Set(savedFolderTreeExpanded ?? []);
+let savedFolderTreeSignature = savedFolderTreeExpanded === null ? null : JSON.stringify([...folderTreeExpanded].sort());
+// Writes the fold state only when it changed since the last write (the tree is redrawn often: counts, quick search…).
+function saveFolderTreeExpanded() {
+  const signature = JSON.stringify([...folderTreeExpanded].sort());
+  if (signature === savedFolderTreeSignature) return;
+  savedFolderTreeSignature = signature;
+  try { localStorage.setItem(FOLDER_TREE_EXPANDED_KEY, signature); } catch { /* storage unavailable: the fold state is not remembered */ }
+}
 // Quick search of the Folders block (sidebar-search.js): normalized text, '' = no filter. While it is set, the tree only holds the folders whose name contains it
 // and their ancestors, all unfolded; `folderSearchCollapsed` holds the ones the user folded by hand meanwhile (reset with each new text).
 let folderSearchQuery = '';
@@ -2293,7 +2315,8 @@ async function refreshDiskFolders() {
   }
   renderFolderTree();
 }
-let folderTreeInitialized = false;
+// True as soon as the roots must no longer be forced open: after the first draw, or from the start when the fold state of a previous launch was restored.
+let folderTreeInitialized = savedFolderTreeExpanded !== null;
 // Appelé après la création d'un sous-dossier : il apparaît tout de suite dans l'arborescence, dossier parent déplié.
 function addCreatedFolder(parentPath, name) {
   createdFolders.add(`${parentPath.replace(/[\\/]+$/, '')}/${name}`);
