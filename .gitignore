@@ -18,6 +18,7 @@ dist-ssr
 
 # Tools
 dev_tools/*
+.traces/*
 Files_4_AI/*
 .claude/*
 Powershell.lnk
