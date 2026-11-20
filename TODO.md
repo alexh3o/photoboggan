@@ -12,6 +12,9 @@
 - [ ] *perf*: `fullscreen` slight lag when changing photo
 - [ ] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
 - [ ] *refactor*: `semantic` allow larger scores
+- [ ] *chore*: `linux` add appimage in github workflows
+- [ ] *fix*: `linux` deb update download works but opening the download with app manager does nothing
+- [ ] *fix*: `linux` no thumbnails on linux
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

@@ -32,7 +32,7 @@ After 25 years of photographing as a hobbyist and then a dad, I wanted less time
 
 - **Windows**: tested, stable, and used daily.
 - **Linux (`.deb`)**: works, but I have only tested it quickly on some releases: it needs testing—give it a try and share feedback!
-- **macOS & other Linux packages**: not published yet, but builds can be added if testers are interested. Feel free to open an issue.
+- **macOS & other Linux packages**: maybe later, when stability is reached on windows and linux.
 
 Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` for Ubuntu/Debian. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
 
