@@ -33,13 +33,41 @@ Download the installer for your system from the project's [Releases page](https:
 
 ### First launch
 
-1. Open **Settings** (gear icon) > **General** > **Library**.
-2. Click **+ Add folder** and pick a folder containing photos. Photoboggan scans it, then shows its photos. Subfolders are included.
-3. Repeat for other folders. Progress is shown in the **Running tasks** window (hourglass icon).
+#### 1. Useful first settings
 
-The first scan builds thumbnails and reads metadata, so it can take a while on large collections. Afterwards, browsing is instant — even on collections of 200,000 photos and more.
+Before scanning a large collection, open ⚙️**Settings** and review a few key options:
 
-Other useful startup choices (**Settings > General**): the language (English or French), and whether to show **The last opened location** or **All photos** at startup.
+- **General:**
+  - Choose the **Language** (English or French) and whether **At startup, show** opens **All photos** or the **Last opened folder**.
+  - Enable **Offline mode** if you want Photoboggan to never connect to the Internet (models must then be installed manually from a folder, and online map tiles are disabled).
+- **Storage:**
+  - Check **Application data location** first if you want the database, thumbnails, and AI models on a fast SSD rather than the default folder.
+  - Review **Thumbnail cache size** (1024 px by default, the largest available — recommended for clearer crops in the Faces review, though 512 or 768 px saves disk space; changing it later clears existing thumbnails) and **Thumbnail quality** (*Normal* is enough in most cases).
+- **Optional features (disabled by default):**
+  - **Maps:** Enable the map if desired, and optionally define your home or sensitive areas in **Maps > Offline / private zones** before browsing geotagged photos so remote map requests are never sent for those coordinates.
+  - **Faces:** Enable **Enable face detection and recognition**, then click **Download** (~56 MB on Windows; Windows/Linux 64-bit) or install from a folder if offline.
+  - **Search:** Enable **Content search** and click **Download** (~785 MB) or install from a folder if offline.
+- **Metadata:**
+  - Check **Reading priority** if your photos may contain conflicting metadata across formats (EXIF, IPTC, XMP, digiKam, Lightroom…), as changing this later requires rescanning the collection.
+  - Enable **Pick / reject flags** under **Labels** if you plan to use them (they are off by default).
+
+#### 2. Add photo folders to the collection
+
+Tell Photoboggan where your photos live by adding one or more root folders (subfolders are included automatically). On a large collection, consider testing with a smaller folder first to confirm your settings.
+
+1. Open ⚙️**Settings > General > Library**.
+2. Click **+ Add folder** and pick a folder containing photos. Photoboggan queues a scan and displays the photos once done.
+3. Repeat for any other root folders. Progress is shown in **Running tasks** (hourglass icon).
+
+The initial scan reads every photo and its metadata, so it can take a few hours on very large collections. It can be **paused** and resumed at any time (including across restarts); already-scanned photos are kept.
+
+#### 3. Feature scans (optional)
+
+Once your folders are indexed, you can prepare the optional features by launching their scans. Scans can be queued; note that **Analyse content** runs at low priority in its own queue and automatically pauses while folder, face, or duplicate scans are running:
+
+- **Faces:** Right-click a root folder > **Faces > Detect and recognize faces (unscanned photos)**, then click **Start**. It uses cached thumbnails (generating missing ones). If you stop it and resume later, choose **(unscanned photos)** so already-scanned photos are skipped.
+- **Content search:** Right-click **All photos** (or a folder) > **Find > Analyse content**, or use **Analyse the whole library** in ⚙️**Settings > Search**. You can stop it at any time; already-analysed photos are skipped when you run it again.
+- **Similar photos (pHash):** Right-click **All photos** (top of the Folders tree) > **Find duplicates > Similar** to compute the perceptual hash (`pHash`) of every photo across the collection. This initial pass takes time (it is faster if thumbnails are already cached) but is kept afterwards so future similarity searches are much faster.
 
 ### Supported files
 
@@ -49,20 +77,20 @@ Other useful startup choices (**Settings > General**): the language (English or 
 | RAW    | ARW, CR2, CR3, NEF, NRW, DNG, RAF, ORF, RW2, RAW, PEF  |
 | Videos | MP4, MOV, AVI, MKV                                     |
 
-- **RAW files** are never developed. Photoboggan shows the JPEG preview embedded in the file by the camera, which is quick but can be lower resolution than the real photo. To open them, set an application of your choice in Settings / Applications / RAW: shortcut O will use the first app in your list.
+- **RAW files** are never developed. Photoboggan shows the JPEG preview embedded in the file by the camera, which is quick but can be lower resolution than the real photo. To open them, set an application of your choice in ⚙️ Settings / Applications / RAW: shortcut O will use the first app in your list.
 - **Videos** show a still thumbnail only. Double-click opens the video in your system's default player. Thumbnails come from Windows' own thumbnailer, or from `ffmpeg` if it is installed.
 
 ---
 
 ## 2. Interface overview
 
-| Area            | Toggle<br>Shortcut | What it does                                                                                                                                                                                                      |
-| --------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Top bar**     | `T`                | Toggles for the **Filters** panel, **People** view, **Preview** and **Info** panels<br/>**Compare** mode<br/>Buttons for **Settings**, **Running tasks**, **Display** (grid, layout, appearance...) and **Sort**. |
-| **Left panel**  | `N`                | **Folders** tree<br/>**Albums**<br/>**People** list (if face reading is on)<br/>**Filters**<br/>**Selection** box (rating and color of the selected photos).                                                      |
-| **Center**      |                    | The thumbnail grid.                                                                                                                                                                                               |
-| **Preview**     | `P`                | Larger view of the selected photo(s).                                                                                                                                                                             |
-| **Right panel** | `J`/`K`/`D`        | Three tabs: **Info** (file and camera data, author and rights, location map, histogram), **Keywords**, **Description** (title, description, author and rights).                                                   |
+| Area            | Toggle<br>Shortcut | What it does                                                                                                                                                                                                                                                                                          |
+| --------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Top bar**     | `T`                | Toggles for the **Filters** panel, <img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/scan-face.svg" width="20" height="20" alt="scan-face" /> **People** view, **Preview** and **Info** panels<br/>**Compare** mode<br/>Buttons for **Settings**, **Running tasks**, **Display** (grid, layout, appearance...) and **Sort**. |
+| **Left panel**  | `N`                | **Folders** tree<br/>**Albums**<br/>**People** list (if face reading is on)<br/>**Filters**<br/>**Selection** box (rating and color of the selected photos).                                                                                                                                          |
+| **Center**      |                    | The thumbnail grid.                                                                                                                                                                                                                                                                                   |
+| **Preview**     | `P`                | Larger view of the selected photo(s).                                                                                                                                                                                                                                                                 |
+| **Right panel** | `J`/`K`/`D`        | Three tabs: **Info** (file and camera data, author and rights, location map, histogram), **Keywords**, **Description** (title, description, author and rights).                                                                                                                                       |
 
 Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resized by dragging their edges. Press `F11` for immersive mode, which hides the title bar and taskbar.
 
@@ -212,7 +240,7 @@ Right-click a folder for **Rescan folder data**, **Integrity check**, **New subf
 
 **Resize:** choose the longest side (px) or a percentage (never enlarges), JPEG/PNG output, quality, whether to keep metadata (JPEG only) and whether to drop the rating/color/flag marks, a destination folder (with an optional relative sub-folder hierarchy mirroring your library), a filename suffix, and what to do about conflicts. The destination is remembered: the **Last destination** button restores it. Resizing creates **new files** and can never overwrite the original photo: with no suffix you must pick another destination folder. If the new name already belongs to a different existing file, you choose *Replace*, *Increment name* or *Skip*. Videos are ignored.
 
-**Batch rename:** select several photos and press `F2` (or right-click > **Rename…**). Build a *recipe* of steps that are applied in order to each file name (the extension is kept): **Replace text** (case-sensitive, optionally only the n-th occurrence), **Insert text** (at a position counted from the start or the end of the name) and **Delete characters** (at least one character must remain). The texts can contain variables, for example `{filename}` (original name), `{date_taken(YYYYMMDD_hhmmss;nodate)}` (date taken, written with the ISO 8601 symbols `YYYY MM DD hh mm ss`; the second value is used when the photo has no date), `{camera}`, `{lens}`, `{counter(3;1)}` (number in grid order, 3 digits, starting at 1) and `{author(initials)}` (`Jean-Pierre Dupont` gives `JpD`); the `?` buttons list every option, and `\` cancels the effect of the next character. The preview shows every new name, page by page, and nothing happens until you click **Rename**. Recipes can be saved and reused. A photo whose new name would be the same as another one (case ignored) or as an existing file is **left unchanged**, and listed at the end (the rest of the batch goes on); `.xmp` sidecars follow their photo. From 20 photos it runs as a background task you can stop. `Ctrl`+`Z` undoes the whole batch, including the part already done if you stopped it.
+**Batch rename:** select several photos and press `F2` (or right-click > **Rename…**). Build a *recipe* of steps that are applied in order to each file name (the extension is kept): **Start blank** (erases the current name so the recipe starts from nothing; added once, always first), **Replace text** (case-sensitive, optionally only the n-th occurrence), **Insert text** (at a position counted from the start or the end of the name) and **Delete characters** (at least one character must remain). The texts can contain variables, for example `{filename}` (original name), `{date_taken(YYYYMMDD_hhmmss;nodate)}` (date taken, written with the ISO 8601 symbols `YYYY MM DD hh mm ss`; the second value is used when the photo has no date), `{camera}`, `{lens}`, `{counter(3;1)}` (number in grid order, 3 digits, starting at 1) and `{author(initials)}` (`Jean-Pierre Dupont` gives `JpD`); the `?` buttons list every option, and `\` cancels the effect of the next character. The preview shows every new name, page by page, and nothing happens until you click **Rename**. Recipes can be saved and reused. A photo whose new name would be the same as another one (case ignored) or as an existing file is **left unchanged**, and listed at the end (the rest of the batch goes on); `.xmp` sidecars follow their photo. From 20 photos it runs as a background task you can stop. `Ctrl`+`Z` undoes the whole batch, including the part already done if you stopped it.
 
 > **Deleting:** files go to the trash, so they can be restored. On USB drives and network locations Windows has no trash: Photoboggan warns you that deletion is then **permanent**. Deleting a photo keeps its `.xmp` sidecar file. Deleting a folder also removes files Photoboggan does not manage; it lists them before you confirm. Folder deletion is **refused** while a [private-photos set](#9-private-photos) is active, so hidden photos cannot be trashed unseen.
 

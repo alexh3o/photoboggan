@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { t, tp } from './i18n.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
 import { isWriteLocked, showFailureDetails } from './metadata-writes.js';
-import { newStep, splitFileName, validateRecipe, evaluate, STEP_TYPES } from './batch-rename-engine.js';
+import { newStep, splitFileName, validateRecipe, evaluate, normalizeSteps, STEP_TYPES } from './batch-rename-engine.js';
 
 // Batch rename (F2 or "Rename…" of the context menu on several photos). The dialog builds a recipe of steps (replace, insert, delete), shows the
 // new name of every photo (paginated) and applies it. The names are computed here (batch-rename-engine.js); the backend (batch_rename.rs)
@@ -60,6 +60,7 @@ function recipeErrorText({ code, params = {} }) {
     case 'empty_name': return t('The new name would be empty');
     case 'ends_with_dot': return t('The new name cannot end with a dot');
     case 'reserved_name': return t('“{name}” is a name reserved by Windows', params);
+    case 'blank_once': return t('The “Start blank” step can only be used once');
     default: return String(code);
   }
 }
@@ -80,7 +81,12 @@ function backendFailureText(code, detail) {
   }
 }
 
-const stepLabel = type => t(type === 'replace' ? 'Replace text' : type === 'insert' ? 'Insert text' : 'Delete characters');
+const STEP_LABELS = { blank: 'Start blank', replace: 'Replace text', insert: 'Insert text', delete: 'Delete characters' };
+const stepLabel = type => t(STEP_LABELS[type]);
+const titled = (node, text) => {
+  node.title = text; // the tooltip shows what the ellipsis cuts
+  return node;
+};
 
 // ==========================================
 // Running the batch (dialog closed): task of the queue or direct call, then the interface follows the new names
@@ -234,7 +240,6 @@ export async function openBatchRename(targets) {
   const stepList = element('ol', 'batch-steps');
   const addSelect = element('select', 'resize-field batch-add-step');
   addSelect.setAttribute('aria-label', t('Add a step…'));
-  addSelect.append(new Option(t('Add a step…'), ''), ...STEP_TYPES.map(type => new Option(stepLabel(type), type)));
   const emptyHint = element('p', 'batch-hint', t('Add at least one step to build the new names.'));
   const stepsSection = element('section', 'settings-section');
   stepsSection.append(stepsHeading, stepList, emptyHint, addSelect);
@@ -345,6 +350,7 @@ export async function openBatchRename(targets) {
     else if (sampleState.kind === 'none') example.textContent = t('The new names appear here once a step is added.');
     else if (sampleState.kind === 'error' && sample.error) example.textContent = `[${sample.fileName}] → ${sample.error.text}`;
     else if (sample.newFileName) example.textContent = `[${sample.fileName}] → [${sample.newFileName}]`;
+    example.title = example.textContent;
     summary.textContent = state.steps.length && !state.errors.length
       ? [t('{count} to rename', { count: toRename }), t('{count} unchanged', { count: unchanged }), t('{count} not renamed', { count: problems })].join(' · ')
       : '';
@@ -354,15 +360,14 @@ export async function openBatchRename(targets) {
     previewList.replaceChildren(...state.rows.slice(start, start + PAGE_SIZE).map((row, offset) => {
       const rowStatus = states[start + offset];
       const item = element('li', `batch-row ${rowStatus.kind}`);
-      const oldName = element('span', 'batch-row-old', row.fileName);
-      oldName.title = row.photo.path;
+      const oldName = titled(element('span', 'batch-row-old', row.fileName), `${row.fileName}\n${row.photo.path}`);
       item.append(oldName);
       if (rowStatus.kind === 'error') {
-        item.append(element('span', 'batch-row-arrow', '→'), element('span', 'batch-row-problem', rowStatus.text));
+        item.append(element('span', 'batch-row-arrow', '→'), titled(element('span', 'batch-row-problem', rowStatus.text), rowStatus.text));
       } else if (rowStatus.kind === 'unchanged') {
         item.append(element('span', 'batch-row-arrow', '='), element('span', 'batch-row-same', t('Unchanged')));
       } else if (row.newFileName) {
-        item.append(element('span', 'batch-row-arrow', '→'), element('span', 'batch-row-new', row.newFileName));
+        item.append(element('span', 'batch-row-arrow', '→'), titled(element('span', 'batch-row-new', row.newFileName), row.newFileName));
       }
       return item;
     }));
@@ -415,7 +420,7 @@ export async function openBatchRename(targets) {
   }
 
   function stepHelp(type) {
-    return t(type === 'replace' ? 'Batch rename replace help' : type === 'insert' ? 'Batch rename insert help' : 'Batch rename delete help');
+    return t(`Batch rename ${type} help`);
   }
 
   function moveButton(symbol, label, disabled, action) {
@@ -444,7 +449,7 @@ export async function openBatchRename(targets) {
       handle.removeEventListener('pointercancel', onEnd);
       item.classList.remove('dragging');
       const ids = [...stepList.children].map(child => Number(child.dataset.id));
-      state.steps = ids.map(id => state.steps.find(step => step.id === id)).filter(Boolean);
+      state.steps = normalizeSteps(ids.map(id => state.steps.find(step => step.id === id)).filter(Boolean));
       renderSteps();
       changed();
     };
@@ -455,15 +460,19 @@ export async function openBatchRename(targets) {
 
   function renderSteps() {
     emptyHint.hidden = state.steps.length > 0;
+    renderAddOptions();
     stepList.replaceChildren(...state.steps.map((step, index) => {
       const item = element('li', 'batch-step');
       item.dataset.id = String(step.id);
       const handle = element('span', 'keyword-format-handle', '⠿');
       handle.title = t('Drag to reorder');
-      handle.addEventListener('pointerdown', event => startDrag(event, item, handle));
+      // "Start blank" is first and stays first: nothing to drag, and no other step can be dropped above it.
+      if (step.type === 'blank') handle.style.visibility = 'hidden';
+      else handle.addEventListener('pointerdown', event => startDrag(event, item, handle));
       const rank = element('span', 'keyword-format-rank', `${index + 1}.`);
       const type = element('select', 'resize-field batch-step-type');
-      type.append(...STEP_TYPES.map(value => new Option(stepLabel(value), value)));
+      // "Start blank" is offered once, to the steps that are not already it; it can be turned into another step.
+      type.append(...STEP_TYPES.filter(value => value !== 'blank' || step.type === 'blank').map(value => new Option(stepLabel(value), value)));
       type.value = step.type;
       type.setAttribute('aria-label', t('Step type'));
       type.addEventListener('change', () => {
@@ -483,12 +492,14 @@ export async function openBatchRename(targets) {
       const head = element('div', 'batch-step-head');
       head.append(
         handle, rank, type, help,
-        moveButton('↑', t('Move up'), index === 0, () => { [state.steps[index - 1], state.steps[index]] = [state.steps[index], state.steps[index - 1]]; renderSteps(); changed(); }),
-        moveButton('↓', t('Move down'), index === state.steps.length - 1, () => { [state.steps[index + 1], state.steps[index]] = [state.steps[index], state.steps[index + 1]]; renderSteps(); changed(); }),
+        moveButton('↑', t('Move up'), index === 0 || step.type === 'blank' || state.steps[index - 1].type === 'blank', () => { [state.steps[index - 1], state.steps[index]] = [state.steps[index], state.steps[index - 1]]; renderSteps(); changed(); }),
+        moveButton('↓', t('Move down'), index === state.steps.length - 1 || step.type === 'blank', () => { [state.steps[index + 1], state.steps[index]] = [state.steps[index], state.steps[index + 1]]; renderSteps(); changed(); }),
         remove,
       );
       const fields = element('div', 'batch-step-fields');
-      if (step.type === 'replace') {
+      if (step.type === 'blank') {
+        fields.append(element('p', 'batch-hint', t('The current name is erased here: the next steps build the new name.')));
+      } else if (step.type === 'replace') {
         fields.append(textField(t('Search'), step, 'search'), textField(t('Replace with'), step, 'replacement'), textField(t('Occurrence (empty: all)'), step, 'occurrence', { narrow: true }));
       } else if (step.type === 'insert') {
         fields.append(textField(t('Text to insert'), step, 'text'), textField(t('Position'), step, 'position', { narrow: true, type: 'number' }), directionField(step));
@@ -503,13 +514,21 @@ export async function openBatchRename(targets) {
     }));
   }
 
+  // "Start blank" is offered only while the recipe does not have it, and goes to the first place.
+  function renderAddOptions() {
+    const hasBlank = state.steps.some(step => step.type === 'blank');
+    addSelect.replaceChildren(new Option(t('Add a step…'), ''), ...STEP_TYPES.filter(type => type !== 'blank' || !hasBlank).map(type => new Option(stepLabel(type), type)));
+  }
+
   addSelect.addEventListener('change', () => {
     if (!addSelect.value) return;
-    state.steps.push(newStep(addSelect.value));
+    const added = newStep(addSelect.value);
+    if (added.type === 'blank') state.steps.unshift(added);
+    else state.steps.push(added);
     addSelect.value = '';
     renderSteps();
     changed();
-    stepList.lastElementChild?.querySelector('input')?.focus();
+    if (added.type !== 'blank') stepList.lastElementChild?.querySelector('input')?.focus();
   });
 
   // --- Saved recipes
@@ -537,6 +556,7 @@ export async function openBatchRename(targets) {
         for (const key of Object.keys(fresh)) if (key !== 'id' && key !== 'type' && typeof step[key] === 'string') fresh[key] = step[key];
         return fresh;
       });
+    state.steps = normalizeSteps(state.steps);
     renderSteps();
     changed();
   }

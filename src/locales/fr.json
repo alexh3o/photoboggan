@@ -1887,5 +1887,9 @@
   "Delete the recipe “{name}”?": "Supprimer la recette « {name} » ?",
   "One photo: its new name. Several photos: batch rename": "Une photo : son nouveau nom. Plusieurs photos : renommage en lot",
   "Rating, color, pick flag, rotation or batch rename; up to 20 changes back. The Faces view has its own undo": "Note, couleur, fanion pick, rotation ou renommage en lot ; jusqu’à 20 modifications en arrière. La vue Visages a sa propre annulation",
-  "Show errors": "Afficher les erreurs"
+  "Show errors": "Afficher les erreurs",
+  "Start blank": "Partir d’un nom vide",
+  "Batch rename blank help": "Efface le nom de fichier actuel pour que la recette parte d’un nom vide : les étapes suivantes construisent le nouveau nom ({filename} donne toujours le nom d’origine). Cette étape ne peut être ajoutée qu’une fois et reste toujours en première position. Seule, elle ne laisse aucun nom aux fichiers : ajoutez les étapes qui différencient les noms.",
+  "The “Start blank” step can only be used once": "L’étape « Partir d’un nom vide » ne peut être utilisée qu’une fois",
+  "The current name is erased here: the next steps build the new name.": "Le nom actuel est effacé ici : les étapes suivantes construisent le nouveau nom."
 }

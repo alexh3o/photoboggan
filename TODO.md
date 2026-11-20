@@ -3,20 +3,20 @@
 ## 🚀 Next in line
 
 - [ ] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
+- [ ] *fix*: `rename` add a delete all feature or authorize deleting more than filename length
 - [x] *style*: `map` more visible dark map style
 - [x] *feat*: `UI` display date modified and date created somewhere
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
 - [ ] *perf*: `fullscreen` slight lag when changing photo
+- [ ] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
-- [ ] *feat*: `UI` specific info panel display when multiple photos are selected
+- [ ] *style*: `thumbnails` add rounded corners option (force small gap minimum)
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [x] *feat*: `files` **batch renaming**
-- [x] *feat*: `viewing` instant zoom
-- [x] *feat*: `metadata` copyright and creator writing
 - [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion
 - [ ] *feat*: `metadata` **exif time shift** (to fix bad camera settings afterwards)
 - [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)
@@ -30,7 +30,8 @@
 - [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `files` prevent deletion of photos with stars
-- [ ] *feat*: `files` **sd card import
+- [ ] *feat*: `files` **sd card*** import
+- [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 
 ## ❄️ Cold storage
 

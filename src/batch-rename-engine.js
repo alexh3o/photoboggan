@@ -3,6 +3,7 @@
 // a recipe, it only receives the names computed here.
 //
 // Steps (applied in order, each one on the result of the previous one):
+//   { type: 'blank' }                                      erases the current name (the recipe then builds a new one); once, always first
 //   { type: 'replace', search, replacement, occurrence }   occurrence: '' = all, otherwise the n-th one (1 = first), case-sensitive
 //   { type: 'insert',  text, position, direction }         position: characters from the start / the end of the name (extension excluded)
 //   { type: 'delete',  start, length, direction }
@@ -10,7 +11,7 @@
 // {author(format;space;separator;default)}. Parameters are separated by ";", written without quotes. "\" escapes the next character
 // (\; \) \} \{ \\). Dates use ISO 8601 symbols: YYYY MM DD hh mm ss (and "T", the ISO date / time separator, is kept as it is).
 
-export const STEP_TYPES = ['replace', 'insert', 'delete'];
+export const STEP_TYPES = ['blank', 'replace', 'insert', 'delete'];
 
 /** Characters a file name cannot hold (same list as validate_new_name in main.rs). */
 export const FORBIDDEN = /[\\/:*?"<>|\u0000-\u001f]/g;
@@ -29,9 +30,16 @@ let stepCounter = 0;
 export function newStep(type) {
   stepCounter += 1;
   const base = { id: stepCounter, type };
+  if (type === 'blank') return base;
   if (type === 'replace') return { ...base, search: '', replacement: '', occurrence: '' };
   if (type === 'insert') return { ...base, text: '', position: '0', direction: 'start' };
   return { ...base, start: '0', length: '1', direction: 'start' };
+}
+
+/** The "blank" step is unique and always first: the first one goes to the front, the others are dropped. */
+export function normalizeSteps(steps) {
+  const blank = steps.find(step => step.type === 'blank');
+  return blank ? [blank, ...steps.filter(step => step.type !== 'blank')] : steps;
 }
 
 /** { stem, ext } of a file name: the extension is what follows the last dot, a leading dot does not start one (as in the backend). */
@@ -270,7 +278,9 @@ function checkDirection(raw) {
 }
 
 function checkStep(step, count) {
-  if (step.type === 'replace') {
+  if (step.type === 'blank') {
+    // Nothing to check: the name is erased.
+  } else if (step.type === 'replace') {
     if (step.search === '') throw new RecipeError('empty_search');
     compile(step.search, count);
     compile(step.replacement, count);
@@ -298,6 +308,7 @@ export function validateRecipe(steps, count) {
   const errors = [];
   steps.forEach((step, index) => {
     try {
+      if (step.type === 'blank' && steps.findIndex(other => other.type === 'blank') !== index) throw new RecipeError('blank_once');
       checkStep(step, count);
     } catch (error) {
       if (!(error instanceof RecipeError)) throw error;
@@ -308,6 +319,7 @@ export function validateRecipe(steps, count) {
 }
 
 function applyStep(step, name, context) {
+  if (step.type === 'blank') return '';
   if (step.type === 'replace') {
     const search = expand(step.search, context);
     if (search === '') throw new RecipeError('empty_search');
