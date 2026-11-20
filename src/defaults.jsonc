@@ -87,7 +87,7 @@
   "privacyEnabled": false,
   "privacyLock": false,
   // Check GitHub for updates (ignored in offline mode).
-  "checkUpdates": true,
+  "checkUpdates": false,
   // Also propose beta versions.
   "includePrereleases": false,
   // Verify (SHA-256) moves between drives.
