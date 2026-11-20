@@ -9,7 +9,7 @@
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [x] *refactor*: `grid` date modified sorting must see metadata writes
 - [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
-- [ ] *perf*: `fullscreen` slight lag when changing photo
+- [x] *perf*: `fullscreen` slight lag when changing photo
 - [ ] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
 - [ ] *refactor*: `semantic` allow larger scores
 - [ ] *chore*: `linux` add appimage in github workflows
@@ -34,7 +34,7 @@
 - [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `files` prevent deletion of photos with stars
-- [ ] *feat*: `files` **sd card*** import
+- [ ] *feat*: `files` **sd card** import
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 
 ## ❄️ Cold storage

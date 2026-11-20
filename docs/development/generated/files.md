@@ -9,26 +9,19 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1518 |  |
+| `index.html` | 1519 |  |
 | `package.json` | 29 |  |
 | `README.md` | 202 |  |
-| `TODO.md` | 66 |  |
+| `TODO.md` | 70 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 89 |  |
+| `release.yml` | 92 |  |
 | `static.yml` | 38 |  |
 | `tests.yml` | 77 |  |
-
-## .traces
-
-| File | Lines | Leading comment |
-|---|---:|---|
-| `Trace-20261120T074928.json` | 22730 |  |
-| `Trace-20261120T083419.json` | 27051 |  |
 
 ## .vscode
 
@@ -69,10 +62,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 594 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 321 |  |
+| `files.md` | 328 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 106 |  |
-| `symbols-js.md` | 1556 |  |
+| `symbols-js.md` | 1558 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
@@ -86,7 +79,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
 | `filters-and-search.md` | 105 |  |
-| `grid-and-viewer.md` | 107 |  |
+| `grid-and-viewer.md` | 110 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 82 |  |
 | `main-window.md` | 86 |  |
@@ -123,7 +116,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `batch-rename-engine.js` | 379 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
 | `batch-rename.js` | 643 |  |
-| `defaults.jsonc` | 195 |  |
+| `defaults.jsonc` | 197 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
 | `duplicates-modal.js` | 310 | Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are applied to this search only, unless "Save these settings as default" is tick… |
@@ -148,7 +141,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 9229 |  |
+| `main.js` | 9319 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -317,11 +310,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1896 |  |
-| `fr.json` | 1896 |  |
+| `en.json` | 1899 |  |
+| `fr.json` | 1899 |  |
 
 ## webpage
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `index.html` | 2172 |  |
+| `index.html` | 2184 |  |

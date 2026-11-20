@@ -29,6 +29,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `folderOrder` | `[]` | main.js |
 | `fullscreenFacesVisible` | `"hover"` | faces-panel.js |
 | `fullscreenInfoVisible` | `false` | main.js |
+| `fullscreenThumbnailPreload` | `false` | main.js |
 | `histogramRgb` | `false` | histogram.js |
 | `ignoreBursts` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includePrereleases` | `false` | update-check.js |
@@ -99,7 +100,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Keys: 1893 (en) / 1893 (fr)
+- Keys: 1896 (en) / 1896 (fr)
 - In en.json but missing from fr.json: none
 - In fr.json but missing from en.json: none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none
