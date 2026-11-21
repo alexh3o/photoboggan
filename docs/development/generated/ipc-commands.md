@@ -124,11 +124,11 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `remove_missing_photos` | `main.rs` | `paths: Vec<String>` | `Vec<String>` | async pool | main.js |
 | `sync_library` | `main.rs` | `excluded: Option<Vec<String>>` | `library_sync::SyncChanges` | async pool | main.js ×2 |
 | `set_verify_cross_drive_moves` | `main.rs` | `enabled: bool` | `()` | main thread | main.js |
-| `move_photos` | `main.rs` | `paths: Vec<String>, destination: String, task_id: Option<String>` | `MoveResult` | async pool | main.js |
+| `move_photos` | `main.rs` | `paths: Vec<String>, destination: String, task_id: Option<String>` | `MoveResult` | async pool | drag-drop.js |
 | `copy_conflicts` | `main.rs` | `paths: Vec<String>, destination: String` | `Vec<CopyConflict>` | async pool | photo-actions.js |
 | `copy_photos` | `main.rs` | `paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>` | `CopyResult` | async pool | photo-actions.js |
-| `tracked_copy_conflicts` | `main.rs` | `paths: Vec<String>, destination: String` | `Vec<CopyConflict>` | async pool | main.js |
-| `copy_photos_to_tracked_folder` | `main.rs` | `paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>` | `CopyResult` | async pool | main.js |
+| `tracked_copy_conflicts` | `main.rs` | `paths: Vec<String>, destination: String` | `Vec<CopyConflict>` | async pool | drag-drop.js |
+| `copy_photos_to_tracked_folder` | `main.rs` | `paths: Vec<String>, destination: String, resolutions: Option<std::collections::HashMap<String, String>>, task_id: Option<String>` | `CopyResult` | async pool | drag-drop.js |
 | `resize_photo` | `main.rs` | `path: String, options: resize::ResizeOptions` | `resize::ResizeOutcome` | async pool | photo-actions.js |
 | `pick_program` | `main.rs` | `title: String, filter_name: String` | `Option<String>` | async pool | photo-actions.js |
 | `register_existing_programs` | `main.rs` | `paths: Vec<String>` | `()` | async pool | photo-actions.js |

@@ -1,14 +1,15 @@
-<!-- verified: 6ef90bf | sources: src/main.js, src/preview-zoom.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
-# Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, slideshow (main.js, part 2 + preview-zoom.js)
+<!-- verified: dae2f14 | sources: src/main.js, src/preview-zoom.js, src/drag-drop.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
+# Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, drag-and-drop, slideshow (main.js, part 2 + preview-zoom.js + drag-drop.js)
 
 ## Purpose
-What the user looks at and acts on: the virtual thumbnail grid (square, framed, justified, masonry), the thumbnails pipeline that feeds it, selection, sort and date/name separators, the preview panel with zoom and **compare mode** (up to 4 photos, `src/preview-zoom.js`), full screen, the slideshow, and the marking actions (rating, colour, pick, lossless rotation) with their undo. Loading the photo list and the task queue are in `main-window.md`; the filters that build the displayed list are in `filters-and-search.md`.
+What the user looks at and acts on: the virtual thumbnail grid (square, framed, justified, masonry), the thumbnails pipeline that feeds it, selection, sort and date/name separators, the preview panel with zoom and **compare mode** (up to 4 photos, `src/preview-zoom.js`), drag-scroll and photo drag-and-drop (`src/drag-drop.js`), full screen, the slideshow, and the marking actions (rating, colour, pick, lossless rotation) with their undo. Loading the photo list and the task queue are in `main-window.md`; the filters that build the displayed list are in `filters-and-search.md`.
 
 ## Files
 | File | Role |
 |---|---|
-| `src/main.js` | Sections: format helpers at the top (thumbnail loading, display URLs), "VIRTUAL SCROLLING", "GESTION DU PLEIN ÉCRAN ET NAVIGATION", "SELECTION MULTIPLE", "UNDO", "LOSSLESS ROTATION", "TRI DES MINIATURES", "MARQUAGE", "DÉFILEMENT DE LA GRILLE AU GLISSER", "DÉPLACEMENT ET COPIE … VERS L'ARBORESCENCE" (drag and drop onto the folder tree), "MENU CONTEXTUEL DES MINIATURES" (`removePhotosFromLibrary`) |
+| `src/main.js` | Sections: format helpers at the top (thumbnail loading, display URLs), "VIRTUAL SCROLLING", "GESTION DU PLEIN ÉCRAN ET NAVIGATION", "SELECTION MULTIPLE", "UNDO", "LOSSLESS ROTATION", "TRI DES MINIATURES", "MARQUAGE", "FILE AND FOLDER OPERATIONS" (`photoMoveRunning`, `applyMovedPhotos`, `deleteFolderToTrash`, `renamePhotoOnDisk`, `renameFolderOnDisk`), "MENU CONTEXTUEL DES MINIATURES" (`removePhotosFromLibrary`) |
 | `src/preview-zoom.js` | Preview panel (`renderPreview`, `invalidatePreview`), zoom/pan and compare mode up to 4 photos (`isCompareMode`, `canAddToSelection`, `commandTargetPhotos`, desynchronise toggle, sub-selection), instant zoom (`INSTANT ZOOM (HOLD Z)`), and shared slot layout/zoom primitives reused by full screen (`layoutPreviewSlot`, `setSlotImageSize`, `zoomPreviewSteps`, `togglePreviewActualSize`, `wheelZoomSteps`); wired by `initPreviewZoom` in `main.js` |
+| `src/drag-drop.js` | Grid drag-scroll with exponential inertia (`GRID DRAG-SCROLL`, `suppressGridClick`), photo drag-and-drop (`PHOTO DRAG-AND-DROP`) onto the folder tree (including sticky pinned rows), manual albums (`albums-panel.js`) and the map (`map-mode.js`), plus `FOLDER DROP ACTIONS` (`movePhotosToFolder`, `copyPhotosToFolder`); wired by `initDragDrop` in `main.js` |
 | `src/slideshow.js` | Slideshow as a state of full screen: timer, delay / loop / random settings (`slideshowDelay`, `slideshowLoop`, `slideshowRandom`), `initSlideshow`, `startSlideshow`, `stopSlideshow`, `notifySlideshowPhotoShown`, `peekNextSlideshowPhoto` |
 | `src/toolbar-a11y.js` | `initToolbarAria`: one `MutationObserver` per toolbar toggle keeps `aria-pressed` equal to the `active` class (which other modules toggle) |
 | `src/file-dates.js` | Tooltip of the Info tab's "Date taken" row: creation and modification dates of the active photo's file (`initFileDates`, `renderFileDates`); backend counterpart `get_file_dates` in `main.rs` |
@@ -79,8 +80,9 @@ A view with more than 50 000 matching photos (prefilter applied) is shown one pa
 4. Undo: `pushUndo(run)` keeps 20 entries (`MAX_UNDO`); the toast button undoes its own entry, Ctrl+Z the latest; an undo is not stacked again. `undoMarking` writes the stored previous value back; `undoRotation` applies the opposite rotation; a batch rename (`batch-rename.js`) pushes the reverse batch.
 
 ### Dragging
-- **Grid drag-scroll** ("DÉFILEMENT DE LA GRILLE AU GLISSER"): beyond `GRID_DRAG_THRESHOLD` (5 px) a press-and-drag scrolls the grid, with exponential inertia on release (`GRID_INERTIA_*` constants); `suppressGridClick` stops the release from also selecting.
-- **Drag to the folder tree** (next section): Shift + drag moves the selected photos to a folder (files moved on disk), Ctrl + drag copies them; only the grabbed photo if it is not selected; Esc cancels. Dropping on a manual album adds (or moves between manual albums), never moves files into an album. Mode follows the keys held at each instant (`dragModeFrom`).
+Implemented in `src/drag-drop.js` (wired via `initDragDrop` in `main.js`):
+- **Grid drag-scroll** (section "GRID DRAG-SCROLL"): beyond `GRID_DRAG_THRESHOLD` (5 px) a press-and-drag scrolls the grid, with exponential inertia on release (`GRID_INERTIA_*` constants); `suppressGridClick` (capture-phase click handler) stops the release from also selecting.
+- **Drag to the folder tree, manual albums and map** (sections "PHOTO DRAG-AND-DROP" and "FOLDER DROP ACTIONS"): Shift + drag moves the selected photos to a folder (`movePhotosToFolder`), Ctrl + drag copies them (`copyPhotosToFolder`), and dropping without a modifier opens `askCopyOrMove`; only the grabbed photo is dragged if it is not selected; Esc cancels. `folderItemAt` uses a descendant selector so sticky pinned folder rows (`li.folder-tree-sticky`) work as drop targets too. Dropping on a manual album adds or moves between manual albums (`albums-panel.js`: `addPhotosToAlbum`, `movePhotosToAlbum`), never moves disk files into an album; dropping on the map assigns a pending position (`map-mode.js`: `dragOverMap`, `dragLeaveMap`, `dropOnMap`). Mode follows the keys held at each instant (`dragModeFrom`).
 - `slideshow.js` reads its settings with `readBool` / `readNumber` (delay 1–60 s; values `"1"` / `"0"` saved by versions up to 0.6.11 still understood); the context menu offers `SLIDESHOW_DELAYS`.
 
 ## Contracts
@@ -90,8 +92,8 @@ A view with more than 50 000 matching photos (prefilter applied) is shown one pa
 - Settings: `thumbnailLayout`, `thumbnailSpacing`, `thumbnailCorners`, `thumbnailSize`, `fullscreenThumbnailPreload`, `markingPlacement`, `dimUnselectedOnHover`, `slideshow*`, `photoSortKey`/`photoSortOrder`/`photo*Separator` (`../generated/config.md`).
 
 ## Dependencies
-- Uses: `preview-zoom.js` (imported by `main.js` only), `filters` (via `applyPhotoFilters`), `metadata-writes.js` (`runLocked`), `photo-actions.js` (context menu, delete/move), faces/map/histogram modules refreshed by `updateUIOnSelection` (and calling `layoutPreviewSlots`, `getPreviewSlots`, `previewSlotFromEvent` via `main.js`).
-- Used by: all panels read `photos`, `selectedIndices`, `lastSelectedIndex`; `preview-zoom.js` accesses them via the `initPreviewZoom` host callbacks.
+- Uses: `preview-zoom.js` and `drag-drop.js` (imported by `main.js` only); `drag-drop.js` imports `albums-panel.js`, `map-mode.js`, `photo-actions.js`, `metadata-writes.js`, `i18n.js` and receives host callbacks (`enqueueTask`, `applyMovedPhotos`, `syncAfterCopy`, `showToast`, selection/thumbnail helpers) via `initDragDrop`; `filters` (via `applyPhotoFilters`), `metadata-writes.js` (`runLocked`), `photo-actions.js` (context menu, delete/move), faces/map/histogram modules refreshed by `updateUIOnSelection` (and calling `layoutPreviewSlots`, `getPreviewSlots`, `previewSlotFromEvent` via `main.js`).
+- Used by: all panels read `photos`, `selectedIndices`, `lastSelectedIndex`; `preview-zoom.js` and `drag-drop.js` access them via `initPreviewZoom` / `initDragDrop` host callbacks.
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: virtual grid layout is pixel-exact (AGENTS.md §5.A/§7); a fractional width or a size change on hover/selection creates gaps or reflows.

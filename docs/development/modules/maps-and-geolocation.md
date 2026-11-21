@@ -1,4 +1,4 @@
-<!-- verified: 6891c22 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
+<!-- verified: dae2f14 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
 
 # Maps, map mode, location panel, geolocation editing, place search
 
@@ -33,7 +33,7 @@ Shows where photos were taken (small map in the Info panel, full map mode), lets
 
 **2. Location panel.** `refreshLocation(selection, focus)` reads `gps_lat` / `gps_lon` of the selection from loaded photos (never edited here). The map loads only if `showMap` is on: ordinary place → also needs offline mode off; place inside a private zone (`locatePrivatePoints`, private-zones.js) → strict map, disk tiles only (works offline). `onMapAccessChanged` reacts to settings changes. At most `MAP_MAX_POINTS` markers; the panel's map is disabled while map mode is open (`setMapSuppressed`: one WebGL context).
 
-**3. Map mode.** `openMapMode` / `initMapMode` / `refreshMapMode`: points for all geolocated photos of the grid, selection highlighted. Grid filter "Visible area only": `getVisibleZone`, `passesMapFilter`, `mapPrefilter` (used by `main.js` filters). Assigning a position: Shift + drag the selection onto the map (`dragOverMap` / `dropOnMap`, called by main.js) or right-click > "Place the selection here". Positions stay **pending** (`pending`, `hasPendingPosition`) until "Write to files", written through the normal circuit: `apply_metadata_changes` with `gps` items (`KeywordWriteItem.gps` in `keywords.rs`, then re-read and `gps_mismatch`, database updated in the same transaction). Like pending faces they concern the whole library: asked on app close and on leaving the mode (`requestCloseMapMode`), never silently lost.
+**3. Map mode.** `openMapMode` / `initMapMode` / `refreshMapMode`: points for all geolocated photos of the grid, selection highlighted. Grid filter "Visible area only": `getVisibleZone`, `passesMapFilter`, `mapPrefilter` (used by `main.js` filters). Assigning a position: Shift + drag the selection onto the map (`dragOverMap` / `dropOnMap`, called by `drag-drop.js`) or right-click > "Place the selection here". Positions stay **pending** (`pending`, `hasPendingPosition`) until "Write to files", written through the normal circuit: `apply_metadata_changes` with `gps` items (`KeywordWriteItem.gps` in `keywords.rs`, then re-read and `gps_mismatch`, database updated in the same transaction). Like pending faces they concern the whole library: asked on app close and on leaving the mode (`requestCloseMapMode`), never silently lost.
 
 **4. Erase / restore** (`geolocation.rs`, queued from `geo-tools.js` with `runLocked`):
 
@@ -54,7 +54,7 @@ Shows where photos were taken (small map in the Info panel, full map mode), lets
 ## Dependencies
 
 - Uses: MapLibre GL (bundled, worker file via Vite `?url`), `private-zones.js`, `metadata-writes.js` (`runLocked`, apply circuit), `keywords.rs` (`run_write`), `exiftool.rs` (`writes_in_file`), `face_models::internet_allowed`.
-- Used by: `main.js` (drag and drop onto the map, filters, close confirmation), `private-zones-modal.js` (`createMapView`).
+- Used by: `main.js` (filters, close confirmation), `drag-drop.js` (drag and drop onto the map), `private-zones-modal.js` (`createMapView`).
 
 ## Invariants and sensitive areas
 

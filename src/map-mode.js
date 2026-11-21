@@ -3,7 +3,7 @@
 // - Carte : toutes les photos géolocalisées de la grille en points discrets, la sélection en évidence (photo active = couleur de sélection,
 //   autres photos sélectionnées en bleu), les zones hors ligne en pointillés (vertes si privées, noires sinon).
 // - Filtre de la grille : « Toutes les photos », ou « Zone visible seulement » (seules les photos de la zone visible de la carte).
-// - Affectation : Maj + glisser la sélection sur la carte (le dépôt est géré par main.js, voir dragOverMap / dropOnMap), ou clic droit sur la
+// - Location assignment: Shift + drag the selection onto the map (drop handled by drag-drop.js, see dragOverMap / dropOnMap), or right-click on the
 //   carte > « Placer la sélection ici ». Les positions restent EN ATTENTE jusqu'à « Écrire dans les fichiers » : elles s'écrivent avec le circuit
 //   des mots-clés (metadata-writes.js, commande apply_metadata_changes) et, comme les visages, concernent toute la photothèque : demandées à la
 //   fermeture de l'application et en quittant le mode, jamais perdues sans question.
@@ -242,7 +242,7 @@ function openMapMenu(x, y, lngLat) {
 }
 
 // ---------------------------------------------------------------------------
-// Glisser-déposer des photos sur la carte (le geste est suivi par main.js : Maj + glisser, voir startPhotoDrag)
+// Photo drag-and-drop onto the map (gesture tracked by drag-drop.js: Shift + drag, see startPhotoDrag)
 // ---------------------------------------------------------------------------
 
 /** Le curseur est au-dessus de la carte : indique les coordonnées visées et renvoie vrai. */

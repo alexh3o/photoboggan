@@ -1,4 +1,4 @@
-<!-- verified: 6ef90bf | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
+<!-- verified: dae2f14 | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
 
 # Architecture
 
@@ -26,6 +26,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
              │ main.js: grid, viewer, selection, sort, filters, startup                │
              │   ├─ task-queue.js       (main & semantic lanes, toasts, tasks modal)   │
              │   ├─ preview-zoom.js     (preview zoom, compare mode, instant zoom)   │
+             │   ├─ drag-drop.js        (grid drag-scroll, photo drag: tree/albums/map) │
              │   ├─ panels: keywords-panel, description-panel, faces-*, albums-panel,   │
              │   │          location-panel, histogram, semantic*, duplicates*           │
              │   ├─ metadata-writes.js  (single write circuit for the right panel)      │

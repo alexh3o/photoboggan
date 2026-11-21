@@ -8,7 +8,7 @@ import { DEFAULTS, readBool, readChoice, readNumber, readStored } from './settin
 import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
 import { initSidebarSearch } from './sidebar-search.js';
-import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, askCopyResolutions, sidecarRenameNotice, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
+import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, onAnalysisChanged, isSemanticEnabled, analyseContent, semanticErrorMessage } from './semantic-settings.js';
 import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
@@ -30,14 +30,14 @@ import { initLocationPanel, refreshLocation, onMapAccessChanged } from './locati
 import { reloadAllMaps } from './map-view.js';
 import { initMapsSettings } from './maps-settings.js';
 import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
-import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, dragOverMap, dragLeaveMap, dropOnMap, onMapModeAccessChanged } from './map-mode.js';
+import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { fillSortButton, initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
-import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
+import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 import { initShootingFilters, matchesShootingState, shootingPrefilter } from './shooting-filters.js';
@@ -67,6 +67,7 @@ import {
   previewSlotFromEvent, previewAnchorAt, zoomPreviewSteps, togglePreviewActualSize,
   wheelZoomSteps, getHoveredPreviewSlot, getPreviewSlots,
 } from './preview-zoom.js';
+import { initDragDrop } from './drag-drop.js';
 
 // WINDOW CHROME (titlebar.js): first display of the window, title bar buttons and immersive mode (F11).
 // Closing by any means (button, Alt+F4, system menu) asks first about unfinished work, in this order: running queue tasks, unsaved filters of a smart
@@ -6122,330 +6123,30 @@ initPreviewZoom({
   updateUIOnSelection: () => updateUIOnSelection(),
 });
 
-// ==========================================
-// DÉFILEMENT DE LA GRILLE AU GLISSER
-// ==========================================
-const GRID_DRAG_THRESHOLD = 5; // pixels avant de considérer un glissement (sinon c'est un clic)
-let gridDrag = null;
-let photoDrag = null; // glisser-déposer de photos vers l'arborescence (voir plus bas)
-let suppressGridClick = false;
-
-// Inertie : au relâchement d'un glissement rapide, le défilement continue puis ralentit progressivement (décroissance exponentielle,
-// indépendante de la cadence d'affichage). La distance totale parcourue vaut vitesse initiale x GRID_INERTIA_TIME_CONSTANT_MS.
-const GRID_INERTIA_TIME_CONSTANT_MS = 325; // plus la valeur est grande, plus le défilement dure et va loin
-const GRID_INERTIA_VELOCITY_WINDOW_MS = 100; // fenêtre de mesure de la vitesse juste avant le relâchement
-const GRID_INERTIA_MAX_IDLE_MS = 60; // pointeur immobile plus longtemps avant le relâchement : pas d'inertie
-const GRID_INERTIA_MIN_VELOCITY = 0.1; // px/ms nécessaires pour lancer l'inertie
-const GRID_INERTIA_STOP_VELOCITY = 0.02; // px/ms : en dessous, le défilement s'arrête
-const GRID_INERTIA_MAX_VELOCITY = 6; // px/ms
-let gridInertia = null; // { frame, velocity, position, lastTime } pendant l'inertie
-
-// Arrête l'inertie en cours ; renvoie true si la grille était encore en train de défiler.
-function stopGridInertia() {
-  if (!gridInertia) return false;
-  cancelAnimationFrame(gridInertia.frame);
-  gridInertia = null;
-  return true;
-}
-
-function startGridInertia(velocity) {
-  stopGridInertia();
-  const state = { frame: 0, velocity, position: gridContainer.scrollTop, lastTime: performance.now() };
-  gridInertia = state;
-  const step = now => {
-    if (gridInertia !== state) return;
-    // scrollTop modifié ailleurs (barre de défilement, changement de filtre ou de tri…) : l'inertie s'efface.
-    if (Math.abs(gridContainer.scrollTop - state.position) > 2) { stopGridInertia(); return; }
-    const elapsed = Math.min(50, Math.max(0, now - state.lastTime));
-    state.lastTime = now;
-    const decay = Math.exp(-elapsed / GRID_INERTIA_TIME_CONSTANT_MS);
-    state.position += state.velocity * GRID_INERTIA_TIME_CONSTANT_MS * (1 - decay);
-    state.velocity *= decay;
-    const maxScroll = Math.max(0, gridContainer.scrollHeight - gridContainer.clientHeight);
-    const clamped = Math.max(0, Math.min(maxScroll, state.position));
-    gridContainer.scrollTop = clamped;
-    // Haut ou bas de la grille atteint, ou vitesse devenue négligeable : fin du défilement.
-    if (clamped !== state.position || Math.abs(state.velocity) < GRID_INERTIA_STOP_VELOCITY) { stopGridInertia(); return; }
-    state.frame = requestAnimationFrame(step);
-  };
-  state.frame = requestAnimationFrame(step);
-}
-
-// Vitesse mesurée sur les derniers instants du glissement (pointeur immobile avant le relâchement = pas d'inertie).
-function releaseGridInertia(samples, releaseTime) {
-  const last = samples[samples.length - 1];
-  if (!last || releaseTime - last.time > GRID_INERTIA_MAX_IDLE_MS) return;
-  const first = samples[0];
-  const duration = last.time - first.time;
-  if (duration < 8) return; // trop peu de mesures pour estimer une vitesse fiable
-  const velocity = Math.max(-GRID_INERTIA_MAX_VELOCITY, Math.min(GRID_INERTIA_MAX_VELOCITY, -(last.y - first.y) / duration));
-  if (Math.abs(velocity) < GRID_INERTIA_MIN_VELOCITY) return;
-  startGridInertia(velocity);
-}
-
-// La molette reprend la main sur une inertie en cours.
-gridContainer.addEventListener('wheel', stopGridInertia, { passive: true });
-
-gridContainer.addEventListener('pointerdown', event => {
-  if (event.button !== 0 || event.pointerType === 'touch') return;
-  const stoppedInertia = stopGridInertia(); // un clic sur la grille qui défile l'arrête
-  const bounds = gridContainer.getBoundingClientRect();
-  if (event.clientX - bounds.left >= gridContainer.clientWidth) return; // barre de défilement
-  // Maj + bouton tenu sur une miniature : on glisse les photos vers un dossier de l'arborescence pour les déplacer ; Ctrl + bouton tenu : pour les copier
-  // (le glissement simple fait défiler la grille).
-  const pressedThumbnail = (event.shiftKey || event.ctrlKey) && event.target instanceof Element ? event.target.closest('.thumbnail') : null;
-  if (pressedThumbnail) {
-    photoDrag = { pointerId: event.pointerId, mode: dragModeFrom(event), overAlbum: false, overMap: false, lastX: 0, lastY: 0, startX: event.clientX, startY: event.clientY, index: Number(pressedThumbnail.dataset.index), active: false, cancelled: false, targets: [], ghost: null, dropItem: null };
-    return;
-  }
-  gridDrag = { pointerId: event.pointerId, startY: event.clientY, startScrollTop: gridContainer.scrollTop, active: false, stoppedInertia, samples: [] };
-});
-
-gridContainer.addEventListener('pointermove', event => {
-  if (!gridDrag || event.pointerId !== gridDrag.pointerId) return;
-  const delta = event.clientY - gridDrag.startY;
-  if (!gridDrag.active) {
-    if (Math.abs(delta) < GRID_DRAG_THRESHOLD) return;
-    gridDrag.active = true;
-    gridContainer.setPointerCapture(event.pointerId);
-    gridContainer.classList.add('dragging-scroll');
-  }
-  gridContainer.scrollTop = gridDrag.startScrollTop - delta;
-  // Derniers points du glissement, pour estimer la vitesse au relâchement.
-  const samples = gridDrag.samples;
-  samples.push({ time: event.timeStamp, y: event.clientY });
-  while (samples.length > 1 && event.timeStamp - samples[0].time > GRID_INERTIA_VELOCITY_WINDOW_MS) samples.shift();
-});
-
-function endGridDrag(event) {
-  if (!gridDrag || event.pointerId !== gridDrag.pointerId) return;
-  const { active, stoppedInertia, samples } = gridDrag;
-  if (active || stoppedInertia) {
-    // Le clic qui suit un glissement (ou qui vient d'arrêter l'inertie) ne doit pas changer la sélection.
-    suppressGridClick = true;
-    setTimeout(() => { suppressGridClick = false; }, 0);
-  }
-  if (active) {
-    gridContainer.classList.remove('dragging-scroll');
-    if (event.type === 'pointerup') releaseGridInertia(samples, event.timeStamp); // pas d'inertie si le glissement est annulé
-  }
-  gridDrag = null;
-}
-// Bloque le glisser-déposer natif (image fantôme, icône « interdit ») qui interrompt le défilement
-gridContainer.addEventListener('dragstart', event => event.preventDefault());
-gridContainer.addEventListener('pointerup', endGridDrag);
-gridContainer.addEventListener('pointercancel', endGridDrag);
-gridContainer.addEventListener('click', event => {
-  if (!suppressGridClick) return;
-  suppressGridClick = false;
-  event.stopPropagation();
-  event.preventDefault();
-}, true);
-
-// ==========================================
-// DÉPLACEMENT ET COPIE DE PHOTOS PAR GLISSER-DÉPOSER VERS L'ARBORESCENCE
-// ==========================================
-// Maj + bouton tenu sur une miniature, puis glisser sur un dossier de l'arborescence et relâcher : les photos sélectionnées y sont déplacées
-// (fichiers déplacés sur le disque). Avec Ctrl au lieu de Maj, elles sont copiées (un « + » vert s'affiche sur la vignette). Si la miniature saisie
-// n'est pas sélectionnée, seule elle est concernée. Échap annule. Un simple Maj + clic ou Ctrl + clic, sans glissement, garde son rôle habituel
-// (sélection d'une plage, ajout ou retrait de la sélection).
-const PHOTO_DRAG_THRESHOLD = 6; // pixels avant de considérer un glissement (sinon c'est un clic)
-let photoMoveRunning = false;
-
-function folderItemAt(x, y) {
-  const element = document.elementFromPoint(x, y);
-  return element instanceof Element ? element.closest('#folder-tree .folder-tree-item[data-folder-path]') : null;
-}
-
-// Mode du glissement d'après les touches tenues À CET INSTANT (Maj : déplacer, Ctrl : copier ; Maj l'emporte), null si aucune. Les touches peuvent
-// changer pendant le glissement : le mode et le badge suivent.
-const dragModeFrom = modifiers => (modifiers.shiftKey ? 'move' : modifiers.ctrlKey ? 'copy' : null);
-
-// Action d'un dépôt sur un album manuel : 'copy' (ajout), 'move' (ajout à la cible puis retrait de l'album d'origine), null (à demander) ou 'none'
-// (l'album d'origine lui-même : rien à faire).
-// Des photos venant d'un dossier du disque ne sont jamais déplacées dans un album : toujours un ajout, quelle que soit la touche tenue.
-// Des photos venant d'un autre album manuel suivent les touches, comme sur un dossier : Maj déplace, Ctrl copie, sans touche on demande.
-function albumDropAction(drag) {
-  if (drag.sourceAlbumId && drag.overAlbumId === drag.sourceAlbumId) return 'none';
-  return drag.sourceAlbumId ? drag.mode : 'copy';
-}
-
-// Badge de l'image qui suit le curseur : « + » vert pour une copie, flèche bleue vers la gauche pour un déplacement, aucun quand le dépôt demandera
-// quoi faire. Au-dessus de la carte, quelle que soit la touche : une épingle rouge, les photos y seront géolocalisées.
-function paintPhotoDragBadge(drag) {
-  if (!drag.ghost) return;
-  // Aucun badge quand le dépôt est refusé (album intelligent, dossier virtuel) ou sans effet (album d'origine).
-  const action = drag.refusal ? 'none' : drag.overAlbum ? albumDropAction(drag) : drag.mode;
-  drag.ghost.classList.toggle('pin', drag.overMap);
-  drag.ghost.classList.toggle('copy', !drag.overMap && action === 'copy');
-  drag.ghost.classList.toggle('move', !drag.overMap && action === 'move');
-  // Cible refusée (album intelligent, dossier virtuel) : la raison s'affiche sous l'image.
-  const reason = drag.overMap ? null : drag.refusal;
-  if (drag.reason) { drag.reason.hidden = !reason; drag.reason.textContent = reason ? t(reason) : ''; }
-}
-
-// Recalcule ce que le glissement vise d'après les touches tenues et la position du curseur : mode, album ou carte survolés, badge, réticule de la carte.
-// Appelée à chaque mouvement de la souris et à chaque appui ou relâchement de Maj / Ctrl.
-function updatePhotoDragState(drag, x, y, modifiers) {
-  drag.mode = dragModeFrom(modifiers);
-  drag.lastX = x;
-  drag.lastY = y;
-  const albumItem = albumItemAt(x, y);
-  drag.overAlbum = Boolean(albumItem);
-  drag.overAlbumId = albumItem ? Number(albumItem.dataset.albumId) : 0;
-  // Un album qui n'est pas manuel (intelligent, dossier virtuel) ne reçoit pas de photos : on le dit au lieu d'ignorer le dépôt.
-  drag.refusal = !albumItem && albumNodeAt(x, y) ? 'Photos can only be added to a manual album' : null;
-  // Au-dessus de la carte (avec ou sans Maj / Ctrl) : réticule, coordonnées visées, et image décalée pour ne pas masquer le point de dépôt.
-  drag.overMap = dragOverMap(x, y); // quelle que soit la touche tenue
-  document.body.classList.toggle('over-map', drag.overMap);
-  paintPhotoDragBadge(drag);
-  const ghostOffset = drag.overMap ? 30 : 12;
-  drag.ghost.style.transform = `translate(${x + ghostOffset}px, ${y + ghostOffset}px)`;
-}
-
-// Photos lâchées sans Maj ni Ctrl sur un dossier du disque ou un album : menu Copier / Déplacer / Annuler à l'endroit du relâchement.
-function askCopyOrMove(event, targets, onCopy, onMove) {
-  const header = targets.length === 1 ? (targets[0].filename || targets[0].path.split(/[\\/]/).pop()) : tp('{count} photo selected', targets.length);
-  openContextMenuAt(event, [
-    { header },
-    { separator: true },
-    { label: t('Copy'), onSelect: onCopy },
-    { label: t('Move'), onSelect: onMove },
-    { label: t('Cancel'), onSelect: () => {} },
-  ]);
-}
-
-// Album manuel de la section Albums sous le curseur (cible d'ajout de photos).
-function albumItemAt(x, y) {
-  const element = document.elementFromPoint(x, y);
-  return element instanceof Element ? element.closest('#albums-list .album-item.album-manual') : null;
-}
-
-// N'importe quelle ligne de la section Albums sous le curseur (pour expliquer pourquoi un album intelligent ou un dossier virtuel refuse les photos).
-function albumNodeAt(x, y) {
-  const element = document.elementFromPoint(x, y);
-  return element instanceof Element ? element.closest('#albums-list .album-item') : null;
-}
-
-// Premier déplacement au-delà du seuil : fixe les photos concernées et crée l'image qui suit le curseur.
-function startPhotoDrag(drag) {
-  if (!selectedIndices.has(drag.index)) {
+// Grid drag-scroll (with inertia) and photo drag-and-drop to the folder tree, manual albums and map: see drag-drop.js.
+initDragDrop({
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  selectOnly: index => {
     selectedIndices.clear();
-    selectedIndices.add(drag.index);
-    lastSelectedIndex = drag.index;
+    selectedIndices.add(index);
+    lastSelectedIndex = index;
     updateUIOnSelection();
-  }
-  drag.targets = [...selectedIndices].sort((a, b) => a - b).map(index => photos[index]).filter(Boolean);
-  if (!drag.targets.length) return false;
-  drag.active = true;
-  // Photos affichées depuis un album manuel : elles peuvent en être déplacées vers un autre (voir albumDropAction).
-  const sourceAlbum = getSelectedAlbum();
-  drag.sourceAlbumId = sourceAlbum?.kind === 'manual' ? sourceAlbum.id : 0;
-  gridContainer.setPointerCapture(drag.pointerId); // les événements continuent d'arriver au-dessus de l'arborescence
-  const ghost = document.createElement('div');
-  ghost.className = drag.mode === 'copy' ? 'drag-ghost copy' : 'drag-ghost';
-  const source = renderedThumbnailNodes.get(drag.index)?._thumbnailImage;
-  if (source?.src) {
-    const image = document.createElement('img');
-    image.src = source.src;
-    image.alt = '';
-    ghost.append(image);
-  }
-  const badge = document.createElement('span');
-  badge.textContent = String(drag.targets.length);
-  ghost.append(badge);
-  drag.reason = Object.assign(document.createElement('div'), { className: 'drag-reason', hidden: true });
-  ghost.append(drag.reason);
-  document.body.append(ghost);
-  drag.ghost = ghost;
-  document.body.classList.add('dragging-photos');
-  return true;
-}
-
-function clearPhotoDragVisuals(drag) {
-  drag.ghost?.remove();
-  drag.ghost = null;
-  drag.dropItem?.classList.remove('drop-target');
-  drag.dropItem = null;
-  drag.refusedItem?.classList.remove('drop-refused');
-  drag.refusedItem = null;
-  document.body.classList.remove('dragging-photos', 'over-map');
-  dragLeaveMap();
-}
-
-gridContainer.addEventListener('pointermove', event => {
-  const drag = photoDrag;
-  if (!drag || drag.cancelled || event.pointerId !== drag.pointerId) return;
-  if (!drag.active) {
-    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < PHOTO_DRAG_THRESHOLD) return;
-    if (!startPhotoDrag(drag)) { photoDrag = null; return; }
-  }
-  updatePhotoDragState(drag, event.clientX, event.clientY, event);
-  const item = folderItemAt(event.clientX, event.clientY) ?? albumItemAt(event.clientX, event.clientY);
-  if (item !== drag.dropItem) {
-    drag.dropItem?.classList.remove('drop-target');
-    item?.classList.add('drop-target');
-    drag.dropItem = item;
-  }
-  const refused = drag.refusal && !drag.overMap ? albumNodeAt(event.clientX, event.clientY) : null;
-  if (refused !== drag.refusedItem) {
-    drag.refusedItem?.classList.remove('drop-refused');
-    refused?.classList.add('drop-refused');
-    drag.refusedItem = refused;
-  }
+  },
+  getThumbnailImage: index => renderedThumbnailNodes.get(index)?._thumbnailImage ?? null,
+  showToast: showWriteToast,
+  enqueueTask: task => enqueueScanTask(task),
+  applyMovedPhotos: moved => applyMovedPhotos(moved),
+  syncAfterCopy: async () => {
+    const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
+    if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
+  },
 });
 
-function endPhotoDrag(event, released) {
-  const drag = photoDrag;
-  if (!drag || event.pointerId !== drag.pointerId) return;
-  photoDrag = null;
-  if (!drag.active) return; // Maj ou Ctrl + clic simple : le clic gère la sélection
-  clearPhotoDragVisuals(drag);
-  // Le clic qui suit un glissement ne doit pas changer la sélection.
-  suppressGridClick = true;
-  setTimeout(() => { suppressGridClick = false; }, 0);
-  if (!released || drag.cancelled) return;
-  drag.mode = dragModeFrom(event); // touches au moment du relâchement
-  if (dropOnMap(event.clientX, event.clientY, drag.targets)) return; // déposées sur la carte : position choisie
-  // Déposées sur un album manuel : aucun fichier n'est déplacé ni copié. Venant d'un dossier du disque, les photos sont ajoutées ; venant d'un autre
-  // album manuel, Maj les en retire en plus (déplacement), Ctrl les ajoute seulement, sans touche on demande.
-  const albumItem = albumItemAt(event.clientX, event.clientY);
-  if (albumItem) {
-    drag.overAlbumId = Number(albumItem.dataset.albumId);
-    const ids = drag.targets.map(photo => photo.id).filter(id => Number.isFinite(id));
-    const copy = () => addPhotosToAlbum(drag.overAlbumId, ids);
-    const move = () => movePhotosToAlbum(drag.sourceAlbumId, drag.overAlbumId, ids);
-    const action = albumDropAction(drag);
-    if (action === 'none') return;
-    if (action === 'move') move();
-    else if (action === 'copy') copy();
-    else askCopyOrMove(event, drag.targets, copy, move);
-    return;
-  }
-  const folderPath = folderItemAt(event.clientX, event.clientY)?.dataset.folderPath;
-  if (!folderPath) return;
-  if (!drag.mode) { askCopyOrMove(event, drag.targets, () => copyPhotosToFolder(drag.targets, folderPath), () => movePhotosToFolder(drag.targets, folderPath)); return; } // sans Maj ni Ctrl au relâchement : on demande
-  if (drag.mode === 'copy') copyPhotosToFolder(drag.targets, folderPath);
-  else movePhotosToFolder(drag.targets, folderPath);
-}
-gridContainer.addEventListener('pointerup', event => endPhotoDrag(event, true));
-gridContainer.addEventListener('pointercancel', event => endPhotoDrag(event, false));
-// Maj ou Ctrl pressé ou relâché pendant le glissement (souris immobile) : mode et badge changent aussitôt.
-function onPhotoDragModifierKey(event) {
-  const drag = photoDrag;
-  if (!drag?.active || drag.cancelled || (event.key !== 'Shift' && event.key !== 'Control')) return;
-  updatePhotoDragState(drag, drag.lastX, drag.lastY, event);
-}
-window.addEventListener('keydown', onPhotoDragModifierKey);
-window.addEventListener('keyup', onPhotoDragModifierKey);
-
-// Échap pendant le glissement : annule le déplacement (le relâché du bouton ne fait alors plus rien).
-window.addEventListener('keydown', event => {
-  if (event.key !== 'Escape' || !photoDrag?.active || photoDrag.cancelled) return;
-  event.preventDefault();
-  photoDrag.cancelled = true;
-  clearPhotoDragVisuals(photoDrag);
-});
+// ==========================================
+// FILE AND FOLDER OPERATIONS (delete, rename, path updates)
+// ==========================================
+let photoMoveRunning = false;
 
 // Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, dossiers
 // vides créés pendant la session oubliés. Si le dossier affiché est concerné, on revient à son dossier parent.
@@ -6537,78 +6238,6 @@ async function renameFolderOnDisk(path, newName) {
   } finally {
     photoMoveRunning = false;
   }
-}
-
-// Déplacement : tâche de la file (progression, arrêt possible entre deux fichiers, voir move_photos). Les fichiers déjà déplacés le restent après un arrêt.
-function movePhotosToFolder(targets, folderPath) {
-  if (!targets.length) return;
-  // Écriture de métadonnées en cours ou en file : le déplacement attend qu'elle soit finie (elle vise les chemins actuels).
-  if (isWriteLocked()) { showWriteToast(t('Metadata writing in progress…')); return; }
-  enqueueScanTask({
-    kind: 'move',
-    path: null,
-    command: 'move_photos',
-    args: { paths: targets.map(photo => photo.path), destination: folderPath },
-    labelKey: 'Moving files ({count})',
-    labelParams: { count: targets.length },
-    onResult: async (result, stopped, error) => {
-      if (error) {
-        showWriteToast(t('Move failed: {error}', { error }));
-        return;
-      }
-      if (!result) return; // removed from the queue before it started: nothing was moved
-      if (result.failed.length) console.error('Move failures', result.failed);
-      if (result.moved.length) await applyMovedPhotos(result.moved);
-      const parts = [];
-      if (result.moved.length) parts.push(tp('{count} file moved', result.moved.length));
-      if (result.skipped) parts.push(tp('{count} file already in this folder', result.skipped));
-      if (result.failed.length) parts.push(tp('{count} failure', result.failed.length));
-      const renamed = sidecarRenameNotice(result);
-      if (renamed.text) parts.push(renamed.text);
-      // Failures: "Details" lists them all (with the renames and their log); otherwise the renames' "Show log" button.
-      const action = failureDetailsAction(t('Some files could not be moved'), result.failed, { notes: [renamed.text], logPath: result.log_path }) ?? renamed.action;
-      if (!stopped || renamed.text || result.failed.length) {
-        showWriteToast(!result.moved.length && !result.skipped && result.failed.length
-          ? t('Move failed: {error}', { error: result.failed[0].error })
-          : parts.join(' · '), false, action, action ? 12000 : null);
-      }
-    },
-  });
-}
-
-async function copyPhotosToFolder(targets, folderPath) {
-  if (!targets.length) return;
-  const paths = targets.map(photo => photo.path);
-  const resolutions = await askCopyResolutions('tracked_copy_conflicts', paths, folderPath); // fichiers déjà présents à destination : l'utilisateur choisit
-  if (!resolutions) return; // copie annulée
-  enqueueScanTask({
-    kind: 'copy',
-    path: null,
-    command: 'copy_photos_to_tracked_folder',
-    args: { paths, destination: folderPath, resolutions },
-    labelKey: 'Copying files ({count})',
-    labelParams: { count: targets.length },
-    onResult: async (result, stopped, error) => {
-      if (error) {
-        showWriteToast(t('Copy failed: {error}', { error }));
-        return;
-      }
-      if (!result) return; // removed from the queue before it started: nothing was copied
-      if (result.failed.length) console.error('Copy failures', result.failed);
-      if (result.copied) {
-        const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
-        if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
-      }
-      const renamed = sidecarRenameNotice(result);
-      const action = failureDetailsAction(t('Some files could not be copied'), result.failed, { notes: [renamed.text], logPath: result.log_path }) ?? renamed.action;
-      if (!stopped || renamed.text || result.failed.length) {
-        showWriteToast(!result.copied && result.failed.length
-          ? t('Copy failed: {error}', { error: result.failed[0].error })
-          : [tp('{count} file copied', result.copied), result.skipped ? tp('{count} file skipped', result.skipped) : '', result.failed.length ? tp('{count} failure', result.failed.length) : '', renamed.text].filter(Boolean).join(' · '),
-        false, action, action ? 12000 : null);
-      }
-    },
-  });
 }
 
 // Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrouvée par

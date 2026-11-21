@@ -1,4 +1,4 @@
-<!-- verified: 6ef90bf | sources: src-tauri/src/albums.rs, src/albums-panel.js, src/main.js, src/sidebar-search.js -->
+<!-- verified: dae2f14 | sources: src-tauri/src/albums.rs, src/albums-panel.js, src/main.js, src/sidebar-search.js -->
 # Albums (virtual folders, manual albums, smart albums)
 
 ## Purpose
@@ -40,7 +40,7 @@ Albums organise photos **without touching the files**: virtual folders to group 
 
 ## Dependencies
 - Uses: `db.rs` (`PHOTO_COLUMNS`, `photo_from_row`, `init_db` calls `albums::init_schema`), `photo-actions.js` dialogs (`promptDialog`, `confirmDialog`, `createModal`, `openContextMenuAt`), `sidebar-search.js` and `i18n.js` `normalizeSearch` (quick search), the filter modules through `main.js`.
-- Used by: `main.js` (loading, filters, counts), `photo-actions.js` (add to album, remove from album menu entries via `addPhotosToAlbum` / `removePhotosFromSelectedAlbum`).
+- Used by: `main.js` (loading, filters, counts), `drag-drop.js` (photo drops onto manual albums via `getSelectedAlbum` / `addPhotosToAlbum` / `movePhotosToAlbum`), `photo-actions.js` (add to album, remove from album menu entries via `addPhotosToAlbum` / `removePhotosFromSelectedAlbum`).
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: **albums are not rebuildable.** They live in `photos_library.db`. Consequences: (a) `change_storage_location` copies the database file and the albums come along (it copies the whole database under a write transaction, see `app-shell.md`); (b) deleting the database, or a failed copy, loses every album and its photo memberships, whereas photo metadata is untouched; (c) a manual album stores catalogue **ids**: after the catalogue is rebuilt from scratch (new database), ids differ and old memberships cannot be restored; (d) smart albums only hold criteria, so they survive any re-index, but folder criteria are paths and break if the folder moves.

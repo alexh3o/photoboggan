@@ -1,4 +1,4 @@
-<!-- verified: 6ef90bf | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
+<!-- verified: dae2f14 | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
 
 # Code map
 
@@ -33,7 +33,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 | App shell (`app-shell`)                           | `main.rs` (AppState, `config.json`, storage location, window)                                            | `i18n.js`, `settings-defaults.js`, `defaults.jsonc`, `app-fonts.js`, `guide.js`, `locales/`                                                                                   |
 | Library & database (`library-and-database`)       | `db.rs`, `library_sync.rs`, scan commands of `main.rs`                                                   | —                                                                                                                                                                             |
 | Main window: navigation & tasks (`main-window`)   | —                                                                                                        | `main.js`: loading, folder tree (and its quick search), settings modal, sync, startup; `task-queue.js` (sequential main lane + parallel content-analysis lane, toasts, tasks modal, pause/resume); `sidebar-search.js` (search field of the Folders / Albums / People titles); `titlebar.js` (window display, title bar, immersive mode); `sticky-folders.js` (pure: which tree rows stay pinned) |
-| Grid & viewer (`grid-and-viewer`)                 | `get_file_dates` in `main.rs`                                                                            | `main.js`: virtual grid, selection, sort, full screen, marking; `preview-zoom.js` (preview zoom/pan, compare mode, sub-selection, instant zoom); `slideshow.js`, `toolbar-a11y.js`, `file-dates.js` (Info tab: file dates tooltip on "Date taken"), `orientation.js` (pure: orientation matrices of the lossless rotation), `file-kinds.js` (pure: `isRawPath`, `isVideoPath`)                                                                    |
+| Grid & viewer (`grid-and-viewer`)                 | `get_file_dates` in `main.rs`                                                                            | `main.js`: virtual grid, selection, sort, full screen, marking; `preview-zoom.js` (preview zoom/pan, compare mode, sub-selection, instant zoom); `drag-drop.js` (grid drag-scroll with inertia, photo drag-and-drop to folder tree, manual albums and map); `slideshow.js`, `toolbar-a11y.js`, `file-dates.js` (Info tab: file dates tooltip on "Date taken"), `orientation.js` (pure: orientation matrices of the lossless rotation), `file-kinds.js` (pure: `isRawPath`, `isVideoPath`)                                                                    |
 | Thumbnails & previews (`thumbnails-and-previews`) | `thumbnails.rs`, `heif.rs`, `video.rs`, `orientation.rs`, cache commands of `main.rs`                    | —                                                                                                                                                                             |
 | Metadata (`metadata-read-write`)                  | `exif.rs`, `exiftool.rs`, `rights.rs` (author and rights: presets, on-demand fields, author list)         | `metadata-writes.js`, `metadata-settings.js`, `marking-settings.js`, `order-list.js`, `info-author.js` (Info tab "Author" section), `rights-presets.js`, `author-rights.css`      |
 | Keywords (`keywords`)                             | `keywords.rs`                                                                                            | `keywords-panel.js`, `description-panel.js`                                                                                                                                   |
@@ -52,7 +52,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 
 ## Inside the large files
 
-**`src/main.js`** (~7,700 lines). One file, organized in sections opened by a `// ====` banner with an uppercase title (exact line ranges in `generated/sections.md`). In order:
+**`src/main.js`** (~7,300 lines). One file, organized in sections opened by a `// ====` banner with an uppercase title (exact line ranges in `generated/sections.md`). In order:
 
 - Call of `initTitleBar` (`titlebar.js`: window display, title bar, immersive mode), hover dimming, format helpers (`markFormatPlaceholder`, `needsGeneratedPreview`; `isRawPath` / `isVideoPath` are in `file-kinds.js`).
 - "SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE" (`checkPhotoMissing` → `remove_missing_photos`).
@@ -64,7 +64,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - "TRI DES MINIATURES" (sort; also the settings controls such as thumbnail quality live around here), "MARQUAGE".
 - Task queue (`task-queue.js`, wired via `initTaskQueue` in `main.js`) — ⚠ sensitive: every long feature depends on it.
 - "DUPLICATES", preview zoom, compare mode & instant zoom (`preview-zoom.js`, wired via `initPreviewZoom` in `main.js`).
-- "DÉFILEMENT DE LA GRILLE AU GLISSER", "DÉPLACEMENT ET COPIE … VERS L'ARBORESCENCE" (drag and drop), then the date / location / content-analysis filters.
+- Grid drag-scroll and photo drag-and-drop (`drag-drop.js`, wired via `initDragDrop` in `main.js`), "FILE AND FOLDER OPERATIONS" (`photoMoveRunning`, `deleteFolderToTrash`, `renamePhotoOnDisk`, `renameFolderOnDisk`, `applyMovedPhotos`), then the date / location / content-analysis filters.
 - "MENU CONTEXTUEL DES MINIATURES" (also `removePhotosFromLibrary` and the `init…` calls of most feature modules), "CONTENT SEARCH RESULTS".
 - "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES" (`syncLibraryWithDisk`, on startup and window focus), "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE".
   Module-level mutable state (`loadedPhotos`, `photos`, `selectedIndices`…) is shared by all sections: a change in one section can break another.

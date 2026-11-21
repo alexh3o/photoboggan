@@ -1,4 +1,4 @@
-<!-- verified: 6ef90bf | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: dae2f14 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 
 # Maintenance recipes
 

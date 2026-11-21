@@ -5,6 +5,8 @@
 - [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
 - [x] *feat*: `theme` follow system theme by default
 - [ ] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
+- [ ] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
+- [ ] *feat*: `grid` when no photos are in the view, mention to check filters of all types filters section, private (?) sets, map
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -34,8 +36,6 @@
 ## ❄️ Cold storage
 
 - [ ] *feat*: `metadata` international title and description
-- [ ] *feat*: `Controls` **keyboard shortcuts** customizing
-- [ ] *feat*: `Controls` Add **mouse settings** screen
 - [ ] *feat*: `faces` selectively create a face thumbnail (for low resolution faces, with min resolution setting)
 - [ ] *feat*: `formats` live photos
 - [ ] *fix*:  `maps` imported mbtiles are shaped as rectangles, multizones and shapes are not respected => precision improved but not 100% fixed,  do not use as private meanwhile
@@ -51,6 +51,8 @@
 - [ ] *fix*: `dev` vulnerability npm audit detected by claude: dev problem only
 - [ ] *feat*: `maps` add world map download with user chosen level, host on github: lower levels are already taken with mbtiles, so it's less useful
 - [ ] *feat*: `faces` resize / move face area => just delete and add again
+- [ ] *feat*: `Controls` **keyboard shortcuts** and **mouse controls** customizing: adds code & user support complexity
+- [ ] *feat*: `Controls` Add **mouse settings** screen
 
 ---
 

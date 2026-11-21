@@ -1,4 +1,4 @@
-<!-- verified: 7910686 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
+<!-- verified: dae2f14 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
 
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 
@@ -87,7 +87,7 @@ Queued task (`kind: 'integrity'`), events `scan-progress` and `scan-detail` (cur
 ## Dependencies
 
 - Uses: `exif.rs` (writes, `sidecar_candidates`), `exiftool::path_lock`, `thumbnails.rs` (decoders, `resize_area`), `heif.rs`, cache helpers (`thumbnails-and-previews.md`), `library_sync`, `trash`, `clipboard-rs`.
-- Used by: `main.js` (drag-and-drop, shortcuts, marking UI), keywords / faces modules (they reuse the dialogs), the semantic scan (`PriorityGuard` pauses during all of these).
+- Used by: `main.js` (shortcuts, marking UI, file/folder operations), `drag-drop.js` (drag-and-drop move/copy to folder tree), keywords / faces modules (they reuse the dialogs), the semantic scan (`PriorityGuard` pauses during all of these).
 
 ## Invariants and sensitive areas
 
