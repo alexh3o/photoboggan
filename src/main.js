@@ -59,6 +59,14 @@ import {
   confirmCloseWithRunningTasks, restorePausedTasks, showTaskToast, hideTaskToast,
   closeTasksModal, keepTaskReady, removeReadyTask, checkFolderIntegrity, rescanFolder,
 } from './task-queue.js';
+import {
+  initPreviewZoom, isCompareMode, isCompareMultiple, canAddToSelection, showCompareLimitToast,
+  commandTargetIndices, commandTargetPhotos, commandReferencePhoto, pruneCompareSubSelection,
+  toggleAllCompareSubSelection, notifyNoCompareTarget, showZoomIndicator, clampPreviewCenter,
+  setSlotImageSize, layoutPreviewSlot, layoutPreviewSlots, renderPreview, invalidatePreview,
+  previewSlotFromEvent, previewAnchorAt, zoomPreviewSteps, togglePreviewActualSize,
+  wheelZoomSteps, getHoveredPreviewSlot, getPreviewSlots,
+} from './preview-zoom.js';
 
 // WINDOW CHROME (titlebar.js): first display of the window, title bar buttons and immersive mode (F11).
 // Closing by any means (button, Alt+F4, system menu) asks first about unfinished work, in this order: running queue tasks, unsaved filters of a smart
@@ -352,7 +360,7 @@ const gridScrollPosition = document.getElementById('grid-scroll-position');
 const previewStage = document.getElementById('preview-stage');
 const fullscreenView = document.getElementById('fullscreen-view');
 const fullscreenImg = document.getElementById('fullscreen-image');
-// Zoom du plein écran : même structure qu'une case de l'aperçu (voir layoutPreviewSlot), la vue entière occupe toute la fenêtre (marge 1).
+// Fullscreen zoom: same slot structure as a preview cell (see layoutPreviewSlot in preview-zoom.js); fit fills the whole window (margin 1).
 const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, clip: document.getElementById('fullscreen-clipping'), naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
 fullscreenSlot.zoomBadge = document.getElementById('fullscreen-zoom-badge');
 fullscreenSlot.zoomTimeout = null;
@@ -3987,7 +3995,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
   for (const [index, node] of renderedThumbnailNodes) {
     if (turnedPaths.has(photos[index]?.path)) { node.remove(); renderedThumbnailNodes.delete(index); }
   }
-  previewSignature = ''; // the preview cells are created again
+  invalidatePreview(); // the preview cells are created again
   if (reordered) {
     applyPhotoFilters({ keepState: true }); // sorts again, keeps the selection by path, redraws the grid and the panels
   } else {
@@ -4084,7 +4092,7 @@ window.addEventListener('keydown', (e) => {
   // Ctrl+A : tout sélectionner / tout désélectionner dans la grille. Sans effet en mode Comparer (A seul y gère la sous-sélection), en plein écran ou derrière une fenêtre ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
     e.preventDefault();
-    if (!compareMode && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
+    if (!isCompareMode() && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
     return;
   }
   // Lossless rotation: Ctrl+R to the right, Shift+R to the left (selection, sub-selection in compare mode, or the fullscreen photo). Ctrl+R is
@@ -4311,7 +4319,7 @@ window.addEventListener('keydown', (e) => {
   }
   // Zoom (+ / - / *) : sur l'aperçu (ou l'image survolée en mode désynchronisé), ou sur l'image du plein écran quand il est ouvert
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-    const zoomTarget = isFullscreen ? null : hoveredPreviewSlot;
+    const zoomTarget = isFullscreen ? null : getHoveredPreviewSlot();
     if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomPreviewSteps(1, null, zoomTarget); return; }
     if (e.key === '-') { e.preventDefault(); zoomPreviewSteps(-1, null, zoomTarget); return; }
     if (e.key === '*') { e.preventDefault(); togglePreviewActualSize(null, zoomTarget); return; }
@@ -4324,7 +4332,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     navigatePhoto(-1);
   } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
-    && !isFullscreen && !compareMode && !document.querySelector('.modal:not(.hidden)')) {
+    && !isFullscreen && !isCompareMode() && !document.querySelector('.modal:not(.hidden)')) {
     // Up / Down: the photo above / below in the thumbnail grid (any layout), scrolled into view.
     e.preventDefault();
     navigateGridRow(e.key === 'ArrowDown' ? 1 : -1);
@@ -6093,667 +6101,26 @@ function openDuplicatesDialog(spec) {
   openDuplicatesModal(spec, (kind, chosenSpec, settings) => findDuplicateImages(kind, chosenSpec, settings));
 }
 
-// ==========================================
-// APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER
-// ==========================================
-const MAX_COMPARE = 4;
-const PREVIEW_ZOOM_STEP = 1.4; // +40 % par cran
-const PREVIEW_MAX_ZOOM = 2; // 200 % de la résolution réelle (1 pixel image = 2 pixels écran)
-const PREVIEW_FIT_MARGIN = 0.95; // marge de la vue entière, comme l'ancien aperçu
-let compareMode = false;
-let previewSlots = [];
-let previewSignature = '';
-let previewCenter = { x: 0.5, y: 0.5 }; // point de l'image au centre de la zone, en proportion (partagé entre les images)
-let previewDrag = null;
-let previewWheelDelta = 0;
-let previewLastWheelStep = 0;
-let compareDesync = false; // case « Désynchroniser » (mode Comparer uniquement)
-let previewDesynced = false; // état réellement appliqué : mode Comparer actif ET case cochée
-let hoveredPreviewSlot = null;
-// Sous-sélection du mode Comparer (plusieurs photos comparées) : chemins des photos de l'aperçu qui reçoivent les commandes de note, de couleur et de suppression au clavier ou depuis la barre latérale. Vide par défaut.
-const compareSubSelection = new Set();
-let suppressPreviewClick = false; // le clic qui suit un déplacement de l'image dans l'aperçu ne change pas la sous-sélection
-let previewHiddenBeforeCompare = false; // l'aperçu était masqué avant l'activation du mode Comparer : il est masqué de nouveau à sa désactivation
-const PREVIEW_CLICK_DRAG_THRESHOLD = 5; // pixels avant de considérer un déplacement (sinon c'est un clic)
-// Icône lucide « circle-check-big » : repère d'une photo de la sous-sélection (coin supérieur droit de sa case dans l'aperçu).
-const CIRCLE_CHECK_BIG_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-check-big"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>';
-
-function canAddToSelection(index) {
-  return selectedIndices.has(index) || !compareMode || selectedIndices.size < MAX_COMPARE;
-}
-
-function showCompareLimitToast() {
-  showWriteToast(t('Compare mode: {max} photos maximum', { max: MAX_COMPARE }));
-}
-
-function limitSelectionForCompare() {
-  if (selectedIndices.size <= MAX_COMPARE) return;
-  const kept = new Set();
-  if (selectedIndices.has(lastSelectedIndex)) kept.add(lastSelectedIndex);
-  for (const index of [...selectedIndices].sort((a, b) => a - b)) {
-    if (kept.size >= MAX_COMPARE) break;
-    kept.add(index);
-  }
-  selectedIndices = kept;
-  showCompareLimitToast();
-}
-
-// Comparaison de plusieurs photos : les cases de l'aperçu servent alors à choisir les photos visées par les commandes.
-function isCompareMultiple() {
-  return compareMode && selectedIndices.size > 1;
-}
-
-// Photos (indices dans photos) visées par les notes, les couleurs et la suppression au clavier, et par la barre latérale.
-// Hors comparaison, ou avec une seule photo sélectionnée : toute la sélection. Comparaison de plusieurs photos : uniquement la sous-sélection (aucune par défaut).
-// Les commandes du menu contextuel n'en dépendent pas : elles visent toujours la photo du clic droit.
-function commandTargetIndices() {
-  if (!isCompareMultiple()) return [...selectedIndices];
-  return [...selectedIndices].filter(index => compareSubSelection.has(photos[index]?.path));
-}
-
-function commandTargetPhotos() {
-  return commandTargetIndices().map(index => photos[index]).filter(Boolean);
-}
-
-// Photo dont la note et la couleur sont affichées dans la barre latérale.
-function commandReferencePhoto() {
-  const indices = commandTargetIndices();
-  return photos[indices.includes(lastSelectedIndex) ? lastSelectedIndex : indices[0]];
-}
-
-// Retire de la sous-sélection les photos qui ne font plus partie de la comparaison (changement de sélection, suppression, fin du mode Comparer).
-function pruneCompareSubSelection() {
-  if (!isCompareMultiple()) {
-    compareSubSelection.clear();
-    return;
-  }
-  const comparedPaths = new Set([...selectedIndices].map(index => photos[index]?.path));
-  for (const path of compareSubSelection) if (!comparedPaths.has(path)) compareSubSelection.delete(path);
-}
-
-// Repères circle-check-big des cases de l'aperçu, d'après la sous-sélection.
-function syncPreviewSubSelection() {
-  previewStage.classList.toggle('sub-selectable', isCompareMultiple());
-  for (const slot of previewSlots) slot.cell.classList.toggle('sub-selected', compareSubSelection.has(slot.photo.path));
-}
-
-function toggleCompareSubSelection(photo) {
-  if (compareSubSelection.has(photo.path)) compareSubSelection.delete(photo.path);
-  else compareSubSelection.add(photo.path);
-  syncPreviewSubSelection();
-  updateRatingAction();
-  updateColorAction();
-}
-
-// Place les repères (sous-sélection, étoiles, couleur et badge de zoom) dans les coins de l'image
-function positionPreviewMarks(slot, cellWidth, cellHeight) {
-  if (!slot.meta) return; // le plein écran n'a pas les repères d'aperçu et son badge est calé en CSS symétrique à rank
-  const left = Math.max(0, slot.tx);
-  const top = Math.max(0, slot.ty);
-  // Positionnement dans les cases de l'aperçu et de la comparaison
-  if (slot.zoomBadge) {
-    slot.zoomBadge.style.top = `${Math.round(top) + 6}px`;
-    slot.zoomBadge.style.left = `${Math.round(left) + 6}px`;
-  }
-  const right = Math.min(cellWidth, slot.tx + slot.displayWidth);
-  const bottom = Math.min(cellHeight, slot.ty + slot.displayHeight);
-  slot.check.style.top = `${Math.round(top) + 8}px`;
-  slot.check.style.right = `${Math.round(cellWidth - right) + 8}px`;
-  slot.meta.style.left = `${Math.round(left)}px`;
-  slot.meta.style.right = `${Math.round(cellWidth - right)}px`;
-  slot.meta.style.bottom = `${Math.round(cellHeight - bottom)}px`;
-}
-
-// Affiche le pourcentage de zoom pendant 2 secondes puis l'estompe
-function showZoomIndicator(slot) {
-  if (!slot || !slot.zoomBadge || !(slot.naturalWidth > 0)) return;
-  const scale = slot.zoom ?? slot.fit;
-  slot.zoomBadge.textContent = `${Math.round(scale * 100)}%`;
-  slot.zoomBadge.classList.add('visible');
-  clearTimeout(slot.zoomTimeout);
-  slot.zoomTimeout = setTimeout(() => {
-    slot.zoomBadge.classList.remove('visible');
-  }, 2000);
-}
-
-// Touche A : sous-sélectionne toutes les photos comparées, ou les désélectionne toutes si elles le sont déjà.
-function toggleAllCompareSubSelection() {
-  const paths = [...selectedIndices].map(index => photos[index]?.path).filter(Boolean);
-  if (paths.every(path => compareSubSelection.has(path))) compareSubSelection.clear();
-  else for (const path of paths) compareSubSelection.add(path);
-  syncPreviewSubSelection();
-  updateRatingAction();
-  updateColorAction();
-}
-
-function notifyNoCompareTarget() {
-  showWriteToast(t('Compare mode: first click one or more photos in the preview'));
-}
-
-// Échelle exprimée en pixels écran réels par pixel image (1 = 100 %). Échelle CSS = échelle / devicePixelRatio.
-function previewCssScale(slot) {
-  return (slot.zoom ?? slot.fit) / (window.devicePixelRatio || 1);
-}
-
-function previewDisplaySize(slot) {
-  const scale = previewCssScale(slot);
-  return { width: slot.naturalWidth * scale, height: slot.naturalHeight * scale };
-}
-
-function clampPreviewCenter(slot, x, y) {
-  const { width, height } = previewDisplaySize(slot);
-  const clampAxis = (value, shown, view) => {
-    if (shown <= view) return 0.5;
-    const half = view / 2 / shown;
-    return Math.min(1 - half, Math.max(half, value));
-  };
-  return { x: clampAxis(x, width, slot.cell.clientWidth), y: clampAxis(y, height, slot.cell.clientHeight) };
-}
-
-// Size of the image of a slot (preview cell, comparison, fullscreen). The element keeps the size the webview gives it (`width` × `height`);
-// naturalWidth / naturalHeight are those of the picture as displayed, after the orientation still to apply (`photo.view_fix`, see
-// orientationMatrix), which layoutPreviewSlot adds to the transform. The whole layout (fit, zoom, faces) then works on the displayed picture.
-// `viewFix` is the photo's by default; a cached thumbnail is already turned, so the fullscreen thumbnail passes 1.
-function setSlotImageSize(slot, width, height, viewFix = slot.photo?.view_fix ?? 1) {
-  slot.viewFix = viewFix;
-  slot.rawWidth = width;
-  slot.rawHeight = height;
-  const swapped = swapsSides(slot.viewFix);
-  slot.naturalWidth = swapped ? height : width;
-  slot.naturalHeight = swapped ? width : height;
-  slot.img.style.width = `${width}px`;
-  slot.img.style.height = `${height}px`;
-}
-
-function layoutPreviewSlot(slot) {
-  if (!(slot.naturalWidth > 0 && slot.naturalHeight > 0)) return;
-  const cellWidth = slot.cell.clientWidth;
-  const cellHeight = slot.cell.clientHeight;
-  if (!cellWidth || !cellHeight) return;
-  const dpr = window.devicePixelRatio || 1;
-  const fitMargin = slot.fitMargin ?? PREVIEW_FIT_MARGIN; // le plein écran utilise toute la fenêtre (marge 1)
-  slot.fit = Math.min(1, (cellWidth * fitMargin * dpr) / slot.naturalWidth, (cellHeight * fitMargin * dpr) / slot.naturalHeight);
-  if (slot.zoom !== null) {
-    slot.zoom = Math.min(PREVIEW_MAX_ZOOM, Math.max(slot.fit, slot.zoom));
-    if (slot.zoom <= slot.fit + 1e-6) slot.zoom = null;
-  }
-  const { width, height } = previewDisplaySize(slot);
-  const currentCenter = previewCenterOf(slot);
-  const center = clampPreviewCenter(slot, currentCenter.x, currentCenter.y);
-  const snap = value => Math.round(value * dpr) / dpr;
-  slot.tx = snap(width <= cellWidth ? (cellWidth - width) / 2 : cellWidth / 2 - center.x * width);
-  slot.ty = snap(height <= cellHeight ? (cellHeight - height) / 2 : cellHeight / 2 - center.y * height);
-  slot.displayWidth = width;
-  slot.displayHeight = height;
-  const matrix = orientationMatrix(slot.viewFix, slot.rawWidth, slot.rawHeight);
-  slot.img.style.transform = `translate(${slot.tx}px, ${slot.ty}px) scale(${previewCssScale(slot)})${matrix ? ` matrix(${matrix.join(', ')})` : ''}`;
-  if (slot.clip) { // surcouche d'écrêtage (histogram.js) : mêmes dimensions et même transformation que l'image
-    slot.clip.style.width = slot.img.style.width;
-    slot.clip.style.height = slot.img.style.height;
-    slot.clip.style.transform = slot.img.style.transform;
-  }
-  positionPreviewMarks(slot, cellWidth, cellHeight);
-  if (slot !== fullscreenSlot) layoutPreviewFaces(slot); // zones de visage (touche V)
-}
-
-function renderPreviewTransforms() {
-  previewSlots.forEach(layoutPreviewSlot);
-  layoutFullscreenSlot();
-}
-
-function createPreviewSlot(photo) {
-  const cell = document.createElement('div');
-  cell.className = 'preview-cell';
-  cell.dataset.path = photo.path;
-  if (isVideoPath(photo.path)) cell.classList.add('is-video');
-  const img = document.createElement('img');
-  img.alt = '';
-  img.draggable = false;
-  img.decoding = 'async';
-  const slot = { photo, cell, img, naturalWidth: 0, naturalHeight: 0, fit: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
-  img.addEventListener('load', () => {
-    if (!previewSlots.includes(slot)) return;
-    if (!(img.naturalWidth > 0 && img.naturalHeight > 0)) return;
-    setSlotImageSize(slot, img.naturalWidth, img.naturalHeight);
-    cell.classList.add('loaded');
-    layoutPreviewSlot(slot);
-  });
-  img.addEventListener('error', () => checkPhotoMissing(photo.path));
-  img.addEventListener('error', () => checkPhotoMissing(photo.path));
-  img.addEventListener('error', () => { if (isRawPath(photo.path)) markFormatPlaceholder(cell, photo.path); });
-  getPhotoDisplayUrl(photo).then(url => {
-    if (previewSlots.includes(slot) && url) {
-      img.src = url;
-    }
-  });
-  const check = document.createElement('span');
-  check.className = 'preview-check';
-  check.setAttribute('aria-hidden', 'true');
-  check.innerHTML = CIRCLE_CHECK_BIG_ICON;
-  // Badge du pourcentage de zoom
-  const zoomBadge = document.createElement('span');
-  zoomBadge.className = 'preview-zoom-badge';
-  slot.zoomBadge = zoomBadge;
-  slot.zoomTimeout = null;
-  // Note (à gauche) et couleur (à droite) de la photo, en bas de la case.
-  const meta = document.createElement('div');
-  meta.className = 'preview-meta';
-  slot.ratingLabel = document.createElement('span');
-  slot.ratingLabel.className = 'thumbnail-rating';
-  slot.flagDot = document.createElement('span');
-  slot.flagDot.className = 'flag-indicator flag-none';
-  slot.pickMark = document.createElement('span');
-  slot.pickMark.className = 'pick-indicator pick-none';
-  const flags = document.createElement('span');
-  flags.className = 'meta-flags';
-  flags.append(slot.pickMark, slot.flagDot);
-  meta.append(slot.ratingLabel, flags);
-  // Surcouche d'écrêtage (masquée tant que histogram.js n'y peint rien).
-  const clip = document.createElement('canvas');
-  clip.className = 'clipping-overlay';
-  clip.hidden = true;
-  clip.setAttribute('aria-hidden', 'true');
-  slot.clip = clip;
-  cell.append(img, clip, check, meta, zoomBadge);
-  if (isVideoPath(photo.path)) cell.append(createVideoPlayBadge());
-  slot.check = check;
-  slot.meta = meta;
-  return slot;
-}
-
-// Mode normal : la photo courante. Mode Comparer : la sélection (4 max), dans l'ordre de la grille.
-function currentPreviewPhotos() {
-  if (compareMode) {
-    return [...selectedIndices].sort((a, b) => a - b).slice(0, MAX_COMPARE).map(index => photos[index]).filter(Boolean);
-  }
-  if (selectedIndices.size === 0) return []; // rien de sélectionné (Ctrl+A pour tout désélectionner) : aperçu vide
-  const photo = photos[lastSelectedIndex];
-  return photo ? [photo] : [];
-}
-
-// Étoiles et pastille de couleur affichées en bas des cases de l'aperçu, d'après l'état actuel des photos.
-function syncPreviewMeta() {
-  for (const slot of previewSlots) {
-    const stars = '★'.repeat(slot.photo.rating || 0);
-    if (slot.ratingLabel.textContent !== stars) slot.ratingLabel.textContent = stars;
-    const flagClass = `flag-indicator flag-${slot.photo.color_flag || 'none'}`;
-    if (slot.flagDot.className !== flagClass) slot.flagDot.className = flagClass;
-    const pickClass = `pick-indicator pick-${slot.photo.pick_flag || 'none'}`;
-    if (slot.pickMark.className !== pickClass) slot.pickMark.className = pickClass;
-  }
-}
-
-function renderPreview() {
-  pruneCompareSubSelection();
-  const list = currentPreviewPhotos();
-  const signature = list.map(photo => photo.path).join('|');
-  // Un aperçu vidé (signature '') ne doit pas réutiliser d'anciennes cases : leurs photos n'existeraient plus (ex. photos déplacées hors de la vue).
-  if (signature === previewSignature && list.length === previewSlots.length) { // mêmes images : on garde zoom et position
-    previewSlots.forEach((slot, index) => { slot.photo = list[index]; }); // objets renouvelés après une synchronisation
-    syncPreviewMeta();
-    syncPreviewSubSelection();
-    return;
-  }
-  previewSignature = signature;
-  previewCenter = { x: 0.5, y: 0.5 };
-  previewDrag = null;
-  hoveredPreviewSlot = null;
-  previewSlots = list.map(createPreviewSlot);
-  previewStage.className = list.length ? `preview-stage count-${list.length}` : 'preview-stage';
-  previewStage.replaceChildren(...previewSlots.map(slot => slot.cell));
-  renderPreviewTransforms();
-  syncPreviewMeta();
-  syncPreviewSubSelection();
-}
-
-function previewSlotFromEvent(event) {
-  const cell = event.target instanceof Element ? event.target.closest('.preview-cell') : null;
-  return cell ? previewSlots.find(slot => slot.cell === cell) || null : null;
-}
-
-// Point de l'image situé sous le curseur (en proportion de l'image), pour zoomer autour de lui.
-function previewAnchorAt(slot, clientX, clientY) {
-  const rect = slot.cell.getBoundingClientRect();
-  const px = clientX - rect.left;
-  const py = clientY - rect.top;
-  const clamp01 = value => Math.min(1, Math.max(0, value));
-  return {
-    slot, px, py,
-    u: slot.displayWidth > 0 ? clamp01((px - slot.tx) / slot.displayWidth) : 0.5,
-    v: slot.displayHeight > 0 ? clamp01((py - slot.ty) / slot.displayHeight) : 0.5,
-  };
-}
-
-// Centre de la zone affichée : propre à chaque image en mode désynchronisé, sinon partagé.
-// Le plein écran a toujours son propre centre (une seule image, indépendante de l'aperçu).
-function previewCenterOf(slot) {
-  return previewDesynced || slot === fullscreenSlot ? slot.center : previewCenter;
-}
-
-function setPreviewCenter(slot, center) {
-  if (previewDesynced || slot === fullscreenSlot) slot.center = center;
-  else previewCenter = center;
-}
-
-// En mode désynchronisé, une action vise l'image concernée ; sinon elle s'applique à toutes.
-function previewSlotsToAffect(targetSlot) {
-  // Plein écran ouvert : les touches + / - / * (et le zoom en général) ne visent que son image.
-  if (isFullscreen) return fullscreenSlot.naturalWidth > 0 ? [fullscreenSlot] : [];
-  const loaded = previewSlots.filter(slot => slot.naturalWidth > 0);
-  return previewDesynced && targetSlot ? loaded.filter(slot => slot === targetSlot) : loaded;
-}
-
-// Applique le passage synchronisé / désynchronisé sans déplacer les images à l'écran.
-function updatePreviewSyncMode() {
-  const desynced = compareMode && compareDesync;
-  if (desynced === previewDesynced) return;
-  if (desynced) {
-    for (const slot of previewSlots) slot.center = { ...previewCenter };
-  } else {
-    const reference = previewSlots.find(slot => slot.zoom !== null) || previewSlots[0];
-    if (reference) previewCenter = { ...reference.center };
-  }
-  previewDesynced = desynced;
-  renderPreviewTransforms();
-}
-
-// computeTarget(slot, échelleActuelle) renvoie la nouvelle échelle, ou null pour la vue entière.
-function zoomPreview(computeTarget, anchor, targetSlot = null) {
-  const slots = previewSlotsToAffect(targetSlot);
-  if (!slots.length) return;
-  for (const slot of slots) {
-    const target = computeTarget(slot, slot.zoom ?? slot.fit);
-    slot.zoom = target === null || target <= slot.fit + 1e-6 ? null : Math.min(PREVIEW_MAX_ZOOM, target);
-  }
-  if (previewDesynced || isFullscreen) {
-    for (const slot of slots) if (slot.zoom === null) slot.center = { x: 0.5, y: 0.5 };
-  } else if (slots.every(slot => slot.zoom === null)) {
-    previewCenter = { x: 0.5, y: 0.5 };
-  }
-  if (anchor && anchor.slot.zoom !== null && slots.includes(anchor.slot)) {
-    const { width, height } = previewDisplaySize(anchor.slot);
-    if (width > 0 && height > 0) {
-      setPreviewCenter(anchor.slot, clampPreviewCenter(
-        anchor.slot,
-        anchor.u + (anchor.slot.cell.clientWidth / 2 - anchor.px) / width,
-        anchor.v + (anchor.slot.cell.clientHeight / 2 - anchor.py) / height,
-      ));
-    }
-  }
-  renderPreviewTransforms();
-  slots.forEach(showZoomIndicator); // <-- Déclenche le badge sur chaque case zoomée
-}
-
-function zoomPreviewSteps(steps, anchor, targetSlot = null) {
-  zoomPreview((slot, current) => current * Math.pow(PREVIEW_ZOOM_STEP, steps), anchor, targetSlot);
-}
-
-// 100 % (1 pixel image = 1 pixel écran) ; si toutes les images y sont déjà, retour à la vue entière.
-function togglePreviewActualSize(anchor, targetSlot = null) {
-  const slots = previewSlotsToAffect(targetSlot);
-  if (!slots.length) return;
-  const atActualSize = slots.every(slot => Math.abs((slot.zoom ?? slot.fit) - 1) < 0.005);
-  zoomPreview(() => (atActualSize ? null : 1), anchor, targetSlot);
-}
-
-// Nombre de crans de zoom correspondant à un événement de molette, ou 0 si aucun cran n'est atteint : une molette à crans donne un cran par
-// événement (avec un court délai anti-rebond), un pavé tactile envoie de petits déplacements qui sont cumulés. Partagé par l'aperçu et le plein écran.
-function wheelZoomSteps(event) {
-  const delta = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 33 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? 400 : 1);
-  if (Math.abs(delta) >= 50) {
-    const now = performance.now();
-    if (now - previewLastWheelStep < 40) return 0;
-    previewLastWheelStep = now;
-    previewWheelDelta = 0;
-    return Math.sign(delta);
-  }
-  previewWheelDelta += delta;
-  const steps = Math.trunc(previewWheelDelta / 100);
-  previewWheelDelta -= steps * 100;
-  return steps;
-}
-
-previewStage.addEventListener('wheel', event => {
-  const slot = previewSlotFromEvent(event);
-  if (!slot) return;
-  event.preventDefault();
-  const steps = wheelZoomSteps(event);
-  if (steps) zoomPreviewSteps(-steps, previewAnchorAt(slot, event.clientX, event.clientY), slot);
-}, { passive: false });
-
-previewStage.addEventListener('dblclick', event => {
-  const slot = previewSlotFromEvent(event);
-  if (slot) togglePreviewActualSize(previewAnchorAt(slot, event.clientX, event.clientY), slot);
+// Preview zoom, pan, compare mode, sub-selection and instant zoom (hold Z): see preview-zoom.js.
+initPreviewZoom({
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  setSelectedIndices: next => { selectedIndices = next; },
+  getLastSelectedIndex: () => lastSelectedIndex,
+  isFullscreen: () => isFullscreen,
+  getFullscreenSlot: () => fullscreenSlot,
+  layoutFullscreenSlot: () => layoutFullscreenSlot(),
+  layoutPreviewFaces: slot => layoutPreviewFaces(slot),
+  getPhotoDisplayUrl: photo => getPhotoDisplayUrl(photo),
+  checkPhotoMissing: path => checkPhotoMissing(path),
+  markFormatPlaceholder: (element, path) => markFormatPlaceholder(element, path),
+  createVideoPlayBadge: () => createVideoPlayBadge(),
+  showToast: message => showWriteToast(message),
+  onSubSelectionChange: () => { updateRatingAction(); updateColorAction(); },
+  onCompareModeChange: active => setKeywordsCompareMode(active),
+  updateVirtualScroller: () => updateVirtualScroller(),
+  updateUIOnSelection: () => updateUIOnSelection(),
 });
-
-previewStage.addEventListener('pointerdown', event => {
-  if (event.button !== 0) return;
-  const slot = previewSlotFromEvent(event);
-  if (!slot) return;
-  previewDrag = { slot, pointerId: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
-  slot.cell.setPointerCapture(event.pointerId);
-  slot.cell.classList.add('dragging');
-});
-
-previewStage.addEventListener('pointermove', event => {
-  if (!previewDrag || event.pointerId !== previewDrag.pointerId) return;
-  const { slot } = previewDrag;
-  if (!previewDrag.moved && Math.hypot(event.clientX - previewDrag.startX, event.clientY - previewDrag.startY) >= PREVIEW_CLICK_DRAG_THRESHOLD) previewDrag.moved = true;
-  const dx = event.clientX - previewDrag.x;
-  const dy = event.clientY - previewDrag.y;
-  previewDrag.x = event.clientX;
-  previewDrag.y = event.clientY;
-  if (slot.zoom === null || !(slot.displayWidth > 0 && slot.displayHeight > 0)) return;
-  const currentCenter = previewCenterOf(slot);
-  setPreviewCenter(slot, clampPreviewCenter(slot, currentCenter.x - dx / slot.displayWidth, currentCenter.y - dy / slot.displayHeight));
-  renderPreviewTransforms();
-  previewSlotsToAffect(slot).forEach(showZoomIndicator); // <-- Déclenche le badge pendant le déplacement
-});
-
-function endPreviewDrag(event) {
-  if (!previewDrag || event.pointerId !== previewDrag.pointerId) return;
-  if (previewDrag.moved) {
-    // Le clic qui suit un déplacement de l'image ne doit pas changer la sous-sélection.
-    suppressPreviewClick = true;
-    setTimeout(() => { suppressPreviewClick = false; }, 0);
-  }
-  previewDrag.slot.cell.classList.remove('dragging');
-  previewDrag = null;
-}
-previewStage.addEventListener('pointerup', endPreviewDrag);
-previewStage.addEventListener('pointercancel', endPreviewDrag);
-
-// Comparaison de plusieurs photos : un clic sur une case de l'aperçu ajoute ou retire sa photo de la sous-sélection.
-// Un double-clic (zoom 1:1) compte deux clics et laisse donc la sous-sélection inchangée.
-previewStage.addEventListener('click', event => {
-  if (suppressPreviewClick) {
-    suppressPreviewClick = false;
-    return;
-  }
-  if (!isCompareMultiple()) return;
-  const slot = previewSlotFromEvent(event);
-  if (slot) toggleCompareSubSelection(slot.photo);
-});
-
-new ResizeObserver(() => renderPreviewTransforms()).observe(previewStage);
-
-// Image survolée : cible des touches + / - / * en mode désynchronisé
-previewStage.addEventListener('pointerover', event => {
-  const slot = previewSlotFromEvent(event);
-  if (slot) hoveredPreviewSlot = slot;
-});
-previewStage.addEventListener('pointerleave', () => { hoveredPreviewSlot = null; });
-
-document.getElementById('compare-desync-toggle').addEventListener('change', event => {
-  compareDesync = event.target.checked;
-  updatePreviewSyncMode();
-  event.target.blur(); // sinon les touches + / - / * seraient ignorées tant que la case a le focus
-});
-
-document.getElementById('btn-toggle-compare').addEventListener('click', event => {
-  compareMode = !compareMode;
-  event.currentTarget.classList.toggle('active', compareMode);
-  setKeywordsCompareMode(compareMode); // les onglets Mots-clés et Description sont inaccessibles en mode Comparer
-  document.getElementById('btn-toggle-preview').disabled = compareMode; // l'aperçu reste affiché tant que le mode Comparer est actif
-  const desyncOption = document.getElementById('compare-desync');
-  desyncOption.classList.toggle('hidden', !compareMode);
-  updatePreviewSyncMode();
-  if (compareMode) {
-    previewHiddenBeforeCompare = mainContent.classList.contains('preview-hidden');
-    if (previewHiddenBeforeCompare) {
-      mainContent.classList.remove('preview-hidden');
-      document.getElementById('btn-toggle-preview').classList.add('active');
-      requestAnimationFrame(updateVirtualScroller);
-    }
-    limitSelectionForCompare();
-  } else if (previewHiddenBeforeCompare) {
-    previewHiddenBeforeCompare = false;
-    mainContent.classList.add('preview-hidden');
-    document.getElementById('btn-toggle-preview').classList.remove('active');
-    requestAnimationFrame(updateVirtualScroller);
-  }
-  updateUIOnSelection();
-});
-
-// ==========================================
-// INSTANT ZOOM (hold Z)
-// ==========================================
-// Holding Z over an image of the preview (compare mode included) or over the fullscreen photo shows it at 1 image pixel = 1 screen pixel. While the key
-// is held, the mouse position chooses the displayed area (the whole image is reachable by moving across the fitted image) and the wheel changes the
-// zoom. Releasing Z puts back the zoom level and the centre that were active before. In compare mode every loaded preview follows (same rule as the
-// + / - / * keys: only the hovered one when "Desynchronise" is on).
-const INSTANT_ZOOM_LEVEL = 1; // 1:1, same value as togglePreviewActualSize
-let instantZoom = null; // while Z is held: { target, photoPath, saved, sharedCenter, signature, fullscreen }
-let instantZoomPointer = null; // last known pointer position (a key event carries none)
-let instantZoomFrame = 0; // pending animation frame of the pan
-
-function isTextEntryFocused() {
-  const active = document.activeElement;
-  return active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement
-    || (active instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes(active.type))
-    || (active instanceof HTMLElement && active.isContentEditable);
-}
-
-// Slot under the pointer: the fullscreen photo when fullscreen is open, else the preview cell hovered (null if none).
-function instantZoomSlotUnderPointer() {
-  if (!instantZoomPointer) return null;
-  const element = document.elementFromPoint(instantZoomPointer.x, instantZoomPointer.y);
-  if (!(element instanceof Element)) return null;
-  if (isFullscreen) return fullscreenView.contains(element) && fullscreenSlot.naturalWidth > 0 ? fullscreenSlot : null;
-  const cell = element.closest('.preview-cell');
-  const slot = cell ? previewSlots.find(candidate => candidate.cell === cell) : null;
-  return slot && slot.naturalWidth > 0 ? slot : null;
-}
-
-// The photo shown changed (arrows, new selection, fullscreen closed) while the key was held: there is nothing left to drive or to restore.
-function isInstantZoomValid() {
-  if (!instantZoom || instantZoom.fullscreen !== isFullscreen) return false;
-  return isFullscreen ? fullscreenSlot.photo?.path === instantZoom.photoPath : previewSlots.includes(instantZoom.target);
-}
-
-// Pointer position -> point of the image (proportions). The mapping is absolute over the image fitted in its cell, so that at press time the point
-// under the cursor is the one shown at the centre, and moving across the fitted image sweeps the whole picture.
-function instantZoomCenterAt(clientX, clientY) {
-  const slot = instantZoom.target;
-  const rect = slot.cell.getBoundingClientRect();
-  const fitScale = slot.fit / (window.devicePixelRatio || 1);
-  const fitWidth = slot.naturalWidth * fitScale;
-  const fitHeight = slot.naturalHeight * fitScale;
-  if (!(fitWidth > 0 && fitHeight > 0)) return null;
-  const clamp01 = value => Math.min(1, Math.max(0, value));
-  return {
-    x: clamp01((clientX - rect.left - (rect.width - fitWidth) / 2) / fitWidth),
-    y: clamp01((clientY - rect.top - (rect.height - fitHeight) / 2) / fitHeight),
-  };
-}
-
-function panInstantZoom() {
-  if (!instantZoomPointer || !isInstantZoomValid()) return;
-  const center = instantZoomCenterAt(instantZoomPointer.x, instantZoomPointer.y);
-  if (!center) return;
-  setPreviewCenter(instantZoom.target, clampPreviewCenter(instantZoom.target, center.x, center.y)); // shared centre, or the slot's own one
-  renderPreviewTransforms();
-}
-
-function startInstantZoom() {
-  const target = instantZoomSlotUnderPointer();
-  if (!target) return false;
-  const slots = previewSlotsToAffect(target);
-  if (!slots.length) return false;
-  instantZoom = {
-    target,
-    saved: slots.map(slot => ({ slot, photoPath: slot.photo?.path, zoom: slot.zoom, center: { ...slot.center } })),
-    photoPath: target.photo?.path, // the fullscreen slot is reused from photo to photo: identify the photo by its path
-    sharedCenter: { ...previewCenter },
-    signature: previewSignature,
-    fullscreen: isFullscreen,
-  };
-  zoomPreview(() => INSTANT_ZOOM_LEVEL, null, target);
-  panInstantZoom();
-  return true;
-}
-
-// Puts back the zoom level and centre of before the key was pressed (only for photos still displayed).
-function endInstantZoom() {
-  if (!instantZoom) return;
-  const state = instantZoom;
-  const valid = isInstantZoomValid();
-  instantZoom = null;
-  cancelAnimationFrame(instantZoomFrame);
-  instantZoomFrame = 0;
-  if (!valid) return;
-  for (const { slot, photoPath, zoom, center } of state.saved) {
-    if (slot.photo?.path !== photoPath || (slot !== fullscreenSlot && !previewSlots.includes(slot))) continue;
-    slot.zoom = zoom;
-    slot.center = center;
-  }
-  if (previewSignature === state.signature) previewCenter = state.sharedCenter;
-  renderPreviewTransforms();
-  state.saved.forEach(({ slot }) => showZoomIndicator(slot));
-}
-
-// Capture phase: the key must win over the other handlers (e.g. the letter keys of the Faces view) once it has been taken.
-window.addEventListener('keydown', event => {
-  if (event.key.toLowerCase() !== 'z' || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return; // Ctrl+Z stays the undo
-  if (instantZoom) { // key repeat while held
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    return;
-  }
-  if (event.repeat || document.querySelector('.modal:not(.hidden)')) return;
-  if (!isFullscreen && isTextEntryFocused()) return; // typing a "z" in a text field
-  if (startInstantZoom()) {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  }
-}, true);
-
-window.addEventListener('keyup', event => {
-  if (event.key.toLowerCase() === 'z') endInstantZoom();
-}, true);
-window.addEventListener('blur', endInstantZoom); // focus lost while held: no keyup will come
-document.addEventListener('visibilitychange', () => { if (document.hidden) endInstantZoom(); });
-
-window.addEventListener('pointermove', event => {
-  instantZoomPointer = { x: event.clientX, y: event.clientY };
-  if (!instantZoom || event.buttons !== 0) return; // a button held: the usual drag panning keeps the hand
-  if (!isInstantZoomValid()) { endInstantZoom(); return; }
-  if (!instantZoomFrame) {
-    instantZoomFrame = requestAnimationFrame(() => { instantZoomFrame = 0; panInstantZoom(); });
-  }
-}, { capture: true, passive: true });
-
-// The wheel zooms instead of changing photo (fullscreen) or zooming around the cursor (preview), and keeps the same limits as the + / - keys.
-window.addEventListener('wheel', event => {
-  if (!instantZoom) return;
-  if (!isInstantZoomValid()) { endInstantZoom(); return; }
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  const steps = wheelZoomSteps(event);
-  if (!steps) return;
-  zoomPreviewSteps(-steps, null, instantZoom.target);
-  panInstantZoom(); // zoomPreview resets the centre when the fitted view comes back
-}, { capture: true, passive: false });
 
 // ==========================================
 // DÉFILEMENT DE LA GRILLE AU GLISSER
@@ -7266,7 +6633,7 @@ async function applyMovedPhotos(moved) {
   rename(loadedPhotos);
   if (folderTreePhotos !== loadedPhotos) rename(folderTreePhotos);
   photosMoved(destinations); // modifications en attente (mots-clés, description) : elles visent le nouveau chemin
-  previewSignature = ''; // force le rechargement de l'aperçu
+  invalidatePreview(); // force preview reload
   fullscreenImageCache.clear();
   await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
 }
@@ -7664,10 +7031,10 @@ initHistogram({
     const photo = selectedIndices.size > 0 ? photos[lastSelectedIndex] ?? null : null;
     const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
     const previewShown = !mainContent.classList.contains('preview-hidden');
-    const hidden = !isFullscreen && (compareMode || otherViewOpen);
+    const hidden = !isFullscreen && (isCompareMode() || otherViewOpen);
     let overlays = [];
     if (isFullscreen) overlays = fullscreenSlot.photo === photo ? [fullscreenSlot.clip] : []; // image du plein écran = photo courante
-    else if (!hidden && previewShown) overlays = previewSlots.filter(slot => slot.photo === photo).map(slot => slot.clip);
+    else if (!hidden && previewShown) overlays = getPreviewSlots().filter(slot => slot.photo === photo).map(slot => slot.clip);
     return {
       photo, hidden, fullscreen: isFullscreen, overlays,
       anchor: isFullscreen ? null : previewShown ? previewStage : gridContainer,
@@ -7714,7 +7081,7 @@ initFacesPanel({
   getFullscreenSlot: () => fullscreenSlot,
   getPreviewSlotAt: event => previewSlotFromEvent(event),
   isFullscreen: () => isFullscreen,
-  layoutPreview: () => previewSlots.forEach(layoutPreviewSlot),
+  layoutPreview: () => layoutPreviewSlots(),
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
   // Détection désactivée : les vues Personnes et de gestion se ferment.
@@ -8020,7 +7387,7 @@ initMapMode({
   closeFacesView: () => closeFacesView(),
   requestCloseFacesView: () => requestCloseFacesView(),
   setMapLayout: open => { mainContent.classList.toggle('map-mode', open); requestAnimationFrame(updateVirtualScroller); },
-  layoutPreview: () => requestAnimationFrame(() => previewSlots.forEach(layoutPreviewSlot)),
+  layoutPreview: () => requestAnimationFrame(layoutPreviewSlots),
 });
 document.getElementById('show-map-toggle').addEventListener('change', onMapModeAccessChanged);
 initMapsSettings({ showToast: message => showWriteToast(message) }); // Paramètres > Cartes : style de la carte
@@ -8134,7 +7501,7 @@ async function refreshLibraryAfterSync(changes) {
     rawPreviewPromises.delete(path); // aperçu extrait (RAW, HEIC, vidéo) : relu, le fichier a changé
   }
   if (modified.size) {
-    previewSignature = ''; // force le rechargement de l'aperçu
+    invalidatePreview(); // force preview reload
     fullscreenImageCache.clear();
   }
   loadedPhotos = fresh;

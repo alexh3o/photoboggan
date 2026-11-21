@@ -102,43 +102,41 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1122–L1157 | 36 | Suppression d'un mot-clé |
 | L1158–L1253 | 96 | Initialisation |
 
-## src/main.js (8306 lines)
+## src/main.js (7673 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L654–L689 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
-| L690–L859 | 170 | CHARGEMENT PHOTOS & DOSSIERS |
-| L860–L1265 | 406 | PAGINATION DE LA GRILLE |
-| L1266–L1966 | 701 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
-| L1967–L2326 | 360 | ARBORESCENCE & FILTRES |
-| L2327–L2446 | 120 | STICKY FOLDERS (pinned ancestors of the first visible row) |
-| L2447–L2634 | 188 | TROUVER LE RAW |
-| L2635–L2999 | 365 | VIRTUAL SCROLLING |
-| L3000–L3486 | 487 | GESTION DU PLEIN ÉCRAN ET NAVIGATION |
-| L3487–L3857 | 371 | SELECTION MULTIPLE |
-| L3858–L3905 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
-| L3906–L3999 | 94 | LOSSLESS ROTATION (orientation.rs) |
-| L4000–L4342 | 343 | Keyboard shortcuts Memo |
-| L4343–L4362 | 20 | MODALE PARAMÈTRES |
-| L4363–L4470 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
-| L4471–L4527 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
-| L4528–L4575 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
-| L4576–L4695 | 120 | BOUTONS VUES & SIDEBAR |
-| L4696–L4807 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
-| L4808–L5535 | 728 | TRI DES MINIATURES |
-| L5536–L5785 | 250 | MARQUAGE (note et couleur de la sélection) |
-| L5786–L6095 | 310 | DUPLICATES |
-| L6096–L6617 | 522 | APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER |
-| L6618–L6757 | 140 | INSTANT ZOOM (hold Z) |
-| L6758–L6877 | 120 | DÉFILEMENT DE LA GRILLE AU GLISSER |
-| L6878–L7273 | 396 | DÉPLACEMENT ET COPIE DE PHOTOS PAR GLISSER-DÉPOSER VERS L'ARBORESCENCE |
-| L7274–L7293 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L7294–L7337 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L7338–L7343 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L7344–L7736 | 393 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L7737–L8067 | 331 | CONTENT SEARCH RESULTS |
-| L8068–L8247 | 180 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L8248–L8306 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L662–L697 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
+| L698–L867 | 170 | CHARGEMENT PHOTOS & DOSSIERS |
+| L868–L1273 | 406 | PAGINATION DE LA GRILLE |
+| L1274–L1974 | 701 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
+| L1975–L2334 | 360 | ARBORESCENCE & FILTRES |
+| L2335–L2454 | 120 | STICKY FOLDERS (pinned ancestors of the first visible row) |
+| L2455–L2642 | 188 | TROUVER LE RAW |
+| L2643–L3007 | 365 | VIRTUAL SCROLLING |
+| L3008–L3494 | 487 | GESTION DU PLEIN ÉCRAN ET NAVIGATION |
+| L3495–L3865 | 371 | SELECTION MULTIPLE |
+| L3866–L3913 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
+| L3914–L4007 | 94 | LOSSLESS ROTATION (orientation.rs) |
+| L4008–L4350 | 343 | Keyboard shortcuts Memo |
+| L4351–L4370 | 20 | MODALE PARAMÈTRES |
+| L4371–L4478 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
+| L4479–L4535 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
+| L4536–L4583 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
+| L4584–L4703 | 120 | BOUTONS VUES & SIDEBAR |
+| L4704–L4815 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
+| L4816–L5543 | 728 | TRI DES MINIATURES |
+| L5544–L5793 | 250 | MARQUAGE (note et couleur de la sélection) |
+| L5794–L6124 | 331 | DUPLICATES |
+| L6125–L6244 | 120 | DÉFILEMENT DE LA GRILLE AU GLISSER |
+| L6245–L6640 | 396 | DÉPLACEMENT ET COPIE DE PHOTOS PAR GLISSER-DÉPOSER VERS L'ARBORESCENCE |
+| L6641–L6660 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L6661–L6704 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L6705–L6710 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L6711–L7103 | 393 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L7104–L7434 | 331 | CONTENT SEARCH RESULTS |
+| L7435–L7614 | 180 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L7615–L7673 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (505 lines)
 
@@ -171,6 +169,14 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1208–L1342 | 135 | VÉRIFICATION D'INTÉGRITÉ (rapport final) |
 | L1343–L2037 | 695 | MENUS CONTEXTUELS (miniatures, aperçu, plein écran et arborescence des dossiers) |
 | L2038–L2172 | 135 | MENU DES CHAMPS DE SAISIE |
+
+## src/preview-zoom.js (724 lines)
+
+| Lines | Size | Section |
+|---|---:|---|
+| L14–L469 | 456 | PREVIEW: ZOOM, PAN AND COMPARE MODE |
+| L470–L571 | 102 | INSTANT ZOOM (HOLD Z) |
+| L572–L724 | 153 | INITIALIZATION |
 
 ## src/privacy.js (515 lines)
 

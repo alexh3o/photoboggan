@@ -2,10 +2,9 @@
 
 ## 🚀 Next in line
 
-- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
 - [x] *feat*: `theme` follow system theme by default
-- [ ] *fix*: `toasts` blurry toasts when a modal is on top
+- [ ] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -16,7 +15,10 @@
 - [ ] *fix*: `tree` reordering root folders with grips in settings sometimes leaves them pending and needing a click confirmation
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
-- [ ] *chore*: `language` add a recipe for languages implementation
+- [x] *chore*: `language` add a recipe for languages implementation
+- [ ] *fix*: `toasts` blurry toasts when a modal is on top
+- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
+- [ ] *feat*: better ctrl+z info
 
 ## ⚖️ Undecided
 
