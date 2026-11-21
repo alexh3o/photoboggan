@@ -1,4 +1,4 @@
-<!-- verified: 6f89bc1 | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js -->
+<!-- verified: 6f89bc1 | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js, src/task-queue.js -->
 # Semantic search and automatic keywords
 
 ## Purpose
@@ -16,7 +16,8 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 | `semantic-keywords.js` | Toolbar keyword box also finds photos by content (`syncKeywordSuggestions`, setting `semanticInKeywordSearch`). |
 | `semantic-tagging.js` | "Photos likely to match" for a keyword and the "Suggestions" block of the Keywords panel. |
 | `semantic-exclusions.js` | Settings list of keywords never suggested (and their subtrees). |
-| `main.js` | Task lane `pumpSemanticQueue`; section "CONTENT SEARCH RESULTS" (mode `semanticSearch`). |
+| `task-queue.js` | Task lane `pumpSemanticQueue`. |
+| `main.js` | Section "CONTENT SEARCH RESULTS" (mode `semanticSearch`). |
 
 ## How it works
 
@@ -42,7 +43,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 
 ## Dependencies
 - Uses: `duplicates.rs` (image-data hash: `LAYOUT_VERSION`), thumbnails cache, `onnx_runtime.rs`, `model_files.rs`, `face_models.rs` (`models_dir`, `internet_allowed`, runtime file), `keywords.rs` (`collect_rows`, tree), `keywords-panel.js` (`addPendingKeyword`).
-- Used by: `main.js` (queue lane, results mode, context menus), `keywords-panel.js` (Suggestions block); other tasks call `PriorityGuard::new()`.
+- Used by: `task-queue.js` (semantic lane), `main.js` (results mode, context menus), `keywords-panel.js` (Suggestions block); other tasks call `PriorityGuard::new()`.
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: **never write on a suggestion click.** Only `addPendingKeyword`; no other write path (AGENTS.md §5.I).

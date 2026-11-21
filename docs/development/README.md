@@ -21,6 +21,7 @@ Rule of thumb: if a fact can be extracted from the code by a script, it is in `g
 | Understand the whole application | `architecture.md`, then `code-map.md` |
 | Know what a file or folder is for | `code-map.md`, `generated/files.md` |
 | Find a function / a Tauri command / who calls it | `generated/symbols-*.md`, `generated/ipc-commands.md` |
+| Find a section and its line range in a large file | `generated/sections.md` |
 | Modify one feature | `modules/<feature>.md` (list below) |
 | Check what a change might break | the module doc's "Invariants" section, `invariants.md`, `generated/module-deps.md` |
 | Add a command, setting, metadata field, filter, translation, table… | `recipes.md` |
@@ -52,4 +53,4 @@ A change that adds a command, a setting, a table, a CSS variable or a test needs
 
 ## Reading order for a model with a small context window
 
-`README.md` → the one `modules/<feature>.md` you need → the rows of `generated/ipc-commands.md` and `generated/module-deps.md` mentioning that module (search by name) → the source files listed in the module doc. Do not load `generated/symbols-*.md` entirely: search it.
+`README.md` → the one `modules/<feature>.md` you need → the rows of `generated/ipc-commands.md` and `generated/module-deps.md` mentioning that module (search by name) → `generated/sections.md` to locate the relevant slice of large files → the source files listed in the module doc. Do not load `generated/symbols-*.md` entirely: search it.

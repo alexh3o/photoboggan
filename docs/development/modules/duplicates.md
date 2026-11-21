@@ -40,7 +40,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 - Settings: `identicalSearchSettings`, `similarSearchSettings`, `duplicateGroupSort`, `duplicateKeepSettings`.
 
 ## Dependencies
-- Uses: `db.rs` pool, `thumbnails` / `integrity` decoders (via `phash.rs`), `raw-settings.js` (name pattern), task queue of `main.js`, `semantic::PriorityGuard`.
+- Uses: `db.rs` pool, `thumbnails` / `integrity` decoders (via `phash.rs`), `raw-settings.js` (name pattern), task queue (`task-queue.js`), `semantic::PriorityGuard`.
 - Used by: `semantic.rs` (`duplicates::DataHash`, `LAYOUT_VERSION`, `is_video`) for the image key.
 
 ## Invariants and sensitive areas

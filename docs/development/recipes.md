@@ -1,4 +1,4 @@
-<!-- verified: 6f89bc1 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: 6f89bc1 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 
 # Maintenance recipes
 
@@ -85,9 +85,9 @@ Example: flash filter (`shooting-filters.js`).
 
 ## 8. Add a long task to the queue
 
-Example: integrity check (`checkFolderIntegrity` in main.js → `integrity_scan` in main.rs).
+Example: integrity check (`checkFolderIntegrity` in `task-queue.js`, wired by `main.js` → `integrity_scan` in `main.rs`).
 
-1. JS: `enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, dedupeKey })` (main.js). Modules receive it as an injected `enqueueTask`. Add the kind to `familyOf` if it must not be refused as a duplicate of scans.
+1. JS: `enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, dedupeKey })` (`task-queue.js`). Modules receive it as an injected `enqueueTask` from `main.js`. Add the kind to `familyOf` (`task-queue.js`) if it must not be refused as a duplicate of scans.
 2. Rust command takes `task_id: String`; `let cancel = crate::scan_cancel_flag(&task_id);`; work in `spawn_blocking`, checking `cancel` between items; progress with `app.emit("scan-progress", ScanProgress { task_id, percent })`; `crate::release_scan_cancel_flag(&task_id)` at the end, also on error.
 3. A stop must leave no half-written output (see `download_face_models`: "cancelled" is not an error, nothing installed).
 4. Result handling in `onResult(result, stopped, error, task)`; translate error codes.
@@ -98,7 +98,7 @@ Example: integrity check (`checkFolderIntegrity` in main.js → `integrity_scan`
 Only `scan-progress` and `scan-detail` exist; prefer reusing them with a `task_id`.
 
 1. Rust: `app.emit("event-name", payload)` with a `#[derive(Clone, serde::Serialize)]` payload (see `ScanDetail`, main.rs).
-2. JS: one `listenToBackend('event-name', handler)` (main.js, next to `scan-detail`); dispatch to modules from there.
+2. JS: one `listenToBackend('event-name', handler)` (`task-queue.js` next to `scan-detail`, or `main.js` for non-task events); dispatch to modules from there.
 3. `npm run docs:gen` lists it in `generated/events.md`.
 
 ## 10. Add a quick search to a sidebar block

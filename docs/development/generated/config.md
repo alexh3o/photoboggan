@@ -47,7 +47,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `minLength` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `offlineMode` | `false` | main.js, map-config.js, settings-defaults.js |
 | `pattern` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
-| `pausedScanTasks` | `[]` | main.js |
+| `pausedScanTasks` | `[]` | task-queue.js |
 | `photoDateSeparator` | `"none"` | main.js |
 | `photoNameSeparator` | `"none"` | main.js |
 | `photoSortKey` | `"taken"` | main.js |
@@ -103,10 +103,10 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 ## Translations
 
 - Languages: en (1904 keys), es (1904 keys), fr (1904 keys)
-- es.json: 2 key(s) of en.json missing (shown in English): `Show the downloaded file`, `Download folder opened`
-- es.json: keys unknown to en.json (typo or obsolete): `Open the installer`, `Installer opened`
-- fr.json: 2 key(s) of en.json missing (shown in English): `Show the downloaded file`, `Download folder opened`
-- fr.json: keys unknown to en.json (typo or obsolete): `Open the installer`, `Installer opened`
+- es.json: 0 key(s) of en.json missing (shown in English): none
+- es.json: keys unknown to en.json (typo or obsolete): none
+- fr.json: 0 key(s) of en.json missing (shown in English): none
+- fr.json: keys unknown to en.json (typo or obsolete): none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none
 
 ## npm scripts

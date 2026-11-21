@@ -231,6 +231,51 @@ function genSymbols() {
   write('symbols-rust.md', 'Backend symbols', 'Functions (free and `impl` methods), structs, enums and traits of each `src-tauri/src/*.rs` file, in file order, test modules excluded. Signatures of IPC commands are in `ipc-commands.md`.', rs);
 }
 
+/** Extract column-0 boxed section banners (`// ====` or `// ----` with 1–3 title lines) and compute their line ranges. */
+function extractSections(src, isRust) {
+  const lines = src.split('\n');
+  let endLine = lines.length;
+  if (isRust) {
+    for (let i = 0; i < lines.length; i++) {
+      if (/^#\[cfg\(test\)\]/.test(lines[i]) && /^(#\[path|mod tests)/.test(lines[i + 1] ?? '')) {
+        endLine = i;
+        break;
+      }
+    }
+  }
+  const RULE = /^\/\/\s*(?:={6,}|-{6,})\s*$/;
+  const sections = [];
+  for (let i = 0; i < endLine; i++) {
+    if (!RULE.test(lines[i])) continue;
+    let j = i + 1;
+    while (j < endLine && j <= i + 3 && /^\/\/\s*\S/.test(lines[j]) && !RULE.test(lines[j])) j++;
+    if (j > i + 1 && j < endLine && RULE.test(lines[j])) {
+      const title = lines.slice(i + 1, j).map((l) => l.replace(/^\/\/\s*/, '').trim()).join(' ');
+      sections.push({ start: i + 1, title });
+      i = j;
+    }
+  }
+  for (let k = 0; k < sections.length; k++) {
+    sections[k].end = k + 1 < sections.length ? sections[k + 1].start - 1 : endLine;
+    sections[k].lines = sections[k].end - sections[k].start + 1;
+  }
+  return sections;
+}
+
+/** sections.md : boxed section banners across JS and Rust source files with exact line ranges. */
+function genSections() {
+  let body = '';
+  for (const f of [...jsFiles.sort(), ...rsFiles.sort()]) {
+    const src = read(f);
+    const totalLines = src.split('\n').length;
+    const secs = extractSections(src, f.endsWith('.rs'));
+    if (!secs.length) continue;
+    body += `\n## ${f} (${totalLines} lines)\n\n| Lines | Size | Section |\n|---|---:|---|\n`;
+    for (const s of secs) body += `| L${s.start}–L${s.end} | ${s.lines} | ${esc(cut(s.title, 120))} |\n`;
+  }
+  write('sections.md', 'File sections', 'Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri/src/*.rs`, with their line ranges and sizes (excluding Rust `#[cfg(test)]` blocks). Line numbers are valid only for the commit that generated this file: use them as a map to read targeted slices of large files.', body);
+}
+
 /** module-deps.md : who uses whom, Rust (crate::) and frontend (import). */
 function genDeps() {
   const mods = new Set(rsFiles.map((f) => basename(f, '.rs')).filter((n) => n !== 'main'));
@@ -457,5 +502,5 @@ if (cmd === '--stale') stale();
 else if (cmd === '--stamp') stamp(rest);
 else {
   console.log('Generating docs/development/generated/ …');
-  genFiles(); genCommands(); genEvents(); genSymbols(); genDeps(); genSchema(); genCss(); genConfig(); genTests();
+  genFiles(); genCommands(); genEvents(); genSymbols(); genSections(); genDeps(); genSchema(); genCss(); genConfig(); genTests();
 }

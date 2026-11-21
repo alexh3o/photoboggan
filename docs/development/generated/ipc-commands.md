@@ -93,11 +93,11 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `get_folders` | `main.rs` | — | `Vec<TrackedFolder>` | main thread | main.js |
 | `add_folder` | `main.rs` | `path: String` | `Vec<TrackedFolder>` | async pool | main.js |
 | `remove_folder` | `main.rs` | `id: i64, path: String` | `Vec<TrackedFolder>` | main thread | main.js |
-| `cancel_scan` | `main.rs` | `task_id: String` | `()` | main thread | main.js ×2 |
+| `cancel_scan` | `main.rs` | `task_id: String` | `()` | main thread | task-queue.js ×2 |
 | `scan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | main.js |
-| `rescan_all_folders` | `main.rs` | `task_id: String, resume_since: Option<i64>` | `()` | async pool | main.js |
-| `rescan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | main.js |
-| `integrity_scan` | `main.rs` | `path: String, task_id: String` | `integrity::IntegrityReport` | async pool | main.js |
+| `rescan_all_folders` | `main.rs` | `task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
+| `rescan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
+| `integrity_scan` | `main.rs` | `path: String, task_id: String` | `integrity::IntegrityReport` | async pool | task-queue.js |
 | `find_duplicates` | `main.rs` | `request: duplicates::Request, task_id: String` | `duplicates::Report` | async pool | main.js |
 | `list_duplicate_candidates` | `main.rs` | `scope: duplicates::Scope, compare_with_library: bool` | `Vec<(String, String, bool)>` | async pool | main.js |
 | `find_similar_images` | `main.rs` | `request: similar::Request, task_id: String` | `duplicates::Report` | async pool | duplicates.js, main.js |

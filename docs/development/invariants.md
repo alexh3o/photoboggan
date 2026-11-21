@@ -1,4 +1,4 @@
-<!-- verified: 6f89bc1 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: 6f89bc1 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
 
 # Business rules and invariants
 
@@ -73,7 +73,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 ## 6. Long tasks
 
-- Every scan, rescan, integrity check, copy / move / resize, batch rename of 20+ photos, keyword write of 20+ photos, face detection, model download, duplicate search, private-zone download, update download and content analysis goes through `enqueueScanTask` (main.js), never a bare `invoke` with its own progress UI.
+- Every scan, rescan, integrity check, copy / move / resize, batch rename of 20+ photos, keyword write of 20+ photos, face detection, model download, duplicate search, private-zone download, update download and content analysis goes through `enqueueScanTask` (`task-queue.js`), never a bare `invoke` with its own progress UI.
 - Each task has a unique id (`scan-<time>-<n>`) passed as `taskId`; the backend reports progress with `scan-progress` for that id and checks `scan_cancel_flag(task_id)`; it must call `release_scan_cancel_flag` when done. A stopped task keeps what was done (no rollback) and must leave no half-installed file.
 - Heavy backend work runs in `spawn_blocking` / rayon, never in a plain `#[tauri::command] fn` (main thread).
 

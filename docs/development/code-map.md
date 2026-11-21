@@ -2,7 +2,7 @@
 
 # Code map
 
-Where things are and how the big files are organized. Sizes and the leading comment of every file: `generated/files.md`. Functions: `generated/symbols-js.md`, `generated/symbols-rust.md` (search them, do not load them whole).
+Where things are and how the big files are organized. Sizes and the leading comment of every file: `generated/files.md`. Boxed sections with line ranges: `generated/sections.md`. Functions: `generated/symbols-js.md`, `generated/symbols-rust.md` (search them, do not load them whole).
 
 ## Repository tree
 
@@ -32,13 +32,13 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | App shell (`app-shell`)                           | `main.rs` (AppState, `config.json`, storage location, window)                                            | `i18n.js`, `settings-defaults.js`, `defaults.jsonc`, `app-fonts.js`, `guide.js`, `locales/`                                                                                   |
 | Library & database (`library-and-database`)       | `db.rs`, `library_sync.rs`, scan commands of `main.rs`                                                   | —                                                                                                                                                                             |
-| Main window: navigation & tasks (`main-window`)   | —                                                                                                        | `main.js`: loading, folder tree (and its quick search), task queue, settings modal, sync, startup; `sidebar-search.js` (search field of the Folders / Albums / People titles); `titlebar.js` (window display, title bar, immersive mode); `sticky-folders.js` (pure: which tree rows stay pinned) |
+| Main window: navigation & tasks (`main-window`)   | —                                                                                                        | `main.js`: loading, folder tree (and its quick search), settings modal, sync, startup; `task-queue.js` (sequential main lane + parallel content-analysis lane, toasts, tasks modal, pause/resume); `sidebar-search.js` (search field of the Folders / Albums / People titles); `titlebar.js` (window display, title bar, immersive mode); `sticky-folders.js` (pure: which tree rows stay pinned) |
 | Grid & viewer (`grid-and-viewer`)                 | `get_file_dates` in `main.rs`                                                                            | `main.js`: virtual grid, selection, sort, full screen, compare, marking; `slideshow.js`, `toolbar-a11y.js`, `file-dates.js` (Info tab: file dates tooltip on "Date taken"), `orientation.js` (pure: orientation matrices of the lossless rotation), `file-kinds.js` (pure: `isRawPath`, `isVideoPath`)                                                                    |
 | Thumbnails & previews (`thumbnails-and-previews`) | `thumbnails.rs`, `heif.rs`, `video.rs`, `orientation.rs`, cache commands of `main.rs`                    | —                                                                                                                                                                             |
 | Metadata (`metadata-read-write`)                  | `exif.rs`, `exiftool.rs`, `rights.rs` (author and rights: presets, on-demand fields, author list)         | `metadata-writes.js`, `metadata-settings.js`, `marking-settings.js`, `order-list.js`, `info-author.js` (Info tab "Author" section), `rights-presets.js`, `author-rights.css`      |
 | Keywords (`keywords`)                             | `keywords.rs`                                                                                            | `keywords-panel.js`, `description-panel.js`                                                                                                                                   |
 | Faces (`faces`, `face-detection`)                 | `faces.rs`; `face_detect.rs`, `face_recognize.rs`, `face_models.rs`, `model_files.rs`, `onnx_runtime.rs` | `faces-panel.js`, `faces-grid.js`, `persons-view.js`                                                                                                                          |
-| Semantic search (`semantic`)                      | `semantic.rs`, `semantic_search.rs`, `semantic_keywords.rs`, `semantic_models.rs`                        | `semantic*.js`, `main.js` section "CONTENT SEARCH RESULTS" (results mode) and `pumpSemanticQueue` (section "FILE D'ATTENTE DES TÂCHES")                                       |
+| Semantic search (`semantic`)                      | `semantic.rs`, `semantic_search.rs`, `semantic_keywords.rs`, `semantic_models.rs`                        | `semantic*.js`, `task-queue.js` (`pumpSemanticQueue`), `main.js` section "CONTENT SEARCH RESULTS" (results mode)                                       |
 | Duplicates (`duplicates`)                         | `duplicates.rs`, `similar.rs`, `phash.rs`                                                                | `duplicates.js`, `duplicate-names.js`, `duplicates-modal.js`, `main.js` section "DUPLICATES"                                                                                  |
 | Maps & geolocation (`maps-and-geolocation`)       | `geolocation.rs`, `place_search.rs`                                                                      | `map-view.js`, `map-mode.js`, `map-config.js`, `map-tile-protocol.js`, `maps-settings.js`, `location-panel.js`, `geo-tools.js`, `place-search.js`                             |
 | Private zones & offline maps (`private-zones`)    | `private_maps.rs`                                                                                        | `private-zones.js`, `private-zones-modal.js`, `zone-drawing.js`                                                                                                               |
@@ -52,7 +52,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 
 ## Inside the large files
 
-**`src/main.js`** (~8,950 lines). One file, organized in sections opened by a `// ====` banner with an uppercase title (search the title). In order:
+**`src/main.js`** (~8,300 lines). One file, organized in sections opened by a `// ====` banner with an uppercase title (exact line ranges in `generated/sections.md`). In order:
 
 - Call of `initTitleBar` (`titlebar.js`: window display, title bar, immersive mode), hover dimming, format helpers (`markFormatPlaceholder`, `needsGeneratedPreview`; `isRawPath` / `isVideoPath` are in `file-kinds.js`).
 - "SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE" (`checkPhotoMissing` → `remove_missing_photos`).
@@ -62,12 +62,12 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - "GESTION DU PLEIN ÉCRAN ET NAVIGATION", "SELECTION MULTIPLE", "UNDO", "LOSSLESS ROTATION", shortcuts memo.
 - "MODALE PARAMÈTRES" (+ folder management, About, Guide), "BOUTONS VUES & SIDEBAR", sidebar resizing.
 - "TRI DES MINIATURES" (sort; also the settings controls such as thumbnail quality live around here), "MARQUAGE".
-- "FILE D'ATTENTE DES TÂCHES" (`enqueueScanTask`, `pumpScanQueue`, `pumpSemanticQueue`, `runScanTask`, pause / resume) — ⚠ sensitive: every long feature depends on it.
+- Task queue (`task-queue.js`, wired via `initTaskQueue` in `main.js`) — ⚠ sensitive: every long feature depends on it.
 - "DUPLICATES", "APERÇU : ZOOM, DÉPLACEMENT ET MODE COMPARER".
 - "DÉFILEMENT DE LA GRILLE AU GLISSER", "DÉPLACEMENT ET COPIE … VERS L'ARBORESCENCE" (drag and drop), then the date / location / content-analysis filters.
 - "MENU CONTEXTUEL DES MINIATURES" (also `removePhotosFromLibrary` and the `init…` calls of most feature modules), "CONTENT SEARCH RESULTS".
 - "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES" (`syncLibraryWithDisk`, on startup and window focus), "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE".
-  Module-level mutable state (`loadedPhotos`, `photos`, `selectedIndices`, `scanTasks`…) is shared by all sections: a change in one section can break another.
+  Module-level mutable state (`loadedPhotos`, `photos`, `selectedIndices`…) is shared by all sections: a change in one section can break another.
 
 **`src-tauri/src/main.rs`** (~3200 lines): `AppState` and `AppDataPaths`; `config.json` load/save; thumbnail cache naming (`thumbnail_cache_file`, `cache_files`) and cache commands; scans (`run_scan`, cancel flags `scan_cancel_flag` / `release_scan_cancel_flag`, shared by every module's tasks); integrity and duplicate entry commands; folder commands; photo listing (`get_photos_paginated`…); marking and rotation; rename / delete / move / copy (with sidecars) and clipboard; "Open with"; write-recovery reporting; `fn main`; storage location change.
 

@@ -3,8 +3,9 @@
 ## 🚀 Next in line
 
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
-- [ ] *fix*: `linux` deb update download works but opening the download with app manager does nothing
+- [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
 - [x] *feat*: `theme` follow system theme by default
+- [ ] *fix*: `toasts` blurry toasts when a modal is on top
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

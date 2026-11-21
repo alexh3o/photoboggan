@@ -70,11 +70,11 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `geo-tools` | i18n, metadata-writes, photo-actions | main |
 | `guide` | i18n | main |
 | `histogram` | i18n, settings-defaults | main |
-| `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, titlebar, update-check |
+| `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, task-queue, titlebar, update-check |
 | `info-author` | i18n, settings-defaults | main |
 | `keywords-panel` | filter-suggest, i18n, metadata-writes, photo-actions, semantic-settings, semantic-tagging | main |
 | `location-panel` | i18n, map-config, map-view, maps-settings, private-zones, private-zones-modal, settings-defaults | main, map-mode |
-| `main` | albums-panel, app-fonts, author-filters, batch-rename, date-filter, description-panel, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, file-kinds, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, orientation, persons-view, photo-actions, privacy, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, sidebar-search, slideshow, stats, sticky-folders, titlebar, toolbar-a11y, update-check | — |
+| `main` | albums-panel, app-fonts, author-filters, batch-rename, date-filter, description-panel, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, file-kinds, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, orientation, persons-view, photo-actions, privacy, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, sidebar-search, slideshow, stats, sticky-folders, task-queue, titlebar, toolbar-a11y, update-check | — |
 | `map-config` | settings-defaults | location-panel, map-tile-protocol, map-view, private-zones-modal |
 | `map-mode` | i18n, location-panel, map-view, maps-settings, metadata-writes, place-search, private-zones, private-zones-modal, settings-defaults | main |
 | `map-tile-protocol` | map-config, settings-defaults | map-view |
@@ -82,7 +82,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `maps-settings` | i18n, map-view, settings-defaults | location-panel, main, map-mode, private-zones-modal |
 | `marking-settings` | settings-defaults | main, stats |
 | `metadata-settings` | i18n, order-list, settings-defaults | main, photo-actions |
-| `metadata-writes` | i18n, settings-defaults | batch-rename, description-panel, faces-grid, faces-panel, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings |
+| `metadata-writes` | i18n, settings-defaults | batch-rename, description-panel, faces-grid, faces-panel, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
 | `order-list` | i18n | metadata-settings |
 | `orientation` | — | main |
 | `persons-view` | faces-panel, i18n | main |
@@ -98,12 +98,13 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic-keywords` | i18n, semantic-exclusions, semantic-settings, semantic-tagging, settings-defaults | main |
 | `semantic-settings` | i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, main, semantic, semantic-keywords, semantic-tagging, stats |
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, main, semantic-keywords |
-| `settings-defaults` | — | albums-panel, faces-grid, faces-panel, histogram, i18n, info-author, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, slideshow, update-check |
+| `settings-defaults` | — | albums-panel, faces-grid, faces-panel, histogram, i18n, info-author, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, slideshow, task-queue, update-check |
 | `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, main |
 | `sidebar-search` | i18n | albums-panel, faces-panel, main |
 | `slideshow` | i18n, settings-defaults | main, photo-actions |
 | `stats` | faces-panel, filter-suggest, filter-tags, format-filters, i18n, marking-settings, semantic-settings | main |
 | `sticky-folders` | — | main |
+| `task-queue` | i18n, metadata-writes, settings-defaults | main |
 | `titlebar` | i18n | main |
 | `toolbar-a11y` | — | main |
 | `update-check` | i18n, settings-defaults | main |
