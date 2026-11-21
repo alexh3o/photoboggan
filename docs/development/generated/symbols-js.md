@@ -462,20 +462,20 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/i18n.js (14)
 
-- `isSupported(language)` · L17
-- `export getLanguage()` · L22
-- `export t(key, params)` · L28 — Texte traduit ; à défaut, l'anglais puis la clé elle-même, pour qu'un texte manquant reste lisible.
-- `hasMessage(key)` · L33
-- `pluralRulesFor(language)` · L37
-- `export tp(key, count, params = {})` · L44 — Texte avec pluriel : la clé porte la forme singulière, la clé suffixée de "|other" la forme plurielle
-- `export normalizeSearch(text)` · L51 — Texte comparable pour une recherche : sans accents (marques combinantes retirées après décomposition) et en minuscules.
-- `export labelWithColon(key)` · L54 — Libellé suivi du séparateur de la langue : labelWithColon('Current rating') -> "Note actuelle :" / "Current rating:".
-- `export formatBytes(bytes)` · L61 — Sizes: two conventions, so two helpers.
-- `export formatMegabytes(bytes)` · L67
-- `setElementText(element, text)` · L74 — Remplace le texte d'un élément sans supprimer ses éléments enfants (ex. <label>Texte <select></select></label>) :
-- `export applyTranslations(root = document)` · L90 — Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
-- `export onLanguageChange(listener)` · L100 — Pour re-générer les textes construits en JavaScript quand la langue change.
-- `export setLanguage(language)` · L105
+- `isSupported(language)` · L19
+- `export getLanguage()` · L24
+- `export t(key, params)` · L30 — Texte traduit ; à défaut, l'anglais puis la clé elle-même, pour qu'un texte manquant reste lisible.
+- `hasMessage(key)` · L35
+- `pluralRulesFor(language)` · L39
+- `export tp(key, count, params = {})` · L48 — Text with a plural: the bare key holds the "one" form, `Key|<category>` the other forms. The category comes from the plural rules of the
+- `export normalizeSearch(text)` · L55 — Texte comparable pour une recherche : sans accents (marques combinantes retirées après décomposition) et en minuscules.
+- `export labelWithColon(key)` · L58 — Libellé suivi du séparateur de la langue : labelWithColon('Current rating') -> "Note actuelle :" / "Current rating:".
+- `export formatBytes(bytes)` · L65 — Sizes: two conventions, so two helpers.
+- `export formatMegabytes(bytes)` · L71
+- `setElementText(element, text)` · L78 — Remplace le texte d'un élément sans supprimer ses éléments enfants (ex. <label>Texte <select></select></label>) :
+- `export applyTranslations(root = document)` · L94 — Traduit les éléments marqués data-i18n (contenu) et data-i18n-title / -aria-label / -placeholder / -alt.
+- `export onLanguageChange(listener)` · L104 — Pour re-générer les textes construits en JavaScript quand la langue change.
+- `export setLanguage(language)` · L109
 
 ## src/info-author.js (5)
 

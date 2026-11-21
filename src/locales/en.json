@@ -1900,5 +1900,6 @@
   "Start blank": "Start blank",
   "Batch rename blank help": "Erases the current file name so that the recipe starts from an empty name: the steps after it build the new name ({filename} still gives the original name). It can be added only once and is always the first step. Used alone, it leaves nothing to name the files: add the steps that make the names different.",
   "The “Start blank” step can only be used once": "The “Start blank” step can only be used once",
-  "The current name is erased here: the next steps build the new name.": "The current name is erased here: the next steps build the new name."
+  "The current name is erased here: the next steps build the new name.": "The current name is erased here: the next steps build the new name.",
+  "Settings tabs": "Settings tabs"
 }

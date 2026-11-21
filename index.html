@@ -96,7 +96,7 @@
             <span id="filtered-photos-count" class="filtered-count" role="status"></span>
             <!-- Photos privées (privacy.js) : bouclier visible quand la fonction est activée ; grisé sans ensemble actif, vert avec ; le clic ouvre la liste des ensembles (sans effet si le verrou est actif) -->
             <span id="privacy-shield-wrap" class="privacy-shield-wrap" hidden>
-              <button id="privacy-shield" type="button" class="privacy-shield" aria-haspopup="listbox" aria-expanded="false" title="Photos privées : désactivé" aria-label="Photos privées : désactivé">
+              <button id="privacy-shield" type="button" class="privacy-shield" aria-haspopup="listbox" aria-expanded="false">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
               </button>
               <ul id="privacy-menu" class="keyword-suggestions below privacy-menu" role="listbox" aria-multiselectable="true" hidden></ul>
@@ -124,7 +124,7 @@
               <div id="rating-filter-bar" class="rating-filter-bar" role="group" data-i18n-aria-label="Rating">
                 <button type="button" id="rating-unrated" class="rating-chip" aria-pressed="false" data-i18n-title="Unrated" data-i18n-aria-label="Unrated">∅</button>
                 <span id="rating-stars" class="rating-stars"></span>
-                <button type="button" id="rating-mode" class="rating-chip" aria-label="Au moins cette note">≥</button>
+                <button type="button" id="rating-mode" class="rating-chip" data-i18n-aria-label="At least this rating (click for exactly)">≥</button>
               </div>
               <div id="color-filter-bar" class="color-bar" role="group" data-i18n-aria-label="Color"></div>
               <div id="pick-filter-bar" class="pick-bar pick-control" role="group" data-i18n-aria-label="Pick"></div>
@@ -242,16 +242,16 @@
             <div id="filter-body-shooting" class="filter-group-body" hidden>
               <div class="shot-filters">
                 <label class="shot-label" for="shot-focal-input" data-i18n="Focal length"></label>
-                <span class="shot-field"><input id="shot-focal-input" type="text" placeholder="35 · 24-70 · >200" autocomplete="off" spellcheck="false" title="Valeur, plage (24-70), minimum (>200) ou maximum (<50), en mm" data-i18n-title="Range filter help" /><span class="shot-unit">mm</span></span>
+                <span class="shot-field"><input id="shot-focal-input" type="text" placeholder="35 · 24-70 · >200" autocomplete="off" spellcheck="false" data-i18n-title="Range filter help" /><span class="shot-unit">mm</span></span>
                 <div id="shot-focal-error" class="shot-error" role="alert"></div>
                 <label class="shot-label" for="shot-shutter-input" data-i18n="Shutter speed"></label>
                 <span class="shot-field"><input id="shot-shutter-input" type="text" placeholder="1/250 · 1/500-1/60 · >2" autocomplete="off" spellcheck="false" data-i18n-title="Shutter filter help" /></span>
                 <div id="shot-shutter-error" class="shot-error" role="alert"></div>
                 <label class="shot-label" for="shot-aperture-input" data-i18n="Aperture"></label>
-                <span class="shot-field"><span class="shot-unit">f/</span><input id="shot-aperture-input" type="text" placeholder="2.8 · 2.8-4 · &lt;2" autocomplete="off" spellcheck="false" title="Valeur, plage (2.8-4), minimum (>4) ou maximum (<2)" data-i18n-title="Range filter help" /></span>
+                <span class="shot-field"><span class="shot-unit">f/</span><input id="shot-aperture-input" type="text" placeholder="2.8 · 2.8-4 · &lt;2" autocomplete="off" spellcheck="false" data-i18n-title="Range filter help" /></span>
                 <div id="shot-aperture-error" class="shot-error" role="alert"></div>
                 <label class="shot-label" for="shot-iso-input">ISO</label>
-                <span class="shot-field"><input id="shot-iso-input" type="text" placeholder="400 · 100-3200 · >6400" autocomplete="off" spellcheck="false" title="Valeur entière, plage (100-3200), minimum (>6400) ou maximum (<200)" data-i18n-title="Range filter help" /></span>
+                <span class="shot-field"><input id="shot-iso-input" type="text" placeholder="400 · 100-3200 · >6400" autocomplete="off" spellcheck="false" data-i18n-title="Range filter help" /></span>
                 <div id="shot-iso-error" class="shot-error" role="alert"></div>
                 <label class="shot-label" for="shot-flash-select">Flash</label>
                 <span class="shot-field">
@@ -669,7 +669,7 @@
         </div>
 
         <!-- Barre des onglets -->
-        <div class="settings-tabs" role="tablist" aria-label="Onglets des paramètres">
+        <div class="settings-tabs" role="tablist" data-i18n-aria-label="Settings tabs">
           <button type="button" class="settings-tab-btn active" role="tab" aria-selected="true" data-tab="general" data-i18n="General"></button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="data" data-i18n="Storage"></button>
           <button type="button" class="settings-tab-btn" role="tab" aria-selected="false" data-tab="open-with" data-i18n="Applications"></button>

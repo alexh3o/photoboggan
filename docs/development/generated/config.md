@@ -102,9 +102,11 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Keys: 1902 (en) / 1902 (fr)
-- In en.json but missing from fr.json: none
-- In fr.json but missing from en.json: none
+- Languages: en (1903 keys), es (1902 keys), fr (1903 keys)
+- es.json: 1 key(s) of en.json missing (shown in English): `Settings tabs`
+- es.json: keys unknown to en.json (typo or obsolete): none
+- fr.json: 0 key(s) of en.json missing (shown in English): none
+- fr.json: keys unknown to en.json (typo or obsolete): none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none
 
 ## npm scripts

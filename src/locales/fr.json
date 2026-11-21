@@ -1900,5 +1900,6 @@
   "Start blank": "Partir d’un nom vide",
   "Batch rename blank help": "Efface le nom de fichier actuel pour que la recette parte d’un nom vide : les étapes suivantes construisent le nouveau nom ({filename} donne toujours le nom d’origine). Cette étape ne peut être ajoutée qu’une fois et reste toujours en première position. Seule, elle ne laisse aucun nom aux fichiers : ajoutez les étapes qui différencient les noms.",
   "The “Start blank” step can only be used once": "L’étape « Partir d’un nom vide » ne peut être utilisée qu’une fois",
-  "The current name is erased here: the next steps build the new name.": "Le nom actuel est effacé ici : les étapes suivantes construisent le nouveau nom."
+  "The current name is erased here: the next steps build the new name.": "Le nom actuel est effacé ici : les étapes suivantes construisent le nouveau nom.",
+  "Settings tabs": "Onglets des paramètres"
 }

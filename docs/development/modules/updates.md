@@ -59,7 +59,7 @@ Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re
 ## How to extend
 1. New platform installer: add its extensions in `pick_asset` and a case in `current_platform` and `install_update`, and make the release workflow publish it (`build-release.md`).
 2. New source of releases: keep a fixed repository prefix and the published digest requirement.
-3. New UI text: keys in `en.json` and `fr.json`; error codes go through `updateErrorMessage`.
+3. New UI text: key in `en.json` (`recipes.md` §7); error codes go through `updateErrorMessage`.
 
 ## Open questions
 none. The repository slug is written once, in the `repository!()` macro of `update_check.rs` (all URLs and prefixes are built from it with `concat!`); test `release_page_outside_the_repository_is_dropped`.

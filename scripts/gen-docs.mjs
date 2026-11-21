@@ -338,10 +338,18 @@ function genConfig() {
     cfg += `| \`${k}\` | ${esc(d)} | ${[...(keyFiles.get(k) ?? [])].join(', ') || '—'} |\n`;
   }
 
-  // i18n
-  const en = JSON.parse(read('src/locales/en.json')), fr = JSON.parse(read('src/locales/fr.json'));
+  // i18n: en.json is the source of truth; every other file of src/locales/ is compared with it (a partial translation is legal: t() falls back to English).
+  // Plural forms (`Key|other`, `Key|few`…) are compared by their base key only, so a missing plural form is not reported.
+  const localeFiles = files.filter((f) => /^src\/locales\/[^/]+\.json$/.test(f)).map((f) => basename(f, '.json')).sort();
+  const locales = {}, invalidLocales = [];
+  for (const code of localeFiles) {
+    // A contributed file may be malformed: report it here instead of stopping the whole generation.
+    try { locales[code] = JSON.parse(read(`src/locales/${code}.json`)); } catch (e) { invalidLocales.push(`${code} (${e.message})`); }
+  }
+  const en = locales.en;
+  const others = localeFiles.filter((code) => code !== 'en' && locales[code]);
   const base = (k) => k.replace(/\|\w+$/, '');
-  const enB = new Set(Object.keys(en).map(base)), frB = new Set(Object.keys(fr).map(base));
+  const enB = new Set(Object.keys(en).map(base));
   const used = new Set();
   for (const f of [...jsFiles, 'index.html']) {
     // Comments are skipped: they may quote placeholder keys (e.g. `t('Clé')` in i18n.js).
@@ -349,8 +357,17 @@ function genConfig() {
     for (const m of src.matchAll(/\b(?:t|tp|labelWithColon)\(\s*'([^'$]+)'/g)) used.add(m[1]);
     for (const m of src.matchAll(/data-i18n(?:-title|-aria-label|-placeholder)?="([^"$]+)"/g)) used.add(m[1]);
   }
-  const list = (a) => (a.length ? a.map((k) => '`' + k + '`').join(', ') : 'none');
-  const i18n = `- Keys: ${Object.keys(en).length} (en) / ${Object.keys(fr).length} (fr)\n- In en.json but missing from fr.json: ${list([...enB].filter((k) => !frB.has(k)))}\n- In fr.json but missing from en.json: ${list([...frB].filter((k) => !enB.has(k)))}\n- Used with a literal key in the code but missing from en.json (dynamic keys are not detected): ${list([...used].filter((k) => !enB.has(k)).sort())}\n`;
+  // Long lists (a new, partial translation) are cut after `max` keys so that config.md stays readable.
+  const list = (a, max = 40) => (a.length ? a.slice(0, max).map((k) => '`' + k + '`').join(', ') + (a.length > max ? `, … (+${a.length - max} more)` : '') : 'none');
+  let i18n = `- Languages: ${localeFiles.filter((code) => locales[code]).map((code) => `${code} (${Object.keys(locales[code]).length} keys)`).join(', ')}\n`;
+  if (invalidLocales.length) i18n += `- **Invalid JSON, not compared**: ${invalidLocales.join('; ')}\n`;
+  for (const code of others) {
+    const b = new Set(Object.keys(locales[code]).map(base));
+    const missing = [...enB].filter((k) => !b.has(k)), unknown = [...b].filter((k) => !enB.has(k));
+    i18n += `- ${code}.json: ${missing.length} key(s) of en.json missing (shown in English): ${list(missing)}\n`;
+    i18n += `- ${code}.json: keys unknown to en.json (typo or obsolete): ${list(unknown)}\n`;
+  }
+  i18n += `- Used with a literal key in the code but missing from en.json (dynamic keys are not detected): ${list([...used].filter((k) => !enB.has(k)).sort())}\n`;
 
   // dependencies / scripts
   const cargo = read('src-tauri/Cargo.toml');

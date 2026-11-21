@@ -8,11 +8,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `AGENTS.md` | 111 |  |
+| `BUILDING.md` | 87 |  |
 | `CLAUDE.md` | 2 |  |
 | `index.html` | 1522 |  |
 | `package.json` | 29 |  |
-| `README.md` | 202 |  |
-| `TODO.md` | 72 |  |
+| `README.md` | 208 |  |
+| `TODO.md` | 64 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -49,7 +50,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `glossary.md` | 83 |  |
 | `invariants.md` | 91 |  |
 | `README.md` | 56 |  |
-| `recipes.md` | 114 |  |
+| `recipes.md` | 136 |  |
 | `style.md` | 69 |  |
 | `testing.md` | 76 |  |
 | `troubleshooting.md` | 74 |  |
@@ -58,11 +59,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `config.md` | 157 |  |
+| `config.md` | 159 |  |
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 321 |  |
+| `files.md` | 323 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 106 |  |
 | `symbols-js.md` | 1564 |  |
@@ -74,7 +75,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `albums.md` | 63 |  |
-| `app-shell.md` | 72 |  |
+| `app-shell.md` | 73 |  |
 | `duplicates.md` | 65 |  |
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
@@ -99,7 +100,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `fetch-exiftool.mjs` | 106 | Télécharge la distribution officielle d'ExifTool dans src-tauri/vendor/exiftool/, embarquée dans l'application (ressource Tauri « exiftool », voir tauri.conf.json et src-tauri/src/exiftool.rs). Les binaires ne sont pas … |
 | `fetch-map-style.mjs` | 58 | Récupère chez OpenFreeMap (https://openfreemap.org) le style de carte embarqué dans l'application : styles « liberty » (thème clair) et « fiord » (thème sombre), icônes et polices qu'ils utilisent. Les fichiers sont écr… |
-| `gen-docs.mjs` | 445 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
+| `gen-docs.mjs` | 462 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
 
@@ -136,7 +137,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `guide.js` | 209 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
-| `i18n.js` | 119 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier de langue, puis data-i18n… |
+| `i18n.js` | 123 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues ret… |
 | `info-author.js` | 153 | "Author and rights" section of the Info tab: the author of the active photo and, when unfolded, its copyright notice, credit, usage terms and the author's e-mail (see rights.rs and exif::Rights). - The section title (sa… |
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
@@ -310,8 +311,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1905 |  |
-| `fr.json` | 1905 |  |
+| `en.json` | 1906 |  |
+| `es.json` | 1904 |  |
+| `fr.json` | 1906 |  |
 
 ## webpage
 

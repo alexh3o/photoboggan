@@ -74,7 +74,7 @@
   "photoNameSeparator": "none",
 
   // ---------------------------------------------------------------- Settings: General and Storage
-  // Language code: "fr" | "en" (must exist in src/locales/).
+  // Language code: "fr" | "en" | "es" (must exist in src/locales/ and in LANGUAGES, src/i18n.js).
   "appLanguage": "en",
   // At startup: "all" (all photos) | "last" (last opened location).
   "startupView": "all",

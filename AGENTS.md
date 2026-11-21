@@ -72,7 +72,7 @@
 - Ne jamais bloquer le thread principal : travail lourd dans `spawn_blocking` ou `rayon`, jamais dans un `#[tauri::command] fn` synchrone.
 
 ### F. Internationalisation
-- Tout nouveau texte : clé anglaise dans `src/locales/en.json` **et** traduction dans `fr.json`. `labelWithColon('Key')` pour « : » en français, `tp('Key', count)` pour les pluriels (`Key|other`), attributs `data-i18n*`.
+- Tout nouveau texte : clé anglaise dans `src/locales/en.json`, **source de vérité**. Les agents ne touchent **pas** aux autres langues (`fr.json`, `es.json`…) sauf demande explicite de l'utilisateur (économie de quota) : `t()` retombe sur l'anglais en attendant, et `npm run docs:gen` liste les clés manquantes de chaque langue. `labelWithColon('Key')` pour « : » selon la langue, `tp('Key', count)` pour les pluriels (`Key` = forme « one », `Key|other`, `Key|few`… selon la langue), attributs `data-i18n*`. Ajouter une langue : `recipes.md` §11.
 
 ### G. Réglages, fenêtre
 - Tout nouveau réglage mémorisé en `localStorage` a son défaut dans `src/defaults.jsonc` (commentaires en ligne entière seulement) ; jamais de défaut codé en dur. Le backend lit `faceSettings` (`face_detect.rs`) et `thumbnailCacheSize` (`main.rs`) du même fichier. Un réglage du backend gardé en statique Rust est renvoyé par le frontend **au démarrage** et à chaque changement (`configuration.md`).

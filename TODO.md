@@ -2,25 +2,17 @@
 
 ## 🚀 Next in line
 
-- [x] *fix*: `keywords` keywords write fail dialog offers No / Retry / Show: "No" is unclear (=ignore)
-- [x] *fix*: `rename` add a delete all feature or authorize deleting more than filename length
-- [x] *style*: `map` more visible dark map style
-- [x] *feat*: `UI` display date modified and date created somewhere
+
+
+
+
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
-- [x] *refactor*: `grid` date modified sorting must see metadata writes
-- [x] *fix*: `UI` `duplicates` in dupes star ratings are below the thumbnail info band
-- [x] *perf*: `fullscreen` slight lag when changing photo
-- [x] *fix*: `tree` folded state is not remembered
-- [x] *refactor*: `controls` swap (exif) & J (info panel) shortcuts
-- [ ] *chore*: `linux` add appimage in github workflows
 - [ ] *fix*: `linux` deb update download works but opening the download with app manager does nothing
-- [x] *fix*: `linux` no thumbnails on linux
+- [ ] *feat*: `theme` follow system theme by default
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
-- [x] *style*: `thumbnails` add rounded corners option (force small gap minimum)
 - [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
-- [x] *feat*: `files` **batch renaming**
 - [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion
 - [ ] *feat*: `metadata` **exif time shift** (to fix bad camera settings afterwards)
 - [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)

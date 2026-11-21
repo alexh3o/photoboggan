@@ -25,7 +25,7 @@ Examples: `keywordsAutoApply` (frontend only, `metadata-writes.js`), `thumbnailQ
 1. `src/defaults.jsonc`: add the key (= localStorage key) with its default, possible values in a **full-line** comment above it (inline comments break both parsers).
 2. Read it with `readBool` / `readChoice(key, allowed)` / `readNumber(key, min, max)` from `settings-defaults.js`; never hard-code the default.
 3. UI control: in `index.html` (Settings modal `#settings-modal`, one `settings-tab-…` per tab), wired in the owning module (or `main.js`, section "MODALE PARAMÈTRES"); save with `writeStored(key, value)` from `settings-defaults.js`.
-4. Labels: `data-i18n` keys in `en.json` and `fr.json` (recipe 7).
+4. Labels: `data-i18n` keys in `en.json` (recipe 7).
 5. Backend needs it? Add a setter command (recipe 1) and call it **at startup and on change** (see `offlineMode` → `set_internet_allowed` in main.js). Backend statics reset at every launch.
 6. Backend needs it **before the UI loads** (e.g. thumbnail quality for the first thumbnails)? Store it also in `config.json`: field in `AppConfig` (`#[serde(default)]`), read in `.setup`, written by the setter with `load_config` + `save_config` (see `set_thumbnail_quality`).
 7. Face detection settings are the exception: section `faceSettings` of `defaults.jsonc`, also read by Rust (`face_detect.rs`, `include_str!`).
@@ -79,9 +79,9 @@ Example: flash filter (`shooting-filters.js`).
 
 ## 7. Add a translation key, a modal, a panel, a toolbar button
 
-1. Text: English key in `src/locales/en.json` **and** French in `fr.json`. HTML: `data-i18n="Key"` (content) or `data-i18n-title` / `-aria-label` / `-placeholder` / `-alt`. JS: `t('Key', {param})`, plurals `tp('Key', count)` with a `Key|other` entry, labels with colon `labelWithColon('Key')`. Size formatting: use `formatBytes(bytes)` (disk sizes, binary KiB/MiB/GiB) or `formatMegabytes(bytes)` (download sizes, decimal MB/GB) from `i18n.js`. Text built in JS must be rebuilt on `onLanguageChange`.
+1. Text: English key in `src/locales/en.json` only: the other languages are updated when the user asks for it (AGENTS.md §5.F). HTML: `data-i18n="Key"` (content) or `data-i18n-title` / `-aria-label` / `-placeholder` / `-alt`. JS: `t('Key', {param})`, plurals `tp('Key', count)` with a `Key|other` entry (other plural forms per language: recipe 11), labels with colon `labelWithColon('Key')`. Size formatting: use `formatBytes(bytes)` (disk sizes, binary KiB/MiB/GiB) or `formatMegabytes(bytes)` (download sizes, decimal MB/GB) from `i18n.js`. Text built in JS must be rebuilt on `onLanguageChange`.
 2. Modal / panel / button: DOM in `index.html`, styles in the feature's CSS (rem except fine borders, AGENTS.md §5.A; see `style.md`), behaviour in the feature module with an `init…` function called by `main.js`. Reuse `keepFocusInModal` and `choiceDialog` (`metadata-writes.js`) for focus trapping and simple choices.
-- Trap: a missing French key silently shows English (`t` falls back to `en` then to the key).
+- Trap: a key missing from a language other than English silently shows English (`t` falls back to `en`, then to the key itself); `npm run docs:gen` lists the missing keys per language.
 
 ## 8. Add a long task to the queue
 
@@ -109,5 +109,27 @@ Examples: Folders (`main.js`, search `folderSearchQuery`), Albums (`albums-panel
 2. Call `initSidebarSearch({ name, onChange(query, previous) })` once at init. `query` is already normalized (`normalizeSearch`, trimmed, `''` = no filter); closing the field empties it, so the end of a search is always `query === '' && previous !== ''`.
 3. In `onChange`: store the text in a module variable, redraw, and on the end of the search put the list back (unfold the ancestors of the selected item, scroll the active row into view). Do **not** change the persisted fold state during the search: use a temporary "folded by hand" set, as the folders and albums do.
 4. In the render: keep the items whose name contains the text, **with their ancestors** for a tree; show a "No matching …" row when nothing is left. A redraw that does not change the data must not re-request it (`renderFolderTree({ fromCounts: true })`).
-5. Locale keys in both files: the placeholder ("Search a folder…") and the tooltip ("Search a folder"), plus the "No matching …" message; `Close the search` is shared.
+5. Locale keys in `en.json`: the placeholder ("Search a folder…") and the tooltip ("Search a folder"), plus the "No matching …" message; `Close the search` is shared.
 - Trap: the × and Esc must only close the search (the module stops the Esc event); the tool button stays invisible until the title row is hovered, so check it with the keyboard (Tab) too.
+
+## 11. Add a language
+
+Traced example: the `fr` entry of `LANGUAGES` (`i18n.js`). `es` (`src/locales/es.json`) is the first language added the way a contributor would. Rule behind it: `en.json` is the source, and agents do not update the other languages unless the user asks (AGENTS.md §5.F).
+
+1. File: `src/locales/<code>.json`, copied from `en.json`. Translate the values only: keys stay English, `{name}` placeholders stay as they are (the word order around them is free), `Key|…` entries are plural forms (step 4). The code is a BCP-47 tag (`es`, `pt-BR`, `zh-CN`): it feeds `Intl` and `<html lang>`. Regional variants are separate files. A partial file is legal: missing keys show English.
+2. Register it in `src/i18n.js`: `import`, then an entry of `LANGUAGES` with `label` (the language's own name), `messages` and `colon` (what `labelWithColon` puts after a label: `':'` by default, `'\u00a0:'` for French, `'：'` for Chinese and Japanese). The language menu of Settings has no option written in `index.html` (`<select id="language-select">` is empty): a script adds them (⚠ unverified: the filling code in `main.js` was not read and is expected to loop on `LANGUAGES`; after this step, check that the new language appears in the menu, and if it does not, add it where that menu is filled).
+3. `src/defaults.jsonc`: add the code to the comment of `appLanguage` (documentation only; a saved code that is not in `LANGUAGES` falls back to the default).
+4. Plurals: `tp()` asks `Intl.PluralRules(code)` for the category of the number, then looks for `Key|<category>`, then `Key|other`, then `Key`. So `Key` is the **one** form. List the categories of the language with `new Intl.PluralRules('ru').resolvedOptions().pluralCategories`. English, French, Spanish, German: `Key` + `Key|other`. Russian, Polish: also `Key|few` and `Key|many`. Arabic: also `Key|zero` and `Key|two`. Chinese, Japanese: `Key|other` only.
+5. Fonts: check the alphabet against the limits below; embedding a subset follows the 4 steps of `app-fonts.js` (`dev_tools/add_font.md`).
+6. Windows installer (optional): `src-tauri/wix/<culture>.wxl` plus an entry in `bundle.windows.wix.language` (`tauri.conf.json`). Each culture adds one `.msi` to the release; `pick_asset` still prefers `_en-US.msi` (`updates.md`). The application itself does not need it.
+7. Check: `npm run docs:gen`, then the "Translations" section of `generated/config.md` (keys missing from the language, keys unknown to `en.json`, invalid JSON); then run the application in that language and open Settings, the shortcut guide and the longest modals to spot overflowing texts. `docs:gen` only sees keys written as literals in the code.
+8. Files under `docs/` stay in English.
+
+**Limits today**
+- **Fonts**: the embedded fonts (Fredoka, Inter, Manrope, Geist, Raleway) only have the `latin` and `latin-ext` subsets. Covered: Spanish, Portuguese, French, German, Polish, Czech, Turkish… Vietnamese is partly covered (U+1EA0–1EF1 are outside the declared `unicode-range`). Greek, Cyrillic, CJK, Arabic, Hebrew, Indic scripts and Thai get their glyphs from the system stack (`SYSTEM_STACK` in `app-fonts.js`): readable, but the font chosen in Settings is ignored and the look depends on the OS. Fix: embed the subsets, or accept the fallback.
+- **Right-to-left** (Arabic, Hebrew, Persian): not supported. `applyTranslations` sets `lang` but never `dir`, and the scripts write physical styles (for instance `row.style.paddingLeft` in `keywords-panel.js`). The CSS and the virtual grid of `main.js` were not audited for mirroring (⚠ unverified). A project of its own.
+- **Search without accents**: `normalizeSearch` removes every combining mark after NFD decomposition. Right for Latin accents, wrong where marks change the word: Japanese (voiced kana such as が would match か) and Indic scripts. Decision: such languages are not targeted for now; adapt this function before accepting one.
+- **Plural coverage**: `docs:gen` compares keys by their base name (`Key|few` counts as `Key`), so a missing plural form is not reported; the lookup silently falls back to `Key|other`, then `Key`.
+- **Sorting**: the collators of `duplicates.js` and `keywords-panel.js` are created with `new Intl.Collator(undefined, …)`, i.e. with the default locale of the web view (the OS language), not the application language. For the Latin languages the difference is small; it may matter for others. The note `dev_tools/Evolutions/feat add language locale (OC-GLM53).md` mentions another one in `main.js`, which was not read (⚠ unverified).
+- **Not translated**: backend messages that are not stable error codes (recipe 1, step 5), the Windows installer unless step 6 is done, and `docs/`.
+- **Bundle**: every locale file is imported statically in `i18n.js`, so each language adds its JSON to the bundle.

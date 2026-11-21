@@ -1,15 +1,17 @@
 // Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé),
-// traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé dans chaque fichier
-// de langue, puis data-i18n="Clé" dans index.html (ou t('Clé') dans le JavaScript).
-// Pour ajouter une langue : créer son fichier JSON et l'enregistrer dans LANGUAGES.
+// traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues
+// retombent sur l'anglais tant qu'elles ne sont pas mises à jour), puis data-i18n="Clé" dans index.html (ou t('Clé') dans le JavaScript).
+// Pour ajouter une langue : créer son fichier JSON et l'enregistrer dans LANGUAGES (voir docs/development/recipes.md §11).
 import en from './locales/en.json';
 import fr from './locales/fr.json';
+import es from './locales/es.json';
 import { DEFAULTS } from './settings-defaults.js';
 
 // `colon` : séparateur entre un libellé et sa valeur (espace insécable avant les deux-points en français).
 export const LANGUAGES = {
   fr: { label: 'Français', messages: fr, colon: '\u00a0:' },
   en: { label: 'English', messages: en, colon: ':' },
+  es: { label: 'Español', messages: es, colon: ':' },
 };
 export const DEFAULT_LANGUAGE = DEFAULTS.appLanguage;
 const STORAGE_KEY = 'appLanguage';
@@ -39,12 +41,14 @@ const pluralRulesFor = language => {
   return pluralRules.get(language);
 };
 
-// Texte avec pluriel : la clé porte la forme singulière, la clé suffixée de "|other" la forme plurielle
-// (choix selon les règles de la langue courante : en français 0 et 1 sont au singulier). {count} est ajouté aux paramètres.
+// Text with a plural: the bare key holds the "one" form, `Key|<category>` the other forms. The category comes from the plural rules of the
+// current language (Intl.PluralRules: in French 0 and 1 are "one"; Russian and Polish also have few / many; Arabic also zero / two;
+// Japanese and Chinese only "other"). Lookup order for a category other than "one": `Key|<category>`, then `Key|other`, then the bare key,
+// so a language only needs the forms it really distinguishes (English and French only ever write `Key|other`). {count} is added to the params.
 export function tp(key, count, params = {}) {
-  const pluralKey = `${key}|other`;
-  const useOther = pluralRulesFor(currentLanguage).select(count) !== 'one' && hasMessage(pluralKey);
-  return t(useOther ? pluralKey : key, { count, ...params });
+  const category = pluralRulesFor(currentLanguage).select(count);
+  const candidates = category === 'one' ? [key] : [`${key}|${category}`, `${key}|other`];
+  return t(candidates.find(hasMessage) ?? key, { count, ...params });
 }
 
 // Texte comparable pour une recherche : sans accents (marques combinantes retirées après décomposition) et en minuscules.
