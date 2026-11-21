@@ -63,7 +63,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 328 |  |
+| `files.md` | 329 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 111 |  |
 | `symbols-js.md` | 1583 |  |
@@ -103,7 +103,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `gen-docs.mjs` | 462 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
-| `tauri-wrapper.mjs` | 140 | Wraps the Tauri CLI so that Windows `tauri build` runs merge-msi.ps1 afterwards, combining per-language MSIs into one multi-language MSI. |
+| `tauri-wrapper.mjs` | 152 | Wraps the Tauri CLI so that Windows `tauri build` runs merge-msi.ps1 afterwards, combining per-language MSIs into one multi-language MSI. |
 
 ## src
 
@@ -195,7 +195,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `Cargo.toml` | 70 |  |
 | `face_models.json` | 44 |  |
 | `semantic_models.json` | 69 |  |
-| `tauri.conf.json` | 96 |  |
+| `tauri.conf.json` | 97 |  |
 | `tauri.dev.conf.json` | 5 |  |
 
 ## src-tauri/capabilities
@@ -311,6 +311,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `en-US.wxl` | 28 |  |
+| `es-ES.wxl` | 27 |  |
 | `fr-FR.wxl` | 28 |  |
 
 ## src/locales
