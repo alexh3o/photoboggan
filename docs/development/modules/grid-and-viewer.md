@@ -1,4 +1,4 @@
-<!-- verified: 42ef5d8 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, index.html, src/styles.css -->
+<!-- verified: 42ef5d8 | sources: src/main.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
 # Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, slideshow (main.js, part 2)
 
 ## Purpose
@@ -11,6 +11,8 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 | `src/slideshow.js` | Slideshow as a state of full screen: timer, delay / loop / random settings (`slideshowDelay`, `slideshowLoop`, `slideshowRandom`), `initSlideshow`, `startSlideshow`, `stopSlideshow`, `notifySlideshowPhotoShown`, `peekNextSlideshowPhoto` |
 | `src/toolbar-a11y.js` | `initToolbarAria`: one `MutationObserver` per toolbar toggle keeps `aria-pressed` equal to the `active` class (which other modules toggle) |
 | `src/file-dates.js` | Tooltip of the Info tab's "Date taken" row: creation and modification dates of the active photo's file (`initFileDates`, `renderFileDates`); backend counterpart `get_file_dates` in `main.rs` |
+| `src/orientation.js` | `orientationMatrix`, `swapsSides`: pure helpers that apply `photo.view_fix` (lossless rotation) to a thumbnail canvas or a preview slot |
+| `src/file-kinds.js` | `isRawPath`, `isVideoPath`: pure tests of a path against the RAW / video extension lists of `format-filters.js` (leaf module, also imported by `photo-actions.js`) |
 
 ## How it works
 
@@ -33,9 +35,9 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 5. Modified files: `photoVersions` adds `?v=<time>` to URLs so a rewritten image is not served from the webview cache.
 
 ### Orientation, `view_fix`, RAW / HEIC / video in full screen
-- The webview applies only the EXIF orientation of an original. When the winning orientation is XMP (internal writer, sidecar), the backend sets `photo.view_fix` (1–8) and the frontend applies the rest (`orientationMatrix`, `swapsSides`; used in `layoutPreviewSlot`, canvas fallback). Cached thumbnails and generated previews are already turned: their `view_fix` is 1. Rules of precedence: `orientation::resolve` (see `thumbnails-and-previews.md`).
+- The webview applies only the EXIF orientation of an original. When the winning orientation is XMP (internal writer, sidecar), the backend sets `photo.view_fix` (1–8) and the frontend applies the rest (`orientationMatrix`, `swapsSides` from `src/orientation.js`; used in `layoutPreviewSlot`, canvas fallback). Cached thumbnails and generated previews are already turned: their `view_fix` is 1. Rules of precedence: `orientation::resolve` (see `thumbnails-and-previews.md`).
 - `getPhotoDisplayUrl`: normal formats use the original (`photoUrl`); RAW, HEIC/HEIF and videos (`needsGeneratedPreview`) call `get_raw_preview_path` once per photo (promise memoised in `rawPreviewPromises`; failure is not memoised; a video never falls back to the file itself).
-- Extension lists (`RAW_EXTENSIONS`, `HEIF_EXTENSIONS`, `VIDEO_EXTENSIONS`) come from `format-filters.js`. Videos are never played inside the app: `openFullscreen` sends them to `open_video_externally`.
+- Extension lists (`RAW_EXTENSIONS`, `HEIF_EXTENSIONS`, `VIDEO_EXTENSIONS`) come from `format-filters.js`; `isRawPath` and `isVideoPath` (`src/file-kinds.js`) test a path against them. Videos are never played inside the app: `openFullscreen` sends them to `open_video_externally`.
 
 ### Full screen
 `openFullscreen(index)` → selects that photo only, `loadFullscreenPhoto` → `showFullscreenPhoto` (waits for `decode()` of an off-screen image, the element `preloadFullscreenImages` already started when there is one, then applies size/zoom in one step so no stretched frame appears; `fullscreenLoadToken` discards stale loads), `preloadFullscreenImages` (±2 neighbours + the next slideshow photo are loaded, `fullscreenImageCache` keyed **by index**, so it is cleared on any re-sort; the 2 photos ahead in the direction of travel (`fullscreenDirection`) and the one just left are also decoded in advance, see "Decoding" below). Grid navigation (`navigateToPhotoIndex`, arrows, wheel) keeps the active thumbnail visible with `scrollPhotoIntoView`; Up/Down (`navigateGridRow`) first pick the photo above/below from `photoLayouts` boxes (nearest facing edge, then closest centre; works in every layout). `updateUIOnSelection` then reloads. Zoom/pan share the preview's slot logic (`layoutPreviewSlot`, `fullscreenSlot`). An image error calls `checkPhotoMissing`. Closing stops the slideshow.

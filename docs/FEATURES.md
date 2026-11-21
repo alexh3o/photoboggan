@@ -142,7 +142,13 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 ## Interface, Performance & Offline Control
 
 - **Flexible workspace** on every screen (main, map, people, and face review views — except fullscreen): toggle and resize the info/keywords/description panel, library/filters panel, preview panel, and toolbar
-- **Flexible display**: masonry, justified, or square-cropped thumbnails; adjustable size & spacing; sort by date taken, modified, or filename; dark or light theme; custom fonts, UI/text scaling, selection/button colors
+- **Flexible display**:
+  - masonry, justified, or square-cropped thumbnail grid;
+  - thumbnails: adjustable size & spacing; adjustable rounded corners
+  - sort files by date taken, modified, or filename;
+  - dark or light theme;
+  - custom fonts, UI/text scaling,
+  - selection/button colors
 - **Shortcuts everywhere**, with an **in-app shortcut guide** and informative tooltips
 - **UI responsiveness first**: all heavy operations run at low priority in a cancellable/pausable **task queue** (with background content analysis auto-pausing for foreground tasks)
 - **Customizable storage location** for database, thumbnails, previews, models, and offline maps (choose an SSD!), plus configurable thumbnail cache resolution & quality

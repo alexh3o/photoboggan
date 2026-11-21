@@ -39,138 +39,31 @@ import { createFilterSuggest } from './filter-suggest.js';
 import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { fillSortButton, initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, addPhotosToAlbum, movePhotosToAlbum, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
-import { initPersonsView,isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
+import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 import { initShootingFilters, matchesShootingState, shootingPrefilter } from './shooting-filters.js';
 import { initFormatFilters, matchesFormatState, formatPrefilterExtensions, RAW_EXTENSIONS, HEIF_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
 import { GROUP_SORT_MODES, GROUP_SORT_LABELS, normalizeGroupSort, formatBytes, sortGroupMembers, orderGroups, firstPathOf, getSimilarSettings, similarRequestFields, getIdenticalSettings, mergeGroups, describeSearch, getKeepSettings, describeKeepOrder } from './duplicates.js';
 import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel, initDuplicatesModal } from './duplicates-modal.js';
 import { findNameGroups } from './duplicate-names.js';
-import { initSlideshow,startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
+import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 import { initToolbarAria } from './toolbar-a11y.js';
 import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
+import { initTitleBar } from './titlebar.js';
+import { orientationMatrix, swapsSides } from './orientation.js';
+import { pinnedFolderRows } from './sticky-folders.js';
+import { isRawPath, isVideoPath } from './file-kinds.js';
 
-// AFFICHAGE DE LA FENÊTRE : créée masquée (tauri.conf.json) pour ne pas montrer le HTML brut. Le module ayant déjà appliqué thème, langue et styles
-// à DOMContentLoaded, on attend deux images (premier rendu stylé peint) avant de l'afficher. Un filet de sécurité existe côté Rust (main.rs).
-window.addEventListener('DOMContentLoaded', () => {
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    getCurrentWindow().show().catch(err => console.error("Window show failed:", err));
-  }));
-});
-
-// AJOUT BARRE TITRE
-window.addEventListener('DOMContentLoaded', () => {
-  const appWindow = getCurrentWindow();
-  console.log("Tauri window initialized for the title bar");
-
-  document.getElementById('titlebar-minimize')?.addEventListener('click', () => {
-    console.log("Clic sur Minimiser");
-    appWindow.minimize().catch(err => console.error("Window minimize failed:", err));
-  });
-
-  document.getElementById('titlebar-maximize')?.addEventListener('click', async () => {
-    console.log("Clic sur Maximiser");
-    try {
-      const isMax = await appWindow.isMaximized();
-      if (isMax) {
-        await appWindow.unmaximize();
-      } else {
-        await appWindow.maximize();
-      }
-      await syncWindowState();
-    } catch (err) {
-      console.error("Window maximize/unmaximize failed:", err);
-    }
-  });
-
-  document.getElementById('titlebar-close')?.addEventListener('click', () => {
-    console.log("Clic sur Fermer");
-    appWindow.close().catch(err => console.error("Window close failed:", err));
-  });
-
-  // Fermeture par n'importe quel moyen (bouton, Alt+F4, menu système) : des mots-clés, titres ou descriptions non écrits ou une écriture en cours
-  // demandent confirmation (voir metadata-writes.js). Sans preventDefault, l'API ferme la fenêtre ensuite (permission core:window:allow-destroy).
-  appWindow.onCloseRequested(async event => {
-    if (!(await confirmCloseWithRunningTasks())) { event.preventDefault(); return; } // tâches de la file encore actives
-    if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) { event.preventDefault(); return; } // filtres d'un album intelligent non enregistrés
-    if (!(await confirmCloseWithPendingEdits())) event.preventDefault();
-  }).catch(err => console.error("Close-request handler failed:", err));
-
-  // Icône du bouton Maximiser / Restaurer d'après l'état réel de la fenêtre (aussi modifié hors du bouton : double-clic sur la barre, raccourcis Windows).
-  const maximizeButton = document.getElementById('titlebar-maximize');
-  const MAXIMIZE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor"/></svg>';
-  const RESTORE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 2.5V0.5H9.5V7.5H7.5" fill="none" stroke="currentColor"/><rect x="0.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor"/></svg>';
-  let windowMaximized = false;
-
-  function renderMaximizeButton() {
-    if (!maximizeButton) return;
-    const label = t(windowMaximized ? 'Restore down' : 'Maximize');
-    maximizeButton.innerHTML = windowMaximized ? RESTORE_ICON : MAXIMIZE_ICON;
-    maximizeButton.title = label;
-    maximizeButton.setAttribute('aria-label', label);
-  }
-
-  // Lit l'état de la fenêtre : icône Maximiser / Restaurer, et barre de titre masquée en mode immersif (plein écran de la fenêtre).
-  async function syncWindowState() {
-    try {
-      const [maximized, fullscreen] = await Promise.all([appWindow.isMaximized(), appWindow.isFullscreen()]);
-      windowMaximized = maximized;
-      renderMaximizeButton();
-      document.body.classList.toggle('immersive', fullscreen);
-    } catch (err) {
-      console.error("Window state read failed:", err);
-    }
-  }
-
-  let windowStateSyncScheduled = false;
-  appWindow.onResized(() => {
-    if (windowStateSyncScheduled) return;
-    windowStateSyncScheduled = true;
-    requestAnimationFrame(() => {
-      windowStateSyncScheduled = false;
-      syncWindowState();
-    });
-  }).catch(err => console.error("Resize tracking failed:", err));
-  onLanguageChange(renderMaximizeButton);
-  renderMaximizeButton();
-  syncWindowState();
-
-  // MODE IMMERSIF (F11) : fenêtre en plein écran, par-dessus la barre des tâches, sans barre de titre.
-  // F11 y entre et en sort.
-  // Ne pas confondre avec le plein écran d'une photo (touche F, double-clic).
-  let immersiveToggleRunning = false;
-  let maximizedBeforeImmersive = false;
-  async function toggleImmersiveMode() {
-    if (immersiveToggleRunning) return;
-    immersiveToggleRunning = true;
-    try {
-      if (await appWindow.isFullscreen()) {
-        await appWindow.setFullscreen(false);
-        if (maximizedBeforeImmersive) await appWindow.maximize();
-        maximizedBeforeImmersive = false;
-      } else {
-        // Fenêtre sans décoration maximisée : le plein écran ne redimensionne pas la zone web (elle garde la taille de la zone de travail, sans la barre des tâches).
-        // On la restaure donc d'abord, puis on la maximise de nouveau en sortant du mode immersif.
-        maximizedBeforeImmersive = await appWindow.isMaximized();
-        if (maximizedBeforeImmersive) await appWindow.unmaximize();
-        await appWindow.setFullscreen(true);
-      }
-      await syncWindowState();
-    } catch (err) {
-      console.error("Immersive mode failed:", err);
-    } finally {
-      immersiveToggleRunning = false;
-    }
-  }
-
-  toggleImmersiveFromMenu = toggleImmersiveMode;
-
-  // Ce raccourci reste actif même quand un champ de saisie a le focus (le gestionnaire de touches principal les ignore).
-  window.addEventListener('keydown', event => {
-    if (event.key !== 'F11') return;
-    event.preventDefault();
-    if (!event.repeat) toggleImmersiveMode();
-  });
+// WINDOW CHROME (titlebar.js): first display of the window, title bar buttons and immersive mode (F11).
+// Closing by any means (button, Alt+F4, system menu) asks first about unfinished work, in this order: running queue tasks, unsaved filters of a smart
+// album, then unwritten keywords, titles or descriptions or a write in progress (see metadata-writes.js).
+initTitleBar({
+  confirmClose: async () => {
+    if (!(await confirmCloseWithRunningTasks())) return false;
+    if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
+    return confirmCloseWithPendingEdits();
+  },
+  exposeImmersiveToggle: toggle => { toggleImmersiveFromMenu = toggle; }, // called once the DOM is ready (see `toggleImmersiveFromMenu` below)
 });
 
 // ETAT
@@ -223,30 +116,9 @@ function versionSuffix(path) {
   return version ? `?v=${version}` : '';
 }
 
-// LOSSLESS ROTATION (orientation.rs): the webview turns an original it shows by its EXIF tag only. When the orientation that wins is an XMP
-// one (internal writer, sidecar of a PNG…), `photo.view_fix` (1 to 8, same values as the EXIF tag) is what remains to apply on top.
-// Generated previews (RAW, HEIC, videos) and the thumbnails are already turned by the backend: their view_fix is 1.
-// Matrix (CSS / canvas order a, b, c, d, e, f) of an orientation for a box of `width` × `height` px, origin at its top-left corner.
-function orientationMatrix(orientation, width, height) {
-  switch (orientation) {
-    case 2: return [-1, 0, 0, 1, width, 0];
-    case 3: return [-1, 0, 0, -1, width, height];
-    case 4: return [1, 0, 0, -1, 0, height];
-    case 5: return [0, 1, 1, 0, 0, 0];
-    case 6: return [0, 1, -1, 0, height, 0];
-    case 7: return [0, -1, -1, 0, height, width];
-    case 8: return [0, -1, 1, 0, 0, width];
-    default: return null;
-  }
-}
-// Orientations that exchange width and height (quarter turns).
-const swapsSides = orientation => orientation >= 5 && orientation <= 8;
+// LOSSLESS ROTATION: `orientationMatrix` and `swapsSides` (orientation.js) turn what the webview does not turn by itself (`photo.view_fix`).
 
-// Ajout extracteur RAW (liste des extensions : format-filters.js)
-export function isRawPath(path) {
-  const ext = (path || '').split('.').pop()?.toLowerCase();
-  return RAW_EXTENSIONS.has(ext);
-}
+// `isRawPath` and `isVideoPath` (file kinds from the extension, lists in format-filters.js): see file-kinds.js.
 
 // RAW sans JPEG intégré exploitable (jamais dématricé) : les lettres de l'extension (minuscules) s'affichent en gros sur la miniature de la grille et
 // dans la case de l'aperçu (voir .format-placeholder dans styles.css). Le texte est lu par ::after sur son propre élément (.thumbnail-inner pour la grille).
@@ -260,14 +132,9 @@ function markFormatPlaceholder(element, path) {
 // HEIC / HEIF : le webview ne sait pas les afficher. Le backend en fait un JPEG pleine résolution (même commande et même cache que l'aperçu RAW).
 // Liste des extensions : format-filters.js.
 
-// VIDÉOS : indexées comme les photos, mais jamais affichées ni lues dans l'application. Le backend en extrait une image fixe (miniature de la grille et aperçu,
-// même cache que les photos) ; le double-clic les ouvre dans le lecteur par défaut de l'OS (voir openVideoExternally). Liste alignée sur video.rs.
-// Repères visuels : classe .is-video (miniature et case de l'aperçu) et .video-play-badge (icône Play), réglables dans styles.css.
-// Liste des extensions : format-filters.js.
-export function isVideoPath(path) {
-  const ext = (path || '').split('.').pop()?.toLowerCase();
-  return VIDEO_EXTENSIONS.has(ext);
-}
+// VIDEOS (`isVideoPath`: file-kinds.js): indexed like photos, but never displayed or played inside the app. The backend extracts a still image (grid
+// thumbnail and preview, same cache as the photos); a double-click opens them in the default player of the OS (see openVideoExternally).
+// Visual markers: class .is-video (thumbnail and preview cell) and .video-play-badge (Play icon), adjustable in styles.css.
 const VIDEO_PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
 function createVideoPlayBadge() {
   const badge = document.createElement('span');
@@ -439,7 +306,7 @@ appFontSelect?.addEventListener('change', event => {
 let thumbnailCacheSize = Number(localStorage.getItem('thumbnailCacheSize')) || DEFAULTS.thumbnailCacheSize;
 // 512 px minimum : la détection des visages lit les miniatures en cache.
 if (![512, 768, 1024].includes(thumbnailCacheSize)) thumbnailCacheSize = DEFAULTS.thumbnailCacheSize;
-  let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || DEFAULTS.thumbnailSize;
+let thumbnailSize = Number(localStorage.getItem('thumbnailSize')) || DEFAULTS.thumbnailSize;
 thumbnailSize = Math.max(96, Math.min(thumbnailCacheSize, 96 + Math.round((thumbnailSize - 96) / 16) * 16));
 let columns = 1;
 const storedThumbnailLayout = localStorage.getItem('thumbnailLayout');
@@ -453,7 +320,6 @@ let thumbnailSpacing = THUMBNAIL_SPACINGS.includes(storedThumbnailSpacing) ? sto
   : DEFAULTS.thumbnailSpacing !== 'auto' ? DEFAULTS.thumbnailSpacing : (thumbnailLayout === 'justified' ? 'none' : 'normal');
 let thumbnailCorners = readChoice('thumbnailCorners', ['no', 'light', 'medium', 'strong', 'max']);
 document.documentElement.dataset.thumbnailCorners = thumbnailCorners;
-// Framed layout and rounded corners both require at least a small gap between thumbnails.
 // TRI DES MINIATURES (critère et ordre mémorisés localement). Par défaut : date de prise de vue, de la plus récente à la plus ancienne (ordre historique de la grille).
 const SORT_KEYS = ['taken', 'modified', 'name'];
 const storedSortKey = localStorage.getItem('photoSortKey');
@@ -481,7 +347,8 @@ const fullscreenImg = document.getElementById('fullscreen-image');
 // Zoom du plein écran : même structure qu'une case de l'aperçu (voir layoutPreviewSlot), la vue entière occupe toute la fenêtre (marge 1).
 const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, clip: document.getElementById('fullscreen-clipping'), naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
 fullscreenSlot.zoomBadge = document.getElementById('fullscreen-zoom-badge');
-fullscreenSlot.zoomTimeout = null;let fullscreenLoadToken = 0;
+fullscreenSlot.zoomTimeout = null;
+let fullscreenLoadToken = 0;
 let fullscreenDrag = null;
 // Full screen navigation: direction of the last move (1 forward, -1 back). The photos ahead in that direction are the ones decoded in advance.
 let fullscreenDirection = 1;
@@ -2468,38 +2335,7 @@ const stickyFolderCopies = new Map(); // row index -> its copy, created on deman
 const stickyFolderSources = new WeakMap(); // copy -> real row
 let stickyFolderFrame = 0;
 
-// Which rows are pinned for a scroll position. Pure: the geometry comes in through `topOf(index)` (offsetTop of a row, growing with the index).
-// `depths`, `parents` (-1 for none) and `ends` (index of the first row after the subtree) describe the flat list; `listEnd` is where the last row ends
-// (margin included) and `pitch` the distance between two rows. Returns [{ index, slot, pushed }]: `slot` = place among the pinned rows (0 = top),
-// `pushed` = how far up (px, 0 or less) the end of the subtree pushes the row out of its slot.
-function pinnedFolderRows({ depths, parents, ends, topOf, listEnd, scrollTop, pitch, maxSlots }) {
-  const count = depths.length;
-  // Last row whose top is above `y`, -1 when there is none (binary search: the tops grow with the index).
-  const lastAbove = y => {
-    let low = 0;
-    let high = count;
-    while (low < high) {
-      const middle = (low + high) >> 1;
-      if (topOf(middle) < y) low = middle + 1; else high = middle;
-    }
-    return low - 1;
-  };
-  // Pinned rows when the `skip` first levels are left out: the level `skip` takes the top slot, the next one the slot below, and so on.
-  const collect = (skip, limit) => {
-    const pinned = [];
-    for (let level = skip; pinned.length < limit; level++) {
-      const y = scrollTop + (level - skip) * pitch; // top of the slot of this level
-      let index = lastAbove(y);
-      while (index >= 0 && depths[index] > level) index = parents[index]; // up to the row of this level that holds (or is) that row
-      if (index < 0 || depths[index] !== level || ends[index] === index + 1) break; // no such level here, or no subfolder shown under it
-      const subtreeEnd = ends[index] < count ? topOf(ends[index]) : listEnd;
-      pinned.push({ index, slot: level - skip, pushed: Math.min(0, subtreeEnd - (y + pitch)) });
-    }
-    return pinned;
-  };
-  const all = collect(0, Infinity);
-  return all.length > maxSlots ? collect(all.length - maxSlots, maxSlots) : all;
-}
+// `pinnedFolderRows` (which rows are pinned for a scroll position) is a pure function: see sticky-folders.js.
 
 // Size of the rows of the tree: `height` of a row, `pitch` = distance between two rows (height + margin), `maxSlots` = pinned rows the panel can afford.
 function stickyFolderMetrics(row) {
@@ -3206,10 +3042,6 @@ function closeFullscreen() {
   clearTimeout(fullscreenSlot.zoomTimeout);
   fullscreenSlot.zoomBadge?.classList.remove('visible');
   layoutFullscreenFaces(fullscreenSlot); // masque les zones de visage
-}
-
-export function getIsFullscreen() {
-  return isFullscreen;
 }
 
 // Positionne et zoome l'image du plein écran avec la même logique que l'aperçu (rien à faire tant que la fenêtre est masquée).
@@ -4746,7 +4578,7 @@ function toggleTopBar() {
   requestAnimationFrame(updateVirtualScroller); // la grille gagne ou perd la hauteur de la barre : recalcul de la zone visible
 }
 
-let toggleImmersiveFromMenu = () => {}; // set by the window-controls block above (immersive mode lives in its scope)
+let toggleImmersiveFromMenu = () => {}; // set by initTitleBar (see the top of this file): immersive mode lives in the scope of titlebar.js
 // Toolbar context menu (right-click on the bar): auto-hide (same as the T key) and labels on the central buttons.
 // Both choices are remembered (`toolbarAutoHide`, `toolbarShowLabels`); a hidden bar still appears on hover (peek).
 const topBarEl = document.getElementById('top-bar');

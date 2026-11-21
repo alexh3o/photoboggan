@@ -174,10 +174,10 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 ![Batch resizing](webpage/screenshots/resize_action.jpg "Batch resizing")
 *Batch resizing*
 
-![Integrity Check Report](webpage/screenshots/integrity_check_report_fr.jpg "Integrity Check Report")
+![Integrity Check Report](webpage/screenshots/integrity_check_report.jpg "Integrity Check Report")
 *Integrity Check* scans a folder for corrupted files and lets you decide what to do. It generates missing thumbnails at the same time.
 
-![Shortcuts](webpage/screenshots/shortcuts_guide.jpg "Shortcuts")
+![Shortcuts](webpage/screenshots/in_app_guide.jpg "Shortcuts")
 *Shortcuts*
 
 <table>

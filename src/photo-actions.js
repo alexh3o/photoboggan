@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
-import { getIsFullscreen, isVideoPath, isRawPath } from './main.js';
+import { isVideoPath, isRawPath } from './file-kinds.js';
 import { isWriteLocked, failureDetailsAction } from './metadata-writes.js';
 import { getWriterMode } from './metadata-settings.js';
 import { getIdenticalSettings, getSimilarSettings, describeIdenticalSettings, describeSimilarSettings } from './duplicates.js';

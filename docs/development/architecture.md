@@ -41,7 +41,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 
 - **IPC**: every frontend → backend call is `invoke('<command>', {camelCaseArgs})`. Who calls what: `generated/ipc-commands.md`; static module dependencies: `generated/module-deps.md`.
 - **Events**: the backend only emits progress. `scan-progress` (`{task_id, percent}`) is used by every queued task; `scan-detail` by the integrity check. Both are listened to once, in `main.js` (`listenToBackend`). See `generated/events.md`.
-- **Dependency injection in the frontend**: feature modules do not import `main.js` services; `main.js` passes them at init (e.g. `initMetadataWrites(hostApi)`, `initPrivateZonesModal({ enqueueTask, showToast })`). Only `photo-actions.js` imports `main.js` directly.
+- **Dependency injection in the frontend**: feature modules do not import `main.js` services; `main.js` passes them at init (e.g. `initMetadataWrites(hostApi)`, `initPrivateZonesModal({ enqueueTask, showToast })`). No module imports `main.js`.
 - **Map tiles** are the one network access made by the webview: `map-tile-protocol.js` serves `pbmap://` URLs to MapLibre and is the only code allowed to fetch `tiles.openfreemap.org` (also allowed by the CSP `connect-src`), after checking `isMapNetworkAllowed()` (map enabled and offline mode off). Private-zone tiles come from the backend (`get_private_tile`).
 
 ## End-to-end flows
