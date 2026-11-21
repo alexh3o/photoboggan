@@ -52,8 +52,8 @@
   "clippingRange": 3,
   // Histogram curves: false = luminance, true = three RGB curves.
   "histogramRgb": false,
-  // "dark" | "light".
-  "appTheme": "dark",
+  // "system" (follows the light / dark setting of the OS) | "dark" | "light".
+  "appTheme": "system",
   // Text size in percent: integer 80 to 140, in steps of 5.
   "textSize": 100,
   // Interface font: an id from APP_FONTS in src/app-fonts.js ("system" | "inter" | "manrope" | "geist" | "raleway").

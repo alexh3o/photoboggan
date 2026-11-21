@@ -94,6 +94,7 @@
   "Rounding strong": "Fuerte",
   "Rounding max": "Máx.",
   "Theme": "Tema",
+  "System":"Systema",
   "Dark": "Oscuro",
   "Light": "Claro",
   "Include subfolders": "Incluir subcarpetas",
@@ -1900,5 +1901,6 @@
   "Start blank": "Partir de un nombre vacío",
   "Batch rename blank help": "Borra el nombre de archivo actual para que la receta parta de cero: los pasos siguientes construyen el nuevo nombre ({filename} sigue dando el nombre original). Este paso solo se puede añadir una vez y permanece siempre el primero. Por sí solo deja los archivos sin nombre: añade los pasos que los diferencien.",
   "The “Start blank” step can only be used once": "El paso «Partir de un nombre vacío» solo se puede usar una vez",
-  "The current name is erased here: the next steps build the new name.": "El nombre actual se borra aquí: los pasos siguientes construyen el nuevo nombre."
+  "The current name is erased here: the next steps build the new name.": "El nombre actual se borra aquí: los pasos siguientes construyen el nuevo nombre.",
+  "Settings tabs": "Pestaña de configuración"
 }

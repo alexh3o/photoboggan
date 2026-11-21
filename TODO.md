@@ -4,7 +4,7 @@
 
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [ ] *fix*: `linux` deb update download works but opening the download with app manager does nothing
-- [ ] *feat*: `theme` follow system theme by default
+- [x] *feat*: `theme` follow system theme by default
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

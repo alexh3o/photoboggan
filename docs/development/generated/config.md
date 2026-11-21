@@ -11,7 +11,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `albumOverwriteWarning` | `true` | albums-panel.js |
 | `appFont` | `"raleway"` | main.js |
 | `appLanguage` | `"en"` | i18n.js |
-| `appTheme` | `"dark"` | main.js |
+| `appTheme` | `"system"` | main.js |
 | `burstMs` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `checkUpdates` | `false` | update-check.js |
 | `clippingMode` | `"bw"` | histogram.js |
@@ -102,8 +102,8 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (1903 keys), es (1902 keys), fr (1903 keys)
-- es.json: 1 key(s) of en.json missing (shown in English): `Settings tabs`
+- Languages: en (1904 keys), es (1904 keys), fr (1904 keys)
+- es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none
 - fr.json: keys unknown to en.json (typo or obsolete): none

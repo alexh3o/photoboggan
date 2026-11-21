@@ -205,7 +205,12 @@ const PICK_FLAGS = [
 
 // APPARENCE (thème et couleur de sélection, mémorisés localement)
 const DEFAULT_SELECTION_COLOR = DEFAULTS.selectionColor;
-let appTheme = readChoice('appTheme', ['dark', 'light']);
+// Theme choice: "system" follows the light / dark setting of the OS, "dark" and "light" force one. `appTheme` holds the choice, while
+// data-theme on <html> (read by the CSS and by map-view.js) always holds the resolved "dark" | "light" (see resolvedTheme).
+const APP_THEMES = ['system', 'dark', 'light'];
+let appTheme = readChoice('appTheme', APP_THEMES);
+const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const resolvedTheme = () => (appTheme === 'system' ? (systemDarkQuery.matches ? 'dark' : 'light') : appTheme);
 const storedSelectionColor = localStorage.getItem('selectionColor') || '';
 let selectionColor = /^#[0-9a-f]{6}$/i.test(storedSelectionColor) ? storedSelectionColor : DEFAULT_SELECTION_COLOR;
 // Couleur des boutons activés (Filtres, Comparer, Aperçu, Info), distincte de la couleur de sélection des miniatures.
@@ -221,13 +226,15 @@ function readableTextColor(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? '#111' : '#fff';
 }
 function applyAppearance() {
-  document.documentElement.dataset.theme = appTheme;
+  document.documentElement.dataset.theme = resolvedTheme();
   document.documentElement.style.setProperty('--selected-border', selectionColor);
   document.documentElement.style.setProperty('--selected-contrast', readableTextColor(selectionColor)); // marker of the active photo, drawn on the selection colour
   document.documentElement.style.setProperty('--active-button', activeButtonColor);
   document.documentElement.style.setProperty('--active-button-text', readableTextColor(activeButtonColor));
 }
 applyAppearance();
+// "System" theme: follow the OS when it switches between light and dark while the application is running.
+systemDarkQuery.addEventListener('change', () => { if (appTheme === 'system') applyAppearance(); });
 
 // ASSOMBRISSEMENT DES HORS-SÉLECTIONS AU SURVOL
 let dimUnselected = localStorage.getItem('dimUnselectedOnHover') || DEFAULTS.dimUnselectedOnHover;
@@ -5152,7 +5159,7 @@ function setSelectionColor(color) {
   syncAppearanceControls();
 }
 themeSelect.addEventListener('change', event => {
-  appTheme = event.target.value === 'light' ? 'light' : 'dark';
+  appTheme = APP_THEMES.includes(event.target.value) ? event.target.value : DEFAULTS.appTheme;
   localStorage.setItem('appTheme', appTheme);
   applyAppearance();
 });
