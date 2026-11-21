@@ -115,7 +115,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 - `npm run build` → `vite build`
 - `npm run fetch-exiftool` → `node scripts/fetch-exiftool.mjs`
 - `npm run prepare-semantic-models` → `node scripts/prepare-semantic-models.mjs`
-- `npm run tauri` → `tauri`
+- `npm run tauri` → `node scripts/tauri-wrapper.mjs`
 - `npm run tauri:dev` → `tauri dev --config src-tauri/tauri.dev.conf.json`
 - `npm run docs:gen` → `node scripts/gen-docs.mjs`
 - `npm run docs:stale` → `node scripts/gen-docs.mjs --stale`

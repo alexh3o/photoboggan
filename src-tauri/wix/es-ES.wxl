@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Custom installer texts (Spanish). Overrides the Tauri and WixUI defaults by string Id. -->
+<WixLocalization Culture="es-es" xmlns="http://schemas.microsoft.com/wix/2006/localization">
+  <String Id="LaunchApp">Iniciar photoboggan</String>
+  <String Id="DowngradeErrorMessage">Ya hay una versión más reciente de photoboggan instalada.</String>
+  <String Id="InstallAppFeature">Instala photoboggan.</String>
+  <String Id="PathEnvVarFeature">Añade la carpeta de photoboggan a la variable de entorno PATH del sistema.</String>
+
+  <String Id="WelcomeDlgTitle">{\WixUI_Font_Title}Bienvenido al asistente de instalación de [ProductName]</String>
+  <String Id="WelcomeDlgDescription">Este asistente instala [ProductName] en tu equipo: un visor de bibliotecas de fotos rápido, ligero y totalmente local. Tus fotos permanecen donde están; no se copia ni se sube nada.
+
+Haz clic en Siguiente para continuar.</String>
+  <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title}Acuerdo de licencia</String>
+  <String Id="LicenseAgreementDlgDescription">Lee la licencia a continuación antes de continuar.</String>
+  <String Id="LicenseAgreementDlgLicenseAcceptedCheckBox">Acepto los términos de la licencia</String>
+  <String Id="InstallDirDlgTitle">{\WixUI_Font_Title}Carpeta de destino</String>
+  <String Id="InstallDirDlgDescription">Elige dónde instalar [ProductName].</String>
+  <String Id="InstallDirDlgFolderLabel">Instalar [ProductName] en:</String>
+  <String Id="InstallDirDlgChange">&amp;Examinar…</String>
+  <String Id="VerifyReadyDlgTitle">{\WixUI_Font_Title}Listo para instalar</String>
+  <String Id="VerifyReadyDlgInstallText">Haz clic en Instalar para iniciar la instalación de [ProductName].</String>
+  <String Id="VerifyReadyDlgInstallTitle">{\WixUI_Font_Title}Listo para instalar</String>
+  <String Id="ProgressDlgTitleInstalling">{\WixUI_Font_Title}Instalando [ProductName]</String>
+  <String Id="ProgressDlgTextInstalling">Espera mientras se instala [ProductName].</String>
+  <String Id="ExitDialogTitle">{\WixUI_Font_Bigger}[ProductName] está instalado</String>
+  <String Id="ExitDialogDescription">Haz clic en Finalizar para cerrar el asistente.</String>
+</WixLocalization>

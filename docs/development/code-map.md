@@ -1,4 +1,4 @@
-<!-- verified: 7910686 | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
+<!-- verified: f7a9e98 | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
 
 # Code map
 
@@ -15,7 +15,7 @@ Where things are and how the big files are organized. Sizes and the leading comm
 | `src-tauri/src/tests/`           | One test file per module (`#[path]` include), `fixtures/` (incl. `semantic_reference.json`)                                                                                                                                                                                   |
 | `src-tauri/resources/map-style/` | Bundled map style, sprites and fonts (fetched by `scripts/fetch-map-style.mjs`)                                                                                                                                                                                               |
 | `src-tauri/vendor/exiftool/`     | Bundled ExifTool, **not versioned** (only `README.txt`): `npm run fetch-exiftool`                                                                                                                                                                                             |
-| `scripts/`                       | Node helpers: `fetch-exiftool.mjs`, `fetch-map-style.mjs`, `prepare-face-models.mjs`, `prepare-semantic-models.mjs` (release assets), `gen-docs.mjs` (this documentation)                                                                                                     |
+| `scripts/`                       | Helpers: `fetch-exiftool.mjs`, `fetch-map-style.mjs`, `prepare-face-models.mjs`, `prepare-semantic-models.mjs` (release assets), `tauri-wrapper.mjs` + `merge-msi.ps1` (multi-language MSI merge), `gen-docs.mjs` (this documentation) |
 | `.github/workflows/`             | `tests.yml` (cargo test on push / PR), `release.yml` (build and publish)                                                                                                                                                                                                      |
 | `docs/`                          | `USER_GUIDE.md`, `development/` (this documentation)                                                                                                                                                                                                                          |
 

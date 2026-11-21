@@ -103,6 +103,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `gen-docs.mjs` | 462 | Developer documentation helper (see docs/development/README.md). node scripts/gen-docs.mjs Regenerate docs/development/generated/*.md from the source code (deterministic, no timestamps). node scripts/gen-docs.mjs --stal… |
 | `prepare-face-models.mjs` | 133 | Prépare les fichiers de la détection / reconnaissance des visages à publier sur une release GitHub de photoboggan, où l'application les télécharge à la demande (voir src-tauri/src/face_models.rs) : face_detection_yunet_… |
 | `prepare-semantic-models.mjs` | 191 | Prepares the files of the semantic search (SigLIP 2) to publish on a photoboggan GitHub release, where the application downloads them on demand: siglip2-base-p16-224-vision-fp16.onnx vision encoder, fp16 (ONNX conversio… |
+| `tauri-wrapper.mjs` | 140 | Wraps the Tauri CLI so that Windows `tauri build` runs merge-msi.ps1 afterwards, combining per-language MSIs into one multi-language MSI. |
 
 ## src
 

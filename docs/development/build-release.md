@@ -1,4 +1,4 @@
-<!-- verified: 42ef5d8 | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
+<!-- verified: f7a9e98 | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
 # Build, packaging and release
 
 ## Purpose
@@ -13,7 +13,7 @@ How to build and run photoboggan, which assets come from outside the repository,
 | `src-tauri/tauri.conf.json` | App identity, window, CSP, bundle (targets, resources, MSI languages), build hooks |
 | `src-tauri/tauri.dev.conf.json` | Overrides for development: identifier `com.alexh3o.photoboggan.dev`, product name `photoboggan-dev` |
 | `src-tauri/build.rs` | Only `tauri_build::build()` |
-| `scripts/` | `fetch-exiftool.mjs`, `fetch-map-style.mjs`, `prepare-face-models.mjs`, `prepare-semantic-models.mjs`, `gen-docs.mjs` (documentation) |
+| `scripts/` | `fetch-exiftool.mjs`, `fetch-map-style.mjs`, `prepare-face-models.mjs`, `prepare-semantic-models.mjs`, `tauri-wrapper.mjs`, `merge-msi.ps1` (MSI localization merge), `gen-docs.mjs` (documentation) |
 | `.github/workflows/` | `tests.yml` (`testing.md`), `release.yml` |
 
 ## How it works
@@ -43,7 +43,7 @@ Models and ONNX Runtime are never in the installer (AGENTS.md §5.I). `dev_tools
 
 ### Production build and packages
 `npm run tauri build` runs `beforeBuildCommand` (`npm run fetch-exiftool && npm run build`) then compiles and bundles for `targets: ["msi", "deb", "appimage"]` (a `.msi` on Windows; a `.deb` and an `.AppImage` on Linux; Tauri skips the targets that do not apply to the host platform). Bundled resources: `vendor/exiftool/` → `exiftool/` and `resources/map-style/` → `map-style/`; `LICENSE.rtf` as licence file. The webview CSP (`tauri.conf.json`): only `'self'`, IPC and asset protocol, plus `https://tiles.openfreemap.org` in `connect-src` for map tiles (the one webview network access, `../architecture.md`); the asset protocol scope is `**` (the webview reads image files directly).
-- Windows MSI (WiX): one MSI per language, English default (`wix/en-US.wxl`, `wix/fr-FR.wxl` hold the installer texts); images `icons/msibanner.bmp` and `icons/msidialog.bmp` (the left panel is 164 px wide, AGENTS.md §5.I). Installer file names end in `_en-US.msi` and `_fr-FR.msi`; the updater picks `_en-US.msi` first.
+- Windows MSI (WiX): `wix/en-US.wxl` and `wix/fr-FR.wxl` hold the installer texts; images `icons/msibanner.bmp` and `icons/msidialog.bmp` (the left panel is 164 px wide, AGENTS.md §5.I). `tauri build` compiles one MSI per language, then `scripts/tauri-wrapper.mjs` runs `scripts/merge-msi.ps1` to embed the extra language transforms (via WiX `torch.exe` and Windows Installer `_Storages`, updating `PID_TEMPLATE`) into a single multi-language installer `photoboggan_<version>_x64.msi` (selecting the OS UI language when supported, falling back to `en-US` otherwise) and re-signs it when `TAURI_SIGNING_PRIVATE_KEY` is set.
 - Linux `.deb` depends on `perl`.
 - Linux `.AppImage` has no dependency metadata and bundles neither WebKitGTK nor Perl: the user must have `libwebkit2gtk-4.1` and `perl` (ExifTool) installed. The in-app updater keeps selecting the `.deb` (`modules/updates.md`).
 - The release must keep one `.msi` and one `.deb`, otherwise the update dialog sends the user to the GitHub page. The `.AppImage` is an additional manual install option and is ignored by the updater.
@@ -56,7 +56,7 @@ The release workflow passes the `TAURI_PRIVATE_KEY` and `TAURI_PRIVATE_KEY_PASSW
 ### Release procedure (as implied by the files)
 1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json` (they must stay equal; `Cargo.lock` follows `Cargo.toml`). The updater compares the installed version (`app.package_info()`) with release tags.
 2. Commit, tag `v<x>.<y>.<z>` and push the tag; wait for the workflow.
-3. Check the draft: one `.msi` per language, one `.deb`, one `.AppImage`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it); the flag is cleared by hand when publishing (no workflow step does it; the published v0.6.4–v0.6.10 are stable).
+3. Check the draft: one multi-language `.msi`, one `.deb`, one `.AppImage`, changelog text; GitHub must publish a SHA-256 `digest` for each asset (the updater refuses assets without it); then publish the release. Since the release is created with `prerelease: true`, users with "Include pre-releases" off only see it once the pre-release flag is cleared (`pick_latest` filters on it); the flag is cleared by hand when publishing (no workflow step does it; the published v0.6.4–v0.6.10 are stable).
 4. Tags that are not `v<x>.<y>.<z>` (`face-models-1`, `semantic-models-1`) are model assets and are ignored by the updater.
 
 ### Platform differences

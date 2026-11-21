@@ -1,13 +1,13 @@
 {
   "name": "photoboggan",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "fetch-exiftool": "node scripts/fetch-exiftool.mjs",
     "prepare-semantic-models": "node scripts/prepare-semantic-models.mjs",
-    "tauri": "tauri",
+    "tauri": "node scripts/tauri-wrapper.mjs",
     "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "docs:gen": "node scripts/gen-docs.mjs",
     "docs:stale": "node scripts/gen-docs.mjs --stale"
