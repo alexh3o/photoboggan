@@ -1,4 +1,4 @@
-<!-- verified: b34237f | sources: scripts/gen-docs.mjs, AGENTS.md -->
+<!-- verified: 42ef5d8 | sources: scripts/gen-docs.mjs, AGENTS.md -->
 # Developer documentation — photoboggan
 
 Entry point for developers and AI assistants who maintain or extend the application. For the product itself, see `../USER_GUIDE.md`; for the rules AI agents must follow in every session, see `../../AGENTS.md`.
