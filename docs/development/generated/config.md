@@ -103,10 +103,10 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 ## Translations
 
 - Languages: en (1904 keys), es (1904 keys), fr (1904 keys)
-- es.json: 0 key(s) of en.json missing (shown in English): none
-- es.json: keys unknown to en.json (typo or obsolete): none
-- fr.json: 0 key(s) of en.json missing (shown in English): none
-- fr.json: keys unknown to en.json (typo or obsolete): none
+- es.json: 2 key(s) of en.json missing (shown in English): `Show the downloaded file`, `Download folder opened`
+- es.json: keys unknown to en.json (typo or obsolete): `Open the installer`, `Installer opened`
+- fr.json: 2 key(s) of en.json missing (shown in English): `Show the downloaded file`, `Download folder opened`
+- fr.json: keys unknown to en.json (typo or obsolete): `Open the installer`, `Installer opened`
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none
 
 ## npm scripts

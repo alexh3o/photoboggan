@@ -4,7 +4,7 @@
 // Quand : au démarrage (au plus une fois par 24 h, sans bloquer l'interface), à l'activation de la case et à la demande (« Vérifier maintenant »).
 // Jamais en mode hors ligne ni case décochée. Le résultat est mémorisé : les Paramètres et À propos l'affichent sans nouvelle requête.
 // Téléchargement : tâche de la file (progression et arrêt dans « Actions en cours »), vérifié par SHA-256 par le backend, puis bouton « Installer et
-// redémarrer » (Windows) ou « Ouvrir l'installeur » (Linux : .deb confié au gestionnaire de paquets). Sans installeur pour ce système : page GitHub.
+// redémarrer » (Windows) ou « Afficher le fichier téléchargé » (Linux : .deb ou .AppImage enregistré dans Téléchargements, dossier ouvert). Sans installeur pour ce système : page GitHub.
 
 import { invoke } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
@@ -134,7 +134,7 @@ function renderDownloadButton() {
   const ready = downloadState === 'ready' && downloadedVersion === info.latest;
   button.disabled = downloadState === 'downloading';
   button.textContent = downloadState === 'downloading' ? t('Downloading…')
-    : ready ? t(asset.restarts ? 'Install and restart' : 'Open the installer')
+    : ready ? t(asset.restarts ? 'Install and restart' : 'Show the downloaded file')
     : t('Download ({size})', { size: formatMegabytes(asset.size) });
 }
 
@@ -193,7 +193,7 @@ async function installUpdate() {
   if (info?.asset?.restarts && !(await canQuit())) return;
   try {
     const exits = await invoke('install_update');
-    if (!exits) showToast(t('Installer opened'));
+    if (!exits) showToast(t('Download folder opened'));
   } catch (error) {
     console.error('Update install failed', error);
     if (String(error) === 'update_corrupted' || String(error) === 'update_not_downloaded') downloadState = 'idle';

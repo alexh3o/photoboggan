@@ -109,6 +109,15 @@ fn windows_takes_the_english_msi_never_the_setup_exe_and_linux_takes_the_deb() {
     assert!(!pick_asset(&release, "linux").unwrap().restarts);
     assert_eq!(pick_asset(&release, "other"), None);
 
+    // Linux started from an AppImage: the .AppImage is offered, never the .deb; without one, nothing (GitHub page).
+    let with_appimage = release_with_assets(&[
+        ("photoboggan_0.7.0-beta_amd64.deb", &format!("{PREFIX}photoboggan_0.7.0-beta_amd64.deb"), DIGEST),
+        ("photoboggan_0.7.0_amd64.AppImage", &format!("{PREFIX}photoboggan_0.7.0_amd64.AppImage"), DIGEST),
+    ]);
+    assert_eq!(pick_asset(&with_appimage, "linux-appimage").unwrap().name, "photoboggan_0.7.0_amd64.AppImage");
+    assert!(!pick_asset(&with_appimage, "linux-appimage").unwrap().restarts);
+    assert_eq!(pick_asset(&release, "linux-appimage"), None);
+
     // No English MSI: another language is taken. Only a -setup.exe: nothing (the dialog points to the GitHub page).
     let french_only = release_with_assets(&[("photoboggan_0.7.0_x64_fr-FR.msi", &format!("{PREFIX}photoboggan_0.7.0_x64_fr-FR.msi"), DIGEST)]);
     assert_eq!(pick_asset(&french_only, "windows").unwrap().name, "photoboggan_0.7.0_x64_fr-FR.msi");

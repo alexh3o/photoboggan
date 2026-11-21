@@ -11,9 +11,10 @@
 //! The version always comes from the tag, never from file names (release v0.4.2 holds files named 0.4.1).
 //!
 //! Download and install: the interface never provides a URL or a path. The backend finds the installer in the release itself (repository
-//! address, SHA-256 published by GitHub required), downloads it to the temp folder, checks size and hash, then launches only that verified
-//! file (hash computed again just before). Windows: the MSI is run with `msiexec`, then the application closes. Linux: the .deb is handed
-//! to the system package manager (`xdg-open`), since installing needs rights the application does not have.
+//! address, SHA-256 published by GitHub required), downloads it, checks size and hash, then acts only on that verified file (hash computed
+//! again just before). Windows: downloaded to the temp folder, the MSI is run with `msiexec`, then the application closes. Linux: the file
+//! (.deb, or .AppImage when the application itself runs from an AppImage) is saved in the user's Downloads folder and "install" opens that folder
+//! in the file manager; the user installs it from there.
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -23,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 use crate::model_files::{hex, IdleReader, BODY_TIMEOUT, CONNECT_TIMEOUT, IDLE_TIMEOUT, RESPONSE_TIMEOUT};
 
@@ -91,9 +92,16 @@ pub struct UpdateInfo {
     pub asset: Option<UpdateAsset>,
 }
 
-/// Système pour lequel la release publie un installeur.
+/// Platform whose installer the release is searched for. On Linux, an application started from an AppImage (the AppImage runtime sets `APPIMAGE`)
+/// is updated with a new `.AppImage`, not with the `.deb` (which would install a second copy through the package manager).
 fn current_platform() -> &'static str {
-    if cfg!(windows) { "windows" } else if cfg!(target_os = "linux") { "linux" } else { "other" }
+    if cfg!(windows) {
+        "windows"
+    } else if cfg!(target_os = "linux") {
+        if std::env::var_os("APPIMAGE").is_some_and(|path| !path.is_empty()) { "linux-appimage" } else { "linux" }
+    } else {
+        "other"
+    }
 }
 
 /// Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
@@ -101,12 +109,13 @@ fn is_safe_file_name(name: &str) -> bool {
     !name.is_empty() && name.len() <= 150 && !name.starts_with('.') && name.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
 }
 
-/// Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du dépôt, un nom sûr, une taille
+/// Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb` ou `.AppImage`. Exige l'adresse du dépôt, un nom sûr, une taille
 /// raisonnable et la somme SHA-256 publiée par GitHub (`digest`) : sans elle l'intégrité ne serait pas vérifiable, donc pas d'installeur.
 fn pick_asset(release: &serde_json::Value, platform: &str) -> Option<UpdateAsset> {
     let extensions: &[&str] = match platform {
         "windows" => &["_en-US.msi", ".msi"],
         "linux" => &[".deb"],
+        "linux-appimage" => &[".AppImage"],
         _ => return None,
     };
     let assets = release.get("assets")?.as_array()?;
@@ -190,7 +199,14 @@ pub async fn check_for_update(app: tauri::AppHandle, include_prereleases: bool) 
 /// Installeur téléchargé et vérifié : chemin, taille et somme attendues (recalculée avant le lancement).
 static DOWNLOADED: Mutex<Option<(PathBuf, u64, String)>> = Mutex::new(None);
 
-fn update_dir() -> PathBuf {
+/// Folder receiving the installer. Linux: the user's Downloads folder (the installer stays there, the user decides when and how to install it);
+/// if the OS gives none, the temp folder. Other systems: a private folder of the temp folder (the installer is launched right away).
+fn update_dir(app: &tauri::AppHandle) -> PathBuf {
+    if cfg!(target_os = "linux") {
+        if let Ok(downloads) = app.path().download_dir() {
+            return downloads;
+        }
+    }
     std::env::temp_dir().join("photoboggan-update")
 }
 
@@ -253,9 +269,9 @@ pub async fn download_update(app: tauri::AppHandle, task_id: String, version: St
         let info = fetch_info(&installed_text, include_prereleases)?;
         if !info.update_available || info.latest != version { return Err("update_changed".to_string()); }
         let asset = info.asset.ok_or_else(|| "update_no_installer".to_string())?;
-        let dir = update_dir();
-        // Installeurs d'un téléchargement précédent : supprimés (un seul à la fois).
-        let _ = fs::remove_dir_all(&dir);
+        let dir = update_dir(&app);
+        // Private temp folder: installers of a previous download are removed (one at a time). The user's Downloads folder is never emptied.
+        if dir.ends_with("photoboggan-update") { let _ = fs::remove_dir_all(&dir); }
         fs::create_dir_all(&dir).map_err(|error| format!("Dossier de téléchargement impossible à créer : {error}"))?;
         *DOWNLOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
 
@@ -280,6 +296,14 @@ pub async fn download_update(app: tauri::AppHandle, task_id: String, version: St
                 let _ = app.emit("scan-progress", crate::ScanProgress { task_id: worker_task_id.clone(), percent });
             }
         })?;
+        // An AppImage must be executable to be launched: the user only has to double-click it once it is in place.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if target.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("appimage")) {
+                let _ = fs::set_permissions(&target, fs::Permissions::from_mode(0o755));
+            }
+        }
         *DOWNLOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((target, asset.size, asset.sha256));
         Ok(())
     })
@@ -296,7 +320,7 @@ pub async fn download_update(app: tauri::AppHandle, task_id: String, version: St
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 
 /// Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'installeur
-/// remplace ses fichiers) ; false si elle reste ouverte (Linux : le .deb est ouvert dans le gestionnaire de paquets). L'interface a déjà obtenu
+/// remplace ses fichiers) ; false si elle reste ouverte (Linux : le dossier contenant le .deb / .AppImage est ouvert dans le gestionnaire de fichiers). L'interface a déjà obtenu
 /// l'accord de l'utilisateur pour quitter (modifications en attente).
 #[tauri::command(async)]
 pub fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
@@ -317,8 +341,11 @@ pub fn install_update(app: tauri::AppHandle) -> Result<bool, String> {
     }
     #[cfg(not(windows))]
     {
+        // The installer is not launched: a .deb needs rights the app lacks and an AppImage replaces a file the user chose to keep. The folder holding
+        // the downloaded file is opened in the file manager instead, the user installs from there.
         let _ = &app;
-        std::process::Command::new("xdg-open").arg(&path).spawn().map_err(|error| format!("Installeur impossible à ouvrir : {error}"))?;
+        let folder = path.parent().ok_or_else(|| "update_not_downloaded".to_string())?;
+        std::process::Command::new("xdg-open").arg(folder).spawn().map_err(|error| format!("Dossier impossible à ouvrir : {error}"))?;
         Ok(false)
     }
 }

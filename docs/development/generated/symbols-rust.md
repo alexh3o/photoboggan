@@ -1406,21 +1406,21 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 
 ## update_check.rs (15)
 
-- *struct* `Version` · L44 — Version `x.y.z` avec un éventuel suffixe de pré-version (la partie après le premier « - »).
-- `parse_version` · L50 — Lit « 1.2.3 », « v1.2.3 » ou « 1.2.3-beta.1 » ; None si le texte n'a pas cette forme (« face-models-1 »).
-- *struct* `pub UpdateAsset` · L65 — Installeur joint à la release pour ce système. Seuls le nom et la taille vont à l'interface.
-- *struct* `pub UpdateInfo` · L77
-- `current_platform` · L95 — Système pour lequel la release publie un installeur.
-- `is_safe_file_name` · L100 — Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
-- `pick_asset` · L106 — Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb`. Exige l'adresse du…
-- `pick_latest` · L130 — Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
-- `fetch_info` · L161 — Interroge GitHub (bloquant : à appeler hors du fil principal).
-- `pub check_for_update` · L181 — Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
-- `update_dir` · L193
-- `copy_verified` · L199 — Copie `reader` dans `<target>.part` en calculant la somme SHA-256, puis renomme le fichier si taille et somme sont celles attendues.
-- `file_sha256` · L233 — Somme SHA-256 d'un fichier.
-- `pub download_update` · L248 — Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
-- `pub install_update` · L302 — Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'ins…
+- *struct* `Version` · L45 — Version `x.y.z` avec un éventuel suffixe de pré-version (la partie après le premier « - »).
+- `parse_version` · L51 — Lit « 1.2.3 », « v1.2.3 » ou « 1.2.3-beta.1 » ; None si le texte n'a pas cette forme (« face-models-1 »).
+- *struct* `pub UpdateAsset` · L66 — Installeur joint à la release pour ce système. Seuls le nom et la taille vont à l'interface.
+- *struct* `pub UpdateInfo` · L78
+- `current_platform` · L97 — Platform whose installer the release is searched for. On Linux, an application started from an AppImage (the AppImage runtime sets `APPIMAG…
+- `is_safe_file_name` · L108 — Nom de fichier sûr : il sert de nom dans le dossier temporaire, donc ni séparateur ni caractère inattendu.
+- `pick_asset` · L114 — Installeur de la release pour `platform` : Windows `.msi` (l'anglais d'abord, il en existe un par langue), Linux `.deb` ou `.AppImage`. Exi…
+- `pick_latest` · L139 — Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
+- `fetch_info` · L170 — Interroge GitHub (bloquant : à appeler hors du fil principal).
+- `pub check_for_update` · L190 — Vérifie la présence d'une version plus récente. Erreur « internet_disabled » en mode hors ligne.
+- `update_dir` · L204 — Folder receiving the installer. Linux: the user's Downloads folder (the installer stays there, the user decides when and how to install it);
+- `copy_verified` · L215 — Copie `reader` dans `<target>.part` en calculant la somme SHA-256, puis renomme le fichier si taille et somme sont celles attendues.
+- `file_sha256` · L249 — Somme SHA-256 d'un fichier.
+- `pub download_update` · L264 — Télécharge l'installeur de la version `version` (tâche de la file : progression par « scan-progress », arrêt par cancel_scan).
+- `pub install_update` · L326 — Lance l'installeur téléchargé, après avoir revérifié sa taille et sa somme SHA-256. Renvoie true si l'application se ferme (Windows : l'ins…
 
 ## video.rs (6)
 
