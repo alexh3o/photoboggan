@@ -1,4 +1,4 @@
-<!-- verified: 42ef5d8 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: 7910686 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 
 # Maintenance recipes
 
@@ -50,7 +50,7 @@ Lists to update (search the extension `"cr2"` to find them all, there is no sing
 
 1. Backend catalogue: `SUPPORTED_EXTENSIONS` (library_sync.rs) for standard formats; videos: `VIDEO_EXTENSIONS` (video.rs, also used by duplicates.rs).
 2. RAW: the single backend list `thumbnails::RAW_EXTENSIONS` (`is_raw_extension`, `is_raw_path`), used by the catalogue, previews, faces, resize and content search.
-3. Frontend: `RAW_EXTENSIONS` / `HEIF_EXTENSIONS` / `VIDEO_EXTENSIONS` / `RASTER_EXTENSIONS` (format-filters.js), used by `isRawPath` / `isVideoPath` (main.js).
+3. Frontend: `RAW_EXTENSIONS` / `HEIF_EXTENSIONS` / `VIDEO_EXTENSIONS` / `RASTER_EXTENSIONS` (format-filters.js), used by `isRawPath` / `isVideoPath` (file-kinds.js).
 4. Thumbnail: `thumbnails::render_thumbnail` must decode it, or return an error so the webview fallback (`save_thumbnail_cache`) is used. Full screen: if the webview cannot show it, route it through `get_raw_preview_path`.
 5. Metadata target: `exif::write_metadata` / `exiftool::target_of` decide in-file vs sidecar; a new non-JPEG format defaults to a sidecar.
 6. Duplicates: decide which bytes `duplicates::layout_of` hashes; changing it requires `LAYOUT_VERSION` + 1.

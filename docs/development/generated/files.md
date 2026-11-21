@@ -63,10 +63,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 327 |  |
+| `files.md` | 328 |  |
 | `ipc-commands.md` | 193 |  |
-| `module-deps.md` | 110 |  |
-| `symbols-js.md` | 1577 |  |
+| `module-deps.md` | 111 |  |
+| `symbols-js.md` | 1582 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
