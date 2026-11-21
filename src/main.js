@@ -72,21 +72,21 @@ let photos = [];
 let loadedPhotos = [];
 let folders = [];
 let folderTreePhotos = [];
-// Filtres Matériel (appareil, objectif) et Prise de vue (focale, vitesse, ouverture, ISO, flash) : voir shooting-filters.js.
+// Filters for Gear (camera, lens) and Shoot Settings (focal, shutter speed, aperture, ISO, flash) : see shooting-filters.js.
 const shootingFilters = initShootingFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
 // Filtre Format (type, marque de RAW, extension) : voir format-filters.js, qui porte aussi les listes d'extensions.
 const formatFilters = initFormatFilters({ getPhotos: () => folderTreePhotos, onChange: () => applyPhotoFilters() });
-// Filtre Auteur (liste des auteurs de la base) : voir author-filters.js.
+// Filter: Author : see author-filters.js.
 const authorFilters = initAuthorFilters({ onChange: () => applyPhotoFilters() });
 let currentFolderFilter = null;
 // Folders added to `currentFolderFilter` by Ctrl+click in the tree: the grid shows the photos of all of them (not persisted, reset by a plain click).
 let extraFolderFilters = [];
-// Mode « Trouver le RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
+// Mode « Find RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
 let rawSearch = null;
 // Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
 let duplicateSearch = null;
 let semanticSearch = null; // content search results mode (see "CONTENT SEARCH RESULTS")
-// Vue au démarrage (Paramètres > Général) : « all » = Toutes les photos (défaut), « last » = dernier dossier ouvert dans l'arbre.
+// Startup view (Settings > Genéral) : « all » for all photos (default), « last » for last folder.
 let startupView = readChoice('startupView', ['last', 'all']);
 let includeSubfolders = readBool('includeSubfolders');
 let keywordFilters = [];
@@ -117,12 +117,7 @@ function versionSuffix(path) {
   return version ? `?v=${version}` : '';
 }
 
-// LOSSLESS ROTATION: `orientationMatrix` and `swapsSides` (orientation.js) turn what the webview does not turn by itself (`photo.view_fix`).
-
-// `isRawPath` and `isVideoPath` (file kinds from the extension, lists in format-filters.js): see file-kinds.js.
-
-// RAW sans JPEG intégré exploitable (jamais dématricé) : les lettres de l'extension (minuscules) s'affichent en gros sur la miniature de la grille et
-// dans la case de l'aperçu (voir .format-placeholder dans styles.css). Le texte est lu par ::after sur son propre élément (.thumbnail-inner pour la grille).
+// RAW without embedded JPEG : extension letters are displayed in big on thumbnail and preview (see .format-placeholder in styles.css). Read by ::after on its element (.thumbnail-inner for the grid).
 function markFormatPlaceholder(element, path) {
   if (!element) return;
   const format = (path || '').split('.').pop()?.toLowerCase() ?? '';
@@ -1436,9 +1431,9 @@ async function saveCurrentViewInto(albumId) {
   }
 }
 
-// Compteurs des albums intelligents et des dossiers virtuels. Un album intelligent compte les photos de toute la photothèque (ou du contenu de son
-// parent manuel ou intelligent) qui satisfont ses critères enregistrés ; un dossier virtuel compte les photos DISTINCTES de tout ce qu'il contient.
-// Le calcul relit la liste complète des photos : il est différé et regroupé (une seule exécution à la fois), et inutile sans album.
+// Smart album and virtual folder counters. A smart album counts photos from the entire library (or from the content of its
+// manual or smart parent) that meet its saved criteria; a virtual folder counts the DISTINCT photos of everything it contains.
+// The calculation re-reads the full photo list: it is deferred and batched (only one execution at a time), and unnecessary without any albums.
 let albumCountsTimer = null;
 let albumCountsRunning = false;
 let albumCountsAgain = false;
