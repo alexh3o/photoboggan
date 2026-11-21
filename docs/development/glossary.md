@@ -43,7 +43,7 @@ One line per term, built from the terms used by the other docs. Module docs hold
 
 ## Tasks and concurrency
 
-- **Task / queue**: long operations run through `enqueueScanTask` (`main.js`): one per `task_id`, one toast each, listed in the "Running tasks" (hourglass) modal, cancellable (`cancel_scan` flag).
+- **Task / queue**: long operations run through `enqueueScanTask` (`task-queue.js`): one per `task_id`, one toast each, listed in the "Running tasks" (hourglass) modal, cancellable (`cancel_scan` flag).
 - **Task family** (`familyOf`): grouping that only decides which tasks are refused as duplicates; families do not run in parallel (`main-window.md`).
 - **`ready` / `paused` task**: `ready` = finished task kept in the list until "Dismiss": a duplicate search waiting for "Show", or a batch rename that left some photos unrenamed ("Show errors", `keepTaskReady`); `paused` = user pause, resumable (`resumeSince`).
 - **Semantic lane**: separate queue for content analysis (`pumpSemanticQueue`).

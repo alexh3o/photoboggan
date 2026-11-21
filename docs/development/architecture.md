@@ -1,4 +1,4 @@
-<!-- verified: 3c84e7f | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
+<!-- verified: 3cc1d4f | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
 
 # Architecture
 
@@ -23,12 +23,13 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 
 ```
              ┌──────────────────────────── webview (src/) ─────────────────────────────┐
-             │ main.js: grid, viewer, selection, sort, filters, task queue, startup    │
+             │ main.js: grid, viewer, selection, sort, filters, startup                │
+             │   ├─ task-queue.js       (main & semantic lanes, toasts, tasks modal)   │
              │   ├─ panels: keywords-panel, description-panel, faces-*, albums-panel,   │
              │   │          location-panel, histogram, semantic*, duplicates*           │
              │   ├─ metadata-writes.js  (single write circuit for the right panel)      │
              │   └─ photo-actions.js    (context menus, dialogs, copy/move/resize UI)   │
-             └───────────────┬─────────────────────────────▲──────────────────────────┘
+             └───────────────┬─────────────────────────────▲───────────────────────────┘
                      invoke (IPC)                 events "scan-progress", "scan-detail"
              ┌───────────────▼─────────────────────────────┴──────────────────────────┐
              │ main.rs: AppState, config.json, cache paths, scans, file operations    │
@@ -40,7 +41,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 ```
 
 - **IPC**: every frontend → backend call is `invoke('<command>', {camelCaseArgs})`. Who calls what: `generated/ipc-commands.md`; static module dependencies: `generated/module-deps.md`.
-- **Events**: the backend only emits progress. `scan-progress` (`{task_id, percent}`) is used by every queued task; `scan-detail` by the integrity check. Both are listened to once, in `main.js` (`listenToBackend`). See `generated/events.md`.
+- **Events**: the backend only emits progress. `scan-progress` (`{task_id, percent}`) is used by every queued task; `scan-detail` by the integrity check. Both are listened to once, in `task-queue.js` (`listenToBackend`). See `generated/events.md`.
 - **Dependency injection in the frontend**: feature modules do not import `main.js` services; `main.js` passes them at init (e.g. `initMetadataWrites(hostApi)`, `initPrivateZonesModal({ enqueueTask, showToast })`). No module imports `main.js`.
 - **Map tiles** are the one network access made by the webview: `map-tile-protocol.js` serves `pbmap://` URLs to MapLibre and is the only code allowed to fetch `tiles.openfreemap.org` (also allowed by the CSP `connect-src`), after checking `isMapNetworkAllowed()` (map enabled and offline mode off). Private-zone tiles come from the backend (`get_private_tile`).
 
@@ -48,9 +49,9 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 
 **1. Add a folder, scan, show the grid**
 
-1. Settings > folders: `main.js` calls `add_folder` (stores the folder, does not scan), then `enqueueScanTask({ kind: 'add', command: 'scan_folder' })`.
+1. Settings > folders: `main.js` calls `add_folder` (stores the folder, does not scan), then `enqueueScanTask({ kind: 'add', command: 'scan_folder' })` (`task-queue.js`).
 2. `scan_folder` → `run_scan` (main.rs): `WalkDir` + `library_sync::is_photo_file` on a blocking thread, `rayon` `par_iter` over the files, `library_sync::read_photo` per file (EXIF/XMP/keywords/faces), results sent through an `mpsc` channel to a writer task that stores batches of 500 (`library_sync::store_read_batch`). Progress → `scan-progress`; stop → `cancel_scan` sets the task's flag.
-3. When the task ends, `runScanTask` calls `reloadPhotosAfterRescan`; the grid pages through `get_photos_paginated` and renders with virtual scrolling (`main.js`, section "VIRTUAL SCROLLING").
+3. When the task ends, `runScanTask` (`task-queue.js`) calls `onRescanComplete` → `reloadPhotosAfterRescan` (`main.js`); the grid pages through `get_photos_paginated` and renders with virtual scrolling (`main.js`, section "VIRTUAL SCROLLING").
 
 **2. Thumbnail request**
 
@@ -91,7 +92,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 
 ## Concurrency model
 
-- **Frontend queue** (`main.js`, section "FILE D'ATTENTE DES TÂCHES"): `enqueueScanTask` adds a task; `pumpScanQueue` runs the main queue **one task at a time** in request order; `pumpSemanticQueue` runs the content analysis (`kind: 'semantic'`) in its own lane, in parallel. "Families" (`familyOf`) only decide which tasks are refused as duplicates of a running/waiting one (same folder covered, same `dedupeKey`); they do not run concurrently. Each task gets a unique id passed to the backend as `taskId`.
+- **Frontend queue** (`task-queue.js`, wired via `initTaskQueue` in `main.js`): `enqueueScanTask` adds a task; `pumpScanQueue` runs the main queue **one task at a time** in request order; `pumpSemanticQueue` runs the content analysis (`kind: 'semantic'`) in its own lane, in parallel. "Families" (`familyOf`) only decide which tasks are refused as duplicates of a running/waiting one (same folder covered, same `dedupeKey`); they do not run concurrently. Each task gets a unique id passed to the backend as `taskId`.
 - **Backend cancel**: `scan_cancel_flag(task_id)` creates or returns an `Arc<AtomicBool>`; `cancel_scan` sets it; the command calls `release_scan_cancel_flag` at the end.
 - **Threads**: commands are `#[tauri::command(async)]` / `async fn` (Tauri async pool) and push heavy work into `tokio::task::spawn_blocking`, often with `rayon` inside. Plain `#[tauri::command] fn` runs on the main thread (marked "main thread" in `generated/ipc-commands.md`): keep those trivial.
 - **Throttles**: thumbnail generation 2–6 at once (frontend `MAX_THUMBNAIL_GENERATIONS`, backend cap 6); keyword writes 3 threads; incremental sync reads EXIF with 2 threads at most (`library_sync.rs` header); ExifTool 3 processes; `semantic::PriorityGuard` makes the semantic analysis pause while thumbnails are generated, a scan runs or metadata is written.

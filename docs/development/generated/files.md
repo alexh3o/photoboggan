@@ -13,7 +13,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1522 |  |
 | `package.json` | 29 |  |
 | `README.md` | 208 |  |
-| `TODO.md` | 61 |  |
+| `TODO.md` | 62 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -43,7 +43,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `_PROGRESS.md` | 208 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 104 |  |
+| `architecture.md` | 105 |  |
 | `build-release.md` | 88 |  |
 | `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
@@ -63,7 +63,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 331 |  |
+| `files.md` | 332 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 112 |  |
 | `sections.md` | 409 |  |
