@@ -53,6 +53,7 @@ import { initTitleBar } from './titlebar.js';
 import { orientationMatrix, swapsSides } from './orientation.js';
 import { pinnedFolderRows } from './sticky-folders.js';
 import { isRawPath, isVideoPath } from './file-kinds.js';
+import { dateFilter, dateFilterInput, setDateFilter, matchesDateFilter, parseDateFilter, photoTimeKey, photoDateKey, isValidDateKey, updateDateFilterUI, closeDatePicker, isDatePickerOpen, refreshDatePickerLanguage, initDateFilter } from './date-filter.js';
 
 // WINDOW CHROME (titlebar.js): first display of the window, title bar buttons and immersive mode (F11).
 // Closing by any means (button, Alt+F4, system menu) asks first about unfinished work, in this order: running queue tasks, unsaved filters of a smart
@@ -1211,7 +1212,7 @@ const clearFilterKinds = {
   person: () => clearPersonFilters(),
   date() {
     dateFilterInput.value = '';
-    dateFilter = null;
+    setDateFilter(null);
     updateDateFilterUI('');
     closeDatePicker();
   },
@@ -1364,7 +1365,7 @@ function applyFilterState(state) {
   renderFilenameFilters();
   if (state.date) {
     dateFilterInput.value = state.date;
-    dateFilter = parseDateFilter(state.date).filter ?? null;
+    setDateFilter(parseDateFilter(state.date).filter ?? null);
     updateDateFilterUI('');
   }
   setPersonFilterIds(state.persons ?? [], state.excludedPersons ?? []);
@@ -5179,11 +5180,7 @@ onLanguageChange(() => {
   updateDateFilterUI(parseDateFilter(dateFilterInput.value).error);
   updateSortUI();
   updateVirtualScroller(); // libellés des séparateurs (jours, mois…) dans la nouvelle langue
-  datePicker.setAttribute('aria-label', t('Choose a date or a range'));
-  if (isDatePickerOpen()) {
-    renderDatePicker();
-    positionDatePicker();
-  }
+  refreshDatePickerLanguage();
 });
 
 const thumbnailSizeInput = document.getElementById('thumbnail-size');
@@ -7896,9 +7893,6 @@ async function applyMovedPhotos(moved) {
 }
 
 // ==========================================
-// FILTRE DE DATE (date de prise de vue EXIF)
-// ==========================================
-// ==========================================
 // FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres
 // ==========================================
 let locationFilter = 'all'; // 'all', 'geolocated' ou 'not-geolocated'
@@ -7962,261 +7956,11 @@ onAnalysisChanged(async () => {
 });
 onSemanticChange(() => { if (analysisFilter !== 'all' && !isSemanticEnabled()) setAnalysisFilter('all'); });
 
-let dateFilter = null; // { from, to } au format AAAAMMJJHHmmss (nombres), ou null = aucun filtre
-const dateFilterInput = document.getElementById('date-filter-input');
-const dateFilterClear = document.getElementById('date-filter-clear');
-const dateFilterCalendar = document.getElementById('date-filter-calendar');
-const dateFilterError = document.getElementById('date-filter-error');
-
-// Extrait la date et l'heure d'un texte EXIF quel que soit le séparateur (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
-// Renvoie un nombre AAAAMMJJHHmmss (heure à 00:00:00 si absente), ou null.
-function extractTimeKey(text) {
-  const match = /(\d{4})\D?(\d{2})\D?(\d{2})(?:\D+(\d{2})\D?(\d{2})(?:\D?(\d{2}))?)?/.exec(String(text || ''));
-  if (!match) return null;
-  if (Number(match[1] + match[2] + match[3]) < 10000101) return null; // ignore les dates vides du type 0000:00:00
-  return Number(`${match[1]}${match[2]}${match[3]}${match[4] || '00'}${match[5] || '00'}${match[6] || '00'}`);
-}
-
-function photoTimeKey(photo) {
-  if (photo.timeKey === undefined) photo.timeKey = extractTimeKey(photo.date_taken);
-  return photo.timeKey;
-}
-
-// Jour de prise de vue au format AAAAMMJJ, ou null.
-function photoDateKey(photo) {
-  const key = photoTimeKey(photo);
-  return key === null ? null : Math.floor(key / 1000000);
-}
-
-// Le filtre couvre du premier au dernier instant de la période saisie, bornes incluses.
-function matchesDateFilter(photo) {
-  if (!dateFilter) return true;
-  const key = photoTimeKey(photo);
-  return key !== null && key >= dateFilter.from && key <= dateFilter.to;
-}
-
-function isValidDateKey(key) {
-  const year = Math.floor(key / 10000);
-  const month = Math.floor(key / 100) % 100;
-  const day = key % 100;
-  const date = new Date(year, month - 1, day);
-  return year >= 1000 && date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
-}
-
-// Un jeton AAAA, AAAAMM, AAAAMMJJ, AAAAMMJJHH, AAAAMMJJHHmm ou AAAAMMJJHHmmss : renvoie le premier et le dernier instant
-// (AAAAMMJJHHmmss) de la période. Les parties absentes valent le début (01, 00) ou la fin (12, 31, 23, 59, 59).
-function parseDateToken(token) {
-  const year = Number(token.slice(0, 4));
-  const month = token.length >= 6 ? Number(token.slice(4, 6)) : null;
-  const day = token.length >= 8 ? Number(token.slice(6, 8)) : null;
-  const hour = token.length >= 10 ? Number(token.slice(8, 10)) : null;
-  const minute = token.length >= 12 ? Number(token.slice(10, 12)) : null;
-  const second = token.length >= 14 ? Number(token.slice(12, 14)) : null;
-  if (year < 1000) return null;
-  if (month !== null && (month < 1 || month > 12)) return null;
-  if (day !== null && !isValidDateKey(year * 10000 + month * 100 + day)) return null;
-  if (hour !== null && hour > 23) return null;
-  if (minute !== null && minute > 59) return null;
-  if (second !== null && second > 59) return null;
-  const pad = value => String(value).padStart(2, '0');
-  const build = (m, d, h, mi, s) => Number(`${year}${pad(m)}${pad(d)}${pad(h)}${pad(mi)}${pad(s)}`);
-  return {
-    start: build(month ?? 1, day ?? 1, hour ?? 0, minute ?? 0, second ?? 0),
-    end: build(month ?? 12, day ?? 31, hour ?? 23, minute ?? 59, second ?? 59),
-  };
-}
-
-function parseDateFilter(text) {
-  const compact = text.replace(/\s+/g, '');
-  if (!compact) return { filter: null };
-  const token = '(\\d{4}|\\d{6}|\\d{8}|\\d{10}|\\d{12}|\\d{14})';
-  const match = new RegExp(`^${token}(?:-${token})?$`).exec(compact);
-  if (!match) return { error: t('Date format error') };
-  const first = parseDateToken(match[1]);
-  const second = match[2] ? parseDateToken(match[2]) : first;
-  if (!first || !second) return { error: t('Invalid date') };
-  if (!match[2]) return { filter: { from: first.start, to: first.end } };
-  // Plage : début du premier jeton → fin du second. Si c'est à l'envers, on inverse les deux jetons.
-  const [begin, finish] = first.start <= second.end ? [first, second] : [second, first];
-  return { filter: { from: begin.start, to: finish.end } };
-}
-
-function updateDateFilterUI(error = '') {
-  dateFilterClear.classList.toggle('has-value', dateFilterInput.value.trim() !== '');
-  dateFilterInput.classList.toggle('invalid', Boolean(error));
-  dateFilterInput.setAttribute('aria-invalid', error ? 'true' : 'false');
-  dateFilterError.textContent = error;
-}
-
-// Applique le contenu du champ : vide = pas de filtre ; saisie incomplète ou invalide = filtre précédent conservé.
-function setDateFilterFromInput() {
-  const result = parseDateFilter(dateFilterInput.value);
-  updateDateFilterUI(result.error);
-  if (result.error) return;
-  const next = result.filter;
-  const unchanged = next === dateFilter || (next && dateFilter && next.from === dateFilter.from && next.to === dateFilter.to);
-  if (unchanged) return;
-  dateFilter = next;
-  applyPhotoFilters();
-}
-
-dateFilterInput.addEventListener('input', () => {
-  closeDatePicker();
-  setDateFilterFromInput();
-});
-
-dateFilterClear.addEventListener('click', () => {
-  dateFilterInput.value = '';
-  closeDatePicker();
-  setDateFilterFromInput();
-});
-
-// --- Calendrier (date unique ou plage) ---
-const datePicker = document.createElement('div');
-datePicker.className = 'date-picker';
-datePicker.setAttribute('role', 'dialog');
-datePicker.setAttribute('aria-label', t('Choose a date or a range'));
-datePicker.style.display = 'none';
-document.body.appendChild(datePicker);
-// Initiales des jours (semaine commençant le lundi) et mois, selon la langue courante : le 1er janvier 2024 est un lundi.
-const weekdayLabels = () => Array.from({ length: 7 }, (_, day) => new Intl.DateTimeFormat(getLanguage(), { weekday: 'narrow' }).format(new Date(2024, 0, 1 + day)));
-const pickerMonthFormatter = () => new Intl.DateTimeFormat(getLanguage(), { month: 'long', year: 'numeric' });
-let pickerYear = 0;
-let pickerMonth = 0; // 0-11
-let pickStart = null;
-let pickEnd = null;
-let pickAwaitingEnd = false;
-
-function isDatePickerOpen() {
-  return datePicker.style.display !== 'none';
-}
-
-function closeDatePicker() {
-  datePicker.style.display = 'none';
-}
-
-function todayDateKey() {
-  const now = new Date();
-  return now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-}
-
-function latestPhotoDateKey() {
-  let latest = null;
-  for (const photo of loadedPhotos) {
-    const key = photoDateKey(photo);
-    if (key !== null && (latest === null || key > latest)) latest = key;
-  }
-  return latest;
-}
-
-function positionDatePicker() {
-  const rect = dateFilterCalendar.getBoundingClientRect();
-  const width = datePicker.offsetWidth;
-  const height = datePicker.offsetHeight;
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-  let top = rect.bottom + 6;
-  if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 6);
-  datePicker.style.left = `${left}px`;
-  datePicker.style.top = `${top}px`;
-}
-
-function renderDatePicker() {
-  const first = new Date(pickerYear, pickerMonth, 1);
-  const offset = (first.getDay() + 6) % 7; // la semaine commence le lundi
-  const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
-  const today = todayDateKey();
-  const low = pickStart === null ? null : Math.min(pickStart, pickEnd ?? pickStart);
-  const high = pickStart === null ? null : Math.max(pickStart, pickEnd ?? pickStart);
-  let cells = weekdayLabels().map(label => `<span class="date-picker-weekday">${label}</span>`).join('');
-  for (let i = 0; i < offset; i++) cells += '<span></span>';
-  for (let day = 1; day <= daysInMonth; day++) {
-    const key = pickerYear * 10000 + (pickerMonth + 1) * 100 + day;
-    const classes = ['date-picker-day'];
-    if (key === today) classes.push('today');
-    if (low !== null && key > low && key < high) classes.push('in-range');
-    if (key === low || key === high) classes.push('selected');
-    cells += `<button type="button" class="${classes.join(' ')}" data-key="${key}">${day}</button>`;
-  }
-  datePicker.innerHTML = `
-    <div class="date-picker-header">
-      <button type="button" data-nav="-12" title="${t('Previous year')}" aria-label="${t('Previous year')}">«</button>
-      <button type="button" data-nav="-1" title="${t('Previous month')}" aria-label="${t('Previous month')}">‹</button>
-      <span class="date-picker-title">${pickerMonthFormatter().format(first)}</span>
-      <button type="button" data-nav="1" title="${t('Next month')}" aria-label="${t('Next month')}">›</button>
-      <button type="button" data-nav="12" title="${t('Next year')}" aria-label="${t('Next year')}">»</button>
-    </div>
-    <div class="date-picker-grid">${cells}</div>
-    <div class="date-picker-hint">${t('Click a day, then a second one for a range.')}</div>`;
-}
-
-function openDatePicker() {
-  const fromDay = dateFilter ? Math.floor(dateFilter.from / 1000000) : null;
-  const toDay = dateFilter ? Math.floor(dateFilter.to / 1000000) : null;
-  const key = fromDay ?? latestPhotoDateKey() ?? todayDateKey();
-  pickerYear = Math.floor(key / 10000);
-  pickerMonth = (Math.floor(key / 100) % 100) - 1;
-  pickStart = fromDay;
-  pickEnd = fromDay !== null && toDay !== fromDay ? toDay : null;
-  pickAwaitingEnd = false;
-  datePicker.style.display = 'block';
-  renderDatePicker();
-  positionDatePicker();
-}
-
-function applyPickerSelection() {
-  const low = Math.min(pickStart, pickEnd ?? pickStart);
-  const high = Math.max(pickStart, pickEnd ?? pickStart);
-  dateFilterInput.value = low === high ? String(low) : `${low}-${high}`;
-  setDateFilterFromInput();
-}
-
-// 1er clic : jour unique (filtre appliqué tout de suite). 2e clic : plage, ou même jour pour valider le jour unique.
-function pickDate(key) {
-  if (!pickAwaitingEnd) {
-    pickStart = key;
-    pickEnd = null;
-    pickAwaitingEnd = true;
-    applyPickerSelection();
-    renderDatePicker();
-    return;
-  }
-  pickAwaitingEnd = false;
-  if (key !== pickStart) {
-    pickEnd = key;
-    applyPickerSelection();
-  }
-  closeDatePicker();
-}
-
-datePicker.addEventListener('click', event => {
-  const button = event.target instanceof Element ? event.target.closest('button') : null;
-  if (!button) return;
-  if (button.dataset.nav) {
-    const shifted = new Date(pickerYear, pickerMonth + Number(button.dataset.nav), 1);
-    pickerYear = shifted.getFullYear();
-    pickerMonth = shifted.getMonth();
-    renderDatePicker();
-    positionDatePicker();
-  } else if (button.dataset.key) {
-    pickDate(Number(button.dataset.key));
-  }
-});
-
-dateFilterCalendar.addEventListener('click', () => {
-  if (isDatePickerOpen()) closeDatePicker();
-  else openDatePicker();
-});
-
-document.addEventListener('pointerdown', event => {
-  if (!isDatePickerOpen()) return;
-  const target = event.target;
-  if (target instanceof Node && (datePicker.contains(target) || dateFilterCalendar.contains(target))) return;
-  closeDatePicker();
-}, true);
-window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && isDatePickerOpen()) closeDatePicker();
-});
-window.addEventListener('resize', closeDatePicker);
+// ==========================================
+// FILTRE DE DATE (date de prise de vue EXIF)
+// ==========================================
+// Field, calendar and date-key helpers (photoTimeKey, parseDateFilter…): see date-filter.js.
+initDateFilter({ applyPhotoFilters, getPhotos: () => loadedPhotos });
 
 // ==========================================
 // MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js)

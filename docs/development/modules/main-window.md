@@ -2,7 +2,7 @@
 # Main window: photo loading, folder tree, task queue, settings modal, startup (main.js, part 1)
 
 ## Purpose
-`main.js` is the frontend's orchestrator. This doc covers its "navigation and background work" half: loading the photo list of the current view, the folder tree, the global **task queue** every long operation goes through, the settings modal shell, the two disk-sync mechanisms and the startup sequence. The grid, selection, full screen, compare and marking are in `grid-and-viewer.md`; filters in `filters-and-search.md`; smart albums in `albums.md`. `main.js` is ~9,200 lines of shared module-level state (`loadedPhotos`, `photos`, `folders`, `currentFolderFilter`, `scanTasks`…): never read it whole, search the `// ====` section banners.
+`main.js` is the frontend's orchestrator. This doc covers its "navigation and background work" half: loading the photo list of the current view, the folder tree, the global **task queue** every long operation goes through, the settings modal shell, the two disk-sync mechanisms and the startup sequence. The grid, selection, full screen, compare and marking are in `grid-and-viewer.md`; filters in `filters-and-search.md`; smart albums in `albums.md`. `main.js` is ~8,950 lines of shared module-level state (`loadedPhotos`, `photos`, `folders`, `currentFolderFilter`, `scanTasks`…): never read it whole, search the `// ====` section banners.
 
 ## Files
 | File | Role |
