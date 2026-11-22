@@ -1,4 +1,4 @@
-<!-- verified: f320547 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: fb0c9f6 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 
 # Maintenance recipes
 
@@ -103,7 +103,7 @@ Only `scan-progress` and `scan-detail` exist; prefer reusing them with a `task_i
 
 ## 10. Add a quick search to a sidebar block
 
-Examples: Folders (`main.js`, search `folderSearchQuery`), Albums (`albums-panel.js`, `computeSearchShown`), People (`faces-panel.js`, `visiblePersons`). The field itself is `sidebar-search.js`; the caller only filters.
+Examples: Folders (`folder-tree.js`, search `folderSearchQuery`), Albums (`albums-panel.js`, `computeSearchShown`), People (`faces-panel.js`, `visiblePersons`). The field itself is `sidebar-search.js`; the caller only filters.
 
 1. Markup in the block's title row (`.sidebar-block-header`, `index.html`): a hidden `<div id="<name>-search" class="sidebar-search">` holding `<input id="<name>-search-input" class="sidebar-search-input" type="text">` and `<button id="<name>-search-clear" class="sidebar-search-clear">×</button>`, then `<button id="<name>-search-open" class="sidebar-block-tool">` with the magnifier SVG, both **before** any right-hand button (the field grows to the left of the tools). The title button must be `id="<name>-toggle"` (the module clicks it to unfold a collapsed block). Texts through `data-i18n-placeholder`, `-aria-label` and `-title`.
 2. Call `initSidebarSearch({ name, onChange(query, previous) })` once at init. `query` is already normalized (`normalizeSearch`, trimmed, `''` = no filter); closing the field empties it, so the end of a search is always `query === '' && previous !== ''`.

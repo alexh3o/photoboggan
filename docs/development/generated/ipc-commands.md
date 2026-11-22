@@ -104,12 +104,12 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `export_integrity_report` | `main.rs` | `directory: String, preamble: String, headers: Vec<String>, rows: Vec<integrity::IntegrityIssue>` | `String` | async pool | photo-actions.js |
 | `open_folder_in_file_manager` | `main.rs` | `path: String` | `()` | async pool | photo-actions.js |
 | `create_subfolder` | `main.rs` | `parent: String, name: String` | `()` | async pool | photo-actions.js |
-| `list_disk_folders` | `main.rs` | — | `Vec<String>` | async pool | main.js |
+| `list_disk_folders` | `main.rs` | — | `Vec<String>` | async pool | folder-tree.js |
 | `get_photos_by_paths` | `main.rs` | `paths: Vec<String>` | `Vec<Photo>` | main thread | main.js |
 | `get_photos_by_ids` | `main.rs` | `ids: Vec<i64>` | `Vec<Photo>` | main thread | semantic-keywords.js, semantic-results.js |
 | `get_photos_paginated` | `main.rs` | `offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: Option<String>, sort_order: Option<String>, prefilter: Option<db::PhotoPrefilter>` | `Vec<Photo>` | async pool | find-raw-mode.js, main.js ×2 |
 | `count_photos` | `main.rs` | `folder_filter: Option<String>, recursive: bool, prefilter: Option<db::PhotoPrefilter>` | `Option<i64>` | async pool | main.js |
-| `get_folder_counts` | `main.rs` | — | `std::collections::HashMap<String, i64>` | async pool | main.js |
+| `get_folder_counts` | `main.rs` | — | `std::collections::HashMap<String, i64>` | async pool | folder-tree.js |
 | `update_photos_marking` | `main.rs` | `photos: Vec<MarkingTarget>, rating: Option<i32>, color_flag: Option<String>, pick_flag: Option<String>, task_id: Option<String>` | `MarkingResult` | async pool | main.js |
 | `rotate_photos` | `main.rs` | `photos: Vec<MarkingTarget>, quarter_turns: i32, task_id: Option<String>` | `RotationResult` | async pool | main.js |
 | `get_photo_details` | `main.rs` | `path: String` | `exif::MetadataDetails` | async pool | photo-actions.js |

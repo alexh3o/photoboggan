@@ -7,7 +7,6 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { DEFAULTS, readBool, readChoice, readNumber, readStored } from './settings-defaults.js';
 import { APP_FONTS, APP_FONT_IDS, fontStack } from './app-fonts.js';
 import { LANGUAGES, getLanguage, setLanguage, applyTranslations, t, tp, labelWithColon, onLanguageChange, normalizeSearch } from './i18n.js';
-import { initSidebarSearch } from './sidebar-search.js';
 import { initPhotoActions, showPhotoInfo, copyPhotosTo, copyPhotosToClipboard, resizePhotos, confirmAndDelete, renamePhoto, revealInFileManager, openWithFirstProgram, confirmDialog, openContextMenuAt, showIntegrityReport } from './photo-actions.js';
 import { initMetadataSettings, topPickFormat, onPickOrderChange } from './metadata-settings.js';
 import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, onAnalysisChanged, isSemanticEnabled, analyseContent } from './semantic-settings.js';
@@ -63,7 +62,12 @@ import { initToolbarAria } from './toolbar-a11y.js';
 import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
 import { initTitleBar } from './titlebar.js';
 import { orientationMatrix, swapsSides } from './orientation.js';
-import { pinnedFolderRows } from './sticky-folders.js';
+import {
+  initFolderTree, renderFolderTree, scheduleFolderCounts, refreshDiskFoldersIfShown,
+  addCreatedFolder, selectFolder, rememberCurrentFolder, foldersMenuItems,
+  getFolderPhotoCount, expandFolderAncestors, revealActiveFolderRow,
+  forgetDeletedFolder, renameFolderInTree,
+} from './folder-tree.js';
 import { isRawPath, isVideoPath } from './file-kinds.js';
 import { dateFilter, dateFilterInput, setDateFilter, matchesDateFilter, parseDateFilter, photoTimeKey, photoDateKey, isValidDateKey, updateDateFilterUI, closeDatePicker, isDatePickerOpen, refreshDatePickerLanguage, initDateFilter } from './date-filter.js';
 import {
@@ -380,7 +384,6 @@ let fullscreenDirection = 1;
 // Settings > Storage > Thumbnail cache: while the full-resolution photo decodes, show its cached thumbnail (off by default).
 let fullscreenThumbnailPreload = readBool('fullscreenThumbnailPreload');
 const sidebarPanel = document.getElementById('sidebar-panel');
-const folderTree = document.getElementById('folder-tree');
 const settingsModal = document.getElementById('settings-modal');
 const settingsFolderList = document.getElementById('settings-folder-list');
 const renderedThumbnailNodes = new Map();
@@ -1982,138 +1985,6 @@ function decodeHtmlEntities(text) {
   return doc.documentElement.textContent;
 }
 
-// ==========================================
-// ARBORESCENCE & FILTRES
-// ==========================================
-// `fromCounts`: redraw that must not ask for the folder counts again (new counts have just arrived, or the text of the quick search changed).
-function renderFolderTree({ fromCounts = false } = {}) {
-  folderTree.innerHTML = '';
-  folderTree.appendChild(stickyFolderLayer); // first child: the zero-height layer of the pinned ancestor rows (see STICKY FOLDERS)
-  if (!fromCounts) scheduleFolderCounts(); // photos may have changed (scan, move, deletion…): re-read the catalogue folders
-
-  const allItem = document.createElement('li');
-  allItem.className = `folder-tree-item folder-tree-pinned ${currentFolderFilter === null && !getSelectedAlbum() ? 'active' : ''}`;
-  allItem.dataset.allPhotos = '1'; // read by the context menu (photo-actions.js)
-  allItem.innerHTML = `<span>📚</span> <span class="folder-tree-name">${t('All photos')}</span>`;
-  if (showFolderCounts) allItem.append(folderCountElement(folderCountsTotal, 'in this folder'));
-  allItem.addEventListener('click', () => selectFolder(null));
-  folderTree.appendChild(allItem);
-  const roots = folders.map(folder => ({ path: folder.path.replace(/[\\/]+$/, ''), name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path, children: new Map() }));
-  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  // `empty` : dossier sans photo ; seuls les nœuds créés par cet appel sont marqués (ceux déjà déduits des photos ne le sont jamais).
-  const addFolderToTree = (parent, empty = false) => {
-    const root = roots.find(candidate => {
-      const rootPath = candidate.path.replace(/\\/g, '/').replace(/\/+$/, '');
-      return normalize(parent) === normalize(rootPath) || normalize(parent).startsWith(`${normalize(rootPath)}/`);
-    });
-    if (!root) return;
-    const rootPath = root.path.replace(/\\/g, '/').replace(/\/+$/, '');
-    const relative = parent.slice(rootPath.length).replace(/^\//, '');
-    let node = root;
-    let currentPath = root.path;
-    for (const segment of relative.split('/').filter(Boolean)) {
-      currentPath += `/${segment}`;
-      if (!node.children.has(segment)) node.children.set(segment, { path: currentPath, name: segment, children: new Map(), empty });
-      node = node.children.get(segment);
-    }
-  };
-  // Every folder holding at least one catalogued photo, read from the whole catalogue: the loaded photo list is capped
-  // (50,000 most recent), so older folders would otherwise be missing, or shown as empty by the disk listing below.
-  for (const folderPath of catalogFolders) addFolderToTree(folderPath);
-  // Loaded photos too: they draw the tree right away, before the first catalogue read answers.
-  for (const photo of (folderTreePhotos.length ? folderTreePhotos : loadedPhotos)) {
-    const photoPath = photo.path.replace(/\\/g, '/');
-    addFolderToTree(photoPath.slice(0, photoPath.lastIndexOf('/')));
-  }
-  // Dossiers créés depuis l'application et encore vides : l'arborescence est déduite des photos, ils n'y figureraient pas sinon.
-  for (const folderPath of createdFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''));
-  // Option « Afficher les dossiers sans photo » : tous les dossiers présents sur le disque (listés par `refreshDiskFolders`).
-  if (showEmptyFolders) for (const folderPath of diskFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''), true);
-  // Quick search of the Folders block (sidebar-search.js): a folder is kept when its name contains the text, or when one of its descendants does (the
-  // hierarchy above a result stays). The subfolders of a match are not kept unless they match too.
-  const searching = folderSearchQuery !== '';
-  const markSearchResults = node => {
-    const keptChildren = [...node.children.values()].map(child => markSearchResults(child)); // every child is marked, even when the node itself matches
-    node.searchShown = normalizeSearch(node.name).includes(folderSearchQuery) || keptChildren.some(Boolean);
-    return node.searchShown;
-  };
-  if (searching) roots.forEach(markSearchResults);
-  const renderNode = (node, parentElement, depth, isRoot = false) => {
-    if (searching && !node.searchShown) return;
-    const li = document.createElement('li');
-    const isActiveFolder = !getSelectedAlbum() && [currentFolderFilter, ...extraFolderFilters].some(folder => folder && normalize(folder) === normalize(node.path));
-    li.className = `folder-tree-item ${isActiveFolder ? 'active' : ''} ${node.empty ? 'folder-empty' : ''}`;
-    li.dataset.folderPath = node.path; // lu par le menu contextuel de l'arborescence (photo-actions.js)
-    li.dataset.folderDepth = String(depth); // indentation level (0 = tracked folder), read by the sticky folders
-    if (isRoot) li.dataset.folderRoot = '1'; // dossier suivi (et non sous-dossier) : message de confirmation de suppression
-    li.style.paddingLeft = `${10 + depth * 16}px`;
-    const key = normalize(node.path);
-    // While the quick search filters the tree, only the folders it keeps count, unfolded unless folded by hand since the text last changed.
-    // The real fold state (`folderTreeExpanded`) is left alone: it is back as soon as the search ends.
-    const hasChildren = searching ? [...node.children.values()].some(child => child.searchShown) : node.children.size > 0;
-    const expanded = searching ? hasChildren && !folderSearchCollapsed.has(key) : folderTreeExpanded.has(key) || (isRoot && !folderTreeInitialized);
-    const toggle = document.createElement('button');
-    toggle.className = 'folder-tree-toggle';
-    toggle.textContent = hasChildren ? (expanded ? '▾' : '▸') : ' ';
-    toggle.setAttribute('aria-label', t(expanded ? 'Collapse folder' : 'Expand folder'));
-    toggle.addEventListener('click', event => {
-      event.stopPropagation();
-      toggleFolderFold(key, expanded);
-    });
-    const icon = document.createElement('span'); icon.className = `folder-tree-icon${isRoot ? ' folder-tree-icon-root' : ''}`; icon.textContent = '📁';
-    const label = document.createElement('span'); label.className = 'folder-tree-name'; label.textContent = node.name; label.title = node.path;
-    li.append(toggle, icon, label);
-    if (showFolderCounts) {
-      // Dossier replié avec « inclure les sous-dossiers » : le nombre résume ce qui est caché ; sinon, seulement le niveau du dossier
-      // (déplié, ses sous-dossiers affichent les leurs).
-      const summarizesChildren = hasChildren && !expanded && includeSubfolders;
-      li.append(summarizesChildren
-        ? folderCountElement(folderCountsTree.get(key) ?? 0, 'with its subfolders')
-        : folderCountElement(folderCountsOwn.get(key) ?? 0, 'in this folder'));
-    }
-    // Ctrl (Cmd on macOS) + click adds the folder to / removes it from the multiple selection.
-    li.addEventListener('click', event => {
-      if (event.ctrlKey || event.metaKey) toggleFolderInSelection(node.path); else selectFolder(node.path);
-    });
-    parentElement.appendChild(li);
-    if (expanded) for (const child of [...node.children.values()].sort((a, b) => a.name.localeCompare(b.name))) renderNode(child, parentElement, depth + 1);
-  };
-  for (const root of roots) {
-    if (!folderTreeInitialized) folderTreeExpanded.add(normalize(root.path));
-    renderNode(root, folderTree, 0, true);
-  }
-  folderTreeInitialized = true;
-  saveFolderTreeExpanded(); // the real fold state (never the temporary one of the quick search) survives a restart
-  // Quick search without any result ("All photos" stays, it is the pinned row of the list).
-  if (searching && folders.length > 0 && !roots.some(root => root.searchShown)) {
-    const none = document.createElement('li');
-    none.className = 'folder-tree-empty';
-    const message = document.createElement('p');
-    message.textContent = t('No matching folder');
-    none.append(message);
-    folderTree.appendChild(none);
-  }
-  // Aucun dossier suivi (premier lancement) : l'arborescence propose directement d'en ajouter un, sans passer par les Paramètres.
-  if (folders.length === 0) {
-    const empty = document.createElement('li');
-    empty.className = 'folder-tree-empty';
-    const message = document.createElement('p');
-    message.textContent = t('No folder yet. Add a folder to start.');
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = 'btn-highlight';
-    addButton.textContent = t('Add folder');
-    addButton.addEventListener('click', () => document.getElementById('btn-add-folder').click());
-    empty.append(message, addButton);
-    folderTree.appendChild(empty);
-  }
-  indexStickyFolders(); // the rows are new: pin the ancestors of the first visible one
-}
-
-// Compteurs de l'option « Montrer le nombre de photos des dossiers » : photos et vidéos du catalogue, sans filtre, calculées côté Rust.
-// Clés normalisées comme celles de l'arbre (« / », minuscules, sans « / » final) ; `Own` = niveau du dossier, `Tree` = avec ses sous-dossiers.
-let showFolderCounts = readBool('showFolderCounts');
-
 // Pastille des photos géolocalisées sur les miniatures (Options d'affichage, désactivée par défaut) : simple classe sur <body>.
 const GEO_BADGE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>';
 const showGeoBadgesToggle = document.getElementById('show-geo-badges-toggle');
@@ -2122,344 +1993,6 @@ document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
 showGeoBadgesToggle.addEventListener('change', () => {
   localStorage.setItem('showGeoBadges', String(showGeoBadgesToggle.checked));
   document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
-});
-let folderCountsOwn = new Map();
-let folderCountsTree = new Map();
-let folderCountsTotal = 0;
-let folderCountsSignature = '';
-let folderCountsTimer = null;
-function folderCountElement(count, scope) {
-  const element = document.createElement('span');
-  element.className = 'folder-tree-count';
-  element.textContent = String(count);
-  const titleKey = scope === 'with its subfolders' ? '{count} photo or video with its subfolders' : '{count} photo or video in this folder';
-  element.title = tp(titleKey, count);
-  return element;
-}
-// Folders of the whole catalogue (original case, "/" separators), from the same query as the counts: the tree is built from them.
-let catalogFolders = [];
-// Re-reads the catalogue folders and their counts (once per burst of redraws), whether or not counts are shown: the tree needs
-// the folder list. The tree is redrawn only when something changed.
-function scheduleFolderCounts() {
-  clearTimeout(folderCountsTimer);
-  folderCountsTimer = setTimeout(async () => {
-    let raw;
-    try {
-      raw = await invoke('get_folder_counts');
-    } catch (error) {
-      console.debug('Folder counts unavailable', error);
-      return; // keep the previous list rather than emptying the tree
-    }
-    const signature = JSON.stringify(raw);
-    if (signature === folderCountsSignature) return;
-    folderCountsSignature = signature;
-    catalogFolders = Object.keys(raw).filter(Boolean);
-    folderCountsOwn = new Map();
-    folderCountsTree = new Map();
-    folderCountsTotal = 0;
-    for (const [dir, count] of Object.entries(raw)) {
-      const key = dir.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-      folderCountsOwn.set(key, (folderCountsOwn.get(key) ?? 0) + count);
-      folderCountsTotal += count;
-      // Chaque dossier parent du chemin cumule aussi ce nombre (total du sous-arbre).
-      for (let cut = key.indexOf('/', 1); ; cut = key.indexOf('/', cut + 1)) {
-        const ancestor = cut === -1 ? key : key.slice(0, cut);
-        folderCountsTree.set(ancestor, (folderCountsTree.get(ancestor) ?? 0) + count);
-        if (cut === -1) break;
-      }
-    }
-    renderFolderTree({ fromCounts: true });
-  }, 150);
-}
-// Fold state of the tree (normalized paths of the unfolded folders), remembered between launches: `saveFolderTreeExpanded` runs after each draw.
-const FOLDER_TREE_EXPANDED_KEY = 'folderTreeExpanded';
-// Saved list of unfolded folders, or null when nothing valid is saved (first launch): the roots then start unfolded, see `folderTreeInitialized`.
-function readFolderTreeExpanded() {
-  const stored = readStored(FOLDER_TREE_EXPANDED_KEY);
-  if (stored === null) return null;
-  try {
-    const parsed = JSON.parse(stored);
-    if (Array.isArray(parsed) && parsed.every(path => typeof path === 'string')) return parsed;
-  } catch { /* unreadable value: treated as nothing saved */ }
-  return null;
-}
-const savedFolderTreeExpanded = readFolderTreeExpanded();
-const folderTreeExpanded = new Set(savedFolderTreeExpanded ?? []);
-let savedFolderTreeSignature = savedFolderTreeExpanded === null ? null : JSON.stringify([...folderTreeExpanded].sort());
-// Writes the fold state only when it changed since the last write (the tree is redrawn often: counts, quick search…).
-function saveFolderTreeExpanded() {
-  const signature = JSON.stringify([...folderTreeExpanded].sort());
-  if (signature === savedFolderTreeSignature) return;
-  savedFolderTreeSignature = signature;
-  try { localStorage.setItem(FOLDER_TREE_EXPANDED_KEY, signature); } catch { /* storage unavailable: the fold state is not remembered */ }
-}
-// Quick search of the Folders block (sidebar-search.js): normalized text, '' = no filter. While it is set, the tree only holds the folders whose name contains it
-// and their ancestors, all unfolded; `folderSearchCollapsed` holds the ones the user folded by hand meanwhile (reset with each new text).
-let folderSearchQuery = '';
-const folderSearchCollapsed = new Set();
-const createdFolders = new Set(); // sous-dossiers créés pendant cette session (voir renderFolderTree)
-let showEmptyFolders = readBool('showEmptyFolders');
-let diskFolders = []; // sous-dossiers présents sur le disque, lus seulement si showEmptyFolders est actif
-// Relit les sous-dossiers du disque puis redessine l'arborescence ; sans l'option, la liste est vidée et rien n'est lu.
-async function refreshDiskFolders() {
-  try {
-    diskFolders = showEmptyFolders ? await invoke('list_disk_folders') : [];
-  } catch (error) {
-    console.debug('Disk folder list unavailable', error);
-    diskFolders = [];
-  }
-  renderFolderTree();
-}
-// True as soon as the roots must no longer be forced open: after the first draw, or from the start when the fold state of a previous launch was restored.
-let folderTreeInitialized = savedFolderTreeExpanded !== null;
-// Appelé après la création d'un sous-dossier : il apparaît tout de suite dans l'arborescence, dossier parent déplié.
-function addCreatedFolder(parentPath, name) {
-  createdFolders.add(`${parentPath.replace(/[\\/]+$/, '')}/${name}`);
-  folderTreeExpanded.add(parentPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase());
-  renderFolderTree();
-}
-// Mémorise le dossier ouvert dans l'arbre (null = Toutes les photos), relu au démarrage si l'utilisateur l'a choisi.
-function rememberCurrentFolder() {
-  if (currentFolderFilter === null) localStorage.removeItem('lastFolderFilter');
-  else localStorage.setItem('lastFolderFilter', currentFolderFilter);
-}
-function selectFolder(path) {
-  // Album intelligent modifié : Enregistrer / Abandonner / Annuler avant de le quitter.
-  if (isSelectedAlbumDirty()) {
-    confirmLeaveAlbum().then(proceed => { if (proceed) selectFolder(path); });
-    return;
-  }
-  abandonRawSearch(); // naviguer à la main termine « Trouver le RAW » : les filtres d'avant la recherche reviennent
-  abandonDuplicateSearch(); // same for the duplicate search
-  abandonSemanticSearch(); // and the content search
-  clearAlbumSelection(); // une seule entrée active dans la barre latérale
-  syncSmartAlbumWithSelection(); // quitter un album intelligent remet ses filtres à zéro
-  currentPhotoPage = 0; // new view: first page
-  currentFolderFilter = path;
-  extraFolderFilters = [];
-  rememberCurrentFolder();
-  renderFolderTree();
-  loadPhotos();
-}
-
-// Folds / unfolds a folder row (its arrow, a double-click). `expanded`: whether the row is unfolded now. While the quick search filters the tree, only the
-// temporary fold state of the search changes: the real one is kept for when the search ends.
-function toggleFolderFold(key, expanded) {
-  if (folderSearchQuery) {
-    if (expanded) folderSearchCollapsed.add(key); else folderSearchCollapsed.delete(key);
-  } else {
-    if (expanded) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
-    folderTreeInitialized = true;
-  }
-  renderFolderTree();
-}
-
-// Quick search of the Folders block: filters the tree live (see renderFolderTree). Once the filter is gone (field closed or emptied), the tree is back to its
-// real fold state, with the ancestors of the selected folders unfolded and the selected folder scrolled into view if needed.
-initSidebarSearch({
-  name: 'folders',
-  onChange: (query, previous) => {
-    folderSearchQuery = query;
-    folderSearchCollapsed.clear();
-    const filterEnded = !query && Boolean(previous);
-    if (filterEnded && !getSelectedAlbum()) {
-      for (const folder of [currentFolderFilter, ...extraFolderFilters]) {
-        if (!folder) continue;
-        const segments = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase().split('/');
-        for (let n = 1; n < segments.length; n++) folderTreeExpanded.add(segments.slice(0, n).join('/')); // every proper ancestor
-      }
-    }
-    renderFolderTree({ fromCounts: true }); // the counts do not change with the text: no new request
-    if (filterEnded) revealFolderRow(folderTree.querySelector(':scope > .folder-tree-item.active'));
-  },
-});
-
-// Entries of the Folders menu (right-click on the "Folders" title, also appended to the "All photos" menu): fold every folder, or unfold the
-// ancestors of the folders holding the selected photos. Built each time a menu opens, since the selection changes.
-function foldersMenuItems() {
-  const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  const selectedFolders = new Set();
-  for (const index of selectedIndices) {
-    const path = photos[index]?.path;
-    if (path) selectedFolders.add(normalize(path.slice(0, Math.max(path.search(/[\\/][^\\/]*$/), 0))));
-  }
-  return [
-    { label: t('Collapse all'), title: t('Fold every folder'), onSelect: () => {
-      folderTreeExpanded.clear();
-      folderTreeInitialized = true; // otherwise the tracked folders would be unfolded again as on first display
-      renderFolderTree();
-    } },
-    {
-      label: tp('Expand to the selected photo', selectedIndices.size),
-      title: t('Unfold the folders needed to see the selected photos'),
-      disabled: selectedFolders.size === 0,
-      onSelect: () => {
-        // Every proper ancestor of a photo's folder must be unfolded for that folder to show.
-        for (const folder of selectedFolders) {
-          for (let cut = folder.indexOf('/', 1); cut !== -1; cut = folder.indexOf('/', cut + 1)) folderTreeExpanded.add(folder.slice(0, cut));
-        }
-        folderTreeInitialized = true;
-        renderFolderTree();
-      },
-    },
-  ];
-}
-
-document.getElementById('folders-toggle').addEventListener('contextmenu', event => {
-  openContextMenuAt(event, [{ header: t('Folders') }, ...foldersMenuItems()]);
-});
-
-// Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
-function toggleFolderInSelection(path) {
-  const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  if (currentFolderFilter === null || getSelectedAlbum() || isDuplicateSearchActive() || isRawSearchActive() || isSemanticSearchActive()) { selectFolder(path); return; }
-  if (isSelectedAlbumDirty()) { selectFolder(path); return; }
-  if (same(currentFolderFilter, path)) {
-    if (extraFolderFilters.length === 0) return; // the only selected folder stays selected
-    // The main folder is deselected: the first extra one takes over.
-    [currentFolderFilter, ...extraFolderFilters] = extraFolderFilters;
-    rememberCurrentFolder();
-  } else if (extraFolderFilters.some(folder => same(folder, path))) {
-    extraFolderFilters = extraFolderFilters.filter(folder => !same(folder, path));
-  } else {
-    extraFolderFilters.push(path);
-  }
-  currentPhotoPage = 0; // the folders changed: first page
-  renderFolderTree();
-  loadPhotos();
-}
-
-// Double-click on a folder row folds / unfolds it (same as its arrow). The tree is redrawn by the first click (and again when the photos load), so the
-// row under the second click is a new element and the browser may never fire `dblclick` on it: the second `mousedown` (detail 2) is used instead.
-folderTree.addEventListener('mousedown', event => {
-  if (event.detail !== 2 || event.button !== 0 || event.ctrlKey || event.metaKey || event.target.closest('.folder-tree-toggle')) return;
-  event.preventDefault(); // no text selection on a double-click
-  const row = event.target.closest('li[data-folder-path]');
-  if (!row) return;
-  const key = row.dataset.folderPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  const arrow = row.querySelector('.folder-tree-toggle')?.textContent.trim();
-  if (!arrow) return; // no subfolder
-  toggleFolderFold(key, arrow === '▾'); // the arrow tells whether the row is unfolded, also while a search filters the tree
-});
-
-// ==========================================
-// STICKY FOLDERS (pinned ancestors of the first visible row)
-// ==========================================
-// While a big folder is scrolled, its ancestors stay pinned at the top of the tree, one row per level and indented like in the tree, so the user
-// always knows which folders they are under. The tree is a flat list of rows (the indentation is `data-folder-depth`), so CSS `position: sticky` cannot
-// stack the levels; a layer of copies of the ancestor rows is drawn over the top of the list instead. The layer is a sticky <li> without height (same
-// trick as the marking bar of the grid), so it never changes the layout of the real rows, which stay the only ones in the flow.
-// Level n is pinned in slot n, as nested sticky boxes would be, and its end pushes it up as the end of its subtree reaches it. When the panel is too short
-// for all the levels, the deepest ones are kept. Clicks on a copy are forwarded to the real row (select, Ctrl + click, fold); the context menu, the
-// double-click fold and the photo drop target work on the copies as they carry the same `data-folder-*` attributes.
-const STICKY_FOLDERS_MAX_SHARE = 0.4; // the pinned rows never take more than this share of the height of the tree
-const stickyFolderLayer = document.createElement('li');
-stickyFolderLayer.className = 'folder-tree-sticky';
-stickyFolderLayer.setAttribute('aria-hidden', 'true'); // the real rows stay in the DOM: assistive technologies do not need the copies
-let stickyFolderIndex = null; // structure of the rows of the last render: { rows, depths, parents, ends }
-const stickyFolderCopies = new Map(); // row index -> its copy, created on demand and dropped by every render
-const stickyFolderSources = new WeakMap(); // copy -> real row
-let stickyFolderFrame = 0;
-
-// `pinnedFolderRows` (which rows are pinned for a scroll position) is a pure function: see sticky-folders.js.
-
-// Size of the rows of the tree: `height` of a row, `pitch` = distance between two rows (height + margin), `maxSlots` = pinned rows the panel can afford.
-function stickyFolderMetrics(row) {
-  const height = row.offsetHeight;
-  const pitch = height + (parseFloat(getComputedStyle(row).marginBottom) || 0);
-  const maxSlots = pitch > 0 ? Math.floor(folderTree.clientHeight * STICKY_FOLDERS_MAX_SHARE / pitch) : 0;
-  return { height, pitch, maxSlots };
-}
-
-// Copy of a real row for the layer. Its buttons leave the tab order (the real row is the one to reach by keyboard).
-function makeStickyFolderCopy(row) {
-  const copy = row.cloneNode(true);
-  copy.classList.add('folder-tree-sticky-row');
-  for (const button of copy.querySelectorAll('button')) button.tabIndex = -1;
-  stickyFolderSources.set(copy, row);
-  return copy;
-}
-
-// Draws the pinned rows for the current scroll position. Cheap enough to run on every scroll frame: a few binary searches, copies are reused.
-function updateStickyFolders() {
-  const index = stickyFolderIndex;
-  if (!index || !index.rows.length || !folderTree.clientHeight) {
-    stickyFolderLayer.replaceChildren(); // nothing to pin (no folder, or the tree is folded away)
-    return;
-  }
-  const { rows, depths, parents, ends } = index;
-  const { pitch, maxSlots } = stickyFolderMetrics(rows[0]);
-  stickyFolderLayer.style.top = `${pitch}px`; // the pinned ancestors sit right under the "All photos" row, which is itself pinned (.folder-tree-pinned)
-  const lastRow = rows[rows.length - 1];
-  const pinned = maxSlots < 1 ? [] : pinnedFolderRows({
-    depths, parents, ends, pitch, maxSlots,
-    topOf: position => rows[position].offsetTop,
-    listEnd: lastRow.offsetTop + pitch,
-    scrollTop: folderTree.scrollTop + pitch, // slots start under the pinned "All photos" row
-  });
-  const copies = pinned.map(({ index: rowIndex, slot, pushed }, position) => {
-    let copy = stickyFolderCopies.get(rowIndex);
-    if (!copy) {
-      copy = makeStickyFolderCopy(rows[rowIndex]);
-      stickyFolderCopies.set(rowIndex, copy);
-    }
-    copy.style.height = `${pitch}px`; // a full pitch, so that the rows of the list do not show through the margin between two copies
-    copy.style.transform = `translateY(${slot * pitch + pushed}px)`;
-    copy.style.zIndex = String(pinned.length - position); // a parent stays above its children: a child pushed out by the end of its subtree slides under it
-    copy.classList.toggle('is-last', position === pinned.length - 1); // the last one carries the separator under the pinned block
-    return copy;
-  });
-  const current = stickyFolderLayer.children;
-  if (copies.length !== current.length || copies.some((copy, position) => copy !== current[position])) stickyFolderLayer.replaceChildren(...copies);
-}
-
-function scheduleStickyFolders() {
-  if (stickyFolderFrame) return;
-  stickyFolderFrame = requestAnimationFrame(() => {
-    stickyFolderFrame = 0;
-    updateStickyFolders();
-  });
-}
-
-// Called by every render of the tree: reads the structure of the new rows (depths, parent and end of each subtree), then draws the layer.
-function indexStickyFolders() {
-  stickyFolderCopies.clear();
-  stickyFolderLayer.replaceChildren();
-  const rows = [...folderTree.querySelectorAll(':scope > li[data-folder-path]')]; // "All photos" is no folder row; the copies are not direct children
-  const depths = rows.map(row => Number(row.dataset.folderDepth) || 0);
-  const parents = new Array(rows.length).fill(-1);
-  const ends = new Array(rows.length).fill(rows.length);
-  const open = []; // rows whose subtree is still being read, outermost first
-  depths.forEach((depth, position) => {
-    while (open.length && depths[open[open.length - 1]] >= depth) ends[open.pop()] = position;
-    parents[position] = open.length ? open[open.length - 1] : -1;
-    open.push(position);
-  });
-  stickyFolderIndex = { rows, depths, parents, ends };
-  updateStickyFolders();
-}
-
-// Scrolls a row into view below the pinned rows that would otherwise hide it (`scroll-padding-top` is honoured by scrollIntoView).
-function revealFolderRow(row) {
-  if (!row) return;
-  const { pitch, maxSlots } = stickyFolderMetrics(stickyFolderIndex?.rows[0] ?? row);
-  folderTree.style.scrollPaddingTop = `${(Math.min(Number(row.dataset.folderDepth) || 0, maxSlots) + 1) * pitch}px`;
-  row.scrollIntoView({ block: 'nearest' });
-  folderTree.style.scrollPaddingTop = '';
-}
-
-folderTree.addEventListener('scroll', scheduleStickyFolders, { passive: true });
-new ResizeObserver(scheduleStickyFolders).observe(folderTree); // panel resized, or folded away and shown again
-
-// A click on a pinned row does what a click on the real row does, with the same modifier keys (Ctrl + click: multiple selection).
-stickyFolderLayer.addEventListener('click', event => {
-  const target = event.target instanceof Element ? event.target : null;
-  const row = stickyFolderSources.get(target?.closest('.folder-tree-sticky-row'));
-  if (!row?.isConnected) return;
-  const destination = target.closest('.folder-tree-toggle') ? row.querySelector('.folder-tree-toggle') : row;
-  destination.dispatchEvent(new MouseEvent('click', {
-    bubbles: true, cancelable: true, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, altKey: event.altKey,
-  }));
 });
 
 // ==========================================
@@ -2526,8 +2059,7 @@ async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
   currentPhotoPage = 0;
   rememberCurrentFolder();
   // Dossiers parents dépliés pour que le dossier soit visible dans l'arbre (comme à la reprise du dernier dossier au démarrage).
-  const segments = folder.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase().split('/');
-  for (let n = 1; n < segments.length; n++) folderTreeExpanded.add(segments.slice(0, n).join('/'));
+  expandFolderAncestors(folder);
   renderFolderTree();
   await loadPhotos();
   const index = photos.findIndex(candidate => candidate.path === photo.path);
@@ -2539,7 +2071,7 @@ async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
     renderVisibleItems();
     updateUIOnSelection();
   }
-  revealFolderRow(folderTree.querySelector(':scope > .folder-tree-item.active')); // direct children only: the pinned copies are not the real row
+  revealActiveFolderRow();
 }
 
 // Everything needed to come back to the current view after a results mode (folder or album, filters, scroll, selection).
@@ -5661,20 +5193,6 @@ keywordFilterSuggest = createFilterSuggest({
 document.getElementById('filename-filter-input').addEventListener('keydown', event => {
   if (event.key === 'Enter') { event.preventDefault(); addFilenameFilter(event.target.value, event.altKey); }
 });
-document.getElementById('show-empty-folders-toggle').checked = showEmptyFolders;
-document.getElementById('show-empty-folders-toggle').addEventListener('change', event => {
-  showEmptyFolders = event.target.checked;
-  localStorage.setItem('showEmptyFolders', String(showEmptyFolders));
-  refreshDiskFolders();
-});
-if (showEmptyFolders) refreshDiskFolders();
-document.getElementById('show-folder-counts-toggle').checked = showFolderCounts;
-document.getElementById('show-folder-counts-toggle').addEventListener('change', event => {
-  showFolderCounts = event.target.checked;
-  localStorage.setItem('showFolderCounts', String(showFolderCounts));
-  folderCountsSignature = ''; // force la relecture à la prochaine activation
-  renderFolderTree();
-});
 document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
 document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
   const wanted = event.target.checked;
@@ -5692,7 +5210,7 @@ async function reloadPhotosAfterRescan() {
     folderTreePhotos = await queryPhotoPage(null);
   }
   await loadPhotos();
-  if (showEmptyFolders) refreshDiskFolders();
+  refreshDiskFoldersIfShown();
 }
 
 // After a pause, the photos read so far are added to the grid without the full reload (same in-place refresh as library sync).
@@ -5700,6 +5218,29 @@ async function refreshAfterPausedScan() {
   if (getSelectedAlbum() || isDuplicateSearchActive() || isSemanticSearchActive()) return;
   await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
 }
+
+// Folder tree, counts, empty folders, quick search, fold state and sticky folders: see folder-tree.js.
+initFolderTree({
+  getFolders: () => folders,
+  getCurrentFolderFilter: () => currentFolderFilter,
+  setCurrentFolderFilter: path => { currentFolderFilter = path; },
+  getExtraFolderFilters: () => extraFolderFilters,
+  setExtraFolderFilters: list => { extraFolderFilters = list; },
+  getIncludeSubfolders: () => includeSubfolders,
+  setCurrentPhotoPage: page => { currentPhotoPage = page; },
+  getFolderTreePhotos: () => folderTreePhotos,
+  getLoadedPhotos: () => loadedPhotos,
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  loadPhotos: () => loadPhotos(),
+  abandonRawSearch: () => abandonRawSearch(),
+  abandonDuplicateSearch: () => abandonDuplicateSearch(),
+  abandonSemanticSearch: () => abandonSemanticSearch(),
+  syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
+  isDuplicateSearchActive: () => isDuplicateSearchActive(),
+  isRawSearchActive: () => isRawSearchActive(),
+  isSemanticSearchActive: () => isSemanticSearchActive(),
+});
 
 // Task queue (see task-queue.js): sequential main lane, parallel semantic lane, toasts, tasks modal, pause/resume and backend progress events.
 initTaskQueue({
@@ -5797,9 +5338,7 @@ function applyDeletedFolder(deletedPath, removedPaths) {
   const normalize = value => value.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
   const deleted = normalize(deletedPath);
   const isInside = value => normalize(value) === deleted || normalize(value).startsWith(`${deleted}/`);
-  for (const created of [...createdFolders]) if (isInside(created)) createdFolders.delete(created);
-  diskFolders = diskFolders.filter(folder => !isInside(folder)); // sinon le dossier supprimé resterait dans l'arbre (option « dossiers sans photo »)
-  for (const key of [...folderTreeExpanded]) if (isInside(key)) folderTreeExpanded.delete(key);
+  forgetDeletedFolder(deletedPath);
   const viewAffected = currentFolderFilter !== null && isInside(currentFolderFilter);
   extraFolderFilters = extraFolderFilters.filter(folder => !isInside(folder));
   removePhotosFromLibrary(removedPaths);
@@ -5823,7 +5362,7 @@ async function deleteFolderToTrash(path, { permanent = false } = {}) {
     showWriteToast(t(permanent ? 'Folder deleted' : 'Folder moved to the trash'));
   } catch (error) {
     showWriteToast(t('Folder deletion failed: {error}', { error }));
-    if (showEmptyFolders) refreshDiskFolders(); // le dossier a peut-être disparu du disque : l'arbre est resynchronisé
+    refreshDiskFoldersIfShown(); // le dossier a peut-être disparu du disque : l'arbre est resynchronisé
   } finally {
     photoMoveRunning = false;
   }
@@ -5862,10 +5401,7 @@ async function renameFolderOnDisk(path, newName) {
     const old = normalize(oldBase);
     const isInside = value => normalize(value) === old || normalize(value).startsWith(`${old}/`);
     const follow = value => `${newBase}${value.replace(/\/+$/, '').slice(oldBase.length)}`;
-    const followKey = key => normalize(`${newBase}${key.slice(old.length)}`);
-    for (const created of [...createdFolders]) if (isInside(created)) { createdFolders.delete(created); createdFolders.add(follow(created)); }
-    diskFolders = diskFolders.map(folder => (isInside(folder) ? follow(folder) : folder));
-    for (const key of [...folderTreeExpanded]) if (isInside(key)) { folderTreeExpanded.delete(key); folderTreeExpanded.add(followKey(key)); }
+    renameFolderInTree(oldBase, newBase);
     if (currentFolderFilter !== null && isInside(currentFolderFilter)) {
       currentFolderFilter = follow(currentFolderFilter);
       rememberCurrentFolder();
@@ -5873,7 +5409,7 @@ async function renameFolderOnDisk(path, newName) {
     extraFolderFilters = extraFolderFilters.map(folder => (isInside(folder) ? follow(folder) : folder));
     if (moved.length) await applyMovedPhotos(moved);
     renderFolderTree();
-    if (showEmptyFolders) refreshDiskFolders(); // relit le disque : un sous-dossier vide renommé garde la bonne casse
+    refreshDiskFoldersIfShown(); // relit le disque : un sous-dossier vide renommé garde la bonne casse
     showWriteToast(t('Folder renamed'));
     return null;
   } catch (error) {
@@ -6093,11 +5629,7 @@ initPhotoActions({
   deleteFolder: deleteFolderToTrash,
   // Folder menu header: number of photos (subfolders included if the option is checked), from the whole-catalogue counts
   // (the loaded photo list is capped and would undercount older folders). Unknown until the first counts read: no number.
-  folderPhotoCount: path => {
-    if (!folderCountsSignature) return undefined;
-    const folder = path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-    return (includeSubfolders ? folderCountsTree : folderCountsOwn).get(folder) ?? 0;
-  },
+  folderPhotoCount: getFolderPhotoCount,
   // Sous-menu « Visages » d'une photo affichée (aperçu, plein écran) : ajouter un visage, modes des zones, zones écartées
   faces: { getDisplay: getFaceDisplay, setMode: setFaceDisplayMode, setExtra: setFaceDisplayExtra, startDrawing: armFaceDrawing },
   // Sous-menu « Marquage » du menu des photos : note, couleur et fanion pick posés sur les photos du clic droit (pas sur la sélection)
@@ -6141,7 +5673,7 @@ initPrivacy();
 onPrivacyChange(async () => {
   await loadPhotos();
   scheduleFolderCounts();
-  if (showEmptyFolders) refreshDiskFolders();
+  refreshDiskFoldersIfShown();
   refreshAlbums();
 });
 initRawSettings(); // Settings > Search > RAW search: criteria of "Find the RAW"
@@ -6642,8 +6174,7 @@ async function restoreStartupFolder() {
   folderTreePhotos = library;
   currentFolderFilter = lastFolder;
   // Dossiers parents dépliés pour que le dossier ouvert soit visible dans l'arbre.
-  const segments = target.split('/');
-  for (let n = 1; n < segments.length; n++) folderTreeExpanded.add(segments.slice(0, n).join('/'));
+  expandFolderAncestors(lastFolder);
 }
 
 refreshStorageLocationUI();

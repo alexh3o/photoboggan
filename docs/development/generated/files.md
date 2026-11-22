@@ -63,11 +63,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 337 |  |
+| `files.md` | 338 |  |
 | `ipc-commands.md` | 193 |  |
-| `module-deps.md` | 117 |  |
-| `sections.md` | 445 |  |
-| `symbols-js.md` | 1620 |  |
+| `module-deps.md` | 118 |  |
+| `sections.md` | 451 |  |
+| `symbols-js.md` | 1631 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
@@ -84,7 +84,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `grid-and-viewer.md` | 116 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 82 |  |
-| `main-window.md` | 90 |  |
+| `main-window.md` | 91 |  |
 | `maps-and-geolocation.md` | 80 |  |
 | `metadata-read-write.md` | 129 |  |
 | `photo-operations.md` | 116 |  |
@@ -138,6 +138,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `find-raw-mode.js` | 127 | "Find the RAW" results mode: scope matching, banner rendering, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initFindRawMode()`. |
 | `find-raw.css` | 6 | Bannière du mode « Trouver le RAW » (main.js) : barre collée en haut de la grille, bouton de retour à gauche, nombre de résultats à côté. |
 | `find-raw.js` | 70 | « Trouver le RAW » : fonctions pures qui préparent la recherche du RAW d'une image raster (le mode lui-même, la bannière et le retour sont dans main.js, section « TROUVER LE RAW »). Les critères cochés dans Paramètres >… |
+| `folder-tree.js` | 576 | Sidebar folder tree, counts, empty-folder disk listing, quick search, fold state persistence, and sticky pinned ancestor rows. `main.js` wires host state and callbacks via `initFolderTree()`. |
 | `format-filters.css` | 12 | Filtre Format (format-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
@@ -149,7 +150,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6755 |  |
+| `main.js` | 6286 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |

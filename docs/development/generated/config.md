@@ -27,7 +27,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `faceSettings` | `{"scanRaw":false,"minSizePermille":6,"minConfiden…` | faces-panel.js |
 | `facesViewSort` | `"grid"` | faces-grid.js |
 | `folderOrder` | `[]` | main.js |
-| `folderTreeExpanded` | `null` | main.js |
+| `folderTreeExpanded` | `null` | folder-tree.js |
 | `fullscreenFacesVisible` | `"hover"` | faces-panel.js |
 | `fullscreenInfoVisible` | `false` | main.js |
 | `fullscreenThumbnailPreload` | `false` | main.js |
@@ -39,7 +39,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `infoAuthorOpen` | `false` | info-author.js |
 | `keywordSuggestionsOpen` | `true` | semantic-tagging.js |
 | `keywordsAutoApply` | `false` | metadata-writes.js |
-| `lastFolderFilter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
+| `lastFolderFilter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | folder-tree.js, main.js |
 | `mapDefaultZoom` | `12` | location-panel.js, map-config.js |
 | `mapStyleRefresh` | `true` | maps-settings.js |
 | `markingPlacement` | `"hybrid"` | main.js |
@@ -76,8 +76,8 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `semanticWriteThumbnails` | `false` | semantic-settings.js |
 | `sensitivity` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `showClippings` | `false` | histogram.js |
-| `showEmptyFolders` | `true` | main.js |
-| `showFolderCounts` | `true` | main.js |
+| `showEmptyFolders` | `true` | folder-tree.js |
+| `showFolderCounts` | `true` | folder-tree.js |
 | `showGeoBadges` | `true` | main.js |
 | `showHistogram` | `false` | histogram.js |
 | `showInfoMapWidget` | `false` | location-panel.js |

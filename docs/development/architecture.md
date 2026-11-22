@@ -1,4 +1,4 @@
-<!-- verified: f320547 | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
+<!-- verified: fb0c9f6 | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
 
 # Architecture
 

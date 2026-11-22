@@ -1,4 +1,4 @@
-<!-- verified: f320547 | sources: src/main.js, src/preview-zoom.js, src/drag-drop.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
+<!-- verified: fb0c9f6 | sources: src/main.js, src/preview-zoom.js, src/drag-drop.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
 # Grid and viewer: virtual grid, thumbnails, selection, sort, full screen, compare, marking, drag-and-drop, slideshow (main.js, part 2 + preview-zoom.js + drag-drop.js)
 
 ## Purpose
