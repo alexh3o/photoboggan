@@ -58,7 +58,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--fullscreen-none-edge` | styles.css · `:root` · `#000` | 2 | — |
 | `--fullscreen-none-fill` | styles.css · `:root` · `rgba(150, 150, 150, 0.15)` | 2 | — |
 | `--fullscreen-none-shadow` | styles.css · `:root` · `0 0 3px 1px rgba(0, 0, 0, 0.7)` | 1 | — |
-| `--fullscreen-rank-width` | — | 1 | main.js |
+| `--fullscreen-rank-width` | — | 1 | fullscreen.js |
 | `--fullscreen-star-off` | styles.css · `:root` · `#666` | 1 | — |
 | `--fullscreen-star-on` | styles.css · `:root` · `#ffd43b` | 2 | — |
 | `--fullscreen-summary-star-empty` | styles.css · `:root` · `rgba(255, 255, 255, 0.22)` | 1 | — |

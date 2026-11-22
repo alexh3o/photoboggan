@@ -135,7 +135,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `open_with` | `main.rs` | `program: String, paths: Vec<String>` | `()` | async pool | photo-actions.js |
 | `reveal_in_file_manager` | `main.rs` | `path: String` | `()` | async pool | metadata-writes.js ×2, photo-actions.js ×2 |
 | `take_write_recoveries` | `main.rs` | — | `Option<WriteRecoveryReport>` | async pool | metadata-writes.js |
-| `open_video_externally` | `main.rs` | `path: String` | `()` | async pool | main.js |
+| `open_video_externally` | `main.rs` | `path: String` | `()` | async pool | fullscreen.js |
 | `copy_files_to_clipboard` | `main.rs` | `paths: Vec<String>` | `usize` | async pool | photo-actions.js |
 | `read_clipboard_text` | `main.rs` | — | `String` | async pool | photo-actions.js |
 | `write_clipboard_text` | `main.rs` | `text: String` | `()` | async pool | location-panel.js |

@@ -43,7 +43,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `_PROGRESS.md` | 208 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 107 |  |
+| `architecture.md` | 108 |  |
 | `build-release.md` | 88 |  |
 | `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
@@ -63,11 +63,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 338 |  |
+| `files.md` | 339 |  |
 | `ipc-commands.md` | 193 |  |
-| `module-deps.md` | 118 |  |
-| `sections.md` | 451 |  |
-| `symbols-js.md` | 1631 |  |
+| `module-deps.md` | 119 |  |
+| `sections.md` | 457 |  |
+| `symbols-js.md` | 1639 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
@@ -81,7 +81,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
 | `filters-and-search.md` | 107 |  |
-| `grid-and-viewer.md` | 116 |  |
+| `grid-and-viewer.md` | 117 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 82 |  |
 | `main-window.md` | 91 |  |
@@ -141,6 +141,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `folder-tree.js` | 576 | Sidebar folder tree, counts, empty-folder disk listing, quick search, fold state persistence, and sticky pinned ancestor rows. `main.js` wires host state and callbacks via `initFolderTree()`. |
 | `format-filters.css` | 12 | Filtre Format (format-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
+| `fullscreen.js` | 556 | Fullscreen photo viewer: display, off-screen decoding, neighbour preloading, optional cached-thumbnail preload, zoom/pan (reusing `preview-zoom.js` primitives), info overlay (D), marking bar & popovers (R), and external… |
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
 | `guide.js` | 209 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
@@ -150,7 +151,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6286 |  |
+| `main.js` | 5837 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |

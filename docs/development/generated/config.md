@@ -29,8 +29,8 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `folderOrder` | `[]` | main.js |
 | `folderTreeExpanded` | `null` | folder-tree.js |
 | `fullscreenFacesVisible` | `"hover"` | faces-panel.js |
-| `fullscreenInfoVisible` | `false` | main.js |
-| `fullscreenThumbnailPreload` | `false` | main.js |
+| `fullscreenInfoVisible` | `false` | fullscreen.js |
+| `fullscreenThumbnailPreload` | `false` | fullscreen.js |
 | `histogramRgb` | `false` | histogram.js |
 | `ignoreBursts` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includePrereleases` | `false` | update-check.js |

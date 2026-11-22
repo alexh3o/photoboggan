@@ -25,6 +25,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
              ┌──────────────────────────── webview (src/) ─────────────────────────────┐
              │ main.js: grid, viewer, selection, sort, filters, startup                │
              │   ├─ task-queue.js       (main & semantic lanes, toasts, tasks modal)   │
+             │   ├─ fullscreen.js       (fullscreen viewer, preloading, info, marking)│
              │   ├─ preview-zoom.js     (preview zoom, compare mode, instant zoom)   │
              │   ├─ drag-drop.js        (grid drag-scroll, photo drag: tree/albums/map) │
              │   ├─ panels: keywords-panel, description-panel, faces-*, albums-panel,   │

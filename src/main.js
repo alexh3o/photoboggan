@@ -42,7 +42,7 @@ import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
 import { createFilterSuggest } from './filter-suggest.js';
-import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutFullscreenFaces, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
+import { initFacesPanel, refreshFaces, hasPersonFilters, personFilterMatches, clearPersonFilters, setPersonFilterIds, photoMatchesPersonIds, getPersonFilterIds, getExcludedPersonFilterIds, layoutPreviewFaces, toggleFaceRegions, getFaceDisplay, setFaceDisplayMode, setFaceDisplayExtra, armFaceDrawing, isFaceDetectionEnabled, openFaceScanDialog, getPersonRoot, eraseFaceData, proposeDeletePersons, clearPersonSelection, onOfflineModeChanged } from './faces-panel.js';
 import { fillSortButton, initFacesGrid, isFacesViewOpen, hasFaceSelection, openFacesView, closeFacesView, requestCloseFacesView, reloadFacesView, restoreFaceSelection } from './faces-grid.js';
 import { initAlbumsPanel, clearAlbumSelection, getSelectedAlbum, getAlbumContext, removePhotosFromSelectedAlbum, refreshAlbums, getAlbumNodes, isAlbumsSectionExpanded, setAlbumCount, setAlbumCounts, setAlbumDirty, isSelectedAlbumDirty, confirmLeaveAlbum, restoreAlbumSelection } from './albums-panel.js';
 import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, reloadPersonsView } from './persons-view.js';
@@ -57,7 +57,7 @@ import {
   abandonDuplicateSearch, exitDuplicateSearch, showReadyDuplicateResults,
   findDuplicateImages, openDuplicatesDialog,
 } from './duplicates-view.js';
-import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
+import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive } from './slideshow.js';
 import { initToolbarAria } from './toolbar-a11y.js';
 import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
 import { initTitleBar } from './titlebar.js';
@@ -79,12 +79,18 @@ import {
 import {
   initPreviewZoom, isCompareMode, isCompareMultiple, canAddToSelection, showCompareLimitToast,
   commandTargetIndices, commandTargetPhotos, commandReferencePhoto, pruneCompareSubSelection,
-  toggleAllCompareSubSelection, notifyNoCompareTarget, showZoomIndicator, clampPreviewCenter,
-  setSlotImageSize, layoutPreviewSlot, layoutPreviewSlots, renderPreview, invalidatePreview,
-  previewSlotFromEvent, previewAnchorAt, zoomPreviewSteps, togglePreviewActualSize,
-  wheelZoomSteps, getHoveredPreviewSlot, getPreviewSlots,
+  toggleAllCompareSubSelection, notifyNoCompareTarget,
+  layoutPreviewSlots, renderPreview, invalidatePreview,
+  previewSlotFromEvent, zoomPreviewSteps, togglePreviewActualSize,
+  getHoveredPreviewSlot, getPreviewSlots,
 } from './preview-zoom.js';
 import { initDragDrop } from './drag-drop.js';
+import {
+  initFullscreen, isFullscreenOpen, getFullscreenSlot, clearFullscreenImageCache, setFullscreenDirection,
+  openFullscreen, closeFullscreen, layoutFullscreenSlot, loadFullscreenPhoto, clearFullscreenImage,
+  preloadFullscreenImages, updateFullscreenInfo, toggleFullscreenInfo,
+  showFullscreenRatingForAWhile, toggleFullscreenRatingPinned, updateFullscreenRatingStars,
+} from './fullscreen.js';
 
 // WINDOW CHROME (titlebar.js): first display of the window, title bar buttons and immersive mode (F11).
 // Closing by any means (button, Alt+F4, system menu) asks first about unfinished work, in this order: running queue tasks, unsaved filters of a smart
@@ -128,10 +134,6 @@ let pickFilters = new Set(); // fanions pick cochés dans le filtre (vide = pas 
 const ratingFilter = { stars: 0, mode: 'gte', unrated: false };
 let selectedIndices = new Set();
 let lastSelectedIndex = 0;
-let isFullscreen = false; // Etat d'affichage plein écran de photos
-let fullscreenRatingPinned = false;
-let fullscreenRatingTimeout = null;
-const fullscreenImageCache = new Map();
 // Version des fichiers modifiés hors de l'application (chemin -> horodatage) : ajoutée à l'URL pour ne pas réafficher une image périmée du cache.
 const photoVersions = new Map();
 function photoUrl(photo) {
@@ -371,18 +373,6 @@ const gridContainer = document.getElementById('grid-view');
 const scrollContent = document.getElementById('virtual-scroll-content');
 const gridScrollPosition = document.getElementById('grid-scroll-position');
 const previewStage = document.getElementById('preview-stage');
-const fullscreenView = document.getElementById('fullscreen-view');
-const fullscreenImg = document.getElementById('fullscreen-image');
-// Fullscreen zoom: same slot structure as a preview cell (see layoutPreviewSlot in preview-zoom.js); fit fills the whole window (margin 1).
-const fullscreenSlot = { photo: null, url: '', cell: fullscreenView, img: fullscreenImg, clip: document.getElementById('fullscreen-clipping'), naturalWidth: 0, naturalHeight: 0, fit: 1, fitMargin: 1, zoom: null, tx: 0, ty: 0, displayWidth: 0, displayHeight: 0, center: { x: 0.5, y: 0.5 } };
-fullscreenSlot.zoomBadge = document.getElementById('fullscreen-zoom-badge');
-fullscreenSlot.zoomTimeout = null;
-let fullscreenLoadToken = 0;
-let fullscreenDrag = null;
-// Full screen navigation: direction of the last move (1 forward, -1 back). The photos ahead in that direction are the ones decoded in advance.
-let fullscreenDirection = 1;
-// Settings > Storage > Thumbnail cache: while the full-resolution photo decodes, show its cached thumbnail (off by default).
-let fullscreenThumbnailPreload = readBool('fullscreenThumbnailPreload');
 const sidebarPanel = document.getElementById('sidebar-panel');
 const settingsModal = document.getElementById('settings-modal');
 const settingsFolderList = document.getElementById('settings-folder-list');
@@ -397,7 +387,7 @@ function forgetCachedImagePaths(paths) {
     thumbnailCacheLookups.delete(path);
     rawPreviewPromises.delete(path);
   }
-  if (paths.length) fullscreenImageCache.clear();
+  if (paths.length) clearFullscreenImageCache();
 }
 let scrollRenderPending = false;
 
@@ -944,7 +934,7 @@ async function goToPhotoPage(target) {
     selectedIndices.clear();
     updateUIOnSelection();
     currentPhotoPage = page;
-    fullscreenImageCache.clear(); // keyed by index in the list, which the new page replaces
+    clearFullscreenImageCache(); // keyed by index in the list, which the new page replaces
     await loadPhotos(); // reads the page at offset currentPhotoPage × PHOTO_LOAD_LIMIT
     gridContainer.scrollTop = 0;
   } finally {
@@ -960,7 +950,7 @@ photoPagerSelect?.addEventListener('change', () => goToPhotoPage(Number(photoPag
 // Alt+PageUp / Alt+PageDown: previous / next page. Not in full screen, behind a window, or in the Faces / People views (the grid is hidden there).
 window.addEventListener('keydown', event => {
   if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.key !== 'PageUp' && event.key !== 'PageDown')) return;
-  if (photoPageCount <= 1 || isFullscreen || document.querySelector('.modal:not(.hidden)') || isFacesViewOpen() || isPersonsViewOpen()) return;
+  if (photoPageCount <= 1 || isFullscreenOpen() || document.querySelector('.modal:not(.hidden)') || isFacesViewOpen() || isPersonsViewOpen()) return;
   event.preventDefault();
   if (!event.repeat) goToPhotoPage(currentPhotoPage + (event.key === 'PageUp' ? -1 : 1));
 });
@@ -2047,7 +2037,7 @@ function isAllPhotosView() { return currentFolderFilter === null && !getSelected
 async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
   const fromResults = isRawSearchActive() || isDuplicateSearchActive() || isSemanticSearchActive();
   if (!photo || !(fromResults || anyView || isAllPhotosView())) return;
-  if (isFullscreen) closeFullscreen();
+  if (isFullscreenOpen()) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
   abandonDuplicateSearch();
   abandonSemanticSearch();
@@ -2457,162 +2447,8 @@ gridContainer.addEventListener('scroll', () => {
 window.addEventListener('resize', updateVirtualScroller);
 
 // ==========================================
-// GESTION DU PLEIN ÉCRAN ET NAVIGATION
+// NAVIGATION (GRID & FULLSCREEN)
 // ==========================================
-// Vidéo : lancée directement dans le lecteur par défaut de l'OS, jamais dans la visionneuse interne.
-async function openVideoExternally(photo) {
-  try {
-    await invoke('open_video_externally', { path: photo.path });
-  } catch (error) {
-    showWriteToast(t('Open failed: {error}', { error: String(error) }));
-  }
-}
-
-function openFullscreen(index) {
-  // Point d'entrée unique du plein écran (double-clic, clavier) : une vidéo part vers le lecteur externe, la sélection reste telle quelle.
-  const target = photos[index];
-  if (target && isVideoPath(target.path)) {
-    openVideoExternally(target);
-    return;
-  }
-  lastSelectedIndex = index;
-  selectedIndices.clear();
-  selectedIndices.add(index);
-  updateUIOnSelection();
-  // L'image de la précédente ouverture est retirée : sinon elle s'afficherait un instant, le temps que celle de la photo demandée soit prête.
-  if (fullscreenSlot.photo !== target) clearFullscreenImage();
-  isFullscreen = true;
-  if (target) loadFullscreenPhoto(target);
-  fullscreenRatingPinned = false;
-  fullscreenRating.classList.add('hidden');
-  fullscreenView.classList.remove('hidden');
-  // Toujours en vue entière à l'ouverture (le zoom d'une précédente ouverture n'est pas conservé).
-  fullscreenSlot.zoom = null;
-  fullscreenSlot.center = { x: 0.5, y: 0.5 };
-  layoutFullscreenSlot();
-  preloadFullscreenImages(index);
-  updateFullscreenInfo();
-  syncHistogram();
-}
-
-function closeFullscreen() {
-  stopSlideshow({ silent: true }); // Échap, F ou double-clic : quitter le plein écran arrête aussi le diaporama
-  isFullscreen = false;
-  syncHistogram();
-  fullscreenDrag = null;
-  fullscreenView.classList.remove('dragging');
-  fullscreenView.classList.add('hidden');
-  clearTimeout(fullscreenRatingTimeout);
-  fullscreenRatingPinned = false;
-  closeFullscreenPopovers();
-  fullscreenMarking.hidden = true;
-  clearTimeout(fullscreenSlot.zoomTimeout);
-  fullscreenSlot.zoomBadge?.classList.remove('visible');
-  layoutFullscreenFaces(fullscreenSlot); // masque les zones de visage
-}
-
-// Positionne et zoome l'image du plein écran avec la même logique que l'aperçu (rien à faire tant que la fenêtre est masquée).
-function layoutFullscreenSlot() {
-  if (!isFullscreen) return;
-  layoutPreviewSlot(fullscreenSlot);
-  fullscreenView.classList.toggle('zoomed', fullscreenSlot.zoom !== null);
-  layoutFullscreenFaces(fullscreenSlot); // zones de visage calées sur l'image affichée
-}
-
-// Affiche la photo en plein écran. Zoom et position repartent de la vue entière seulement quand l'image change : un simple
-// changement de note rappelle cette fonction avec la même image. L'image précédente reste affichée jusqu'à ce que la nouvelle soit
-// prête, puis dimensions, zoom et position sont appliqués d'un coup (pas d'image étirée entre deux photos).
-// Charge l'image de `photo` dans le plein écran, si elle est toujours la photo courante quand son URL est prête.
-function loadFullscreenPhoto(photo) {
-  getPhotoDisplayUrl(photo).then(url => {
-    if (isFullscreen && photos[lastSelectedIndex] === photo) showFullscreenPhoto(photo, url);
-  });
-}
-
-function showFullscreenPhoto(photo, url) {
-  fullscreenSlot.photo = photo;
-  if (fullscreenSlot.url === url) { updateFullscreenInfo(); syncHistogram(); notifySlideshowPhotoShown(photo); return; } // même image (ex. changement de note) : la photo associée a pu changer
-  fullscreenSlot.url = url;
-  const token = ++fullscreenLoadToken;
-  let sharpShown = false; // the full-resolution image (or the error) has replaced the previous photo
-  const apply = loaded => {
-    if (token !== fullscreenLoadToken) return; // une autre photo a été demandée entre-temps
-    sharpShown = true;
-    setSlotImageSize(fullscreenSlot, loaded.naturalWidth, loaded.naturalHeight);
-    fullscreenSlot.zoom = null;
-    fullscreenSlot.center = { x: 0.5, y: 0.5 };
-    updateFullscreenInfo(); // les informations changent en même temps que l'image affichée
-    fullscreenImg.src = url;
-    layoutFullscreenSlot();
-    syncHistogram(); // surcouche d'écrêtage de l'image qui vient d'être affichée
-    notifySlideshowPhotoShown(photo); // diaporama : le délai avant la photo suivante court à partir de l'affichage
-  };
-  // The element that preloadFullscreenImages already started loading and decoding is reused; otherwise a new one is started here.
-  const index = photos[lastSelectedIndex] === photo ? lastSelectedIndex : -1;
-  const preloaded = index >= 0 ? fullscreenImageCache.get(index) : null;
-  const probe = preloaded?._displayUrl === url ? preloaded : new Image();
-  const onUnreadable = () => {
-    if (token !== fullscreenLoadToken) return;
-    sharpShown = true;
-    updateFullscreenInfo();
-    // Image illisible : l'élément affiche l'erreur, ce qui lance la vérification de fichier manquant (écouteur « error » plus bas).
-    fullscreenSlot.naturalWidth = 0;
-    fullscreenSlot.naturalHeight = 0;
-    fullscreenSlot.zoom = null;
-    fullscreenImg.src = url;
-    notifySlideshowPhotoShown(photo); // image illisible : le diaporama passe quand même à la suivante après le délai
-  };
-  if (probe !== preloaded) {
-    probe._displayUrl = url;
-    probe.src = url;
-  }
-  // decode() rather than onload: the (large) image is decoded off the main thread BEFORE it replaces the previous one. Assigning it to the
-  // visible <img> straight after the load made the compositor wait for the decode (about 200 ms for 40 MP), which froze the window.
-  probe.decode().then(() => apply(probe), onUnreadable);
-  if (fullscreenThumbnailPreload) showFullscreenThumbnail(photo, token, () => sharpShown);
-}
-
-// Option "Use thumbnails as fast fullscreen preload": if the sharp image is not shown after this delay (it was not decoded in advance), the
-// cached thumbnail takes its place so that the change of photo looks immediate.
-const FULLSCREEN_THUMBNAIL_DELAY_MS = 40;
-
-// The thumbnail is displayed at the size the photo will have, so the sharp image replaces it without any jump: the thumbnail keeps its ratio and
-// takes the longest side of the real image (the catalogue size, whatever the orientation), or of the window when the catalogue has none.
-// Cached thumbnails are already turned by the backend, hence view_fix 1 (see setSlotImageSize). Nothing is shown when the photo has no
-// cached thumbnail; the grid's cache lookup is reused.
-function showFullscreenThumbnail(photo, token, isSharpShown) {
-  const outdated = () => token !== fullscreenLoadToken || !isFullscreen || isSharpShown();
-  setTimeout(async () => {
-    if (outdated()) return;
-    const cachedPath = await lookupCachedThumbnail(photo.path);
-    if (!cachedPath || outdated()) return;
-    const url = convertFileSrc(cachedPath) + versionSuffix(photo.path);
-    const thumbnail = new Image();
-    thumbnail.src = url;
-    try { await thumbnail.decode(); } catch { return; }
-    if (outdated() || !(thumbnail.naturalWidth > 0 && thumbnail.naturalHeight > 0)) return;
-    const ratio = thumbnail.naturalWidth / thumbnail.naturalHeight;
-    const longest = Math.max(photo.width || 0, photo.height || 0) || Math.max(fullscreenView.clientWidth, fullscreenView.clientHeight) * (window.devicePixelRatio || 1);
-    setSlotImageSize(fullscreenSlot, Math.round(ratio >= 1 ? longest : longest * ratio), Math.round(ratio >= 1 ? longest / ratio : longest), 1);
-    fullscreenSlot.zoom = null;
-    fullscreenSlot.center = { x: 0.5, y: 0.5 };
-    updateFullscreenInfo(); // the information follows the picture on screen
-    fullscreenImg.src = url;
-    layoutFullscreenSlot();
-  }, FULLSCREEN_THUMBNAIL_DELAY_MS);
-}
-
-function clearFullscreenImage() {
-  fullscreenLoadToken++;
-  fullscreenSlot.photo = null;
-  fullscreenSlot.url = '';
-  fullscreenSlot.naturalWidth = 0;
-  fullscreenSlot.naturalHeight = 0;
-  fullscreenSlot.zoom = null;
-  fullscreenImg.src = '';
-  updateFullscreenInfo();
-  layoutFullscreenSlot();
-}
 
 function navigatePhoto(direction) {
   navigateToPhotoIndex(lastSelectedIndex + direction);
@@ -2666,282 +2502,15 @@ function navigateToPhotoIndex(index) {
   if (photos.length === 0) return;
   const newIndex = Math.max(0, Math.min(photos.length - 1, index));
   if (newIndex === lastSelectedIndex) return;
-  fullscreenDirection = newIndex > lastSelectedIndex ? 1 : -1;
-  
+  setFullscreenDirection(newIndex > lastSelectedIndex ? 1 : -1);
+
   lastSelectedIndex = newIndex;
   selectedIndices.clear();
   selectedIndices.add(newIndex);
   updateUIOnSelection();
-  if (!isFullscreen) scrollPhotoIntoView(newIndex);
+  if (!isFullscreenOpen()) scrollPhotoIntoView(newIndex);
   preloadFullscreenImages(newIndex);
 }
-
-const fullscreenRating = document.getElementById('fullscreen-rating');
-function showFullscreenRatingForAWhile() {
-  fullscreenRating.classList.remove('hidden');
-  clearTimeout(fullscreenRatingTimeout);
-  if (!fullscreenRatingPinned) {
-    fullscreenRatingTimeout = setTimeout(() => {
-      if (fullscreenPopoverOpen()) return; // une bulle de choix est ouverte : la barre reste, elle repart pour 3 s à la fermeture
-      fullscreenRating.classList.add('hidden');
-      syncFullscreenMarking();
-    }, 3000);
-  }
-  syncFullscreenMarking();
-}
-
-function updateFullscreenRatingStars() {
-  const rating = photos[lastSelectedIndex]?.rating || 0;
-  fullscreenRating.querySelectorAll('button[data-rating]').forEach(button => button.classList.toggle('active', Number(button.dataset.rating) <= rating));
-  if (isFullscreen) syncFullscreenMarking();
-}
-
-// INFORMATIONS SUR LA PHOTO EN PLEIN ÉCRAN (touche D) : nom de fichier (haut, centre), rang dans la liste parcourue (haut, droite),
-// EXIF sur deux lignes (bas, gauche) et date de prise de vue en toutes lettres (bas, centre). Le choix affiché / masqué est mémorisé.
-let fullscreenInfoVisible = false;
-fullscreenInfoVisible = readBool('fullscreenInfoVisible');
-const fullscreenInfo = document.getElementById('fullscreen-info');
-const fullscreenInfoName = document.getElementById('fullscreen-info-name');
-const fullscreenInfoRank = document.getElementById('fullscreen-info-rank');
-const fullscreenInfoExifLines = [...document.querySelectorAll('#fullscreen-info-exif > div')];
-const fullscreenInfoDate = document.getElementById('fullscreen-info-date');
-const fullscreenInfoTitle = document.getElementById('fullscreen-info-title');
-const fullscreenInfoDescription = document.getElementById('fullscreen-info-description');
-
-// « samedi 12 septembre 2026, 12h36 » (l'heure n'est ajoutée que si la date EXIF en contient une).
-function formatFullscreenDate(photo) {
-  const key = photoTimeKey(photo);
-  if (key === null || key === undefined) return '';
-  const text = String(key).padStart(14, '0');
-  const language = getLanguage();
-  const date = new Date(Number(text.slice(0, 4)), Number(text.slice(4, 6)) - 1, Number(text.slice(6, 8)));
-  const day = date.toLocaleDateString(language, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const hasTime = /\d{4}\D?\d{2}\D?\d{2}\D+\d{2}/.test(String(photo.date_taken || ''));
-  if (!hasTime) return day;
-  const hour = text.slice(8, 10);
-  const minute = text.slice(10, 12);
-  return `${day}, ${language === 'fr' ? `${Number(hour)}h${minute}` : `${hour}:${minute}`}`;
-}
-
-// Fabricant + modèle, sans répéter le fabricant quand le modèle le contient déjà (« NIKON CORPORATION » + « NIKON D850 » -> « NIKON D850 »).
-function fullscreenCameraName(photo) {
-  const make = (photo.manufacturer || '').trim();
-  const model = (photo.camera_model || '').trim();
-  if (!model) return make;
-  const makeWord = make.split(/\s+/)[0].toLowerCase();
-  return make && !model.toLowerCase().startsWith(makeWord) ? `${make} ${model}` : model;
-}
-
-function updateFullscreenInfo() {
-  fullscreenView.classList.toggle('show-info', fullscreenInfoVisible);
-  fullscreenInfo.classList.toggle('hidden', !fullscreenInfoVisible);
-  if (!fullscreenInfoVisible) { syncFullscreenMarking(); return; }
-  const photo = fullscreenSlot.photo;
-  if (!photo) {
-    fullscreenInfoName.textContent = fullscreenInfoRank.textContent = fullscreenInfoDate.textContent = '';
-    fullscreenInfoTitle.textContent = fullscreenInfoDescription.textContent = '';
-    fullscreenInfoTitle.hidden = fullscreenInfoDescription.hidden = true;
-    fullscreenInfoExifLines.forEach(line => { line.textContent = ''; line.hidden = true; });
-    syncFullscreenMarking();
-    return;
-  }
-  fullscreenInfoName.textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '';
-  const index = photos[lastSelectedIndex] === photo ? lastSelectedIndex : photos.indexOf(photo);
-  fullscreenInfoRank.textContent = index >= 0 ? `${index + 1}/${photos.length}` : '';
-  // The slideshow icon sits right before the rank: its offset follows the rank's width (see .slideshow-indicator in styles.css).
-  const rankWidth = fullscreenInfoRank.offsetWidth;
-  if (rankWidth > 0) fullscreenView.style.setProperty('--fullscreen-rank-width', `${rankWidth}px`);
-  fullscreenInfoDate.textContent = formatFullscreenDate(photo);
-  // Title (one line, bold) and description (three lines at most) above the date, only when the metadata holds them.
-  const title = (photo.title || '').trim();
-  const description = (photo.caption || '').trim();
-  fullscreenInfoTitle.textContent = title;
-  fullscreenInfoTitle.hidden = !title;
-  fullscreenInfoDescription.textContent = description;
-  fullscreenInfoDescription.hidden = !description;
-  const lines = [
-    [fullscreenCameraName(photo), (photo.lens_model || '').trim()],
-    [photo.focal_length, photo.shutter_speed ? formatShutterSpeed(photo.shutter_speed) : '', photo.iso ? `ISO ${photo.iso}` : ''],
-  ].map(parts => parts.filter(Boolean).join(' · '));
-  fullscreenInfoExifLines.forEach((line, i) => { line.textContent = lines[i] || ''; line.hidden = !lines[i]; });
-  syncFullscreenMarking();
-}
-
-// RATING, COLOR AND PICK IN FULLSCREEN. Two places show them: the row under the file name (R; stars, color dot and pick flag are
-// clickable and behave like the marking bar of the grid: the dot and the flag open a choice popover) and, when the info overlay is on
-// while that row is hidden, a read-only summary at the bottom right (above the histogram if it is displayed).
-const fullscreenColorButton = document.getElementById('fullscreen-color-button');
-const fullscreenColorPopover = document.getElementById('fullscreen-color-popover');
-const fullscreenPickButton = document.getElementById('fullscreen-pick-button');
-const fullscreenPickPopover = document.getElementById('fullscreen-pick-popover');
-const fullscreenMarking = document.getElementById('fullscreen-marking');
-const fullscreenMarkingStars = document.getElementById('fullscreen-marking-stars');
-const fullscreenMarkingColor = document.getElementById('fullscreen-marking-color');
-const fullscreenMarkingPick = document.getElementById('fullscreen-marking-pick');
-
-function fullscreenPopoverOpen() {
-  return !fullscreenColorPopover.hidden || !fullscreenPickPopover.hidden;
-}
-
-function closeFullscreenPopovers() {
-  fullscreenColorPopover.hidden = fullscreenPickPopover.hidden = true;
-  fullscreenColorButton.setAttribute('aria-expanded', 'false');
-  fullscreenPickButton.setAttribute('aria-expanded', 'false');
-}
-
-// Opens `popover` (closing the other one); the 3 s countdown of the row is suspended while a popover is open.
-function toggleFullscreenPopover(button, popover) {
-  const open = popover.hidden;
-  closeFullscreenPopovers();
-  popover.hidden = !open;
-  button.setAttribute('aria-expanded', String(open));
-  clearTimeout(fullscreenRatingTimeout);
-  if (!open) showFullscreenRatingForAWhile();
-}
-
-// Brings the dot, the flag, the summary and its visibility in line with the current photo.
-function syncFullscreenMarking() {
-  const photo = photos[lastSelectedIndex];
-  const rating = photo?.rating || 0;
-  const colorFlag = photo?.color_flag || 'none';
-  const pickFlag = photo?.pick_flag || 'none';
-  const rowShown = !fullscreenRating.classList.contains('hidden');
-  if (!rowShown) closeFullscreenPopovers();
-  fullscreenColorButton.className = `fullscreen-color-dot flag-${colorFlag}`;
-  fullscreenPickButton.className = `fullscreen-pick-flag pick-${pickFlag}`;
-  fullscreenMarkingStars.firstElementChild.textContent = '★'.repeat(rating); // filled stars; the empty ones are the same glyph, faded (CSS)
-  fullscreenMarkingStars.lastElementChild.textContent = '★'.repeat(5 - rating);
-  fullscreenView.classList.toggle('rating-shown', rowShown); // the title and description make room for the row (CSS)
-  fullscreenMarkingColor.className = `fullscreen-color-dot fullscreen-color-item flag-${colorFlag}`;
-  fullscreenMarkingPick.className = `fullscreen-pick-flag fullscreen-pick-item pick-${pickFlag}`;
-  fullscreenMarking.hidden = !(isFullscreen && fullscreenInfoVisible && !rowShown && photo);
-}
-
-function toggleFullscreenInfo() {
-  fullscreenInfoVisible = !fullscreenInfoVisible;
-  try { localStorage.setItem('fullscreenInfoVisible', String(fullscreenInfoVisible)); } catch { /* non mémorisé */ }
-  updateFullscreenInfo();
-}
-
-function preloadFullscreenImages(index) {
-  const keep = new Set();
-  const wanted = [];
-  for (let i = Math.max(0, index - 2); i <= Math.min(photos.length - 1, index + 2); i++) wanted.push(i);
-  // Diaporama : la photo suivante n'est pas forcément voisine (ordre aléatoire), elle est préchargée aussi.
-  const nextSlideshowIndex = isSlideshowActive() ? photos.indexOf(peekNextSlideshowPhoto()) : -1;
-  if (nextSlideshowIndex >= 0) wanted.push(nextSlideshowIndex);
-  for (const i of wanted) {
-    keep.add(i);
-    if (!fullscreenImageCache.has(i)) {
-      const image = new Image();
-      fullscreenImageCache.set(i, image);
-      const photoPath = photos[i].path;
-      const photo = photos[i];
-      image.onerror = () => checkPhotoMissing(photoPath);
-      getPhotoDisplayUrl(photo).then(url => {
-        if (url && fullscreenImageCache.get(i) === image) {
-          image._displayUrl = url;
-          image.src = url;
-          queueFullscreenDecode(image);
-        }
-      });
-    }
-  }
-  for (const cachedIndex of fullscreenImageCache.keys()) if (!keep.has(cachedIndex)) fullscreenImageCache.delete(cachedIndex);
-  // Loading is not enough: Chromium decodes lazily, when the image is first painted. The photos in the direction of travel are decoded now.
-  const offsets = [];
-  for (let step = 1; step <= FULLSCREEN_DECODE_AHEAD; step++) offsets.push(step * fullscreenDirection);
-  for (let step = 1; step <= FULLSCREEN_DECODE_BEHIND; step++) offsets.push(-step * fullscreenDirection);
-  fullscreenDecodeWanted = new Set(offsets.map(offset => fullscreenImageCache.get(index + offset)).filter(Boolean));
-  fullscreenDecodeWanted.forEach(queueFullscreenDecode);
-}
-
-// A 40 MP JPEG weighs about 170 MB once decoded, and the decoded images are kept in a limited cache: only a few photos are decoded in advance,
-// one at a time, and a photo that is no longer wanted when its turn comes is skipped.
-const FULLSCREEN_DECODE_AHEAD = 2;
-const FULLSCREEN_DECODE_BEHIND = 1;
-let fullscreenDecodeWanted = new Set();
-const fullscreenDecodeQueue = [];
-let fullscreenDecodeRunning = false;
-
-function queueFullscreenDecode(image) {
-  if (!image._displayUrl || image._decodeQueued || !fullscreenDecodeWanted.has(image)) return;
-  image._decodeQueued = true;
-  fullscreenDecodeQueue.push(image);
-  pumpFullscreenDecodes();
-}
-
-async function pumpFullscreenDecodes() {
-  if (fullscreenDecodeRunning) return;
-  fullscreenDecodeRunning = true;
-  try {
-    let image;
-    while ((image = fullscreenDecodeQueue.shift())) {
-      if (!fullscreenDecodeWanted.has(image)) { image._decodeQueued = false; continue; } // may be wanted again later
-      try { await image.decode(); } catch { /* unreadable image: the error handler of the element reports a missing file */ }
-    }
-  } finally {
-    fullscreenDecodeRunning = false;
-  }
-}
-
-// Navigation à la molette en plein écran ; avec Ctrl, la molette zoome autour du curseur (comme dans l'aperçu) au lieu de changer de photo.
-fullscreenView.addEventListener('wheel', (e) => {
-  e.preventDefault();
-  if (e.ctrlKey) {
-    const steps = wheelZoomSteps(e);
-    if (steps) zoomPreviewSteps(-steps, previewAnchorAt(fullscreenSlot, e.clientX, e.clientY), fullscreenSlot);
-    return;
-  }
-  if (e.deltaY > 0) {
-    // Molette vers le bas / droite -> Photo suivante
-    navigateToPhotoIndex(lastSelectedIndex + 1);
-  } else {
-    // Molette vers le haut / gauche -> Photo précédente
-    navigateToPhotoIndex(lastSelectedIndex - 1);
-  }
-}, { passive: false });
-
-// Double-clic pour quitter le plein écran
-fullscreenView.addEventListener('dblclick', closeFullscreen);
-
-// Plein écran zoomé : on déplace l'image en la faisant glisser à la souris (comme dans l'aperçu) ; le zoom se commande au clavier (+ / - / *) ou par Ctrl + molette.
-fullscreenView.addEventListener('pointerdown', event => {
-  if (event.button !== 0 || fullscreenSlot.zoom === null) return;
-  if (event.target instanceof Element && event.target.closest('#fullscreen-rating')) return;
-  fullscreenDrag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-  fullscreenView.setPointerCapture(event.pointerId);
-  fullscreenView.classList.add('dragging');
-});
-fullscreenView.addEventListener('pointermove', event => {
-  if (!fullscreenDrag || event.pointerId !== fullscreenDrag.pointerId) return;
-  const dx = event.clientX - fullscreenDrag.x;
-  const dy = event.clientY - fullscreenDrag.y;
-  fullscreenDrag.x = event.clientX;
-  fullscreenDrag.y = event.clientY;
-  const slot = fullscreenSlot;
-  if (slot.zoom === null || !(slot.displayWidth > 0 && slot.displayHeight > 0)) return;
-  slot.center = clampPreviewCenter(slot, slot.center.x - dx / slot.displayWidth, slot.center.y - dy / slot.displayHeight);
-  layoutFullscreenSlot();
-  showZoomIndicator(fullscreenSlot); // <-- Déclenche le badge pendant le déplacement en plein écran
-});
-function endFullscreenDrag(event) {
-  if (!fullscreenDrag || event.pointerId !== fullscreenDrag.pointerId) return;
-  fullscreenDrag = null;
-  fullscreenView.classList.remove('dragging');
-}
-fullscreenView.addEventListener('pointerup', endFullscreenDrag);
-fullscreenView.addEventListener('pointercancel', endFullscreenDrag);
-// Redimensionnement de la fenêtre pendant le plein écran : la vue entière et le centre sont recalculés.
-new ResizeObserver(() => layoutFullscreenSlot()).observe(fullscreenView);
-// Image qui ne se charge pas (fichier supprimé hors de l'application) : vérification puis retrait du catalogue si besoin.
-// Le backend revérifie sur le disque : une erreur sur une photo qui existe encore ne retire rien.
-fullscreenImg.addEventListener('error', () => {
-  const path = photos[lastSelectedIndex]?.path;
-  if (path && fullscreenImg.getAttribute('src')) checkPhotoMissing(path);
-});
-fullscreenRating.addEventListener('click', event => event.stopPropagation());
-fullscreenRating.querySelectorAll('button[data-rating]').forEach(button => button.addEventListener('click', () => setSelectionRating(Number(button.dataset.rating))));
 
 // ==========================================
 // SELECTION MULTIPLE
@@ -3004,10 +2573,10 @@ function updateUIOnSelection() {
   if (selectedIndices.size > 0 && photos[lastSelectedIndex]) {
     const photo = photos[lastSelectedIndex];
     // Image pleine résolution (et extraction de l'aperçu d'un RAW) seulement plein écran ouvert : openFullscreen la charge à l'ouverture.
-    if (isFullscreen) loadFullscreenPhoto(photo);
+    if (isFullscreenOpen()) loadFullscreenPhoto(photo);
 
     updateFullscreenRatingStars();
-    if (isFullscreen) preloadFullscreenImages(lastSelectedIndex);
+    if (isFullscreenOpen()) preloadFullscreenImages(lastSelectedIndex);
 
     document.getElementById('exif-filename').textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '-';
     updateInfoFolder(photo);
@@ -3358,7 +2927,7 @@ async function setSelectionRating(rating, explicitTargets = null) {
     apply: photo => { photo.rating = finalRating; anyWritten = true; },
     refilter: isRatingFilterActive,
   });
-  if (isFullscreen && anyWritten) showFullscreenRatingForAWhile();
+  if (isFullscreenOpen() && anyWritten) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
 }
 
@@ -3453,7 +3022,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
     updateVirtualScroller();
     updateUIOnSelection();
   }
-  if (isFullscreen && turnedPaths.has(photos[lastSelectedIndex]?.path)) loadFullscreenPhoto(photos[lastSelectedIndex]);
+  if (isFullscreenOpen() && turnedPaths.has(photos[lastSelectedIndex]?.path)) loadFullscreenPhoto(photos[lastSelectedIndex]);
 }
 
 // ==========================================
@@ -3496,7 +3065,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
 // filter field of the sidebar. Alt+K / Alt+D also work from another field (Alt+letter types nothing); Shift+K types a "K" there, so it only
 // applies outside text fields. Handled before the photo shortcuts below, where K alone (with or without Shift) switches the Keywords tab.
 window.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.metaKey || isFullscreen || document.querySelector('.modal:not(.hidden)')) return;
+  if (e.ctrlKey || e.metaKey || isFullscreenOpen() || document.querySelector('.modal:not(.hidden)')) return;
   const key = e.code === 'KeyK' ? 'k' : e.code === 'KeyD' ? 'd' : e.key.toLowerCase();
   const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
     || (e.target instanceof HTMLElement && e.target.isContentEditable);
@@ -3523,8 +3092,8 @@ window.addEventListener('keydown', (e) => {
   // Vue Visages ouverte (hors plein écran) : les raccourcis des photos (suppression, note, copie…) ne s'appliquent pas à la grille masquée ;
   // seul le guide (G) reste disponible, et seulement sans visage sélectionné (une lettre tapée commence alors un nom). Les touches de la vue
   // sont gérées par faces-grid.js.
-  if (isFacesViewOpen() && !isFullscreen && (e.key.toLowerCase() !== 'g' || hasFaceSelection())) return;
-  if (isPersonsViewOpen() && !isFullscreen && e.key.toLowerCase() !== 'g') return; // vue Personnes : idem
+  if (isFacesViewOpen() && !isFullscreenOpen() && (e.key.toLowerCase() !== 'g' || hasFaceSelection())) return;
+  if (isPersonsViewOpen() && !isFullscreenOpen() && e.key.toLowerCase() !== 'g') return; // vue Personnes : idem
   // Ctrl+C : copie les photos sélectionnées dans le presse-papiers de l'OS. Traité avant le raccourci « C » seul (Copier vers…),
   // qui ne doit pas s'ouvrir sur Ctrl+C. Ignoré quand une fenêtre (Paramètres, Guide, Tri…) est ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
@@ -3543,7 +3112,7 @@ window.addEventListener('keydown', (e) => {
   // Ctrl+A : tout sélectionner / tout désélectionner dans la grille. Sans effet en mode Comparer (A seul y gère la sous-sélection), en plein écran ou derrière une fenêtre ouverte.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'a') {
     e.preventDefault();
-    if (!isCompareMode() && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
+    if (!isCompareMode() && !isFullscreenOpen() && !document.querySelector('.modal:not(.hidden)')) toggleSelectAllPhotos();
     return;
   }
   // Lossless rotation: Ctrl+R to the right, Shift+R to the left (selection, sub-selection in compare mode, or the fullscreen photo). Ctrl+R is
@@ -3576,12 +3145,8 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // Show rating bar Shortcut
-  if (e.key.toLowerCase() === 'r' && isFullscreen) {
-    fullscreenRatingPinned = !fullscreenRatingPinned;
-    clearTimeout(fullscreenRatingTimeout);
-    if (fullscreenRatingPinned) fullscreenRating.classList.remove('hidden');
-    else fullscreenRating.classList.add('hidden');
-    syncFullscreenMarking();
+  if (e.key.toLowerCase() === 'r' && isFullscreenOpen()) {
+    toggleFullscreenRatingPinned();
     return;
   }
   // F10 : lance le diaporama, ou l'arrête s'il est en cours (plein écran, ou grille : sur la sélection si elle compte 2 photos ou plus, sinon sur toute la vue).
@@ -3612,7 +3177,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // Informations sur la photo (nom, date, EXIF, rang) en plein écran
-  if (e.key.toLowerCase() === 'd' && isFullscreen && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
+  if (e.key.toLowerCase() === 'd' && isFullscreenOpen() && !e.ctrlKey && !e.metaKey && !e.altKey && !document.querySelector('.modal:not(.hidden)')) {
     toggleFullscreenInfo();
     return;
   }
@@ -3702,7 +3267,7 @@ window.addEventListener('keydown', (e) => {
   // T : masque / affiche la barre d'outils du haut (Filtres, Paramètres, Options d'affichage, Comparer, Aperçu, Info).
   // Réglage mémorisé (`toolbarAutoHide`) : la barre masquée reste masquée au démarrage (elle réapparaît au survol du haut). Les raccourcis N, P, J et X restent actifs barre masquée.
   // Inactif en plein écran ou lorsqu'une fenêtre modale est ouverte (comme les autres bascules de panneaux).
-  if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+  if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreenOpen() && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
     if (!e.repeat) toggleTopBar();
     return;
@@ -3714,7 +3279,7 @@ window.addEventListener('keydown', (e) => {
   // informations de la photo, ci-dessus) ou lorsqu'une fenêtre modale est ouverte.
   const sideTabByKey = { i: 'info', k: 'keywords', d: 'description' };
   const sideTab = sideTabByKey[e.key.toLowerCase()];
-  if (sideTab && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+  if (sideTab && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreenOpen() && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
     if (!e.repeat) handleSideTabShortcut(sideTab);
     return;
@@ -3725,7 +3290,7 @@ window.addEventListener('keydown', (e) => {
     n: 'btn-toggle-sidebar',
   };
   const targetToggleBtnId = panelToggleButtons[e.key.toLowerCase()];
-  if (targetToggleBtnId && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) {
+  if (targetToggleBtnId && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreenOpen() && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
     if (!e.repeat) document.getElementById(targetToggleBtnId)?.click();
     return;
@@ -3744,7 +3309,7 @@ window.addEventListener('keydown', (e) => {
   // alors sur la touche physique (e.code), rangée du haut ou pavé numérique.
   const digitKey = /^[0-9]$/.test(e.key) ? e.key
     : (altAdvance && /^(Digit|Numpad)[0-9]$/.test(e.code) ? e.code.slice(-1) : null);
-  const advanceAfter = altAdvance && (isFullscreen || selectedIndices.size === 1);
+  const advanceAfter = altAdvance && (isFullscreenOpen() || selectedIndices.size === 1);
   // Note et couleur : jamais avec Ctrl / ⌘ (Ctrl+0 « zoom 100 % » effacerait les notes), ni derrière une fenêtre ouverte (question en attente,
   // Paramètres…), ni en touche maintenue (la même touche une seconde fois retire la valeur : elle alternerait).
   const markingKey = digitKey !== null && !e.ctrlKey && !e.metaKey && selectedIndices.size > 0;
@@ -3770,7 +3335,7 @@ window.addEventListener('keydown', (e) => {
   }
   // Zoom (+ / - / *) : sur l'aperçu (ou l'image survolée en mode désynchronisé), ou sur l'image du plein écran quand il est ouvert
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-    const zoomTarget = isFullscreen ? null : getHoveredPreviewSlot();
+    const zoomTarget = isFullscreenOpen() ? null : getHoveredPreviewSlot();
     if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomPreviewSteps(1, null, zoomTarget); return; }
     if (e.key === '-') { e.preventDefault(); zoomPreviewSteps(-1, null, zoomTarget); return; }
     if (e.key === '*') { e.preventDefault(); togglePreviewActualSize(null, zoomTarget); return; }
@@ -3783,18 +3348,18 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     navigatePhoto(-1);
   } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
-    && !isFullscreen && !isCompareMode() && !document.querySelector('.modal:not(.hidden)')) {
+    && !isFullscreenOpen() && !isCompareMode() && !document.querySelector('.modal:not(.hidden)')) {
     // Up / Down: the photo above / below in the thumbnail grid (any layout), scrolled into view.
     e.preventDefault();
     navigateGridRow(e.key === 'ArrowDown' ? 1 : -1);
   } else if (e.key === 'Escape') {
-    if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
-    else if (!isFullscreen && isRawSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
-    else if (!isFullscreen && isDuplicateSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
-    else if (!isFullscreen && isSemanticSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitSemanticSearch(); // content search: same
+    if (isFullscreenOpen() && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
+    else if (!isFullscreenOpen() && isRawSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
+    else if (!isFullscreenOpen() && isDuplicateSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
+    else if (!isFullscreenOpen() && isSemanticSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitSemanticSearch(); // content search: same
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
-    if (isFullscreen) closeFullscreen();
+    if (isFullscreenOpen()) closeFullscreen();
     else if (photos.length > 0) openFullscreen(lastSelectedIndex);
   }
 });
@@ -4119,7 +3684,7 @@ window.addEventListener('mousemove', event => {
     else topBar.classList.remove('peek-out'); // la souris revient pendant la disparition : la barre reste
     return;
   }
-  if (isFullscreen || document.querySelector('.modal:not(.hidden)')) return;
+  if (isFullscreenOpen() || document.querySelector('.modal:not(.hidden)')) return;
   if (event.clientY <= appTop + TOP_BAR_HOVER_ZONE_PX) topBar.classList.add('peek'); // inclut la barre de titre, au-dessus de l'application
 });
 // Zone de déplacement de la fenêtre (barre de titre) : le webview n'envoie plus aucun événement souris à la page quand le curseur y entre, il signale seulement que la souris quitte le document.
@@ -4133,7 +3698,7 @@ document.documentElement.addEventListener('mouseleave', event => {
   const exitsBySide = event.clientX <= 1 || event.clientX >= window.innerWidth - 1;
   if (!exitsByTop || exitsBySide) { hideTopBarPeek(); return; }
   if (peeking) topBar.classList.remove('peek-out'); // déjà affichée (ou en train de remonter) : elle reste
-  else if (event.buttons === 0 && !isFullscreen && !document.querySelector('.modal:not(.hidden)')) topBar.classList.add('peek');
+  else if (event.buttons === 0 && !isFullscreenOpen() && !document.querySelector('.modal:not(.hidden)')) topBar.classList.add('peek');
 });
 window.addEventListener('blur', hideTopBarPeek); // fenêtre désactivée (Alt+Tab, clic ailleurs) : la barre ne doit pas rester affichée
 
@@ -4300,7 +3865,7 @@ function applyEffectiveModified(entries) {
     }
   }
   if (!moved || sortKey !== 'modified') return false;
-  fullscreenImageCache.clear();
+  clearFullscreenImageCache();
   return true;
 }
 
@@ -4513,7 +4078,7 @@ function applySortChange() {
   localStorage.setItem('photoDateSeparator', dateSeparator);
   localStorage.setItem('photoNameSeparator', nameSeparator);
   updateSortUI();
-  fullscreenImageCache.clear(); // le cache de préchargement est indexé par position dans la liste
+  clearFullscreenImageCache(); // le cache de préchargement est indexé par position dans la liste
   // Capped or paged list: the backend picked its photos in the previous sort (e.g. the newest ones), so the new sort needs another set; back to page 1.
   if (photoListCap || photoPageCount > 1) {
     currentPhotoPage = 0;
@@ -4694,15 +4259,6 @@ if (thumbnailQualitySelect) {
       console.error('Thumbnail quality change failed', error);
       thumbnailQualitySelect.value = readChoice('thumbnailQuality', ['normal', 'high']);
     }
-  });
-}
-// Full screen (Settings > Storage > Thumbnail cache): show the cached thumbnail while the sharp photo decodes. Off by default.
-const fullscreenThumbnailPreloadToggle = document.getElementById('fullscreen-thumbnail-preload-toggle');
-if (fullscreenThumbnailPreloadToggle) {
-  fullscreenThumbnailPreloadToggle.checked = fullscreenThumbnailPreload;
-  fullscreenThumbnailPreloadToggle.addEventListener('change', () => {
-    fullscreenThumbnailPreload = fullscreenThumbnailPreloadToggle.checked;
-    localStorage.setItem('fullscreenThumbnailPreload', String(fullscreenThumbnailPreload));
   });
 }
 // Gestionnaire du sélecteur de taille des miniatures en cache
@@ -5128,32 +4684,6 @@ document.addEventListener('keydown', event => {
   event.stopImmediatePropagation();
 }, true);
 
-// Fullscreen row (R): the same choices as the marking bar, in popovers opening downwards (see syncFullscreenMarking).
-fullscreenColorPopover.append(createMarkingColors());
-fullscreenPickPopover.append(createMarkingPick());
-fullscreenColorButton.addEventListener('click', () => toggleFullscreenPopover(fullscreenColorButton, fullscreenColorPopover));
-fullscreenPickButton.addEventListener('click', () => toggleFullscreenPopover(fullscreenPickButton, fullscreenPickPopover));
-for (const popover of [fullscreenColorPopover, fullscreenPickPopover]) {
-  popover.addEventListener('click', event => {
-    if (event.target instanceof Element && event.target.closest('.color-square, .pick-square')) {
-      closeFullscreenPopovers();
-      showFullscreenRatingForAWhile();
-    }
-  });
-}
-document.addEventListener('pointerdown', event => {
-  if (fullscreenPopoverOpen() && !(event.target instanceof Element && event.target.closest('.fullscreen-popover-wrap'))) {
-    closeFullscreenPopovers();
-    showFullscreenRatingForAWhile();
-  }
-}, true);
-document.addEventListener('keydown', event => {
-  if (event.key !== 'Escape' || !fullscreenPopoverOpen()) return;
-  closeFullscreenPopovers();
-  showFullscreenRatingForAWhile();
-  event.stopImmediatePropagation(); // Escape closes the popover only, not the fullscreen view
-}, true);
-
 // Le panneau Info compte comme « ouvert » quand il est affiché avec son onglet Info (le seul qui porte la section Marquage).
 function isInfoTabVisible() {
   return !document.getElementById('exif-panel').classList.contains('hidden') && !document.getElementById('exif-tab-info').hidden;
@@ -5260,7 +4790,7 @@ initDuplicatesView({
   getSelectedIndices: () => selectedIndices,
   getLastSelectedIndex: () => lastSelectedIndex,
   setLastSelectedIndex: index => { lastSelectedIndex = index; },
-  clearFullscreenImageCache: () => fullscreenImageCache.clear(),
+  clearFullscreenImageCache: () => clearFullscreenImageCache(),
   applyPhotoFilters: options => applyPhotoFilters(options),
   renderVisibleItems: () => renderVisibleItems(),
   updateUIOnSelection: () => updateUIOnSelection(),
@@ -5273,7 +4803,7 @@ initDuplicatesView({
   restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
   getOtherSearchSnapshot: () => getRawSearch()?.snapshot ?? getSemanticSearch()?.snapshot,
   abandonOtherSearches: () => { abandonSemanticSearch(); abandonRawSearch(); },
-  isFullscreen: () => isFullscreen,
+  isFullscreen: () => isFullscreenOpen(),
   closeFullscreen: () => closeFullscreen(),
   syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
   clearFolderFilter: () => { currentFolderFilter = null; extraFolderFilters = []; },
@@ -5286,14 +4816,33 @@ initDuplicatesView({
   closeTasksModal: () => closeTasksModal(),
 });
 
+// Fullscreen viewer, off-screen decoding, preloading, info overlay and marking bar: see fullscreen.js.
+initFullscreen({
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  getLastSelectedIndex: () => lastSelectedIndex,
+  setLastSelectedIndex: index => { lastSelectedIndex = index; },
+  updateUIOnSelection: () => updateUIOnSelection(),
+  getPhotoDisplayUrl: photo => getPhotoDisplayUrl(photo),
+  lookupCachedThumbnail: path => lookupCachedThumbnail(path),
+  versionSuffix: path => versionSuffix(path),
+  checkPhotoMissing: path => checkPhotoMissing(path),
+  navigateToPhotoIndex: index => navigateToPhotoIndex(index),
+  setSelectionRating: rating => setSelectionRating(rating),
+  formatShutterSpeed: speed => formatShutterSpeed(speed),
+  showToast: message => showWriteToast(message),
+  createMarkingColors: () => createMarkingColors(),
+  createMarkingPick: () => createMarkingPick(),
+});
+
 // Preview zoom, pan, compare mode, sub-selection and instant zoom (hold Z): see preview-zoom.js.
 initPreviewZoom({
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
   setSelectedIndices: next => { selectedIndices = next; },
   getLastSelectedIndex: () => lastSelectedIndex,
-  isFullscreen: () => isFullscreen,
-  getFullscreenSlot: () => fullscreenSlot,
+  isFullscreen: () => isFullscreenOpen(),
+  getFullscreenSlot: () => getFullscreenSlot(),
   layoutFullscreenSlot: () => layoutFullscreenSlot(),
   layoutPreviewFaces: slot => layoutPreviewFaces(slot),
   getPhotoDisplayUrl: photo => getPhotoDisplayUrl(photo),
@@ -5442,7 +4991,7 @@ async function applyMovedPhotos(moved) {
   if (folderTreePhotos !== loadedPhotos) rename(folderTreePhotos);
   photosMoved(destinations); // modifications en attente (mots-clés, description) : elles visent le nouveau chemin
   invalidatePreview(); // force preview reload
-  fullscreenImageCache.clear();
+  clearFullscreenImageCache();
   await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
 }
 
@@ -5537,7 +5086,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   const treeSharesLibrary = folderTreePhotos === loadedPhotos;
   loadedPhotos = loadedPhotos.filter(photo => !removed.has(photo.path));
   folderTreePhotos = treeSharesLibrary ? loadedPhotos : folderTreePhotos.filter(photo => !removed.has(photo.path));
-  fullscreenImageCache.clear();
+  clearFullscreenImageCache();
   renderFolderTree();
   renderKeywordFilters();
 
@@ -5822,26 +5371,28 @@ initSlideshow({
   getSelectedIndices: () => selectedIndices,
   getCurrentIndex: () => lastSelectedIndex,
   isVideo: photo => isVideoPath(photo.path),
-  isZoomed: () => fullscreenSlot.zoom !== null,
-  isFullscreen: () => isFullscreen,
+  isZoomed: () => getFullscreenSlot().zoom !== null,
+  isFullscreen: () => isFullscreenOpen(),
   openFullscreen,
   goToIndex: navigateToPhotoIndex,
   showToast: message => showWriteToast(message),
 });
 initHistogram({
   // Éléments dont un redimensionnement ou un changement de classe / d'attribut hidden déplace ou masque l'histogramme.
-  watch: [mainContent, gridContainer, previewStage, mapPanelElement, personsViewElement, facesViewElement, fullscreenView, document.getElementById('exif-panel')],
+  watch: [mainContent, gridContainer, previewStage, mapPanelElement, personsViewElement, facesViewElement, document.getElementById('fullscreen-view'), document.getElementById('exif-panel')],
   getView: () => {
     const photo = selectedIndices.size > 0 ? photos[lastSelectedIndex] ?? null : null;
     const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
     const previewShown = !mainContent.classList.contains('preview-hidden');
-    const hidden = !isFullscreen && (isCompareMode() || otherViewOpen);
+    const fullscreen = isFullscreenOpen();
+    const fullscreenSlot = getFullscreenSlot();
+    const hidden = !fullscreen && (isCompareMode() || otherViewOpen);
     let overlays = [];
-    if (isFullscreen) overlays = fullscreenSlot.photo === photo ? [fullscreenSlot.clip] : []; // image du plein écran = photo courante
+    if (fullscreen) overlays = fullscreenSlot.photo === photo ? [fullscreenSlot.clip] : []; // image du plein écran = photo courante
     else if (!hidden && previewShown) overlays = getPreviewSlots().filter(slot => slot.photo === photo).map(slot => slot.clip);
     return {
-      photo, hidden, fullscreen: isFullscreen, overlays,
-      anchor: isFullscreen ? null : previewShown ? previewStage : gridContainer,
+      photo, hidden, fullscreen, overlays,
+      anchor: fullscreen ? null : previewShown ? previewStage : gridContainer,
       isRaw: Boolean(photo) && isRawPath(photo.path), // calcul sur l'aperçu JPEG intégré : avertissement dans l'encadré
     };
   },
@@ -5882,9 +5433,9 @@ async function thumbnailUrlFor(sourcePath, isWanted = () => true) {
 initFacesPanel({
   getThumbnailUrl: thumbnailUrlFor,
   onFilterChange: options => applyPhotoFilters(options),
-  getFullscreenSlot: () => fullscreenSlot,
+  getFullscreenSlot: () => getFullscreenSlot(),
   getPreviewSlotAt: event => previewSlotFromEvent(event),
-  isFullscreen: () => isFullscreen,
+  isFullscreen: () => isFullscreenOpen(),
   layoutPreview: () => layoutPreviewSlots(),
   showToast: message => showWriteToast(message),
   enqueueTask: task => enqueueScanTask(task),
@@ -5913,7 +5464,7 @@ initSemanticResults({
   getLoadedPhotos: () => loadedPhotos,
   setLoadedPhotos: list => { loadedPhotos = list; },
   getSelectedPhotos: () => getSelectedPhotos(),
-  clearFullscreenImageCache: () => fullscreenImageCache.clear(),
+  clearFullscreenImageCache: () => clearFullscreenImageCache(),
   applyPhotoFilters: options => applyPhotoFilters(options),
   showToast: message => showWriteToast(message),
   setIncludeSubfoldersTemporarily: value => setIncludeSubfoldersTemporarily(value),
@@ -5923,7 +5474,7 @@ initSemanticResults({
   restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
   getOtherSearchSnapshot: () => getRawSearch()?.snapshot ?? getDuplicateSearch()?.snapshot,
   abandonOtherSearches: () => { abandonDuplicateSearch(); abandonRawSearch(); },
-  isFullscreen: () => isFullscreen,
+  isFullscreen: () => isFullscreenOpen(),
   closeFullscreen: () => closeFullscreen(),
   syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
   setFolderFilter: folder => { currentFolderFilter = folder; extraFolderFilters = []; },
@@ -5937,7 +5488,7 @@ initSemanticResults({
 // ==========================================
 initFindRawMode({
   getPhotos: () => photos,
-  isFullscreen: () => isFullscreen,
+  isFullscreen: () => isFullscreenOpen(),
   closeFullscreen: () => closeFullscreen(),
   captureViewSnapshot: album => captureViewSnapshot(album),
   restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
@@ -5964,7 +5515,7 @@ initFindRawMode({
 // Suggestions in the keyword filter (see semantic-keywords.js): a new answer filters the grid again, keeping selection and scroll.
 initKeywordSuggestions({
   loadedIds: () => new Set(loadedPhotos.map(photo => photo.id)),
-  onChange: () => { fullscreenImageCache.clear(); applyPhotoFilters({ keepState: true }); },
+  onChange: () => { clearFullscreenImageCache(); applyPhotoFilters({ keepState: true }); },
   addKeyword: keywordId => addPendingKeyword(keywordId),
   showToast: message => showWriteToast(message),
 });
@@ -6043,7 +5594,7 @@ initFacesGrid({
   closePersonsView: () => { closePersonsView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue de gestion : une seule vue à la fois
   showToast: (message, action) => showWriteToast(message, false, action), // `action` : bouton « Annuler » des actions de révision
   getPersonRoot,
-  isFullscreen: () => isFullscreen,
+  isFullscreen: () => isFullscreenOpen(),
 });
 
 // ==========================================
@@ -6116,7 +5667,7 @@ async function refreshLibraryAfterSync(changes) {
   }
   if (modified.size) {
     invalidatePreview(); // force preview reload
-    fullscreenImageCache.clear();
+    clearFullscreenImageCache();
   }
   loadedPhotos = fresh;
   folderTreePhotos = everything ?? fresh;
