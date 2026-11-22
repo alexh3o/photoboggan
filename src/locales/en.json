@@ -1880,6 +1880,7 @@
   "Direction": "Direction",
   "From the start": "From the start",
   "From the end": "From the end",
+  "Start position": "Start",
   "Length": "Length",
   "Batch rename replace help": "Replaces a text in the name (extension excluded), case-sensitive. Occurrence: empty = every one, 1 = the first, 2 = the second… The texts can hold variables.",
   "Batch rename insert help": "Inserts a text at a position counted in characters from the start or from the end of the name (extension excluded). Position 0 from the end = just before the extension. The text can hold variables.",

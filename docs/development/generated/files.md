@@ -322,9 +322,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1907 |  |
-| `es.json` | 1906 |  |
-| `fr.json` | 1907 |  |
+| `en.json` | 1908 |  |
+| `es.json` | 1907 |  |
+| `fr.json` | 1908 |  |
 
 ## webpage
 

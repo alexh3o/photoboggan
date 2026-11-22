@@ -1880,6 +1880,7 @@
   "Direction": "Sens",
   "From the start": "Depuis le début",
   "From the end": "Depuis la fin",
+  "Start position": "Début",
   "Length": "Longueur",
   "Batch rename replace help": "Remplace un texte dans le nom (extension exclue), en respectant les majuscules et minuscules. Occurrence : vide = toutes, 1 = la première, 2 = la deuxième… Les textes peuvent contenir des variables.",
   "Batch rename insert help": "Insère un texte à une position comptée en caractères depuis le début ou depuis la fin du nom (extension exclue). Position 0 depuis la fin = juste avant l’extension. Le texte peut contenir des variables.",

@@ -504,7 +504,7 @@ export async function openBatchRename(targets) {
       } else if (step.type === 'insert') {
         fields.append(textField(t('Text to insert'), step, 'text'), textField(t('Position'), step, 'position', { narrow: true, type: 'number' }), directionField(step));
       } else {
-        fields.append(textField(t('Start'), step, 'start', { narrow: true, type: 'number' }), textField(t('Length'), step, 'length', { narrow: true, type: 'number' }), directionField(step));
+        fields.append(textField(t('Start position'), step, 'start', { narrow: true, type: 'number' }), textField(t('Length'), step, 'length', { narrow: true, type: 'number' }), directionField(step));
       }
       const error = element('p', 'batch-step-error');
       error.setAttribute('role', 'alert');
