@@ -91,13 +91,13 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L13–L113 | 101 | FIND THE RAW |
 | L114–L127 | 14 | INITIALIZATION |
 
-## src/folder-tree.js (576 lines)
+## src/folder-tree.js (614 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L17–L389 | 373 | FOLDER TREE & COUNTS |
-| L390–L499 | 110 | STICKY FOLDERS (pinned ancestors of the first visible row) |
-| L500–L576 | 77 | INITIALIZATION |
+| L17–L409 | 393 | FOLDER TREE & COUNTS |
+| L410–L537 | 128 | STICKY FOLDERS (pinned ancestors of the first visible row) |
+| L538–L614 | 77 | INITIALIZATION |
 
 ## src/format-filters.js (275 lines)
 
@@ -139,39 +139,39 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1122–L1157 | 36 | Suppression d'un mot-clé |
 | L1158–L1253 | 96 | Initialisation |
 
-## src/main.js (5837 lines)
+## src/main.js (5871 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L664–L699 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
-| L700–L869 | 170 | CHARGEMENT PHOTOS & DOSSIERS |
-| L870–L1276 | 407 | PAGINATION DE LA GRILLE |
-| L1277–L1987 | 711 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
-| L1988–L2080 | 93 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
-| L2081–L2448 | 368 | VIRTUAL SCROLLING |
-| L2449–L2514 | 66 | NAVIGATION (GRID & FULLSCREEN) |
-| L2515–L2885 | 371 | SELECTION MULTIPLE |
-| L2886–L2933 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
-| L2934–L3027 | 94 | LOSSLESS ROTATION (orientation.rs) |
-| L3028–L3366 | 339 | Keyboard shortcuts Memo |
-| L3367–L3386 | 20 | MODALE PARAMÈTRES |
-| L3387–L3494 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
-| L3495–L3551 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
-| L3552–L3599 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
-| L3600–L3719 | 120 | BOUTONS VUES & SIDEBAR |
-| L3720–L3831 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
-| L3832–L4552 | 721 | TRI DES MINIATURES |
-| L4553–L4878 | 326 | MARQUAGE (note et couleur de la sélection) |
-| L4879–L4997 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
-| L4998–L5017 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L5018–L5061 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L5062–L5067 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L5068–L5458 | 391 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L5459–L5485 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
-| L5486–L5511 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L5512–L5599 | 88 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L5600–L5778 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L5779–L5837 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L700–L873 | 174 | CHARGEMENT PHOTOS & DOSSIERS |
+| L874–L1290 | 417 | PAGINATION DE LA GRILLE |
+| L1291–L2019 | 729 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
+| L2020–L2113 | 94 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
+| L2114–L2481 | 368 | VIRTUAL SCROLLING |
+| L2482–L2547 | 66 | NAVIGATION (GRID & FULLSCREEN) |
+| L2548–L2918 | 371 | SELECTION MULTIPLE |
+| L2919–L2966 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
+| L2967–L3060 | 94 | LOSSLESS ROTATION (orientation.rs) |
+| L3061–L3399 | 339 | Keyboard shortcuts Memo |
+| L3400–L3419 | 20 | MODALE PARAMÈTRES |
+| L3420–L3527 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
+| L3528–L3584 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
+| L3585–L3632 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
+| L3633–L3752 | 120 | BOUTONS VUES & SIDEBAR |
+| L3753–L3864 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
+| L3865–L4585 | 721 | TRI DES MINIATURES |
+| L4586–L4912 | 327 | MARQUAGE (note et couleur de la sélection) |
+| L4913–L5031 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
+| L5032–L5051 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L5052–L5095 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L5096–L5101 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L5102–L5492 | 391 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L5493–L5519 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
+| L5520–L5545 | 26 | FIND THE RAW (find-raw-mode.js) |
+| L5546–L5633 | 88 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L5634–L5812 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L5813–L5871 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (505 lines)
 

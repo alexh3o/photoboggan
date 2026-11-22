@@ -61,15 +61,15 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `config.md` | 159 |  |
 | `css.md` | 600 |  |
-| `db-schema.md` | 278 |  |
+| `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
 | `files.md` | 339 |  |
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 119 |  |
 | `sections.md` | 457 |  |
-| `symbols-js.md` | 1639 |  |
-| `symbols-rust.md` | 1433 |  |
-| `tests.md` | 514 |  |
+| `symbols-js.md` | 1640 |  |
+| `symbols-rust.md` | 1440 |  |
+| `tests.md` | 515 |  |
 
 ## docs/development/modules
 
@@ -138,7 +138,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `find-raw-mode.js` | 127 | "Find the RAW" results mode: scope matching, banner rendering, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initFindRawMode()`. |
 | `find-raw.css` | 6 | Bannière du mode « Trouver le RAW » (main.js) : barre collée en haut de la grille, bouton de retour à gauche, nombre de résultats à côté. |
 | `find-raw.js` | 70 | « Trouver le RAW » : fonctions pures qui préparent la recherche du RAW d'une image raster (le mode lui-même, la bannière et le retour sont dans main.js, section « TROUVER LE RAW »). Les critères cochés dans Paramètres >… |
-| `folder-tree.js` | 576 | Sidebar folder tree, counts, empty-folder disk listing, quick search, fold state persistence, and sticky pinned ancestor rows. `main.js` wires host state and callbacks via `initFolderTree()`. |
+| `folder-tree.js` | 614 | Sidebar folder tree, counts, empty-folder disk listing, quick search, fold state persistence, and sticky pinned ancestor rows. `main.js` wires host state and callbacks via `initFolderTree()`. |
 | `format-filters.css` | 12 | Filtre Format (format-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
 | `fullscreen.js` | 556 | Fullscreen photo viewer: display, off-screen decoding, neighbour preloading, optional cached-thumbnail preload, zoom/pan (reusing `preview-zoom.js` primitives), info overlay (D), marking bar & popovers (R), and external… |
@@ -151,7 +151,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 5837 |  |
+| `main.js` | 5871 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -239,7 +239,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `batch_rename.rs` | 841 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
-| `db.rs` | 661 |  |
+| `db.rs` | 757 |  |
 | `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 3163 |  |
 | `exiftool.rs` | 952 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
@@ -279,7 +279,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
 | `batch_rename.rs` | 293 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
-| `db.rs` | 379 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
+| `db.rs` | 427 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
 | `duplicates.rs` | 287 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 254 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
 | `exif.rs` | 799 | Tests de non-régression de l'écriture et de la lecture des métadonnées (exif.rs) : intégrité des pixels, écritures atomiques, sidecars, marquages. Fichiers synthétiques dans un dossier temporaire ; les photos de l'utili… |

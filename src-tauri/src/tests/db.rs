@@ -376,3 +376,51 @@ fn modification_sort_uses_the_effective_date_and_falls_back_to_the_file_date() {
     let edited = get_photos_sorted(&pool, 0, 10, folder(), true, "name", true).unwrap().into_iter().find(|photo| photo.filename == "edited.png").unwrap();
     assert_eq!((edited.modified, edited.effective_modified), (5, 30));
 }
+
+#[test]
+fn folder_queries_use_path_index_and_handle_prefix_boundaries() {
+    let (_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for path in [
+            "C:/Photo/a.jpg",
+            "C:\\Photo\\sub\\b.jpg",
+            "C:/Photo0/c.jpg",
+            "C:/Photo-1/d.jpg",
+            "C:/Photo.jpg",
+            "C:/Photo2/e.jpg",
+            "/root.jpg",
+            "/sub/f.jpg",
+            "0/other.jpg",
+            "C:/Photos/Été/g.jpg",
+            "C:/Photos/Été2/h.jpg",
+        ] {
+            insert_photo(&conn, path);
+        }
+    }
+
+    // Boundary checks around '/' (0x2F) and '0' (0x30), POSIX root, and Unicode paths.
+    let none = PhotoPrefilter::default();
+    assert_eq!(names(get_photos_filtered(&pool, 0, 50, Some("C:/Photo".into()), false, "taken", false, &none).unwrap()), ["a.jpg"]);
+    assert_eq!(names(get_photos_filtered(&pool, 0, 50, Some("C:/Photo".into()), true, "taken", false, &none).unwrap()), ["a.jpg", "b.jpg"]);
+    assert_eq!(count_photos(&pool, Some("C:/Photo".into()), false, &none).unwrap(), 1);
+    assert_eq!(count_photos(&pool, Some("C:/Photo".into()), true, &none).unwrap(), 2);
+
+    assert_eq!(names(get_photos_filtered(&pool, 0, 50, Some("/".into()), false, "taken", false, &none).unwrap()), ["root.jpg"]);
+    assert_eq!(names(get_photos_filtered(&pool, 0, 50, Some("/".into()), true, "taken", false, &none).unwrap()), ["f.jpg", "root.jpg"]);
+    assert_eq!(names(get_photos_filtered(&pool, 0, 50, Some("C:/Photos/Été".into()), true, "taken", false, &none).unwrap()), ["g.jpg"]);
+
+    // Planner verification: folder-filtered queries must use `idx_path_norm` and never walk `idx_date`.
+    for (recursive, sort_key) in [(false, "taken"), (true, "taken"), (true, "modified"), (true, "name")] {
+        let plan = explain_folder_query(&pool, Some("C:/Photo".into()), recursive, sort_key, false, &none, false).unwrap();
+        let joined = plan.join(" | ");
+        assert!(joined.contains("idx_path_norm"), "expected idx_path_norm for folder query ({recursive}, {sort_key}), got: {joined}");
+        assert!(!joined.contains("idx_date"), "did not expect idx_date for folder query ({recursive}, {sort_key}), got: {joined}");
+    }
+    let count_plan = explain_folder_query(&pool, Some("C:/Photo".into()), true, "taken", false, &none, true).unwrap().join(" | ");
+    assert!(count_plan.contains("idx_path_norm"), "expected idx_path_norm for folder count, got: {count_plan}");
+
+    // Whole catalogue ("All photos", date sort): must keep using `idx_date`.
+    let all_plan = explain_folder_query(&pool, None, true, "taken", false, &none, false).unwrap().join(" | ");
+    assert!(all_plan.contains("idx_date"), "expected idx_date for whole-catalogue date sort, got: {all_plan}");
+}

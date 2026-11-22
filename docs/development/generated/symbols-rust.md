@@ -99,31 +99,38 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub save_rename_preset` · L825
 - `pub delete_rename_preset` · L832
 
-## db.rs (23)
+## db.rs (30)
 
 - *struct* `pub Photo` · L9
 - `one` · L69
 - *struct* `pub TrackedFolder` · L72
 - `pub add_column` · L79 — Ajoute une colonne à une table existante (mise à niveau d'un catalogue sans le perdre). « Colonne déjà présente » est le cas normal ;
 - `pub init_db` · L87
-- `pub get_folders` · L196
-- `pub add_folder` · L215
-- `pub remove_folder` · L224 — Retire un dossier suivi et les photos qu'il contenait, en une seule transaction. Une photo qui se trouve aussi dans un autre dossier suivi
-- `pub photo_from_row` · L254 — Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
-- `pub get_photos` · L299 — Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
+- `pub get_folders` · L198
+- `pub add_folder` · L217
+- `pub remove_folder` · L226 — Retire un dossier suivi et les photos qu'il contenait, en une seule transaction. Une photo qui se trouve aussi dans un autre dossier suivi
+- `pub photo_from_row` · L256 — Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
+- `pub get_photos` · L301 — Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
 - `folder_prefix` · L308
-- *struct* `pub PhotoPrefilter` · L324 — Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
-- *struct* `pub ValueRange` · L373 — Inclusive bounds; a missing bound is open.
-- *struct* `pub FolderCriterion` · L379
-- *struct* `pub MapZone` · L385
-- `prefilter_condition` · L401 — SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
-- `pub get_photos_sorted` · L527 — Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
-- `pub get_photos_filtered` · L536 — `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
-- `count_matching` · L583 — Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
-- `pub count_photos` · L595 — Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
-- `pub get_photos_by_paths` · L605 — Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
-- `pub get_photos_by_ids` · L620 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
-- `pub get_folder_counts` · L637 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
+- `folder_upper_bound` · L315 — Strict upper bound for prefix range queries on normalised paths ending with `/` (ASCII 0x2F):
+- `push_folder_condition` · L322 — Builds the SQL folder predicate and appends its bound parameters (0 when unfiltered, 2 when filtered).
+- *struct* `pub PhotoPrefilter` · L349 — Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
+- *struct* `pub ValueRange` · L398 — Inclusive bounds; a missing bound is open.
+- *struct* `pub FolderCriterion` · L404
+- *struct* `pub MapZone` · L410
+- `prefilter_condition` · L426 — SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
+- `pub get_photos_sorted` · L552 — Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
+- *struct* `FolderQueryParts` · L556
+- `build_folder_query_parts` · L564
+- `list_query_sql` · L575
+- `count_query_sql` · L585
+- `pub get_photos_filtered` · L594 — `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
+- `count_matching` · L641 — Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
+- `pub count_photos` · L653 — Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
+- `pub explain_folder_query` · L660
+- `pub get_photos_by_paths` · L701 — Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
+- `pub get_photos_by_ids` · L716 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
+- `pub get_folder_counts` · L733 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
 
 ## duplicates.rs (39)
 

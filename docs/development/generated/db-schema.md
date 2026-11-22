@@ -265,6 +265,7 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
 - `idx_rating` on `photos(rating)` · db.rs
 - `idx_flag` on `photos(color_flag)` · db.rs
 - `idx_path` on `photos(path)` · db.rs
+- `idx_path_norm` on `photos(replace(path, char(92)` · db.rs
 - `idx_faces_photo` on `faces(photo_id)` · faces.rs
 - `idx_faces_person` on `faces(person_id)` · faces.rs
 - `idx_photo_keywords_keyword` on `photo_keywords(keyword_id)` · keywords.rs

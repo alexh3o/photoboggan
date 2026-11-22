@@ -63,7 +63,7 @@ import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from 
 import { initTitleBar } from './titlebar.js';
 import { orientationMatrix, swapsSides } from './orientation.js';
 import {
-  initFolderTree, renderFolderTree, scheduleFolderCounts, refreshDiskFoldersIfShown,
+  initFolderTree, renderFolderTree, updateActiveFolderRows, scheduleFolderCounts, refreshDiskFoldersIfShown,
   addCreatedFolder, selectFolder, rememberCurrentFolder, foldersMenuItems,
   getFolderPhotoCount, expandFolderAncestors, revealActiveFolderRow,
   forgetDeletedFolder, renameFolderInTree,
@@ -842,6 +842,10 @@ async function readDisplayedFolderPhotos(folder) {
   let list;
   if (wanted) {
     total = await countDisplayedPhotos();
+  } else if (queriedOffset === 0) {
+    list = await queryFolderPhotos(folder, null, 0);
+    // Below PHOTO_LOAD_LIMIT on page 1, the returned list is already complete: no separate COUNT(*) needed.
+    total = list.capped ? await countDisplayedPhotos() : list.length;
   } else {
     [total, list] = await Promise.all([countDisplayedPhotos(), queryFolderPhotos(folder, null, queriedOffset)]); // usual case: no wait for the count
   }
@@ -935,7 +939,7 @@ async function goToPhotoPage(target) {
     updateUIOnSelection();
     currentPhotoPage = page;
     clearFullscreenImageCache(); // keyed by index in the list, which the new page replaces
-    await loadPhotos(); // reads the page at offset currentPhotoPage × PHOTO_LOAD_LIMIT
+    await loadPhotos({ catalogChanged: false }); // reads the page at offset currentPhotoPage × PHOTO_LOAD_LIMIT
     gridContainer.scrollTop = 0;
   } finally {
     photoPageBusy = false;
@@ -971,7 +975,7 @@ function schedulePrefilterReload() {
   }, 200);
 }
 
-async function loadPhotos() {
+async function loadPhotos({ catalogChanged = true } = {}) {
   // Album virtuel affiché : un album manuel montre son contenu ; un album intelligent part de toute la photothèque (ses filtres viennent ensuite).
   // Dans les deux cas le dossier du disque n'intervient plus.
   const album = getSelectedAlbum();
@@ -996,13 +1000,23 @@ async function loadPhotos() {
   if (duplicateSearch) indexDuplicateGroups();
   photosLoadedOnce = true;
   // The whole-catalogue list feeds the keyword suggestions and gear lists: never a prefiltered one.
-  if (!album && currentFolderFilter === null && !duplicateSearch && !isSemanticSearchActive() && !loadedPrefilterKey) folderTreePhotos = loadedPhotos;
-  renderFolderTree();
-  renderKeywordFilters();
-  invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
+  let treeSourceUpdated = false;
+  if (!album && currentFolderFilter === null && !duplicateSearch && !isSemanticSearchActive() && !loadedPrefilterKey && (catalogChanged || folderTreePhotos.length === 0)) {
+    folderTreePhotos = loadedPhotos;
+    treeSourceUpdated = true;
+  }
+  if (catalogChanged) {
+    renderFolderTree();
+    renderKeywordFilters({ force: true });
+    invalidateKeywordTree(); // les fichiers ont pu changer l'arborescence des mots-clés (scan, relecture)
+  } else if (treeSourceUpdated) {
+    renderKeywordFilters();
+  }
   applyPhotoFilters({ keepState: false });
-  refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
-  scheduleAlbumCounts(); // les photos ont pu changer : compteurs des albums
+  if (catalogChanged) {
+    refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
+    scheduleAlbumCounts(); // les photos ont pu changer : compteurs des albums
+  }
 }
 
 function isRatingFilterActive() {
@@ -1565,17 +1579,31 @@ function renderAlbumFilterInfo() {
 // wired at startup). Keywords already in the filter are not offered again: their chip's context menu switches them.
 let keywordFilterOptions = [];
 let keywordFilterSuggest = null;
+let keywordOptionsSource = null;
 
-function renderKeywordFilters() {
-  const counts = new Map();
-  for (const photo of folderTreePhotos) {
-    for (const word of new Set((photo.keywords || '').split(', ').map(item => item.trim()))) if (word) counts.set(word, (counts.get(word) || 0) + 1);
+function renderKeywordFilters({ force = false } = {}) {
+  if (force || keywordOptionsSource?.photos !== folderTreePhotos || keywordOptionsSource?.length !== folderTreePhotos.length) {
+    keywordOptionsSource = { photos: folderTreePhotos, length: folderTreePhotos.length };
+    const counts = new Map();
+    for (const photo of folderTreePhotos) {
+      if (!photo.keywords) continue;
+      const seen = new Set();
+      for (const raw of photo.keywords.split(', ')) {
+        const word = raw.trim();
+        if (!word || seen.has(word)) continue;
+        seen.add(word);
+        counts.set(word, (counts.get(word) || 0) + 1);
+      }
+    }
+    keywordFilterOptions = [...counts].map(([word, count]) => {
+      const label = decodeHtmlEntities(word);
+      return { value: word, label, count, search: normalizeSearch(label) };
+    });
+    shootingFilters.refreshOptions(); // listes des appareils et objectifs : la collection a pu changer
+    authorFilters.refreshAuthors(); // liste des auteurs de la base : idem
   }
-  keywordFilterOptions = [...counts].map(([word, count]) => ({ value: word, label: decodeHtmlEntities(word), count, search: normalizeSearch(decodeHtmlEntities(word)) }));
   keywordFilterSuggest?.refresh();
   renderFilterTags();
-  shootingFilters.refreshOptions(); // listes des appareils et objectifs : la collection a pu changer
-  authorFilters.refreshAuthors(); // liste des auteurs de la base : idem
 }
 
 const hasKeywordFilters = () => keywordFilters.length > 0 || excludedKeywordFilters.length > 0;
@@ -1970,9 +1998,13 @@ function renderActiveFilterBadges() {
   })));
 }
 
+let htmlEntityDecoder = null;
 function decodeHtmlEntities(text) {
-  const doc = new DOMParser().parseFromString(String(text || ''), 'text/html');
-  return doc.documentElement.textContent;
+  const str = String(text || '');
+  if (!str.includes('&')) return str;
+  htmlEntityDecoder ??= document.createElement('textarea');
+  htmlEntityDecoder.innerHTML = str;
+  return htmlEntityDecoder.value;
 }
 
 // Pastille des photos géolocalisées sur les miniatures (Options d'affichage, désactivée par défaut) : simple classe sur <body>.
@@ -2005,7 +2037,8 @@ async function restoreViewSnapshot(snapshot) {
   } else {
     currentFolderFilter = snapshot.folder; extraFolderFilters = [];
   }
-  await loadPhotos();
+  renderFolderTree({ fromCounts: true });
+  await loadPhotos({ catalogChanged: false });
   const indexByPath = new Map(photos.map((photo, index) => [photo.path, index]));
   selectedIndices.clear();
   for (const path of snapshot.selectedPaths) if (indexByPath.has(path)) selectedIndices.add(indexByPath.get(path));
@@ -2050,8 +2083,8 @@ async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
   rememberCurrentFolder();
   // Dossiers parents dépliés pour que le dossier soit visible dans l'arbre (comme à la reprise du dernier dossier au démarrage).
   expandFolderAncestors(folder);
-  renderFolderTree();
-  await loadPhotos();
+  renderFolderTree({ fromCounts: true });
+  await loadPhotos({ catalogChanged: false });
   const index = photos.findIndex(candidate => candidate.path === photo.path);
   if (index >= 0) {
     selectedIndices.clear();
@@ -4082,7 +4115,7 @@ function applySortChange() {
   // Capped or paged list: the backend picked its photos in the previous sort (e.g. the newest ones), so the new sort needs another set; back to page 1.
   if (photoListCap || photoPageCount > 1) {
     currentPhotoPage = 0;
-    loadPhotos();
+    loadPhotos({ catalogChanged: false });
     return;
   }
   applyPhotoFilters({ keepState: true }); // sélection conservée (retrouvée par chemin)
@@ -4732,7 +4765,8 @@ document.getElementById('recursive-folder-toggle').addEventListener('change', ev
   currentPhotoPage = 0; // the scope changed: first page
   event.target.checked = wanted;
   localStorage.setItem('includeSubfolders', String(includeSubfolders));
-  loadPhotos();
+  renderFolderTree({ fromCounts: true });
+  loadPhotos({ catalogChanged: false });
 });
 // Reloads photos after a rescan. The folder tree is built from the full collection list: when filtered on a folder, reread it too so newly discovered subfolders appear.
 async function reloadPhotosAfterRescan() {
@@ -4762,7 +4796,7 @@ initFolderTree({
   getLoadedPhotos: () => loadedPhotos,
   getPhotos: () => photos,
   getSelectedIndices: () => selectedIndices,
-  loadPhotos: () => loadPhotos(),
+  loadPhotos: options => loadPhotos(options),
   abandonRawSearch: () => abandonRawSearch(),
   abandonDuplicateSearch: () => abandonDuplicateSearch(),
   abandonSemanticSearch: () => abandonSemanticSearch(),
@@ -4807,8 +4841,8 @@ initDuplicatesView({
   closeFullscreen: () => closeFullscreen(),
   syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
   clearFolderFilter: () => { currentFolderFilter = null; extraFolderFilters = []; },
-  renderFolderTree: () => renderFolderTree(),
-  loadPhotos: () => loadPhotos(),
+  renderFolderTree: () => renderFolderTree({ fromCounts: true }),
+  loadPhotos: () => loadPhotos({ catalogChanged: false }),
   normalizeFilterPath: path => normalizeFilterPath(path),
   enqueueTask: task => enqueueScanTask(task),
   keepTaskReady: (task, payload, options) => keepTaskReady(task, payload, options),
@@ -5088,7 +5122,7 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   folderTreePhotos = treeSharesLibrary ? loadedPhotos : folderTreePhotos.filter(photo => !removed.has(photo.path));
   clearFullscreenImageCache();
   renderFolderTree();
-  renderKeywordFilters();
+  renderKeywordFilters({ force: true });
 
   if (loadedPhotos.length === 0) {
     applyPhotoFilters(); // plus aucune photo : même traitement que des filtres sans résultat
@@ -5231,7 +5265,7 @@ initLocationPanel({ showToast: message => showWriteToast(message) });
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
   // Un album a été choisi, modifié ou supprimé : la grille recharge ce qu'il faut afficher (voir loadPhotos).
-  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); abandonSemanticSearch(); syncSmartAlbumWithSelection(); currentPhotoPage = 0; loadPhotos(); },
+  onSelectionChange: () => { abandonRawSearch(); abandonDuplicateSearch(); abandonSemanticSearch(); syncSmartAlbumWithSelection(); currentPhotoPage = 0; updateActiveFolderRows(); loadPhotos({ catalogChanged: false }); },
   // L'arbre ou le contenu des albums a changé : compteurs à recalculer.
   onTreeChanged: () => scheduleAlbumCounts(),
   // Disquette, « Enregistrer les modifications » et « Enregistrer la vue actuelle dans cet album ».
@@ -5310,7 +5344,7 @@ initMetadataWrites({
       }
     }
     forgetCachedImagePaths([...rewritten]);
-    renderKeywordFilters();
+    renderKeywordFilters({ force: true });
     if (reordered) applyPhotoFilters({ keepState: true });
     else updateUIOnSelection();
   },
@@ -5478,8 +5512,8 @@ initSemanticResults({
   closeFullscreen: () => closeFullscreen(),
   syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
   setFolderFilter: folder => { currentFolderFilter = folder; extraFolderFilters = []; },
-  renderFolderTree: () => renderFolderTree(),
-  loadPhotos: () => loadPhotos(),
+  renderFolderTree: () => renderFolderTree({ fromCounts: true }),
+  loadPhotos: () => loadPhotos({ catalogChanged: false }),
   currentViewScope: () => currentViewScope(),
 });
 
@@ -5500,8 +5534,8 @@ initFindRawMode({
   normalizeFilterPath: path => normalizeFilterPath(path),
   setFolderFilter: folder => { currentFolderFilter = folder; extraFolderFilters = []; },
   resetPage: () => { currentPhotoPage = 0; },
-  renderFolderTree: () => renderFolderTree(),
-  loadPhotos: () => loadPhotos(),
+  renderFolderTree: () => renderFolderTree({ fromCounts: true }),
+  loadPhotos: () => loadPhotos({ catalogChanged: false }),
   showToast: message => showWriteToast(message),
   abandonDuplicateSearch: () => abandonDuplicateSearch(),
   getDuplicateSearch: () => getDuplicateSearch(),
@@ -5672,7 +5706,7 @@ async function refreshLibraryAfterSync(changes) {
   loadedPhotos = fresh;
   folderTreePhotos = everything ?? fresh;
   renderFolderTree();
-  renderKeywordFilters();
+  renderKeywordFilters({ force: true });
   invalidateKeywordTree();
   applyPhotoFilters({ keepState: true });
 }

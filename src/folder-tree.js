@@ -143,6 +143,7 @@ export function expandFolderAncestors(folderPath) {
 export function forgetDeletedFolder(deletedPath) {
   const deleted = normalizeFolderKey(deletedPath);
   const isInside = value => normalizeFolderKey(value) === deleted || normalizeFolderKey(value).startsWith(`${deleted}/`);
+  catalogFolders = catalogFolders.filter(folder => !isInside(folder));
   for (const created of [...createdFolders]) if (isInside(created)) createdFolders.delete(created);
   diskFolders = diskFolders.filter(folder => !isInside(folder)); // otherwise the deleted folder would stay in the tree when "show empty folders" is enabled
   for (const key of [...folderTreeExpanded]) if (isInside(key)) folderTreeExpanded.delete(key);
@@ -153,6 +154,7 @@ export function renameFolderInTree(oldBase, newBase) {
   const isInside = value => normalizeFolderKey(value) === old || normalizeFolderKey(value).startsWith(`${old}/`);
   const follow = value => `${newBase}${value.replace(/\/+$/, '').slice(oldBase.length)}`;
   const followKey = key => normalizeFolderKey(`${newBase}${key.slice(old.length)}`);
+  catalogFolders = catalogFolders.map(folder => (isInside(folder) ? follow(folder) : folder));
   for (const created of [...createdFolders]) if (isInside(created)) { createdFolders.delete(created); createdFolders.add(follow(created)); }
   diskFolders = diskFolders.map(folder => (isInside(folder) ? follow(folder) : folder));
   for (const key of [...folderTreeExpanded]) if (isInside(key)) { folderTreeExpanded.delete(key); folderTreeExpanded.add(followKey(key)); }
@@ -180,8 +182,8 @@ export function selectFolder(path) {
   host.setCurrentFolderFilter(path);
   host.setExtraFolderFilters([]);
   rememberCurrentFolder();
-  renderFolderTree();
-  host.loadPhotos();
+  updateActiveFolderRows();
+  host.loadPhotos({ catalogChanged: false });
 }
 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
@@ -207,8 +209,8 @@ function toggleFolderInSelection(path) {
     host.setExtraFolderFilters([...extras, path]);
   }
   host.setCurrentPhotoPage(0); // the folders changed: first page
-  renderFolderTree();
-  host.loadPhotos();
+  updateActiveFolderRows();
+  host.loadPhotos({ catalogChanged: false });
 }
 
 // Folds / unfolds a folder row (its arrow, a double-click). `expanded`: whether the row is unfolded now. While the quick search filters the tree, only the
@@ -220,7 +222,7 @@ function toggleFolderFold(key, expanded) {
     if (expanded) folderTreeExpanded.delete(key); else folderTreeExpanded.add(key);
     folderTreeInitialized = true;
   }
-  renderFolderTree();
+  renderFolderTree({ fromCounts: true });
 }
 
 // Entries of the Folders menu (right-click on the "Folders" title, also appended to the "All photos" menu): fold every folder, or unfold the
@@ -237,7 +239,7 @@ export function foldersMenuItems() {
     { label: t('Collapse all'), title: t('Fold every folder'), onSelect: () => {
       folderTreeExpanded.clear();
       folderTreeInitialized = true; // otherwise the tracked folders would be unfolded again as on first display
-      renderFolderTree();
+      renderFolderTree({ fromCounts: true });
     } },
     {
       label: tp('Expand to the selected photo', selectedIndices.size),
@@ -249,7 +251,7 @@ export function foldersMenuItems() {
           for (let cut = folder.indexOf('/', 1); cut !== -1; cut = folder.indexOf('/', cut + 1)) folderTreeExpanded.add(folder.slice(0, cut));
         }
         folderTreeInitialized = true;
-        renderFolderTree();
+        renderFolderTree({ fromCounts: true });
       },
     },
   ];
@@ -276,16 +278,26 @@ export function renderFolderTree({ fromCounts = false } = {}) {
   allItem.addEventListener('click', () => selectFolder(null));
   folderTree.appendChild(allItem);
 
-  const roots = folders.map(folder => ({ path: folder.path.replace(/[\\/]+$/, ''), name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path, children: new Map() }));
+  const roots = folders.map(folder => {
+    const path = folder.path.replace(/[\\/]+$/, '');
+    const normPath = path.replace(/\\/g, '/');
+    const normKey = normPath.toLowerCase();
+    return {
+      path,
+      name: folder.path.split(/[\\/]/).filter(Boolean).pop() || folder.path,
+      children: new Map(),
+      normPath,
+      normKey,
+      normKeyPrefix: `${normKey}/`,
+    };
+  });
   // `empty`: folder with no photo; only nodes created by this call are marked (those already inferred from photos never are).
   const addFolderToTree = (parent, empty = false) => {
-    const root = roots.find(candidate => {
-      const rootPath = candidate.path.replace(/\\/g, '/').replace(/\/+$/, '');
-      return normalizeFolderKey(parent) === normalizeFolderKey(rootPath) || normalizeFolderKey(parent).startsWith(`${normalizeFolderKey(rootPath)}/`);
-    });
+    const parentSlash = parent.replace(/\\/g, '/').replace(/\/+$/, '');
+    const parentKey = parentSlash.toLowerCase();
+    const root = roots.find(candidate => parentKey === candidate.normKey || parentKey.startsWith(candidate.normKeyPrefix));
     if (!root) return;
-    const rootPath = root.path.replace(/\\/g, '/').replace(/\/+$/, '');
-    const relative = parent.slice(rootPath.length).replace(/^\//, '');
+    const relative = parentSlash.slice(root.normPath.length).replace(/^\//, '');
     let node = root;
     let currentPath = root.path;
     for (const segment of relative.split('/').filter(Boolean)) {
@@ -296,11 +308,19 @@ export function renderFolderTree({ fromCounts = false } = {}) {
   };
   // Every folder holding at least one catalogued photo, read from the whole catalogue: the loaded photo list is capped
   // (50,000 most recent), so older folders would otherwise be missing, or shown as empty by the disk listing below.
-  for (const folderPath of catalogFolders) addFolderToTree(folderPath);
-  // Loaded photos too: they draw the tree right away, before the first catalogue read answers.
-  for (const photo of (folderTreePhotos.length ? folderTreePhotos : loadedPhotos)) {
-    const photoPath = photo.path.replace(/\\/g, '/');
-    addFolderToTree(photoPath.slice(0, photoPath.lastIndexOf('/')));
+  if (catalogFolders.length > 0) {
+    for (const folderPath of catalogFolders) addFolderToTree(folderPath);
+  } else {
+    // Loaded photos draw the tree right away before the first catalogue read answers.
+    const seenFolders = new Set();
+    for (const photo of (folderTreePhotos.length ? folderTreePhotos : loadedPhotos)) {
+      const cut = Math.max(photo.path.lastIndexOf('/'), photo.path.lastIndexOf('\\'));
+      const dir = cut >= 0 ? photo.path.slice(0, cut) : '';
+      if (dir && !seenFolders.has(dir)) {
+        seenFolders.add(dir);
+        addFolderToTree(dir);
+      }
+    }
   }
   // Folders created from the app and still empty: the tree is inferred from photos, so they would not appear otherwise.
   for (const folderPath of createdFolders) addFolderToTree(folderPath.replace(/\\/g, '/').replace(/\/+$/, ''));
@@ -495,6 +515,24 @@ function revealFolderRow(row) {
 
 export function revealActiveFolderRow() {
   revealFolderRow(folderTree.querySelector(':scope > .folder-tree-item.active')); // direct children only: the pinned copies are not the real row
+}
+
+// Updates `.active` in place on the existing tree rows and sticky copies during navigation without rebuilding the DOM or re-fetching counts.
+export function updateActiveFolderRows() {
+  if (!folderTree) return;
+  const albumSelected = Boolean(getSelectedAlbum());
+  const currentFolderFilter = host.getCurrentFolderFilter();
+  const extraFolderFilters = host.getExtraFolderFilters();
+  const activeKeys = albumSelected
+    ? new Set()
+    : new Set([currentFolderFilter, ...extraFolderFilters].filter(Boolean).map(normalizeFolderKey));
+  folderTree.querySelector(':scope > li[data-all-photos="1"]')?.classList.toggle('active', !albumSelected && currentFolderFilter === null);
+  for (const row of folderTree.querySelectorAll(':scope > li[data-folder-path]')) {
+    row.classList.toggle('active', activeKeys.has(normalizeFolderKey(row.dataset.folderPath)));
+  }
+  for (const copy of stickyFolderCopies.values()) {
+    copy.classList.toggle('active', activeKeys.has(normalizeFolderKey(copy.dataset.folderPath)));
+  }
 }
 
 // ==========================================
