@@ -1,4 +1,4 @@
-<!-- verified: 0fd3679 | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js, src/task-queue.js -->
+<!-- verified: bae2a90 | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-results.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js, src/task-queue.js -->
 # Semantic search and automatic keywords
 
 ## Purpose
@@ -17,7 +17,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 | `semantic-tagging.js` | "Photos likely to match" for a keyword and the "Suggestions" block of the Keywords panel. |
 | `semantic-exclusions.js` | Settings list of keywords never suggested (and their subtrees). |
 | `task-queue.js` | Task lane `pumpSemanticQueue`. |
-| `main.js` | Section "CONTENT SEARCH RESULTS" (mode `semanticSearch`). |
+| `semantic-results.js` | Results mode (`semanticSearch`): relevance cut (`matchesSemanticCut`), banner, keyword-candidate actions, `findSimilarContent`, `findKeywordCandidates`, wired via `initSemanticResults` in `main.js`. |
 
 ## How it works
 
@@ -31,7 +31,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 3. Others: decode pixels (`load_pixels`: cached thumbnail, else the original; thumbnails written only with `semanticWriteThumbnails`), `image_tensor`, run the vision session in batches of 16, one transaction per batch (`store_batch_with_hashes`). The loaded index is updated in place (`on_batch_stored`).
 4. Runs on a dedicated thread with lowered OS priority; `threads` 1–4 (`semanticScanThreads`). Between batches it waits while `foreground_busy()`: other tasks hold a `PriorityGuard` (scans, writes, integrity, face scan, duplicates, thumbnails). Progress goes through `scan-progress` with `done`, `total`, `remainingSeconds`, `paused`. Cancel keeps stored batches. A panic while reading one photo fails only that photo (`guard_panic`).
 
-**4. Search.** `semantic_search_text(query, scope)` / `semantic_search_image(photoId, scope)` → `semantic_search::search`: the index is built on the first search from all embeddings of the active model (contiguous fp16 array, dot products in parallel), the query is normalised (`prepare_query`, wrapped in a template when ≤ 3 words), the top `MAX_RESULTS` (2000) are returned sorted by cosine. The UI keeps `cos ≥ best − Δ` (`relevance_cut`, slider `semanticRelevance`): moving the slider filters locally (`matchesSemanticCut` in main.js), no new request. After 5 minutes without search the index and text encoder are dropped. Results display in mode `semanticSearch` of main.js (like `duplicateSearch` / `rawSearch`): banner, slider, sort; navigating by hand or disabling ends it.
+**4. Search.** `semantic_search_text(query, scope)` / `semantic_search_image(photoId, scope)` → `semantic_search::search`: the index is built on the first search from all embeddings of the active model (contiguous fp16 array, dot products in parallel), the query is normalised (`prepare_query`, wrapped in a template when ≤ 3 words), the top `MAX_RESULTS` (2000) are returned sorted by cosine. The UI keeps `cos ≥ best − Δ` (`relevance_cut`, slider `semanticRelevance`): moving the slider filters locally (`matchesSemanticCut` in `semantic-results.js`), no new request. After 5 minutes without search the index and text encoder are dropped. Results display in mode `semanticSearch` (`semantic-results.js`, like `duplicateSearch` / `rawSearch`): banner, slider, sort; navigating by hand or disabling ends it.
 
 **5. Keyword help.** `semantic_keyword_candidates(keywordId, scope)`: with ≥ 5 (`MIN_EXAMPLES`) analysed tagged photos, score = mean cosine with the 5 nearest tagged photos (up to 256 examples), threshold = 10 % quantile of the keyword's own scores; fewer examples → cosine with the keyword name against `TEXT_THRESHOLD`. `semantic_photo_suggestions(photoId, excludedKeywordIds)`: up to 5 eligible leaf keywords with score ≥ 0.80 (`SUGGESTION_THRESHOLD`). `reject_keyword_suggestion` stores a row in `keyword_suggestion_rejections`. `keyword_photo_ids` / `semantic_keyword_photos` serve the toolbar box. **Accepting a suggestion only calls `addPendingKeyword`** (keywords-panel.js): a pending keyword, written by the normal Apply.
 
@@ -43,7 +43,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 
 ## Dependencies
 - Uses: `duplicates.rs` (image-data hash: `LAYOUT_VERSION`), thumbnails cache, `onnx_runtime.rs`, `model_files.rs`, `face_models.rs` (`models_dir`, `internet_allowed`, runtime file), `keywords.rs` (`collect_rows`, tree), `keywords-panel.js` (`addPendingKeyword`).
-- Used by: `task-queue.js` (semantic lane), `main.js` (results mode, context menus), `keywords-panel.js` (Suggestions block); other tasks call `PriorityGuard::new()`.
+- Used by: `task-queue.js` (semantic lane), `semantic-results.js` (results mode, wired via `initSemanticResults` in `main.js`), `main.js` (grid, sorting, context menus), `keywords-panel.js` (Suggestions block); other tasks call `PriorityGuard::new()`.
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: **never write on a suggestion click.** Only `addPendingKeyword`; no other write path (AGENTS.md §5.I).

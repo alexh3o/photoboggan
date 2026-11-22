@@ -106,7 +106,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `create_subfolder` | `main.rs` | `parent: String, name: String` | `()` | async pool | photo-actions.js |
 | `list_disk_folders` | `main.rs` | — | `Vec<String>` | async pool | main.js |
 | `get_photos_by_paths` | `main.rs` | `paths: Vec<String>` | `Vec<Photo>` | main thread | main.js |
-| `get_photos_by_ids` | `main.rs` | `ids: Vec<i64>` | `Vec<Photo>` | main thread | main.js, semantic-keywords.js |
+| `get_photos_by_ids` | `main.rs` | `ids: Vec<i64>` | `Vec<Photo>` | main thread | semantic-results.js, semantic-keywords.js |
 | `get_photos_paginated` | `main.rs` | `offset: i32, limit: i32, folder_filter: Option<String>, recursive: bool, sort_key: Option<String>, sort_order: Option<String>, prefilter: Option<db::PhotoPrefilter>` | `Vec<Photo>` | async pool | main.js ×3 |
 | `count_photos` | `main.rs` | `folder_filter: Option<String>, recursive: bool, prefilter: Option<db::PhotoPrefilter>` | `Option<i64>` | async pool | main.js |
 | `get_folder_counts` | `main.rs` | — | `std::collections::HashMap<String, i64>` | async pool | main.js |
@@ -174,7 +174,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `delete_semantic_model` | `semantic_models.rs` | — | `ModelStatus` | async pool | semantic-settings.js ×2 |
 | `semantic_search_text` | `semantic_search.rs` | `query: String, scope: SearchScope, relevance: Option<f32>` | `SearchResults` | async pool | semantic.js |
 | `semantic_search_image` | `semantic_search.rs` | `photo_id: i64, scope: SearchScope, relevance: Option<f32>` | `SearchResults` | async pool | semantic.js |
-| `semantic_keyword_photos` | `semantic_search.rs` | `query: String, scope: SearchScope` | `Vec<i64>` | async pool | main.js |
+| `semantic_keyword_photos` | `semantic_search.rs` | `query: String, scope: SearchScope` | `Vec<i64>` | async pool | semantic-results.js |
 | `semantic_scan` | `semantic.rs` | `task_id: String, folder: Option<String>, recursive: bool, photo_ids: Option<Vec<i64>>, threads: Option<usize>, skip_raw: Option<bool>, write_thumbnails: Option<bool>` | `ScanReport` | async pool | semantic-settings.js |
 | `get_semantic_stats` | `semantic.rs` | `folder: Option<String>, recursive: bool, photo_ids: Option<Vec<i64>>, skip_raw: Option<bool>` | `Stats` | async pool | semantic-settings.js |
 | `get_analysed_photo_ids` | `semantic.rs` | — | `Vec<i64>` | async pool | main.js ×2 |

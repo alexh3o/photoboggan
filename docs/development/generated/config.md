@@ -65,13 +65,13 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `selectionColor` | `"#15932a"` | main.js |
 | `semanticExcludedKeywords` | `[]` | semantic-exclusions.js |
 | `semanticInKeywordSearch` | `false` | semantic-keywords.js, semantic-settings.js |
-| `semanticKeywordSort` | `"grid"` | main.js |
-| `semanticKeywordsInSearch` | `true` | main.js, semantic-settings.js |
-| `semanticRelevance` | `0.03` | main.js |
+| `semanticKeywordSort` | `"grid"` | semantic-results.js |
+| `semanticKeywordsInSearch` | `true` | semantic-results.js, semantic-settings.js |
+| `semanticRelevance` | `0.03` | semantic-results.js |
 | `semanticScanRaw` | `true` | main.js, semantic-settings.js, semantic.js |
 | `semanticScanThreads` | `1` | semantic-settings.js |
 | `semanticScope` | `"view"` | semantic.js |
-| `semanticSearch` | `false` | main.js, semantic-settings.js |
+| `semanticSearch` | `false` | semantic-results.js, semantic-settings.js |
 | `semanticShowScore` | `false` | main.js, semantic-settings.js |
 | `semanticWriteThumbnails` | `false` | semantic-settings.js |
 | `sensitivity` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
