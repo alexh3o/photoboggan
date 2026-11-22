@@ -7,7 +7,7 @@
 - [x] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
 - [x] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
 - [ ] *feat*: `grid` when no photos are in the view, mention to check filters of all types filters section, private (?) sets, map
-- [ ] *refactor*: remove semantic suggestions in albums if they come with keywords
+- [ ] *feat*: `thumbnail` option to add a visual tag on RAW files
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

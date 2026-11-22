@@ -1,4 +1,4 @@
-<!-- verified: a4e6dbd | sources: src/main.js, src/folder-tree.js, src/task-queue.js, index.html, src/sidebar-search.js, src/titlebar.js, src/sticky-folders.js -->
+<!-- verified: 5235709 | sources: src/main.js, src/folder-tree.js, src/task-queue.js, index.html, src/sidebar-search.js, src/titlebar.js, src/sticky-folders.js -->
 # Main window: photo loading, folder tree, task queue, settings modal, startup (main.js, part 1 + folder-tree.js + task-queue.js)
 
 ## Purpose
