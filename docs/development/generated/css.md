@@ -155,11 +155,11 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 67 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
 | `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 80 | — |
-| `--thumb-badge-bg` | styles.css · `:root` · `rgba(0, 0, 0, 0.55)` | 2 | — |
+| `--thumb-badge-bg` | styles.css · `:root` · `rgba(145, 145, 145, 0.7)` | 2 | — |
 | `--thumb-badge-color` | styles.css · `:root` · `#fff` | 2 | — |
 | `--thumb-badge-gap` | styles.css · `:root` · `4px` | 1 | — |
 | `--thumb-badge-right` | styles.css · `:root` · `6px` | 3 | — |
-| `--thumb-badge-shadow` | styles.css · `:root` · `0 0 0 1px rgba(255, 255, 255, 0.75), 0 …` | 1 | — |
+| `--thumb-badge-shadow` | styles.css · `:root` · `0 0 0 1px rgba(255, 255, 255, 0.50), 0 …` | 1 | — |
 | `--thumb-badge-top` | styles.css · `:root` · `6px` | 2 | — |
 | `--thumb-bg` | styles.css · `:root` · `#1a1a1a`<br>styles.css · (light) `:root[data-theme="light"]` · `#d4d4d4` | 3 | — |
 | `--thumb-corner-size` | styles.css · `:root` · `1.75rem` | 4 | — |

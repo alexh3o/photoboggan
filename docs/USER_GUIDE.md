@@ -125,6 +125,8 @@ Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resi
 **Display** (grid icon):
 
 - **Thumbnails grid:** *Square*, *Framed*, *Justified* (full rows, no cropping) or *Waterfall* (masonry).
+- Thumbnails **rounded corners**: no (perfect square angles), light / medium / strong or max (makes square thumbnails round)
+- **Badges for geolocation / RAW format**: display a small badge on thumbnails to indicate geolocation data / RAW format
 - **Thumbnail spacing** and **Size** (96 to 1024 px).
 - **Theme** (*Dark* / *Light*), **Text size**, **Selection color**, **Active Buttons color**, and **Dim unselected photos on hover**.
 - **Interface font**: choose the font used by the interface.
