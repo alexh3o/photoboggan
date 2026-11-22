@@ -49,7 +49,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 
 | Module | Imports | Imported by |
 |---|---|---|
-| `albums-panel` | i18n, photo-actions, settings-defaults, sidebar-search | drag-drop, main |
+| `albums-panel` | i18n, photo-actions, settings-defaults, sidebar-search | drag-drop, duplicates-view, main |
 | `app-fonts` | — | main |
 | `author-filters` | filter-suggest, filter-tags, i18n | main |
 | `batch-rename` | batch-rename-engine, i18n, metadata-writes, photo-actions | main |
@@ -57,9 +57,10 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `date-filter` | i18n | main |
 | `description-panel` | i18n, metadata-writes, rights-presets | main |
 | `drag-drop` | albums-panel, i18n, map-mode, metadata-writes, photo-actions | main |
-| `duplicate-names` | raw-settings | main |
-| `duplicates` | i18n | duplicates-modal, main, photo-actions |
-| `duplicates-modal` | duplicates, i18n, raw-settings | main |
+| `duplicate-names` | raw-settings | duplicates-view |
+| `duplicates` | i18n | duplicates-modal, duplicates-view, main, photo-actions |
+| `duplicates-modal` | duplicates, i18n, raw-settings | duplicates-view, main |
+| `duplicates-view` | albums-panel, duplicate-names, duplicates, duplicates-modal, format-filters, i18n, raw-settings | main |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults | main |
 | `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | faces-grid, main, persons-view, stats |
 | `file-dates` | i18n | main |
@@ -67,15 +68,15 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `filter-suggest` | i18n | author-filters, faces-panel, format-filters, keywords-panel, main, privacy, rights-presets, semantic-exclusions, shooting-filters, stats |
 | `filter-tags` | i18n, photo-actions | author-filters, faces-panel, format-filters, main, privacy, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | main |
-| `format-filters` | filter-suggest, filter-tags, i18n | file-kinds, main, stats |
+| `format-filters` | filter-suggest, filter-tags, i18n | duplicates-view, file-kinds, main, stats |
 | `geo-tools` | i18n, metadata-writes, photo-actions | main |
 | `guide` | i18n | main |
 | `histogram` | i18n, settings-defaults | main |
-| `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, preview-zoom, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, task-queue, titlebar, update-check |
+| `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-view, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, format-filters, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, preview-zoom, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, task-queue, titlebar, update-check |
 | `info-author` | i18n, settings-defaults | main |
 | `keywords-panel` | filter-suggest, i18n, metadata-writes, photo-actions, semantic-settings, semantic-tagging | main |
 | `location-panel` | i18n, map-config, map-view, maps-settings, private-zones, private-zones-modal, settings-defaults | main, map-mode |
-| `main` | albums-panel, app-fonts, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicate-names, duplicates, duplicates-modal, faces-grid, faces-panel, file-dates, file-kinds, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, orientation, persons-view, photo-actions, preview-zoom, privacy, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, sidebar-search, slideshow, stats, sticky-folders, task-queue, titlebar, toolbar-a11y, update-check | — |
+| `main` | albums-panel, app-fonts, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-view, faces-grid, faces-panel, file-dates, file-kinds, filter-suggest, filter-tags, find-raw, format-filters, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, orientation, persons-view, photo-actions, preview-zoom, privacy, private-zones-modal, raw-settings, semantic, semantic-keywords, semantic-settings, semantic-tagging, settings-defaults, shooting-filters, sidebar-search, slideshow, stats, sticky-folders, task-queue, titlebar, toolbar-a11y, update-check | — |
 | `map-config` | settings-defaults | location-panel, map-tile-protocol, map-view, private-zones-modal |
 | `map-mode` | i18n, location-panel, map-view, maps-settings, metadata-writes, place-search, private-zones, private-zones-modal, settings-defaults | drag-drop, main |
 | `map-tile-protocol` | map-config, settings-defaults | map-view |
@@ -93,7 +94,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `privacy` | filter-suggest, filter-tags, i18n, photo-actions, settings-defaults | main |
 | `private-zones` | — | location-panel, map-mode, private-zones-modal, zone-drawing |
 | `private-zones-modal` | i18n, map-config, map-view, maps-settings, photo-actions, private-zones, settings-defaults, zone-drawing | location-panel, main, map-mode |
-| `raw-settings` | i18n, settings-defaults | duplicate-names, duplicates-modal, find-raw, main |
+| `raw-settings` | i18n, settings-defaults | duplicate-names, duplicates-modal, duplicates-view, find-raw, main |
 | `rights-presets` | filter-suggest, i18n, metadata-writes | description-panel |
 | `semantic` | i18n, semantic-settings, settings-defaults | main, semantic-tagging |
 | `semantic-exclusions` | filter-suggest, i18n, settings-defaults | semantic-keywords, semantic-settings, semantic-tagging |

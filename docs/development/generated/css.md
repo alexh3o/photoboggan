@@ -183,13 +183,13 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 |---:|---|---|
 | 13000 | albums.css | `.album-drag-ghost` |
 | 13000 | styles.css | `.drag-ghost` |
+| 12000 | styles.css | `.write-toast` |
 | 12000 | styles.css | `.task-toasts` |
 | 11000 | styles.css | `.context-menu` |
 | 10000 | styles.css | `.modal` |
 | 9999 | histogram.css | `.histogram-widget.in-fullscreen` |
 | 9999 | styles.css | `#fullscreen-view` |
 | 5000 | styles.css | `.date-picker` |
-| 1000 | styles.css | `.write-toast` |
 | 900 | styles.css | `.top-bar.hidden.peek` |
 | 60 | privacy.css | `.privacy-menu.keyword-suggestions` |
 | 20 | histogram.css | `.histogram-widget` |

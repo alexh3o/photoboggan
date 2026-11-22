@@ -14,7 +14,7 @@ import { initSemanticSettings, onSemanticOfflineChanged, onSemanticChange, onAna
 import { initSemanticSearch, searchText, searchImage, currentSearchScope, semanticScope } from './semantic.js';
 import { fetchKeywordCandidates, rejectKeywordSuggestion } from './semantic-tagging.js';
 import { initKeywordSuggestions, guessedKeywordEntries, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
-import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria, compileNamePattern } from './raw-settings.js';
+import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria } from './raw-settings.js';
 import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
@@ -42,9 +42,14 @@ import { initPersonsView, isPersonsViewOpen, openPersonsView, closePersonsView, 
 import { initHistogram, syncHistogram, cycleHistogramState } from './histogram.js';
 import { initShootingFilters, matchesShootingState, shootingPrefilter } from './shooting-filters.js';
 import { initFormatFilters, matchesFormatState, formatPrefilterExtensions, RAW_EXTENSIONS, HEIF_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
-import { GROUP_SORT_MODES, GROUP_SORT_LABELS, normalizeGroupSort, formatBytes, sortGroupMembers, orderGroups, firstPathOf, getSimilarSettings, similarRequestFields, getIdenticalSettings, mergeGroups, describeSearch, getKeepSettings, describeKeepOrder } from './duplicates.js';
-import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel, initDuplicatesModal } from './duplicates-modal.js';
-import { findNameGroups } from './duplicate-names.js';
+import { formatBytes } from './duplicates.js';
+import { initDuplicatesModal } from './duplicates-modal.js';
+import {
+  initDuplicatesView, isDuplicateSearchActive, getDuplicateSearch, photoFormat,
+  indexDuplicateGroups, computeDuplicateSeparators, renderDuplicateBanner,
+  abandonDuplicateSearch, exitDuplicateSearch, showReadyDuplicateResults,
+  findDuplicateImages, openDuplicatesDialog,
+} from './duplicates-view.js';
 import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive, notifySlideshowPhotoShown, peekNextSlideshowPhoto } from './slideshow.js';
 import { initToolbarAria } from './toolbar-a11y.js';
 import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
@@ -97,8 +102,6 @@ let currentFolderFilter = null;
 let extraFolderFilters = [];
 // Mode « Find RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
 let rawSearch = null;
-// Duplicate search results (section "DUPLICATES" below): null outside the mode, otherwise the groups found and the view to go back to.
-let duplicateSearch = null;
 let semanticSearch = null; // content search results mode (see "CONTENT SEARCH RESULTS")
 // Startup view (Settings > Genéral) : « all » for all photos (default), « last » for last folder.
 let startupView = readChoice('startupView', ['last', 'all']);
@@ -976,6 +979,7 @@ async function loadPhotos() {
   const album = getSelectedAlbum();
   const baseAlbumId = album?.kind === 'manual' ? album.id : album?.kind === 'smart' ? getAlbumContext(album.id).baseManualId : 0;
   const generation = ++photoLoadGeneration;
+  const duplicateSearch = getDuplicateSearch();
   let result;
   if (duplicateSearch) {
     // Duplicate results: only the photos of the groups, never the folder or album view (also used when the mode reloads after a rescan).
@@ -1606,7 +1610,7 @@ function matchesKeywordFiltersOrSuggested(photo) {
 
 // Cheap key of "the view" for the suggestions: they are searched again only when the filter or this key changes (never null in a plain view).
 function keywordSuggestionViewKey() {
-  if (rawSearch || duplicateSearch || semanticSearch) return null; // results modes: no suggestions
+  if (rawSearch || isDuplicateSearchActive() || semanticSearch) return null; // results modes: no suggestions
   return `${currentFolderFilter}|${includeSubfolders}|${getSelectedAlbum()?.id ?? ''}|${extraFolderFilters.join('\n')}`;
 }
 
@@ -2303,7 +2307,7 @@ document.getElementById('folders-toggle').addEventListener('contextmenu', event 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
 function toggleFolderInSelection(path) {
   const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  if (currentFolderFilter === null || getSelectedAlbum() || duplicateSearch || rawSearch || semanticSearch) { selectFolder(path); return; }
+  if (currentFolderFilter === null || getSelectedAlbum() || isDuplicateSearchActive() || rawSearch || semanticSearch) { selectFolder(path); return; }
   if (isSelectedAlbumDirty()) { selectFolder(path); return; }
   if (same(currentFolderFilter, path)) {
     if (extraFolderFilters.length === 0) return; // the only selected folder stays selected
@@ -2535,17 +2539,17 @@ async function restoreViewSnapshot(snapshot) {
 function currentViewScope() {
   if (semanticSearch) return semanticSearch.viewScope; // a new search from inside the results mode searches the same view
   const album = getSelectedAlbum();
-  if (!album && !rawSearch && !duplicateSearch && extraFolderFilters.length === 0) {
+  if (!album && !rawSearch && !isDuplicateSearchActive() && extraFolderFilters.length === 0) {
     if (currentFolderFilter !== null) return { folder: currentFolderFilter, recursive: includeSubfolders, photoIds: null };
     return { folder: null, recursive: false, photoIds: null }; // "All photos"
   }
   return { folder: null, recursive: false, photoIds: loadedPhotos.map(photo => photo.id) };
 }
 
-function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !duplicateSearch && !semanticSearch; }
+function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !isDuplicateSearchActive() && !semanticSearch; }
 // `anyView`: also allowed from a folder view with subfolders included (Info panel "Folder" link), where the photo may lie below the open folder.
 async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
-  const fromResults = rawSearch !== null || duplicateSearch !== null || semanticSearch !== null;
+  const fromResults = rawSearch !== null || isDuplicateSearchActive() || semanticSearch !== null;
   if (!photo || !(fromResults || anyView || isAllPhotosView())) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
@@ -2621,9 +2625,8 @@ async function findRawFor(photo) {
 
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = rawSearch?.snapshot ?? duplicateSearch?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
-  duplicateSearch = null; // a duplicate search in progress ends here; the view saved above is the one to go back to
-  renderDuplicateBanner();
+  const snapshot = rawSearch?.snapshot ?? getDuplicateSearch()?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
+  abandonDuplicateSearch(); // a duplicate search in progress ends here; the view saved above is the one to go back to
   semanticSearch = null; // same for a content search
   renderSemanticBanner();
   clearAlbumSelection();
@@ -2789,6 +2792,7 @@ function renderVisibleItems() {
     if (photoLayouts[middle].y < top) low = middle + 1; else high = middle;
   }
   const visible = new Set();
+  const duplicateSearch = getDuplicateSearch();
   for (let p = low; p < photoLayouts.length && photoLayouts[p].y < bottom; p++) {
     const layout = photoLayouts[p];
     const i = layout.index;
@@ -2929,6 +2933,7 @@ function renderVisibleItems() {
 // Les nœuds sont indexés par numéro de groupe et mis à jour si le texte ou la position change (changement de tri, de filtre ou de langue).
 function renderVisibleSeparators(top, bottom) {
   const visible = new Set();
+  const duplicateActive = isDuplicateSearchActive();
   for (const separator of separatorLayouts) {
     if (separator.y + separator.height < top) continue;
     if (separator.y > bottom) break;
@@ -2943,7 +2948,7 @@ function renderVisibleSeparators(top, bottom) {
       renderedSeparatorNodes.set(separator.group, node);
       scrollContent.appendChild(node);
     }
-    node.classList.toggle('duplicate-group', Boolean(duplicateSearch)); // stronger look for the groups of the duplicate results
+    node.classList.toggle('duplicate-group', duplicateActive); // stronger look for the groups of the duplicate results
     if (node._label !== separator.label) { node._text.textContent = separator.label; node._label = separator.label; }
     if (node._title !== separator.title) { node.title = separator.title; node._title = separator.title; }
     const transform = `translate3d(0, ${separator.y}px, 0)`;
@@ -4340,7 +4345,7 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === 'Escape') {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
     else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
-    else if (!isFullscreen && duplicateSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
+    else if (!isFullscreen && isDuplicateSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
     else if (!isFullscreen && semanticSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitSemanticSearch(); // content search: same
   } else if (e.key.toLowerCase() === 'f') {
     e.preventDefault();
@@ -4961,7 +4966,7 @@ function separatorText(photo, mode) {
 
 // Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
 function computePhotoGroups() {
-  if (duplicateSearch && photos.length > 0) return computeDuplicateSeparators();
+  if (isDuplicateSearchActive() && photos.length > 0) return computeDuplicateSeparators();
   if (semanticSearch) return []; // results are sorted by relevance: no separator
   const mode = activeSeparator();
   if (mode === 'none' || photos.length === 0) return [];
@@ -5000,6 +5005,7 @@ function comparePhotosForSort(a, b) {
     return semanticRankOrder(a, b);
   }
   // Duplicate results: groups in the chosen group order, members best first inside each group.
+  const duplicateSearch = getDuplicateSearch();
   if (duplicateSearch) {
     const orderA = duplicateSearch.order.get(a.path);
     const orderB = duplicateSearch.order.get(b.path);
@@ -5777,7 +5783,7 @@ async function reloadPhotosAfterRescan() {
 
 // After a pause, the photos read so far are added to the grid without the full reload (same in-place refresh as library sync).
 async function refreshAfterPausedScan() {
-  if (getSelectedAlbum() || duplicateSearch || semanticSearch) return;
+  if (getSelectedAlbum() || isDuplicateSearchActive() || semanticSearch) return;
   await refreshLibraryAfterSync({ added: [], updated: [], removed: [] });
 }
 
@@ -5792,315 +5798,38 @@ initTaskQueue({
   getTrackedFolders: () => folders,
 });
 
-// ==========================================
-// DUPLICATES
-// ==========================================
-// Right click > "Find duplicates" (a photo, a selection, a folder or "All photos"): the backend (duplicates.rs) searches as a queue task and returns groups
-// of paths. They open in the main grid in a results mode like "Find the RAW": a banner brings back the view saved before (snapshot), the filters
-// are cleared, a separator heads each group, and the groups are ordered by quantity, total size or path (button of the banner).
-// Navigating by hand (folder, album) ends the mode without going back.
-const DUPLICATE_SORT_KEY = 'duplicateGroupSort';
-
-// Groups of the mode with the members found in the catalog, ranked. Called after each load of the mode's photos (loadedPhotos is up to date).
-function indexDuplicateGroups() {
-  const search = duplicateSearch;
-  const byPath = new Map(loadedPhotos.map(photo => [photo.path, photo]));
-  search.groups = [];
-  const keep = getKeepSettings(); // read once: the groups are ranked with the same settings
-  search.groupPaths.forEach((paths, position) => {
-    const members = sortGroupMembers(paths.map(path => byPath.get(path)).filter(Boolean), keep);
-    if (members.length < 2) return; // photos removed since the search leave nothing to compare
-    search.groups.push({ id: search.groups.length, members, reasons: search.groupReasons?.[position] ?? [], bytes: members.reduce((sum, photo) => sum + (photo.file_size || 0), 0), firstPath: firstPathOf(members) });
-  });
-  // Best copies, wearing the medal. One per group; with RAW and JPEG searched together, one per format and only for a format that has several copies in
-  // the group (a lone JPEG next to its RAW is not "the best" of anything).
-  search.best = new Set();
-  for (const group of search.groups) {
-    if (!search.mixedFormats) { search.best.add(group.members[0].path); continue; }
-    const byFormat = new Map();
-    for (const photo of group.members) {
-      const format = photoFormat(photo.path);
-      byFormat.set(format, [...(byFormat.get(format) ?? []), photo]);
-    }
-    for (const copies of byFormat.values()) if (copies.length > 1) search.best.add(copies[0].path);
-  }
-  rankDuplicateGroups();
-}
-
-// File format shown and compared in the duplicate results: the extension in capitals (JPEG and JFIF count as JPG).
-function photoFormat(path) {
-  const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
-  return (extension === 'jpeg' || extension === 'jfif' ? 'jpg' : extension).toUpperCase();
-}
-
-// Position of each group in the chosen order, and group and rank of each photo (read by the grid sort).
-function rankDuplicateGroups() {
-  const search = duplicateSearch;
-  search.position = new Map(orderGroups(search.groups, search.sortMode).map((group, index) => [group.id, index]));
-  search.order = new Map();
-  for (const group of search.groups) group.members.forEach((photo, rank) => search.order.set(photo.path, { group: group.id, rank }));
-}
-
-// Separators of the grid: one per group, as groups of consecutive photos (the list is already sorted by group). The label gives the group number,
-// its image count and total size as displayed (filters can hide members).
-function computeDuplicateSeparators() {
-  const groups = [];
-  let current = null;
-  let currentId = null;
-  for (let i = 0; i < photos.length; i++) {
-    const id = duplicateSearch.order.get(photos[i].path)?.group ?? -1;
-    if (current && id === currentId) continue;
-    if (current) current.end = i;
-    current = { start: i, end: photos.length, id };
-    currentId = id;
-    groups.push(current);
-  }
-  for (const group of groups) {
-    let bytes = 0;
-    for (let i = group.start; i < group.end; i++) bytes += photos[i].file_size || 0;
-    const number = (duplicateSearch.position.get(group.id) ?? 0) + 1;
-    // With several criteria, the label says which ones found the group.
-    const reasons = duplicateSearch.groups[group.id]?.reasons ?? [];
-    group.label = [t('Group {number}', { number }), tp('{count} image', group.end - group.start), formatBytes(bytes), ...(reasons.length ? [reasons.map(reason => t(DUPLICATE_REASONS[reason])).join(' + ')] : [])].join(' · ');
-    group.title = '';
-  }
-  return groups;
-}
-
-function renderDuplicateBanner() {
-  // Elements read at each call: the function can run before this section of the module has been executed.
-  const banner = document.getElementById('duplicates-banner');
-  if (!banner) return;
-  banner.hidden = !duplicateSearch;
-  if (!duplicateSearch) return;
-  const shownGroups = new Set(photos.map(photo => duplicateSearch.order.get(photo.path)?.group)).size;
-  const text = document.getElementById('duplicates-text');
-  text.textContent = `${t(duplicateSearch.titleKey)} · ${duplicateSearch.label} · ${tp('{count} group', shownGroups)} · ${tp('{count} image', photos.length)}`;
-  text.title = [duplicateSearch.note, t('Best copy: {list}', { list: describeKeepOrder(getKeepSettings()) || '—' })].filter(Boolean).join('\n');
-  const keepButton = document.getElementById('duplicates-keep');
-  keepButton.textContent = t('Best copy…');
-  keepButton.title = t('Choose how the best copy of each group is picked');
-  const select = document.getElementById('duplicates-select');
-  select.textContent = t('Select duplicates');
-  select.title = t('Select every copy except the best one of each group, then use Delete to send them to the trash');
-  select.hidden = duplicateSearch.mixedFormats; // with RAW and JPEG together a cleanup could remove the only RAW: never offered
-  const sort = document.getElementById('duplicates-sort');
-  sort.textContent = t(GROUP_SORT_LABELS[duplicateSearch.sortMode]);
-  sort.title = t('Sort the groups by number of images, total size or path');
-}
-
-document.getElementById('duplicates-back')?.addEventListener('click', () => exitDuplicateSearch());
-
-// "Best copy…": the order of the criteria changes who wears the medal. The groups are ranked again at once; the selection is emptied, because the
-// copies it held are no longer the ones to remove.
-function rankDuplicatesAgain() {
-  if (!duplicateSearch) return;
-  indexDuplicateGroups();
-  fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
-  applyPhotoFilters({ keepState: true });
-  selectedIndices.clear();
-  if (photos.length > 0) {
-    lastSelectedIndex = Math.min(lastSelectedIndex, photos.length - 1);
-    selectedIndices.add(lastSelectedIndex);
-    renderVisibleItems();
-    updateUIOnSelection();
-  }
-}
-document.getElementById('duplicates-keep')?.addEventListener('click', () => toggleKeepPanel(rankDuplicatesAgain));
-
-// Cleanup, first step: selects every copy except the best one of each group, among the photos displayed. Nothing is deleted here: the selection is then
-// handled like any other (Delete key or context menu, with the usual confirmation and the trash). A group whose best copy is hidden by a filter is left
-// alone, so a cleanup can never take away every copy of a picture.
-function selectDuplicatesExceptBest() {
-  if (!duplicateSearch || duplicateSearch.mixedFormats) return;
-  const groupsWithBest = new Set();
-  for (const photo of photos) {
-    const info = duplicateSearch.order.get(photo.path);
-    if (info?.rank === 0) groupsWithBest.add(info.group);
-  }
-  selectedIndices.clear();
-  photos.forEach((photo, index) => {
-    const info = duplicateSearch.order.get(photo.path);
-    if (info && info.rank > 0 && groupsWithBest.has(info.group)) selectedIndices.add(index);
-  });
-  if (selectedIndices.size === 0) {
-    showWriteToast(t('No duplicate to select'));
-    return;
-  }
-  lastSelectedIndex = Math.min(...selectedIndices);
-  scrollToPhotoIndex(lastSelectedIndex);
-  renderVisibleItems();
-  updateUIOnSelection();
-  showWriteToast(tp('{count} duplicate selected: the best copy of each group is kept', selectedIndices.size));
-}
-document.getElementById('duplicates-select')?.addEventListener('click', selectDuplicatesExceptBest);
-document.getElementById('duplicates-sort')?.addEventListener('click', () => {
-  if (!duplicateSearch) return;
-  duplicateSearch.sortMode = GROUP_SORT_MODES[(GROUP_SORT_MODES.indexOf(duplicateSearch.sortMode) + 1) % GROUP_SORT_MODES.length];
-  localStorage.setItem(DUPLICATE_SORT_KEY, duplicateSearch.sortMode);
-  rankDuplicateGroups();
-  fullscreenImageCache.clear(); // the preload cache is indexed by position in the list
-  applyPhotoFilters({ keepState: true });
+// Duplicate search results mode (banner, group ranking, cleanup selection, tasks): see duplicates-view.js.
+initDuplicatesView({
+  getPhotos: () => photos,
+  getLoadedPhotos: () => loadedPhotos,
+  getSelectedIndices: () => selectedIndices,
+  getLastSelectedIndex: () => lastSelectedIndex,
+  setLastSelectedIndex: index => { lastSelectedIndex = index; },
+  clearFullscreenImageCache: () => fullscreenImageCache.clear(),
+  applyPhotoFilters: options => applyPhotoFilters(options),
+  renderVisibleItems: () => renderVisibleItems(),
+  updateUIOnSelection: () => updateUIOnSelection(),
+  scrollToPhotoIndex: index => scrollToPhotoIndex(index),
+  showToast: message => showWriteToast(message),
+  setIncludeSubfoldersTemporarily: value => setIncludeSubfoldersTemporarily(value),
+  resetAllFilters: () => resetAllFilters(),
+  applyFilterState: state => applyFilterState(state),
+  captureViewSnapshot: album => captureViewSnapshot(album),
+  restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
+  getOtherSearchSnapshot: () => rawSearch?.snapshot ?? semanticSearch?.snapshot,
+  abandonOtherSearches: () => { abandonSemanticSearch(); abandonRawSearch(); },
+  isFullscreen: () => isFullscreen,
+  closeFullscreen: () => closeFullscreen(),
+  syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
+  clearFolderFilter: () => { currentFolderFilter = null; extraFolderFilters = []; },
+  renderFolderTree: () => renderFolderTree(),
+  loadPhotos: () => loadPhotos(),
+  normalizeFilterPath: path => normalizeFilterPath(path),
+  enqueueTask: task => enqueueScanTask(task),
+  keepTaskReady: (task, payload, options) => keepTaskReady(task, payload, options),
+  removeReadyTask: task => removeReadyTask(task),
+  closeTasksModal: () => closeTasksModal(),
 });
-
-// Ends the mode without reopening the previous view: puts back the sub-folder option and the filters of before the search (except those of a smart
-// album, which going back to the album reloads itself). The caller shows whatever comes next.
-function abandonDuplicateSearch() {
-  if (!duplicateSearch) return;
-  const { snapshot } = duplicateSearch;
-  duplicateSearch = null;
-  closeKeepPanel(); // the floating "Best copy" panel belongs to the results
-  setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
-  resetAllFilters();
-  if (snapshot.albumKind !== 'smart') applyFilterState(snapshot.filterState);
-  renderDuplicateBanner();
-}
-
-// "Back" button and Escape.
-async function exitDuplicateSearch() {
-  if (!duplicateSearch) return;
-  const { snapshot } = duplicateSearch;
-  abandonDuplicateSearch();
-  await restoreViewSnapshot(snapshot);
-}
-
-// Returns false when the user declined to leave a modified smart album (nothing shown).
-async function showDuplicateResults(result, titleKey, label, context) {
-  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
-  if (isFullscreen) closeFullscreen();
-  const album = getSelectedAlbum();
-  const snapshot = duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? semanticSearch?.snapshot ?? captureViewSnapshot(album);
-  abandonSemanticSearch(); // its filters and sub-folder option are put back, the snapshot above is the view to return to
-  abandonRawSearch(); // restores the filters of before "Find the RAW"; the snapshot above is the view to go back to
-  clearAlbumSelection();
-  syncSmartAlbumWithSelection();
-  resetAllFilters();
-  currentFolderFilter = null; extraFolderFilters = [];
-  // What the search could not do, in the tooltip of the banner.
-  const note = [
-    context.criteria,
-    result.wholeFileExtensions?.length ? t('Metadata could not be ignored for: {list}', { list: result.wholeFileExtensions.join(', ') }) : '',
-    result.unsupported > 0 ? tp('{count} photo could not be compared (format not supported)', result.unsupported) : '',
-    result.skippedGroups > 0 ? tp('{count} group was left out because it was too large: lower the sensitivity', result.skippedGroups) : '',
-  ].filter(Boolean).join('\n');
-  duplicateSearch = {
-    titleKey, label, snapshot, note, groupPaths: result.groups, groupReasons: result.reasons ?? null, mixedFormats: context.mixedFormats,
-    sortMode: normalizeGroupSort(localStorage.getItem(DUPLICATE_SORT_KEY)),
-    groups: [], order: new Map(), position: new Map(),
-  };
-  renderFolderTree();
-  await loadPhotos();
-  return true;
-}
-
-// "Show" (toast or tasks window): opens the results of a finished search, then the task leaves the list.
-async function showReadyDuplicateResults(task) {
-  if (task.status !== 'ready' || task.showing) return;
-  task.showing = true; // a double click must not open the results twice
-  try {
-    if (!(await showDuplicateResults(task.result, task.titleKey, task.resultLabel, task.context))) return;
-    closeTasksModal();
-    removeReadyTask(task);
-  } finally {
-    task.showing = false;
-  }
-}
-
-// A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in the list
-// ('ready') and its toast announces the results: the view is never changed without the user's click.
-async function handleDuplicatesResult(result, stopped, error, titleKey, label, task, context) {
-  if (error) {
-    showWriteToast(t('Duplicate search failed: {error}', { error }));
-    return;
-  }
-  if (!result || result.cancelled || stopped) return; // runScanTask announces the stop
-  if (result.groups.length === 0) {
-    showWriteToast(tp('No duplicates found among {count} photo', result.scanned));
-    return;
-  }
-  // A newer result for the same search replaces the one still waiting.
-  keepTaskReady(task, { result, groupCount: result.groups.length, titleKey, resultLabel: label, context }, { replaceSameKey: true });
-}
-
-// `spec` (built by the menus of photo-actions.js): { scope, label, compareWithLibrary }, with scope = { kind: 'all' } | { kind: 'folder', path, recursive }
-// | { kind: 'paths', paths }. `settings` come from the "More…" window, otherwise from the defaults saved there (duplicates.js).
-
-// Hash of the image data and/or file name, as one task. The name search runs here (its pattern is a JavaScript regular expression, the backend only lists
-// the photos); the hash search is a backend command stopped through the task's identifier. Groups found by both are joined, each with its reasons.
-async function runIdenticalSearch({ scope, compareWithLibrary }, settings, task, setPercent) {
-  if (settings.name && compileNamePattern(settings.pattern) === undefined) throw t('Invalid pattern');
-  const parts = [];
-  let nameReport = null;
-  let hashReport = null;
-  if (settings.name) {
-    const rows = await invoke('list_duplicate_candidates', { scope, compareWithLibrary });
-    if (task.stopRequested) return { groups: [], scanned: 0, cancelled: true };
-    const candidates = rows.map(([path, dateTaken, inScope]) => ({ path, dateTaken, inScope, isRaw: RAW_EXTENSIONS.has(path.slice(path.lastIndexOf('.') + 1).toLowerCase()) }));
-    // With the hash search to come, the name search only fills the first tenth of the progress bar.
-    nameReport = await findNameGroups(candidates, settings, { shouldStop: () => task.stopRequested, onProgress: percent => setPercent(settings.hash ? percent / 10 : percent) });
-    if (nameReport.cancelled) return nameReport;
-    parts.push({ reason: 'name', groups: nameReport.groups });
-  }
-  if (settings.hash) {
-    hashReport = await invoke('find_duplicates', { request: { scope, compareWithLibrary, ignoreMetadata: settings.ignoreMetadata }, taskId: task.id });
-    if (hashReport.cancelled) return hashReport;
-    parts.push({ reason: 'hash', groups: hashReport.groups });
-  }
-  const report = {
-    scanned: Math.max(nameReport?.scanned ?? 0, hashReport?.scanned ?? 0),
-    unsupported: 0,
-    skippedGroups: nameReport?.skippedGroups ?? 0,
-    wholeFileExtensions: hashReport?.wholeFileExtensions ?? [],
-    cancelled: false,
-  };
-  if (parts.length === 1) return { ...report, groups: parts[0].groups }; // one criterion: no reason to show
-  return { ...report, ...mergeGroups(parts) };
-}
-
-const DUPLICATE_REASONS = { hash: 'Same image data', name: 'Same file name' };
-
-const DUPLICATE_KINDS = {
-  identical: {
-    settings: getIdenticalSettings,
-    // Title of the results: the image data is the main criterion; the name alone has its own title.
-    titleKey: settings => (settings.hash ? 'Identical images' : 'Same file name'),
-    labelKey: settings => (settings.hash ? 'Identical images: {scope}' : 'Same file name: {scope}'),
-    runner: (spec, settings, task, setPercent) => runIdenticalSearch(spec, settings, task, setPercent),
-  },
-  similar: {
-    settings: getSimilarSettings,
-    titleKey: () => 'Similar images',
-    labelKey: () => 'Similar images: {scope}',
-    command: 'find_similar_images',
-    request: settings => similarRequestFields(settings),
-  },
-};
-
-// `kind`: 'identical' | 'similar'.
-function findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings) {
-  const definition = DUPLICATE_KINDS[kind];
-  settings = settings ?? definition.settings();
-  // Same kind of search on the same scope (same folder, same photos, whole library): refused while another one is running or waiting.
-  const scopeKey = scope.kind === 'folder' ? `folder:${normalizeFilterPath(scope.path)}:${scope.recursive}`
-    : scope.kind === 'paths' ? `paths:${[...scope.paths].sort().join('|')}` : 'all';
-  return enqueueScanTask({
-    kind: 'duplicates', path: null, dedupeKey: `${kind}:${scopeKey}`,
-    ...(definition.runner
-      ? { runner: (task, setPercent) => definition.runner({ scope, compareWithLibrary }, settings, task, setPercent) }
-      : { command: definition.command, args: { request: { scope, compareWithLibrary, ...definition.request(settings) } } }),
-    labelKey: definition.labelKey(settings), labelParams: { scope: label },
-    onResult: (result, stopped, error, task) => handleDuplicatesResult(result, stopped, error, definition.titleKey(settings), label, task, {
-      criteria: describeSearch(kind, settings, { scope, compareWithLibrary }),
-      // RAW and JPEG searched together: results are shown per format and never offered for cleanup. (The hash search never pairs them: only the name does.)
-      mixedFormats: kind === 'identical' ? Boolean(settings.name && settings.includeRawPairs) : Boolean(settings.includeRawPairs),
-    }),
-  });
-}
-
-// "More…" window (duplicates-modal.js): the user picks the kind and the settings, then the search starts with them.
-function openDuplicatesDialog(spec) {
-  openDuplicatesModal(spec, (kind, chosenSpec, settings) => findDuplicateImages(kind, chosenSpec, settings));
-}
 
 // Preview zoom, pan, compare mode, sub-selection and instant zoom (hold Z): see preview-zoom.js.
 initPreviewZoom({
@@ -6425,7 +6154,7 @@ initPhotoActions({
   // « Trouver le RAW » (voir la section du même nom) : disponible tant qu'au moins un critère est coché dans les Paramètres.
   findRaw: findRawFor,
   canFindRaw: hasRawSearchCriteria,
-  isRawSearchActive: () => rawSearch !== null || duplicateSearch !== null || semanticSearch !== null, // results views, where "Show in its folder" is offered
+  isRawSearchActive: () => rawSearch !== null || isDuplicateSearchActive() || semanticSearch !== null, // results views, where "Show in its folder" is offered
   findDuplicates: findDuplicateImages,
   openDuplicatesDialog,
   showInItsFolder: showPhotoInItsFolder,
@@ -6890,7 +6619,7 @@ async function showSemanticResults({ label, answer, scope, viewScope, sourcePhot
   if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return false;
   if (isFullscreen) closeFullscreen();
   const album = getSelectedAlbum();
-  const snapshot = semanticSearch?.snapshot ?? duplicateSearch?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
+  const snapshot = semanticSearch?.snapshot ?? getDuplicateSearch()?.snapshot ?? rawSearch?.snapshot ?? captureViewSnapshot(album);
   abandonDuplicateSearch();
   abandonRawSearch(); // both put back the filters of before their search; the snapshot above is the view to go back to
   clearAlbumSelection();

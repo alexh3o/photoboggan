@@ -98,9 +98,9 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `rescan_all_folders` | `main.rs` | `task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
 | `rescan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
 | `integrity_scan` | `main.rs` | `path: String, task_id: String` | `integrity::IntegrityReport` | async pool | task-queue.js |
-| `find_duplicates` | `main.rs` | `request: duplicates::Request, task_id: String` | `duplicates::Report` | async pool | main.js |
-| `list_duplicate_candidates` | `main.rs` | `scope: duplicates::Scope, compare_with_library: bool` | `Vec<(String, String, bool)>` | async pool | main.js |
-| `find_similar_images` | `main.rs` | `request: similar::Request, task_id: String` | `duplicates::Report` | async pool | duplicates.js, main.js |
+| `find_duplicates` | `main.rs` | `request: duplicates::Request, task_id: String` | `duplicates::Report` | async pool | duplicates-view.js |
+| `list_duplicate_candidates` | `main.rs` | `scope: duplicates::Scope, compare_with_library: bool` | `Vec<(String, String, bool)>` | async pool | duplicates-view.js |
+| `find_similar_images` | `main.rs` | `request: similar::Request, task_id: String` | `duplicates::Report` | async pool | duplicates-view.js, duplicates.js |
 | `export_integrity_report` | `main.rs` | `directory: String, preamble: String, headers: Vec<String>, rows: Vec<integrity::IntegrityIssue>` | `String` | async pool | photo-actions.js |
 | `open_folder_in_file_manager` | `main.rs` | `path: String` | `()` | async pool | photo-actions.js |
 | `create_subfolder` | `main.rs` | `parent: String, name: String` | `()` | async pool | photo-actions.js |

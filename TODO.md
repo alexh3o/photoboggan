@@ -5,7 +5,7 @@
 - [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
 - [x] *feat*: `theme` follow system theme by default
 - [ ] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
-- [ ] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
+- [x] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
 - [ ] *feat*: `grid` when no photos are in the view, mention to check filters of all types filters section, private (?) sets, map
 
 ## 💡 Ideas / Longer term / On hold / Secondary

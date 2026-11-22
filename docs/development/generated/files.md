@@ -63,11 +63,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 600 |  |
 | `db-schema.md` | 278 |  |
 | `events.md` | 11 |  |
-| `files.md` | 334 |  |
+| `files.md` | 335 |  |
 | `ipc-commands.md` | 193 |  |
-| `module-deps.md` | 114 |  |
-| `sections.md` | 423 |  |
-| `symbols-js.md` | 1601 |  |
+| `module-deps.md` | 115 |  |
+| `sections.md` | 429 |  |
+| `symbols-js.md` | 1607 |  |
 | `symbols-rust.md` | 1433 |  |
 | `tests.md` | 514 |  |
 
@@ -77,7 +77,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.md` | 63 |  |
 | `app-shell.md` | 73 |  |
-| `duplicates.md` | 65 |  |
+| `duplicates.md` | 66 |  |
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
 | `filters-and-search.md` | 106 |  |
@@ -125,6 +125,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `drag-drop.js` | 423 | Grid drag-scroll (with exponential inertia and click suppression) and photo drag-and-drop from the thumbnail grid onto the folder tree (including sticky pinned rows), manual albums, and the map, plus the queued folder m… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
 | `duplicates-modal.js` | 310 | Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are applied to this search only, unless "Save these settings as default" is tick… |
+| `duplicates-view.js` | 362 | Duplicate search results mode: group indexing, banner rendering, group sorting, "Best copy" ranking, cleanup selection, task execution, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initDup… |
 | `duplicates.css` | 61 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
 | `duplicates.js` | 259 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1098 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
@@ -147,7 +148,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 7302 |  |
+| `main.js` | 7031 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |

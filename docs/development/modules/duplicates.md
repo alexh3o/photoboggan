@@ -1,4 +1,4 @@
-<!-- verified: f68d5f1 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: f68d5f1 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -13,7 +13,8 @@ Finds groups of photos that are the same picture: identical image data (metadata
 | `duplicates.js` | Pure helpers: settings (identical, similar, keep criteria), group ordering, `mergeGroups`, descriptions. |
 | `duplicate-names.js` | Name search in JS (`findNameGroups`). |
 | `duplicates-modal.js` | "More…" window: kind, settings, scope, keep-order panel. |
-| `main.js` | Section "DUPLICATES": task, results mode `duplicateSearch`, banner, `selectDuplicatesExceptBest`. Backend entry commands `find_duplicates`, `find_similar_images`, `list_duplicate_candidates` are in `main.rs`. |
+| `duplicates-view.js` | Results mode (`duplicateSearch`), banner, group indexing/separators, `selectDuplicatesExceptBest`, task runners (`initDuplicatesView`). |
+| `main.js` | Wires `initDuplicatesView`, grid medal/metadata, group sort, `Escape` exit, and backend entry commands (`find_duplicates`, `find_similar_images`, `list_duplicate_candidates` in `main.rs`). |
 
 ## How it works
 
@@ -58,7 +59,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 1. New format with metadata tolerance: add a `*_ranges` parser in `layout_of`, bump `LAYOUT_VERSION`, add a test beside `png_text_chunks_are_ignored`.
 2. New similarity filter: add a field to `similar::Request` and `similarRequestFields` in duplicates.js, a condition in `run`.
 3. New keep criterion: `KEEP_CRITERIA` and `sortGroupMembers` in duplicates.js.
-4. New search kind: entry in `DUPLICATE_KINDS` (main.js) and a command in `main.rs` (`generate_handler!`).
+4. New search kind: entry in `DUPLICATE_KINDS` (duplicates-view.js) and a command in `main.rs` (`generate_handler!`).
 
 ## Open questions
 none. The `photo_phash` key is size + mtime + `ALGO_VERSION` only: changing the thumbnail cache size does not invalidate fingerprints. This is acceptable because the hash is computed on a 32×32 reduction (any cached thumbnail is ≥ 512 px), but fingerprints computed from a thumbnail and from the original may differ by a few bits.
