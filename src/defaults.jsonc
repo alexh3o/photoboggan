@@ -30,6 +30,8 @@
   "thumbnailSize": 512,
   // Badge on geolocated photos.
   "showGeoBadges": true,
+  // Badge on RAW photos.
+  "showRawBadges": true,
   // Include the subfolders of the selected folder.
   "includeSubfolders": false,
   // Folders without any photo shown in the tree.

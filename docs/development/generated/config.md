@@ -82,6 +82,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `showHistogram` | `false` | histogram.js |
 | `showInfoMapWidget` | `false` | location-panel.js |
 | `showMap` | `false` | location-panel.js, map-config.js, map-mode.js |
+| `showRawBadges` | `true` | main.js |
 | `sidebarVisible` | `true` | main.js |
 | `sidebarWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
 | `skipExifWithInternalWriter` | `true` | metadata-settings.js |
@@ -102,7 +103,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (1906 keys), es (1906 keys), fr (1906 keys)
+- Languages: en (1907 keys), es (1907 keys), fr (1907 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

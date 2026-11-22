@@ -2028,6 +2028,15 @@ showGeoBadgesToggle.addEventListener('change', () => {
   document.body.classList.toggle('show-geo-badges', showGeoBadgesToggle.checked);
 });
 
+// Badge on RAW photos (Display options): simple class on <body>.
+const showRawBadgesToggle = document.getElementById('show-raw-badges-toggle');
+showRawBadgesToggle.checked = readBool('showRawBadges');
+document.body.classList.toggle('show-raw-badges', showRawBadgesToggle.checked);
+showRawBadgesToggle.addEventListener('change', () => {
+  localStorage.setItem('showRawBadges', String(showRawBadgesToggle.checked));
+  document.body.classList.toggle('show-raw-badges', showRawBadgesToggle.checked);
+});
+
 // ==========================================
 // VIEW SNAPSHOTS & RESULTS NAVIGATION
 // ==========================================
@@ -2297,6 +2306,15 @@ function renderVisibleItems() {
       const selectionRing = document.createElement('span'); selectionRing.className = 'selection-ring';
       overlay.append(stars, flags); inner.append(thumbnailImage, selectionRing, overlay); div.appendChild(inner);
       if (isVideoPath(photo.path)) { div.classList.add('is-video'); inner.append(createVideoPlayBadge()); }
+      // Badge on RAW photos (Display options, shown via body.show-raw-badges).
+      if (isRawPath(photo.path)) {
+        div.classList.add('is-raw');
+        const rawBadge = document.createElement('span');
+        rawBadge.className = 'raw-badge';
+        rawBadge.setAttribute('aria-hidden', 'true');
+        rawBadge.textContent = 'r';
+        inner.append(rawBadge);
+      }
       // Pastille des photos géolocalisées (option d'affichage, visible par la classe show-geo-badges sur <body>).
       const geoBadge = document.createElement('span'); geoBadge.className = 'geo-badge'; geoBadge.innerHTML = GEO_BADGE_ICON;
       inner.append(geoBadge);

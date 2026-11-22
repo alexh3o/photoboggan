@@ -10,10 +10,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `AGENTS.md` | 111 |  |
 | `BUILDING.md` | 87 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1522 |  |
+| `index.html` | 1523 |  |
 | `package.json` | 29 |  |
 | `README.md` | 208 |  |
-| `TODO.md` | 67 |  |
+| `TODO.md` | 68 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -120,7 +120,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
 | `batch-rename.js` | 643 |  |
 | `date-filter.js` | 285 | Date filter of the Filters block (date taken, from the EXIF date): text field (YYYYMMDD or YYYYMMDD-YYYYMMDD), calendar pop-up (single day or range) and clear button, plus the helpers that turn the date of a photo into … |
-| `defaults.jsonc` | 201 |  |
+| `defaults.jsonc` | 203 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `drag-drop.js` | 423 | Grid drag-scroll (with exponential inertia and click suppression) and photo drag-and-drop from the thumbnail grid onto the folder tree (including sticky pinned rows), manual albums, and the map, plus the queued folder m… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
@@ -151,7 +151,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 5882 |  |
+| `main.js` | 5900 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 515 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -189,7 +189,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `sticky-folders.js` | 36 | Sticky folders of the folder tree: which rows stay pinned at the top while the tree is scrolled. Pure code: no state, no DOM. The layer that draws the pinned rows (copies of the real rows, see "STICKY FOLDERS" in main.j… |
-| `styles.css` | 1107 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1123 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `task-queue.js` | 663 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel lane for content analys… |
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
@@ -327,9 +327,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1909 |  |
-| `es.json` | 1908 |  |
-| `fr.json` | 1909 |  |
+| `en.json` | 1910 |  |
+| `es.json` | 1909 |  |
+| `fr.json` | 1910 |  |
 
 ## webpage
 

@@ -324,9 +324,25 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-tag.tag-filename { background: var(--tag-filename-bg); border-color: var(--tag-filename-border); }
 .filter-tag.tag-more { background: var(--tag-more-bg); border-color: var(--tag-more-border); }
 .filter-tag.tag-date { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
-/* Pastille des photos géolocalisées (option d'affichage) : coin haut droit de la miniature */
-.geo-badge { display: none; position: absolute; top: 6px; right: 6px; z-index: 2; padding: 3px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; pointer-events: none; }
+/* Top-right thumbnail badges (Display options): geolocation pin and RAW format "r" square.
+   All visual tokens live here so they are easy to adjust; when both are active on a thumbnail,
+   the geolocation badge shifts just to the left of the RAW badge to avoid overlapping. */
+:root {
+  --thumb-badge-top: 6px;
+  --thumb-badge-right: 6px;
+  --thumb-badge-gap: 4px;
+  --thumb-badge-bg: rgba(145, 145, 145, 0.7);
+  --thumb-badge-color: #fff;
+  --thumb-badge-shadow: 0 0 0 1px rgba(255, 255, 255, 0.50), 0 0 3px 1px rgba(0, 0, 0, 0.7);
+  --raw-badge-size: 18px;
+  --raw-badge-radius: 3px;
+  --raw-badge-font-size: 12px;
+}
+.geo-badge { display: none; position: absolute; top: var(--thumb-badge-top); right: var(--thumb-badge-right); z-index: 2; padding: 3px; border-radius: 50%; background: var(--thumb-badge-bg); color: var(--thumb-badge-color); pointer-events: none; }
 body.show-geo-badges .thumbnail.has-gps .geo-badge { display: inline-flex; }
+.raw-badge { display: none; align-items: center; justify-content: center; position: absolute; top: var(--thumb-badge-top); right: var(--thumb-badge-right); z-index: 2; width: var(--raw-badge-size); height: var(--raw-badge-size); border-radius: var(--raw-badge-radius); background: var(--thumb-badge-bg); color: var(--thumb-badge-color); box-shadow: var(--thumb-badge-shadow); font-size: var(--raw-badge-font-size); font-weight: 700; line-height: 1; pointer-events: none; }
+body.show-raw-badges .thumbnail.is-raw .raw-badge { display: inline-flex; }
+body.show-raw-badges .thumbnail.is-raw .geo-badge { right: calc(var(--thumb-badge-right) + var(--raw-badge-size) + var(--thumb-badge-gap)); }
 .filter-tag.tag-location, .filter-tag.tag-analysis, .filter-tag.tag-map-zone { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
 /* Filtre Lieu : trois choix exclusifs, même aspect que les choix segmentés de la fenêtre des zones */
 .location-filter { display: inline-flex; border: 1px solid var(--control-border); border-radius: 4px; overflow: hidden; }

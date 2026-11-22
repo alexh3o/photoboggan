@@ -7,11 +7,10 @@
 - [x] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
 - [x] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
 - [x] *feat*: `filters` have map filter visible in filters
-- [ ] *feat*: `thumbnail` option to add a visual tag on RAW files
+- [x] *feat*: `thumbnail` option to add a visual tag on RAW files
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
-- [ ] *fix*: `keywords` fail to write keyword (to be reproduced)
 - [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion
 - [ ] *feat*: `metadata` **exif time shift** (to fix bad camera settings afterwards)
 - [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)
@@ -44,6 +43,7 @@
 - [ ] *feat*: `people` return button when going into someone's photos from its badge: people button does it
 - [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
 - [ ] *fix*: `tree` reordering root folders with grips in settings sometimes leaves them pending and needing a click confirmation => that's when dropping with the mouse pointer out of the reorder drag n drop zone
+- [ ] *fix*: `keywords` fail to write keyword => to be reproduced
 
 ## ❌ Ruled out
 
