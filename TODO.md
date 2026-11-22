@@ -6,7 +6,7 @@
 - [x] *feat*: `theme` follow system theme by default
 - [x] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
 - [x] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
-- [ ] *feat*: `grid` when no photos are in the view, mention to check filters of all types filters section, private (?) sets, map
+- [x] *feat*: `filters` have map filter visible in filters
 - [ ] *feat*: `thumbnail` option to add a visual tag on RAW files
 
 ## 💡 Ideas / Longer term / On hold / Secondary
@@ -15,7 +15,6 @@
 - [ ] *feat*: `metadata` **lens metadata writing** (for manual / old lenses) with autocompletion
 - [ ] *feat*: `metadata` **exif time shift** (to fix bad camera settings afterwards)
 - [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)
-- [ ] *fix*: `tree` reordering root folders with grips in settings sometimes leaves them pending and needing a click confirmation
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
 - [x] *chore*: `language` add a recipe for languages implementation
@@ -44,6 +43,7 @@
 - [ ] *perf*: `Safety` improve integrity check - currently gets 10/11 corrupted sample set: solution known but with maintenance impact
 - [ ] *feat*: `people` return button when going into someone's photos from its badge: people button does it
 - [ ] *feat*: `thumbnails` option to keep loading folder thumbnails out of sight
+- [ ] *fix*: `tree` reordering root folders with grips in settings sometimes leaves them pending and needing a click confirmation => that's when dropping with the mouse pointer out of the reorder drag n drop zone
 
 ## ❌ Ruled out
 

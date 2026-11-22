@@ -300,6 +300,9 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 .filter-expanded-line { display: none; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; align-items: center; }
 .filter-expanded-line.two-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .filter-group.expanded .filter-expanded-line { display: grid; }
+.filter-group.expanded .filter-expanded-line.filter-expanded-with-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.filter-expanded-line.filter-expanded-with-tags .filter-group-title { flex: 0 0 auto; max-width: 100%; margin-right: 2px; }
+.filter-expanded-line.filter-expanded-with-tags .filter-summary { display: contents; }
 .filter-group.expanded .filter-collapsed-line { display: none; }
 .filter-collapsed-line { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .filter-collapsed-line.nowrap { flex-wrap: nowrap; overflow: hidden; }
@@ -324,7 +327,7 @@ body.dragging-photos, body.dragging-photos * { cursor: grabbing !important; }
 /* Pastille des photos géolocalisées (option d'affichage) : coin haut droit de la miniature */
 .geo-badge { display: none; position: absolute; top: 6px; right: 6px; z-index: 2; padding: 3px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); color: #fff; pointer-events: none; }
 body.show-geo-badges .thumbnail.has-gps .geo-badge { display: inline-flex; }
-.filter-tag.tag-location, .filter-tag.tag-analysis { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
+.filter-tag.tag-location, .filter-tag.tag-analysis, .filter-tag.tag-map-zone { background: var(--tag-date-bg); border-color: var(--tag-date-border); }
 /* Filtre Lieu : trois choix exclusifs, même aspect que les choix segmentés de la fenêtre des zones */
 .location-filter { display: inline-flex; border: 1px solid var(--control-border); border-radius: 4px; overflow: hidden; }
 .location-filter-option { border: 0; border-radius: 0; padding: 4px 10px; background: var(--control-bg); font-size: 0.78rem; }

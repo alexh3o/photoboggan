@@ -67,7 +67,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `ipc-commands.md` | 193 |  |
 | `module-deps.md` | 119 |  |
 | `sections.md` | 457 |  |
-| `symbols-js.md` | 1640 |  |
+| `symbols-js.md` | 1642 |  |
 | `symbols-rust.md` | 1440 |  |
 | `tests.md` | 515 |  |
 
@@ -151,10 +151,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 5871 |  |
+| `main.js` | 5882 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
-| `map-mode.js` | 505 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
+| `map-mode.js` | 515 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
 | `map-tile-protocol.js` | 193 | Protocole de tuiles des cartes (`pbmap://`) : toutes les ressources d'une carte (style, tuiles, icônes, polices) passent par ici, et c'est le seul code qui peut contacter le fournisseur. MapLibre lui-même ne fait aucune… |
 | `map-view.js` | 429 | Carte MapLibre réutilisable (panneau Info, fenêtre des zones privées, plus tard vue carte de la bibliothèque) : une seule instance par conteneur, créée au premier affichage et réutilisée ensuite. Accès réseau : MapLibre… |
 | `maps-settings.js` | 89 | Paramètres > Cartes (la carte du lieu, le zoom par défaut et les zones sont gérés par location-panel.js et private-zones-modal.js) : ici le style de la carte. Le style (couleurs, icônes, polices) est celui fourni avec l… |
@@ -189,7 +189,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `sticky-folders.js` | 36 | Sticky folders of the folder tree: which rows stay pinned at the top while the tree is scrolled. Pure code: no state, no DOM. The layer that draws the pinned rows (copies of the real rows, see "STICKY FOLDERS" in main.j… |
-| `styles.css` | 1104 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1107 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `task-queue.js` | 663 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel lane for content analys… |
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
@@ -327,9 +327,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1908 |  |
-| `es.json` | 1907 |  |
-| `fr.json` | 1908 |  |
+| `en.json` | 1909 |  |
+| `es.json` | 1908 |  |
+| `fr.json` | 1909 |  |
 
 ## webpage
 

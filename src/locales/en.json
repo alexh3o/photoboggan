@@ -1283,6 +1283,7 @@
   "Show the map widget in the Info panel": "Show the map widget in the Info panel",
   "Info map widget help": "Shows or hides the small map of the Location group in the Info panel. No effect on the Map view, nor on the \"Show a map of the photo location\" setting.",
   "This zone": "This zone",
+  "Map zone": "Map",
   "Grid View": "Grid View",
   "Histogram": "Histogram",
   "Show histogram": "Show histogram",

@@ -1283,6 +1283,7 @@
   "Show the map widget in the Info panel": "Mostrar el widget de mapa en el panel Info",
   "Info map widget help": "Muestra u oculta el pequeño mapa del grupo Ubicación del panel Info. No afecta al modo Mapa ni al ajuste «Mostrar un mapa con la ubicación de la foto» de Configuración.",
   "This zone": "Esta zona",
+  "Map zone": "Mapa",
   "Grid View": "Vista Cuadrícula",
   "Histogram": "Histograma",
   "Show histogram": "Mostrar histograma",

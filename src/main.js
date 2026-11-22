@@ -37,7 +37,7 @@ import { initLocationPanel, refreshLocation, onMapAccessChanged } from './locati
 import { reloadAllMaps } from './map-view.js';
 import { initMapsSettings } from './maps-settings.js';
 import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
-import { initMapMode, getVisibleZone, isMapModeOpen, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, onMapModeAccessChanged } from './map-mode.js';
+import { initMapMode, getVisibleZone, isMapModeOpen, isMapZoneFilterActive, clearMapZoneFilter, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, onMapModeAccessChanged } from './map-mode.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
@@ -1038,7 +1038,7 @@ function hasActiveFilters() {
   const hasFilename = hasFilenameFilters();
   const hasDate = dateFilter !== null || Boolean(dateFilterInput?.value.trim());
   return hasRating || hasColor || hasKeywords || hasFilename || hasDate || pathFilter !== null || hasPersonFilters() || locationFilter !== 'all' || analysisFilter !== 'all'
-    || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats() || authorFilters.hasAuthors()
+    || isMapZoneFilterActive() || shootingFilters.hasGear() || shootingFilters.hasShot() || formatFilters.hasFormats() || authorFilters.hasAuthors()
     || albumFolder !== null || albumMapZone !== null || albumInherited.length > 0;
 }
 
@@ -1249,6 +1249,7 @@ const clearFilterKinds = {
     closeDatePicker();
   },
   location: () => setLocationFilter('all', { apply: false }),
+  'map-zone': () => clearMapZoneFilter({ apply: false }),
   analysis: () => setAnalysisFilter('all', { apply: false }),
   gear: () => shootingFilters.clearGear(),
   shot: () => shootingFilters.clearShot(),
@@ -1264,7 +1265,7 @@ const filterGroupKinds = {
   date: ['date'],
   gear: ['gear'],
   shooting: ['shot'],
-  more: ['format', 'author', 'location', 'analysis'],
+  more: ['format', 'author', 'location', 'map-zone', 'analysis'],
 };
 
 // Remet tous les filtres à zéro (contrôles compris) sans relancer le filtrage : l'appelant le fait. Les filtres hérités d'un album parent restent.
@@ -1938,6 +1939,15 @@ function renderFilterSummaries() {
   })];
   document.getElementById('location-summary').replaceChildren(...locationNodes);
 
+  const createMapZoneTag = () => createFilterTag({
+    kind: 'map-zone',
+    text: t('Map zone'),
+    onRemove: () => clearFilterKindsAndApply(['map-zone']),
+  });
+  const mapZoneActive = isMapZoneFilterActive();
+  document.getElementById('map-zone-summary').replaceChildren(...(mapZoneActive ? [createMapZoneTag()] : []));
+  document.getElementById('map-zone-expanded-summary').replaceChildren(...(mapZoneActive ? [createMapZoneTag()] : []));
+
   const analysisNodes = analysisFilter === 'all' ? [] : [createFilterTag({
     kind: 'analysis',
     text: t(analysisFilter === 'analysed' ? 'Analysed' : 'Not analysed'),
@@ -1964,7 +1974,7 @@ function updateFilterGroupStates() {
     date: dateFilter !== null,
     gear: shootingFilters.hasGear(),
     shooting: shootingFilters.hasShot(),
-    more: formatFilters.hasFormats() || authorFilters.hasAuthors() || locationFilter !== 'all' || analysisFilter !== 'all',
+    more: formatFilters.hasFormats() || authorFilters.hasAuthors() || locationFilter !== 'all' || isMapZoneFilterActive() || analysisFilter !== 'all',
   };
   for (const group of filterGroups) group.dataset.active = String(Boolean(active[group.dataset.filterGroup]));
 }
@@ -1983,6 +1993,7 @@ function renderActiveFilterBadges() {
     [hasPersonFilters(), 'person', 'People'],
     [dateFilter !== null, 'date', 'Date'],
     [locationFilter !== 'all', 'location', 'Geolocation'],
+    [isMapZoneFilterActive(), 'map-zone', 'Map'],
     [analysisFilter !== 'all', 'analysis', 'Content analysis'],
     [shootingFilters.hasGear(), 'gear', 'Gear'],
     [shootingFilters.hasShot(), 'shot', 'Shooting'],

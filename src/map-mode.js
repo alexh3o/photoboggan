@@ -50,6 +50,16 @@ export function positionOf(photo) {
 
 export const hasPendingPosition = photo => pending.has(photo?.id);
 export const isMapModeOpen = () => open;
+export const isMapZoneFilterActive = () => open && filterMode === 'visible';
+
+/** Resets the map grid filter back to "All" ("This zone" off). */
+export function clearMapZoneFilter({ apply = true } = {}) {
+  clearTimeout(filterTimer);
+  if (filterMode === 'all') return;
+  filterMode = 'all';
+  if (panel) updateControls();
+  if (apply) applyVisibleFilter();
+}
 
 /** Zone visible de la carte quand le filtre « Zone visible seulement » est actif (enregistrée dans un album intelligent), sinon null. */
 export function getVisibleZone() {
