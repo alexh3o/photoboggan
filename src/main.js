@@ -18,8 +18,12 @@ import {
   findSimilarContent, findKeywordCandidates,
 } from './semantic-results.js';
 import { initKeywordSuggestions, guessedKeywordEntries, syncKeywordSuggestions, suggestionFor, suggestionsLoaded, suggestedExtraPhotos, describeGuesses, setSuggestedCount } from './semantic-keywords.js';
-import { initRawSettings, getRawSearchSettings, hasRawSearchCriteria } from './raw-settings.js';
-import { folderOf, searchScope, buildRawSearchState, rawNameMatches } from './find-raw.js';
+import { initRawSettings, hasRawSearchCriteria } from './raw-settings.js';
+import { folderOf } from './find-raw.js';
+import {
+  initFindRawMode, isRawSearchActive, getRawSearch, matchesRawSearchScope,
+  renderRawSearchBanner, abandonRawSearch, exitRawSearch, findRawFor,
+} from './find-raw-mode.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
@@ -104,8 +108,6 @@ const authorFilters = initAuthorFilters({ onChange: () => applyPhotoFilters() })
 let currentFolderFilter = null;
 // Folders added to `currentFolderFilter` by Ctrl+click in the tree: the grid shows the photos of all of them (not persisted, reset by a plain click).
 let extraFolderFilters = [];
-// Mode « Find RAW » (section du même nom plus bas) : null hors recherche, sinon { name, excludeDir, snapshot } (vue d'avant la recherche).
-let rawSearch = null;
 // Startup view (Settings > Genéral) : « all » for all photos (default), « last » for last folder.
 let startupView = readChoice('startupView', ['last', 'all']);
 let includeSubfolders = readBool('includeSubfolders');
@@ -1613,7 +1615,7 @@ function matchesKeywordFiltersOrSuggested(photo) {
 
 // Cheap key of "the view" for the suggestions: they are searched again only when the filter or this key changes (never null in a plain view).
 function keywordSuggestionViewKey() {
-  if (rawSearch || isDuplicateSearchActive() || isSemanticSearchActive()) return null; // results modes: no suggestions
+  if (isRawSearchActive() || isDuplicateSearchActive() || isSemanticSearchActive()) return null; // results modes: no suggestions
   return `${currentFolderFilter}|${includeSubfolders}|${getSelectedAlbum()?.id ?? ''}|${extraFolderFilters.join('\n')}`;
 }
 
@@ -2310,7 +2312,7 @@ document.getElementById('folders-toggle').addEventListener('contextmenu', event 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
 function toggleFolderInSelection(path) {
   const same = (a, b) => a.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() === b.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-  if (currentFolderFilter === null || getSelectedAlbum() || isDuplicateSearchActive() || rawSearch || isSemanticSearchActive()) { selectFolder(path); return; }
+  if (currentFolderFilter === null || getSelectedAlbum() || isDuplicateSearchActive() || isRawSearchActive() || isSemanticSearchActive()) { selectFolder(path); return; }
   if (isSelectedAlbumDirty()) { selectFolder(path); return; }
   if (same(currentFolderFilter, path)) {
     if (extraFolderFilters.length === 0) return; // the only selected folder stays selected
@@ -2461,57 +2463,14 @@ stickyFolderLayer.addEventListener('click', event => {
 });
 
 // ==========================================
-// TROUVER LE RAW
+// VIEW SNAPSHOTS & RESULTS NAVIGATION
 // ==========================================
-// Clic droit sur une image raster > « Trouver le RAW » : les critères cochés dans Paramètres > Recherche > Recherche des RAW (raw-settings.js) deviennent les filtres
-// ordinaires de la barre latérale (nom, date, appareil, objectif, vitesse / ISO / ouverture, plus « RAW uniquement »), la grille s'ouvre sur le
-// dossier de départ choisi avec tous ses sous-dossiers, et une bannière propose de revenir à la vue d'avant (instantané : dossier ou album, filtres,
-// option sous-dossiers, défilement, sélection). Naviguer à la main (dossier, album, option sous-dossiers) termine le mode sans retour.
-document.getElementById('raw-search-back')?.addEventListener('click', () => exitRawSearch());
+// Shared by results modes (find-raw-mode.js, duplicates-view.js, semantic-results.js) to save and restore the previous view.
 
-// Ce que les filtres ne savent pas exprimer : « Sous-dossiers » (les photos du dossier de l'image lui-même ne comptent pas, le dossier de départ
-// les contient) et la comparaison tolérante des noms (voir rawNameMatches).
-function matchesRawSearchScope(photo) {
-  if (!rawSearch) return true;
-  if (rawSearch.excludeDir && normalizeFilterPath(folderOf(photo.path)) === rawSearch.excludeDir) return false;
-  return rawNameMatches(photo, rawSearch.nameStem);
-}
-
-function renderRawSearchBanner() {
-  // Éléments lus à chaque appel : la fonction peut être appelée avant que cette section du module ait été exécutée.
-  const banner = document.getElementById('raw-search-banner');
-  if (!banner) return;
-  banner.hidden = !rawSearch;
-  if (!rawSearch) return;
-  const text = document.getElementById('raw-search-text');
-  text.textContent = tp('RAW of {name}: {count} result', photos.length, { name: rawSearch.name });
-  text.title = rawSearch.nameStem ? t('Names compared in both directions: {name}', { name: rawSearch.nameStem }) : '';
-}
-
-// L'option « Inclure les sous-dossiers » change de valeur sans être mémorisée : c'est un réglage du mode, pas un choix de l'utilisateur.
+// Changes "Include subfolders" without persisting it: temporary setting of a results mode, not a user choice.
 function setIncludeSubfoldersTemporarily(value) {
   includeSubfolders = value;
   document.getElementById('recursive-folder-toggle').checked = value;
-}
-
-// Termine le mode sans rouvrir la vue d'avant : remet l'option sous-dossiers et les filtres d'avant la recherche (sauf ceux d'un album intelligent,
-// que le retour à l'album recharge lui-même). L'appelant s'occupe du dossier ou de l'album affiché ensuite.
-function abandonRawSearch() {
-  if (!rawSearch) return;
-  const { snapshot } = rawSearch;
-  rawSearch = null;
-  setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
-  resetAllFilters();
-  if (snapshot.albumKind !== 'smart') applyFilterState(snapshot.filterState);
-  renderRawSearchBanner();
-}
-
-// Bouton « Revenir à la vue précédente » et Échap.
-async function exitRawSearch() {
-  if (!rawSearch) return;
-  const { snapshot } = rawSearch;
-  abandonRawSearch();
-  await restoreViewSnapshot(snapshot);
 }
 
 // Reopens the view saved before a results mode (folder or album, scroll, selection). The caller has already left the mode.
@@ -2534,8 +2493,8 @@ async function restoreViewSnapshot(snapshot) {
   if (photos.length > 0) updateUIOnSelection();
 }
 
-// « Afficher dans son dossier » (menu d'un RAW de la grille de résultats) : quitte la recherche sans revenir à la vue d'avant, ouvre le dossier du
-// fichier dans l'arbre, sans aucun filtre, avec le fichier sélectionné et visible dans la grille.
+// "Show in its folder" (context menu of a photo in a results grid): leaves the search without returning to the previous view, opens the file's
+// folder in the tree, with no filter, with the file selected and visible in the grid.
 // Also used from "All photos" (context menu, one photo): there the current filters are kept, since the photo passes them and the user did not leave a search.
 // What the content search calls "the view" (semantic.js): a folder (with its subfolders when the view includes them), otherwise the photos of the
 // collection on screen (album, several folders, a results mode), otherwise the whole library. Filters are not part of the scope.
@@ -2543,17 +2502,17 @@ function currentViewScope() {
   const semanticSearch = getSemanticSearch();
   if (semanticSearch) return semanticSearch.viewScope; // a new search from inside the results mode searches the same view
   const album = getSelectedAlbum();
-  if (!album && !rawSearch && !isDuplicateSearchActive() && extraFolderFilters.length === 0) {
+  if (!album && !isRawSearchActive() && !isDuplicateSearchActive() && extraFolderFilters.length === 0) {
     if (currentFolderFilter !== null) return { folder: currentFolderFilter, recursive: includeSubfolders, photoIds: null };
     return { folder: null, recursive: false, photoIds: null }; // "All photos"
   }
   return { folder: null, recursive: false, photoIds: loadedPhotos.map(photo => photo.id) };
 }
 
-function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !rawSearch && !isDuplicateSearchActive() && !isSemanticSearchActive(); }
+function isAllPhotosView() { return currentFolderFilter === null && !getSelectedAlbum() && !isRawSearchActive() && !isDuplicateSearchActive() && !isSemanticSearchActive(); }
 // `anyView`: also allowed from a folder view with subfolders included (Info panel "Folder" link), where the photo may lie below the open folder.
 async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
-  const fromResults = rawSearch !== null || isDuplicateSearchActive() || isSemanticSearchActive();
+  const fromResults = isRawSearchActive() || isDuplicateSearchActive() || isSemanticSearchActive();
   if (!photo || !(fromResults || anyView || isAllPhotosView())) return;
   if (isFullscreen) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
@@ -2595,56 +2554,6 @@ function captureViewSnapshot(album = getSelectedAlbum()) {
     selectedPaths: [...selectedIndices].map(index => photos[index]?.path).filter(Boolean),
     lastPath: photos[lastSelectedIndex]?.path,
   };
-}
-
-const RAW_CRITERION_LABELS ={ name: 'Filename', date: 'Date', gear: 'Gear', shooting: 'Shooting' };
-
-async function findRawFor(photo) {
-  if (!photo) return;
-  if (!hasRawSearchCriteria()) {
-    showWriteToast(t('Tick at least one criterion in Settings > Search > RAW search'));
-    return;
-  }
-  const settings = getRawSearchSettings();
-  const name = photo.path.split(/[\\/]/).pop();
-  const { state, nameStem, used, missing } = buildRawSearchState(photo, settings, photoTimeKey(photo));
-  if (used.length === 0) {
-    showWriteToast(t('This image has none of the data needed to find its RAW'));
-    return;
-  }
-  // Même garde que pour un changement de dossier : un album intelligent modifié se quitte après Enregistrer / Abandonner / Annuler.
-  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return;
-
-  // Contrôle avant de quitter la vue : sans RAW trouvé, on reste où on est (mêmes critères que les filtres, voir matchesFilterState).
-  const { folder, excludeDir } = searchScope(photo.path, settings.scope);
-  const excluded = excludeDir ? normalizeFilterPath(excludeDir) : null;
-  const candidates = await invoke('get_photos_paginated', { offset: 0, limit: 50000, folderFilter: folder, recursive: true });
-  const found = candidates.filter(candidate => matchesFilterState(candidate, state)
-    && (!excluded || normalizeFilterPath(folderOf(candidate.path)) !== excluded)
-    && rawNameMatches(candidate, nameStem));
-  if (found.length === 0) {
-    showWriteToast(t('No RAW found for {name}', { name }));
-    return;
-  }
-
-  if (isFullscreen) closeFullscreen();
-  const album = getSelectedAlbum();
-  const snapshot = rawSearch?.snapshot ?? getDuplicateSearch()?.snapshot ?? getSemanticSearch()?.snapshot ?? captureViewSnapshot(album);
-  abandonDuplicateSearch(); // a duplicate search in progress ends here; the view saved above is the one to go back to
-  abandonSemanticSearch(); // same for a content search
-  clearAlbumSelection();
-  syncSmartAlbumWithSelection();
-  resetAllFilters();
-  applyFilterState(state);
-  setIncludeSubfoldersTemporarily(true);
-  currentFolderFilter = folder; extraFolderFilters = [];
-  currentPhotoPage = 0;
-  rawSearch = { name, excludeDir: excluded, nameStem, snapshot };
-  renderFolderTree();
-  await loadPhotos();
-  if (missing.length) {
-    showWriteToast(t('Not used (no data in this image): {list}', { list: missing.map(key => t(RAW_CRITERION_LABELS[key])).join(', ') }));
-  }
 }
 
 // ==========================================
@@ -4348,7 +4257,7 @@ window.addEventListener('keydown', (e) => {
     navigateGridRow(e.key === 'ArrowDown' ? 1 : -1);
   } else if (e.key === 'Escape') {
     if (isFullscreen && guideModal.classList.contains('hidden')) closeFullscreen(); // guide ouvert par-dessus le plein écran : Échap ne ferme que le guide
-    else if (!isFullscreen && rawSearch && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
+    else if (!isFullscreen && isRawSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitRawSearch(); // « Trouver le RAW » : retour à la vue d'avant
     else if (!isFullscreen && isDuplicateSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitDuplicateSearch(); // duplicate search: back to the previous view
     else if (!isFullscreen && isSemanticSearchActive() && !document.querySelector('.modal:not(.hidden)') && !isDatePickerOpen()) exitSemanticSearch(); // content search: same
   } else if (e.key.toLowerCase() === 'f') {
@@ -5821,7 +5730,7 @@ initDuplicatesView({
   applyFilterState: state => applyFilterState(state),
   captureViewSnapshot: album => captureViewSnapshot(album),
   restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
-  getOtherSearchSnapshot: () => rawSearch?.snapshot ?? getSemanticSearch()?.snapshot,
+  getOtherSearchSnapshot: () => getRawSearch()?.snapshot ?? getSemanticSearch()?.snapshot,
   abandonOtherSearches: () => { abandonSemanticSearch(); abandonRawSearch(); },
   isFullscreen: () => isFullscreen,
   closeFullscreen: () => closeFullscreen(),
@@ -6159,7 +6068,7 @@ initPhotoActions({
   // « Trouver le RAW » (voir la section du même nom) : disponible tant qu'au moins un critère est coché dans les Paramètres.
   findRaw: findRawFor,
   canFindRaw: hasRawSearchCriteria,
-  isRawSearchActive: () => rawSearch !== null || isDuplicateSearchActive() || isSemanticSearchActive(), // results views, where "Show in its folder" is offered
+  isRawSearchActive: () => isRawSearchActive() || isDuplicateSearchActive() || isSemanticSearchActive(), // results views, where "Show in its folder" is offered
   findDuplicates: findDuplicateImages,
   openDuplicatesDialog,
   showInItsFolder: showPhotoInItsFolder,
@@ -6480,7 +6389,7 @@ initSemanticResults({
   applyFilterState: state => applyFilterState(state),
   captureViewSnapshot: album => captureViewSnapshot(album),
   restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
-  getOtherSearchSnapshot: () => rawSearch?.snapshot ?? getDuplicateSearch()?.snapshot,
+  getOtherSearchSnapshot: () => getRawSearch()?.snapshot ?? getDuplicateSearch()?.snapshot,
   abandonOtherSearches: () => { abandonDuplicateSearch(); abandonRawSearch(); },
   isFullscreen: () => isFullscreen,
   closeFullscreen: () => closeFullscreen(),
@@ -6489,6 +6398,32 @@ initSemanticResults({
   renderFolderTree: () => renderFolderTree(),
   loadPhotos: () => loadPhotos(),
   currentViewScope: () => currentViewScope(),
+});
+
+// ==========================================
+// FIND THE RAW (find-raw-mode.js)
+// ==========================================
+initFindRawMode({
+  getPhotos: () => photos,
+  isFullscreen: () => isFullscreen,
+  closeFullscreen: () => closeFullscreen(),
+  captureViewSnapshot: album => captureViewSnapshot(album),
+  restoreViewSnapshot: snapshot => restoreViewSnapshot(snapshot),
+  setIncludeSubfoldersTemporarily: value => setIncludeSubfoldersTemporarily(value),
+  resetAllFilters: () => resetAllFilters(),
+  applyFilterState: state => applyFilterState(state),
+  matchesFilterState: (photo, state) => matchesFilterState(photo, state),
+  syncSmartAlbumWithSelection: () => syncSmartAlbumWithSelection(),
+  normalizeFilterPath: path => normalizeFilterPath(path),
+  setFolderFilter: folder => { currentFolderFilter = folder; extraFolderFilters = []; },
+  resetPage: () => { currentPhotoPage = 0; },
+  renderFolderTree: () => renderFolderTree(),
+  loadPhotos: () => loadPhotos(),
+  showToast: message => showWriteToast(message),
+  abandonDuplicateSearch: () => abandonDuplicateSearch(),
+  getDuplicateSearch: () => getDuplicateSearch(),
+  abandonSemanticSearch: () => abandonSemanticSearch(),
+  getSemanticSearch: () => getSemanticSearch(),
 });
 
 // ==========================================

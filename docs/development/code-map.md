@@ -44,7 +44,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 | Private zones & offline maps (`private-zones`)    | `private_maps.rs`                                                                                        | `private-zones.js`, `private-zones-modal.js`, `zone-drawing.js`                                                                                                               |
 | Private photos (`privacy`)                        | `privacy.rs`                                                                                             | `privacy.js`, `privacy.css`                                                                                                                   |
 | Albums (`albums`)                                 | `albums.rs`                                                                                              | `albums-panel.js`                                                                                                                                                             |
-| Filters (`filters-and-search`)                    | —                                                                                                        | `date-filter.js` (date filter field, calendar and date-key helpers), `shooting-filters.js`, `format-filters.js` (also the extension lists), `author-filters.js`, `filter-suggest.js`, `filter-tags.js`, `find-raw.js`, `raw-settings.js`, `histogram.js` |
+| Filters (`filters-and-search`)                    | —                                                                                                        | `date-filter.js` (date filter field, calendar and date-key helpers), `shooting-filters.js`, `format-filters.js` (also the extension lists), `author-filters.js`, `filter-suggest.js`, `filter-tags.js`, `find-raw.js`, `find-raw-mode.js`, `raw-settings.js`, `histogram.js` |
 | Photo operations (`photo-operations`)             | `resize.rs`, `integrity.rs`, `batch_rename.rs`, file commands of `main.rs`                               | `photo-actions.js`, `batch-rename.js`, `batch-rename-engine.js` (pure recipe engine), `batch-rename.css`                                                                      |
 | Updates (`updates`)                               | `update_check.rs`                                                                                        | `update-check.js`                                                                                                                                                             |
 | Styles (`style.md`)                               | —                                                                                                        | `styles.css` + one CSS file per feature                                                                                                                                       |
@@ -57,7 +57,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - Call of `initTitleBar` (`titlebar.js`: window display, title bar, immersive mode), hover dimming, format helpers (`markFormatPlaceholder`, `needsGeneratedPreview`; `isRawPath` / `isVideoPath` are in `file-kinds.js`).
 - "SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE" (`checkPhotoMissing` → `remove_missing_photos`).
 - "CHARGEMENT PHOTOS & DOSSIERS" (`loadedPhotos`, `get_photos_paginated`), smart-album filter state.
-- "ARBORESCENCE & FILTRES" (folder tree), "TROUVER LE RAW".
+- "ARBORESCENCE & FILTRES" (folder tree), "VIEW SNAPSHOTS & RESULTS NAVIGATION".
 - "VIRTUAL SCROLLING" — ⚠ sensitive: pixel-exact layout (AGENTS.md §5.A).
 - "GESTION DU PLEIN ÉCRAN ET NAVIGATION", "SELECTION MULTIPLE", "UNDO", "LOSSLESS ROTATION", shortcuts memo.
 - "MODALE PARAMÈTRES" (+ folder management, About, Guide), "BOUTONS VUES & SIDEBAR", sidebar resizing.
@@ -65,7 +65,7 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - Task queue (`task-queue.js`, wired via `initTaskQueue` in `main.js`) — ⚠ sensitive: every long feature depends on it.
 - Duplicate results mode (`duplicates-view.js`, wired via `initDuplicatesView` in `main.js`), preview zoom, compare mode & instant zoom (`preview-zoom.js`, wired via `initPreviewZoom` in `main.js`).
 - Grid drag-scroll and photo drag-and-drop (`drag-drop.js`, wired via `initDragDrop` in `main.js`), "FILE AND FOLDER OPERATIONS" (`photoMoveRunning`, `deleteFolderToTrash`, `renamePhotoOnDisk`, `renameFolderOnDisk`, `applyMovedPhotos`), then the date / location / content-analysis filters.
-- "MENU CONTEXTUEL DES MINIATURES" (also `removePhotosFromLibrary` and the `init…` calls of most feature modules), "CONTENT SEARCH RESULTS (semantic-results.js)".
+- "MENU CONTEXTUEL DES MINIATURES" (also `removePhotosFromLibrary` and the `init…` calls of most feature modules), "CONTENT SEARCH RESULTS (semantic-results.js)", "FIND THE RAW (find-raw-mode.js)".
 - "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES" (`syncLibraryWithDisk`, on startup and window focus), "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE".
   Module-level mutable state (`loadedPhotos`, `photos`, `selectedIndices`…) is shared by all sections: a change in one section can break another.
 
