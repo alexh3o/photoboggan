@@ -36,8 +36,19 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 - **Fast mouse scrolling** (mousewheel or hold and release) with scroll position indicator
 - **Preview & fullscreen views** with instant 1:1 zoom & pan, gradual zoom, optional face boxes, **histogram**, **highlight/shadow clippings**, and optional info overlay
 - **List** panel to display files
-  - with editable columns: file (extension, size, date created, date modified), date taken, gear (camera, lens), shoot settings (iso, aperture, focal length, shutter speed), ratings (stars, color and pick/reject flags), author...
+  - with editable columns:
+    - file: extension, size, date created, date modified
+    - date taken
+    - gear (camera, lens)
+    - shoot settings (iso, aperture, focal length, shutter speed)
+    - ratings (stars, color and pick/reject flags)
+    - file state: analysed for semantic search, phash calculated for similar duplicate search
+    - geolocation
+    - faces quantity or scan status
+    - author
+    - photo format: orientation, ratio, resolution and megapixels
   - with sorting per columns on 9 possible levels
+  - synchronenous slection between grid and list
   - can optionnally synchronize thumbnail grid sorting
 - **Compare mode** for 2 to 4 photos with synchronized zoom & pan (toggleable anytime) and direct sub-selection to rate or delete
 - **Slideshow** with configurable options
