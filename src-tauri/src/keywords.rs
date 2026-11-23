@@ -131,6 +131,87 @@ pub fn get_keyword_tree(state: State<'_, AppState>) -> Result<Vec<KeywordNode>, 
     collect_rows(rows)
 }
 
+/// Tree nodes and active keyword ids (carried by at least one visible photo) for the sidebar keyword filter.
+#[derive(Serialize)]
+pub struct KeywordFilterTree {
+    pub nodes: Vec<KeywordNode>,
+    pub active_ids: Vec<i64>,
+}
+
+pub(crate) fn keyword_filter_tree_in(conn: &Connection) -> Result<KeywordFilterTree, String> {
+    let nodes = {
+        let mut statement = conn
+            .prepare("SELECT id, parent_id, name FROM keyword_nodes ORDER BY id")
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([], |row| Ok(KeywordNode { id: row.get(0)?, parent_id: row.get(1)?, name: row.get(2)? }))
+            .map_err(|error| error.to_string())?;
+        collect_rows(rows)?
+    };
+    let visible = crate::privacy::visible_condition("p.");
+    let active_ids = {
+        let sql = format!(
+            "SELECT DISTINCT pk.keyword_id FROM photo_keywords pk \
+             JOIN photos p ON p.id = pk.photo_id \
+             WHERE {visible} ORDER BY pk.keyword_id"
+        );
+        let mut statement = conn.prepare(&sql).map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([], |row| row.get::<_, i64>(0))
+            .map_err(|error| error.to_string())?;
+        collect_rows(rows)?
+    };
+    Ok(KeywordFilterTree { nodes, active_ids })
+}
+
+/// Returns the keyword tree and the ids of keywords directly carried by at least one visible photo.
+#[tauri::command(async)]
+pub fn get_keyword_filter_tree(state: State<'_, AppState>) -> Result<KeywordFilterTree, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    keyword_filter_tree_in(&conn)
+}
+
+/// For each requested keyword name, returns the ids of visible photos carrying at least one strict descendant
+/// (child, grandchild…) of any keyword node matching that name (case-insensitive).
+pub(crate) fn keyword_descendant_photos_in(conn: &Connection, keywords: &[String]) -> Result<HashMap<String, Vec<i64>>, String> {
+    let visible = crate::privacy::visible_condition("p.");
+    let sql = format!(
+        "WITH RECURSIVE descendants(id) AS ( \
+            SELECT child.id FROM keyword_nodes child \
+            JOIN keyword_nodes parent ON child.parent_id = parent.id \
+            WHERE parent.name_key = ?1 \
+            UNION \
+            SELECT n.id FROM keyword_nodes n JOIN descendants d ON n.parent_id = d.id \
+        ) \
+        SELECT DISTINCT pk.photo_id FROM photo_keywords pk \
+        JOIN photos p ON p.id = pk.photo_id \
+        WHERE pk.keyword_id IN (SELECT id FROM descendants) AND ({visible}) \
+        ORDER BY pk.photo_id"
+    );
+    let mut statement = conn.prepare(&sql).map_err(|error| error.to_string())?;
+    let mut result = HashMap::new();
+    for keyword in keywords {
+        let key = name_key(keyword);
+        if key.is_empty() || result.contains_key(&key) {
+            continue;
+        }
+        let rows = statement
+            .query_map(params![&key], |row| row.get::<_, i64>(0))
+            .map_err(|error| error.to_string())?;
+        result.insert(key, collect_rows(rows)?);
+    }
+    Ok(result)
+}
+
+/// Returns visible photo ids matching strict descendants for each keyword name (used by the `~` keyword filter mode).
+#[tauri::command(async)]
+pub fn get_keyword_descendant_photos(state: State<'_, AppState>, keywords: Vec<String>) -> Result<HashMap<String, Vec<i64>>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    keyword_descendant_photos_in(&conn, &keywords)
+}
+
 /// Mots-clés actifs de chaque photo d'une sélection, sous forme de paires (identifiant de la photo, identifiant du mot-clé).
 #[tauri::command(async)]
 pub fn get_photo_keyword_ids(state: State<'_, AppState>, photo_ids: Vec<i64>) -> Result<Vec<(i64, i64)>, String> {

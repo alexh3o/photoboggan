@@ -2842,6 +2842,8 @@ fn main() {
             write_clipboard_text,
             resize_photo,
             keywords::get_keyword_tree,
+            keywords::get_keyword_filter_tree,
+            keywords::get_keyword_descendant_photos,
             keywords::get_photo_keyword_ids,
             keywords::get_keyword_usage,
             keywords::apply_metadata_changes,

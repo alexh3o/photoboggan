@@ -43,6 +43,7 @@ const GROUPS = [
   { title: 'Filters', rows: [
     { a: 'Go to the keyword filter', d: 'Opens the library panel and the Keywords / Name group', tag: 'Filters', k: [['Shift', 'K']] },
     { a: 'Exclude the chosen value instead of including it', d: 'Keywords, people, camera, lens, format: in the suggestion list. File name: Alt+Enter', tag: 'Filters', k: [['Alt', 'Enter'], ['Alt', 'Click']] },
+    { a: 'Include a keyword and its children', d: 'In the keyword filter list (adds "~"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle', tag: 'Filters', k: [['Shift', 'Enter'], ['Shift', 'Click']] },
     { a: 'Include / exclude a filter chip', d: 'An excluded chip starts with "-" and has faded colors', tag: 'Filters', k: [['Right-click']] },
     { a: 'Remove a filter chip', d: 'Open group or folded line', tag: 'Filters', k: [['Middle-click']] },
     { a: 'Filter on a keyword of the photo', d: 'Ctrl+click: add it to the filter; Alt+click: exclude it', tag: 'Info panel', k: [['Click'], ['Ctrl', 'Click'], ['Alt', 'Click']], sep: 'slash' },

@@ -1905,5 +1905,14 @@
   "Batch rename blank help": "Borra el nombre de archivo actual para que la receta parta de cero: los pasos siguientes construyen el nuevo nombre ({filename} sigue dando el nombre original). Este paso solo se puede añadir una vez y permanece siempre el primero. Por sí solo deja los archivos sin nombre: añade los pasos que los diferencien.",
   "The “Start blank” step can only be used once": "El paso «Partir de un nombre vacío» solo se puede usar una vez",
   "The current name is erased here: the next steps build the new name.": "El nombre actual se borra aquí: los pasos siguientes construyen el nuevo nombre.",
-  "Settings tabs": "Pestaña de configuración"
+  "Settings tabs": "Pestaña de configuración",
+  "Include children": "Incluir los hijos",
+  "Do not include children": "No incluir los hijos",
+  "Also exclude children": "Excluir también los hijos",
+  "Stop excluding children": "Dejar de excluir los hijos",
+  "Keyword (with children): {text}": "Palabra clave (con hijos): {text}",
+  "Excluded keyword (with children): {text}": "Palabra clave excluida (con hijos): {text}",
+  "Keyword filter help": "Elegir una palabra clave de la lista. Mayús+Intro o Mayús+clic: incluir los hijos (~). Alt+Intro o Alt+clic: excluir",
+  "Include a keyword and its children": "Incluir una palabra clave y sus hijos",
+  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "En la lista del filtro de palabras clave (añade «~»). Alt+Mayús: excluir la palabra clave y sus hijos. Clic derecho en una etiqueta para alternar"
 }

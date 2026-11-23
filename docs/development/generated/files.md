@@ -13,7 +13,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1523 |  |
 | `package.json` | 29 |  |
 | `README.md` | 208 |  |
-| `TODO.md` | 67 |  |
+| `TODO.md` | 69 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -134,7 +134,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `file-dates.js` | 44 | Tooltip of the "Date taken" row of the Info tab: the creation and modification dates of the active photo's file. The dates are read from the disk (get_file_dates in main.rs) only when the row is hovered, so nothing is r… |
 | `file-kinds.js` | 16 | File kinds from the extension: RAW and video. Pure code: no state, no DOM. The extension lists themselves live in format-filters.js. Leaf module (imports nothing from main.js), so that modules such as photo-actions.js d… |
 | `filter-suggest.js` | 132 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
-| `filter-tags.js` | 57 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
+| `filter-tags.js` | 58 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
 | `find-raw-mode.js` | 127 | "Find the RAW" results mode: scope matching, banner rendering, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initFindRawMode()`. |
 | `find-raw.css` | 6 | Bannière du mode « Trouver le RAW » (main.js) : barre collée en haut de la grille, bouton de retour à gauche, nombre de résultats à côté. |
 | `find-raw.js` | 70 | « Trouver le RAW » : fonctions pures qui préparent la recherche du RAW d'une image raster (le mode lui-même, la bannière et le retour sont dans main.js, section « TROUVER LE RAW »). Les critères cochés dans Paramètres >… |
@@ -143,15 +143,15 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
 | `fullscreen.js` | 556 | Fullscreen photo viewer: display, off-screen decoding, neighbour preloading, optional cached-thumbnail preload, zoom/pan (reusing `preview-zoom.js` primitives), info overlay (D), marking bar & popovers (R), and external… |
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
-| `guide.js` | 209 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
+| `guide.js` | 210 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 123 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues ret… |
 | `info-author.js` | 153 | "Author and rights" section of the Info tab: the author of the active photo and, when unfolded, its copyright notice, credit, usage terms and the author's e-mail (see rights.rs and exif::Rights). - The section title (sa… |
-| `keywords-panel.js` | 1253 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
+| `keywords-panel.js` | 1256 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 5900 |  |
+| `main.js` | 6087 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 515 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -189,7 +189,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `sticky-folders.js` | 36 | Sticky folders of the folder tree: which rows stay pinned at the top while the tree is scrolled. Pure code: no state, no DOM. The layer that draws the pinned rows (copies of the real rows, see "STICKY FOLDERS" in main.j… |
-| `styles.css` | 1123 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1127 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `task-queue.js` | 663 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel lane for content analys… |
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
@@ -239,7 +239,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `batch_rename.rs` | 841 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
-| `db.rs` | 757 |  |
+| `db.rs` | 772 |  |
 | `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 3163 |  |
 | `exiftool.rs` | 952 | Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs. Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou … |
@@ -250,9 +250,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 231 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `heif.rs` | 509 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
-| `keywords.rs` | 844 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
+| `keywords.rs` | 925 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
 | `library_sync.rs` | 363 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 3165 |  |
+| `main.rs` | 3167 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 146 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -279,7 +279,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
 | `batch_rename.rs` | 293 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
-| `db.rs` | 427 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
+| `db.rs` | 457 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
 | `duplicates.rs` | 287 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 254 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
 | `exif.rs` | 799 | Tests de non-régression de l'écriture et de la lecture des métadonnées (exif.rs) : intégrité des pixels, écritures atomiques, sidecars, marquages. Fichiers synthétiques dans un dossier temporaire ; les photos de l'utili… |
@@ -292,7 +292,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 60 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 165 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
 | `integrity.rs` | 209 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
-| `keywords.rs` | 324 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
+| `keywords.rs` | 365 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
 | `library_sync.rs` | 199 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
 | `main.rs` | 288 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
 | `orientation.rs` | 162 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs. |
@@ -327,9 +327,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1910 |  |
-| `es.json` | 1909 |  |
-| `fr.json` | 1910 |  |
+| `en.json` | 1919 |  |
+| `es.json` | 1918 |  |
+| `fr.json` | 1919 |  |
 
 ## webpage
 

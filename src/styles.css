@@ -206,7 +206,7 @@ button.active { background: var(--active-button); border-color: var(--active-but
   --side-row-height: 1.9rem;
   --side-block-gap: 1rem;
   /* Étiquettes de filtre : fond foncé et texte clair dans les deux thèmes */
-  --tag-keyword-bg: #2f6488; --tag-keyword-border: #4b8cb8; --tag-keyword-hover: #3a75a0;
+  --tag-keyword-bg: #2f6488; --tag-keyword-border: #4b8cb8; --tag-keyword-children-border: #9bd0f2; --tag-keyword-hover: #3a75a0;
   --tag-filename-bg: #367a46; --tag-filename-border: #52a868; --tag-filename-hover: #418e53;
   --tag-person-bg: #67498c; --tag-person-border: #8e6cbb; --tag-person-hover: #7656a1;
   --tag-date-bg: #5b4888; --tag-date-border: #8270bf;
@@ -359,10 +359,14 @@ button.filter-tag { cursor: pointer; }
 .filter-tag-clear { position: relative; z-index: 1; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; align-self: stretch; width: 1.1rem; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font-size: 0.85rem; line-height: 1; opacity: 0.75; cursor: pointer; }
 .filter-tag-clear:hover, .filter-tag-clear:focus-visible { background: rgba(255, 255, 255, 0.28); opacity: 1; }
 button.filter-tag.tag-keyword:hover { background: var(--tag-keyword-hover); }
+/* Keyword pill with children (~): brighter, double-line inner border without altering the 1px layout border width. */
+.filter-tag.tag-keyword.with-children { border-color: var(--tag-keyword-children-border); box-shadow: inset 0 0 0 1px var(--tag-keyword-children-border); }
 /* Excluded filter entry (text starts with "-"): the colour of its filter type, faded by a grey veil (an inset shadow, painted over the
    background whatever rule sets it, hover included) with a dashed border and dimmer text. */
 .filter-tag.excluded { box-shadow: inset 0 0 0 100vmax rgb(38 38 38 / 0.55); border-style: dashed; color: rgb(255 255 255 / 0.75); }
 button.filter-tag.excluded:hover { box-shadow: inset 0 0 0 100vmax rgb(38 38 38 / 0.4); }
+.filter-tag.tag-keyword.with-children.excluded { box-shadow: inset 0 0 0 1px var(--tag-keyword-children-border), inset 0 0 0 100vmax rgb(38 38 38 / 0.55); }
+button.filter-tag.tag-keyword.with-children.excluded:hover { box-shadow: inset 0 0 0 1px var(--tag-keyword-children-border), inset 0 0 0 100vmax rgb(38 38 38 / 0.4); }
 button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filters-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 4px; }
 .filters-header h3 { margin-bottom: 0;}

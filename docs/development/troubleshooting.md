@@ -1,4 +1,4 @@
-<!-- verified: 5235709 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
+<!-- verified: 4c9aa17 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
 # Troubleshooting
 
 Only problems visible in the code. Each entry: symptom → likely cause (named) → how to check → what to do. Entries that rest on a reading of one place only are marked `⚠ unverified`.

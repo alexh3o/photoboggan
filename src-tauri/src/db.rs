@@ -356,6 +356,8 @@ pub struct PhotoPrefilter {
     pub picks: Vec<String>,
     /// Keywords that must all appear in the `keywords` text (substring: superset of the interface's whole-keyword match).
     pub keywords: Vec<String>,
+    /// Keywords included with their children (`~` mode): match either `keywords` text or any descendant in `photo_keywords`.
+    pub keywords_with_children: Vec<String>,
     /// Years of the date filter (the interface filters the exact instants).
     pub year_from: Option<i32>,
     pub year_to: Option<i32>,
@@ -447,6 +449,19 @@ fn prefilter_condition(filter: &PhotoPrefilter, first: usize, values: &mut Vec<r
     }
     for keyword in filter.keywords.iter().filter(|keyword| !keyword.is_empty()) {
         parts.push(format!("instr(COALESCE(keywords, ''), {}) > 0", push(Value::Text(keyword.clone()), values)));
+    }
+    for keyword in filter.keywords_with_children.iter().filter(|keyword| !keyword.is_empty()) {
+        let text_param = push(Value::Text(keyword.clone()), values);
+        let key_param = push(Value::Text(crate::keywords::name_key(keyword)), values);
+        parts.push(format!(
+            "instr(COALESCE(keywords, ''), {text_param}) > 0 OR id IN (\
+                WITH RECURSIVE descendants(id) AS (\
+                    SELECT id FROM keyword_nodes WHERE name_key = {key_param} \
+                    UNION \
+                    SELECT n.id FROM keyword_nodes n JOIN descendants d ON n.parent_id = d.id\
+                ) SELECT pk.photo_id FROM photo_keywords pk WHERE pk.keyword_id IN (SELECT id FROM descendants)\
+            )"
+        ));
     }
     if filter.year_from.is_some() || filter.year_to.is_some() {
         // A date that does not start with its year (unusual format) is kept: the interface decides.

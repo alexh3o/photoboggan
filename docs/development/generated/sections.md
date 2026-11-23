@@ -123,7 +123,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L224–L306 | 83 | Synchronisation avec l'interface |
 | L307–L392 | 86 | Réglages et clavier |
 
-## src/keywords-panel.js (1253 lines)
+## src/keywords-panel.js (1256 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -135,43 +135,43 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L491–L552 | 62 | Écriture dans les fichiers (voir metadata-writes.js) |
 | L553–L666 | 114 | Chargement et changement de sélection |
 | L667–L767 | 101 | Saisie rapide et autocomplétion |
-| L768–L1121 | 354 | Gestion de l'arborescence : création, suppression, repli |
-| L1122–L1157 | 36 | Suppression d'un mot-clé |
-| L1158–L1253 | 96 | Initialisation |
+| L768–L1123 | 356 | Gestion de l'arborescence : création, suppression, repli |
+| L1124–L1160 | 37 | Suppression d'un mot-clé |
+| L1161–L1256 | 96 | Initialisation |
 
-## src/main.js (5900 lines)
+## src/main.js (6087 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L664–L699 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
-| L700–L873 | 174 | CHARGEMENT PHOTOS & DOSSIERS |
-| L874–L1291 | 418 | PAGINATION DE LA GRILLE |
-| L1292–L2039 | 748 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
-| L2040–L2133 | 94 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
-| L2134–L2510 | 377 | VIRTUAL SCROLLING |
-| L2511–L2576 | 66 | NAVIGATION (GRID & FULLSCREEN) |
-| L2577–L2947 | 371 | SELECTION MULTIPLE |
-| L2948–L2995 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
-| L2996–L3089 | 94 | LOSSLESS ROTATION (orientation.rs) |
-| L3090–L3428 | 339 | Keyboard shortcuts Memo |
-| L3429–L3448 | 20 | MODALE PARAMÈTRES |
-| L3449–L3556 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
-| L3557–L3613 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
-| L3614–L3661 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
-| L3662–L3781 | 120 | BOUTONS VUES & SIDEBAR |
-| L3782–L3893 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
-| L3894–L4614 | 721 | TRI DES MINIATURES |
-| L4615–L4941 | 327 | MARQUAGE (note et couleur de la sélection) |
-| L4942–L5060 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
-| L5061–L5080 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L5081–L5124 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L5125–L5130 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L5131–L5521 | 391 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L5522–L5548 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
-| L5549–L5574 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L5575–L5662 | 88 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L5663–L5841 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L5842–L5900 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L668–L703 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
+| L704–L883 | 180 | CHARGEMENT PHOTOS & DOSSIERS |
+| L884–L1307 | 424 | PAGINATION DE LA GRILLE |
+| L1308–L2225 | 918 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
+| L2226–L2319 | 94 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
+| L2320–L2696 | 377 | VIRTUAL SCROLLING |
+| L2697–L2762 | 66 | NAVIGATION (GRID & FULLSCREEN) |
+| L2763–L3133 | 371 | SELECTION MULTIPLE |
+| L3134–L3181 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
+| L3182–L3275 | 94 | LOSSLESS ROTATION (orientation.rs) |
+| L3276–L3614 | 339 | Keyboard shortcuts Memo |
+| L3615–L3634 | 20 | MODALE PARAMÈTRES |
+| L3635–L3742 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
+| L3743–L3799 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
+| L3800–L3847 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
+| L3848–L3967 | 120 | BOUTONS VUES & SIDEBAR |
+| L3968–L4079 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
+| L4080–L4800 | 721 | TRI DES MINIATURES |
+| L4801–L5127 | 327 | MARQUAGE (note et couleur de la sélection) |
+| L5128–L5246 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
+| L5247–L5266 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L5267–L5310 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L5311–L5316 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L5317–L5708 | 392 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L5709–L5735 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
+| L5736–L5761 | 26 | FIND THE RAW (find-raw-mode.js) |
+| L5762–L5849 | 88 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L5850–L6028 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L6029–L6087 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (515 lines)
 
@@ -370,18 +370,18 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L115–L298 | 184 | Analyse du conteneur (positions des champs, nécessaires pour modifier le fichier sur place) |
 | L299–L505 | 207 | Écriture du paquet XMP |
 
-## src-tauri/src/keywords.rs (844 lines)
+## src-tauri/src/keywords.rs (925 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L168–L551 | 384 | Écriture des mots-clés dans les fichiers |
-| L552–L840 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
+| L249–L632 | 384 | Écriture des mots-clés dans les fichiers |
+| L633–L921 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (3165 lines)
+## src-tauri/src/main.rs (3167 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L2451–L3161 | 711 | Programs allowed for "Open with" |
+| L2451–L3163 | 713 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 

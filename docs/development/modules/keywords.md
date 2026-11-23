@@ -1,4 +1,4 @@
-<!-- verified: 25c2faa | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
+<!-- verified: 4c9aa17 | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
 
 # Hierarchical keywords and description
 
@@ -23,7 +23,7 @@ Lets the user organise photos with a tree of keywords (e.g. `Places / France / P
 - A photo "carries" a keyword when a `photo_keywords` row exists. **Only the last level of a path read from a file is active**; ancestors are active only if the file lists them on their own.
 - The tree grows when files are read: `store_photo_keywords` (called by `library_sync::store_read_batch` for every scan / sync batch) inserts missing nodes with `ensure_node` and replaces the photo's links by those of the file. It is one transaction per batch and returns false on error, so the caller does not consider those photos read. The tree is never pruned automatically (a node with no photo stays).
 - Which format of the file wins (digiKam, Lightroom…) is decided at read time (`metadata-read-write.md`, order sent with `set_metadata_read_order`, kind `keywords`).
-- Reading: `get_keyword_tree` (flat list, the UI rebuilds the tree), `get_photo_keyword_ids` (pairs photo / keyword for the selection), `get_keyword_usage` (photo count per keyword).
+- Reading: `get_keyword_tree` (flat list, the UI rebuilds the tree), `get_keyword_filter_tree` (tree nodes plus `active_ids` carried by visible photos, privacy-filtered, for the sidebar filter), `get_keyword_descendant_photos` (visible photo ids carrying strict descendants of requested keyword names, privacy-filtered, for `~` filters), `get_photo_keyword_ids` (pairs photo / keyword for the selection), `get_keyword_usage` (photo count per keyword).
 
 ### Applying edits: `apply_metadata_changes` → `run_write`
 
@@ -60,7 +60,7 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 
 ## Contracts
 
-- IPC: `get_keyword_tree`, `get_photo_keyword_ids`, `get_keyword_usage`, `apply_metadata_changes`, `create_keyword`, `get_keyword_delete_info`, `delete_keyword`, `rename_keyword`, `set_metadata_read_order`, `exiftool_prewarm`: `../generated/ipc-commands.md`. Error codes: `invalid_name`, `unknown_parent`, `unknown_keyword`, `duplicate`.
+- IPC: `get_keyword_tree`, `get_keyword_filter_tree`, `get_keyword_descendant_photos`, `get_photo_keyword_ids`, `get_keyword_usage`, `apply_metadata_changes`, `create_keyword`, `get_keyword_delete_info`, `delete_keyword`, `rename_keyword`, `set_metadata_read_order`, `exiftool_prewarm`: `../generated/ipc-commands.md`. Error codes: `invalid_name`, `unknown_parent`, `unknown_keyword`, `duplicate`.
 - Events: `scan-progress` (per task id) during writes.
 - Database: `keyword_nodes`, `photo_keywords` (created by `init_schema`, called from `db::init_db`; orphan links of removed photos are deleted at each start); touches `photos` (`keywords`, `title`, `caption`, `author`, `copyright`, `credit`, `usage_terms`, `author_email`, `file_size`, `modified`, `effective_modified`, GPS), `persons.keyword_node_id`, `faces.dirty`, `keyword_suggestion_rejections`.
 - Settings: `keywordsAutoApply`, `keywordsAutoApplyAsked`, `keywordFilterMode`, `sidePanelTab`, `keywordSuggestionsOpen` (`../generated/config.md`).
@@ -80,7 +80,7 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 
 ## Tests
 
-`tests/keywords.rs` (12): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation; and on synthetic JPEGs: `run_write` writes then stores the re-read (pixels untouched), unknown keyword or photo fails without touching the file, rename rewrites every file of the subtree, delete removes the subtree, delete keeps the node when a file fails. `run_write` / `run_rename` / `run_delete` take a `WriteEnv` (cache dirs, progress callback, writer function; built from the `AppHandle` by `WriteEnv::of`), so tests pass the internal writer (`exif::write_metadata_internal`) without touching the global setting. Gaps: title / description / faces / GPS through `run_write` (their check follows the global writer setting), the frontend.  `a_sidecar_write_moves_the_effective_date_but_never_the_image_date` verifies that a sidecar write updates effective_modified while leaving modified unchanged and that removing metadata without a sidecar creates nothing.
+`tests/keywords.rs` (14): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation, `keyword_filter_tree_in` active ids, `keyword_descendant_photos_in` strict descendants; and on synthetic JPEGs: `run_write` writes then stores the re-read (pixels untouched), unknown keyword or photo fails without touching the file, rename rewrites every file of the subtree, delete removes the subtree, delete keeps the node when a file fails. `run_write` / `run_rename` / `run_delete` take a `WriteEnv` (cache dirs, progress callback, writer function; built from the `AppHandle` by `WriteEnv::of`), so tests pass the internal writer (`exif::write_metadata_internal`) without touching the global setting. Gaps: title / description / faces / GPS through `run_write` (their check follows the global writer setting), the frontend.  `a_sidecar_write_moves_the_effective_date_but_never_the_image_date` verifies that a sidecar write updates effective_modified while leaving modified unchanged and that removing metadata without a sidecar creates nothing.
 
 ## How to extend
 

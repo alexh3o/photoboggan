@@ -997,6 +997,7 @@ async function createKeywordFlow(parentId) {
   try {
     const node = await invoke('create_keyword', { parentId, name });
     registerNode(node);
+    host.onTreeChanged?.();
     if (parentId !== ROOT_ID) expandedIds.add(parentId);
     if (canEdit()) activateKeyword(node.id, false);
     else renderTree();
@@ -1113,6 +1114,7 @@ async function finishRename(node, name, photoCount, after, result, error) {
   renderTree();
   updateButtons();
   publishWritten(result.written);
+  host.onTreeChanged?.();
   await after?.();
   if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount, after));
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
@@ -1147,6 +1149,7 @@ async function finishDelete(node, photoCount, ids, result, error) {
   renderTree();
   updateButtons();
   publishWritten(result.written);
+  host.onTreeChanged?.();
   if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
   if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount));
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));

@@ -424,3 +424,33 @@ fn folder_queries_use_path_index_and_handle_prefix_boundaries() {
     let all_plan = explain_folder_query(&pool, None, true, "taken", false, &none, false).unwrap().join(" | ");
     assert!(all_plan.contains("idx_date"), "expected idx_date for whole-catalogue date sort, got: {all_plan}");
 }
+
+#[test]
+fn prefilter_keywords_with_children_keeps_descendants_and_direct_matches() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let direct = insert_photo(&conn, "C:/P/direct.jpg");
+    let child = insert_photo(&conn, "C:/P/child.jpg");
+    let grandchild = insert_photo(&conn, "C:/P/grandchild.jpg");
+    let homonym = insert_photo(&conn, "C:/P/homonym.jpg");
+    let _other = insert_photo(&conn, "C:/P/other.jpg");
+
+    conn.execute("UPDATE photos SET keywords = 'Places' WHERE id = ?1", [direct]).unwrap();
+    conn.execute("UPDATE photos SET keywords = 'France' WHERE id = ?1", [child]).unwrap();
+    conn.execute("UPDATE photos SET keywords = 'Paris' WHERE id = ?1", [grandchild]).unwrap();
+    conn.execute("UPDATE photos SET keywords = 'Paris' WHERE id = ?1", [homonym]).unwrap();
+
+    let places = crate::keywords::ensure_node(&conn, 0, "Places").unwrap();
+    let france = crate::keywords::ensure_node(&conn, places, "France").unwrap();
+    let places_paris = crate::keywords::ensure_node(&conn, france, "Paris").unwrap();
+    let people = crate::keywords::ensure_node(&conn, 0, "People").unwrap();
+    let people_paris = crate::keywords::ensure_node(&conn, people, "Paris").unwrap();
+
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", rusqlite::params![direct, places]).unwrap();
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", rusqlite::params![child, france]).unwrap();
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", rusqlite::params![grandchild, places_paris]).unwrap();
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", rusqlite::params![homonym, people_paris]).unwrap();
+
+    let filter = PhotoPrefilter { keywords_with_children: vec!["Places".into()], ..Default::default() };
+    assert_eq!(matching(&pool, filter), ["child.jpg", "direct.jpg", "grandchild.jpg"]);
+}

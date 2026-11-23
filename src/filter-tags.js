@@ -39,11 +39,11 @@ export function createFilterTag({ kind, text, title = '', onRemove = null }) {
 }
 
 /**
- * Include / exclude state of a filter chip (keywords, people, gear, format, filename): an excluded chip gets the `excluded` class (violet,
+ * Include / exclude state of a filter chip (keywords, people, gear, format, filename): an excluded chip gets the `excluded` class (dimmed,
  * see styles.css) and a right-click opens a small menu that switches it. `label`: chip text, shown as the menu header;
- * `onToggle()`: switches the entry to the other state, re-renders and filters again.
+ * `onToggle()`: switches the entry to the other state, re-renders and filters again; `extraItems`: optional extra context menu entries.
  */
-export function addIncludeExcludeMenu(node, { label, excluded, onToggle }) {
+export function addIncludeExcludeMenu(node, { label, excluded, onToggle, extraItems = [] }) {
   node.classList.toggle('excluded', excluded);
   node.addEventListener('contextmenu', event => {
     event.preventDefault();
@@ -51,6 +51,7 @@ export function addIncludeExcludeMenu(node, { label, excluded, onToggle }) {
     openContextMenuAt(event, [
       { header: label },
       { label: t(excluded ? 'Include' : 'Exclude'), onSelect: onToggle },
+      ...extraItems,
     ]);
   });
 }

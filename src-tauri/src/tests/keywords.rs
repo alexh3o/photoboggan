@@ -321,3 +321,44 @@ fn a_sidecar_write_moves_the_effective_date_but_never_the_image_date() {
     assert_eq!(dates(), (image_date, sidecar_date), "modified is still the image file's own mtime");
     assert_eq!(std::fs::read(&png).unwrap(), before, "the image file is never rewritten");
 }
+
+#[test]
+fn keyword_filter_tree_returns_nodes_and_active_ids() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let a = insert_photo(&conn, "C:/P/a.jpg");
+    let places = ensure_node(&conn, 0, "Places").unwrap();
+    let france = ensure_node(&conn, places, "France").unwrap();
+    let paris = ensure_node(&conn, france, "Paris").unwrap();
+    let _unused = ensure_node(&conn, places, "Spain").unwrap();
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![a, paris]).unwrap();
+
+    let tree = keyword_filter_tree_in(&conn).unwrap();
+    assert_eq!(tree.nodes.len(), 4);
+    assert_eq!(tree.active_ids, vec![paris], "inactive parents and unused nodes are excluded from active_ids");
+}
+
+#[test]
+fn keyword_descendant_photos_matches_strict_descendants_only() {
+    let (_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let photo_paris = insert_photo(&conn, "C:/P/a.jpg");
+    let photo_france = insert_photo(&conn, "C:/P/b.jpg");
+    let photo_homonym = insert_photo(&conn, "C:/P/c.jpg");
+
+    let places = ensure_node(&conn, 0, "Places").unwrap();
+    let france = ensure_node(&conn, places, "France").unwrap();
+    let places_paris = ensure_node(&conn, france, "Paris").unwrap();
+    let _lyon = ensure_node(&conn, france, "Lyon").unwrap();
+    let people = ensure_node(&conn, 0, "People").unwrap();
+    let people_paris = ensure_node(&conn, people, "Paris").unwrap();
+
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_paris, places_paris]).unwrap();
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_france, france]).unwrap();
+    conn.execute("INSERT INTO photo_keywords (photo_id, keyword_id) VALUES (?1, ?2)", params![photo_homonym, people_paris]).unwrap();
+
+    let result = keyword_descendant_photos_in(&conn, &["France".into(), "places".into(), "Paris".into()]).unwrap();
+    assert_eq!(result.get("france").unwrap(), &vec![photo_paris], "France~ matches strict descendants only, not photo_france or People/Paris");
+    assert_eq!(result.get("places").unwrap(), &vec![photo_paris, photo_france], "Places~ (case-insensitive) matches child and grandchild");
+    assert!(result.get("paris").unwrap().is_empty(), "leaf keyword has no descendants");
+}

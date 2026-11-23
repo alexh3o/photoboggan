@@ -124,6 +124,10 @@ let includeSubfolders = readBool('includeSubfolders');
 let keywordFilters = [];
 // Keywords a photo must NOT carry (Alt+Enter / Alt+click in the keyword list, or the chip's context menu). A keyword is never in both lists.
 let excludedKeywordFilters = [];
+// Keywords in `keywordFilters` / `excludedKeywordFilters` that also match all strict descendants (`~` suffix on the chip).
+let keywordChildrenFilters = new Set();
+let excludedKeywordChildrenFilters = new Set();
+const keywordKey = text => String(text ?? '').trim().toLowerCase();
 const keywordGuesses = new Map(); // photo id -> included keywords it only has by content-search suggestion (see matchesKeywordFiltersOrSuggested)
 let pathFilter = null; // chemins à montrer uniquement (fichiers dont l'écriture de mots-clés a échoué) ; null = pas de filtre
 let filenameFilters = []; // chaînes à retrouver dans le nom de fichier (toutes doivent y figurer, casse ignorée)
@@ -790,7 +794,13 @@ function prefilterFromState(state, dateRange = state.date ? parseDateFilter(stat
   else if (rating?.stars > 0) filter[rating.mode === 'eq' ? 'ratingEq' : 'ratingMin'] = rating.stars;
   if (state.colors?.length) filter.colors = [...state.colors].sort();
   if (state.picks?.length) filter.picks = [...state.picks].sort();
-  if (state.keywords?.length) filter.keywords = [...state.keywords].sort();
+  if (state.keywords?.length) {
+    const withChildren = new Set(state.keywordsWithChildren ?? []);
+    const plain = state.keywords.filter(keyword => !withChildren.has(keyword)).sort();
+    const children = state.keywords.filter(keyword => withChildren.has(keyword)).sort();
+    if (plain.length) filter.keywords = plain;
+    if (children.length) filter.keywordsWithChildren = children;
+  }
   if (dateRange) {
     filter.yearFrom = Math.floor(dateRange.from / 1e10); // AAAAMMJJHHmmss -> AAAA
     filter.yearTo = Math.floor(dateRange.to / 1e10);
@@ -1012,6 +1022,8 @@ async function loadPhotos({ catalogChanged = true } = {}) {
   } else if (treeSourceUpdated) {
     renderKeywordFilters();
   }
+  const neededChildren = activeChildrenKeywords();
+  if (neededChildren.length) await ensureKeywordDescendantPhotos(neededChildren);
   applyPhotoFilters({ keepState: false });
   if (catalogChanged) {
     refreshFaces(); // et les personnes lues dans les zones de visage (voir faces-panel.js)
@@ -1200,6 +1212,8 @@ function renderInfoKeywords(photo) {
       } else {
         keywordFilters = [word];
         excludedKeywordFilters = [];
+        keywordChildrenFilters.clear();
+        excludedKeywordChildrenFilters.clear();
       }
       renderKeywordFilters();
       applyPhotoFilters();
@@ -1226,6 +1240,8 @@ const clearFilterKinds = {
   keyword() {
     keywordFilters = [];
     excludedKeywordFilters = [];
+    keywordChildrenFilters.clear();
+    excludedKeywordChildrenFilters.clear();
     const keywordInput = document.getElementById('keyword-filter-input');
     if (keywordInput) keywordInput.value = '';
     renderKeywordFilters();
@@ -1310,7 +1326,11 @@ function captureFilterState() {
   if (colorFilters.size) state.colors = [...colorFilters].sort();
   if (pickFilters.size) state.picks = [...pickFilters].sort();
   if (keywordFilters.length) state.keywords = [...keywordFilters];
+  const keywordsWithChildren = [...keywordChildrenFilters].filter(keyword => keywordFilters.includes(keyword)).sort();
+  if (keywordsWithChildren.length) state.keywordsWithChildren = keywordsWithChildren;
   if (excludedKeywordFilters.length) state.excludedKeywords = [...excludedKeywordFilters];
+  const excludedKeywordsWithChildren = [...excludedKeywordChildrenFilters].filter(keyword => excludedKeywordFilters.includes(keyword)).sort();
+  if (excludedKeywordsWithChildren.length) state.excludedKeywordsWithChildren = excludedKeywordsWithChildren;
   if (filenameFilters.length) state.filenames = [...filenameFilters];
   if (excludedFilenameFilters.length) state.excludedFilenames = [...excludedFilenameFilters];
   const dateText = dateFilterInput.value.trim();
@@ -1346,7 +1366,7 @@ function matchesFilterState(photo, state) {
   if (state.rating && !matchesRatingFilter(photo, state.rating)) return false;
   if (state.colors && !state.colors.includes(photo.color_flag || 'none')) return false;
   if (state.picks && !state.picks.includes(photo.pick_flag || 'none')) return false;
-  if ((state.keywords || state.excludedKeywords) && !matchesKeywordFilters(photo, state.keywords, state.excludedKeywords)) return false;
+  if ((state.keywords || state.excludedKeywords) && !matchesKeywordFilters(photo, state.keywords, state.excludedKeywords, state.keywordsWithChildren, state.excludedKeywordsWithChildren)) return false;
   if ((state.filenames || state.excludedFilenames) && !matchesFilenameFilters(photo, state.filenames, state.excludedFilenames)) return false;
   if (state.date) {
     const range = parseDateFilter(state.date).filter;
@@ -1392,6 +1412,8 @@ function applyFilterState(state) {
   document.querySelectorAll('#pick-filter-bar .pick-square').forEach(button => setColorSquareChecked(button, pickFilters.has(button.dataset.pick)));
   keywordFilters = [...(state.keywords ?? [])];
   excludedKeywordFilters = [...(state.excludedKeywords ?? [])].filter(keyword => !keywordFilters.includes(keyword));
+  keywordChildrenFilters = new Set((state.keywordsWithChildren ?? []).filter(keyword => keywordFilters.includes(keyword)));
+  excludedKeywordChildrenFilters = new Set((state.excludedKeywordsWithChildren ?? []).filter(keyword => excludedKeywordFilters.includes(keyword)));
   renderKeywordFilters();
   filenameFilters = [...(state.filenames ?? [])];
   excludedFilenameFilters = [...(state.excludedFilenames ?? [])];
@@ -1458,6 +1480,8 @@ async function saveCurrentViewInto(albumId) {
     applyFilterState(state);
     albumSavedSignature = filterStateSignature();
     setAlbumDirty(false);
+    const neededChildren = activeChildrenKeywords();
+    if (neededChildren.length) await ensureKeywordDescendantPhotos(neededChildren);
     applyPhotoFilters();
   }
 }
@@ -1494,6 +1518,17 @@ async function computeAlbumCounts() {
     }
     const children = new Map();
     for (const node of nodes) children.set(node.parent_id, [...(children.get(node.parent_id) ?? []), node]);
+    const parsedFilters = new Map();
+    const descendantKeywords = [];
+    for (const node of nodes) {
+      if (node.kind !== 'smart') continue;
+      let own = {};
+      try { own = JSON.parse(node.filters) || {}; } catch { /* critères illisibles : album sans filtre */ }
+      parsedFilters.set(node.id, own);
+      for (const word of own.keywordsWithChildren ?? []) descendantKeywords.push(word);
+      for (const word of own.excludedKeywordsWithChildren ?? []) descendantKeywords.push(word);
+    }
+    if (descendantKeywords.length) await ensureKeywordDescendantPhotos(descendantKeywords);
     const sets = new Map();
     const setOf = node => {
       if (sets.has(node.id)) return sets.get(node.id);
@@ -1504,8 +1539,7 @@ async function computeAlbumCounts() {
         // Point de départ : le contenu du parent (manuel ou intelligent, qui a déjà ses propres critères), sinon toute la photothèque.
         const parent = nodes.find(candidate => candidate.id === node.parent_id);
         const start = parent && parent.kind !== 'folder' ? setOf(parent) : byId.keys();
-        let own = {};
-        try { own = JSON.parse(node.filters) || {}; } catch { /* critères illisibles : album sans filtre */ }
+        const own = parsedFilters.get(node.id) ?? {};
         for (const id of start) if (matchesFilterState(byId.get(id), own)) result.add(id);
       } else {
         for (const child of children.get(node.id) ?? []) for (const id of setOf(child)) result.add(id);
@@ -1528,7 +1562,14 @@ function describeFilterState(state) {
   if (state.rating) labels.push([state.rating.unrated ? '∅' : '', state.rating.stars > 0 ? `${state.rating.mode === 'eq' ? '=' : '≥'} ${state.rating.stars} ★` : ''].filter(Boolean).join(' + '));
   for (const key of state.colors ?? []) labels.push(colorFlagLabels.get(key) ?? key);
   for (const key of state.picks ?? []) labels.push(t(PICK_FLAGS.find(flag => flag.key === key)?.label ?? key));
-  labels.push(...(state.keywords ?? []), ...(state.excludedKeywords ?? []).map(keyword => `-${keyword}`), ...(state.filenames ?? []), ...(state.excludedFilenames ?? []).map(text => `-${text}`));
+  const includedChildren = new Set(state.keywordsWithChildren ?? []);
+  const excludedChildren = new Set(state.excludedKeywordsWithChildren ?? []);
+  labels.push(
+    ...(state.keywords ?? []).map(keyword => `${keyword}${includedChildren.has(keyword) ? '~' : ''}`),
+    ...(state.excludedKeywords ?? []).map(keyword => `-${keyword}${excludedChildren.has(keyword) ? '~' : ''}`),
+    ...(state.filenames ?? []),
+    ...(state.excludedFilenames ?? []).map(text => `-${text}`),
+  );
   if (state.date) labels.push(state.date);
   if (state.persons?.length) labels.push(`${t('People')} (${state.persons.length})`);
   if (state.excludedPersons?.length) labels.push(`-${t('People')} (${state.excludedPersons.length})`);
@@ -1581,40 +1622,142 @@ function renderAlbumFilterInfo() {
 let keywordFilterOptions = [];
 let keywordFilterSuggest = null;
 let keywordOptionsSource = null;
+let keywordTreeNodes = [];
+let keywordActiveIds = new Set();
+let keywordHasChildrenKeys = new Set(); // lowercase keyword names that have at least one child node in the tree
+let keywordTreeLoaded = false;
+let keywordTreeGeneration = 0;
+let keywordDescendantPhotos = new Map(); // lowercase keyword name -> Set<photoId> carrying strict descendants
+let keywordDescendantsGeneration = 0;
 
-function renderKeywordFilters({ force = false } = {}) {
-  if (force || keywordOptionsSource?.photos !== folderTreePhotos || keywordOptionsSource?.length !== folderTreePhotos.length) {
-    keywordOptionsSource = { photos: folderTreePhotos, length: folderTreePhotos.length };
-    const counts = new Map();
-    for (const photo of folderTreePhotos) {
-      if (!photo.keywords) continue;
-      const seen = new Set();
-      for (const raw of photo.keywords.split(', ')) {
-        const word = raw.trim();
-        if (!word || seen.has(word)) continue;
-        seen.add(word);
-        counts.set(word, (counts.get(word) || 0) + 1);
+function activeChildrenKeywords() {
+  const words = [...keywordChildrenFilters, ...excludedKeywordChildrenFilters];
+  for (const { state } of albumInherited) {
+    for (const word of state.keywordsWithChildren ?? []) words.push(word);
+    for (const word of state.excludedKeywordsWithChildren ?? []) words.push(word);
+  }
+  return [...new Set(words)];
+}
+
+async function ensureKeywordDescendantPhotos(keywords, { reapply = false } = {}) {
+  const missing = [];
+  const seenKeys = new Set();
+  for (const word of keywords) {
+    const key = keywordKey(word);
+    if (!key || seenKeys.has(key) || keywordDescendantPhotos.has(key)) continue;
+    seenKeys.add(key);
+    missing.push(word);
+  }
+  if (missing.length === 0) return;
+  const generation = keywordDescendantsGeneration;
+  try {
+    const map = await invoke('get_keyword_descendant_photos', { keywords: missing });
+    if (generation !== keywordDescendantsGeneration) return;
+    for (const word of missing) {
+      const key = keywordKey(word);
+      keywordDescendantPhotos.set(key, new Set(map[key] ?? []));
+    }
+    if (reapply) applyPhotoFilters({ keepState: true });
+  } catch (error) {
+    console.debug('Keyword descendant lookup failed', error);
+  }
+}
+
+function rebuildKeywordFilterOptions() {
+  const counts = new Map();
+  for (const photo of folderTreePhotos) {
+    if (!photo.keywords) continue;
+    const seen = new Set();
+    for (const raw of photo.keywords.split(', ')) {
+      const word = raw.trim();
+      if (!word || seen.has(word)) continue;
+      seen.add(word);
+      counts.set(word, (counts.get(word) || 0) + 1);
+    }
+  }
+  // Inactive parent keywords (0 direct photos, >= 1 active descendant) appear in suggestions with count 0 so Shift+Click/Enter can pick them.
+  if (keywordTreeNodes.length && keywordActiveIds.size) {
+    const nodeById = new Map(keywordTreeNodes.map(node => [node.id, node]));
+    const presentKeys = new Set([...counts.keys()].map(keywordKey));
+    const visited = new Set();
+    for (const activeId of keywordActiveIds) {
+      let current = nodeById.get(activeId);
+      while (current && current.parent_id !== 0) {
+        current = nodeById.get(current.parent_id);
+        if (!current || visited.has(current.id)) break;
+        visited.add(current.id);
+        const key = keywordKey(current.name);
+        if (!key || presentKeys.has(key)) continue;
+        presentKeys.add(key);
+        counts.set(current.name, 0);
       }
     }
-    keywordFilterOptions = [...counts].map(([word, count]) => {
-      const label = decodeHtmlEntities(word);
-      return { value: word, label, count, search: normalizeSearch(label) };
-    });
+  }
+  keywordFilterOptions = [...counts].map(([word, count]) => {
+    const label = decodeHtmlEntities(word);
+    return { value: word, label, count, search: normalizeSearch(label) };
+  });
+  keywordFilterSuggest?.refresh();
+}
+
+async function refreshKeywordFilterTree() {
+  const treeGen = ++keywordTreeGeneration;
+  keywordDescendantsGeneration++;
+  keywordDescendantPhotos.clear();
+  try {
+    const { nodes, active_ids: activeIds } = await invoke('get_keyword_filter_tree');
+    if (treeGen !== keywordTreeGeneration) return;
+    keywordTreeNodes = nodes;
+    keywordActiveIds = new Set(activeIds);
+    const parentIds = new Set(nodes.map(node => node.parent_id).filter(id => id !== 0));
+    const hasChildren = new Set();
+    for (const node of nodes) if (parentIds.has(node.id)) hasChildren.add(keywordKey(node.name));
+    keywordHasChildrenKeys = hasChildren;
+    keywordTreeLoaded = true;
+    rebuildKeywordFilterOptions();
+    renderFilterTags();
+    const needed = activeChildrenKeywords();
+    if (needed.length) await ensureKeywordDescendantPhotos(needed, { reapply: true });
+  } catch (error) {
+    console.debug('Keyword filter tree unavailable', error);
+  }
+}
+
+function renderKeywordFilters({ force = false } = {}) {
+  const sourceChanged = force || keywordOptionsSource?.photos !== folderTreePhotos || keywordOptionsSource?.length !== folderTreePhotos.length;
+  if (sourceChanged) {
+    keywordOptionsSource = { photos: folderTreePhotos, length: folderTreePhotos.length };
+    rebuildKeywordFilterOptions();
     shootingFilters.refreshOptions(); // listes des appareils et objectifs : la collection a pu changer
     authorFilters.refreshAuthors(); // liste des auteurs de la base : idem
   }
+  if (force || !keywordTreeLoaded) refreshKeywordFilterTree();
   keywordFilterSuggest?.refresh();
   renderFilterTags();
 }
 
 const hasKeywordFilters = () => keywordFilters.length > 0 || excludedKeywordFilters.length > 0;
+const hasKeywordChildFlag = (collection, item) => (collection instanceof Set ? collection.has(item) : Boolean(collection?.includes(item)));
 
-// A photo passes if it carries every included keyword and none of the excluded ones (whole keywords, as stored).
+function matchesSingleKeyword(photo, words, keyword, withChildren) {
+  if (words.includes(keyword)) return true;
+  if (!withChildren) return false;
+  return keywordDescendantPhotos.get(keywordKey(keyword))?.has(photo.id) ?? false;
+}
+
+// A photo passes if it carries every included keyword (or a descendant when `~` is active) and none of the excluded ones.
 // Excluded keywords are never sent to the backend prefilter: it stays a superset of this test.
-function matchesKeywordFilters(photo, included = keywordFilters, excluded = excludedKeywordFilters) {
+function matchesKeywordFilters(
+  photo,
+  included = keywordFilters,
+  excluded = excludedKeywordFilters,
+  includedChildren = keywordChildrenFilters,
+  excludedChildren = excludedKeywordChildrenFilters,
+) {
   if (!included?.length && !excluded?.length) return true;
   const words = (photo.keywords || '').split(', ');
-  return (included ?? []).every(keyword => words.includes(keyword)) && !(excluded ?? []).some(keyword => words.includes(keyword));
+  return (included ?? []).every(keyword => matchesSingleKeyword(photo, words, keyword, hasKeywordChildFlag(includedChildren, keyword)))
+    && !(excluded ?? []).some(keyword => matchesSingleKeyword(photo, words, keyword, hasKeywordChildFlag(excludedChildren, keyword)));
 }
 
 // Keyword filter with content-search suggestions (semantic-keywords.js, setting "Include suggestions in keyword filtering"): every included keyword is
@@ -1624,10 +1767,10 @@ function matchesKeywordFiltersOrSuggested(photo) {
   if (matchesKeywordFilters(photo)) return true;
   if (!suggestionsLoaded() || keywordFilters.length === 0) return false;
   const words = (photo.keywords || '').split(', ');
-  if (excludedKeywordFilters.some(keyword => words.includes(keyword))) return false;
+  if (excludedKeywordFilters.some(keyword => matchesSingleKeyword(photo, words, keyword, excludedKeywordChildrenFilters.has(keyword)))) return false;
   const guessed = [];
   for (const keyword of keywordFilters) {
-    if (words.includes(keyword)) continue;
+    if (matchesSingleKeyword(photo, words, keyword, keywordChildrenFilters.has(keyword))) continue;
     if (!suggestionFor(keyword, photo.id)) return false;
     guessed.push(keyword);
   }
@@ -1647,20 +1790,39 @@ function keywordSuggestionScope() {
   return { folder: folder ?? null, recursive: Boolean(recursive), photoIds: photoIds ?? null, skipRaw: !readBool('semanticScanRaw') };
 }
 
-// Puts a keyword in the included or excluded list (and out of the other one). Neither re-renders nor filters: the caller does.
-function setKeywordFilter(keyword, exclude) {
+// Puts a keyword in the included or excluded list (and out of the other one). When `includeChildren` is null, preserves the existing `~` mode.
+// Neither re-renders nor filters: the caller does.
+function setKeywordFilter(keyword, exclude, includeChildren = null) {
+  const wasWithChildren = keywordChildrenFilters.has(keyword) || excludedKeywordChildrenFilters.has(keyword);
+  const keepChildren = includeChildren === null ? wasWithChildren : Boolean(includeChildren);
   keywordFilters = keywordFilters.filter(item => item !== keyword);
   excludedKeywordFilters = excludedKeywordFilters.filter(item => item !== keyword);
+  keywordChildrenFilters.delete(keyword);
+  excludedKeywordChildrenFilters.delete(keyword);
   (exclude ? excludedKeywordFilters : keywordFilters).push(keyword);
+  if (keepChildren) (exclude ? excludedKeywordChildrenFilters : keywordChildrenFilters).add(keyword);
 }
 
-function addKeywordFilter(value, exclude = false) {
+async function addKeywordFilter(value, exclude = false, includeChildren = false) {
   const keyword = value.trim();
   if (!keyword) return;
   document.getElementById('keyword-filter-input').value = '';
-  if ((exclude ? excludedKeywordFilters : keywordFilters).includes(keyword)) return;
-  setKeywordFilter(keyword, exclude);
+  const targetList = exclude ? excludedKeywordFilters : keywordFilters;
+  const targetChildren = exclude ? excludedKeywordChildrenFilters : keywordChildrenFilters;
+  if (targetList.includes(keyword) && targetChildren.has(keyword) === includeChildren) return;
+  setKeywordFilter(keyword, exclude, includeChildren);
   renderKeywordFilters();
+  if (includeChildren) await ensureKeywordDescendantPhotos([keyword]);
+  applyPhotoFilters();
+}
+
+async function toggleKeywordChildren(keyword, excluded) {
+  const childrenSet = excluded ? excludedKeywordChildrenFilters : keywordChildrenFilters;
+  const enable = !childrenSet.has(keyword);
+  if (enable) childrenSet.add(keyword);
+  else childrenSet.delete(keyword);
+  renderFilterTags();
+  if (enable) await ensureKeywordDescendantPhotos([keyword]);
   applyPhotoFilters();
 }
 
@@ -1779,63 +1941,87 @@ document.addEventListener('auxclick', event => {
   else if (tag instanceof HTMLButtonElement) tag.click();
 });
 
-// Étiquettes des mots-clés (bleu) et des noms de fichier (vert), sur une ligne commune : boutons à croix quand le groupe est déplié,
-// simples étiquettes derrière le titre quand il est replié.
+// Keyword (blue) and filename (green) filter chips, shared row: buttons with × when expanded, tags after the group title when collapsed.
 function renderFilterTags() {
   const expandedContainer = document.getElementById('filter-tags');
   const collapsedLine = document.getElementById('tags-collapsed-line');
   if (!expandedContainer || !collapsedLine) return;
   const entries = [
     ...(pathFilter !== null ? [{ kind: 'failed', text: t('Failed files') }] : []),
-    ...keywordFilters.map(text => ({ kind: 'keyword', text })),
-    ...excludedKeywordFilters.map(text => ({ kind: 'keyword', text, excluded: true })),
+    ...keywordFilters.map(text => ({ kind: 'keyword', text, withChildren: keywordChildrenFilters.has(text) })),
+    ...excludedKeywordFilters.map(text => ({ kind: 'keyword', text, excluded: true, withChildren: excludedKeywordChildrenFilters.has(text) })),
     ...filenameFilters.map(text => ({ kind: 'filename', text })),
     ...excludedFilenameFilters.map(text => ({ kind: 'filename', text, excluded: true })),
   ];
-  // Retire une étiquette (boutons du groupe déplié comme croix des étiquettes repliées) puis relance le filtrage.
+  // Remove a chip (expanded group buttons as well as collapsed tag × buttons) then re-filter.
   const removeEntry = (kind, text, excluded = false) => {
-    if (kind === 'keyword' && excluded) excludedKeywordFilters = excludedKeywordFilters.filter(item => item !== text);
-    else if (kind === 'keyword') keywordFilters = keywordFilters.filter(item => item !== text);
-    else if (kind === 'failed') pathFilter = null;
-    else if (excluded) excludedFilenameFilters = excludedFilenameFilters.filter(item => item !== text);
-    else filenameFilters = filenameFilters.filter(item => item !== text);
+    if (kind === 'keyword' && excluded) {
+      excludedKeywordFilters = excludedKeywordFilters.filter(item => item !== text);
+      excludedKeywordChildrenFilters.delete(text);
+    } else if (kind === 'keyword') {
+      keywordFilters = keywordFilters.filter(item => item !== text);
+      keywordChildrenFilters.delete(text);
+    } else if (kind === 'failed') {
+      pathFilter = null;
+    } else if (excluded) {
+      excludedFilenameFilters = excludedFilenameFilters.filter(item => item !== text);
+    } else {
+      filenameFilters = filenameFilters.filter(item => item !== text);
+    }
     renderFilterTags();
     applyPhotoFilters();
   };
-  // Excluded keyword or filename text: the chip text starts with "-". A right-click on such a chip switches it between "include" and "exclude".
-  const label = (text, excluded) => (excluded ? `-${text}` : text);
-  const addKeywordMenu = (node, kind, text, excluded) => {
+  // Excluded chips start with "-"; keywords with children mode enabled end with "~".
+  const label = (text, excluded, withChildren = false) => `${excluded ? '-' : ''}${text}${withChildren ? '~' : ''}`;
+  const addKeywordMenu = (node, kind, text, excluded, withChildren = false) => {
     if (kind !== 'keyword' && kind !== 'filename') return;
+    const extraItems = [];
+    if (kind === 'keyword' && (withChildren || keywordHasChildrenKeys.has(keywordKey(text)))) {
+      const childrenLabel = excluded
+        ? (withChildren ? 'Stop excluding children' : 'Also exclude children')
+        : (withChildren ? 'Do not include children' : 'Include children');
+      extraItems.push({ label: t(childrenLabel), onSelect: () => toggleKeywordChildren(text, excluded) });
+    }
     addIncludeExcludeMenu(node, {
-      label: label(text, excluded),
+      label: label(text, excluded, withChildren),
       excluded,
       onToggle: () => {
         (kind === 'keyword' ? setKeywordFilter : setFilenameFilter)(text, !excluded);
         renderFilterTags();
         applyPhotoFilters();
       },
+      extraItems,
     });
   };
-  expandedContainer.replaceChildren(...entries.map(({ kind, text, excluded = false }) => {
+  expandedContainer.replaceChildren(...entries.map(({ kind, text, excluded = false, withChildren = false }) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `filter-tag tag-${kind}`;
-    button.textContent = `${label(text, excluded)} ×`;
-    button.title = t('Remove filter {keyword}', { keyword: label(text, excluded) });
+    button.className = `filter-tag tag-${kind}${withChildren ? ' with-children' : ''}`;
+    const chipLabel = label(text, excluded, withChildren);
+    button.textContent = `${chipLabel} ×`;
+    button.title = t('Remove filter {keyword}', { keyword: chipLabel });
     button.addEventListener('click', () => removeEntry(kind, text, excluded));
-    addKeywordMenu(button, kind, text, excluded);
+    addKeywordMenu(button, kind, text, excluded, withChildren);
     return button;
   }));
   collapsedLine.querySelectorAll('.filter-tag').forEach(node => node.remove());
-  collapsedLine.append(...entries.map(({ kind, text, excluded = false }) => {
+  collapsedLine.append(...entries.map(({ kind, text, excluded = false, withChildren = false }) => {
+    const chipLabel = label(text, excluded, withChildren);
+    const titleKey = kind === 'keyword'
+      ? (excluded
+        ? (withChildren ? 'Excluded keyword (with children): {text}' : 'Excluded keyword: {text}')
+        : (withChildren ? 'Keyword (with children): {text}' : 'Keyword: {text}'))
+      : kind === 'failed'
+        ? 'Files whose keywords could not be written'
+        : excluded ? 'Filename without: {text}' : 'Filename: {text}';
     const tag = createFilterTag({
       kind,
-      text: label(text, excluded),
-      title: t(kind === 'keyword' ? (excluded ? 'Excluded keyword: {text}' : 'Keyword: {text}') : kind === 'failed' ? 'Files whose keywords could not be written'
-        : excluded ? 'Filename without: {text}' : 'Filename: {text}', { text }),
+      text: chipLabel,
+      title: t(titleKey, { text }),
       onRemove: () => removeEntry(kind, text, excluded),
     });
-    addKeywordMenu(tag, kind, text, excluded);
+    if (withChildren) tag.classList.add('with-children');
+    addKeywordMenu(tag, kind, text, excluded, withChildren);
     return tag;
   }));
   fitCollapsedTags();
@@ -4773,13 +4959,13 @@ markingPlacementSelect.addEventListener('change', event => {
   localStorage.setItem('markingPlacement', markingMode);
   updateMarkingPlacement();
 });
-// Keyword filter field: suggestion list; Alt+Enter / Alt+click excludes the keyword. With no suggestion, Enter takes the typed text as is
-// (a keyword missing from the loaded photos can still be filtered on).
+// Keyword filter field: suggestion list; Shift+Enter / Shift+click includes children (~); Alt+Enter / Alt+click excludes (Alt+Shift includes children).
+// With no suggestion, Enter takes the typed text as is (a keyword missing from the loaded photos can still be filtered on).
 keywordFilterSuggest = createFilterSuggest({
   input: document.getElementById('keyword-filter-input'),
   list: document.getElementById('keyword-filter-suggestions'),
   getOptions: () => keywordFilterOptions.filter(option => !isHiddenKeyword(option.value) && !keywordFilters.includes(option.value) && !excludedKeywordFilters.includes(option.value)),
-  onPick: (value, exclude, text) => addKeywordFilter(value ?? text, exclude),
+  onPick: (value, exclude, text, shift) => addKeywordFilter(value ?? text, exclude, shift),
   emptyText: 'No matching keyword',
 });
 document.getElementById('filename-filter-input').addEventListener('keydown', event => {
@@ -5414,6 +5600,7 @@ initKeywordsPanel({
   onPersonsUnlinked: unlinked => proposeDeletePersons(unlinked),
   // Content search: "Find photos that may match" in the context menu of a keyword (see CONTENT SEARCH RESULTS).
   findKeywordCandidates: keyword => findKeywordCandidates(keyword),
+  onTreeChanged: () => refreshKeywordFilterTree(),
 });
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.

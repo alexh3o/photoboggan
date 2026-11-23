@@ -8,6 +8,9 @@
 - [x] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
 - [x] *feat*: `filters` have map filter visible in filters
 - [x] *feat*: `thumbnail` option to add a visual tag on RAW files
+- [ ] *feat*: `filters` accept keywords children even if the chosen one is not active
+- [ ] *feat*: `filters` add option to always include children, and Ctrl key to disable it when entering new keyword
+- [ ] folding keyword tree doesn't work anymore
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

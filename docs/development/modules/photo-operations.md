@@ -1,4 +1,4 @@
-<!-- verified: 0fd3679 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
+<!-- verified: 4c9aa17 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
 
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 

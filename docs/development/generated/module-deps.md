@@ -22,7 +22,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `geolocation` | db, exif, exiftool, keywords, library_sync, main | db, keywords |
 | `heif` | exif | exif, face_detect, integrity, orientation, resize, thumbnails |
 | `integrity` | heif, main | semantic |
-| `keywords` | db, exif, faces, geolocation, library_sync, main, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search |
+| `keywords` | db, exif, faces, geolocation, library_sync, main, privacy, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search |
 | `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, keywords |
 | `main` | — | albums, batch_rename, db, exiftool, face_detect, face_models, faces, geolocation, integrity, keywords, library_sync, phash, privacy, private_maps, resize, rights, semantic, semantic_keywords, semantic_models, semantic_search, stats, update_check |
 | `model_files` | — | face_models, semantic_models, update_check |
@@ -30,7 +30,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `orientation` | exif, exiftool, heif, thumbnails, video | exif, thumbnails |
 | `phash` | main | similar |
 | `place_search` | exif, face_models | — |
-| `privacy` | keywords, main | albums, db, duplicates, faces, rights |
+| `privacy` | keywords, main | albums, db, duplicates, faces, keywords, rights |
 | `private_maps` | db, face_models, main | db |
 | `resize` | exif, heif, main, thumbnails | — |
 | `rights` | exif, main, privacy | db |

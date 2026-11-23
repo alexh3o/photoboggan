@@ -115,22 +115,22 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `folder_upper_bound` · L315 — Strict upper bound for prefix range queries on normalised paths ending with `/` (ASCII 0x2F):
 - `push_folder_condition` · L322 — Builds the SQL folder predicate and appends its bound parameters (0 when unfiltered, 2 when filtered).
 - *struct* `pub PhotoPrefilter` · L349 — Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
-- *struct* `pub ValueRange` · L398 — Inclusive bounds; a missing bound is open.
-- *struct* `pub FolderCriterion` · L404
-- *struct* `pub MapZone` · L410
-- `prefilter_condition` · L426 — SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
-- `pub get_photos_sorted` · L552 — Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
-- *struct* `FolderQueryParts` · L556
-- `build_folder_query_parts` · L564
-- `list_query_sql` · L575
-- `count_query_sql` · L585
-- `pub get_photos_filtered` · L594 — `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
-- `count_matching` · L641 — Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
-- `pub count_photos` · L653 — Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
-- `pub explain_folder_query` · L660
-- `pub get_photos_by_paths` · L701 — Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
-- `pub get_photos_by_ids` · L716 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
-- `pub get_folder_counts` · L733 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
+- *struct* `pub ValueRange` · L400 — Inclusive bounds; a missing bound is open.
+- *struct* `pub FolderCriterion` · L406
+- *struct* `pub MapZone` · L412
+- `prefilter_condition` · L428 — SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
+- `pub get_photos_sorted` · L567 — Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
+- *struct* `FolderQueryParts` · L571
+- `build_folder_query_parts` · L579
+- `list_query_sql` · L590
+- `count_query_sql` · L600
+- `pub get_photos_filtered` · L609 — `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
+- `count_matching` · L656 — Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
+- `pub count_photos` · L668 — Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
+- `pub explain_folder_query` · L675
+- `pub get_photos_by_paths` · L716 — Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
+- `pub get_photos_by_ids` · L731 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
+- `pub get_folder_counts` · L748 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
 
 ## duplicates.rs (39)
 
@@ -650,7 +650,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `csv_field` · L528 — Champ CSV entre guillemets. Une valeur qui commence par = + - @ est précédée d'une apostrophe : sinon Excel la prendrait pour une formule.
 - `pub write_report` · L538 — Écrit le rapport dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.txt », jamais d'écrasement) et renvoie le chemin du fichier.
 
-## keywords.rs (36)
+## keywords.rs (41)
 
 - *struct* `pub KeywordNode` · L26 — Nœud de l'arbre envoyé à l'interface (`parent_id` 0 = premier niveau).
 - `pub init_schema` · L34 — Crée les tables à l'ouverture de la base (sans toucher aux données existantes). Appelée par `db::init_db`, après la création de `photos`.
@@ -661,33 +661,38 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `photo_keyword_ids` · L109 — Mots-clés actifs d'une photo (identifiants triés), tels qu'enregistrés en base.
 - `pub collect_rows` · L116 — Lignes d'une requête, en erreur dès que l'une d'elles est illisible : jamais de résultat partiel présenté comme complet.
 - `pub get_keyword_tree` · L122 — Arborescence complète des mots-clés (tous les nœuds, à plat : l'interface reconstruit l'arbre d'après `parent_id`).
-- `pub get_photo_keyword_ids` · L136 — Mots-clés actifs de chaque photo d'une sélection, sous forme de paires (identifiant de la photo, identifiant du mot-clé).
-- `pub get_keyword_usage` · L152 — Nombre de photos de la photothèque portant chaque mot-clé (fréquence d'usage : tri de l'autocomplétion).
-- *struct* `pub KeywordWriteItem` · L175 — Métadonnées à écrire dans une photo, chacune facultative (absente = laissée telle quelle) : l'ensemble final des mots-clés actifs
-- *struct* `pub KeywordWritten` · L205
-- *struct* `pub KeywordFailure` · L226
-- *struct* `pub KeywordWriteResult` · L233
-- `node_path` · L245 — Chemin complet (du premier niveau au mot-clé) d'un nœud de l'arbre.
-- `regions_mismatch` · L259 — Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
-- `normalized_paths` · L270
-- `push_failure` · L279 — Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
-- *struct* `pub WriteEnv` · L286 — What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
-- `WriteEnv::of` · L296
-- `run_write` · L308
-- `pub apply_metadata_changes` · L538 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
-- `validate_name` · L560 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
-- `pub create_keyword` · L569 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
-- `subtree_ids` · L592 — Le mot-clé et tous ses descendants.
-- *struct* `pub KeywordDeleteInfo` · L609
-- `pub get_keyword_delete_info` · L618 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
-- `photos_carrying` · L637 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
-- `restore_person_links` · L669 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
-- `pub delete_subtree` · L684 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
-- `run_delete` · L699
-- `pub delete_keyword` · L755 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
-- `run_rename` · L769
-- `pub rename_keyword` · L817 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
-- `pub set_metadata_read_order` · L837 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
+- *struct* `pub KeywordFilterTree` · L136 — Tree nodes and active keyword ids (carried by at least one visible photo) for the sidebar keyword filter.
+- `pub keyword_filter_tree_in` · L141
+- `pub get_keyword_filter_tree` · L169 — Returns the keyword tree and the ids of keywords directly carried by at least one visible photo.
+- `pub keyword_descendant_photos_in` · L177 — For each requested keyword name, returns the ids of visible photos carrying at least one strict descendant
+- `pub get_keyword_descendant_photos` · L209 — Returns visible photo ids matching strict descendants for each keyword name (used by the `~` keyword filter mode).
+- `pub get_photo_keyword_ids` · L217 — Mots-clés actifs de chaque photo d'une sélection, sous forme de paires (identifiant de la photo, identifiant du mot-clé).
+- `pub get_keyword_usage` · L233 — Nombre de photos de la photothèque portant chaque mot-clé (fréquence d'usage : tri de l'autocomplétion).
+- *struct* `pub KeywordWriteItem` · L256 — Métadonnées à écrire dans une photo, chacune facultative (absente = laissée telle quelle) : l'ensemble final des mots-clés actifs
+- *struct* `pub KeywordWritten` · L286
+- *struct* `pub KeywordFailure` · L307
+- *struct* `pub KeywordWriteResult` · L314
+- `node_path` · L326 — Chemin complet (du premier niveau au mot-clé) d'un nœud de l'arbre.
+- `regions_mismatch` · L340 — Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
+- `normalized_paths` · L351
+- `push_failure` · L360 — Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
+- *struct* `pub WriteEnv` · L367 — What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
+- `WriteEnv::of` · L377
+- `run_write` · L389
+- `pub apply_metadata_changes` · L619 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
+- `validate_name` · L641 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
+- `pub create_keyword` · L650 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
+- `subtree_ids` · L673 — Le mot-clé et tous ses descendants.
+- *struct* `pub KeywordDeleteInfo` · L690
+- `pub get_keyword_delete_info` · L699 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
+- `photos_carrying` · L718 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
+- `restore_person_links` · L750 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
+- `pub delete_subtree` · L765 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
+- `run_delete` · L780
+- `pub delete_keyword` · L836 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
+- `run_rename` · L850
+- `pub rename_keyword` · L898 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
+- `pub set_metadata_read_order` · L918 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
 
 ## library_sync.rs (18)
 
@@ -874,13 +879,13 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `clipboard_entry` · L2676
 - `file_uri` · L2682 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
 - `main` · L2696
-- `move_file_or_copy` · L2970 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L2991 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3009 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3026 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3054
-- `get_storage_location` · L3061
-- `change_storage_location` · L3071
+- `move_file_or_copy` · L2972 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L2993 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3011 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3028 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3056
+- `get_storage_location` · L3063
+- `change_storage_location` · L3073
 
 ## model_files.rs (11)
 

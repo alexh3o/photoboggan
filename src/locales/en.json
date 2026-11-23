@@ -1905,5 +1905,14 @@
   "Batch rename blank help": "Erases the current file name so that the recipe starts from an empty name: the steps after it build the new name ({filename} still gives the original name). It can be added only once and is always the first step. Used alone, it leaves nothing to name the files: add the steps that make the names different.",
   "The “Start blank” step can only be used once": "The “Start blank” step can only be used once",
   "The current name is erased here: the next steps build the new name.": "The current name is erased here: the next steps build the new name.",
-  "Settings tabs": "Settings tabs"
+  "Settings tabs": "Settings tabs",
+  "Include children": "Include children",
+  "Do not include children": "Do not include children",
+  "Also exclude children": "Also exclude children",
+  "Stop excluding children": "Stop excluding children",
+  "Keyword (with children): {text}": "Keyword (with children): {text}",
+  "Excluded keyword (with children): {text}": "Excluded keyword (with children): {text}",
+  "Keyword filter help": "Pick a keyword from the list. Shift+Enter or Shift+click: include children (~). Alt+Enter or Alt+click: exclude",
+  "Include a keyword and its children": "Include a keyword and its children",
+  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle"
 }
