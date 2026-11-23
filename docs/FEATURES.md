@@ -116,9 +116,9 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 
 - View geotagged photos on an interactive map (with bundled light/dark styles)
 - **Drag & drop** photos onto the map to geotag them
-- **Place search** *(when online)*
+- **Place search** *(when internet connection is enabled)*
 - **Erase geolocation** (with local backup in the catalogue to allow restore)
-- **Download map zones** into local caches (MBTiles) so providers never see repeated tile requests
+- **Download map zones** into local caches (MBTiles), after drawing them on the map (circle or polygon), so providers never see repeated tile requests.
 - **Private zones**: strictly offline map tiles that never fall back to remote tile providers
 
 ## Privacy ("Private Photos")
@@ -169,4 +169,4 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 - **Customizable storage location** for database, thumbnails, previews, models, and offline maps (choose an SSD!), plus configurable thumbnail cache resolution & quality
 - **100% Offline mode**: blocks all outbound requests while keeping all core & AI features usable via manual import of face models, content analysis models, and map zones
 - **In-app update checker** with SHA-256 verified downloads *(disabled in Offline mode)*
-- Available in **English and French** (Windows & Linux)
+- Available in **English, French and Spanish** (Windows & Linux)

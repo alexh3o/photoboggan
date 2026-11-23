@@ -30,6 +30,7 @@ Download the installer for your system from the project's [Releases page](https:
 
 - **Windows:** run the installer. Windows may warn that the publisher is unknown; choose *More info* then *Run anyway*.
 - **Linux (Debian/Ubuntu):** install the `.deb` package (`sudo dpkg -i photoboggan_*.deb`, then `sudo apt-get install -f` if dependencies are missing). Linux support is less tested than Windows.
+- **Linux (AppImage):** make the file executable (`chmod +x photoboggan_*.AppImage`) and run it; no installation needed.
 
 ### First launch
 
@@ -38,7 +39,7 @@ Download the installer for your system from the project's [Releases page](https:
 Before scanning a large collection, open ⚙️**Settings** and review a few key options:
 
 - **General:**
-  - Choose the **Language** (English or French) and whether **At startup, show** opens **All photos** or the **Last opened folder**.
+  - Choose the **Language** (English, French or Spanish) and whether **At startup, show** opens **All photos** or the **Last opened folder**.
   - Enable **Offline mode** if you want Photoboggan to never connect to the Internet (models must then be installed manually from a folder, and online map tiles are disabled).
 - **Storage:**
   - Check **Application data location** first if you want the database, thumbnails, and AI models on a fast SSD rather than the default folder.
@@ -95,11 +96,21 @@ Once your folders are indexed, you can prepare the optional features by launchin
 | People          |                    | List of people with faces in the collection.                                                                                                                                                                                                                                                                                                 |
 | List            | `L`                | List of photo files, with custom selection of displayed columns and multi-level sorting                                                                                                                                                                                                                                                      |
 
-Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resized by dragging their edges. Press `F11` for immersive mode, which hides the title bar and taskbar.
+Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resized by dragging their edges. The same panel toggles and resizing work in the **Map**, **People** and **Faces review** views (not in fullscreen). Press `F11` for immersive mode, which hides the title bar and taskbar.
 
 **Toolbar:** right-click the top bar for more options — immersive mode, **auto-hide** (the bar reappears when the pointer reaches the top of the window; shortcut `T`), **show all labels**, and panel toggles.
 
 **Quick search in the sidebar:** the **Folders**, **Albums** and **People** blocks each have a magnifier in their title row (shown on hover). It filters the list live as you type, keeping the ancestors of matching entries, and never changes your selection or the fold state of the tree.
+
+### Running tasks
+
+Every long operation (folder scan, integrity check, copy / move / resize, batch rename, keyword write, face detection, duplicate search, model or map-zone download, update download) goes through a single **task queue**, shown by the hourglass button (**Running tasks**) and by one toast per task.
+
+- Tasks run **one at a time**, in the order they were requested. Only **content analysis** has its own lane: it runs alongside the queue and pauses automatically whenever other work needs the machine.
+- Folder scans can be **paused** and resumed, even after a restart. **Stopping** any task keeps everything already done.
+- A finished duplicate search (or a batch rename that left some files unrenamed) stays in the list as a result entry until you click **Show** or **Dismiss**.
+- Starting a scan already covered by a running or waiting task of the same kind is refused with a message: nothing is queued twice.
+- Closing the app with running tasks or unsaved changes asks for confirmation, and reloading the window (`F5`) is refused while tasks run.
 
 ---
 
@@ -107,15 +118,17 @@ Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resi
 
 ### Viewing
 
-- Click a folder to see its photos. Turn **Include subfolders** on or off in **Display**. The **fold** button next to the **Folders** title folds or unfolds the whole tree, and root folders are shown differently from their subfolders.
+- Click a folder to see its photos. Turn **Include subfolders** on or off in **Display**. The **fold** button next to the **Folders** title folds or unfolds the whole tree, and root folders are shown differently from their subfolders. `Ctrl`+click several folders to combine them in one view. The order of the root folders can be changed in **Settings > General** (drag handle or arrows).
 - **Click** a thumbnail to select it and see it in the preview. **Double-click** (or press `F`) for fullscreen.
 - In the grid, `←` / `→` select the previous/next photo and `↑` / `↓` the photo above/below (any layout).
-- In preview and fullscreen: `←` / `→` for previous/next, `+` / `-` to zoom, `*` to switch between actual size and fit-to-window. `Ctrl`+mouse wheel also zooms; in fullscreen, holding `Z` and turning the wheel zooms while keeping the point under the cursor centred. Panning is gradual and can be combined with zooming at any time.
+- In preview and fullscreen: `←` / `→` for previous/next, `+` / `-` to zoom, `*` to switch between actual size and fit-to-window. `Ctrl`+mouse wheel also zooms. Holding `Z` gives an **instant 1:1 zoom** centred on the point under the cursor, in the preview (compare included) and in fullscreen; releasing it restores the previous zoom and position. While `Z` is held, the mouse wheel zooms around the cursor. Panning is gradual and can be combined with zooming at any time.
 - Fullscreen extras: `D` shows photo info, `R` shows a rating bar, and `V` cycles the face frames (on hover, always, hidden).
-- **Histogram and clippings:** `H` cycles *histogram*, *histogram and clippings*, *clippings only* and *off* (clipped shadows and highlights are colored on the image in preview and fullscreen). The histogram shows at the bottom right of the grid, the preview or fullscreen. For RAW files both are computed from the embedded JPEG preview. The clipping options are set in **Display**.
+- **Histogram and clippings:** `H` cycles *histogram*, *histogram and clippings*, *clippings only* and *off* (clipped shadows and highlights are colored on the image in preview and fullscreen). The histogram shows at the bottom right of the grid, the preview or fullscreen; click it to switch between luminance and RGB. For RAW files both are computed from the embedded JPEG preview. The clipping options are set in **Display**.
 - **Slideshow:** `F10` starts or stops it (on the selection if it has 2 photos or more, otherwise on the whole view); `Space` pauses and resumes. Delay, **Loop** and **Random order** are in **Settings > Misc > Slideshow**.
 - **Show in its own folder:** in *All photos*, albums, search results and other whole-collection views, the photo's context menu jumps to the folder that contains it.
-- Scrolling the grid with the mouse wheel is fast and fluid, and a scroll position indicator helps you find your way in long lists.
+- **Info tab details:** hovering the **Date taken** row shows the file's creation and modification dates on disk. **Photo info** (`J`, context menu) opens a full metadata inspector (EXIF, XMP, IPTC) read live from the file.
+- Scrolling the grid with the mouse wheel is fast and fluid, and a scroll position indicator helps you find your way in long lists (it shows the date or filename of the first visible photo, following the active sort). You can also **grab the grid and drag** to scroll, with inertia when you release.
+- **Very large views:** a folder view with more than 50,000 matching photos is shown **one page of 50,000 at a time**, with a page bar at the top of the grid (`Alt`+`PageUp` / `Alt`+`PageDown` to change page). Filters are applied before the cut, so every matching photo is reachable; on paged views, exclusion filters, the face filters and the analysis filter only narrow the current page.
 
 ### Selecting
 
@@ -128,13 +141,22 @@ Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resi
 **Display** (grid icon):
 
 - **Thumbnails grid:** *Square*, *Framed*, *Justified* (full rows, no cropping) or *Waterfall* (masonry).
-- Thumbnails **rounded corners**: no (perfect square angles), light / medium / strong or max (makes square thumbnails round)
+- Thumbnails **rounded corners**: no (perfect square angles), light / medium / strong or max (makes square thumbnails round). Rounded corners need a gap: choosing one sets the spacing to at least *small*.
 - **Badges for geolocation / RAW format**: display a small badge on thumbnails to indicate geolocation data / RAW format
 - **Thumbnail spacing** and **Size** (96 to 1024 px).
 - **Theme** (*Dark* / *Light*), **Text size**, **Selection color**, **Active Buttons color**, and **Dim unselected photos on hover**.
 - **Interface font**: choose the font used by the interface.
+- **Folders** section: *Include subfolders*, *Show folders without photos* (empty disk folders) and *Show folder's photo counts*.
 
 **Sort** (arrows icon): by **Date taken**, **Date modified** or **Filename**, ascending or descending, with optional separators (by day, week, month, year, or by folder when sorting by name). More powerful sorting options can be activated with the **List** Panel, which will then override the normal sorting options.
+
+### List panel
+
+The **List** panel (`L`) shows the same photos as a table, sharing the preview column. Selection stays synchronized with the grid in both directions: clicks, `Shift`/`Ctrl` ranges, double-click for fullscreen and the same right-click menu.
+
+- Choose the displayed columns from the header menu: file name, extension, size, creation and modification dates, date taken, camera, lens, shooting settings (ISO, aperture, focal length, shutter speed), rating, color label, pick flag, geolocation, face count or face-scan status, author, orientation, ratio, resolution, megapixels, and the analysis state (content search, similar-photo hash). Columns can be reordered (filename stays first) and resized; the choice is remembered.
+- Click a column header to sort by it; `Ctrl`+click adds sort levels, **up to 9**. Missing values always sort last.
+- **Synchronize grid sort** (on by default) makes the thumbnail grid follow the list's sort order; group separators are then hidden. It is disabled on paged views (over 50,000 photos), and duplicate / content-search results keep their own order.
 
 ### Filters
 
@@ -151,6 +173,9 @@ Filters are in the left panel and **combine with each other**. The grid shows th
 | **File format**       | File format and type (image, RAW, video).                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Author**            | Choose one or more authors from the suggestions; several included authors must **all** appear in the photo.                                                                                                                                                                                                                                                                                                                                   |
 | **Date taken**        | Type a date or range, or use the calendar button.                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Location**          | *All*, *Geolocated* or *Not geolocated*.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Faces**             | Face count (minimum to maximum, when face reading is on) and face-scan status (*Not scanned*, *Scanned*, *To check again*, when face detection is on).                                                                                                                                                                                                                                                                                        |
+| **Content analysis**  | *Analysed* or *Not analysed*, when content search is on.                                                                                                                                                                                                                                                                                                                                                                                      |
 
 **Date filter examples** (formats `YYYY`, `YYYYMM`, `YYYYMMDD`, `YYYYMMDDHH`, `YYYYMMDDHHmm`):
 
@@ -166,7 +191,9 @@ Right-click a photo, a selection or a folder > **Find** (or **Find duplicates**)
 
 - **Identical photos:** same image data, whatever the metadata (same file name can also be used as a criterion). **More…** opens the settings.
 - **Similar images:** resized, recompressed or lightly edited copies, optionally rotated or mirrored; *strict*, *normal* or *loose* tolerance. Bursts can be ignored.
-- **Result view:** photos appear in groups. Sort the groups, set the order of the **keep** criteria (resolution, size, rating, date, name, path), then **Select all but the best**. This only selects: deleting is the normal **Delete** (trash and confirmation). Navigating elsewhere ends the result view.
+- **By file name:** groups photos whose names share a key — the whole name, or a part extracted with a regular expression — without reading the files. Can be combined with the identical-data search.
+- The search window can compare the chosen photos or folder **against the rest of the library**, not only within the scope.
+- **Result view:** photos appear in groups. Sort the groups, set the order of the **keep** criteria (resolution, size, rating, date, name, path), then **Select all but the best**. This only selects: deleting is the normal **Delete** (trash and confirmation). Cleanup can never remove every copy: mixed RAW + JPEG groups offer no cleanup, and a group whose best copy is hidden by a filter is not selected. Navigating elsewhere ends the result view.
 - **Find the RAW** (image context menu): locates the RAW file of a JPEG using the criteria of **Settings > Search > RAW search** (file name pattern, date and time, camera and lens, shooting settings, where to search from).
 
 ### Content search
@@ -209,6 +236,9 @@ The **Albums** block in the left panel organizes photos without touching files:
 - **Manual albums** are hand-picked photos.
 - **Smart albums** are saved filters, updated automatically. Save a smart album's filters with its save icon.
 - **Smart albums can be nested** inside a manual or smart album, to filter its content down further. Each child smart albums inherits its parent filters to narrow down the selection.
+- Right-click an album for its actions: a manual album offers **Add selection to this album** and **Replace content with selection…**; a smart album offers **Save changes** and **Save current view in this album…** (which also records the current folder and visible map zone). Removing photos from an album never deletes files, and deleting an album never deletes photos.
+- Changing a smart album's filters lights its **save icon**; leaving it with unsaved changes asks Save / Discard / Cancel. Adding or removing photos shows an **Undo** toast.
+- You can also **drag photos onto a manual album** to add them (no file is moved on disk).
 
 Albums exist only in Photoboggan's database, so back up its data folder if you rely on them. Drag to move or copy them.
 
@@ -230,7 +260,7 @@ Right-click a photo or selection for the context menu:
 
 | Action                          | Notes                                                                                                                                         |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Photo info** (`J`)            | Information sheet.                                                                                                                            |
+| **Photo info** (`J`)            | Full metadata inspector (EXIF, XMP, IPTC), read live from the file.                                                                             |
 | **Delete** (`Del`)              | Moves to the system trash after confirmation.                                                                                                 |
 | **Copy** (`Ctrl`+`C`)           | Copies the files to the clipboard.                                                                                                            |
 | **Copy to…** (`C`)              | Copies to a folder you choose.                                                                                                                |
@@ -239,15 +269,15 @@ Right-click a photo or selection for the context menu:
 | **Show in file explorer** (`E`) |                                                                                                                                               |
 | **Open with** (`O`)             | Programs of **Settings > Open with** for the file type (rendered images, RAW, videos), in your order, or **Choose…**. `O` uses the first one. |
 
-You can also **drag** photos onto a folder in the tree: `Shift`+drag to **move**, `Ctrl`+drag to **copy**. When photos are copied or moved, their `.xmp` sidecar file goes with them.
+You can also **drag** photos onto a folder in the tree: `Shift`+drag to **move**, `Ctrl`+drag to **copy**; dropping without a modifier asks whether to copy or move, and `Esc` cancels the drag. The destination must be inside one of your library folders. When photos are copied or moved, their `.xmp` sidecar file goes with them. When a copy meets an existing file of the same name, a dialog lists the conflicts (with sizes and dates) and lets you **Replace**, **Skip** or **Rename** (default: `photo (1).jpg`) each one.
 
 Right-click a folder for **Rescan folder data**, **Integrity check**, **New subfolder…**, **Rename folder…**, **Open in file explorer**, and **Delete folder…** (subfolders only). A folder scan or rescan can be **paused** and resumed from the **Running tasks** window; interrupted scans stay paused and can be resumed at the next launch.
 
-**Resize:** choose the longest side (px) or a percentage (never enlarges), JPEG/PNG output, quality, whether to keep metadata (JPEG only) and whether to drop the rating/color/flag marks, a destination folder (with an optional relative sub-folder hierarchy mirroring your library), a filename suffix, and what to do about conflicts. The destination is remembered: the **Last destination** button restores it. Resizing creates **new files** and can never overwrite the original photo: with no suffix you must pick another destination folder. If the new name already belongs to a different existing file, you choose *Replace*, *Increment name* or *Skip*. Videos are ignored.
+**Resize:** choose the longest side (px) or a percentage (never enlarges), JPEG/PNG output, quality, whether to keep metadata (JPEG only) and whether to drop the rating/color/flag marks, a destination folder (with an optional relative sub-folder hierarchy mirroring your library), a filename suffix, and what to do about conflicts. The destination is remembered: the **Last destination** button restores it. Resizing creates **new files** and can never overwrite the original photo: with no suffix you must pick another destination folder. If the new name already belongs to a different existing file, you choose *Replace*, *Increment name* or *Skip* (*Replace* sends the existing file to the trash first). JPEG outputs keep the metadata (when asked) and the color profile; PNG outputs keep only the color profile. Videos are ignored.
 
 **Batch rename:** select several photos and press `F2` (or right-click > **Rename…**). Build a *recipe* of steps that are applied in order to each file name (the extension is kept): **Start blank** (erases the current name so the recipe starts from nothing; added once, always first), **Replace text** (case-sensitive, optionally only the n-th occurrence), **Insert text** (at a position counted from the start or the end of the name) and **Delete characters** (at least one character must remain). The texts can contain variables, for example `{filename}` (original name), `{date_taken(YYYYMMDD_hhmmss;nodate)}` (date taken, written with the ISO 8601 symbols `YYYY MM DD hh mm ss`; the second value is used when the photo has no date), `{camera}`, `{lens}`, `{counter(3;1)}` (number in grid order, 3 digits, starting at 1) and `{author(initials)}` (`Jean-Pierre Dupont` gives `JpD`); the `?` buttons list every option, and `\` cancels the effect of the next character. The preview shows every new name, page by page, and nothing happens until you click **Rename**. Recipes can be saved and reused. A photo whose new name would be the same as another one (case ignored) or as an existing file is **left unchanged**, and listed at the end (the rest of the batch goes on); `.xmp` sidecars follow their photo. From 20 photos it runs as a background task you can stop. `Ctrl`+`Z` undoes the whole batch, including the part already done if you stopped it.
 
-> **Deleting:** files go to the trash, so they can be restored. On USB drives and network locations Windows has no trash: Photoboggan warns you that deletion is then **permanent**. Deleting a photo keeps its `.xmp` sidecar file. Deleting a folder also removes files Photoboggan does not manage; it lists them before you confirm. Folder deletion is **refused** while a [private-photos set](#9-private-photos) is active, so hidden photos cannot be trashed unseen.
+> **Deleting:** files go to the trash, so they can be restored. On USB drives and network locations Windows has no trash: Photoboggan warns you that deletion is then **permanent**. If moving a file to the trash fails, the deletion is refused and reported — it is never silently made permanent. Deleting a photo also sends its `.xmp` sidecar to the trash (a shared `photo.xmp` is kept while another image still uses it). Deleting a folder also removes files Photoboggan does not manage; it lists them before you confirm. Folder deletion is **refused** while a [private-photos set](#9-private-photos) is active, so hidden photos cannot be trashed unseen.
 
 ### Integrity check
 
@@ -288,7 +318,7 @@ Only the default text of title and description is written; translated variants a
 
 ### Writing changes to files
 
-Ratings and colors are saved immediately. **Keywords, titles, descriptions, author and rights fields, and faces wait** until you click **Write to files** (or press `Ctrl`+`Enter`). If you change the selection or quit with unsaved changes, Photoboggan asks what to do. In **Settings > Metadata** you can tick **Automatically apply pending changes** to write them automatically instead.
+Ratings and colors are saved immediately. **Keywords, titles, descriptions, author and rights fields, and faces wait** until you click **Write to files** (or press `Ctrl`+`Enter`; `Enter` in the empty **Add a keyword…** field also writes). If you change the selection or quit with unsaved changes, Photoboggan asks what to do. In **Settings > Metadata** you can tick **Automatically apply pending changes** to write them automatically instead.
 
 Large keyword changes (20 photos or more) run as a background task.
 
@@ -308,7 +338,7 @@ Ratings and color labels use the standard XMP fields (plus Microsoft and ACDSee 
 
 ### Changes made outside Photoboggan
 
-Photoboggan notices new, modified or deleted files when it starts and when you return to its window, using file size and modification date. Use **Rescan folder data** (folder menu) or **Rescan all collection** (Settings) to force a full re-read, for instance after changing the reading priority.
+Photoboggan notices new, modified or deleted files when it starts and when you return to its window, using file size and modification date. Use **Rescan folder data** (folder menu) or **Rescan all collection** (Settings) to force a full re-read, for instance after changing the reading priority. The automatic sync watches the image files only: a `.xmp` sidecar edited by another program is picked up by a **rescan**, not by the focus sync.
 
 ---
 
@@ -341,6 +371,7 @@ Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity che
 - **Rewritten JPEG segments only.** For JPEG, only the metadata segments are rebuilt; the rest of the file is copied byte for byte.
 - **HEIC (Internal writing):** the result is verified before the original is replaced; if it cannot be done safely, a sidecar is used instead.
 - **After a write, the file is read back** and the app shows what the file really contains.
+- **ExifTool failure recovery.** On some drives (FAT32 / exFAT, network shares) ExifTool can delete the original before its final rename fails. Photoboggan then restores the original from the temporary file when it can; if the state is unclear it **keeps the temporary file** (`<file>_exiftool_tmp`) and warns you, so you can recover it by hand. Recoveries are logged in the `logs/` folder of your data directory (`write-recovery_*.log`); sidecar naming conflicts are logged there too (`sidecar-conflicts_*.log`).
 
 ### Precautions
 
@@ -352,6 +383,7 @@ Browsing, filtering, sorting, thumbnails, previews, Compare, Info, Integrity che
 - Read-only files, or files on locked or disconnected drives, cannot be written to; the error is reported.
 - **Copying and moving** use the operating system's standard file copy. Copies never overwrite an existing file (`photo (1).jpg` is used instead). Moving within a drive is a simple rename. Moving **across drives** copies first, then (by default) compares the copy with the original using a SHA-256 checksum, and deletes the original only if they match; otherwise the copy is discarded and the original stays. This verification re-reads both files and can be turned off in **Settings > Storage** for faster moves. The copy may be read back from the system cache rather than the disk, so this is a strong check, not an absolute proof: keep backups. Plain **Copy to…** is not checksummed.
 - The integrity check is a **helper, not a proof** of file health (see above).
+- **Removing a folder from the library** (Settings > General) only stops tracking it: no file is deleted, and its photos simply leave the catalogue.
 - **Everything stays local.** No photo or metadata is sent anywhere. The only network uses are the optional downloads of the face-recognition and content-search models, the optional update check and the map tiles; **Offline mode** disables all of them.
 - Deleting a folder can include files Photoboggan does not manage; in that case photoboggan displays a warning and confirmation list.
 
@@ -381,7 +413,7 @@ The detection and recognition thresholds in **Settings > Faces** have sensible h
 
 ### Reviewing faces
 
-Open the **People** view (top bar) for one tile per person, then **Review faces** to open the faces view. Each face has a status (filter them at the top):
+Open the **People** view (top bar) for one tile per person (tile size adjustable; the sidebar People list can be sorted by name or by photo count), then **Review faces** to open the faces view. Each face has a status (filter them at the top):
 
 | Status            | Meaning                                                                                                                            |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -403,7 +435,7 @@ A photo preview panel keeps the faces in their context while you review. Select 
 
 - **Name…** (or just type a letter),
 
-- **Unknown** (`-`),
+- **Unknown** (`-`) — recognition will no longer propose a person for that face,
 
 - **Ignore** (`/`),
 
@@ -411,7 +443,7 @@ A photo preview panel keeps the faces in their context while you review. Select 
 
 - **Profile** (use as the person's cover picture).
 
-`Ctrl`+`A` selects all, `Esc` clears.
+`Ctrl`+`A` selects all, `Esc` clears, and `Ctrl`+`Z` undoes the last face action.
 
 In fullscreen you can also draw a face area with `Shift`+drag, and right-click an area to name or delete it.
 
@@ -429,24 +461,24 @@ Faces and names are only written to your files when you click **Write to files**
 
 Click **Map** in the top toolbar to view photo coordinates plotted over an interactive vector map (light and dark styles are bundled).
 
-- **Assign Location:** Select photos in the grid, hold Shift, and drag them onto the target spot on the map (or right-click the map and select *Place selection here*).
+- **Assign Location:** Select photos in the grid, hold Shift, and drag them onto the target spot on the map (or right-click the map and select *Place selection here*). The map shows up to 500 photos at once.
 - **Filter by Map Area:** Check "Visible area only" to filter the thumbnail grid to images located within the current map viewport.
-- **Place search** (when online): type a place name in the map's search box and press `Enter` to jump there. Disabled in offline mode.
+- **Place search** (when online): type a place name in the map's search box and press `Enter` to jump there (up to 6 results). Disabled in offline mode.
 
 ### Geolocation
 
-- **Erase geolocation** / **Restore geolocation** (context menu) remove or put back GPS data; the removed values are kept in the catalogue so they can be restored.
-- Geotagging with the map is written with **Write to files**, like other metadata.
+- **Erase geolocation** / **Restore geolocation** (context menu) remove or put back GPS data; the removed values are kept in the catalogue so they can be restored. Erasing is **refused** for photos whose GPS sits in EXIF that the active writer cannot change: with the *Internal* writer, or for formats written to a sidecar (RAW, PNG, WebP…). Use **ExifTool** on JPEG / HEIC files for those.
+- Geotagging with the map is written with **Write to files**, like other metadata. Positions stay pending until then; leaving the map mode with unwritten positions asks Write / Discard / Cancel.
 
 ### Private zones and downloaded zones
 
 Online map providers can log coordinate requests when fetching map tiles. Photoboggan solves this through **private zones**, managed with the padlock in the Location group or in **Settings > Maps**:
 
-- You can define a sensitive area (such as your home, workplace, or private property) by drawing either a **Circle** or a **Rectangle**.
-- Photoboggan downloads the vector map tiles for this specific area and saves them locally in an isolated `.mbtiles` container.
+- You can define a sensitive area (such as your home, workplace, or private property) by drawing a **Circle** (drag from the centre) or a **Polygon** (one click per vertex, double-click or `Enter` to close, `Backspace` to remove the last vertex).
+- Photoboggan downloads the vector map tiles for this specific area and saves them locally in an isolated `.mbtiles` container. Choose the detail level (*City*, *Neighbourhood*, *Streets*); a download is limited to 3,000 tiles / 50 MB. A zone stopped early is marked *incomplete* and its map stays blank where tiles are missing — the previous file is kept until a new download completes.
 - Whenever a photo located inside a private zone is viewed, **Photoboggan strictly blocks any outgoing network requests**. Tiles are loaded solely from your local disk, and the map never falls back to the remote provider there.
 - You can also import pre-downloaded `.mbtiles` packages for complete offline field use.
-- Zones can also be downloaded simply as **offline map caches**: any downloaded zone serves its tiles locally, so the provider never sees repeated tile requests when you browse the same area.
+- Each zone can be switched between **private** and plain **offline cache**: any downloaded zone serves its tiles locally, so the provider never sees repeated tile requests when you browse the same area; a non-private zone may complete missing tiles from the provider, a private one never does.
 
 Nothing is sent in **Offline mode**.
 
@@ -474,7 +506,7 @@ An empty set hides nothing.
 
 ### Safety
 
-- Hidden photos are excluded from counts everywhere, so nothing betrays their existence.
+- Hidden photos are excluded from counts everywhere (grid, folder tree, albums, people), so nothing betrays their existence. The [Statistics](#10-collection-statistics) window is the exception: it currently counts the whole catalogue.
 - **Folder deletion is refused while any set is active**, so photos hidden inside a folder can never be trashed unseen. Deactivate your sets first if you really want to delete the folder.
 - Files, sidecars and thumbnails of hidden photos are never touched.
 
@@ -501,6 +533,8 @@ A read-only window (chart icon in Settings, next to the shortcut guide) summaris
 
 A note under each list says how many of the counted photos carry the information.
 
+> **Note:** statistics currently count the whole catalogue, including photos hidden by active [privacy sets](#9-private-photos).
+
 ---
 
 ## 11. Settings
@@ -510,7 +544,7 @@ Open with the gear icon. The keyboard icon shows the shortcut guide; the chart i
 | Tab              | Main options                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **General**      | **Language** choice; <br/>**At startup, show** all photos or last folder<br/>**Offline mode** (never connect to the Internet)<br/>**Check for updates** (at startup, at most once a day; GitHub then receives your IP address and version number)<br/>**Library**:<br/> - **+ Add folder**, remove folders,<br/> - **Rescan all collection** re-reads every file; it can be long. It also cleans up orphan thumbnails.                                                                                                                                               |
-| **Storage**      | **Thumbnail quality** (high doubles the size of new thumbnails on disk);<br/>**Application data location** (database, thumbnails, face models; moving it moves the files; a fast SSD is best). <br/>**Thumbnail cache size**: 512, 768 or 1024 px. Higher is better for face recognition's display in faces review page. Changing it deletes thumbnails, which are rebuilt as you browse. <br/>**Remove orphan thumbnails** deletes potential useless thumbnails<br/>**Verify moves between drives** (checksum)**: on by default, see [File safety](#6-file-safety). |
+| **Storage**      | **Thumbnail quality** (high doubles the size of new thumbnails on disk);<br/>**Application data location** (database, thumbnails, face models; moving it moves the files; a fast SSD is best). <br/>**Thumbnail cache size**: 512, 768 or 1024 px. Higher is better for face recognition's display in faces review page. Changing it deletes thumbnails, which are rebuilt as you browse. <br/>**Use thumbnails as fast fullscreen preload**: shows the cached thumbnail at once while the full-resolution photo decodes, then swaps in the sharp image (off by default).<br/>**Remove orphan thumbnails** deletes potential useless thumbnails<br/>**Verify moves between drives** (checksum)**: on by default, see [File safety](#6-file-safety). |
 | **Applications** | **Open with** programs shown in the context menu.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **Metadata**     | **Writing metadata to files**: *With ExifTool (recommended)* or *Internal (XMP and IPTC only)*; <br/>ExifTool location;<br/>**Labels**: use color labels, use pick / reject flags (off by default);<br/>**Automatically apply pending changes**; <br/>**Reading priority** per metadata type (drag to reorder), including the author and rights fields.                                                                                                                                                                                                              |
 | **Maps**         | Show the map, default zoom, geolocation badge, place search, offline / downloaded / private zones.                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -518,9 +552,13 @@ Open with the gear icon. The keyboard icon shows the shortcut guide; the chart i
 | **Search**       | **RAW search** (Find-the-RAW criteria); content search: model, analysis options, search and keyword suggestion options, delete analysis data (see [Content search](#content-search)).                                                                                                                                                                                                                                                                                                                                                                                |
 | **Misc**         | Slideshow, albums, **Private photos** (see [section 9](#9-private-photos)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
-**ExifTool vs Internal:** ExifTool is bundled with Photoboggan (on Linux it needs `perl`) and also writes the Windows/EXIF fields of JPEGs (Windows keywords, title and comment fields). The *Internal* method should be faster but writes only XMP and IPTC and never touches risky EXIF tags. Both write the same core data.
+**ExifTool vs Internal:** ExifTool is bundled with Photoboggan (on Linux it needs `perl`) and also writes the Windows/EXIF fields of JPEGs (Windows keywords, title and comment fields). The *Internal* method should be faster but writes only XMP and IPTC and never touches risky EXIF tags. Both write the same core data. With the internal writer, **Do not read EXIF metadata** (on by default) also skips reading those EXIF/Windows fields, so they cannot contradict what was written in XMP and IPTC; camera data (date, exposure, GPS…) is always read. Rescan after changing this option or the writing path.
 
-**Updates:** when *Check for updates* is on and a new release exists, Photoboggan offers to download the installer for your platform. The download is verified against the **SHA-256 digest published with the release** — checked while downloading and again before launching — and the installer is launched from within the app. Disabled in offline mode.
+**Moving the data location** copies everything (database, thumbnails, previews, models, map zones, logs) and removes the old folder only once the copy succeeded; it is refused while tasks are running.
+
+**What a rescan cannot rebuild:** the photo index, thumbnails and previews are derived from your files and can always be rebuilt. But the data folder also holds things that exist nowhere else: **albums** (manual content and smart criteria), **private zone definitions**, **erased-GPS backups**, **author presets**, **saved rename recipes**, and face assignments not yet written to files. Back up the data folder if you rely on them.
+
+**Updates:** when *Check for updates* is on and a new release exists, Photoboggan offers to download the installer for your platform. The download is verified against the **SHA-256 digest published with the release** — checked while downloading and again before launching. On Windows the installer is launched from within the app (which then closes); on Linux your file manager opens on the downloaded file so you can install it yourself. You can opt into **pre-releases (beta versions)**. Disabled in offline mode.
 
 Display & appearance options (theme, text size, font, layout) are in **Display**, opened from the top bar.
 
@@ -531,8 +569,9 @@ Display & appearance options (theme, text size, font, layout) are in **Display**
 Many shortcuts are available to quickly adjust the interface and to rate/sort photos.
 Press `G` for the full searchable in-app guide. Notable ones:
 
-- UI toggles: `N`: Library/Navigation panel, `P`: preview panel, `M`: Map mode, `P`: preview panel, `I`, `D`, `K`: Info,  Description, keywords panels, `T`: toolbar auto-hide; `F11` toggles immersive mode.
+- UI toggles: `N`: Library/Navigation panel; `P`: preview panel; `M`: Map mode; `P`: preview panel; `L` list panel;  `I`, `D`, `K`: Info,  Description, keywords panels; `T`: toolbar auto-hide; `F11` toggles immersive mode.
 - `X` compare mode, `V` face frames, `D` info overlay (when in fullscreen) and `R` rating bar in fullscreen.
+- `Alt`+`PageUp` / `Alt`+`PageDown` change page in very large views; hold `Z` for instant 1:1 zoom under the cursor.
 - `F10` slideshow; `F2` rename; `S` resize; `C` copy to…; `E` show in file explorer; `O` open with.
 
 ---
@@ -548,6 +587,12 @@ Press `G` for the full searchable in-app guide. Notable ones:
 | **Folder deletion is refused**                                | A private-photos set is active; deactivate it first (see above).                                                                                                                                                                                                                        |
 | **"ExifTool not found" / metadata won't write**               | Check **Settings > Metadata**. Use **Choose ExifTool…**, or switch to *Internal*. On Linux, install `perl`.                                                                                                                                                                             |
 | **A write failed**                                            | The error names the file, which was not modified. Check that it is not read-only, open in another program, or on a disconnected drive; then retry.                                                                                                                                      |
+| **A write is reported as failed although the file changed**   | The post-write check reads the file back with your **Reading priority**: another source (e.g. EXIF before XMP) may win and differ from what was written. Check **Settings > Metadata** and the failure details.                                                                          |
+| **A scan is refused: "already in progress or waiting"**       | A task of the same kind already covers this folder (or the whole library). Wait for it, or stop it first.                                                                                                                                                                               |
+| **GPS cannot be erased on some photos**                       | The GPS is in EXIF and the active writer cannot change it (internal writer, or sidecar formats such as RAW / PNG / WebP). Use ExifTool on JPEG / HEIC files (see [section 8](#8-maps-geolocation-and-private-zones)).                                                                      |
+| **A private zone's map stays blank**                          | The zone download is *incomplete* or *failed*, and a private zone never fetches tiles online. Re-run the download from the zones window.                                                                                                                                                |
+| **Cannot delete the content-search model (Windows)**          | A loaded model file is locked by Windows: stop the analysis and disable content search first.                                                                                                                                                                                           |
+| **The app started with default settings / lost my data folder** | The `config.json` file (OS app-config folder) was unreadable and set aside as `config.json.invalid-…`. Restore it, or set the data location again in **Settings > Storage**.                                                                                                             |
 | **Copy / Move cannot be cancelled**                           | Copies and file moves between disks cannot be interrupted mid-file or during SHA-256 check. Be patient. Note standard OS file copy is used.                                                                                                                                             |
 | **I cannot fold some keyword sections in the keywords panel** | Sections of the keyword tree cannot be folded if they contain active descendants.                                                                                                                                                                                                       |
 | **Keywords from another program look different**              | The *Reading priority* decides which format wins. Adjust it and rescan the collection.                                                                                                                                                                                                  |

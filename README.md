@@ -35,7 +35,7 @@ After 25 years of photographing as a hobbyist and then a dad, I wanted less time
 - **Windows**: tested, stable, and used daily.
 - **Linux (`.deb`, `AppImage`)**: works, but I only test it quickly on some releases: it needs testing—give it a try and tell me!
 
-Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English and French; ignore the SmartScreen warning) and `.deb` / `AppImage`for Ubuntu-Debian / Linux. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
+Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English, French and Spanish; ignore the SmartScreen warning) and `.deb` / `AppImage`for Ubuntu-Debian / Linux. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
 
 #### Building from Source
 
@@ -60,7 +60,7 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
   Your photos never leave your computer. Online features (map tiles, place search, model downloads, update checks) are strictly opt-in, **local model/map imports work fully offline**, and flipping **Offline Mode** in Settings blocks all network connections across the app.
 
 - ⚡ **Built for speed at 200k+ photos**
-  Smooth scrolling, instant **embedded RAW previews** (no slow CPU demosaicing), **resumable folder scans** (pause anytime and pick up later, even after restarting), and quiet background sync for external changes.
+  Smooth scrolling, instant **embedded RAW previews** (no slow CPU demosaicing), **resumable folder scans** (pause anytime and pick up later, even after restarting), and quiet background sync for external changes. Huge views are paged by 50,000 photos, with filters applied **before** the cut so no matching photo is missed.
 
 - 🔎 **100% local AI content search & smart tagging** *(optional)*
   Find photos by describing what's in them (*"beach at sunset"*) or by visual similarity to another shot, using the local **SigLIP 2** model.
@@ -87,7 +87,7 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
 - 🗺️ **Privacy-first Maps & Geolocation**
   Browse geotagged photos on a map, filter the grid by the visible map area, search places, and geotag selections by dragging them onto the map.
 
-  - **Private Zones**: draw areas (like *Home*) or import offline map files (MBTiles). Any photo inside a private zone forces the map into strict local-only mode so those coordinates are never sent online.
+  - **Private Zones**: draw areas (like *Home*), download them for offline use, or import offline map files (MBTiles). Any photo inside a private zone forces the map into strict local-only mode so those coordinates are never sent online.
   - **Erase & Restore GPS**: strip coordinates from files before sharing while keeping a restorable local backup.
 
 - 🙈 **Private Photos mode**  
@@ -105,10 +105,10 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
   Organize with virtual folders, manual albums (without duplicating files), and **nestable smart albums** based on saved filters—a smart album placed inside another album inherits and refines its parent's rules.
 
 - 🛠️ **Complete toolkit & customizable UI**
-  Choose square, framed, **justified** (uncropped), or waterfall layouts; adjustable text, UI font, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch rename** filenames with templates and variables, **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; and a full task queue manager with pause/cancel/ETA.
+  Choose square, framed, **justified** (uncropped), or waterfall layouts; a **List panel** with customizable columns and up to 9 sort levels, synchronized with the grid; adjustable text, UI font, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch rename** filenames with templates and variables, **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; a **movable data folder** (database, thumbnails, models, offline maps — put it on an SSD!); and a full task queue manager with pause/cancel/ETA.
 
 See [Screenshots](#screenshots) for a closer look.  
-Available languages: 🇬🇧 *English* and 🇫🇷 *French* (more welcome!).
+Available languages: 🇬🇧 *English*, 🇫🇷 *French* and 🇪🇸 *Spanish* (more welcome!).
 
 ---
 

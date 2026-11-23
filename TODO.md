@@ -32,6 +32,7 @@
 - [ ] *fix*: `toasts` blurry toasts when a modal is on top
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [ ] *feat*: `undo` better ctrl+z info
+- [ ] *fix*: `metadata` xmp sidecars are not synced as image embedded metadata when modified
 
 ## ⚖️ Undecided
 
