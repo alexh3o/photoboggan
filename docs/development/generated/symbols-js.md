@@ -463,7 +463,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 ## src/filter-suggest.js (2)
 
 - `export sortSuggestions(items, getLength, getCount, getName)` · L14
-- `export createFilterSuggest({ input, list, getOptions, onPick, emptyText })` · L31
+- `export createFilterSuggest({ input, list, getOptions, onPick, emptyText, acceptCtrl = …)` · L32
 
 ## src/filter-tags.js (2)
 
@@ -575,13 +575,13 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/guide.js (7)
 
-- `keyLabel(key)` · L106
-- `renderCombo(combo)` · L109 — Une alternative de touches : « Ctrl + Clic ».
-- `renderKeys(row)` · L120
-- `renderRow(row)` · L135
-- `render(container)` · L162
-- `applyFilter(container, query, emptyMessage)` · L177 — Recherche : une ligne reste affichée si tous les mots saisis figurent dans son texte (ou dans le titre de son groupe) ; un groupe sans ligne
-- `export initGuide()` · L194
+- `keyLabel(key)` · L107
+- `renderCombo(combo)` · L110 — Une alternative de touches : « Ctrl + Clic ».
+- `renderKeys(row)` · L121
+- `renderRow(row)` · L136
+- `render(container)` · L163
+- `applyFilter(container, query, emptyMessage)` · L178 — Recherche : une ligne reste affichée si tous les mots saisis figurent dans son texte (ou dans le titre de son groupe) ; un groupe sans ligne
+- `export initGuide()` · L195
 
 ## src/histogram.js (19)
 
@@ -928,31 +928,31 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `closeMarkingPickPopover()` · L4901
 - `isInfoTabVisible()` · L4936 — Le panneau Info compte comme « ouvert » quand il est affiché avec son onglet Info (le seul qui porte la section Marquage).
 - `updateMarkingPlacement()` · L4940
-- `reloadPhotosAfterRescan()` · L4987 — Reloads photos after a rescan. The folder tree is built from the full collection list: when filtered on a folder, reread it too so newly di…
-- `refreshAfterPausedScan()` · L4996 — After a pause, the photos read so far are added to the grid without the full reload (same in-place refresh as library sync).
-- `applyDeletedFolder(deletedPath, removedPaths)` · L5135 — Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, d…
-- `deleteFolderToTrash(path, { permanent = false } = {})` · L5150 — Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirm…
-- `renamePhotoOnDisk(photo, newName)` · L5172 — Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvé…
-- `renameFolderOnDisk(path, newName)` · L5190 — Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nou…
-- `applyMovedPhotos(moved)` · L5222 — Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrou…
-- `matchesLocationFilter(photo)` · L5253
-- `setLocationFilter(value, { apply = true } = {})` · L5259
-- `matchesAnalysisFilter(photo)` · L5276 — With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
-- `refreshAnalysedIds()` · L5281
-- `setAnalysisFilter(value, { apply = true } = {})` · L5293
-- `removePhotosFromLibrary(paths, { keepSelection = false } = {})` · L5322 — ==========================================
-- `getSelectedPhotos()` · L5593
-- `setPhotoGridVisible(visible)` · L5655 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
-- `thumbnailUrlFor(sourcePath, isWanted = ()` · L5665 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
-- `syncLibraryWithDisk()` · L5860
-- `requestLibrarySync()` · L5878
-- `runRequestedSync()` · L5883
-- `refreshLibraryAfterSync(changes)` · L5890 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
-- `restorePanelsVisibility()` · L5934
-- `restoreStartupFolder()` · L5964 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
-- `sendInternetAllowed()` · L6002
-- `sendVerifyMoves()` · L6020
-- `refreshStorageLocationUI()` · L6032 — ==========================================
+- `reloadPhotosAfterRescan()` · L5002 — Reloads photos after a rescan. The folder tree is built from the full collection list: when filtered on a folder, reread it too so newly di…
+- `refreshAfterPausedScan()` · L5011 — After a pause, the photos read so far are added to the grid without the full reload (same in-place refresh as library sync).
+- `applyDeletedFolder(deletedPath, removedPaths)` · L5150 — Met à jour l'interface après la suppression d'un dossier (voir delete_folder) : photos retirées de la vue sans recharger la bibliothèque, d…
+- `deleteFolderToTrash(path, { permanent = false } = {})` · L5165 — Dossier de l'arborescence vers la corbeille, ou supprimé définitivement quand son support n'en a pas (`permanent`, détecté avant la confirm…
+- `renamePhotoOnDisk(photo, newName)` · L5187 — Renommage d'une photo (rename_photo) : même mise à jour de l'interface qu'un déplacement (chemin et nom changent, la sélection est retrouvé…
+- `renameFolderOnDisk(path, newName)` · L5205 — Renommage d'un dossier de l'arborescence (rename_folder) : chemins des photos, dossiers créés ou dépliés, et dossier affiché suivent le nou…
+- `applyMovedPhotos(moved)` · L5237 — Met à jour l'interface après un déplacement. Les photos gardent leur objet (le chemin et le nom changent) pour que la sélection soit retrou…
+- `matchesLocationFilter(photo)` · L5268
+- `setLocationFilter(value, { apply = true } = {})` · L5274
+- `matchesAnalysisFilter(photo)` · L5291 — With the feature off the filter is ignored (its controls are hidden and the filter is reset by onSemanticChange).
+- `refreshAnalysedIds()` · L5296
+- `setAnalysisFilter(value, { apply = true } = {})` · L5308
+- `removePhotosFromLibrary(paths, { keepSelection = false } = {})` · L5337 — ==========================================
+- `getSelectedPhotos()` · L5608
+- `setPhotoGridVisible(visible)` · L5670 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
+- `thumbnailUrlFor(sourcePath, isWanted = ()` · L5680 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
+- `syncLibraryWithDisk()` · L5875
+- `requestLibrarySync()` · L5893
+- `runRequestedSync()` · L5898
+- `refreshLibraryAfterSync(changes)` · L5905 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
+- `restorePanelsVisibility()` · L5949
+- `restoreStartupFolder()` · L5979 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
+- `sendInternetAllowed()` · L6017
+- `sendVerifyMoves()` · L6035
+- `refreshStorageLocationUI()` · L6047 — ==========================================
 
 ## src/map-config.js (5)
 

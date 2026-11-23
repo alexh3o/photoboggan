@@ -1912,7 +1912,11 @@
   "Stop excluding children": "Stop excluding children",
   "Keyword (with children): {text}": "Keyword (with children): {text}",
   "Excluded keyword (with children): {text}": "Excluded keyword (with children): {text}",
-  "Keyword filter help": "Pick a keyword from the list. Shift+Enter or Shift+click: include children (~). Alt+Enter or Alt+click: exclude",
+  "Keyword filter help": "Pick a keyword from the list. Shift: include children (~). Ctrl: keyword alone. Alt: exclude",
   "Include a keyword and its children": "Include a keyword and its children",
-  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle"
+  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle",
+  "Include/exclude children with their parents in keywords filters": "Include/exclude children with their parents in keywords filters",
+  "Include/exclude children with their parents in keywords filters help": "When enabled, pressing Enter or clicking a parent keyword in the filter includes its children (~), and Alt excludes them (-~). Use Ctrl+Enter or Ctrl+click to filter on the keyword alone",
+  "Filter on a keyword alone (without its children)": "Filter on a keyword alone (without its children)",
+  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone"
 }

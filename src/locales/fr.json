@@ -1912,7 +1912,11 @@
   "Stop excluding children": "Ne plus exclure les enfants",
   "Keyword (with children): {text}": "Mot-clé (avec enfants) : {text}",
   "Excluded keyword (with children): {text}": "Mot-clé exclu (avec enfants) : {text}",
-  "Keyword filter help": "Choisir un mot-clé dans la liste. Maj+Entrée ou Maj+clic : inclure les enfants (~). Alt+Entrée ou Alt+clic : exclure",
+  "Keyword filter help": "Choisir un mot-clé dans la liste. Maj : inclure les enfants (~). Ctrl : mot-clé seul. Alt : exclure",
   "Include a keyword and its children": "Inclure un mot-clé et ses enfants",
-  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "Dans la liste du filtre mots-clés (ajoute « ~ »). Alt+Maj : exclure le mot-clé et ses enfants. Clic droit sur une étiquette pour basculer"
+  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "Dans la liste du filtre mots-clés (ajoute « ~ »). Alt+Maj : exclure le mot-clé et ses enfants. Clic droit sur une étiquette pour basculer",
+  "Include/exclude children with their parents in keywords filters": "Inclure/exclure les enfants avec leurs parents dans les filtres de mots-clés",
+  "Include/exclude children with their parents in keywords filters help": "Quand cette option est activée, valider un mot-clé parent dans le filtre (Entrée ou clic) inclut ses enfants (~), et Alt les exclut (-~). Utilisez Ctrl+Entrée ou Ctrl+clic pour filtrer sur le mot-clé seul",
+  "Filter on a keyword alone (without its children)": "Filtrer sur un mot-clé seul (sans ses enfants)",
+  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Filtre de mots-clés : ignore l'option enfants de Paramètres > Métadonnées. Ctrl+Alt : exclure le mot-clé seul"
 }

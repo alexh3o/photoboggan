@@ -1,6 +1,6 @@
 // Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js,
 // keywords.css), opened below the field. Entries whose text contains the typed text (accents and case ignored), most used first and
-// highlighted, nearest the field. Up / Down move the highlight, Enter or a click validates it (Alt: exclude; Shift: include children where supported),
+// highlighted, nearest the field. Up / Down move the highlight, Enter or a click validates it (Alt: exclude; Shift / Ctrl: modifiers forwarded where supported),
 // Escape closes the list.
 import { t, normalizeSearch } from './i18n.js';
 
@@ -24,11 +24,12 @@ export function sortSuggestions(items, getLength, getCount, getName) {
  * Wires a suggestion list to a filter field.
  * - input, list: the field and its `<ul class="keyword-suggestions below">`;
  * - getOptions(): offered entries, [{ value, label, count, search }] (`search`: text already passed through normalizeSearch);
- * - onPick(value, exclude, text, shift): an entry was validated (value null: Enter with no suggestion, `text` holds what was typed; `shift`: Shift key held);
- * - emptyText: i18n key shown when nothing matches.
+ * - onPick(value, exclude, text, shift, ctrl): an entry was validated (value null: Enter with no suggestion, `text` holds what was typed; `shift` / `ctrl`: modifier keys held);
+ * - emptyText: i18n key shown when nothing matches;
+ * - acceptCtrl: when true, Ctrl/Meta+Enter (and Ctrl/Meta+click) also validates and forwards `ctrl = true`.
  * Returns { refresh, close }: `refresh` recomputes an open list after the offered entries changed.
  */
-export function createFilterSuggest({ input, list, getOptions, onPick, emptyText }) {
+export function createFilterSuggest({ input, list, getOptions, onPick, emptyText, acceptCtrl = false }) {
   let matches = [];
   let highlighted = 0;
   input.setAttribute('role', 'combobox');
@@ -71,7 +72,7 @@ export function createFilterSuggest({ input, list, getOptions, onPick, emptyText
       // mousedown rather than click: the field keeps the focus (otherwise the list would close before the click).
       row.addEventListener('mousedown', event => {
         event.preventDefault();
-        validate(index, event.altKey, event.shiftKey);
+        validate(index, event.altKey, event.shiftKey, acceptCtrl && (event.ctrlKey || event.metaKey));
       });
       return row;
     }));
@@ -90,13 +91,13 @@ export function createFilterSuggest({ input, list, getOptions, onPick, emptyText
     list.scrollTop = 0;
   }
 
-  function validate(index, exclude, shift = false) {
+  function validate(index, exclude, shift = false, ctrl = false) {
     const text = input.value;
     const option = matches[index];
     if (!option && !text.trim()) return;
     close();
     input.value = '';
-    onPick(option ? option.value : null, exclude, text, shift);
+    onPick(option ? option.value : null, exclude, text, shift, ctrl);
     input.focus();
   }
 
@@ -113,9 +114,11 @@ export function createFilterSuggest({ input, list, getOptions, onPick, emptyText
       event.preventDefault();
       highlighted = Math.max(highlighted - 1, 0);
       render();
-    } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey) {
+    } else if (event.key === 'Enter' && (acceptCtrl || (!event.ctrlKey && !event.metaKey))) {
+      const ctrl = event.ctrlKey || event.metaKey;
       event.preventDefault();
-      validate(open ? highlighted : -1, event.altKey, event.shiftKey);
+      if (ctrl) event.stopPropagation(); // prevent window-level Ctrl+Enter (Apply metadata) from firing
+      validate(open ? highlighted : -1, event.altKey, event.shiftKey, ctrl);
     } else if (event.key === 'Escape' && !list.hidden) {
       event.stopPropagation();
       close();

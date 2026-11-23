@@ -37,6 +37,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `includeRawPairs` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includeSubfolders` | `false` | main.js |
 | `infoAuthorOpen` | `false` | info-author.js |
+| `keywordFilterIncludeChildren` | `true` | main.js |
 | `keywordSuggestionsOpen` | `true` | semantic-tagging.js |
 | `keywordsAutoApply` | `false` | metadata-writes.js |
 | `lastFolderFilter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | folder-tree.js, main.js |
@@ -103,7 +104,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (1916 keys), es (1916 keys), fr (1916 keys)
+- Languages: en (1920 keys), es (1920 keys), fr (1920 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

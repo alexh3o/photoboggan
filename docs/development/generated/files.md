@@ -10,7 +10,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `AGENTS.md` | 111 |  |
 | `BUILDING.md` | 87 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1523 |  |
+| `index.html` | 1527 |  |
 | `package.json` | 29 |  |
 | `README.md` | 208 |  |
 | `TODO.md` | 69 |  |
@@ -35,7 +35,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `FEATURES.md` | 158 |  |
-| `USER_GUIDE.md` | 558 |  |
+| `USER_GUIDE.md` | 559 |  |
 
 ## docs/development
 
@@ -59,17 +59,17 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `config.md` | 160 |  |
-| `css.md` | 610 |  |
+| `config.md` | 161 |  |
+| `css.md` | 612 |  |
 | `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
 | `files.md` | 339 |  |
-| `ipc-commands.md` | 193 |  |
+| `ipc-commands.md` | 195 |  |
 | `module-deps.md` | 119 |  |
 | `sections.md` | 457 |  |
-| `symbols-js.md` | 1642 |  |
-| `symbols-rust.md` | 1440 |  |
-| `tests.md` | 515 |  |
+| `symbols-js.md` | 1650 |  |
+| `symbols-rust.md` | 1445 |  |
+| `tests.md` | 518 |  |
 
 ## docs/development/modules
 
@@ -80,7 +80,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.md` | 66 |  |
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
-| `filters-and-search.md` | 107 |  |
+| `filters-and-search.md` | 108 |  |
 | `grid-and-viewer.md` | 117 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 82 |  |
@@ -120,7 +120,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
 | `batch-rename.js` | 643 |  |
 | `date-filter.js` | 285 | Date filter of the Filters block (date taken, from the EXIF date): text field (YYYYMMDD or YYYYMMDD-YYYYMMDD), calendar pop-up (single day or range) and clear button, plus the helpers that turn the date of a photo into … |
-| `defaults.jsonc` | 203 |  |
+| `defaults.jsonc` | 205 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `drag-drop.js` | 423 | Grid drag-scroll (with exponential inertia and click suppression) and photo drag-and-drop from the thumbnail grid onto the folder tree (including sticky pinned rows), manual albums, and the map, plus the queued folder m… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
@@ -133,7 +133,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `file-dates.js` | 44 | Tooltip of the "Date taken" row of the Info tab: the creation and modification dates of the active photo's file. The dates are read from the disk (get_file_dates in main.rs) only when the row is hovered, so nothing is r… |
 | `file-kinds.js` | 16 | File kinds from the extension: RAW and video. Pure code: no state, no DOM. The extension lists themselves live in format-filters.js. Leaf module (imports nothing from main.js), so that modules such as photo-actions.js d… |
-| `filter-suggest.js` | 132 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
+| `filter-suggest.js` | 135 | Suggestion list of a filter field (keywords, people): same look and keys as the quick keyword input of the keyword panel (keywords-panel.js, keywords.css), opened below the field. Entries whose text contains the typed t… |
 | `filter-tags.js` | 58 | Étiquettes des filtres affichées sur les lignes repliées du bloc Filtres et dans ses badges : un texte coloré par type de filtre et, quand on sait comment le retirer, une petite croix qui l'efface d'un clic sans déplier… |
 | `find-raw-mode.js` | 127 | "Find the RAW" results mode: scope matching, banner rendering, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initFindRawMode()`. |
 | `find-raw.css` | 6 | Bannière du mode « Trouver le RAW » (main.js) : barre collée en haut de la grille, bouton de retour à gauche, nombre de résultats à côté. |
@@ -143,7 +143,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
 | `fullscreen.js` | 556 | Fullscreen photo viewer: display, off-screen decoding, neighbour preloading, optional cached-thumbnail preload, zoom/pan (reusing `preview-zoom.js` primitives), info overlay (D), marking bar & popovers (R), and external… |
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
-| `guide.js` | 210 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
+| `guide.js` | 211 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 123 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues ret… |
@@ -151,7 +151,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1256 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 142 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6087 |  |
+| `main.js` | 6102 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 515 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -327,9 +327,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1919 |  |
-| `es.json` | 1918 |  |
-| `fr.json` | 1919 |  |
+| `en.json` | 1923 |  |
+| `es.json` | 1922 |  |
+| `fr.json` | 1923 |  |
 
 ## webpage
 

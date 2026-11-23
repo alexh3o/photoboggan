@@ -1912,7 +1912,11 @@
   "Stop excluding children": "Dejar de excluir los hijos",
   "Keyword (with children): {text}": "Palabra clave (con hijos): {text}",
   "Excluded keyword (with children): {text}": "Palabra clave excluida (con hijos): {text}",
-  "Keyword filter help": "Elegir una palabra clave de la lista. Mayús+Intro o Mayús+clic: incluir los hijos (~). Alt+Intro o Alt+clic: excluir",
+  "Keyword filter help": "Elegir una palabra clave de la lista. Mayús: incluir los hijos (~). Ctrl: palabra clave sola. Alt: excluir",
   "Include a keyword and its children": "Incluir una palabra clave y sus hijos",
-  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "En la lista del filtro de palabras clave (añade «~»). Alt+Mayús: excluir la palabra clave y sus hijos. Clic derecho en una etiqueta para alternar"
+  "In the keyword filter list (adds \"~\"). Alt+Shift: exclude the keyword and its children. Right-click a chip to toggle": "En la lista del filtro de palabras clave (añade «~»). Alt+Mayús: excluir la palabra clave y sus hijos. Clic derecho en una etiqueta para alternar",
+  "Include/exclude children with their parents in keywords filters": "Incluir/excluir los hijos con sus padres en los filtros de palabras clave",
+  "Include/exclude children with their parents in keywords filters help": "Cuando está activada, validar una palabra clave padre en el filtro (Intro o clic) incluye sus hijos (~), y Alt los excluye (-~). Usa Ctrl+Intro o Ctrl+clic para filtrar solo por la palabra clave",
+  "Filter on a keyword alone (without its children)": "Filtrar por una palabra clave sola (sin sus hijos)",
+  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Filtro de palabras clave: ignora la opción de hijos de Configuración > Metadatos. Ctrl+Alt: excluir la palabra clave sola"
 }

@@ -4959,13 +4959,28 @@ markingPlacementSelect.addEventListener('change', event => {
   localStorage.setItem('markingPlacement', markingMode);
   updateMarkingPlacement();
 });
-// Keyword filter field: suggestion list; Shift+Enter / Shift+click includes children (~); Alt+Enter / Alt+click excludes (Alt+Shift includes children).
+// Settings > Metadata > Keywords: include/exclude children by default when picking a parent keyword in the filter.
+let keywordFilterIncludeChildren = readBool('keywordFilterIncludeChildren');
+const keywordFilterChildrenDefaultToggle = document.getElementById('keyword-filter-children-default');
+if (keywordFilterChildrenDefaultToggle) {
+  keywordFilterChildrenDefaultToggle.checked = keywordFilterIncludeChildren;
+  keywordFilterChildrenDefaultToggle.addEventListener('change', () => {
+    keywordFilterIncludeChildren = keywordFilterChildrenDefaultToggle.checked;
+    localStorage.setItem('keywordFilterIncludeChildren', String(keywordFilterIncludeChildren));
+  });
+}
+// Keyword filter field: suggestion list; Shift includes children (~); Ctrl forces keyword alone (ignoring the Metadata setting); Alt excludes.
 // With no suggestion, Enter takes the typed text as is (a keyword missing from the loaded photos can still be filtered on).
 keywordFilterSuggest = createFilterSuggest({
   input: document.getElementById('keyword-filter-input'),
   list: document.getElementById('keyword-filter-suggestions'),
+  acceptCtrl: true,
   getOptions: () => keywordFilterOptions.filter(option => !isHiddenKeyword(option.value) && !keywordFilters.includes(option.value) && !excludedKeywordFilters.includes(option.value)),
-  onPick: (value, exclude, text, shift) => addKeywordFilter(value ?? text, exclude, shift),
+  onPick: (value, exclude, text, shift, ctrl) => {
+    const picked = (value ?? text).trim();
+    const includeChildren = ctrl ? false : shift || (keywordFilterIncludeChildren && keywordHasChildrenKeys.has(keywordKey(picked)));
+    addKeywordFilter(picked, exclude, includeChildren);
+  },
   emptyText: 'No matching keyword',
 });
 document.getElementById('filename-filter-input').addEventListener('keydown', event => {

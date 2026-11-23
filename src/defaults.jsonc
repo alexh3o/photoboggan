@@ -114,6 +114,8 @@
   "colorLabelEnabled": true,
   // Pick / reject flags enabled.
   "pickLabelEnabled": false,
+  // Include/exclude children with their parents by default when adding a keyword filter.
+  "keywordFilterIncludeChildren": true,
   // Apply keyword, title and description changes automatically.
   "keywordsAutoApply": false,
   // Show a map of the photo location (needs Internet unless the area is saved on disk).

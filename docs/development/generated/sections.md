@@ -139,7 +139,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1124–L1160 | 37 | Suppression d'un mot-clé |
 | L1161–L1256 | 96 | Initialisation |
 
-## src/main.js (6087 lines)
+## src/main.js (6102 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -161,17 +161,17 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L3848–L3967 | 120 | BOUTONS VUES & SIDEBAR |
 | L3968–L4079 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
 | L4080–L4800 | 721 | TRI DES MINIATURES |
-| L4801–L5127 | 327 | MARQUAGE (note et couleur de la sélection) |
-| L5128–L5246 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
-| L5247–L5266 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L5267–L5310 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L5311–L5316 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L5317–L5708 | 392 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L5709–L5735 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
-| L5736–L5761 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L5762–L5849 | 88 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L5850–L6028 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L6029–L6087 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L4801–L5142 | 342 | MARQUAGE (note et couleur de la sélection) |
+| L5143–L5261 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
+| L5262–L5281 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L5282–L5325 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L5326–L5331 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L5332–L5723 | 392 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L5724–L5750 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
+| L5751–L5776 | 26 | FIND THE RAW (find-raw-mode.js) |
+| L5777–L5864 | 88 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L5865–L6043 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L6044–L6102 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (515 lines)
 
