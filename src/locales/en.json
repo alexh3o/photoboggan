@@ -1937,5 +1937,11 @@
   "Date created": "Date created",
   "Sort grid like list": "Sort grid like list",
   "Grid sorting from the list is disabled on views with more than 50,000 photos": "Grid sorting from the list is disabled on views with more than 50,000 photos",
-  "Sorting currently overridden by List panel sorting": "Sorting currently overridden by List panel sorting"
+  "Sorting currently overridden by List panel sorting": "Sorting currently overridden by List panel sorting",
+  "Resolution": "Resolution",
+  "Megapixels": "Megapixels",
+  "Orientation": "Orientation",
+  "Ratio": "Ratio",
+  "Portrait": "Portrait",
+  "Landscape": "Landscape"
 }

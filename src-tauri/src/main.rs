@@ -1296,6 +1296,7 @@ fn write_photo_marking(
 #[derive(serde::Serialize)]
 struct RotatedPhoto {
     id: i64,
+    orientation: u32,
     view_fix: u32,
     /// New `photos.effective_modified` (the tag lives in the file or in its sidecar): the interface re-sorts by modification date with it.
     effective_modified: i64,
@@ -1329,7 +1330,7 @@ async fn rotate_photos(
         let total = photos.len().max(1);
         let done = AtomicUsize::new(0);
         let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
-        let outcomes: Vec<(MarkingTarget, Option<Result<(u32, i64), String>>)> = threads.install(|| {
+        let outcomes: Vec<(MarkingTarget, Option<Result<(u32, u32, i64), String>>)> = threads.install(|| {
             photos
                 .into_par_iter()
                 .map(|photo| {
@@ -1347,7 +1348,7 @@ async fn rotate_photos(
         for (photo, outcome) in outcomes {
             match outcome {
                 None => result.cancelled += 1,
-                Some(Ok((view_fix, effective_modified))) => result.written.push(RotatedPhoto { id: photo.id, view_fix, effective_modified }),
+                Some(Ok((orientation, view_fix, effective_modified))) => result.written.push(RotatedPhoto { id: photo.id, orientation, view_fix, effective_modified }),
                 Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
             }
         }
@@ -1358,9 +1359,9 @@ async fn rotate_photos(
     outcome.map_err(|error| error.to_string())?
 }
 
-/// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `view_fix` and the new
-/// `effective_modified` (`modified` stays the image's own mtime, even when only a sidecar was written).
-fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<(u32, i64), String> {
+/// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `view_fix`
+/// and `effective_modified` (`modified` stays the image's own mtime, even when only a sidecar was written).
+fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<(u32, u32, i64), String> {
     let source = Path::new(path);
     if !orientation::is_rotatable(source) { return Err("Rotation sans perte impossible pour ce format (HEIC, HEIF, vidéo)".into()); }
     // Internal writer reading the EXIF tag first: the XMP it would write could not change what is displayed. Refused before writing anything.
@@ -1389,7 +1390,7 @@ fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quart
         params![after.stored, after.view_fix, metadata.len() as i64, image_modified, effective_modified, id],
     )
     .map_err(|error| error.to_string())?;
-    Ok((after.view_fix, effective_modified))
+    Ok((after.stored, after.view_fix, effective_modified))
 }
 
 #[derive(serde::Serialize)]

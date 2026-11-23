@@ -35,6 +35,10 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 - **Multiple formats**: standard raster images, **HEIC/HEIF**, **RAW** (embedded JPEGs only, never demosaiced), and **videos** (OS/ffmpeg thumbnail only, no in-app fullscreen playback)
 - **Fast mouse scrolling** (mousewheel or hold and release) with scroll position indicator
 - **Preview & fullscreen views** with instant 1:1 zoom & pan, gradual zoom, optional face boxes, **histogram**, **highlight/shadow clippings**, and optional info overlay
+- **List** panel to display files
+  - with editable columns: file (extension, size, date created, date modified), date taken, gear (camera, lens), shoot settings (iso, aperture, focal length, shutter speed), ratings (stars, color and pick/reject flags), author...
+  - with sorting per columns on 9 possible levels
+  - can optionnally synchronize thumbnail grid sorting
 - **Compare mode** for 2 to 4 photos with synchronized zoom & pan (toggleable anytime) and direct sub-selection to rate or delete
 - **Slideshow** with configurable options
 - **Find RAW** matching your JPEG, with tunable pattern rules to fit your folder organization

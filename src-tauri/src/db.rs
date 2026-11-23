@@ -51,6 +51,9 @@ pub struct Photo {
     /// File creation date (ms since 1970, 0 = unknown): recorded when files are read (library_sync::store_dates).
     #[serde(default)]
     pub created: i64,
+    /// Resolved EXIF/XMP orientation (1..=8, 1 for HEIC whose container rotation is already applied to width/height).
+    #[serde(default = "one")]
+    pub orientation: u32,
     /// Orientation the interface applies on top of the webview's when it shows the original file (see orientation::Resolved).
     #[serde(default = "one")]
     pub view_fix: u32,
@@ -252,7 +255,7 @@ pub fn remove_folder(pool: &DbPool, id: i64, folder_path: &str) -> Result<(), St
 
 /// Colonnes lues par `photo_from_row`, dans cet ordre.
 pub(crate) const PHOTO_COLUMNS: &str = "id, path, filename, date_taken, aperture, shutter_speed, iso, focal_length, manufacturer, camera_model, width, height, \
-     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix, effective_modified, author, created";
+     file_size, rating, color_flag, keywords, caption, lens_model, modified, title, pick_flag, gps_lat, gps_lon, flash, view_fix, effective_modified, author, created, orientation";
 
 /// Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
 /// jamais écartée de la liste parce qu'une de ses colonnes est vide.
@@ -292,6 +295,7 @@ pub(crate) fn photo_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Photo>
         effective_modified: row.get::<_, Option<i64>>(25)?.unwrap_or_default(),
         author: text(row, 26)?,
         created: row.get::<_, Option<i64>>(27)?.unwrap_or_default(),
+        orientation: row.get::<_, Option<u32>>(28)?.filter(|value| (1..=8).contains(value)).unwrap_or(1),
         copyright: String::new(),
         credit: String::new(),
         usage_terms: String::new(),

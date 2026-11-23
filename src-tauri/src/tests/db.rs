@@ -468,3 +468,18 @@ fn photo_from_row_exposes_created_timestamp() {
     assert_eq!(photos.iter().find(|p| p.filename == "dated.jpg").unwrap().created, 1_700_000_000_000);
     assert_eq!(photos.iter().find(|p| p.filename == "unset.jpg").unwrap().created, 0);
 }
+
+#[test]
+fn photo_from_row_exposes_orientation() {
+    let (_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        let rotated = insert_photo(&conn, "C:/P/rotated.jpg");
+        let bad = insert_photo(&conn, "C:/P/bad.jpg");
+        conn.execute("UPDATE photos SET orientation = 6 WHERE id = ?1", [rotated]).unwrap();
+        conn.execute("UPDATE photos SET orientation = 99 WHERE id = ?1", [bad]).unwrap();
+    }
+    let photos = get_photos_sorted(&pool, 0, 10, Some("C:/P".into()), true, "name", true).unwrap();
+    assert_eq!(photos.iter().find(|p| p.filename == "rotated.jpg").unwrap().orientation, 6);
+    assert_eq!(photos.iter().find(|p| p.filename == "bad.jpg").unwrap().orientation, 1);
+}

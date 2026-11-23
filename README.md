@@ -136,9 +136,14 @@ Designed and developed by alexh3o, sped up with the precious help of Claude & fr
 
 ### Screenshots
 
-![Batch keywording beside the photo grid](webpage/screenshots/main_view_light.jpg "Batch keywording")
-
+![Batch keywording beside the photo grid](webpage/screenshots/main_view_light.jpg "Main View")
 *Main View* (navigation, filters, preview & info panels can be enabled or disabled, thumbnails can be resized to a narrow column)
+
+![Batch keywording beside the photo grid](webpage/screenshots/panel_thumbnails_keywording.jpg "Batch keywording")
+*Batch keywording* (attribute keywords for a file or a batch - respecting untouched elements that can be in some files only)
+
+![List Panel](webpage/screenshots/list_panel.jpg "List Panel")
+*List Panel* shows and allows selection, sorting of files as a table with more visible information (filename, shoot settings, gear, ratings, filesize, author...).
 
 ![Faces Review](webpage/screenshots/faces_review.jpg "Faces Review")
 

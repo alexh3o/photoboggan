@@ -204,6 +204,7 @@ pub(crate) fn read_photo(path: &str, file_size: i64, modified: i64) -> Result<(P
         modified: 0, // non utilisé : la date est enregistrée séparément par store_read_batch
         effective_modified: 0, // same: recorded with `modified` by store_read_batch (library_sync::store_dates)
         created: 0, // recorded with `modified` by store_read_batch (library_sync::store_dates)
+        orientation: exif_data.faces.orientation,
         view_fix: exif_data.faces.view_fix, // stored with the orientation by faces::store_photo_faces
         author: exif_data.rights.author,
         copyright: exif_data.rights.copyright,

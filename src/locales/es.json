@@ -1937,5 +1937,11 @@
   "Date created": "Fecha de creación",
   "Sort grid like list": "Ordenar la cuadrícula como la lista",
   "Grid sorting from the list is disabled on views with more than 50,000 photos": "La ordenación de la cuadrícula desde la lista está desactivada en vistas con más de 50 000 fotos",
-  "Sorting currently overridden by List panel sorting": "Ordenación sustituida actualmente por la del panel de lista"
+  "Sorting currently overridden by List panel sorting": "Ordenación sustituida actualmente por la del panel de lista",
+  "Resolution": "Resolución",
+  "Megapixels": "Megapíxeles",
+  "Orientation": "Orientación",
+  "Ratio": "Proporción",
+  "Portrait": "Retrato",
+  "Landscape": "Paisaje"
 }

@@ -91,6 +91,9 @@ Once your folders are indexed, you can prepare the optional features by launchin
 | **Center**      |                    | The thumbnail grid.                                                                                                                                                                                                                                                                                                                          |
 | **Preview**     | `P`                | Larger view of the selected photo(s).                                                                                                                                                                                                                                                                                                        |
 | **Right panel** | `I`/`K`/`D`        | Three tabs: **Info** (file and camera data, author and rights, location map, histogram), **Keywords**, **Description** (title, description, author and rights).                                                                                                                                                                              |
+| Map             | `M`                | Map panel placing the photos with geolocation data. Enabling "This Zone" filters the grid for photos that belong to the visible map area.                                                                                                                                                                                                    |
+| People          |                    | List of people with faces in the collection.                                                                                                                                                                                                                                                                                                 |
+| List            | `L`                | List of photo files, with custom selection of displayed columns and multi-level sorting                                                                                                                                                                                                                                                      |
 
 Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resized by dragging their edges. Press `F11` for immersive mode, which hides the title bar and taskbar.
 
@@ -131,7 +134,7 @@ Panels can be shown or hidden (see [shortcuts](#12-keyboard-shortcuts)) and resi
 - **Theme** (*Dark* / *Light*), **Text size**, **Selection color**, **Active Buttons color**, and **Dim unselected photos on hover**.
 - **Interface font**: choose the font used by the interface.
 
-**Sort** (arrows icon): by **Date taken**, **Date modified** or **Filename**, ascending or descending, with optional separators (by day, week, month, year, or by folder when sorting by name).
+**Sort** (arrows icon): by **Date taken**, **Date modified** or **Filename**, ascending or descending, with optional separators (by day, week, month, year, or by folder when sorting by name). More powerful sorting options can be activated with the **List** Panel, which will then override the normal sorting options.
 
 ### Filters
 
@@ -528,8 +531,8 @@ Display & appearance options (theme, text size, font, layout) are in **Display**
 Many shortcuts are available to quickly adjust the interface and to rate/sort photos.
 Press `G` for the full searchable in-app guide. Notable ones:
 
-- `T` toggles the toolbar auto-hide; `F11` toggles immersive mode.
-- `X` compare mode, `K` keywords tab, `H` histogram, `V` face frames, `D` info overlay and `R` rating bar in fullscreen.
+- UI toggles: `N`: Library/Navigation panel, `P`: preview panel, `M`: Map mode, `P`: preview panel, `I`, `D`, `K`: Info,  Description, keywords panels, `T`: toolbar auto-hide; `F11` toggles immersive mode.
+- `X` compare mode, `V` face frames, `D` info overlay (when in fullscreen) and `R` rating bar in fullscreen.
 - `F10` slideshow; `F2` rename; `S` resize; `C` copy to…; `E` show in file explorer; `O` open with.
 
 ---

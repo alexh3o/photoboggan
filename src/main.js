@@ -3214,9 +3214,13 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {
       if (error) showWriteToast(t('Metadata writing failed: {error}', { error: String(error) }));
       return;
     }
-    const written = new Map(result.written.map(entry => [entry.id, entry.view_fix]));
+    const written = new Map(result.written.map(entry => [entry.id, entry]));
     const turned = targets.filter(photo => written.has(photo.id));
-    for (const photo of turned) photo.view_fix = written.get(photo.id);
+    for (const photo of turned) {
+      const entry = written.get(photo.id);
+      photo.view_fix = entry.view_fix;
+      photo.orientation = entry.orientation;
+    }
     const reordered = applyEffectiveModified(result.written.map(entry => [entry.id, entry.effective_modified]));
     refreshRotatedPhotos(turned, quarterTurns, reordered);
     const turnedEntries = turned.map(photo => ({ id: photo.id, path: photo.path }));
@@ -3274,6 +3278,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
   } else {
     updateVirtualScroller();
     updateUIOnSelection();
+    refreshListView({ dataChanged: true });
   }
   if (isFullscreenOpen() && turnedPaths.has(photos[lastSelectedIndex]?.path)) loadFullscreenPhoto(photos[lastSelectedIndex]);
 }

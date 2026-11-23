@@ -7,6 +7,7 @@ import { t, getLanguage, onLanguageChange } from './i18n.js';
 import { DEFAULTS, readStored, writeStored } from './settings-defaults.js';
 import { extensionOf, RAW_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
 import { isRawPath, isVideoPath } from './file-kinds.js';
+import { swapsSides } from './orientation.js';
 import { photoTimeKey } from './date-filter.js';
 import { shotValues } from './shooting-filters.js';
 import { isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
@@ -95,6 +96,53 @@ function formatDateTime(ms) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+const KNOWN_RATIOS = [
+  { label: '1:1', value: 1 },
+  { label: '6:7', value: 7 / 6 },
+  { label: '7:5', value: 7 / 5 },
+  { label: '5:4', value: 5 / 4 },
+  { label: '4:3', value: 4 / 3 },
+  { label: '3:2', value: 3 / 2 },
+  { label: '16:10', value: 16 / 10 },
+  { label: '16:9', value: 16 / 9 },
+];
+
+function photoDimensions(photo) {
+  if (isVideoPath(photo.path)) return null;
+  const rawW = photo.width > 0 ? photo.width : 0;
+  const rawH = photo.height > 0 ? photo.height : 0;
+  if (rawW <= 0 || rawH <= 0) return null;
+  return swapsSides(photo.orientation) ? { width: rawH, height: rawW } : { width: rawW, height: rawH };
+}
+
+function formatResolutionText(dims) {
+  return dims ? `${dims.width}x${dims.height}` : '';
+}
+
+function formatMegapixelsText(dims) {
+  return dims ? `${((dims.width * dims.height) / 1_000_000).toFixed(1)} MP` : '';
+}
+
+function photoOrientationInfo(photo) {
+  const dims = photoDimensions(photo);
+  if (!dims) return null;
+  if (dims.width === dims.height) return { key: 'Square', order: 3 };
+  return dims.width > dims.height ? { key: 'Landscape', order: 1 } : { key: 'Portrait', order: 2 };
+}
+
+function photoRatioInfo(photo) {
+  const dims = photoDimensions(photo);
+  if (!dims) return null;
+  const ratio = Math.max(dims.width, dims.height) / Math.min(dims.width, dims.height);
+  for (const known of KNOWN_RATIOS) {
+    if (Math.abs(ratio - known.value) / known.value < 0.01) {
+      return { label: known.label, value: known.value };
+    }
+  }
+  const rounded = Number(ratio.toFixed(2));
+  return { label: ratio.toFixed(2), value: rounded };
+}
+
 function facesStatusInfo(photo) {
   if (isVideoPath(photo.path)) return { text: '-', sort: null, muted: true };
   const review = getFaceScanIndex().get(photo.id);
@@ -170,6 +218,47 @@ const COLUMN_DEFS = [
       return ms > 0 ? ms : null;
     },
     render: (cell, photo) => renderPlainText(cell, formatDateTime(host.photoModifiedTime(photo))),
+  },
+  {
+    id: 'resolution',
+    label: 'Resolution',
+    defaultWidth: 108,
+    sortType: 'number',
+    sortValue: photo => {
+      const dims = photoDimensions(photo);
+      return dims ? dims.width * dims.height : null;
+    },
+    render: (cell, photo) => renderPlainText(cell, formatResolutionText(photoDimensions(photo))),
+  },
+  {
+    id: 'megapixels',
+    label: 'Megapixels',
+    defaultWidth: 88,
+    sortType: 'number',
+    sortValue: photo => {
+      const dims = photoDimensions(photo);
+      return dims ? dims.width * dims.height : null;
+    },
+    render: (cell, photo) => renderPlainText(cell, formatMegapixelsText(photoDimensions(photo))),
+  },
+  {
+    id: 'orientation',
+    label: 'Orientation',
+    defaultWidth: 92,
+    sortType: 'number',
+    sortValue: photo => photoOrientationInfo(photo)?.order ?? null,
+    render: (cell, photo) => {
+      const info = photoOrientationInfo(photo);
+      renderPlainText(cell, info ? t(info.key) : '');
+    },
+  },
+  {
+    id: 'ratio',
+    label: 'Ratio',
+    defaultWidth: 74,
+    sortType: 'number',
+    sortValue: photo => photoRatioInfo(photo)?.value ?? null,
+    render: (cell, photo) => renderPlainText(cell, photoRatioInfo(photo)?.label ?? ''),
   },
   {
     id: 'date_taken',
@@ -378,6 +467,7 @@ const VALID_COLUMN_IDS = new Set(COLUMN_DEFS.map(col => col.id));
 const MENU_STRUCTURE = [
   { col: 'filename' },
   { label: 'File', children: ['extension', 'file_size', 'date_created', 'date_modified'] },
+  { label: 'Format', children: ['resolution', 'megapixels', 'orientation', 'ratio'] },
   { col: 'date_taken' },
   { label: 'Gear', children: ['manufacturer', 'camera', 'lens'] },
   { col: 'author' },
@@ -579,6 +669,13 @@ export function formatListGridScrollPosition(photo) {
   if (col.id === 'filename') return rawFilename(photo) || t('Unknown');
   if (col.id === 'extension') return (extensionOf(photo) || '').toUpperCase() || '-';
   if (col.id === 'file_size') return formatFileSizeMb(photo.file_size) || '-';
+  if (col.id === 'resolution') return formatResolutionText(photoDimensions(photo)) || '-';
+  if (col.id === 'megapixels') return formatMegapixelsText(photoDimensions(photo)) || '-';
+  if (col.id === 'orientation') {
+    const info = photoOrientationInfo(photo);
+    return info ? t(info.key) : '-';
+  }
+  if (col.id === 'ratio') return photoRatioInfo(photo)?.label || '-';
   if (col.id === 'date_created') return formatShortDate(photo.created);
   if (col.id === 'date_modified') return formatShortDate(host.photoModifiedTime(photo));
   if (col.id === 'date_taken') {

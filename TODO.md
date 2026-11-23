@@ -15,11 +15,12 @@
 - [x] *feat*: `thumbnail` option to add a visual badge on RAW files thumbnails
 - [x] *feat*: `filters` accept keywords children even if the chosen one is not active
 - [x] *feat*: `filters` add option to always include children in positive/negative keywords, and Ctrl key to disable it when entering new keyword
-- [x] *refactor*: `histogram` allow clipping shdow/highlights display independantly of histogram display
+- [x] *refactor*: `histogram` allow clipping shadow/highlights display independantly of histogram display
 - [x] *chore*: `language` add a recipe for languages implementation
 - [x] *PERF*: `grid` accelerate thumbnails grid display when changing folders
 - [x] *refactor*: `bundles` only one multilingual msi for windows instead of one per language
 - [x] *chore*: `maintenability` reduce main.js size by export of parts to fullscreen.js, folder-tree.js, find-raw-mode.js, semantic-results.js, duplicates-view.js, drag-drop.js, preview-zoom.js, task-queue.js
+- [x] *feat*: `lists` add format entries with resolution, orientation, ratio (1:1; 6:7; 4:3; 3:2; 16:10; 16:9 or ratio value if doesn't fit to 1%)
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
