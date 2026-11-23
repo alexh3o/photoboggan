@@ -13,6 +13,7 @@ import { createFilterSuggest } from './filter-suggest.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
 import { initSidebarSearch } from './sidebar-search.js';
 import { registerEditor, writeMetadataItems, choiceDialog } from './metadata-writes.js';
+import { activeUndoStack, pushUndo, hasUndo, clearUndo, dropFaceUndoFromCommon, undoToastActions, historyToastAction, formatUndoToast, buildFaceBreakdown, baseName } from './undo.js';
 
 const READING_STORAGE_KEY = 'faceReading'; // « true » : lecture des zones de visage activée
 const DETECTION_STORAGE_KEY = 'faceDetection'; // « true » : détection et reconnaissance activées (menus « Visages », réglages du modèle)
@@ -68,6 +69,7 @@ let detectionEnabled = readBool(DETECTION_STORAGE_KEY);
 let faceSettings = loadFaceSettings();
 let modelStatus = null;
 let reclassifyTimer = null;
+let overlayUndoBusy = false;
 
 function loadFaceSettings() {
   try {
@@ -260,6 +262,8 @@ export async function eraseFaceData(photoIds) {
     host.showToast(String(error));
     return;
   }
+  clearUndo('faces');
+  dropFaceUndoFromCommon();
   await refreshFaces();
   await writeMetadataItems(items.map(([photoId, path]) => ({ photo_id: photoId, path, faces: true })));
 }
@@ -1041,7 +1045,8 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
     return;
   }
   let state = overlayStates.get(overlay);
-  if (!state) overlayStates.set(overlay, state = { photoId: null, faces: null, token: 0 });
+  if (!state) overlayStates.set(overlay, state = { photoId: null, photo: null, faces: null, token: 0 });
+  state.photo = photo;
   if (photo.id !== state.photoId) {
     state.photoId = photo.id;
     state.faces = null;
@@ -1051,7 +1056,7 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
       .then(info => {
         if (token !== state.token) return;
         state.faces = info;
-        renderOverlayFaces(overlay, info, interactive);
+        renderOverlayFaces(overlay, info, interactive, photo);
       })
       .catch(error => {
         console.error('Lecture des visages impossible', error);
@@ -1069,7 +1074,7 @@ function layoutFaceOverlay(overlay, slot, active, interactive) {
 // Visages d'une photo pour les calques : les zones ignorées et « pas un visage » y sont incluses si l'utilisateur les a choisies.
 const fetchPhotoFaces = photoId => invoke('get_photo_faces', { photoId, includeIgnored: ignoredShown, includeNotFace: notFaceShown });
 
-function renderOverlayFaces(overlay, info, interactive) {
+function renderOverlayFaces(overlay, info, interactive, photo = null) {
   overlay.replaceChildren(...info.faces.map(face => {
     const rect = orientRect(face, info.orientation);
     const box = document.createElement('div');
@@ -1085,7 +1090,7 @@ function renderOverlayFaces(overlay, info, interactive) {
       : face.state === 'not_face' ? t('Not a face')
       : (face.name || t('Unknown'));
     box.append(label);
-    if (interactive) box.addEventListener('contextmenu', event => openZoneMenu(event, face));
+    if (interactive) box.addEventListener('contextmenu', event => openZoneMenu(event, face, photo));
     else box.faceData = face; // aperçu : retrouvé par position au clic droit (voir openPreviewZoneMenu)
     return box;
   }));
@@ -1095,7 +1100,8 @@ function renderOverlayFaces(overlay, info, interactive) {
 // position ; la plus petite l'emporte quand elles se chevauchent. Même menu qu'en plein écran ; hors zone, le menu de la photo s'ouvre.
 function openPreviewZoneMenu(event) {
   if (!readingEnabled || !host) return;
-  const overlay = host.getPreviewSlotAt(event)?.faceOverlay;
+  const slot = host.getPreviewSlotAt(event);
+  const overlay = slot?.faceOverlay;
   if (!overlay || overlay.hidden) return;
   let target = null;
   let targetArea = Infinity;
@@ -1105,7 +1111,7 @@ function openPreviewZoneMenu(event) {
     if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) continue;
     if (r.width * r.height < targetArea) { target = box.faceData; targetArea = r.width * r.height; }
   }
-  if (target) openZoneMenu(event, target);
+  if (target) openZoneMenu(event, target, slot.photo);
 }
 
 // Visages modifiés (relecture, scan, action sur une zone) : les calques rechargent leurs visages, plein écran et aperçu.
@@ -1121,18 +1127,84 @@ async function reloadOverlayFaces() {
   await refreshFaces();
 }
 
+async function recognizeOverlayPhoto(photoId) {
+  if (!photoId) return;
+  try {
+    await invoke('recognize_faces', { photoIds: [photoId] });
+  } catch (error) {
+    console.debug('Overlay face recognition skipped', error);
+  }
+}
+
+const OVERLAY_ACTION_MESSAGES = {
+  confirm_faces: ['Face of {name} confirmed on {count} photo', 'Faces confirmed on {count} photo'],
+  assign_faces: ['Face of {name} assigned on {count} photo', 'Faces assigned on {count} photo'],
+  set_faces_unknown: [null, 'Faces set as unknown on {count} photo'],
+  ignore_faces: [null, 'Faces ignored on {count} photo'],
+  mark_faces_not_a_face: [null, 'Faces marked as not faces on {count} photo'],
+};
+
 // Menu d'une zone en plein écran (clic droit) : nommer / renommer, valider une suggestion, passer en inconnu, supprimer la zone.
-function openZoneMenu(event, face) {
+function openZoneMenu(event, face, photo = null) {
   event.preventDefault();
   event.stopPropagation(); // pas le menu de la photo (photo-actions.js)
+  const photoFilename = photo ? baseName(photo.path || photo.filename) : null;
   const run = async (command, args = {}) => {
+    if (overlayUndoBusy) return;
+    overlayUndoBusy = true;
     try {
-      await invoke(command, { faceIds: [face.id], ...args });
-    } catch (error) {
-      host.showToast(String(error));
-      return;
+      const breakdown = buildFaceBreakdown([face]);
+      const snapshots = command === 'delete_faces'
+        ? await invoke('snapshot_full_faces', { faceIds: [face.id] }).catch(() => null)
+        : await invoke('snapshot_faces', { faceIds: [face.id] }).catch(() => null);
+      try {
+        await invoke(command, { faceIds: [face.id], ...args });
+      } catch (error) {
+        host.showToast(String(error));
+        return;
+      }
+      await recognizeOverlayPhoto(photo?.id);
+      await reloadOverlayFaces();
+      const stackName = activeUndoStack();
+      let undoEntry = null;
+      if (snapshots?.length) {
+        const meta = {
+          kind: 'face',
+          command,
+          count: 1,
+          breakdown,
+          photoFilename,
+        };
+        undoEntry = pushUndo(stackName, {
+          meta,
+          canRun: () => !overlayUndoBusy,
+          run: async () => {
+            overlayUndoBusy = true;
+            try {
+              if (command === 'delete_faces') await invoke('restore_deleted_faces', { snapshots });
+              else await invoke('restore_faces', { snapshots });
+              await recognizeOverlayPhoto(photo?.id);
+              await reloadOverlayFaces();
+              host.showToast(formatUndoToast(meta), hasUndo(stackName) ? historyToastAction() : null);
+            } catch (error) {
+              host.showToast(String(error));
+            } finally {
+              overlayUndoBusy = false;
+            }
+          },
+        });
+      }
+      let message;
+      if (command === 'delete_faces') {
+        message = t('Face area deleted');
+      } else {
+        const [named, plain] = OVERLAY_ACTION_MESSAGES[command] ?? [null, 'Faces confirmed on {count} photo'];
+        message = tp(face.name && named ? named : plain, 1, { name: face.name });
+      }
+      host.showToast(message, undoEntry ? undoToastActions(stackName, undoEntry) : null);
+    } finally {
+      overlayUndoBusy = false;
     }
-    await reloadOverlayFaces();
   };
   // Trois groupes séparés : identifier (valider, nommer, inconnu), écarter (ignorer, pas un visage), supprimer la zone. Chaque ligne a une infobulle.
   // L'en-tête dit quel visage est visé (nom et statut) : en aperçu, la plus petite zone sous le curseur est choisie.
@@ -1161,8 +1233,53 @@ function openZoneMenu(event, face) {
       message: t('Person shown in this area (existing person, keyword path, or new name)'),
       proposed: face.name ?? '',
       submit: async args => {
-        await invoke('assign_faces', { faceIds: [face.id], ...args });
-        await reloadOverlayFaces();
+        if (overlayUndoBusy) return;
+        overlayUndoBusy = true;
+        try {
+          const breakdown = buildFaceBreakdown([face]);
+          const snapshots = await invoke('snapshot_faces', { faceIds: [face.id] }).catch(() => null);
+          const personId = await invoke('assign_faces', { faceIds: [face.id], ...args });
+          await recognizeOverlayPhoto(photo?.id);
+          await reloadOverlayFaces();
+          const assignedPerson = persons.find(person => person.id === personId);
+          const targetName = (assignedPerson && personLabel(assignedPerson)) || args.name || null;
+          const stackName = activeUndoStack();
+          let undoEntry = null;
+          if (snapshots?.length) {
+            const meta = {
+              kind: 'face',
+              command: 'assign_faces',
+              count: 1,
+              targetName,
+              breakdown,
+              photoFilename,
+            };
+            undoEntry = pushUndo(stackName, {
+              meta,
+              canRun: () => !overlayUndoBusy,
+              run: async () => {
+                overlayUndoBusy = true;
+                try {
+                  await invoke('restore_faces', { snapshots });
+                  await recognizeOverlayPhoto(photo?.id);
+                  await reloadOverlayFaces();
+                  host.showToast(formatUndoToast(meta), hasUndo(stackName) ? historyToastAction() : null);
+                } catch (error) {
+                  host.showToast(String(error));
+                } finally {
+                  overlayUndoBusy = false;
+                }
+              },
+            });
+          }
+          const [named, plain] = OVERLAY_ACTION_MESSAGES.assign_faces;
+          host.showToast(
+            tp(targetName ? named : plain, 1, { name: targetName }),
+            undoEntry ? undoToastActions(stackName, undoEntry) : null,
+          );
+        } finally {
+          overlayUndoBusy = false;
+        }
       },
     }),
   });
@@ -1241,13 +1358,59 @@ function startZoneDrawing(event) {
       }
     }
     const stored = orientRect(rect, inverseOrientation(orientation));
+    let added = null;
     await promptPersonName({
       title: t('Name the face'),
       message: t('Person shown in the drawn area (existing person, keyword path, or new name)'),
-      submit: args => invoke('add_manual_face', { photoId: photo.id, rect: [stored.x, stored.y, stored.w, stored.h], ...args }),
+      submit: async args => {
+        if (overlayUndoBusy) return;
+        overlayUndoBusy = true;
+        try {
+          added = await invoke('add_manual_face', { photoId: photo.id, rect: [stored.x, stored.y, stored.w, stored.h], ...args });
+        } finally {
+          overlayUndoBusy = false;
+        }
+      },
     });
     box.remove();
-    await reloadOverlayFaces();
+    if (!added) return;
+    const [faceId, personId] = added;
+    overlayUndoBusy = true;
+    try {
+      await reloadOverlayFaces();
+      const assignedPerson = persons.find(person => person.id === personId);
+      const targetName = assignedPerson ? personLabel(assignedPerson) : null;
+      const stackName = activeUndoStack();
+      const meta = {
+        kind: 'face',
+        command: 'add_manual_face',
+        count: 1,
+        targetName,
+        photoFilename: baseName(photo.path || photo.filename),
+      };
+      const undoEntry = pushUndo(stackName, {
+        meta,
+        canRun: () => !overlayUndoBusy,
+        run: async () => {
+          overlayUndoBusy = true;
+          try {
+            await invoke('undo_manual_face', { faceId });
+            await reloadOverlayFaces();
+            host.showToast(formatUndoToast(meta), hasUndo(stackName) ? historyToastAction() : null);
+          } catch (error) {
+            host.showToast(String(error));
+          } finally {
+            overlayUndoBusy = false;
+          }
+        },
+      });
+      host.showToast(
+        targetName ? t('Manual face {name} added', { name: targetName }) : t('Manual face added'),
+        undoToastActions(stackName, undoEntry),
+      );
+    } finally {
+      overlayUndoBusy = false;
+    }
   };
   view.addEventListener('pointermove', move);
   view.addEventListener('pointerup', end);
@@ -1740,8 +1903,8 @@ export function initFacesPanel(hostApi) {
     renderModelStatus();
     // Étiquettes des zones (« Inconnu ») : calques déjà chargés, plein écran (interactif) et aperçu.
     for (const overlay of document.querySelectorAll('.face-overlay')) {
-      const faces = overlayStates.get(overlay)?.faces;
-      if (faces) renderOverlayFaces(overlay, faces, overlay.id === 'fullscreen-faces');
+      const state = overlayStates.get(overlay);
+      if (state?.faces) renderOverlayFaces(overlay, state.faces, overlay.id === 'fullscreen-faces', state.photo ?? null);
     }
   });
 }

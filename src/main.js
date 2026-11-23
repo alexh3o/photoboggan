@@ -27,6 +27,8 @@ import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsCh
 import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initBatchRename, openBatchRename } from './batch-rename.js';
+import { splitFileName } from './batch-rename-engine.js';
+import { initUndo, pushUndo, runUndo, hasUndo, undoToastActions, historyToastAction, formatUndoToast, itemKindForPaths, baseName } from './undo.js';
 import { initStats } from './stats.js';
 import { initKeywordsPanel, refreshKeywordsPanel, addPendingKeyword, invalidateKeywordTree, handleSideTabShortcut, focusSideTabField, setKeywordsCompareMode, renameKeywordById, openSideTab } from './keywords-panel.js';
 import { initInfoAuthor, renderInfoAuthor } from './info-author.js';
@@ -2951,26 +2953,33 @@ function updateRatingAction() {
 
 let writeToastTimeout = null;
 
-// `action` (facultatif) : { label, onClick } ajoute un bouton au toast (ex. « Annuler ») et le garde plus longtemps à l'écran.
+// `action` (optional): { label, onClick, title?, link? } or array of actions added to the toast (keeps it visible longer).
 function showWriteToast(message, isWriting = false, action = null, duration = null) {
   const toast = document.getElementById('write-toast');
   if (!toast) return;
   clearTimeout(writeToastTimeout);
   toast.textContent = message;
-  if (action) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'toast-action';
-    button.textContent = action.label;
-    button.addEventListener('click', () => {
-      toast.classList.add('hidden');
-      action.onClick();
-    });
-    toast.append(button);
+  const actions = (Array.isArray(action) ? action : [action]).filter(Boolean);
+  if (actions.length) {
+    const group = document.createElement('span');
+    group.className = 'toast-actions';
+    for (const item of actions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `toast-action${item.link ? ' toast-link' : ''}`;
+      button.textContent = item.label;
+      if (item.title) button.title = item.title;
+      button.addEventListener('click', () => {
+        toast.classList.add('hidden');
+        item.onClick();
+      });
+      group.append(button);
+    }
+    toast.append(group);
   }
   toast.classList.remove('hidden');
   toast.classList.toggle('writing', isWriting);
-  if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), duration ?? (action ? 8000 : 3500));
+  if (!isWriting) writeToastTimeout = setTimeout(() => toast.classList.add('hidden'), duration ?? (actions.length ? 8000 : 3500));
 }
 
 // Carré de couleur cliquable, utilisé par la barre de filtre et par la barre d'écriture.
@@ -3031,6 +3040,7 @@ async function setSelectionColorFlag(flag, explicitTargets = null) {
     doneMessage: count => (finalFlag === 'none' ? tp('Color removed for {count} file', count) : tp('{count} file modified', count)),
     apply: photo => { photo.color_flag = finalFlag; },
     refilter: () => colorFilters.size > 0,
+    undoMeta: { kind: 'color', value: finalFlag },
   });
 }
 
@@ -3055,12 +3065,24 @@ async function setSelectionPickFlag(flag, { toggle = true, photos: explicitTarge
     doneMessage: count => (finalFlag === 'none' ? tp('Flag removed for {count} file', count) : tp('{count} file modified', count)),
     apply: photo => { photo.pick_flag = finalFlag; },
     refilter: () => pickFilters.size > 0,
+    undoMeta: { kind: 'pick', value: finalFlag },
   });
 }
 
 // Échecs d'écriture de la note, de la couleur ou du fanion : leur nombre et la raison du premier (ex. ExifTool introuvable).
 function failureSummary(failures) {
   return failures.length ? ` · ${tp('{count} failure', failures.length)} (${failures[0].error})` : '';
+}
+
+// Checks whether a queued file task or an active move/rename currently touches any of `entries` (used before popping an undo entry).
+function canUndoFileTargets(entries) {
+  const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
+  const moving = queuedPathsBeingChanged();
+  if (photoMoveRunning || entries.some(entry => moving.has(byId.get(entry.id)?.path ?? entry.path))) {
+    showWriteToast(t('Wait for the running file task to finish.'));
+    return false;
+  }
+  return true;
 }
 
 // Écriture de la note, de la couleur ou du fanion pick (`fields` : { rating } | { colorFlag } | { pickFlag }) de `targets`, lues avant tout
@@ -3074,7 +3096,7 @@ let markingChain = Promise.resolve();
 // Photo property of each field of update_photos_marking, and its value when the photo has none. The per-photo values of an undo use the
 // same names (MarkingTarget in main.rs).
 const MARKING_PROPERTIES = { rating: ['rating', 0], colorFlag: ['color_flag', 'none'], pickFlag: ['pick_flag', 'none'] };
-function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter, property = null, restore = null }) {
+function writeMarking(targets, fields, { startMessage, doneMessage, apply, refilter, property = null, restore = null, undoMeta = null }) {
   const [markedProperty, emptyValue] = property ? [property, null] : MARKING_PROPERTIES[Object.keys(fields)[0]];
   const photosArg = targets.map(photo => (restore
     ? { id: photo.id, path: photo.path, [markedProperty]: restore.get(photo.id) }
@@ -3095,13 +3117,27 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     else { updateUIOnSelection(); if (successful.length) refreshListView({ dataChanged: true }); }
     if (markedProperty === 'rating') updateFullscreenRatingStars();
     // Only the photos actually written can be given their previous value back.
-    const undoEntry = !restore && successful.length
-      ? pushUndo(() => undoMarking(markedProperty, successful.map(photo => ({ id: photo.id, path: photo.path, value: previous.get(photo.id) })), refilter))
-      : null;
+    let undoEntry = null;
+    if (!restore && successful.length && undoMeta) {
+      const paths = successful.map(photo => photo.path);
+      const entries = successful.map(photo => ({ id: photo.id, path: photo.path, value: previous.get(photo.id) }));
+      const meta = {
+        ...undoMeta,
+        count: successful.length,
+        itemKind: itemKindForPaths(paths),
+        filename: successful.length === 1 ? baseName(paths[0]) : null,
+      };
+      undoEntry = pushUndo('common', {
+        meta,
+        canRun: () => canUndoFileTargets(entries),
+        run: () => undoMarking(markedProperty, entries, refilter, meta),
+      });
+    }
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
-    // Failures: the toast names the first one, its "Details" button lists them all. Otherwise the button undoes this write.
-    const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed) ?? (undoEntry ? undoToastAction(undoEntry) : null);
-    showWriteToast(`${doneMessage(successful.length)}${failureSummary(result.failed)}${stopped}`, false, action);
+    // Failures: the toast names the first one, its "Details" button lists them all. Otherwise "Undo" + "History" (or "History" after an undo).
+    const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed)
+      ?? (undoEntry ? undoToastActions('common', undoEntry) : restore && hasUndo('common') ? historyToastAction() : null);
+    showWriteToast(`${doneMessage(successful.length, successful)}${failureSummary(result.failed)}${stopped}`, false, action);
   };
   const run = () => {
     // Photos of a move in progress or waiting would change path while being written (the backend lock makes the write fail cleanly
@@ -3122,7 +3158,7 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
 
 // Gives each photo of an earlier marking write its previous value back (`entries`: { id, path, value }), in one command. The photos are
 // looked up in the whole list: they may have left the view (filter on that value) or be shown in another order.
-function undoMarking(property, entries, refilter) {
+function undoMarking(property, entries, refilter, originalMeta) {
   const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
   const targets = entries.map(entry => byId.get(entry.id) ?? { id: entry.id, path: entry.path });
   const values = new Map(entries.map(entry => [entry.id, entry.value]));
@@ -3130,37 +3166,11 @@ function undoMarking(property, entries, refilter) {
     property,
     restore: values,
     startMessage: t('Undoing…'),
-    doneMessage: count => tp('Change undone for {count} photo', count),
+    doneMessage: (count, successful) => formatUndoToast(originalMeta, { count, paths: successful.map(photo => photo.path) }),
     apply: photo => { photo[property] = values.get(photo.id); },
     refilter,
   });
 }
-
-// ==========================================
-// UNDO (Ctrl+Z, "Undo" button of the toasts)
-// ==========================================
-// Last actions on the files that can be undone (rating, color, pick flag, lossless rotation), the latest at the end. Each entry knows how to
-// undo itself; an undo is not stacked again. The toast button undoes its own action, Ctrl+Z the latest one.
-const MAX_UNDO = 20;
-const undoStack = [];
-
-function pushUndo(run) {
-  const entry = { run };
-  undoStack.push(entry);
-  if (undoStack.length > MAX_UNDO) undoStack.shift();
-  return entry;
-}
-
-// Undoes `entry` (default: the latest action), once: it leaves the stack. False if there is nothing (left) to undo.
-function runUndo(entry = undoStack.at(-1)) {
-  const index = entry ? undoStack.lastIndexOf(entry) : -1;
-  if (index < 0) return false;
-  undoStack.splice(index, 1);
-  entry.run();
-  return true;
-}
-
-const undoToastAction = entry => ({ label: t('Undo'), onClick: () => runUndo(entry) });
 
 // `explicitTargets` (menu contextuel) : photos précises à noter, à la place de la sélection.
 async function setSelectionRating(rating, explicitTargets = null) {
@@ -3179,6 +3189,7 @@ async function setSelectionRating(rating, explicitTargets = null) {
     doneMessage: count => (finalRating === 0 ? tp('Rating removed for {count} file', count) : tp('{count} file modified', count)),
     apply: photo => { photo.rating = finalRating; anyWritten = true; },
     refilter: isRatingFilterActive,
+    undoMeta: { kind: 'rating', value: finalRating },
   });
   if (isFullscreenOpen() && anyWritten) showFullscreenRatingForAWhile();
   updateFullscreenRatingStars();
@@ -3197,7 +3208,7 @@ export function isRotatablePath(path) {
 
 // `quarterTurns`: 1 right, -1 left, 2 for 180°. `explicitTargets` (context menu): photos to turn, instead of the selection.
 // `undo`: the rotation turns back a previous one (not stacked again, other toast).
-function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {}) {
+function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false, undoMeta = null } = {}) {
   const selected = explicitTargets ?? commandTargetPhotos(); // compare mode with several photos: the sub-selection only
   if (!selected.length) {
     if (!explicitTargets && isCompareMultiple()) notifyNoCompareTarget();
@@ -3224,12 +3235,30 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {
     const reordered = applyEffectiveModified(result.written.map(entry => [entry.id, entry.effective_modified]));
     refreshRotatedPhotos(turned, quarterTurns, reordered);
     const turnedEntries = turned.map(photo => ({ id: photo.id, path: photo.path }));
-    const undoEntry = turned.length && !undo ? pushUndo(() => undoRotation(turnedEntries, quarterTurns)) : null;
+    let undoEntry = null;
+    if (turned.length && !undo) {
+      const paths = turned.map(photo => photo.path);
+      const meta = {
+        kind: 'rotation',
+        quarterTurns,
+        count: turned.length,
+        itemKind: itemKindForPaths(paths),
+        filename: turned.length === 1 ? baseName(paths[0]) : null,
+      };
+      undoEntry = pushUndo('common', {
+        meta,
+        canRun: () => canUndoFileTargets(turnedEntries),
+        run: () => undoRotation(turnedEntries, quarterTurns, meta),
+      });
+    }
     const stopped = result.cancelled ? ` · ${t('Metadata writing stopped: {count} not processed', { count: result.cancelled })}` : '';
-    const message = `${undo ? tp('Rotation undone for {count} photo', turned.length) : tp('{count} photo turned', turned.length)}${failureSummary(result.failed)}${stopped}`;
-    // Failures take the toast button (their details); otherwise "Undo".
+    const baseMessage = undo
+      ? formatUndoToast(undoMeta, { count: turned.length, paths: turned.map(photo => photo.path) })
+      : tp('{count} photo turned', turned.length);
+    const message = `${baseMessage}${failureSummary(result.failed)}${stopped}`;
+    // Failures take the toast button (their details); otherwise "Undo" + "History" (or "History" after an undo).
     const action = failureDetailsAction(t('Metadata could not be written to some files'), result.failed)
-      ?? (undoEntry ? undoToastAction(undoEntry) : null);
+      ?? (undoEntry ? undoToastActions('common', undoEntry) : undo && hasUndo('common') ? historyToastAction() : null);
     showWriteToast(message, false, action);
   };
   const run = () => {
@@ -3247,10 +3276,10 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false } = {
 }
 
 // Undo of a rotation (see runUndo): the opposite rotation, on its photos wherever the view is now.
-function undoRotation(entries, quarterTurns) {
+function undoRotation(entries, quarterTurns, originalMeta) {
   const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
   const targets = entries.map(entry => byId.get(entry.id) ?? entry);
-  return rotatePhotos(-quarterTurns, targets, { undo: true });
+  return rotatePhotos(-quarterTurns, targets, { undo: true, undoMeta: originalMeta });
 }
 
 // Turned photos: their cached images are regenerated by the backend; the grid, the preview and the fullscreen view load them again.
@@ -3383,11 +3412,11 @@ window.addEventListener('keydown', (e) => {
     if (!e.repeat && selectedIndices.size > 0 && !document.querySelector('.modal:not(.hidden)')) rotatePhotos(e.ctrlKey ? 1 : -1);
     return;
   }
-  // Ctrl+Z: undoes the latest rating, color, pick flag or lossless rotation (text fields keep their own Ctrl+Z: this handler ignores them).
+  // Ctrl+Z: undoes the latest rating, color, pick flag, rotation, rename or fullscreen face change (text fields keep their own Ctrl+Z: this handler ignores them).
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
     if (document.querySelector('.modal:not(.hidden)')) return;
     e.preventDefault();
-    if (!e.repeat && !runUndo()) showWriteToast(t('Nothing to undo'));
+    if (!e.repeat) runUndo('common');
     return;
   }
   // CTrl+D debug to console
@@ -3790,7 +3819,7 @@ for (const link of document.querySelectorAll('#about-modal a[href^="http"]')) {
 
 // Fenêtres de l'interface (Paramètres, À propos, Guide, Affichage, Tri, Tâches) : Tab reste dans la fenêtre du dessus (sinon Tab puis Entrée
 // activerait un bouton de l'interface derrière elle). Les fenêtres créées en JavaScript gèrent Tab elles-mêmes.
-const STATIC_MODALS = '#settings-modal, #about-modal, #update-modal, #guide-modal, #stats-modal, #display-modal, #sort-modal, #tasks-modal';
+const STATIC_MODALS = '#settings-modal, #about-modal, #update-modal, #guide-modal, #stats-modal, #display-modal, #sort-modal, #tasks-modal, #undo-modal';
 document.addEventListener('keydown', event => {
   const top = [...document.querySelectorAll('.modal:not(.hidden)')].at(-1);
   if (top?.matches(STATIC_MODALS)) keepFocusInModal(top, event);
@@ -5212,11 +5241,45 @@ async function renamePhotoOnDisk(photo, newName) {
   photoMoveRunning = true;
   try {
     const moved = await invoke('rename_photo', { path: photo.path, newName });
-    if (moved.from !== moved.to) await applyMovedPhotos([moved]);
-    showWriteToast(t('File renamed'));
+    let undoEntry = null;
+    if (moved.from !== moved.to) {
+      await applyMovedPhotos([moved]);
+      const meta = {
+        kind: 'rename',
+        single: true,
+        count: 1,
+        itemKind: itemKindForPaths([moved.to]),
+        sampleFrom: baseName(moved.from),
+        sampleTo: baseName(moved.to),
+      };
+      undoEntry = pushUndo('common', {
+        meta,
+        canRun: () => {
+          if (photoMoveRunning || hasFileTask()) { showWriteToast(t('Wait for the running file task to finish.')); return false; }
+          if (isWriteLocked()) { showWriteToast(t('Metadata writing in progress…')); return false; }
+          return true;
+        },
+        run: () => undoSingleRename(moved, meta),
+      });
+    }
+    showWriteToast(t('File renamed'), false, undoEntry ? undoToastActions('common', undoEntry) : null);
     return null;
   } catch (error) {
     return String(error);
+  } finally {
+    photoMoveRunning = false;
+  }
+}
+
+// Reverts a single-file rename pushed onto the common undo stack.
+async function undoSingleRename(moved, meta) {
+  photoMoveRunning = true;
+  try {
+    const reverted = await invoke('rename_photo', { path: moved.to, newName: splitFileName(baseName(moved.from)).stem });
+    if (reverted.from !== reverted.to) await applyMovedPhotos([reverted]);
+    showWriteToast(formatUndoToast(meta), false, hasUndo('common') ? historyToastAction() : null);
+  } catch (error) {
+    showWriteToast(t('Rename failed: {error}', { error }));
   } finally {
     photoMoveRunning = false;
   }
@@ -5423,8 +5486,10 @@ initBatchRename({
   applyMoved: applyMovedPhotos,
   isBusy: () => photoMoveRunning || hasFileTask(),
   setBusy: busy => { photoMoveRunning = busy; },
-  pushUndo,
-  undoToastAction,
+  pushUndo: entry => pushUndo('common', entry),
+  undoToastActions: entry => undoToastActions('common', entry),
+  historyToastAction,
+  hasUndo: () => hasUndo('common'),
   keepTaskReady,
 });
 
@@ -5726,7 +5791,7 @@ initFacesPanel({
   getPreviewSlotAt: event => previewSlotFromEvent(event),
   isFullscreen: () => isFullscreenOpen(),
   layoutPreview: () => layoutPreviewSlots(),
-  showToast: message => showWriteToast(message),
+  showToast: (message, action) => showWriteToast(message, false, action),
   enqueueTask: task => enqueueScanTask(task),
   // Détection désactivée : les vues Personnes et de gestion se ferment.
   closeFacesView: () => { closeFacesView(); closePersonsView(); },
@@ -5912,6 +5977,14 @@ initFacesGrid({
   showToast: (message, action) => showWriteToast(message, false, action), // `action` : bouton « Annuler » des actions de révision
   getPersonRoot,
   isFullscreen: () => isFullscreenOpen(),
+});
+
+initUndo({
+  isFacesViewOpen,
+  isFullscreen: () => isFullscreenOpen(),
+  showToast: (message, action) => showWriteToast(message, false, action),
+  colorFlagLabels,
+  pickFlags: PICK_FLAGS,
 });
 
 // ==========================================

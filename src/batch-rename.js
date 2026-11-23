@@ -4,6 +4,7 @@ import { t, tp } from './i18n.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
 import { isWriteLocked, showFailureDetails } from './metadata-writes.js';
 import { newStep, splitFileName, validateRecipe, evaluate, normalizeSteps, STEP_TYPES } from './batch-rename-engine.js';
+import { formatUndoToast, itemKindForPaths } from './undo.js';
 
 // Batch rename (F2 or "Rename…" of the context menu on several photos). The dialog builds a recipe of steps (replace, insert, delete), shows the
 // new name of every photo (paginated) and applies it. The names are computed here (batch-rename-engine.js); the backend (batch_rename.rs)
@@ -15,7 +16,7 @@ const PAGE_SIZE = 10;
 const FORM_FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled])';
 
 // main.js gives access to the grid and to the file operations: getPhotos(), getReferencePhoto(), showToast(message, isWriting, action, duration),
-// enqueueTask(task), applyMoved(moved), isBusy(), setBusy(flag), pushUndo(run), undoToastAction(entry).
+// enqueueTask(task), applyMoved(moved), isBusy(), setBusy(flag), pushUndo(entry), undoToastActions(entry), historyToastAction(), hasUndo(), keepTaskReady(...).
 let deps = null;
 export function initBatchRename(options) {
   deps = options;
@@ -140,7 +141,7 @@ function keepFailures(failures, queuedTask, count, notes = []) {
   });
 }
 
-// End of a batch: interface updated, Ctrl+Z armed, one toast (with the "Undo" button); the failures are kept in the tasks window.
+// End of a batch: interface updated, Ctrl+Z armed, one toast (with the "Undo" and "History" actions); the failures are kept in the tasks window.
 async function finishBatch(result, stopped, error, queuedTask) {
   if (error) {
     deps.showToast(t('Rename failed: {error}', { error }));
@@ -152,11 +153,27 @@ async function finishBatch(result, stopped, error, queuedTask) {
   let undoEntry = null;
   if (renamed.length) {
     await deps.applyMoved(renamed);
-    undoEntry = deps.pushUndo(() => undoBatch(renamed));
+    const meta = {
+      kind: 'rename',
+      single: false,
+      count: renamed.length,
+      itemKind: itemKindForPaths(renamed.map(item => item.to)),
+      sampleFrom: baseName(renamed[0].from),
+      sampleTo: baseName(renamed[0].to),
+    };
+    undoEntry = deps.pushUndo({
+      meta,
+      canRun: () => {
+        if (deps.isBusy()) { deps.showToast(t('Wait for the running file task to finish.')); return false; }
+        if (isWriteLocked()) { deps.showToast(t('Metadata writing in progress…')); return false; }
+        return true;
+      },
+      run: () => undoBatch(renamed, meta),
+    });
   }
   const failures = result.failed.map(failure => ({ path: failure.path, error: backendFailureText(failure.code, failure.detail) }));
   if (failures.length) keepFailures(failures, queuedTask, renamed.length + failures.length + result.unchanged, [renamed.length ? t('Ctrl+Z gives the files that were renamed their previous names back.') : '']);
-  const action = undoEntry ? deps.undoToastAction(undoEntry) : null;
+  const action = undoEntry ? deps.undoToastActions(undoEntry) : null;
   const parts = [];
   if (renamed.length) parts.push(tp('{count} file renamed', renamed.length));
   if (result.unchanged) parts.push(tp('{count} file unchanged', result.unchanged));
@@ -167,30 +184,26 @@ async function finishBatch(result, stopped, error, queuedTask) {
 }
 
 // Ctrl+Z: the same batch the other way round (each photo takes back the name it had). Not stacked again.
-function undoBatch(renamed) {
+function undoBatch(renamed, meta) {
   const items = renamed.map(({ from, to }) => ({ path: to, newName: splitFileName(baseName(from)).stem }));
-  if (deps.isBusy()) {
-    deps.showToast(t('Wait for the running file task to finish.'));
-    deps.pushUndo(() => undoBatch(renamed)); // not undone yet: stays available
-    return;
-  }
-  if (isWriteLocked()) {
-    deps.showToast(t('Metadata writing in progress…'));
-    deps.pushUndo(() => undoBatch(renamed));
-    return;
-  }
-  runBatch(items, async (result, stopped, error, queuedTask) => {
-    if (error) {
-      deps.showToast(t('Rename failed: {error}', { error }));
-      return;
-    }
-    if (!result) return;
-    if (result.renamed.length) await deps.applyMoved(result.renamed);
-    const failures = result.failed.map(failure => ({ path: failure.path, error: backendFailureText(failure.code, failure.detail) }));
-    if (failures.length) keepFailures(failures, queuedTask, result.renamed.length + failures.length);
-    const parts = [tp('Renaming undone for {count} file', result.renamed.length)];
-    if (failures.length) parts.push(tp('{count} file not renamed', failures.length));
-    deps.showToast(parts.join(' · '));
+  return new Promise(resolve => {
+    runBatch(items, async (result, stopped, error, queuedTask) => {
+      try {
+        if (error) {
+          deps.showToast(t('Rename failed: {error}', { error }));
+          return;
+        }
+        if (!result) return;
+        if (result.renamed.length) await deps.applyMoved(result.renamed);
+        const failures = result.failed.map(failure => ({ path: failure.path, error: backendFailureText(failure.code, failure.detail) }));
+        if (failures.length) keepFailures(failures, queuedTask, result.renamed.length + failures.length);
+        const parts = [formatUndoToast(meta, { count: result.renamed.length, paths: result.renamed.map(item => item.to) })];
+        if (failures.length) parts.push(tp('{count} file not renamed', failures.length));
+        deps.showToast(parts.join(' · '), false, deps.hasUndo() ? deps.historyToastAction() : null);
+      } finally {
+        resolve();
+      }
+    });
   });
 }
 

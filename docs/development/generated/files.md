@@ -10,10 +10,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `AGENTS.md` | 120 |  |
 | `BUILDING.md` | 87 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1543 |  |
+| `index.html` | 1560 |  |
 | `package.json` | 29 |  |
-| `README.md` | 213 |  |
-| `TODO.md` | 79 |  |
+| `README.md` | 217 |  |
+| `TODO.md` | 80 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -34,8 +34,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `FEATURES.md` | 162 |  |
-| `USER_GUIDE.md` | 562 |  |
+| `FEATURES.md` | 173 |  |
+| `USER_GUIDE.md` | 607 |  |
 
 ## docs/development
 
@@ -43,7 +43,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `_PROGRESS.md` | 208 |  |
 | `_TEMPLATE.md` | 62 |  |
-| `architecture.md` | 108 |  |
+| `architecture.md` | 109 |  |
 | `build-release.md` | 88 |  |
 | `code-map.md` | 90 |  |
 | `configuration.md` | 61 |  |
@@ -60,16 +60,16 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 166 |  |
-| `css.md` | 627 |  |
+| `css.md` | 633 |  |
 | `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
-| `files.md` | 341 |  |
-| `ipc-commands.md` | 196 |  |
-| `module-deps.md` | 120 |  |
-| `sections.md` | 470 |  |
-| `symbols-js.md` | 1727 |  |
-| `symbols-rust.md` | 1447 |  |
-| `tests.md` | 521 |  |
+| `files.md` | 343 |  |
+| `ipc-commands.md` | 199 |  |
+| `module-deps.md` | 121 |  |
+| `sections.md` | 469 |  |
+| `symbols-js.md` | 1757 |  |
+| `symbols-rust.md` | 1456 |  |
+| `tests.md` | 526 |  |
 
 ## docs/development/modules
 
@@ -81,7 +81,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
 | `filters-and-search.md` | 108 |  |
-| `grid-and-viewer.md` | 121 |  |
+| `grid-and-viewer.md` | 122 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 82 |  |
 | `main-window.md` | 91 |  |
@@ -118,7 +118,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `author-rights.css` | 42 | Author and rights: "Author and rights" section of the Info tab (info-author.js) and lower half of the Description tab (description-panel.js, rights-presets.js: preset line and presets window). |
 | `batch-rename-engine.js` | 379 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
-| `batch-rename.js` | 643 |  |
+| `batch-rename.js` | 656 |  |
 | `date-filter.js` | 285 | Date filter of the Filters block (date taken, from the EXIF date): text field (YYYYMMDD or YYYYMMDD-YYYYMMDD), calendar pop-up (single day or range) and clear button, plus the helpers that turn the date of a photo into … |
 | `defaults.jsonc` | 217 |  |
 | `description-panel.js` | 392 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
@@ -128,8 +128,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates-view.js` | 371 | Duplicate search results mode: group indexing, banner rendering, group sorting, "Best copy" ranking, cleanup selection, task execution, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initDup… |
 | `duplicates.css` | 61 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
 | `duplicates.js` | 259 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
-| `faces-grid.js` | 1098 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
-| `faces-panel.js` | 1748 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
+| `faces-grid.js` | 1121 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
+| `faces-panel.js` | 1911 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `file-dates.js` | 44 | Tooltip of the "Date taken" row of the Info tab: the creation and modification dates of the active photo's file. The dates are read from the disk (get_file_dates in main.rs) only when the row is hovered, so nothing is r… |
 | `file-kinds.js` | 16 | File kinds from the extension: RAW and video. Pure code: no state, no DOM. The extension lists themselves live in format-filters.js. Leaf module (imports nothing from main.js), so that modules such as photo-actions.js d… |
@@ -143,7 +143,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `format-filters.js` | 275 | Filtre « Format » du panneau de filtres : type de fichier (RAW, Raster, Vidéo), marque de RAW (« RAW Sony (ARW) ») ou extension (« .JPG »). Le filtrage se fait dans le frontend sur l'extension du chemin, comme les autre… |
 | `fullscreen.js` | 556 | Fullscreen photo viewer: display, off-screen decoding, neighbour preloading, optional cached-thumbnail preload, zoom/pan (reusing `preview-zoom.js` primitives), info overlay (D), marking bar & popovers (R), and external… |
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
-| `guide.js` | 212 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
+| `guide.js` | 214 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 406 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 123 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues ret… |
@@ -153,7 +153,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `list-view.css` | 64 | List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage. |
 | `list-view.js` | 1697 | List panel (toolbar "List" button / L key): virtualized, multi-column sortable, customizable table of the displayed photos. Shares `photos`, `selectedIndices`, `lastSelectedIndex`, and context menus with the grid. Zero … |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6154 |  |
+| `main.js` | 6227 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 516 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -191,10 +191,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `sticky-folders.js` | 36 | Sticky folders of the folder tree: which rows stay pinned at the top while the tree is scrolled. Pure code: no state, no DOM. The layer that draws the pinned rows (copies of the real rows, see "STICKY FOLDERS" in main.j… |
-| `styles.css` | 1130 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1135 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `task-queue.js` | 663 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel lane for content analys… |
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
+| `undo.css` | 25 | Undo history modal (Ctrl+U, undo.js): uses global modal shell and theme tokens |
+| `undo.js` | 499 | Session undo stacks ("common" for the main/fullscreen view and "faces" for the Faces management view), unified toast formatting, photo/video/file item-kind naming, and the Undo history modal (Ctrl+U). |
 | `update-check.js` | 316 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
 
@@ -248,7 +250,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
 | `face_recognize.rs` | 320 | Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère de … |
-| `faces.rs` | 1868 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
+| `faces.rs` | 2069 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
 | `geolocation.rs` | 231 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `heif.rs` | 509 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
@@ -289,7 +291,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `exiftool.rs` | 383 | Tests du chemin d'écriture ExifTool (exiftool.rs). Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus ExifTool n'est lancé. Intégration (`cargo test -- --ignored`) : écritures réel… |
 | `face_detect.rs` | 46 | Tests of face_detect.rs: orientation conversions of face rectangles, and the shared defaults file (faceSettings, keys the frontend reads). |
 | `face_recognize.rs` | 22 | Tests of face_recognize.rs: alignment on the SFace template and embedding blobs. |
-| `faces_db.rs` | 90 | Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée. (Reading regions from XMP packets is tested in tests/faces.rs.) |
+| `faces_db.rs` | 240 | Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée. (Reading regions from XMP packets is tested in tests/faces.rs.) |
 | `faces.rs` | 54 | Tests of faces.rs: reading face regions from XMP packets (MWG written by ExifTool or Exiv2, Microsoft, priority, unnamed faces). Database side: tests/faces_db.rs. |
 | `geolocation.rs` | 60 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 165 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
@@ -329,12 +331,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1948 |  |
-| `es.json` | 1947 |  |
-| `fr.json` | 1948 |  |
+| `en.json` | 2006 |  |
+| `es.json` | 2005 |  |
+| `fr.json` | 2006 |  |
 
 ## webpage
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `index.html` | 2226 |  |
+| `index.html` | 2417 |  |

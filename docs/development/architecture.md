@@ -1,4 +1,4 @@
-<!-- verified: 7eb009e | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
+<!-- verified: 2682fac | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/face_models.rs, src/metadata-writes.js -->
 
 # Architecture
 
@@ -25,6 +25,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
              ┌──────────────────────────── webview (src/) ─────────────────────────────┐
              │ main.js: grid, viewer, selection, sort, filters, startup                │
              │   ├─ task-queue.js       (main & semantic lanes, toasts, tasks modal)   │
+             │   ├─ undo.js             (common/faces undo stacks, undo modal Ctrl+U)│
              │   ├─ fullscreen.js       (fullscreen viewer, preloading, info, marking) │
              │   ├─ preview-zoom.js     (preview zoom, compare mode, instant zoom)     │
              │   ├─ drag-drop.js        (grid drag-scroll, photo drag: tree/albums/map)│

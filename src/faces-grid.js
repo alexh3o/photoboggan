@@ -14,6 +14,7 @@ import { t, tp, labelWithColon, onLanguageChange } from './i18n.js';
 import { faceCropStyle, getPersonCover, fillAvatar, refreshFaces, getPendingFaceWriteCount, getPendingFaceWritePhotoIds, getPersonFilterIds, promptPersonName, faceNameErrorMessage } from './faces-panel.js';
 import { applyPending, isWriteLocked, onLockChange, choiceDialog } from './metadata-writes.js';
 import { readChoice } from './settings-defaults.js';
+import { pushUndo, runUndo, hasUndo, clearUndo, dropFaceUndoFromCommon, undoToastActions, historyToastAction, formatUndoToast, buildFaceBreakdown } from './undo.js';
 
 const STATUSES_STORAGE_KEY = 'facesViewStatuses';
 // Statuts dans l'ordre d'affichage des groupes, avec la clé de traduction de leur nom.
@@ -199,7 +200,7 @@ export function closeFacesView() {
   open = false;
   // Le regroupement vaut pour les photos affichées à ce moment : il n'est pas conservé d'une ouverture à l'autre.
   clusters = null;
-  undoStack.length = 0; // snapshots only make sense for the faces currently loaded
+  clearUndo('faces'); // snapshots only make sense for the faces currently loaded
   pendingMode = false;
   // Miniatures relues à la prochaine ouverture : elles ont pu être régénérées (résolution du cache, fichier modifié) et la liste ne grossit pas.
   thumbnailInfo.clear();
@@ -241,6 +242,8 @@ export async function requestCloseFacesView() {
         host.showToast(String(error));
         return false;
       }
+      clearUndo('faces');
+      dropFaceUndoFromCommon();
       await refreshFaces(); // section Personnes, filtre, compteur « N photos »
     }
   }
@@ -875,10 +878,6 @@ async function recognizeAndRefresh(photoIds) {
 // Une action de révision (ou une fenêtre « Nommer ») à la fois : sinon actions et réattributions s'entrelacent sur une sélection qui change.
 let actionBusy = false;
 
-// Undo (Ctrl+Z and the "Undo" button of the toast): the state of the faces before each review action, most recent last. Emptied when the view closes.
-const UNDO_LIMIT = 20;
-const undoStack = []; // [{ snapshots }]
-
 // Toast after a review action: [message naming the person (one person only), message without a name]; both are plural keys on the number of photos.
 const ACTION_MESSAGES = {
   confirm_faces: ['Face of {name} confirmed on {count} photo', 'Faces confirmed on {count} photo'],
@@ -889,6 +888,26 @@ const ACTION_MESSAGES = {
   unignore_faces: [null, 'Faces no longer ignored on {count} photo'],
   unmark_faces_not_a_face: [null, 'Faces marked as faces on {count} photo'],
 };
+
+// Filters `targets` to faces that the command actually modifies so snapshot and undo breakdown counts stay accurate on mixed selections.
+function eligibleTargets(command, targets) {
+  switch (command) {
+    case 'confirm_faces':
+      return targets.filter(face => (face.state === 'suggested' || face.state === 'auto') && (face.person_id != null || face.suggested_person_id != null));
+    case 'set_faces_unknown':
+      return targets.filter(face => face.person_id != null || face.suggested_person_id != null || face.state !== 'unknown');
+    case 'ignore_faces':
+      return targets.filter(face => face.state !== 'ignored');
+    case 'unignore_faces':
+      return targets.filter(face => face.state === 'ignored');
+    case 'mark_faces_not_a_face':
+      return targets.filter(face => face.state !== 'not_face');
+    case 'unmark_faces_not_a_face':
+      return targets.filter(face => face.state === 'not_face');
+    default:
+      return targets;
+  }
+}
 
 // State of the faces before an action (null if it cannot be read: the action then simply cannot be undone).
 async function snapshotFaces(targets) {
@@ -906,48 +925,51 @@ function singleName(targets) {
   return names.size === 1 ? [...names][0] : null;
 }
 
-// Toast "Face of Alex confirmed on 32 photos" with an Undo button, and the action is pushed on the undo stack.
-function announceAction(command, targets, snapshots, name) {
+// Toast "Face of Alex confirmed on 32 photos" with Undo + History actions, and pushes the entry onto the Faces undo stack.
+function announceAction(command, targets, snapshots, name, breakdown) {
   const photoCount = new Set(targets.map(face => face.photo_id)).size;
   const [named, plain] = ACTION_MESSAGES[command];
   const message = tp(name && named ? named : plain, photoCount, { name });
+  let undoEntry = null;
   if (snapshots) {
-    undoStack.push({ snapshots });
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    const meta = {
+      kind: 'face',
+      command,
+      count: targets.length,
+      targetName: command === 'assign_faces' ? name : null,
+      breakdown,
+    };
+    undoEntry = pushUndo('faces', {
+      meta,
+      canRun: () => !actionBusy && open,
+      run: async () => {
+        actionBusy = true;
+        try {
+          const photoIds = viewPhotoIds();
+          await invoke('restore_faces', { snapshots });
+          await recognizeAndRefresh(photoIds);
+          host.showToast(formatUndoToast(meta), hasUndo('faces') ? historyToastAction() : null);
+        } catch (error) {
+          host.showToast(String(error));
+        } finally {
+          actionBusy = false;
+        }
+      },
+    });
   }
-  host.showToast(message, snapshots ? { label: t('Undo'), onClick: undoLastAction } : null);
-}
-
-// Puts the faces of the last review action back in their previous state.
-async function undoLastAction() {
-  if (actionBusy || !open) return;
-  const entry = undoStack.pop();
-  if (!entry) { host.showToast(t('Nothing to undo')); return; }
-  actionBusy = true;
-  try {
-    const photoIds = viewPhotoIds();
-    try {
-      await invoke('restore_faces', { snapshots: entry.snapshots });
-    } catch (error) {
-      host.showToast(String(error));
-      return;
-    }
-    await recognizeAndRefresh(photoIds);
-    host.showToast(t('Action undone'));
-  } finally {
-    actionBusy = false;
-  }
+  host.showToast(message, undoEntry ? undoToastActions('faces', undoEntry) : null);
 }
 
 // Action de révision sur les visages sélectionnés, puis réattribution des autres visages et rechargement.
 async function runAction(command, extraArgs = {}) {
-  const targets = selectedFaces();
+  const targets = eligibleTargets(command, selectedFaces());
   if (targets.length === 0 || actionBusy) return null;
   actionBusy = true;
   try {
     const photoIds = viewPhotoIds();
     const snapshots = await snapshotFaces(targets);
     const name = singleName(targets); // before the action: the names the faces carried
+    const breakdown = buildFaceBreakdown(targets);
     let result;
     try {
       result = await invoke(command, { faceIds: targets.map(face => face.id), ...extraArgs });
@@ -956,7 +978,7 @@ async function runAction(command, extraArgs = {}) {
       return null;
     }
     await recognizeAndRefresh(photoIds);
-    announceAction(command, targets, snapshots, name);
+    announceAction(command, targets, snapshots, name, breakdown);
     return result;
   } finally {
     actionBusy = false;
@@ -978,11 +1000,12 @@ async function nameSelection(typed = null) {
       selectValue: typed === null,
       submit: async args => {
         const snapshots = await snapshotFaces(targets);
+        const breakdown = buildFaceBreakdown(targets);
         await invoke('assign_faces', { faceIds: targets.map(face => face.id), ...args });
         await recognizeAndRefresh(photoIds);
         // The person is read back from the reloaded faces (the dialog may have designated her by id or keyword rather than by name).
         const assigned = faces.find(face => face.id === targets[0].id);
-        announceAction('assign_faces', targets, snapshots, (assigned && shownName(assigned)) || args.name || null);
+        announceAction('assign_faces', targets, snapshots, (assigned && shownName(assigned)) || args.name || null, breakdown);
       },
     });
   } finally {
@@ -1064,7 +1087,7 @@ export function initFacesGrid(hostApi) {
     } else if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'z') {
       // Ctrl+Z: undo the last review action.
       event.preventDefault();
-      if (!event.repeat) undoLastAction();
+      if (!event.repeat) runUndo('faces');
     } else if (['-', '/', 'Delete'].includes(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey) {
       // - : Inconnu ; / : Ignorer ; Suppr : Pas un visage. Même effet que les boutons de la barre d'actions (et seulement s'ils sont actifs) ; ces
       // touches ne sont pas prises pour le début d'un nom. Inactives pendant la fenêtre « Nommer » (fenêtre modale : voir le garde plus haut).

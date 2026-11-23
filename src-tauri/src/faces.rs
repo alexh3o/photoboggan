@@ -1146,37 +1146,238 @@ pub fn snapshot_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<
     crate::keywords::collect_rows(rows)
 }
 
-/// Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped. `dirty` returns to its captured value
-/// while the action is still unwritten; once the files were written, a face whose written content differs from the restored one (confirmed
-/// person) is marked to be rewritten. Returns the number of faces restored.
-#[tauri::command(async)]
-pub fn restore_faces(state: State<'_, AppState>, snapshots: Vec<FaceSnapshot>) -> Result<usize, String> {
-    let pool = state.pool();
-    let conn = pool.get().map_err(|error| error.to_string())?;
+fn person_exists(conn: &Connection, person_id: Option<i64>) -> rusqlite::Result<Option<i64>> {
+    match person_id {
+        Some(id) => conn.query_row("SELECT id FROM persons WHERE id = ?1", params![id], |row| row.get::<_, i64>(0)).optional(),
+        None => Ok(None),
+    }
+}
+
+/// Puts faces back in the state captured by `snapshot_faces`. A person deleted since then is dropped (a confirmed face whose person was
+/// deleted falls back to `unknown`). `dirty` returns to its captured value while the action is still unwritten; once the files were written,
+/// a face whose written content differs from the restored one (confirmed person) is marked to be rewritten. Returns the number of faces restored.
+pub(crate) fn restore_faces_in(conn: &Connection, snapshots: &[FaceSnapshot]) -> Result<usize, String> {
     // What a file holds for a face: the person of a confirmed face, nothing otherwise.
     let written = |state: &str, person: Option<i64>| if state == "confirmed" { person } else { None };
-    in_transaction(&conn, |conn| -> rusqlite::Result<usize> {
+    in_transaction(conn, |conn| -> rusqlite::Result<usize> {
         let mut restored = 0;
-        for snapshot in &snapshots {
+        for snapshot in snapshots {
             let current = conn
                 .query_row("SELECT state, person_id, dirty FROM faces WHERE id = ?1", params![snapshot.id], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?, row.get::<_, bool>(2)?))
                 })
                 .optional()?;
             let Some((current_state, current_person, current_dirty)) = current else { continue };
-            let dirty = if current_dirty || written(&current_state, current_person) == written(&snapshot.state, snapshot.person_id) {
+            let valid_person = person_exists(conn, snapshot.person_id)?;
+            let valid_suggested = person_exists(conn, snapshot.suggested_person_id)?;
+            let valid_rejected = person_exists(conn, snapshot.rejected_person_id)?;
+            let (effective_state, effective_person) = if snapshot.state == "confirmed" && valid_person.is_none() {
+                ("unknown", None)
+            } else {
+                (snapshot.state.as_str(), valid_person)
+            };
+            let dirty = if current_dirty || written(&current_state, current_person) == written(effective_state, effective_person) {
                 snapshot.dirty
             } else {
                 true
             };
             restored += conn.execute(
-                "UPDATE faces SET state = ?2, person_id = (SELECT id FROM persons WHERE id = ?3), suggested_person_id = (SELECT id FROM persons WHERE id = ?4),
-                        rejected_person_id = (SELECT id FROM persons WHERE id = ?5), unknown_locked = ?6, dirty = ?7 WHERE id = ?1",
-                params![snapshot.id, snapshot.state, snapshot.person_id, snapshot.suggested_person_id, snapshot.rejected_person_id, snapshot.unknown_locked, dirty],
+                "UPDATE faces SET state = ?2, person_id = ?3, suggested_person_id = ?4,
+                        rejected_person_id = ?5, unknown_locked = ?6, dirty = ?7 WHERE id = ?1",
+                params![snapshot.id, effective_state, effective_person, valid_suggested, valid_rejected, snapshot.unknown_locked, dirty],
             )?;
         }
         Ok(restored)
     })
+}
+
+#[tauri::command(async)]
+pub fn restore_faces(state: State<'_, AppState>, snapshots: Vec<FaceSnapshot>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    restore_faces_in(&conn, &snapshots)
+}
+
+/// Full row of a deleted face, captured before `delete_faces` so an undo can re-insert it with its original id, embeddings and write state.
+#[derive(Serialize, serde::Deserialize)]
+pub struct DeletedFaceSnapshot {
+    pub id: i64,
+    pub photo_id: i64,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub origin: String,
+    pub state: String,
+    pub person_id: Option<i64>,
+    pub suggested_person_id: Option<i64>,
+    pub rejected_person_id: Option<i64>,
+    pub unknown_locked: bool,
+    pub score: Option<f64>,
+    pub margin: Option<f64>,
+    pub det_score: Option<f64>,
+    pub sharpness: Option<f64>,
+    pub size_px: Option<f64>,
+    pub size_pct: Option<f64>,
+    pub embedding: Option<Vec<u8>>,
+    pub model_id: Option<String>,
+    pub landmarks: Option<Vec<u8>>,
+    pub dirty: bool,
+    pub was_cover_of: Option<i64>,
+    pub had_photo_write: bool,
+}
+
+pub(crate) fn snapshot_full_faces_in(conn: &Connection, face_ids: &[i64]) -> Result<Vec<DeletedFaceSnapshot>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT f.id, f.photo_id, f.x, f.y, f.w, f.h, f.origin, f.state, f.person_id, f.suggested_person_id,
+                    f.rejected_person_id, f.unknown_locked, f.score, f.margin, f.det_score, f.sharpness,
+                    f.size_px, f.size_pct, f.embedding, f.model_id, f.landmarks, f.dirty,
+                    (SELECT pc.id FROM persons pc WHERE pc.cover_face_id = f.id LIMIT 1),
+                    EXISTS(SELECT 1 FROM photo_face_writes w WHERE w.photo_id = f.photo_id)
+             FROM faces f WHERE f.id IN (SELECT value FROM json_each(?1))",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![ids_json(face_ids)?], |row| {
+            Ok(DeletedFaceSnapshot {
+                id: row.get(0)?,
+                photo_id: row.get(1)?,
+                x: row.get(2)?,
+                y: row.get(3)?,
+                w: row.get(4)?,
+                h: row.get(5)?,
+                origin: row.get(6)?,
+                state: row.get(7)?,
+                person_id: row.get(8)?,
+                suggested_person_id: row.get(9)?,
+                rejected_person_id: row.get(10)?,
+                unknown_locked: row.get(11)?,
+                score: row.get(12)?,
+                margin: row.get(13)?,
+                det_score: row.get(14)?,
+                sharpness: row.get(15)?,
+                size_px: row.get(16)?,
+                size_pct: row.get(17)?,
+                embedding: row.get(18)?,
+                model_id: row.get(19)?,
+                landmarks: row.get(20)?,
+                dirty: row.get(21)?,
+                was_cover_of: row.get(22)?,
+                had_photo_write: row.get(23)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    crate::keywords::collect_rows(rows)
+}
+
+/// Captures full face rows before `delete_faces` (see `restore_deleted_faces`).
+#[tauri::command(async)]
+pub fn snapshot_full_faces(state: State<'_, AppState>, face_ids: Vec<i64>) -> Result<Vec<DeletedFaceSnapshot>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    snapshot_full_faces_in(&conn, &face_ids)
+}
+
+/// Re-inserts faces captured by `snapshot_full_faces`, keeping their original id and recomputing pending write flags (`dirty` / `photo_face_writes`).
+pub(crate) fn restore_deleted_faces_in(conn: &Connection, snapshots: &[DeletedFaceSnapshot]) -> Result<usize, String> {
+    in_transaction(conn, |conn| -> rusqlite::Result<usize> {
+        let mut restored = 0;
+        for snapshot in snapshots {
+            let photo_exists: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE id = ?1)", params![snapshot.photo_id], |row| row.get(0))?;
+            if !photo_exists { continue; }
+            let face_exists: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM faces WHERE id = ?1)", params![snapshot.id], |row| row.get(0))?;
+            if face_exists { continue; }
+            let valid_person = person_exists(conn, snapshot.person_id)?;
+            let valid_suggested = person_exists(conn, snapshot.suggested_person_id)?;
+            let valid_rejected = person_exists(conn, snapshot.rejected_person_id)?;
+            let (effective_state, effective_person) = if snapshot.state == "confirmed" && valid_person.is_none() {
+                ("unknown", None)
+            } else {
+                (snapshot.state.as_str(), valid_person)
+            };
+            let dirty = if effective_state == "confirmed" && effective_person.is_some() {
+                let pending_write: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM photo_face_writes WHERE photo_id = ?1)", params![snapshot.photo_id], |row| row.get(0))?;
+                if pending_write {
+                    // Deletion has not been written to the file yet: drop the synthetic pending removal if it wasn't there before.
+                    if !snapshot.had_photo_write {
+                        conn.execute("DELETE FROM photo_face_writes WHERE photo_id = ?1", params![snapshot.photo_id])?;
+                    }
+                    snapshot.dirty
+                } else {
+                    // Deletion was already written to the file (region removed on disk): mark dirty so the restored face is written back.
+                    true
+                }
+            } else {
+                snapshot.dirty
+            };
+            restored += conn.execute(
+                "INSERT INTO faces (id, photo_id, x, y, w, h, origin, state, person_id, suggested_person_id, rejected_person_id, unknown_locked,
+                                    score, margin, det_score, sharpness, size_px, size_pct, embedding, model_id, landmarks, dirty)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                params![
+                    snapshot.id,
+                    snapshot.photo_id,
+                    snapshot.x,
+                    snapshot.y,
+                    snapshot.w,
+                    snapshot.h,
+                    snapshot.origin,
+                    effective_state,
+                    effective_person,
+                    valid_suggested,
+                    valid_rejected,
+                    snapshot.unknown_locked,
+                    snapshot.score,
+                    snapshot.margin,
+                    snapshot.det_score,
+                    snapshot.sharpness,
+                    snapshot.size_px,
+                    snapshot.size_pct,
+                    snapshot.embedding,
+                    snapshot.model_id,
+                    snapshot.landmarks,
+                    dirty,
+                ],
+            )?;
+            if let Some(cover_person_id) = snapshot.was_cover_of {
+                conn.execute("UPDATE persons SET cover_face_id = ?1 WHERE id = ?2 AND cover_face_id IS NULL", params![snapshot.id, cover_person_id])?;
+            }
+        }
+        Ok(restored)
+    })
+}
+
+#[tauri::command(async)]
+pub fn restore_deleted_faces(state: State<'_, AppState>, snapshots: Vec<DeletedFaceSnapshot>) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    restore_deleted_faces_in(&conn, &snapshots)
+}
+
+/// Undoes `add_manual_face`: deletes the inserted face without queuing a spurious `photo_face_writes` entry if it was never written to disk.
+pub(crate) fn undo_manual_face_in(conn: &Connection, face_id: i64) -> Result<bool, String> {
+    in_transaction(conn, |conn| -> rusqlite::Result<bool> {
+        let current = conn
+            .query_row("SELECT photo_id, state, person_id, dirty FROM faces WHERE id = ?1", params![face_id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<i64>>(2)?, row.get::<_, bool>(3)?))
+            })
+            .optional()?;
+        let Some((photo_id, state, person_id, dirty)) = current else { return Ok(false) };
+        if !dirty && state == "confirmed" && person_id.is_some() {
+            conn.execute("INSERT OR IGNORE INTO photo_face_writes (photo_id) VALUES (?1)", params![photo_id])?;
+        }
+        conn.execute("UPDATE persons SET cover_face_id = NULL WHERE cover_face_id = ?1", params![face_id])?;
+        conn.execute("DELETE FROM faces WHERE id = ?1", params![face_id])?;
+        Ok(true)
+    })
+}
+
+#[tauri::command(async)]
+pub fn undo_manual_face(state: State<'_, AppState>, face_id: i64) -> Result<bool, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|error| error.to_string())?;
+    undo_manual_face_in(&conn, face_id)
 }
 
 /// Attribution sans nouveau scan (après une révision ou un changement de seuil) : seulement les empreintes en base, pas d'ONNX.

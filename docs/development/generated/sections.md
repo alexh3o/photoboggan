@@ -23,13 +23,13 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L51–L269 | 219 | Texts and variables |
 | L270–L379 | 110 | Recipe |
 
-## src/batch-rename.js (643 lines)
+## src/batch-rename.js (656 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L40–L90 | 51 | Texts of the errors |
-| L91–L196 | 106 | Running the batch (dialog closed): task of the queue or direct call, then the interface follows the new names |
-| L197–L643 | 447 | Dialog |
+| L41–L91 | 51 | Texts of the errors |
+| L92–L209 | 118 | Running the batch (dialog closed): task of the queue or direct call, then the interface follows the new names |
+| L210–L656 | 447 | Dialog |
 
 ## src/description-panel.js (392 lines)
 
@@ -62,27 +62,27 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L19–L348 | 330 | DUPLICATES |
 | L349–L371 | 23 | INITIALIZATION |
 
-## src/faces-grid.js (1098 lines)
+## src/faces-grid.js (1121 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L270–L611 | 342 | FILTRE, GROUPES ET DISPOSITION |
-| L612–L761 | 150 | SÉLECTION |
-| L762–L992 | 231 | BARRE D'OUTILS : FILTRE PAR STATUT, ACTIONS |
-| L993–L1098 | 106 | INITIALISATION |
+| L273–L614 | 342 | FILTRE, GROUPES ET DISPOSITION |
+| L615–L764 | 150 | SÉLECTION |
+| L765–L1015 | 251 | BARRE D'OUTILS : FILTRE PAR STATUT, ACTIONS |
+| L1016–L1121 | 106 | INITIALISATION |
 
-## src/faces-panel.js (1748 lines)
+## src/faces-panel.js (1911 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L86–L118 | 33 | ORIENTATION : repère de l'image stockée -> image affichée |
-| L119–L209 | 91 | FILTRES PERSONNES (ET) ET STATUT DU SCAN : utilisés par applyPhotoFilters dans main.js |
-| L210–L434 | 225 | ÉCRITURE DES VISAGES DANS LES FICHIERS (lot 4) |
-| L435–L979 | 545 | SECTION PERSONNES (barre latérale) |
-| L980–L1005 | 26 | SECTIONS REPLIABLES (Dossiers, Personnes, Filtres) |
-| L1006–L1317 | 312 | ZONES DE VISAGE EN PLEIN ÉCRAN (touche V) |
-| L1318–L1637 | 320 | DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT |
-| L1638–L1748 | 111 | RÉGLAGE ET INITIALISATION |
+| L88–L120 | 33 | ORIENTATION : repère de l'image stockée -> image affichée |
+| L121–L211 | 91 | FILTRES PERSONNES (ET) ET STATUT DU SCAN : utilisés par applyPhotoFilters dans main.js |
+| L212–L438 | 227 | ÉCRITURE DES VISAGES DANS LES FICHIERS (lot 4) |
+| L439–L983 | 545 | SECTION PERSONNES (barre latérale) |
+| L984–L1009 | 26 | SECTIONS REPLIABLES (Dossiers, Personnes, Filtres) |
+| L1010–L1480 | 471 | ZONES DE VISAGE EN PLEIN ÉCRAN (touche V) |
+| L1481–L1800 | 320 | DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT |
+| L1801–L1911 | 111 | RÉGLAGE ET INITIALISATION |
 
 ## src/find-raw-mode.js (127 lines)
 
@@ -152,39 +152,38 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1257–L1530 | 274 | Columns picker menu (stays open until Esc or outside click) |
 | L1531–L1697 | 167 | Open, close, and refresh API |
 
-## src/main.js (6154 lines)
+## src/main.js (6227 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L669–L704 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
-| L705–L884 | 180 | CHARGEMENT PHOTOS & DOSSIERS |
-| L885–L1310 | 426 | PAGINATION DE LA GRILLE |
-| L1311–L2228 | 918 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
-| L2229–L2322 | 94 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
-| L2323–L2700 | 378 | VIRTUAL SCROLLING |
-| L2701–L2766 | 66 | NAVIGATION (GRID & FULLSCREEN) |
-| L2767–L3138 | 372 | SELECTION MULTIPLE |
-| L3139–L3186 | 48 | UNDO (Ctrl+Z, "Undo" button of the toasts) |
-| L3187–L3285 | 99 | LOSSLESS ROTATION (orientation.rs) |
-| L3286–L3626 | 341 | Keyboard shortcuts Memo |
-| L3627–L3646 | 20 | MODALE PARAMÈTRES |
-| L3647–L3754 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
-| L3755–L3811 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
-| L3812–L3859 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
-| L3860–L3979 | 120 | BOUTONS VUES & SIDEBAR |
-| L3980–L4091 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
-| L4092–L4821 | 730 | TRI DES MINIATURES |
-| L4822–L5163 | 342 | MARQUAGE (note et couleur de la sélection) |
-| L5164–L5282 | 119 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
-| L5283–L5302 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L5303–L5346 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L5347–L5352 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L5353–L5747 | 395 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L5748–L5774 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
-| L5775–L5800 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L5801–L5916 | 116 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L5917–L6095 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L6096–L6154 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L671–L706 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
+| L707–L886 | 180 | CHARGEMENT PHOTOS & DOSSIERS |
+| L887–L1312 | 426 | PAGINATION DE LA GRILLE |
+| L1313–L2230 | 918 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
+| L2231–L2324 | 94 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
+| L2325–L2702 | 378 | VIRTUAL SCROLLING |
+| L2703–L2768 | 66 | NAVIGATION (GRID & FULLSCREEN) |
+| L2769–L3197 | 429 | SELECTION MULTIPLE |
+| L3198–L3314 | 117 | LOSSLESS ROTATION (orientation.rs) |
+| L3315–L3655 | 341 | Keyboard shortcuts Memo |
+| L3656–L3675 | 20 | MODALE PARAMÈTRES |
+| L3676–L3783 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
+| L3784–L3840 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
+| L3841–L3888 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
+| L3889–L4008 | 120 | BOUTONS VUES & SIDEBAR |
+| L4009–L4120 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
+| L4121–L4850 | 730 | TRI DES MINIATURES |
+| L4851–L5192 | 342 | MARQUAGE (note et couleur de la sélection) |
+| L5193–L5345 | 153 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
+| L5346–L5365 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L5366–L5409 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L5410–L5415 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L5416–L5812 | 397 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L5813–L5839 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
+| L5840–L5865 | 26 | FIND THE RAW (find-raw-mode.js) |
+| L5866–L5989 | 124 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L5990–L6168 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L6169–L6227 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (516 lines)
 
@@ -360,7 +359,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L325–L413 | 89 | Photos à scanner |
 | L414–L799 | 386 | Scan et enregistrement |
 
-## src-tauri/src/faces.rs (1868 lines)
+## src-tauri/src/faces.rs (2069 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -368,12 +367,12 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L64–L313 | 250 | Lecture des zones dans un paquet XMP |
 | L314–L608 | 295 | Base de données |
 | L609–L835 | 227 | Commandes de l'interface |
-| L836–L1190 | 355 | Vue Visages (lot 3) : liste des visages, statut de scan, révision |
-| L1191–L1408 | 218 | Écriture dans les fichiers (lot 4) : zones de visage et mots-clés des personnes (spec §6.2 à §6.4) |
-| L1409–L1439 | 31 | Regroupement des visages inconnus (lot 5b, spec §5.3) |
-| L1440–L1552 | 113 | Gestion des personnes (lot 5a) : renommer, masquer, visage représentatif, supprimer, vignette de la vue Personnes |
-| L1553–L1724 | 172 | Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5) |
-| L1725–L1860 | 136 | Zones dessinées à la main en plein écran (lot 5c, spec §9.4) |
+| L836–L1391 | 556 | Vue Visages (lot 3) : liste des visages, statut de scan, révision |
+| L1392–L1609 | 218 | Écriture dans les fichiers (lot 4) : zones de visage et mots-clés des personnes (spec §6.2 à §6.4) |
+| L1610–L1640 | 31 | Regroupement des visages inconnus (lot 5b, spec §5.3) |
+| L1641–L1753 | 113 | Gestion des personnes (lot 5a) : renommer, masquer, visage représentatif, supprimer, vignette de la vue Personnes |
+| L1754–L1925 | 172 | Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5) |
+| L1926–L2061 | 136 | Zones dessinées à la main en plein écran (lot 5c, spec §9.4) |
 
 ## src-tauri/src/heif.rs (509 lines)
 

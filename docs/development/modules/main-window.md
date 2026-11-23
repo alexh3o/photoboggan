@@ -1,4 +1,4 @@
-<!-- verified: 7eb009e | sources: src/main.js, src/folder-tree.js, src/task-queue.js, index.html, src/sidebar-search.js, src/titlebar.js, src/sticky-folders.js -->
+<!-- verified: 2682fac | sources: src/main.js, src/folder-tree.js, src/task-queue.js, index.html, src/sidebar-search.js, src/titlebar.js, src/sticky-folders.js -->
 # Main window: photo loading, folder tree, task queue, settings modal, startup (main.js, part 1 + folder-tree.js + task-queue.js)
 
 ## Purpose
@@ -10,7 +10,7 @@
 | `src/main.js` | Sections: "SYNCHRONISATION « PARESSEUSE »", "CHARGEMENT PHOTOS & DOSSIERS", "MODALE PARAMÈTRES" (+ About, Guide), "BOUTONS VUES & SIDEBAR", "REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE", "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES", "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE" (see `app-shell.md`) |
 | `src/folder-tree.js` | Folder tree rendering (`renderFolderTree`), in-place active highlight (`updateActiveFolderRows`), catalogue counts (`scheduleFolderCounts`), empty disk folders (`refreshDiskFolders`), quick search (`initSidebarSearch`), persisted fold state (`folderTreeExpanded`), sticky pinned ancestor rows (`stickyFolderLayer`), `#show-empty-folders-toggle` and `#show-folder-counts-toggle`; wired by `initFolderTree` in `main.js` |
 | `src/task-queue.js` | Task queue (`scanTasks`): sequential main lane + parallel `semantic` lane, toasts, "Running tasks" modal, pause/resume persistence (`pausedScanTasks`), close/reload guards, backend `scan-progress` / `scan-detail` listeners; wired by `initTaskQueue` in `main.js` |
-| `index.html` | The whole DOM: title bar, toolbar, sidebar (`#folders-header` with the title, `#folder-tree` and the quick-search markup), modals (`#settings-modal`, `#tasks-modal`, …) |
+| `index.html` | The whole DOM: title bar, toolbar, sidebar (`#folders-header` with the title, `#folder-tree` and the quick-search markup), modals (`#settings-modal`, `#tasks-modal`, `#undo-modal`, …) |
 | `src/sidebar-search.js` | `initSidebarSearch`: the quick-search field of a sidebar title (open / type / close); `folder-tree.js` uses it for the Folders block |
 | `src/titlebar.js` | `initTitleBar`: first display of the window, title bar buttons, immersive mode (F11); `main.js` injects the close confirmation chain (`confirmClose`) and receives the immersive toggle (`exposeImmersiveToggle`) |
 | `src/sticky-folders.js` | `pinnedFolderRows`: pure function that tells which rows of the folder tree are pinned for a scroll position |
