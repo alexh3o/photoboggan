@@ -5,7 +5,7 @@
 - [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
 - [x] *fix*: `linux` deb update downloads to random folder instead of user's download folder
 - [x] *feat*: `theme` option to follow system theme, enabled by default
-- [ ] *FEAT*: `list` list panel
+- [x] *FEAT*: `list` list panel
 - [x] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
 - [x] *chore*: `locales` prepare code and add recipes to ease adding more locales later
 - [x] *feat*: `locales` add spanish language
@@ -20,8 +20,6 @@
 - [x] *PERF*: `grid` accelerate thumbnails grid display when changing folders
 - [x] *refactor*: `bundles` only one multilingual msi for windows instead of one per language
 - [x] *chore*: `maintenability` reduce main.js size by export of parts to fullscreen.js, folder-tree.js, find-raw-mode.js, semantic-results.js, duplicates-view.js, drag-drop.js, preview-zoom.js, task-queue.js
-
-  
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

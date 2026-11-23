@@ -38,7 +38,7 @@ import { reloadAllMaps } from './map-view.js';
 import { initMapsSettings } from './maps-settings.js';
 import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
 import { initMapMode, getVisibleZone, isMapModeOpen, isMapZoneFilterActive, clearMapZoneFilter, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, onMapModeAccessChanged } from './map-mode.js';
-import { initListView, closeListView, refreshListView, onFacesDataChanged } from './list-view.js';
+import { initListView, closeListView, refreshListView, onFacesDataChanged, isListGridSortActive, getListGridComparator, formatListGridScrollPosition, clearListSortForGridSort } from './list-view.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
@@ -1150,7 +1150,8 @@ function applyPhotoFilters({ keepState = true } = {}) {
     // Album ouvert et à jour : la grille donne son compteur sans calcul (on évite aussi qu'il reste périmé après une écriture de métadonnées).
     if (!dirty && pathFilter === null) setAlbumCount(activeSmartAlbumId, mapCandidatePhotos.length);
   }
-  photos.sort(comparePhotosForSort); // même liste pour la grille et la navigation en plein écran
+  const listComparator = getListGridComparator();
+  photos.sort((a, b) => comparePhotosForSort(a, b, listComparator)); // même liste pour la grille et la navigation en plein écran
   renderFilterSummaries();
   selectedIndices.clear();
   lastSelectedIndex = 0;
@@ -2649,6 +2650,7 @@ let gridScrollPositionTimeout = null;
 
 function formatGridScrollPosition(photo) {
   if (!photo) return t('Unknown date');
+  if (isListGridSortActive()) return formatListGridScrollPosition(photo);
   if (sortKey === 'name') return photo.filename || photo.path.split(/[\\/]/).pop() || t('Unknown');
   if (sortKey === 'modified') {
     const modified = photoModifiedTime(photo);
@@ -4117,7 +4119,7 @@ function applyEffectiveModified(entries) {
       if (photoModifiedTime(photo) !== before) moved = true;
     }
   }
-  if (!moved || sortKey !== 'modified') return false;
+  if (!moved || sortKey !== 'modified' || isListGridSortActive()) return false;
   clearFullscreenImageCache();
   return true;
 }
@@ -4230,7 +4232,7 @@ function separatorText(photo, mode) {
 // Découpe la liste affichée en groupes consécutifs [start, end[ selon le séparateur actif ; liste vide = pas de séparateur.
 function computePhotoGroups() {
   if (isDuplicateSearchActive() && photos.length > 0) return computeDuplicateSeparators();
-  if (isSemanticSearchActive()) return []; // results are sorted by relevance: no separator
+  if (isSemanticSearchActive() || isListGridSortActive()) return []; // results are sorted by relevance or list columns: no separator
   const mode = activeSeparator();
   if (mode === 'none' || photos.length === 0) return [];
   const groups = [];
@@ -4247,7 +4249,7 @@ function computePhotoGroups() {
   return groups;
 }
 
-function comparePhotosForSort(a, b) {
+function comparePhotosForSort(a, b, listComparator = null) {
   // Keyword filter with suggestions: photos carrying every keyword first, then the fewest guessed keywords, the chosen sort inside each block.
   if (keywordGuesses.size) {
     const guesses = (keywordGuesses.get(a.id)?.length ?? 0) - (keywordGuesses.get(b.id)?.length ?? 0);
@@ -4274,6 +4276,11 @@ function comparePhotosForSort(a, b) {
     const orderA = duplicateSearch.order.get(a.path);
     const orderB = duplicateSearch.order.get(b.path);
     if (orderA && orderB) return duplicateSearch.position.get(orderA.group) - duplicateSearch.position.get(orderB.group) || orderA.rank - orderB.rank;
+  }
+  if (listComparator) {
+    const result = listComparator(a, b);
+    if (result) return result;
+    return sortNameCollator.compare(a.filename || '', b.filename || '') || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   }
   // Tri par nom avec séparateur par dossier : les dossiers d'abord (dans le sens choisi), puis les noms au sein de chaque dossier.
   if (activeSeparator() === 'folder') {
@@ -4306,6 +4313,8 @@ function updateSortUI() {
   document.getElementById('sort-separator-date').hidden = sortKey === 'name'; // les séparateurs proposés dépendent du critère de tri
   document.getElementById('sort-separator-name').hidden = sortKey !== 'name';
   document.getElementById('sort-separator-name-note').hidden = nameSeparator !== 'folder';
+  const listOverrideNote = document.getElementById('sort-list-override-note');
+  if (listOverrideNote) listOverrideNote.hidden = !isListGridSortActive();
   document.getElementById('sort-hint-asc').textContent = `(${sortOrderHint(sortKey, 'asc')})`;
   document.getElementById('sort-hint-desc').textContent = `(${sortOrderHint(sortKey, 'desc')})`;
   const order = `${t(sortOrder === 'asc' ? 'Ascending' : 'Descending')} (${sortOrderHint(sortKey, sortOrder)})`;
@@ -4326,6 +4335,7 @@ function scrollToPhotoIndex(index) {
 }
 
 function applySortChange() {
+  if (isListGridSortActive()) clearListSortForGridSort();
   localStorage.setItem('photoSortKey', sortKey);
   localStorage.setItem('photoSortOrder', sortOrder);
   localStorage.setItem('photoDateSeparator', dateSeparator);
@@ -4343,6 +4353,7 @@ function applySortChange() {
 }
 
 function openSortModal() {
+  updateSortUI();
   sortModal.classList.remove('hidden');
   // Le focus sur un champ de la modale évite que les raccourcis clavier (SUPPR, C…) visent la grille pendant qu'elle est ouverte.
   sortModal.querySelector('input[name="sort-key"]:checked')?.focus();
@@ -5847,6 +5858,10 @@ initListView({
   layoutPreview: () => requestAnimationFrame(layoutPreviewSlots),
   formatAperture,
   formatShutterSpeed,
+  photoModifiedTime,
+  isGridPagedOrCapped: () => photoPageCount > 1 || photoListCap !== null,
+  isPriorityGridOrderActive: () => isDuplicateSearchActive() || isSemanticSearchActive(),
+  applyListGridSort: () => { clearFullscreenImageCache(); applyPhotoFilters({ keepState: true }); scrollToPhotoIndex(lastSelectedIndex); },
   colorFlags: COLOR_FLAGS,
   colorFlagLabels,
   pickFlags: PICK_FLAGS,

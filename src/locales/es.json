@@ -1932,5 +1932,10 @@
   "Faces status": "Estado de rostros",
   "Similarity hash": "Huella de similitud",
   "Clear sort": "Borrar el orden",
-  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Clic para ordenar, Ctrl+clic para añadir un nivel de ordenación (hasta 9). Arrastrar para reordenar las columnas"
+  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Clic para ordenar, Ctrl+clic para añadir un nivel de ordenación (hasta 9). Arrastrar para reordenar las columnas",
+  "File size": "Tamaño del archivo",
+  "Date created": "Fecha de creación",
+  "Sort grid like list": "Ordenar la cuadrícula como la lista",
+  "Grid sorting from the list is disabled on views with more than 50,000 photos": "La ordenación de la cuadrícula desde la lista está desactivada en vistas con más de 50 000 fotos",
+  "Sorting currently overridden by List panel sorting": "Ordenación sustituida actualmente por la del panel de lista"
 }

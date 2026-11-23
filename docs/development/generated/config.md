@@ -41,9 +41,10 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `keywordSuggestionsOpen` | `true` | semantic-tagging.js |
 | `keywordsAutoApply` | `false` | metadata-writes.js |
 | `lastFolderFilter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | folder-tree.js, main.js |
-| `listColumnOrder` | `["filename","extension","date_taken","manufacture…` | list-view.js |
+| `listColumnOrder` | `["filename","extension","file_size","date_created…` | list-view.js |
 | `listColumnWidths` | `{}` | list-view.js |
 | `listSort` | `[]` | list-view.js |
+| `listSyncGridSort` | `true` | list-view.js |
 | `listVisibleColumns` | `["filename","extension","date_taken","rating","co…` | list-view.js |
 | `mapDefaultZoom` | `12` | location-panel.js, map-config.js |
 | `mapStyleRefresh` | `true` | maps-settings.js |
@@ -108,7 +109,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (1934 keys), es (1934 keys), fr (1934 keys)
+- Languages: en (1939 keys), es (1939 keys), fr (1939 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

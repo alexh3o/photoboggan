@@ -737,6 +737,9 @@ body:has(.histogram-widget.in-fullscreen:not(.hidden)) .fullscreen-marking { bot
 .sort-card { width: min(24rem, calc(100vw - 2.5rem)); }
 .sort-hint { color: var(--text-faint); font-size: 0.7rem; }
 .sort-note { margin: 0.25rem 0 0.5rem 1.6rem; color: var(--text-faint); font-size: 0.8rem; }
+.sort-override-notice { display: flex; align-items: flex-start; gap: 0.45rem; margin: 0 0 0.75rem; padding: 0.45rem 0.6rem; border-radius: 4px; background: color-mix(in srgb, #d6a900 12%, transparent); color: var(--text-strong); font-size: 0.78rem; line-height: 1.35; }
+.sort-override-notice[hidden] { display: none; }
+.sort-override-icon { flex: 0 0 auto; width: 1rem; height: 1rem; margin-top: 0.05rem; color: #d6a900; }
 
 /* SÉPARATEURS DE LA GRILLE (tri par date ou par dossier, voir la modale de tri).
    Une fine ligne de texte suivie d'un trait. Tout se règle ici : les variables ci-dessous suffisent pour l'essentiel. */

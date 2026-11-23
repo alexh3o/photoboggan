@@ -454,3 +454,17 @@ fn prefilter_keywords_with_children_keeps_descendants_and_direct_matches() {
     let filter = PhotoPrefilter { keywords_with_children: vec!["Places".into()], ..Default::default() };
     assert_eq!(matching(&pool, filter), ["child.jpg", "direct.jpg", "grandchild.jpg"]);
 }
+
+#[test]
+fn photo_from_row_exposes_created_timestamp() {
+    let (_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        let dated = insert_photo(&conn, "C:/P/dated.jpg");
+        insert_photo(&conn, "C:/P/unset.jpg");
+        conn.execute("UPDATE photos SET created = 1700000000000 WHERE id = ?1", [dated]).unwrap();
+    }
+    let photos = get_photos_sorted(&pool, 0, 10, Some("C:/P".into()), true, "name", true).unwrap();
+    assert_eq!(photos.iter().find(|p| p.filename == "dated.jpg").unwrap().created, 1_700_000_000_000);
+    assert_eq!(photos.iter().find(|p| p.filename == "unset.jpg").unwrap().created, 0);
+}

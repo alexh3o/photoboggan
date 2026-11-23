@@ -3,7 +3,7 @@
 
 import './list-view.css';
 import { invoke } from '@tauri-apps/api/core';
-import { t, onLanguageChange } from './i18n.js';
+import { t, getLanguage, onLanguageChange } from './i18n.js';
 import { DEFAULTS, readStored, writeStored } from './settings-defaults.js';
 import { extensionOf, RAW_EXTENSIONS, VIDEO_EXTENSIONS } from './format-filters.js';
 import { isRawPath, isVideoPath } from './file-kinds.js';
@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   order: 'listColumnOrder',
   widths: 'listColumnWidths',
   sort: 'listSort',
+  syncGrid: 'listSyncGridSort',
 };
 
 const ROW_HEIGHT = 26; // px — matches CSS .list-row height for pixel-exact virtual scrolling
@@ -57,6 +58,8 @@ let freeRowPool = [];
 let scrollFrame = 0;
 let suppressNextAutoScroll = false;
 let anchorVisualIndex = 0;
+// True when the current thumbnail grid order in `main.js` was produced by the List comparator.
+let gridCurrentlySortedByList = false;
 
 // Column picker popup state
 let columnsMenu = null;
@@ -78,6 +81,18 @@ function displayFilename(photo) {
   if (!visibleColumns.has('extension')) return full;
   const dot = full.lastIndexOf('.');
   return dot > 0 ? full.slice(0, dot) : full;
+}
+
+function formatFileSizeMb(bytes) {
+  return bytes > 0 ? `${(bytes / 1024 / 1024).toFixed(2)} MB` : '';
+}
+
+function formatDateTime(ms) {
+  if (!(ms > 0)) return '';
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function facesStatusInfo(photo) {
@@ -128,6 +143,33 @@ const COLUMN_DEFS = [
       pill.textContent = ext.toUpperCase();
       cell.replaceChildren(pill);
     },
+  },
+  {
+    id: 'file_size',
+    label: 'File size',
+    defaultWidth: 92,
+    sortType: 'number',
+    sortValue: photo => (photo.file_size > 0 ? photo.file_size : null),
+    render: (cell, photo) => renderPlainText(cell, formatFileSizeMb(photo.file_size)),
+  },
+  {
+    id: 'date_created',
+    label: 'Date created',
+    defaultWidth: 148,
+    sortType: 'number',
+    sortValue: photo => (photo.created > 0 ? photo.created : null),
+    render: (cell, photo) => renderPlainText(cell, formatDateTime(photo.created)),
+  },
+  {
+    id: 'date_modified',
+    label: 'Date modified',
+    defaultWidth: 148,
+    sortType: 'number',
+    sortValue: photo => {
+      const ms = host.photoModifiedTime(photo);
+      return ms > 0 ? ms : null;
+    },
+    render: (cell, photo) => renderPlainText(cell, formatDateTime(host.photoModifiedTime(photo))),
   },
   {
     id: 'date_taken',
@@ -335,7 +377,7 @@ const VALID_COLUMN_IDS = new Set(COLUMN_DEFS.map(col => col.id));
 
 const MENU_STRUCTURE = [
   { col: 'filename' },
-  { col: 'extension' },
+  { label: 'File', children: ['extension', 'file_size', 'date_created', 'date_modified'] },
   { col: 'date_taken' },
   { label: 'Gear', children: ['manufacturer', 'camera', 'lens'] },
   { col: 'author' },
@@ -429,10 +471,18 @@ function loadSortState() {
   return sort;
 }
 
+function loadSyncGridSort() {
+  const raw = readStored(STORAGE_KEYS.syncGrid);
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return Boolean(DEFAULTS.listSyncGridSort);
+}
+
 let visibleColumns = loadVisibleColumns();
 let columnOrder = loadColumnOrder();
 let columnWidths = loadColumnWidths();
 let sortSpec = loadSortState();
+let syncGridSort = loadSyncGridSort();
 
 function saveVisibleColumns() {
   writeStored(STORAGE_KEYS.visible, JSON.stringify([...visibleColumns]));
@@ -445,6 +495,9 @@ function saveColumnWidths() {
 }
 function saveSortState() {
   writeStored(STORAGE_KEYS.sort, JSON.stringify(sortSpec));
+}
+function saveSyncGridSort() {
+  writeStored(STORAGE_KEYS.syncGrid, String(syncGridSort));
 }
 
 function isColumnAvailable(col) {
@@ -464,6 +517,108 @@ function getColumnWidth(col) {
 function getEffectiveSort(activeCols = getActiveColumns()) {
   const activeIds = new Set(activeCols.map(col => col.id));
   return sortSpec.filter(entry => activeIds.has(entry.col));
+}
+
+function isGridSyncBlockedByPagination() {
+  return Boolean(host?.isGridPagedOrCapped?.());
+}
+
+export function isListGridSortActive() {
+  return open
+    && syncGridSort
+    && !isGridSyncBlockedByPagination()
+    && !host?.isPriorityGridOrderActive?.()
+    && getEffectiveSort().length > 0;
+}
+
+function buildListComparator(effectiveSort) {
+  if (effectiveSort.length === 0) return null;
+  const comparators = effectiveSort.map(entry => ({
+    col: COLUMNS_BY_ID.get(entry.col),
+    desc: entry.dir === 'desc',
+  }));
+  return (photoA, photoB) => {
+    for (const { col, desc } of comparators) {
+      const valA = col.sortValue(photoA);
+      const valB = col.sortValue(photoB);
+      const missA = valA === null || valA === undefined || valA === '';
+      const missB = valB === null || valB === undefined || valB === '';
+      if (missA && missB) continue;
+      // Missing values always go at the end, regardless of ascending or descending order.
+      if (missA) return 1;
+      if (missB) return -1;
+      const cmp = col.sortType === 'string'
+        ? nameCollator.compare(valA, valB)
+        : (valA < valB ? -1 : valA > valB ? 1 : 0);
+      if (cmp !== 0) return desc ? -cmp : cmp;
+    }
+    return 0;
+  };
+}
+
+export function getListGridComparator() {
+  const comparator = isListGridSortActive() ? buildListComparator(getEffectiveSort()) : null;
+  gridCurrentlySortedByList = Boolean(comparator);
+  return comparator;
+}
+
+function formatShortDate(ms) {
+  if (!(ms > 0)) return t('Unknown date');
+  const d = new Date(ms);
+  return Number.isNaN(d.getTime())
+    ? t('Unknown date')
+    : d.toLocaleDateString(getLanguage(), { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+export function formatListGridScrollPosition(photo) {
+  const sort = getEffectiveSort();
+  if (sort.length === 0 || !photo) return rawFilename(photo);
+  const col = COLUMNS_BY_ID.get(sort[0].col);
+  if (!col) return rawFilename(photo);
+
+  if (col.id === 'filename') return rawFilename(photo) || t('Unknown');
+  if (col.id === 'extension') return (extensionOf(photo) || '').toUpperCase() || '-';
+  if (col.id === 'file_size') return formatFileSizeMb(photo.file_size) || '-';
+  if (col.id === 'date_created') return formatShortDate(photo.created);
+  if (col.id === 'date_modified') return formatShortDate(host.photoModifiedTime(photo));
+  if (col.id === 'date_taken') {
+    const key = photoTimeKey(photo);
+    if (key === null || key === undefined) return t('Unknown date');
+    const text = String(key).padStart(14, '0');
+    return new Date(Number(text.slice(0, 4)), Number(text.slice(4, 6)) - 1, Number(text.slice(6, 8)))
+      .toLocaleDateString(getLanguage(), { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  if (col.id === 'rating') return photo.rating > 0 ? '★'.repeat(photo.rating) : t('Unrated');
+  if (col.id === 'color_flag') return photo.color_flag && photo.color_flag !== 'none' ? (host.colorFlagLabels.get(photo.color_flag) || photo.color_flag) : '-';
+  if (col.id === 'pick_flag') return photo.pick_flag && photo.pick_flag !== 'none' ? t(host.pickFlags.find(item => item.key === photo.pick_flag)?.label || photo.pick_flag) : '-';
+  if (col.id === 'aperture') return host.formatAperture(photo.aperture);
+  if (col.id === 'shutter_speed') return host.formatShutterSpeed(photo.shutter_speed);
+  if (col.id === 'iso') return photo.iso > 0 ? `ISO ${photo.iso}` : '-';
+  if (col.id === 'faces_status') return `${t(col.label)}: ${facesStatusInfo(photo).text}`;
+  if (col.id === 'flash' || col.id === 'analysed' || col.id === 'geolocated' || col.id === 'phash') {
+    const val = col.sortValue(photo);
+    return `${t(col.label)}: ${val === null ? '-' : t(val ? 'Yes' : 'No')}`;
+  }
+  return String(col.sortValue(photo) || '-');
+}
+
+export function clearListSortForGridSort() {
+  sortSpec = [];
+  gridCurrentlySortedByList = false;
+  saveSortState();
+  if (open) {
+    renderHeader();
+    if (columnsMenu) updateMenuIndicators(columnsMenu);
+  }
+}
+
+function notifyGridSortChanged() {
+  const shouldSync = isListGridSortActive();
+  if (gridCurrentlySortedByList || shouldSync) {
+    host.applyListGridSort();
+    return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -504,6 +659,7 @@ async function ensureAuxiliaryData() {
 function onAuxiliaryDataUpdated(colId) {
   dataVersion++;
   const sortedByIt = getEffectiveSort().some(entry => entry.col === colId);
+  if (sortedByIt && notifyGridSortChanged()) return;
   if (sortedByIt) rebuildSortOrder();
   renderVisibleRows({ forceRefresh: true });
 }
@@ -525,30 +681,10 @@ function rebuildSortOrder() {
   }
 
   const order = Array.from({ length: count }, (_, i) => i);
-  if (effectiveSort.length > 0) {
-    const comparators = effectiveSort.map(entry => ({
-      col: COLUMNS_BY_ID.get(entry.col),
-      desc: entry.dir === 'desc',
-    }));
-    order.sort((ia, ib) => {
-      const photoA = photos[ia];
-      const photoB = photos[ib];
-      for (const { col, desc } of comparators) {
-        const valA = col.sortValue(photoA);
-        const valB = col.sortValue(photoB);
-        const missA = valA === null || valA === undefined || valA === '';
-        const missB = valB === null || valB === undefined || valB === '';
-        if (missA && missB) continue;
-        // Missing values always go at the end, regardless of ascending or descending order.
-        if (missA) return 1;
-        if (missB) return -1;
-        const cmp = col.sortType === 'string'
-          ? nameCollator.compare(valA, valB)
-          : (valA < valB ? -1 : valA > valB ? 1 : 0);
-        if (cmp !== 0) return desc ? -cmp : cmp;
-      }
-      return ia - ib;
-    });
+  // When the thumbnail grid itself follows the list sort, `photos` already holds the right order (and live edits defer re-sorting).
+  const comparator = isListGridSortActive() ? null : buildListComparator(effectiveSort);
+  if (comparator) {
+    order.sort((ia, ib) => comparator(photos[ia], photos[ib]) || (ia - ib));
   }
 
   visualToGrid = order;
@@ -576,8 +712,10 @@ function toggleColumnSort(colId, additive) {
     sortSpec.push({ col: colId, dir: 'asc' });
   }
   saveSortState();
-  rebuildSortOrder();
   renderHeader();
+  if (columnsMenu) updateMenuIndicators(columnsMenu);
+  if (notifyGridSortChanged()) return;
+  rebuildSortOrder();
   renderVisibleRows({ forceRefresh: true });
   if (host.getSelectedIndices().size > 0) scrollPhotoIntoList(host.getActiveIndex());
 }
@@ -586,8 +724,20 @@ function clearAllSort() {
   if (sortSpec.length === 0) return;
   sortSpec = [];
   saveSortState();
-  rebuildSortOrder();
   renderHeader();
+  if (columnsMenu) updateMenuIndicators(columnsMenu);
+  if (notifyGridSortChanged()) return;
+  rebuildSortOrder();
+  renderVisibleRows({ forceRefresh: true });
+  if (host.getSelectedIndices().size > 0) scrollPhotoIntoList(host.getActiveIndex());
+}
+
+function toggleSyncGridSort() {
+  if (isGridSyncBlockedByPagination()) return;
+  syncGridSort = !syncGridSort;
+  saveSyncGridSort();
+  if (notifyGridSortChanged()) return;
+  rebuildSortOrder();
   renderVisibleRows({ forceRefresh: true });
   if (host.getSelectedIndices().size > 0) scrollPhotoIntoList(host.getActiveIndex());
 }
@@ -1033,10 +1183,15 @@ function availableChildren(entry) {
 function applyColumnsChanged() {
   columnsVersion++;
   dataVersion++;
-  rebuildSortOrder();
   renderHeader();
-  renderVisibleRows({ forceRefresh: true });
   ensureAuxiliaryData();
+  if (notifyGridSortChanged()) {
+    if (columnsMenu) updateMenuIndicators(columnsMenu);
+    return;
+  }
+  rebuildSortOrder();
+  renderVisibleRows({ forceRefresh: true });
+  if (host.getSelectedIndices().size > 0) scrollPhotoIntoList(host.getActiveIndex());
 }
 
 function toggleColumnVisibility(colId) {
@@ -1082,6 +1237,17 @@ function updateMenuIndicators(menu) {
     const hasSort = getEffectiveSort().length > 0;
     clearItem.disabled = !hasSort;
     clearItem.setAttribute('aria-disabled', String(!hasSort));
+  }
+  const syncItem = menu.querySelector('.list-menu-sync-grid');
+  if (syncItem) {
+    const blocked = isGridSyncBlockedByPagination();
+    syncItem.disabled = blocked;
+    syncItem.setAttribute('aria-disabled', String(blocked));
+    syncItem.setAttribute('aria-checked', String(syncGridSort));
+    syncItem.classList.toggle('checked', syncGridSort);
+    syncItem.querySelector('.list-menu-check').textContent = syncGridSort ? '✓' : '';
+    if (blocked) syncItem.title = t('Grid sorting from the list is disabled on views with more than 50,000 photos');
+    else syncItem.removeAttribute('title');
   }
   for (const item of menu.querySelectorAll('[data-col]')) {
     const colId = item.dataset.col;
@@ -1156,6 +1322,14 @@ function openColumnsMenu(positionOrAnchor) {
     updateMenuIndicators(menu);
   });
   menu.append(clearSortItem);
+
+  const syncGridItem = createMenuCheckboxItem(t('Sort grid like list'));
+  syncGridItem.classList.add('list-menu-sync-grid');
+  syncGridItem.addEventListener('click', () => {
+    toggleSyncGridSort();
+    updateMenuIndicators(menu);
+  });
+  menu.append(syncGridItem);
 
   const separator = document.createElement('div');
   separator.className = 'context-menu-separator';
@@ -1271,12 +1445,14 @@ export function openListView() {
   panel.hidden = false;
   host.setListLayout(true);
   toggleButton.classList.add('active');
-  lastPhotosRef = host.getPhotos();
-  rebuildSortOrder();
   renderHeader();
-  renderVisibleRows({ forceRefresh: true });
   ensureAuxiliaryData();
-  if (host.getSelectedIndices().size > 0) scrollPhotoIntoList(host.getActiveIndex());
+  if (!notifyGridSortChanged()) {
+    lastPhotosRef = host.getPhotos();
+    rebuildSortOrder();
+    renderVisibleRows({ forceRefresh: true });
+    if (host.getSelectedIndices().size > 0) scrollPhotoIntoList(host.getActiveIndex());
+  }
   host.layoutPreview();
 }
 
@@ -1290,6 +1466,7 @@ export function closeListView() {
   panel.hidden = true;
   host.setListLayout(false);
   toggleButton.classList.remove('active');
+  notifyGridSortChanged();
   host.layoutPreview();
 }
 
@@ -1310,6 +1487,7 @@ export function refreshListView({ dataChanged = false, selectionOnly = false } =
     scrollPhotoIntoList(host.getActiveIndex());
   }
   suppressNextAutoScroll = false;
+  if (columnsMenu) updateMenuIndicators(columnsMenu);
   if (selectionOnly) return;
 }
 
@@ -1317,21 +1495,23 @@ export function onFacesDataChanged() {
   if (!open) return;
   columnsVersion++;
   dataVersion++;
-  rebuildSortOrder();
   renderHeader();
-  renderVisibleRows({ forceRefresh: true });
   if (columnsMenu) closeColumnsMenu();
+  if (notifyGridSortChanged()) return;
+  rebuildSortOrder();
+  renderVisibleRows({ forceRefresh: true });
 }
 
 function handleFeatureToggleChanged() {
   if (!open) return;
   columnsVersion++;
   dataVersion++;
-  rebuildSortOrder();
   renderHeader();
-  renderVisibleRows({ forceRefresh: true });
   ensureAuxiliaryData();
   if (columnsMenu) closeColumnsMenu();
+  if (notifyGridSortChanged()) return;
+  rebuildSortOrder();
+  renderVisibleRows({ forceRefresh: true });
 }
 
 export function initListView(hostApi) {

@@ -1160,7 +1160,11 @@
           <button type="button" id="btn-close-sort" class="close-x" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
         </div>
         <div class="modal-body">
-                    <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
+          <p id="sort-list-override-note" class="sort-override-notice" role="status" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sort-override-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+            <span data-i18n="Sorting currently overridden by List panel sorting"></span>
+          </p>
+          <section class="settings-section" role="radiogroup" aria-labelledby="sort-key-title">
             <h4 id="sort-key-title" data-i18n="Sort by"></h4>
             <label class="settings-row settings-check"><input type="radio" name="sort-key" value="taken" /><span data-i18n="Date taken"></span></label>
             <label class="settings-row settings-check"><input type="radio" name="sort-key" value="modified" /><span data-i18n="Date modified"></span></label>

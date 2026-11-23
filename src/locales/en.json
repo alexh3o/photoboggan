@@ -1932,5 +1932,10 @@
   "Faces status": "Faces status",
   "Similarity hash": "Similarity hash",
   "Clear sort": "Clear sort",
-  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns"
+  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns",
+  "File size": "File size",
+  "Date created": "Date created",
+  "Sort grid like list": "Sort grid like list",
+  "Grid sorting from the list is disabled on views with more than 50,000 photos": "Grid sorting from the list is disabled on views with more than 50,000 photos",
+  "Sorting currently overridden by List panel sorting": "Sorting currently overridden by List panel sorting"
 }

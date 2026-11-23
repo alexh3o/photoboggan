@@ -1932,5 +1932,10 @@
   "Faces status": "Statut visages",
   "Similarity hash": "Empreinte de similarité",
   "Clear sort": "Effacer le tri",
-  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Clic pour trier, Ctrl+clic pour ajouter un niveau de tri (jusqu’à 9). Glisser pour réorganiser les colonnes"
+  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Clic pour trier, Ctrl+clic pour ajouter un niveau de tri (jusqu’à 9). Glisser pour réorganiser les colonnes",
+  "File size": "Taille du fichier",
+  "Date created": "Date de création",
+  "Sort grid like list": "Trier la grille comme la liste",
+  "Grid sorting from the list is disabled on views with more than 50,000 photos": "Le tri de la grille depuis la liste est désactivé sur les vues de plus de 50 000 photos",
+  "Sorting currently overridden by List panel sorting": "Tri actuellement remplacé par celui du panneau Liste"
 }
