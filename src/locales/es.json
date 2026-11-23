@@ -1919,5 +1919,18 @@
   "Include/exclude children with their parents in keywords filters": "Incluir/excluir los hijos con sus padres en los filtros de palabras clave",
   "Include/exclude children with their parents in keywords filters help": "Cuando está activada, validar una palabra clave padre en el filtro (Intro o clic) incluye sus hijos (~), y Alt los excluye (-~). Usa Ctrl+Intro o Ctrl+clic para filtrar solo por la palabra clave",
   "Filter on a keyword alone (without its children)": "Filtrar por una palabra clave sola (sin sus hijos)",
-  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Filtro de palabras clave: ignora la opción de hijos de Configuración > Metadatos. Ctrl+Alt: excluir la palabra clave sola"
+  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Filtro de palabras clave: ignora la opción de hijos de Configuración > Metadatos. Ctrl+Alt: excluir la palabra clave sola",
+  "List": "Lista",
+  "List view: photos in a sortable table": "Vista de lista: fotos en una tabla ordenable (L)",
+  "List panel": "Panel de lista",
+  "Columns": "Columnas",
+  "Choose displayed columns": "Elegir las columnas mostradas",
+  "Extension": "Extensión",
+  "Shoot settings": "Ajustes de disparo",
+  "Flash used": "Flash usado",
+  "Other data": "Otros datos",
+  "Faces status": "Estado de rostros",
+  "Similarity hash": "Huella de similitud",
+  "Clear sort": "Borrar el orden",
+  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Clic para ordenar, Ctrl+clic para añadir un nivel de ordenación (hasta 9). Arrastrar para reordenar las columnas"
 }

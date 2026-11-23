@@ -710,58 +710,58 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/list-view.js (52)
 
-- `rawFilename(photo)` · L71
-- `displayFilename(photo)` · L75
-- `facesStatusInfo(photo)` · L82
-- `renderPlainText(cell, value)` · L346
-- `renderBoolean(cell, value)` · L353
-- `readJsonStored(key, fallback)` · L364
-- `loadVisibleColumns()` · L374
-- `loadColumnOrder()` · L382
-- `loadColumnWidths()` · L403
-- `loadSortState()` · L416
-- `saveVisibleColumns()` · L436
-- `saveColumnOrder()` · L439
-- `saveColumnWidths()` · L442
-- `saveSortState()` · L445
-- `isColumnAvailable(col)` · L449
-- `getActiveColumns()` · L453
-- `getColumnWidth(col)` · L459
-- `getEffectiveSort(activeCols = getActiveColumns()` · L463
-- `ensureAuxiliaryData()` · L472
-- `onAuxiliaryDataUpdated(colId)` · L503
-- `rebuildSortOrder()` · L514
-- `toggleColumnSort(colId, additive)` · L558
-- `clearAllSort()` · L584
-- `applyColumnWidthVars(activeCols)` · L598
-- `renderHeader()` · L608
-- `startColumnResize(resizer, event)` · L655
-- `clearHeaderDropMarkers()` · L685
-- `handleHeaderPointerDown(event)` · L691
-- `buildRowCells(rowEl, activeCols)` · L794
-- `updateRowContent(rowEl, photo, activeCols)` · L811
-- `releaseAllRows()` · L825
-- `renderVisibleRows({ forceRefresh = false } = {})` · L833
-- `scheduleScrollRender()` · L915
-- `scrollPhotoIntoList(gridIndex)` · L923
-- `handleRowClick(event)` · L943
-- `handleRowDoubleClick(event)` · L994
-- `closeColumnsMenu()` · L1005
-- `availableChildren(entry)` · L1017
-- `applyColumnsChanged()` · L1024
-- `toggleColumnVisibility(colId)` · L1033
-- `toggleGroupVisibility(entry)` · L1051
-- `updateMenuIndicators(menu)` · L1070
-- `createMenuCheckboxItem(label, { colId = null, disabled = false } = {})` · L1091
-- `positionSubmenu(wrapper)` · L1111
-- `openColumnsMenu(positionOrAnchor)` · L1122
-- `export isListViewOpen()` · L1227
-- `export openListView()` · L1229
-- `export closeListView()` · L1246
-- `export refreshListView({ dataChanged = false, selectionOnly = false } = {})` · L1259
-- `export onFacesDataChanged()` · L1279
-- `handleFeatureToggleChanged()` · L1289
-- `export initListView(hostApi)` · L1300
+- `rawFilename(photo)` · L72
+- `displayFilename(photo)` · L76
+- `facesStatusInfo(photo)` · L83
+- `renderPlainText(cell, value)` · L347
+- `renderBoolean(cell, value)` · L354
+- `readJsonStored(key, fallback)` · L365
+- `loadVisibleColumns()` · L375
+- `loadColumnOrder()` · L383
+- `loadColumnWidths()` · L404
+- `loadSortState()` · L417
+- `saveVisibleColumns()` · L437
+- `saveColumnOrder()` · L440
+- `saveColumnWidths()` · L443
+- `saveSortState()` · L446
+- `isColumnAvailable(col)` · L450
+- `getActiveColumns()` · L454
+- `getColumnWidth(col)` · L460
+- `getEffectiveSort(activeCols = getActiveColumns()` · L464
+- `ensureAuxiliaryData()` · L473
+- `onAuxiliaryDataUpdated(colId)` · L504
+- `rebuildSortOrder()` · L515
+- `toggleColumnSort(colId, additive)` · L559
+- `clearAllSort()` · L585
+- `applyColumnWidthVars(activeCols)` · L599
+- `renderHeader()` · L610
+- `startColumnResize(resizer, event)` · L663
+- `clearHeaderDropMarkers()` · L693
+- `handleHeaderPointerDown(event)` · L699
+- `buildRowCells(rowEl, activeCols)` · L803
+- `updateRowContent(rowEl, photo, activeCols)` · L820
+- `releaseAllRows()` · L834
+- `renderVisibleRows({ forceRefresh = false } = {})` · L842
+- `scheduleScrollRender()` · L924
+- `scrollPhotoIntoList(gridIndex)` · L932
+- `handleRowClick(event)` · L952
+- `handleRowDoubleClick(event)` · L1003
+- `closeColumnsMenu()` · L1014
+- `availableChildren(entry)` · L1026
+- `applyColumnsChanged()` · L1033
+- `toggleColumnVisibility(colId)` · L1042
+- `toggleGroupVisibility(entry)` · L1060
+- `updateMenuIndicators(menu)` · L1079
+- `createMenuCheckboxItem(label, { colId = null, disabled = false } = {})` · L1106
+- `positionSubmenu(wrapper)` · L1126
+- `openColumnsMenu(positionOrAnchor)` · L1137
+- `export isListViewOpen()` · L1264
+- `export openListView()` · L1266
+- `export closeListView()` · L1283
+- `export refreshListView({ dataChanged = false, selectionOnly = false } = {})` · L1296
+- `export onFacesDataChanged()` · L1316
+- `handleFeatureToggleChanged()` · L1326
+- `export initListView(hostApi)` · L1337
 
 ## src/location-panel.js (15)
 

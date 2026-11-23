@@ -5655,7 +5655,7 @@ initHistogram({
   watch: [mainContent, gridContainer, previewStage, mapPanelElement, listPanelElement, personsViewElement, facesViewElement, document.getElementById('fullscreen-view'), document.getElementById('exif-panel')],
   getView: () => {
     const photo = selectedIndices.size > 0 ? photos[lastSelectedIndex] ?? null : null;
-    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !listPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
+    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
     const previewShown = !mainContent.classList.contains('preview-hidden');
     const fullscreen = isFullscreenOpen();
     const fullscreenSlot = getFullscreenSlot();

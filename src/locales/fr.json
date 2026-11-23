@@ -1919,5 +1919,18 @@
   "Include/exclude children with their parents in keywords filters": "Inclure/exclure les enfants avec leurs parents dans les filtres de mots-clés",
   "Include/exclude children with their parents in keywords filters help": "Quand cette option est activée, valider un mot-clé parent dans le filtre (Entrée ou clic) inclut ses enfants (~), et Alt les exclut (-~). Utilisez Ctrl+Entrée ou Ctrl+clic pour filtrer sur le mot-clé seul",
   "Filter on a keyword alone (without its children)": "Filtrer sur un mot-clé seul (sans ses enfants)",
-  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Filtre de mots-clés : ignore l'option enfants de Paramètres > Métadonnées. Ctrl+Alt : exclure le mot-clé seul"
+  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Filtre de mots-clés : ignore l'option enfants de Paramètres > Métadonnées. Ctrl+Alt : exclure le mot-clé seul",
+  "List": "Liste",
+  "List view: photos in a sortable table": "Vue Liste : photos dans un tableau triable (L)",
+  "List panel": "Panneau Liste",
+  "Columns": "Colonnes",
+  "Choose displayed columns": "Choisir les colonnes affichées",
+  "Extension": "Extension",
+  "Shoot settings": "Réglages de prise de vue",
+  "Flash used": "Flash utilisé",
+  "Other data": "Autres données",
+  "Faces status": "Statut visages",
+  "Similarity hash": "Empreinte de similarité",
+  "Clear sort": "Effacer le tri",
+  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Clic pour trier, Ctrl+clic pour ajouter un niveau de tri (jusqu’à 9). Glisser pour réorganiser les colonnes"
 }

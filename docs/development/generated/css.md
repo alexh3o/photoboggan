@@ -30,7 +30,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--col-w-` | — | 2 | list-view.js |
 | `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 56 | — |
 | `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 67 | — |
-| `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 12 | — |
+| `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 13 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 25 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
 | `--duplicate-meta-height` | duplicates.css · `:root` · `calc(0.68rem * 1.2 + 4px)` | 1 | — |
@@ -158,7 +158,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 4 | — |
 | `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 70 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 84 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 85 | — |
 | `--thumb-badge-bg` | styles.css · `:root` · `rgba(145, 145, 145, 0.7)` | 2 | — |
 | `--thumb-badge-color` | styles.css · `:root` · `#fff` | 2 | — |
 | `--thumb-badge-gap` | styles.css · `:root` · `4px` | 1 | — |
@@ -232,6 +232,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 2 | duplicates.css | `.thumbnail:has(.duplicate-meta:not([hidden])) .meta-overlay` |
 | 2 | keywords.css | `#exif-resizer` |
 | 2 | list-view.css | `.list-header` |
+| 2 | list-view.css | `.list-header-menu-btn` |
 | 2 | styles.css | `#sidebar-resizer` |
 | 2 | styles.css | `.geo-badge` |
 | 2 | styles.css | `.raw-badge` |
@@ -405,14 +406,14 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L136 Format not read right now (e.g. EXIF with the internal writer): greyed out, still movable.
 - L138 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
 
-### src/list-view.css (67 lines)
+### src/list-view.css (64 lines)
 
 - L1 List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage.
 - L3 Preview panel becomes a vertical split when List mode is active; without Preview, List fills the whole panel.
-- L22 Sticky column headers
-- L37 Virtualized body and rows (ROW_HEIGHT = 26px in list-view.js)
-- L49 Extension pill: green for photos, red for videos, grey for RAW
-- L62 Column picker menu: explicit check/indeterminate indicator on the left so ::after remains free for submenu arrows.
+- L17 Sticky column headers
+- L34 Virtualized body and rows (ROW_HEIGHT = 26px in list-view.js)
+- L46 Extension pill: green for photos, red for videos, grey for RAW
+- L59 Column picker menu: explicit check/indeterminate indicator on the left so ::after remains free for submenu arrows.
 
 ### src/map-mode.css (60 lines)
 

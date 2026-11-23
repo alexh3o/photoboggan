@@ -139,18 +139,18 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1124–L1160 | 37 | Suppression d'un mot-clé |
 | L1161–L1256 | 96 | Initialisation |
 
-## src/list-view.js (1379 lines)
+## src/list-view.js (1420 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L67–L467 | 401 | Column definitions & persistence |
-| L468–L509 | 42 | Lazy auxiliary datasets (analysed & phash) |
-| L510–L593 | 84 | Multi-column sorting |
-| L594–L789 | 196 | Table dimensions, header rendering, resize & column drag-and-drop |
-| L790–L938 | 149 | Virtualized body rendering |
-| L939–L1000 | 62 | Selection & double-click in rows |
-| L1001–L1222 | 222 | Columns picker menu (stays open until Esc or outside click) |
-| L1223–L1379 | 157 | Open, close, and refresh API |
+| L68–L468 | 401 | Column definitions & persistence |
+| L469–L510 | 42 | Lazy auxiliary datasets (analysed & phash) |
+| L511–L594 | 84 | Multi-column sorting |
+| L595–L798 | 204 | Table dimensions, header rendering, resize & column drag-and-drop |
+| L799–L947 | 149 | Virtualized body rendering |
+| L948–L1009 | 62 | Selection & double-click in rows |
+| L1010–L1259 | 250 | Columns picker menu (stays open until Esc or outside click) |
+| L1260–L1420 | 161 | Open, close, and refresh API |
 
 ## src/main.js (6134 lines)
 

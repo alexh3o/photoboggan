@@ -11,16 +11,13 @@
 .list-panel { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg-panel); color: var(--text-light); }
 .list-panel[hidden] { display: none; }
 
-.list-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--separator); background: var(--bg-panel); }
-.list-toolbar button { padding: 0.28rem 0.65rem; font-size: 0.78rem; }
-.list-clear-sort { margin-left: auto; color: var(--text-muted); }
-.list-clear-sort[hidden] { display: none; }
-
 .list-scroll { position: relative; flex: 1 1 0; min-height: 0; overflow: auto; }
 .list-table { position: relative; min-width: 100%; width: var(--list-table-width, 100%); }
 
 /* Sticky column headers */
 .list-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: stretch; height: 28px; background: var(--bg-panel); border-bottom: 1px solid var(--border); user-select: none; }
+.list-header-menu-btn { position: sticky; right: 0; z-index: 2; margin-left: auto; flex: 0 0 28px; width: 28px; height: 100%; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-left: 1px solid var(--separator); border-radius: 0; background: var(--bg-panel); color: var(--text-muted); cursor: pointer; }
+.list-header-menu-btn:hover, .list-header-menu-btn[aria-expanded="true"] { background: var(--control-hover); color: var(--text-strong); }
 .list-col-header { position: relative; flex: 0 0 var(--col-w, 120px); width: var(--col-w, 120px); min-width: 0; display: flex; align-items: center; gap: 0.3rem; padding: 0 0.6rem 0 0.5rem; border-right: 1px solid var(--separator); font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; overflow: hidden; white-space: nowrap; }
 .list-col-header:hover { background: var(--control-hover); color: var(--text-strong); }
 .list-col-header.sorted { color: var(--text-strong); }

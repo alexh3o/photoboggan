@@ -27,6 +27,7 @@ const MIN_COL_WIDTH = 48;
 const MAX_COL_WIDTH = 800;
 const MAX_SORT_LEVELS = 9;
 const HEADER_DRAG_THRESHOLD = 5;
+const HEADER_MENU_BTN_WIDTH = 28;
 
 const nameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
@@ -34,7 +35,7 @@ let host = null;
 let open = false;
 let initialized = false;
 
-let panel, toggleButton, columnsButton, clearSortButton, scrollContainer, tableElement, headerElement, bodyElement, emptyMessage;
+let panel, toggleButton, columnsButton, scrollContainer, tableElement, headerElement, bodyElement, emptyMessage;
 
 // Auxiliary status sets loaded lazily ONLY when the List panel is open and the corresponding column is visible.
 let analysedIds = new Set();
@@ -602,7 +603,8 @@ function applyColumnWidthVars(activeCols) {
     tableElement.style.setProperty(`--col-w-${col.id}`, `${width}px`);
     totalWidth += width;
   }
-  tableElement.style.setProperty('--list-table-width', `${totalWidth}px`);
+  // Reserve room for the sticky right-pinned header menu button so scrolling right never hides the last column's edge or resizer.
+  tableElement.style.setProperty('--list-table-width', `${totalWidth + HEADER_MENU_BTN_WIDTH + 4}px`);
 }
 
 function renderHeader() {
@@ -612,7 +614,6 @@ function renderHeader() {
   const sortMap = new Map(effectiveSort.map((entry, idx) => [entry.col, { dir: entry.dir, level: idx + 1 }]));
   const showLevelNumber = effectiveSort.length >= 2;
 
-  clearSortButton.hidden = effectiveSort.length === 0;
   applyColumnWidthVars(activeCols);
 
   const cells = activeCols.map((col, index) => {
@@ -649,7 +650,14 @@ function renderHeader() {
     return cell;
   });
 
-  headerElement.replaceChildren(...cells);
+  if (columnsButton) {
+    columnsButton.title = t('Choose displayed columns');
+    columnsButton.setAttribute('aria-label', t('Columns'));
+    columnsButton.setAttribute('aria-expanded', String(Boolean(columnsMenu)));
+    headerElement.replaceChildren(...cells, columnsButton);
+  } else {
+    headerElement.replaceChildren(...cells);
+  }
 }
 
 function startColumnResize(resizer, event) {
@@ -690,6 +698,7 @@ function clearHeaderDropMarkers() {
 
 function handleHeaderPointerDown(event) {
   if (event.button !== 0) return;
+  if (event.target instanceof Element && event.target.closest('.list-header-menu-btn')) return;
   const resizer = event.target instanceof Element ? event.target.closest('.list-col-resizer') : null;
   if (resizer) {
     startColumnResize(resizer, event);
@@ -1068,6 +1077,12 @@ function toggleGroupVisibility(entry) {
 }
 
 function updateMenuIndicators(menu) {
+  const clearItem = menu.querySelector('.list-menu-clear-sort');
+  if (clearItem) {
+    const hasSort = getEffectiveSort().length > 0;
+    clearItem.disabled = !hasSort;
+    clearItem.setAttribute('aria-disabled', String(!hasSort));
+  }
   for (const item of menu.querySelectorAll('[data-col]')) {
     const colId = item.dataset.col;
     const checked = visibleColumns.has(colId);
@@ -1124,6 +1139,28 @@ function openColumnsMenu(positionOrAnchor) {
   const menu = document.createElement('div');
   menu.className = 'context-menu list-columns-menu';
   menu.setAttribute('role', 'menu');
+
+  const clearSortItem = document.createElement('button');
+  clearSortItem.type = 'button';
+  clearSortItem.className = 'context-menu-item list-menu-item list-menu-clear-sort';
+  clearSortItem.setAttribute('role', 'menuitem');
+  const clearSpacer = document.createElement('span');
+  clearSpacer.className = 'list-menu-check';
+  clearSpacer.setAttribute('aria-hidden', 'true');
+  const clearLabel = document.createElement('span');
+  clearLabel.className = 'list-menu-label';
+  clearLabel.textContent = t('Clear sort');
+  clearSortItem.append(clearSpacer, clearLabel);
+  clearSortItem.addEventListener('click', () => {
+    clearAllSort();
+    updateMenuIndicators(menu);
+  });
+  menu.append(clearSortItem);
+
+  const separator = document.createElement('div');
+  separator.className = 'context-menu-separator';
+  separator.setAttribute('role', 'separator');
+  menu.append(separator);
 
   MENU_STRUCTURE.forEach((entry, groupIdx) => {
     if (entry.col) {
@@ -1188,10 +1225,10 @@ function openColumnsMenu(positionOrAnchor) {
   columnsButton.setAttribute('aria-expanded', 'true');
 
   const rect = positionOrAnchor instanceof Element ? positionOrAnchor.getBoundingClientRect() : null;
-  const x = rect ? rect.left : positionOrAnchor.clientX;
-  const y = rect ? rect.bottom + 4 : positionOrAnchor.clientY;
   const width = menu.offsetWidth;
   const height = menu.offsetHeight;
+  const x = rect ? rect.right - width : positionOrAnchor.clientX;
+  const y = rect ? rect.bottom + 4 : positionOrAnchor.clientY;
   const left = Math.max(4, Math.min(x, window.innerWidth - width - 4));
   const top = Math.max(4, Math.min(y, window.innerHeight - height - 4));
   menu.style.left = `${left}px`;
@@ -1302,8 +1339,6 @@ export function initListView(hostApi) {
   host = hostApi;
   panel = document.getElementById('list-panel');
   toggleButton = document.getElementById('btn-toggle-list');
-  columnsButton = document.getElementById('btn-list-columns');
-  clearSortButton = document.getElementById('btn-list-clear-sort');
   scrollContainer = document.getElementById('list-scroll');
   tableElement = document.getElementById('list-table');
   headerElement = document.getElementById('list-header');
@@ -1311,6 +1346,19 @@ export function initListView(hostApi) {
   emptyMessage = document.getElementById('list-empty');
   if (!panel || !toggleButton || !scrollContainer || !headerElement || !bodyElement) return;
   initialized = true;
+
+  columnsButton = document.createElement('button');
+  columnsButton.type = 'button';
+  columnsButton.id = 'btn-list-columns';
+  columnsButton.className = 'list-header-menu-btn';
+  columnsButton.setAttribute('aria-haspopup', 'menu');
+  columnsButton.setAttribute('aria-expanded', 'false');
+  columnsButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/></svg>';
+  columnsButton.addEventListener('click', event => {
+    event.stopPropagation();
+    if (columnsMenu) closeColumnsMenu();
+    else openColumnsMenu(columnsButton);
+  });
 
   host.colorFlags.forEach((flag, idx) => colorOrderMap.set(flag.key, idx));
 
@@ -1323,13 +1371,6 @@ export function initListView(hostApi) {
     if (!(await host.requestCloseMapMode())) return;
     openListView();
   });
-
-  columnsButton.addEventListener('click', () => {
-    if (columnsMenu) closeColumnsMenu();
-    else openColumnsMenu(columnsButton);
-  });
-
-  clearSortButton.addEventListener('click', clearAllSort);
 
   headerElement.addEventListener('pointerdown', handleHeaderPointerDown);
   headerElement.addEventListener('contextmenu', event => {
