@@ -100,7 +100,7 @@ const GROUPS = [
     { a: 'Close fullscreen or the open window', k: [['Esc']] },
     { a: 'Immersive mode', d: 'Hides the title bar and the taskbar', k: [['F11']] },
     { a: 'Shortcuts guide', k: [['G']] },
-    { a: 'Histogram: off, displayed, with clippings', k: [['H']] },
+    { a: 'Histogram: off, displayed, with clippings, clippings only', k: [['H']] },
   ] },
 ];
 

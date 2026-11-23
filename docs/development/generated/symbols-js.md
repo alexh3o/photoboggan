@@ -599,11 +599,11 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export syncHistogram()` · L235 — Demande une mise à jour de l'affichage (regroupée sur la prochaine image : peut être appelée sans retenue).
 - `hideOverlays()` · L241
 - `runSync()` · L246
-- `requestAnalysis(photo)` · L266
-- `render(view)` · L281
-- `syncControls()` · L313
-- `export cycleHistogramState()` · L322 — Touche H : Désactivé -> Histogramme -> Histogramme + écrêtage -> Désactivé. Un toast indique le nouvel état.
-- `export initHistogram(options)` · L334
+- `requestAnalysis(photo)` · L270
+- `render(view)` · L285
+- `syncControls()` · L323
+- `export cycleHistogramState()` · L331 — Key H: off -> histogram -> histogram + clippings -> clippings only -> off. A toast reports the new state.
+- `export initHistogram(options)` · L348
 
 ## src/i18n.js (14)
 

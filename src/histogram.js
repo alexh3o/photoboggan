@@ -244,21 +244,25 @@ function hideOverlays() {
 }
 
 function runSync() {
-  const view = host.getView(); // { photo, hidden, fullscreen, anchor (Element ou null = fenêtre), isRaw, overlays }
-  const visible = showHistogram && Boolean(view.photo) && !view.hidden;
-  widget.classList.toggle('hidden', !visible);
-  if (!visible) {
+  const view = host.getView(); // { photo, hidden, fullscreen, anchor (Element or null = window), isRaw, overlays }
+  const hasPhoto = Boolean(view.photo) && !view.hidden;
+  const widgetVisible = showHistogram && hasPhoto;
+  const needClippings = showClippings && hasPhoto && view.overlays.length > 0;
+  widget.classList.toggle('hidden', !widgetVisible);
+  if (!widgetVisible && !needClippings) {
     hideOverlays();
     requestedPath = null;
     analysisToken++;
     clearTimeout(analysisTimer);
     return;
   }
-  const rect = view.anchor ? view.anchor.getBoundingClientRect() : { right: window.innerWidth, bottom: window.innerHeight };
-  widget.style.setProperty('--histogram-anchor-right', `${Math.max(0, window.innerWidth - rect.right)}px`);
-  widget.style.setProperty('--histogram-anchor-bottom', `${Math.max(0, window.innerHeight - rect.bottom)}px`);
-  widget.classList.toggle('in-fullscreen', view.fullscreen);
-  warningIcon.hidden = !view.isRaw;
+  if (widgetVisible) {
+    const rect = view.anchor ? view.anchor.getBoundingClientRect() : { right: window.innerWidth, bottom: window.innerHeight };
+    widget.style.setProperty('--histogram-anchor-right', `${Math.max(0, window.innerWidth - rect.right)}px`);
+    widget.style.setProperty('--histogram-anchor-bottom', `${Math.max(0, window.innerHeight - rect.bottom)}px`);
+    widget.classList.toggle('in-fullscreen', view.fullscreen);
+    warningIcon.hidden = !view.isRaw;
+  }
   if (view.photo.path !== requestedPath) requestAnalysis(view.photo);
   else render(view);
 }
@@ -279,20 +283,26 @@ function requestAnalysis(photo) {
 }
 
 function render(view) {
-  if (widget.classList.contains('hidden')) return;
-  const entry = current && view.photo && current.path === view.photo.path ? current.entry : null;
-  if (!entry) {
-    // Analyse en cours (ou image illisible) : l'ancienne courbe reste affichée tant que la nouvelle n'est pas prête, sauf si la photo n'a plus rien d'analysable.
-    if (!current) { canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height); statsLabel.textContent = requestedPath ? '' : '—'; }
+  const hasPhoto = Boolean(view.photo) && !view.hidden;
+  const widgetVisible = showHistogram && hasPhoto;
+  const targets = showClippings && hasPhoto ? view.overlays : [];
+  if (!widgetVisible && targets.length === 0) {
     hideOverlays();
     return;
   }
-  drawHistogram(entry.hist);
-  const clippingsOn = showClippings;
-  const targets = clippingsOn ? view.overlays : [];
+  const entry = current && view.photo && current.path === view.photo.path ? current.entry : null;
+  if (!entry) {
+    // Analysis in progress (or unreadable image): keep the previous curve until the new one is ready, unless no photo can be analysed.
+    if (widgetVisible && !current) { canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height); statsLabel.textContent = requestedPath ? '' : '—'; }
+    hideOverlays();
+    return;
+  }
+  if (widgetVisible) {
+    drawHistogram(entry.hist);
+    widget.title = t('Click to switch between luminance and RGB');
+  }
   const clip = computeClipping(entry, clippingRange, targets.length > 0);
-  statsLabel.textContent = describeClipping(clip);
-  widget.title = t('Click to switch between luminance and RGB');
+  if (widgetVisible) statsLabel.textContent = describeClipping(clip);
   const next = new Set();
   for (const overlay of targets) {
     paintOverlay(overlay, entry, clip);
@@ -313,22 +323,26 @@ let controls = {};
 function syncControls() {
   controls.show.checked = showHistogram;
   controls.clippings.checked = showClippings;
-  controls.clippings.disabled = !showHistogram;
   controls.mode.value = clippingMode;
   controls.range.value = String(clippingRange);
 }
 
-// Touche H : Désactivé -> Histogramme -> Histogramme + écrêtage -> Désactivé. Un toast indique le nouvel état.
+// Key H: off -> histogram -> histogram + clippings -> clippings only -> off. A toast reports the new state.
 export function cycleHistogramState() {
-  const state = !showHistogram ? 0 : showClippings ? 2 : 1;
-  const next = (state + 1) % 3;
-  showHistogram = next > 0;
-  showClippings = next === 2;
+  const state = showHistogram ? (showClippings ? 2 : 1) : (showClippings ? 3 : 0);
+  const next = (state + 1) % 4;
+  showHistogram = next === 1 || next === 2;
+  showClippings = next === 2 || next === 3;
   writeStored('showHistogram', showHistogram);
   writeStored('showClippings', showClippings);
   syncControls();
   syncHistogram();
-  host.showToast(t(['Histogram: off', 'Histogram: displayed', 'Histogram and clippings: displayed'][next]));
+  host.showToast(t([
+    'Histogram and clippings: off',
+    'Histogram: displayed',
+    'Histogram and clippings: displayed',
+    'Clippings: displayed',
+  ][next]));
 }
 
 export function initHistogram(options) {

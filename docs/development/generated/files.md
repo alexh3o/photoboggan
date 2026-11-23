@@ -145,7 +145,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geo-tools.js` | 87 | Effacement et restauration de la géolocalisation (menu contextuel des photos, voir geolocation.rs) : - Effacer : confirmation, coordonnées sauvegardées par le backend puis retirées des fichiers (EXIF et XMP avec ExifToo… |
 | `guide.js` | 211 | Guide des raccourcis (modale ouverte par la touche G, ou depuis les Paramètres) : rendu à partir d'une liste de groupes, avec recherche. Chaque ligne : la ou les touches à gauche, l'action à droite (texte court, détail … |
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
-| `histogram.js` | 392 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
+| `histogram.js` | 406 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 123 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues ret… |
 | `info-author.js` | 153 | "Author and rights" section of the Info tab: the author of the active photo and, when unfolded, its copyright notice, credit, usage terms and the author's e-mail (see rights.rs and exif::Rights). - The section title (sa… |
 | `keywords-panel.js` | 1256 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
@@ -327,9 +327,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1923 |  |
-| `es.json` | 1922 |  |
-| `fr.json` | 1923 |  |
+| `en.json` | 1924 |  |
+| `es.json` | 1923 |  |
+| `fr.json` | 1924 |  |
 
 ## webpage
 

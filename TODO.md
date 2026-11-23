@@ -21,7 +21,7 @@
 - [x] *chore*: `language` add a recipe for languages implementation
 - [ ] *fix*: `toasts` blurry toasts when a modal is on top
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
-- [ ] *feat*: better ctrl+z info
+- [ ] *feat*: `undo` better ctrl+z info
 
 ## ⚖️ Undecided
 
@@ -32,7 +32,7 @@
 - [ ] *feat*: `files` **sd card** import
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *refactor*: `semantic` allow larger scores
-- [ ] *feat*: possibility to list files with columns
+- [ ] *feat*: `grid` possibility to list files with columns
 
 ## ❄️ Cold storage
 

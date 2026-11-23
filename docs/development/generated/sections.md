@@ -114,14 +114,14 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 |---|---:|---|
 | L428–L556 | 129 | INITIALIZATION |
 
-## src/histogram.js (392 lines)
+## src/histogram.js (406 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L37–L127 | 91 | Analyse des pixels |
 | L128–L223 | 96 | Dessin |
-| L224–L306 | 83 | Synchronisation avec l'interface |
-| L307–L392 | 86 | Réglages et clavier |
+| L224–L316 | 93 | Synchronisation avec l'interface |
+| L317–L406 | 90 | Réglages et clavier |
 
 ## src/keywords-panel.js (1256 lines)
 

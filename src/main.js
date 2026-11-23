@@ -3291,7 +3291,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
 // E      : Show in explorer
 // F      : Fullscreen toggle
 // G      : Shortcut guide
-// H      : Histogram: off / displayed / displayed with clippings
+// H      : Histogram and clippings: displayed / both / clippings only / off
 // I      : Info panel
 // J      : Info sheet
 // K      : Keywords panel
@@ -3418,7 +3418,7 @@ window.addEventListener('keydown', (e) => {
     if (!guideModal.classList.contains('hidden')) { e.preventDefault(); closeGuide(); return; }
     if (!document.querySelector('.modal:not(.hidden)')) { e.preventDefault(); openGuide(); return; }
   }
-  // H : histogramme désactivé -> affiché -> affiché avec écrêtage (réglages des Options d'affichage), avec un toast. Pas derrière une fenêtre ouverte.
+  // H : cycles histogram -> histogram + clippings -> clippings only -> off (Display options), with a toast. Inactive behind an open modal.
   if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !e.repeat && !document.querySelector('.modal:not(.hidden)')) {
     e.preventDefault();
     cycleHistogramState();
