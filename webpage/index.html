@@ -861,6 +861,28 @@
       font-size: 0.84rem;
     }
 
+    /* Credits panel: spans the full width under Story & Platforms */
+    .credits-panel { grid-column: 1 / -1; }
+
+    .credits-grid {
+      display: grid;
+      grid-template-columns: 1fr 0.8fr 1.3fr 0.6fr;
+      gap: 1.5rem;
+      margin-top: 1.1rem;
+    }
+
+    .credits-block h4 {
+      margin: 0 0 0.55rem;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+    }
+
+    .credits-block p { margin: 0; font-size: 0.88rem; }
+    .credits-block .check-list { font-size: 0.88rem; }
+
+    .credits-grid a { color: var(--green); text-decoration: none; }
+    .credits-grid a:hover { text-decoration: underline; }
+
     /* Platform chips under hero */
     .platform-chips {
       display: flex;
@@ -1143,6 +1165,7 @@
       .feature-grid { grid-template-columns: repeat(2, 1fr); }
       .gallery-grid { grid-template-columns: repeat(2, 1fr); }
       .story-platforms { grid-template-columns: 1fr; }
+      .credits-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 640px) {
@@ -1855,6 +1878,40 @@
           </div>
           <div class="beta-callout">
             <strong>Beta software notice:</strong> photoboggan treats file safety as priority #1, but it is still young software—always keep a healthy backup of your photos.
+          </div>
+        </div>
+
+        <div class="panel-box credits-panel">
+          <span class="eyebrow">Credits &amp; Licenses</span>
+          <h3>Thanks to the open projects behind photoboggan</h3>
+          <div class="credits-grid">
+            <div class="credits-block">
+              <h4>Optional components</h4>
+              <p>Downloaded on request (never bundled in the installer), under their own licenses:</p>
+              <ul class="check-list" style="margin-top: 0.6rem;">
+                <li><strong>YuNet</strong> (face detection, OpenCV Zoo): MIT License.</li>
+                <li><strong>SFace</strong> (face recognition, OpenCV Zoo): Apache License 2.0.</li>
+                <li><strong>SigLIP 2</strong> (<code>google/siglip2-base-patch16-224</code>, ONNX export by <code>onnx-community</code>), content search model: Apache License 2.0.</li>
+                <li><strong>ONNX Runtime</strong> (Microsoft), runs the face and content search models: MIT License.</li>
+              </ul>
+            </div>
+            <div class="credits-block">
+              <h4>Bundled with the app</h4>
+              <p>
+                <strong>ExifTool</strong> (<a href="https://exiftool.org">Phil Harvey</a>), the recommended metadata writer: Perl license (Artistic License or GPL).
+              </p>
+            </div>
+            <div class="credits-block">
+              <h4>Maps and places</h4>
+              <p>
+                Map tiles and style from <a href="https://openfreemap.org">OpenFreeMap</a> (MIT), vector tiles by <a href="https://openmaptiles.org">OpenMapTiles</a> (code BSD 3-Clause, design CC BY 4.0), map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (ODbL). The style is based on <code>maputnik/osm-liberty</code> and <code>openmaptiles/dark-matter-gl-style</code> (BSD 3-Clause code, CC BY 4.0 design), with Maki icons (CC0) and Noto Sans glyphs (SIL OFL 1.1). Details in <a href="https://github.com/alexh3o/photoboggan/blob/main/src-tauri/resources/map-style/LICENSES.md">LICENSES.md</a>.
+              </p>
+              <p style="margin-top: 0.6rem;">Place search by Nominatim, on OpenStreetMap data (ODbL).</p>
+            </div>
+            <div class="credits-block">
+              <h4>Sample photos</h4>
+              <p>Photos from Lorem Picsum / Unsplash / Pexels.</p>
+            </div>
           </div>
         </div>
       </div>

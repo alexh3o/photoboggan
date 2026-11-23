@@ -123,12 +123,16 @@ Optional components downloaded on request (never bundled in the installer), unde
 - **SigLIP 2** (`google/siglip2-base-patch16-224`, ONNX export by `onnx-community`), content search model: Apache License 2.0.
 - **ONNX Runtime** (Microsoft), runs the face and content search models: MIT License.
 
+Bundled with the installer:
+
+- **ExifTool** ([Phil Harvey](https://exiftool.org)), the recommended metadata writer: Perl license (Artistic License or GPL).
+
 Maps and places:
 
 - Map tiles and style from [OpenFreeMap](https://openfreemap.org) (MIT), vector tiles by [OpenMapTiles](https://openmaptiles.org) (code BSD 3-Clause, design CC BY 4.0), map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL). The style is based on `maputnik/osm-liberty` and `openmaptiles/dark-matter-gl-style` (BSD 3-Clause code, CC BY 4.0 design), with Maki icons (CC0) and Noto Sans glyphs (SIL OFL 1.1). Details in [`LICENSES.md`](src-tauri/resources/map-style/LICENSES.md).
 - Place search by Nominatim, on OpenStreetMap data (ODbL).
 
-Photos from Lorem Picsum / Unsplash.
+Photos from Lorem Picsum / Unsplash / Pexels.
 
 Designed and developed by alexh3o, sped up with the precious help of Claude & friends.
 
