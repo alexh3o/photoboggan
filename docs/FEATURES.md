@@ -146,7 +146,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 - **Batch copy & move** (via dialogs or drag-and-drop onto folders, carrying sidecars safely and optionally verifying cross-drive moves)
 - **Batch resize** to a folder
 - **Batch lossless rotation** (no recompression, via orientation metadata only; pixel data is never modified)
-- **Undo** support for quick corrections)
+- **Undo** support for markings (rating, color label, pick/reject flag), renaming, rotations, faces review operations with a history modal with up to 20 last operations
 - **Renaming** (one photo, `F2`) and **batch renaming**: build a recipe of steps (replace, insert or delete text) using variables (date taken in ISO 8601 symbols, camera, lens, counter, author), reuse saved recipes, review a full before → after preview, with collisions detected up front (nothing is overwritten, `.xmp` sidecars follow), and undo the whole batch
 - **Delete to OS trash** (with upfront warnings when a drive has no trash and deletion will be permanent)
 - **Open with**: editable list of external apps per file type (Raster / RAW / Video)

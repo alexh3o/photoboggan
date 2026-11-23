@@ -2,7 +2,10 @@ name: Deploy static content to Pages
 
 on:
   push:
-    branches: ["main"] # Remplacez par "master" si votre branche principale s'appelle master
+    branches: ["main"]
+    paths:
+      - "webpage/**"
+      - ".github/workflows/static.yml"
 
   workflow_dispatch:
 
@@ -11,28 +14,37 @@ permissions:
   pages: write
   id-token: write
 
+# Allow only one concurrent deployment; skip intermediate queued runs,
+# but do not cancel an in-progress deployment mid-flight.
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  # Separate build/upload and deploy jobs so the artifact registry finishes
+  # indexing before deploy-pages queries it (avoids actions/deploy-pages#451)
+  # and so re-running a failed deploy job does not upload a duplicate artifact.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: './webpage'
+
   deploy:
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './webpage'
-
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

@@ -13,7 +13,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1560 |  |
 | `package.json` | 29 |  |
 | `README.md` | 217 |  |
-| `TODO.md` | 80 |  |
+| `TODO.md` | 79 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -21,7 +21,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `release.yml` | 122 |  |
-| `static.yml` | 38 |  |
+| `static.yml` | 51 |  |
 | `tests.yml` | 77 |  |
 
 ## .vscode

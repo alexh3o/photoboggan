@@ -43,7 +43,6 @@
 - [ ] *feat*: `files` **sd card** import
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *refactor*: `semantic` allow larger scores
-- [ ] *feat*: `grid` possibility to list files with columns
 
 ## ❄️ Cold storage
 
