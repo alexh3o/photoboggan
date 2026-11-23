@@ -159,3 +159,36 @@ fn cancelled_search_returns_no_group() {
     assert!(report.cancelled);
     assert!(report.groups.is_empty());
 }
+
+#[test]
+fn phash_photo_ids_returns_only_up_to_date_entries() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let thumbs = tempfile::tempdir().unwrap();
+    let path_a = add_picture(&pool, dir.path(), "a.jpg", 200, 150, 1);
+    let path_b = add_picture(&pool, dir.path(), "b.jpg", 200, 150, 2);
+
+    let conn = pool.get().unwrap();
+    let mut ids = Vec::new();
+    for path in [&path_a, &path_b] {
+        let meta = std::fs::metadata(path).unwrap();
+        let size = meta.len() as i64;
+        let modified = meta.modified().unwrap().duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
+        let id: i64 = conn.query_row("SELECT id FROM photos WHERE path = ?1", params![path], |row| row.get(0)).unwrap();
+        conn.execute("UPDATE photos SET file_size = ?1, modified = ?2 WHERE id = ?3", params![size, modified, id]).unwrap();
+        ids.push(id);
+    }
+
+    assert!(phash_photo_ids(&conn).unwrap().is_empty());
+
+    search(&pool, thumbs.path(), &settings(Scope::All));
+    let mut found = phash_photo_ids(&conn).unwrap();
+    found.sort();
+    ids.sort();
+    assert_eq!(found, ids);
+
+    // Stale file size on photo 1 and stale algo version on photo 2 must exclude both.
+    conn.execute("UPDATE photos SET file_size = file_size + 1 WHERE id = ?1", params![ids[0]]).unwrap();
+    conn.execute("UPDATE photo_phash SET algo = 0 WHERE photo_id = ?1", params![ids[1]]).unwrap();
+    assert!(phash_photo_ids(&conn).unwrap().is_empty());
+}

@@ -398,8 +398,9 @@ function setFilter(value) {
 
 export function openMapMode() {
   if (open) return;
-  host.closePersonsView(); // une seule vue à la fois : Personnes, gestion des visages ou Carte
+  host.closePersonsView(); // une seule vue à la fois : Personnes, gestion des visages, Carte ou Liste
   host.closeFacesView();
+  host.closeListView?.();
   open = true;
   firstFraming = true;
   panel.hidden = false;

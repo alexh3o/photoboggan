@@ -22,9 +22,9 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `geolocation` | db, exif, exiftool, keywords, library_sync, main | db, keywords |
 | `heif` | exif | exif, face_detect, integrity, orientation, resize, thumbnails |
 | `integrity` | heif, main | semantic |
-| `keywords` | db, exif, faces, geolocation, library_sync, main, privacy, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search |
+| `keywords` | db, exif, faces, geolocation, library_sync, main, privacy, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search, similar |
 | `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, keywords |
-| `main` | — | albums, batch_rename, db, exiftool, face_detect, face_models, faces, geolocation, integrity, keywords, library_sync, phash, privacy, private_maps, resize, rights, semantic, semantic_keywords, semantic_models, semantic_search, stats, update_check |
+| `main` | — | albums, batch_rename, db, exiftool, face_detect, face_models, faces, geolocation, integrity, keywords, library_sync, phash, privacy, private_maps, resize, rights, semantic, semantic_keywords, semantic_models, semantic_search, similar, stats, update_check |
 | `model_files` | — | face_models, semantic_models, update_check |
 | `onnx_runtime` | — | face_detect, semantic, semantic_search |
 | `orientation` | exif, exiftool, heif, thumbnails, video | exif, thumbnails |
@@ -38,7 +38,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic_keywords` | face_models, keywords, main, semantic_models, semantic_search | keywords, semantic_search |
 | `semantic_models` | face_models, main, model_files, semantic, semantic_search | semantic, semantic_keywords, semantic_search, stats |
 | `semantic_search` | face_models, keywords, main, onnx_runtime, semantic, semantic_keywords, semantic_models, thumbnails | semantic, semantic_keywords, semantic_models |
-| `similar` | db, duplicates, phash, thumbnails | db |
+| `similar` | db, duplicates, keywords, main, phash, thumbnails | db |
 | `stats` | db, main, semantic_models | — |
 | `test_support` | db | — |
 | `thumbnails` | exif, heif, orientation, video | exif, face_detect, faces, library_sync, orientation, resize, semantic, semantic_search, similar |
@@ -54,38 +54,39 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `author-filters` | filter-suggest, filter-tags, i18n | main |
 | `batch-rename` | batch-rename-engine, i18n, metadata-writes, photo-actions | main |
 | `batch-rename-engine` | — | batch-rename |
-| `date-filter` | i18n | find-raw-mode, fullscreen, main |
+| `date-filter` | i18n | find-raw-mode, fullscreen, list-view, main |
 | `description-panel` | i18n, metadata-writes, rights-presets | main |
 | `drag-drop` | albums-panel, i18n, map-mode, metadata-writes, photo-actions | main |
 | `duplicate-names` | raw-settings | duplicates-view |
 | `duplicates` | i18n | duplicates-modal, duplicates-view, main, photo-actions |
 | `duplicates-modal` | duplicates, i18n, raw-settings | duplicates-view, main |
-| `duplicates-view` | albums-panel, duplicate-names, duplicates, duplicates-modal, format-filters, i18n, raw-settings | main |
+| `duplicates-view` | albums-panel, duplicate-names, duplicates, duplicates-modal, format-filters, i18n, raw-settings | list-view, main |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults | main, semantic-results |
-| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | faces-grid, fullscreen, main, persons-view, stats |
+| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | faces-grid, fullscreen, list-view, main, persons-view, stats |
 | `file-dates` | i18n | main |
-| `file-kinds` | format-filters | fullscreen, main, photo-actions, preview-zoom |
+| `file-kinds` | format-filters | fullscreen, list-view, main, photo-actions, preview-zoom |
 | `filter-suggest` | i18n | author-filters, faces-panel, format-filters, keywords-panel, main, privacy, rights-presets, semantic-exclusions, shooting-filters, stats |
 | `filter-tags` | i18n, photo-actions | author-filters, faces-panel, format-filters, main, privacy, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | find-raw-mode, main |
 | `find-raw-mode` | albums-panel, date-filter, find-raw, i18n, raw-settings | main |
 | `folder-tree` | albums-panel, i18n, photo-actions, settings-defaults, sidebar-search, sticky-folders | main |
-| `format-filters` | filter-suggest, filter-tags, i18n | duplicates-view, file-kinds, main, stats |
+| `format-filters` | filter-suggest, filter-tags, i18n | duplicates-view, file-kinds, list-view, main, stats |
 | `fullscreen` | date-filter, faces-panel, file-kinds, histogram, i18n, preview-zoom, settings-defaults, slideshow | main |
 | `geo-tools` | i18n, metadata-writes, photo-actions | main |
 | `guide` | i18n | main |
 | `histogram` | i18n, settings-defaults | fullscreen, main |
-| `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-view, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, find-raw-mode, folder-tree, format-filters, fullscreen, geo-tools, guide, histogram, info-author, keywords-panel, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, preview-zoom, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, task-queue, titlebar, update-check |
+| `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-view, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, find-raw-mode, folder-tree, format-filters, fullscreen, geo-tools, guide, histogram, info-author, keywords-panel, list-view, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, preview-zoom, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, shooting-filters, sidebar-search, slideshow, stats, task-queue, titlebar, update-check |
 | `info-author` | i18n, settings-defaults | main |
 | `keywords-panel` | filter-suggest, i18n, metadata-writes, photo-actions, semantic-settings, semantic-tagging | main, semantic-results |
+| `list-view` | date-filter, duplicates-view, faces-panel, file-kinds, format-filters, i18n, marking-settings, semantic-settings, settings-defaults, shooting-filters | main |
 | `location-panel` | i18n, map-config, map-view, maps-settings, private-zones, private-zones-modal, settings-defaults | main, map-mode |
-| `main` | albums-panel, app-fonts, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-view, faces-grid, faces-panel, file-dates, file-kinds, filter-suggest, filter-tags, find-raw, find-raw-mode, folder-tree, format-filters, fullscreen, geo-tools, guide, histogram, i18n, info-author, keywords-panel, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, orientation, persons-view, photo-actions, preview-zoom, privacy, private-zones-modal, raw-settings, semantic-keywords, semantic-results, semantic-settings, settings-defaults, shooting-filters, slideshow, stats, task-queue, titlebar, toolbar-a11y, update-check | — |
+| `main` | albums-panel, app-fonts, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-view, faces-grid, faces-panel, file-dates, file-kinds, filter-suggest, filter-tags, find-raw, find-raw-mode, folder-tree, format-filters, fullscreen, geo-tools, guide, histogram, i18n, info-author, keywords-panel, list-view, location-panel, map-mode, map-view, maps-settings, marking-settings, metadata-settings, metadata-writes, orientation, persons-view, photo-actions, preview-zoom, privacy, private-zones-modal, raw-settings, semantic-keywords, semantic-results, semantic-settings, settings-defaults, shooting-filters, slideshow, stats, task-queue, titlebar, toolbar-a11y, update-check | — |
 | `map-config` | settings-defaults | location-panel, map-tile-protocol, map-view, private-zones-modal |
 | `map-mode` | i18n, location-panel, map-view, maps-settings, metadata-writes, place-search, private-zones, private-zones-modal, settings-defaults | drag-drop, main |
 | `map-tile-protocol` | map-config, settings-defaults | map-view |
 | `map-view` | i18n, map-config, map-tile-protocol | location-panel, main, map-mode, maps-settings, private-zones-modal |
 | `maps-settings` | i18n, map-view, settings-defaults | location-panel, main, map-mode, private-zones-modal |
-| `marking-settings` | settings-defaults | main, stats |
+| `marking-settings` | settings-defaults | list-view, main, stats |
 | `metadata-settings` | i18n, order-list, settings-defaults | main, photo-actions |
 | `metadata-writes` | i18n, settings-defaults | batch-rename, description-panel, drag-drop, faces-grid, faces-panel, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
 | `order-list` | i18n | metadata-settings |
@@ -103,10 +104,10 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic-exclusions` | filter-suggest, i18n, settings-defaults | semantic-keywords, semantic-settings, semantic-tagging |
 | `semantic-keywords` | i18n, semantic-exclusions, semantic-settings, semantic-tagging, settings-defaults | main |
 | `semantic-results` | albums-panel, faces-grid, i18n, keywords-panel, photo-actions, semantic, semantic-settings, semantic-tagging, settings-defaults | main |
-| `semantic-settings` | i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, main, semantic, semantic-keywords, semantic-results, semantic-tagging, stats |
+| `semantic-settings` | i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, list-view, main, semantic, semantic-keywords, semantic-results, semantic-tagging, stats |
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, semantic-keywords, semantic-results |
-| `settings-defaults` | — | albums-panel, faces-grid, faces-panel, folder-tree, fullscreen, histogram, i18n, info-author, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, slideshow, task-queue, update-check |
-| `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, main |
+| `settings-defaults` | — | albums-panel, faces-grid, faces-panel, folder-tree, fullscreen, histogram, i18n, info-author, list-view, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, slideshow, task-queue, update-check |
+| `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, list-view, main |
 | `sidebar-search` | i18n | albums-panel, faces-panel, folder-tree |
 | `slideshow` | i18n, settings-defaults | fullscreen, main, photo-actions |
 | `stats` | faces-panel, filter-suggest, filter-tags, format-filters, i18n, marking-settings, semantic-settings | main |

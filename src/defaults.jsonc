@@ -200,5 +200,15 @@
     "suggestionThreshold": 0.38,
     // Minimum gap with the next person: 0 to 0.5.
     "margin": 0.07
-  }
+  },
+
+  // ---------------------------------------------------------------- List panel
+  // Columns shown in the List panel (filename is always shown first).
+  "listVisibleColumns": ["filename", "extension", "date_taken", "rating", "color_flag"],
+  // Display order of the columns in the List panel (filename is always pinned first).
+  "listColumnOrder": ["filename", "extension", "date_taken", "manufacturer", "camera", "lens", "author", "aperture", "shutter_speed", "iso", "focal_length", "flash", "rating", "color_flag", "pick_flag", "analysed", "faces_status", "geolocated", "phash"],
+  // Saved column widths in px (column id -> width).
+  "listColumnWidths": {},
+  // Active multi-column sort of the List panel: [{ col, dir }] (max 9 levels).
+  "listSort": []
 }

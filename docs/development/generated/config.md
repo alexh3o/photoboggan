@@ -41,6 +41,10 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `keywordSuggestionsOpen` | `true` | semantic-tagging.js |
 | `keywordsAutoApply` | `false` | metadata-writes.js |
 | `lastFolderFilter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | folder-tree.js, main.js |
+| `listColumnOrder` | `["filename","extension","date_taken","manufacture…` | list-view.js |
+| `listColumnWidths` | `{}` | list-view.js |
+| `listSort` | `[]` | list-view.js |
+| `listVisibleColumns` | `["filename","extension","date_taken","rating","co…` | list-view.js |
 | `mapDefaultZoom` | `12` | location-panel.js, map-config.js |
 | `mapStyleRefresh` | `true` | maps-settings.js |
 | `markingPlacement` | `"hybrid"` | main.js |
@@ -104,10 +108,10 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (1921 keys), es (1921 keys), fr (1921 keys)
-- es.json: 0 key(s) of en.json missing (shown in English): none
+- Languages: en (1934 keys), es (1921 keys), fr (1921 keys)
+- es.json: 13 key(s) of en.json missing (shown in English): `List`, `List view: photos in a sortable table`, `List panel`, `Columns`, `Choose displayed columns`, `Extension`, `Shoot settings`, `Flash used`, `Other data`, `Faces status`, `Similarity hash`, `Clear sort`, `Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns`
 - es.json: keys unknown to en.json (typo or obsolete): none
-- fr.json: 0 key(s) of en.json missing (shown in English): none
+- fr.json: 13 key(s) of en.json missing (shown in English): `List`, `List view: photos in a sortable table`, `List panel`, `Columns`, `Choose displayed columns`, `Extension`, `Shoot settings`, `Flash used`, `Other data`, `Faces status`, `Similarity hash`, `Clear sort`, `Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns`
 - fr.json: keys unknown to en.json (typo or obsolete): none
 - Used with a literal key in the code but missing from en.json (dynamic keys are not detected): none
 

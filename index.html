@@ -27,6 +27,8 @@
           <button id="btn-toggle-faces" type="button" hidden data-i18n-title="People view: the people of the photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan-face preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></svg> <span data-i18n="People"></span></button>
           <!-- Mode Carte (map-mode.js) : carte des photos et géolocalisation de la sélection -->
           <button id="btn-toggle-map" type="button" data-i18n-title="Map view: where the photos are, and set the location of the selection"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg> <span data-i18n="Map"></span></button>
+          <!-- List panel (list-view.js): virtualized, multi-column sortable table of the displayed photos -->
+          <button id="btn-toggle-list" type="button" data-i18n-title="List view: photos in a sortable table"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon" aria-hidden="true"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg> <span data-i18n="List"></span></button>
         </div>
       </div>
       <div class="actions">
@@ -489,6 +491,20 @@
             <div id="map-canvas" class="map-canvas"></div>
             <p id="map-message" class="map-message" hidden></p>
             <span id="map-drop-hint" class="map-drop-hint" hidden></span>
+          </div>
+        </div>
+        <!-- List panel (list-view.js): shares preview panel height with preview stage -->
+        <div id="list-panel" class="list-panel" hidden>
+          <div class="list-toolbar">
+            <button id="btn-list-columns" type="button" aria-haspopup="menu" aria-expanded="false" data-i18n="Columns" data-i18n-title="Choose displayed columns"></button>
+            <button id="btn-list-clear-sort" type="button" class="list-clear-sort" hidden data-i18n="Clear sort"></button>
+          </div>
+          <div id="list-scroll" class="list-scroll">
+            <div id="list-table" class="list-table" role="grid">
+              <div id="list-header" class="list-header" role="row"></div>
+              <div id="list-body" class="list-body" role="rowgroup"></div>
+            </div>
+            <p id="list-empty" class="list-empty" role="status" data-i18n="Nothing to show here" hidden></p>
           </div>
         </div>
       </section>

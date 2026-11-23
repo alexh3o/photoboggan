@@ -1,17 +1,27 @@
 # 📋 Todo List & Ideas - Photoboggan
 
-## 🚀 Next in line
+## 🚀 Next in line / Done
 
 - [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
-- [x] *feat*: `theme` follow system theme by default
+- [x] *fix*: `linux` deb update downloads to random folder instead of user's download folder
+- [x] *feat*: `theme` option to follow system theme, enabled by default
+- [ ] *FEAT*: `list` list panel
 - [x] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
-- [x] *fix*: `locales` In french, "lancer" is used instead of "début" in renommage modal, probably translated from "start"
-- [x] *feat*: `filters` have map filter visible in filters
-- [x] *feat*: `thumbnail` option to add a visual tag on RAW files
+- [x] *chore*: `locales` prepare code and add recipes to ease adding more locales later
+- [x] *feat*: `locales` add spanish language
+- [x] *docs*: `build` add source compilation instructions in README & BUILDING docs
+- [x] *fix*: `locales` In french and spanish, "lancer/iniciar" is used instead of "début/inicio" in renaming modal, as english only needed one "start" key for both
+- [x] *feat*: `filters` have map zone filter appear and be treated as a normal filter
+- [x] *feat*: `thumbnail` option to add a visual badge on RAW files thumbnails
 - [x] *feat*: `filters` accept keywords children even if the chosen one is not active
-- [x] *feat*: `filters` add option to always include children, and Ctrl key to disable it when entering new keyword
+- [x] *feat*: `filters` add option to always include children in positive/negative keywords, and Ctrl key to disable it when entering new keyword
 - [x] *refactor*: `histogram` allow clipping shdow/highlights display independantly of histogram display
 - [x] *chore*: `language` add a recipe for languages implementation
+- [x] *PERF*: `grid` accelerate thumbnails grid display when changing folders
+- [x] *refactor*: `bundles` only one multilingual msi for windows instead of one per language
+- [x] *chore*: `maintenability` reduce main.js size by export of parts to fullscreen.js, folder-tree.js, find-raw-mode.js, semantic-results.js, duplicates-view.js, drag-drop.js, preview-zoom.js, task-queue.js
+
+  
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

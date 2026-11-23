@@ -8,14 +8,14 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 50 | — |
-| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 13 | — |
-| `--active-button` | styles.css · `:root` · `#1e72ad` | 31 | main.js |
+| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 15 | — |
+| `--active-button` | styles.css · `:root` · `#1e72ad` | 34 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 1 | — |
-| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 17 | — |
-| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 23 | — |
+| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 20 | — |
+| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 24 | — |
 | `--btn-text` | styles.css · `:root` · `#fff`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 12 | — |
 | `--card-bg` | styles.css · `:root` · `#222`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 13 | — |
 | `--clipping-bw-blur` | histogram.css · `:root` · `20px` | 1 | — |
@@ -26,9 +26,11 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--clipping-pulse-max-opacity` | histogram.css · `:root` · `0.5` | 1 | — |
 | `--clipping-pulse-min-opacity` | histogram.css · `:root` · `0.05` | 1 | — |
 | `--clipping-shadow-color` | histogram.css · `:root` · `rgba(0, 90, 255, 0.9)` | 0 | — |
+| `--col-w` | — | 4 | list-view.js |
+| `--col-w-` | — | 2 | list-view.js |
 | `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 56 | — |
 | `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 67 | — |
-| `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 10 | — |
+| `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 12 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 25 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
 | `--duplicate-meta-height` | duplicates.css · `:root` · `calc(0.68rem * 1.2 + 4px)` | 1 | — |
@@ -67,7 +69,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--fullscreen-text` | styles.css · `:root` · `#fff` | 4 | — |
 | `--fullscreen-text-shadow` | styles.css · `:root` · `0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px …` | 5 | — |
 | `--grid-bg` | styles.css · `:root` · `#0a0a0a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e4e4e4` | 4 | — |
-| `--grid-width` | — | 1 | main.js |
+| `--grid-width` | — | 2 | main.js |
 | `--group-separator-color` | faces.css · `.faces-view` · `var(--text-strong)`<br>styles.css · `:root` · `var(--text-soft)` | 1 | — |
 | `--group-separator-font-size` | faces.css · `.faces-view` · `0.95rem`<br>styles.css · `:root` · `0.7rem` | 1 | — |
 | `--group-separator-gap` | styles.css · `:root` · `10px` | 1 | — |
@@ -90,6 +92,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--histogram-text` | histogram.css · `:root` · `#f2f2f2` | 2 | — |
 | `--histogram-width` | histogram.css · `:root` · `13rem` | 1 | — |
 | `--item-size` | styles.css · `:root` · `160px` | 2 | — |
+| `--list-table-width` | — | 1 | list-view.js |
 | `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 8 | — |
 | `--pending-on` | styles.css · `:root` · `#000`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 1 | — |
 | `--pick-color` | styles.css · `.filter-summary .pick-indicator.pick-none` · `#f5f5f5`<br>styles.css · `.pick-picked` · `#2ecc71`<br>styles.css · `.pick-rejected` · `#e74c3c`<br>styles.css · `.pick-pending` · `#f1c40f`<br>styles.css · `.pick-none` · `#95a5a6`<br>styles.css · `.marking-pick .pick-square, #pick-filter-bar .pic…` · `var(--pick-state-color)` | 8 | — |
@@ -101,9 +104,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--raw-badge-size` | styles.css · `:root` · `18px` | 3 | — |
 | `--resizer-bg` | styles.css · `:root` · `#292929`<br>styles.css · (light) `:root[data-theme="light"]` · `#cfcfcf` | 3 | — |
 | `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 16 | — |
-| `--selected-border` | styles.css · `:root` · `#15932a` | 8 | main.js |
+| `--selected-border` | styles.css · `:root` · `#15932a` | 11 | main.js |
 | `--selected-contrast` | — | 1 | main.js |
-| `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 30 | — |
+| `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 35 | — |
 | `--share` | — | 2 | stats.js |
 | `--side-block-gap` | styles.css · `:root` · `1rem` | 2 | — |
 | `--side-meta-size` | styles.css · `:root` · `0.7rem` | 11 | — |
@@ -150,12 +153,12 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-rating-text` | styles.css · `:root` · `#ffd43b` | 1 | — |
 | `--tag-shot-bg` | shooting-filters.css · `:root` · `#865130` | 1 | — |
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
-| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 29 | — |
+| `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 30 | — |
 | `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 34 | — |
-| `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 3 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 67 | — |
+| `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 4 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 70 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 80 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 84 | — |
 | `--thumb-badge-bg` | styles.css · `:root` · `rgba(145, 145, 145, 0.7)` | 2 | — |
 | `--thumb-badge-color` | styles.css · `:root` · `#fff` | 2 | — |
 | `--thumb-badge-gap` | styles.css · `:root` · `4px` | 1 | — |
@@ -228,6 +231,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 2 | duplicates.css | `.best-badge` |
 | 2 | duplicates.css | `.thumbnail:has(.duplicate-meta:not([hidden])) .meta-overlay` |
 | 2 | keywords.css | `#exif-resizer` |
+| 2 | list-view.css | `.list-header` |
 | 2 | styles.css | `#sidebar-resizer` |
 | 2 | styles.css | `.geo-badge` |
 | 2 | styles.css | `.raw-badge` |
@@ -242,6 +246,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | 1 | faces.css | `.face-overlay` |
 | 1 | faces.css | `.face-overlay.preview-faces` |
 | 1 | keywords.css | `#exif-tab-description .keyword-actions` |
+| 1 | list-view.css | `.list-col-resizer` |
 | 1 | semantic.css | `.semantic-score` |
 | 1 | semantic.css | `.semantic-suggested` |
 | 1 | styles.css | `.mode-group > button.active` |
@@ -399,6 +404,15 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L133 Flat keyword fields: same rows without handle or arrows.
 - L136 Format not read right now (e.g. EXIF with the internal writer): greyed out, still movable.
 - L138 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
+
+### src/list-view.css (67 lines)
+
+- L1 List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage.
+- L3 Preview panel becomes a vertical split when List mode is active; without Preview, List fills the whole panel.
+- L22 Sticky column headers
+- L37 Virtualized body and rows (ROW_HEIGHT = 26px in list-view.js)
+- L49 Extension pill: green for photos, red for videos, grey for RAW
+- L62 Column picker menu: explicit check/indeterminate indicator on the left so ::after remains free for submenu arrows.
 
 ### src/map-mode.css (60 lines)
 

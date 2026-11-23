@@ -103,7 +103,7 @@ const RANGE_FIELDS = {
 const RANGE_KEYS = Object.keys(RANGE_FIELDS);
 
 // Les valeurs d'une photo sont lues une fois, puis gardées sur l'objet photo (comme photoTimeKey pour la date).
-function shotValues(photo) {
+export function shotValues(photo) {
   if (!photo.shotValues) {
     photo.shotValues = {};
     for (const key of RANGE_KEYS) photo.shotValues[key] = RANGE_FIELDS[key].photoValue(photo);

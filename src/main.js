@@ -38,6 +38,7 @@ import { reloadAllMaps } from './map-view.js';
 import { initMapsSettings } from './maps-settings.js';
 import { initUpdateCheck, onUpdateAccessChanged } from './update-check.js';
 import { initMapMode, getVisibleZone, isMapModeOpen, isMapZoneFilterActive, clearMapZoneFilter, requestCloseMapMode, closeMapModeNow, refreshMapMode, passesMapFilter, mapPrefilter, hasPendingPosition, onMapModeAccessChanged } from './map-mode.js';
+import { initListView, closeListView, refreshListView, onFacesDataChanged } from './list-view.js';
 import { initPrivateZonesModal } from './private-zones-modal.js';
 import { initGeoTools, eraseGeolocation, restoreGeolocation, hasErasedLocation, hasGps } from './geo-tools.js';
 import { createFilterTag, addIncludeExcludeMenu } from './filter-tags.js';
@@ -1182,6 +1183,7 @@ function applyPhotoFilters({ keepState = true } = {}) {
   renderSemanticBanner(); // content search: same
   reloadFacesView(); // vue Visages ouverte : visages des photos désormais affichées
   refreshMapMode(); // mode Carte ouvert : points des photos désormais affichées
+  refreshListView({ dataChanged: true });
   // Large folder: the loaded list was prefiltered by the backend; a change of those filters reads it again.
   if (largeScope && prefilterKey(sqlPrefilter()) !== loadedPrefilterKey) schedulePrefilterReload();
 }
@@ -2848,6 +2850,7 @@ function updateUIOnSelection() {
   // Groupe Lieu : positions de toute la sélection, la photo active mise en avant (voir location-panel.js).
   refreshLocation([...selectedIndices].map(index => photos[index]).filter(Boolean), photos[lastSelectedIndex]);
   refreshMapMode(); // mode Carte ouvert : sélection mise en évidence sur la carte
+  refreshListView({ selectionOnly: true });
   refreshInfoRows();
   syncHistogram(); // histogramme de la photo courante
 }
@@ -3087,7 +3090,7 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     const reordered = applyEffectiveModified((result.dates ?? []).map(entry => [entry.id, entry.effective_modified]));
     forgetCachedImagePaths(successful.map(photo => photo.path));
     if (successful.length && (refilter() || reordered)) applyPhotoFilters({ keepState: true });
-    else updateUIOnSelection();
+    else { updateUIOnSelection(); if (successful.length) refreshListView({ dataChanged: true }); }
     if (markedProperty === 'rating') updateFullscreenRatingStars();
     // Only the photos actually written can be given their previous value back.
     const undoEntry = !restore && successful.length
@@ -3296,6 +3299,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
 // J      : Info sheet
 // K      : Keywords panel
 // Ctrl+K : Keywords panel: all keywords / keywords of the selection
+// L      : List panel
 // N      : panneau Bibliothèque
 // P      : Preview panel
 // R      : Rating bar in fullscreen
@@ -3536,6 +3540,7 @@ window.addEventListener('keydown', (e) => {
     x: 'btn-toggle-compare',
     p: 'btn-toggle-preview',
     n: 'btn-toggle-sidebar',
+    l: 'btn-toggle-list',
   };
   const targetToggleBtnId = panelToggleButtons[e.key.toLowerCase()];
   if (targetToggleBtnId && !e.ctrlKey && !e.metaKey && !e.altKey && !isFullscreenOpen() && !document.querySelector('.modal:not(.hidden)')) {
@@ -4563,7 +4568,7 @@ if (thumbnailCacheSelect) {
   });
 }
 previewResizer.addEventListener('pointerdown', event => {
-  if (mainContent.classList.contains('preview-hidden') && !mainContent.classList.contains('map-mode')) return; // la carte garde son panneau sans aperçu
+  if (mainContent.classList.contains('preview-hidden') && !mainContent.classList.contains('map-mode') && !mainContent.classList.contains('list-mode')) return; // la carte et la liste gardent leur panneau sans aperçu
   previewResizer.setPointerCapture(event.pointerId);
   previewResizer.classList.add('dragging');
   let resizeFrame = null;
@@ -5384,10 +5389,12 @@ function removePhotosFromLibrary(paths, { keepSelection = false } = {}) {
   updateVirtualScroller();
   if (photos.length > 0) {
     updateUIOnSelection();
+    refreshListView({ dataChanged: true });
   } else {
     renderPreview();
     clearFullscreenImage();
     updateRatingAction();
+    refreshListView({ dataChanged: true });
   }
 }
 
@@ -5516,7 +5523,7 @@ initGeoTools({
       if (update) Object.assign(photo, { gps_lat: update.gps_lat, gps_lon: update.gps_lon });
     }
     if (locationFilter !== 'all' || reordered) applyPhotoFilters({ keepState: true });
-    else { renderVisibleItems(); updateUIOnSelection(); }
+    else { renderVisibleItems(); updateUIOnSelection(); refreshListView({ dataChanged: true }); }
   },
 });
 // Zones privées de la carte : téléchargements dans la file des tâches (voir private-zones-modal.js).
@@ -5576,7 +5583,7 @@ initMetadataWrites({
     forgetCachedImagePaths([...rewritten]);
     renderKeywordFilters({ force: true });
     if (reordered) applyPhotoFilters({ keepState: true });
-    else updateUIOnSelection();
+    else { updateUIOnSelection(); refreshListView({ dataChanged: true }); }
   },
   // Indices (dans la liste affichée) de ces photos, ou null si l'une d'elles n'y figure plus.
   findIndicesByPhotoIds: ids => {
@@ -5628,6 +5635,7 @@ initFileDates();
 // Histogramme de la photo courante et écrêtage (voir histogram.js). Affiché en bas à droite du plein écran, sinon de l'aperçu (s'il est visible) ou de la grille ;
 // jamais en mode Comparer, ni dans les vues Carte, Personnes et Visages. La surcouche d'écrêtage ne se pose que sur l'image de l'aperçu et du plein écran.
 const mapPanelElement = document.getElementById('map-panel');
+const listPanelElement = document.getElementById('list-panel');
 const personsViewElement = document.getElementById('persons-view');
 const facesViewElement = document.getElementById('faces-view');
 // Diaporama (slideshow.js) : le plein écran passe de photo en photo à intervalle réglé.
@@ -5644,10 +5652,10 @@ initSlideshow({
 });
 initHistogram({
   // Éléments dont un redimensionnement ou un changement de classe / d'attribut hidden déplace ou masque l'histogramme.
-  watch: [mainContent, gridContainer, previewStage, mapPanelElement, personsViewElement, facesViewElement, document.getElementById('fullscreen-view'), document.getElementById('exif-panel')],
+  watch: [mainContent, gridContainer, previewStage, mapPanelElement, listPanelElement, personsViewElement, facesViewElement, document.getElementById('fullscreen-view'), document.getElementById('exif-panel')],
   getView: () => {
     const photo = selectedIndices.size > 0 ? photos[lastSelectedIndex] ?? null : null;
-    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
+    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !listPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
     const previewShown = !mainContent.classList.contains('preview-hidden');
     const fullscreen = isFullscreenOpen();
     const fullscreenSlot = getFullscreenSlot();
@@ -5706,7 +5714,7 @@ initFacesPanel({
   enqueueTask: task => enqueueScanTask(task),
   // Détection désactivée : les vues Personnes et de gestion se ferment.
   closeFacesView: () => { closeFacesView(); closePersonsView(); },
-  onFacesChanged: () => { reloadFacesView(); reloadPersonsView(); },
+  onFacesChanged: () => { reloadFacesView(); reloadPersonsView(); onFacesDataChanged(); },
   // « Voir » (suppression d'une personne), double-clic dans la vue Personnes : vue de gestion sur les visages des photos affichées.
   openFacesManagement: () => { closePersonsView(); openFacesView(); },
   // Renommer une personne reliée : c'est son mot-clé qui est renommé, avec réécriture des fichiers qui le portent (même circuit que le panneau
@@ -5788,7 +5796,7 @@ initKeywordSuggestions({
 // Vue Personnes (voir persons-view.js) : une vignette par personne, ouverte par le bouton « Visages » de la barre du haut.
 initPersonsView({
   setPhotoGridVisible,
-  closeFacesView: () => { closeFacesView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue : une seule vue à la fois
+  closeFacesView: () => { closeFacesView(); closeMapModeNow(); closeListView(); }, // appelée à l'ouverture de la vue : une seule vue à la fois
   openFacesManagement: () => { closePersonsView(); openFacesView(); },
 });
 // Bouton « Visages » : ouvre la vue Personnes, ou ferme la vue (Personnes ou gestion) ouverte.
@@ -5800,6 +5808,7 @@ document.getElementById('btn-toggle-faces').addEventListener('click', async () =
     closeFacesView();
     return;
   }
+  closeListView();
   clearPersonSelection(); // vue ouverte par la barre d'outils : aucune personne choisie
   openPersonsView();
 });
@@ -5815,9 +5824,32 @@ initMapMode({
   showToast: message => showWriteToast(message),
   closePersonsView: () => closePersonsView(),
   closeFacesView: () => closeFacesView(),
+  closeListView: () => closeListView(),
   requestCloseFacesView: () => requestCloseFacesView(),
   setMapLayout: open => { mainContent.classList.toggle('map-mode', open); requestAnimationFrame(updateVirtualScroller); },
   layoutPreview: () => requestAnimationFrame(layoutPreviewSlots),
+});
+// List panel (list-view.js): sortable virtual table synchronized with the thumbnail grid.
+initListView({
+  getPhotos: () => photos,
+  getSelectedIndices: () => selectedIndices,
+  getActiveIndex: () => lastSelectedIndex,
+  canAddToSelection,
+  showCompareLimitToast,
+  commitSelection: activeIndex => { lastSelectedIndex = activeIndex; updateUIOnSelection(); },
+  scrollGridToPhoto: index => scrollPhotoIntoView(index),
+  openFullscreen: index => openFullscreen(index),
+  closePersonsView: () => closePersonsView(),
+  closeFacesView: () => closeFacesView(),
+  requestCloseFacesView: () => requestCloseFacesView(),
+  requestCloseMapMode: () => requestCloseMapMode(),
+  setListLayout: open => { mainContent.classList.toggle('list-mode', open); requestAnimationFrame(updateVirtualScroller); },
+  layoutPreview: () => requestAnimationFrame(layoutPreviewSlots),
+  formatAperture,
+  formatShutterSpeed,
+  colorFlags: COLOR_FLAGS,
+  colorFlagLabels,
+  pickFlags: PICK_FLAGS,
 });
 document.getElementById('show-map-toggle').addEventListener('change', onMapModeAccessChanged);
 initMapsSettings({ showToast: message => showWriteToast(message) }); // Paramètres > Cartes : style de la carte
@@ -5856,7 +5888,7 @@ initFacesGrid({
     if (!(await requestCloseFacesView())) return;
     openPersonsView();
   },
-  closePersonsView: () => { closePersonsView(); closeMapModeNow(); }, // appelée à l'ouverture de la vue de gestion : une seule vue à la fois
+  closePersonsView: () => { closePersonsView(); closeMapModeNow(); closeListView(); }, // appelée à l'ouverture de la vue de gestion : une seule vue à la fois
   showToast: (message, action) => showWriteToast(message, false, action), // `action` : bouton « Annuler » des actions de révision
   getPersonRoot,
   isFullscreen: () => isFullscreenOpen(),

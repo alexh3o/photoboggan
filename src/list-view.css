@@ -1,0 +1,66 @@
+/* List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage. */
+
+/* Preview panel becomes a vertical split when List mode is active; without Preview, List fills the whole panel. */
+.main-content.list-mode .preview-section { display: flex !important; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.main-content.list-mode #preview-resizer { display: block !important; }
+.main-content.list-mode .preview-stage { position: relative; inset: auto; flex: 1 1 0; min-height: 0; }
+.main-content.list-mode.preview-hidden .preview-stage { display: none; }
+.main-content.list-mode:not(.preview-hidden) .list-panel { border-top: 1px solid var(--separator); }
+.main-content.list-mode.split-custom .grid-section { flex: 0 0 var(--grid-width); }
+
+.list-panel { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg-panel); color: var(--text-light); }
+.list-panel[hidden] { display: none; }
+
+.list-toolbar { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--separator); background: var(--bg-panel); }
+.list-toolbar button { padding: 0.28rem 0.65rem; font-size: 0.78rem; }
+.list-clear-sort { margin-left: auto; color: var(--text-muted); }
+.list-clear-sort[hidden] { display: none; }
+
+.list-scroll { position: relative; flex: 1 1 0; min-height: 0; overflow: auto; }
+.list-table { position: relative; min-width: 100%; width: var(--list-table-width, 100%); }
+
+/* Sticky column headers */
+.list-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: stretch; height: 28px; background: var(--bg-panel); border-bottom: 1px solid var(--border); user-select: none; }
+.list-col-header { position: relative; flex: 0 0 var(--col-w, 120px); width: var(--col-w, 120px); min-width: 0; display: flex; align-items: center; gap: 0.3rem; padding: 0 0.6rem 0 0.5rem; border-right: 1px solid var(--separator); font-size: 0.75rem; font-weight: 600; color: var(--text-muted); cursor: pointer; overflow: hidden; white-space: nowrap; }
+.list-col-header:hover { background: var(--control-hover); color: var(--text-strong); }
+.list-col-header.sorted { color: var(--text-strong); }
+.list-col-header.dragging { opacity: 0.45; }
+.list-col-header.drop-before { box-shadow: inset 2px 0 0 var(--active-button); }
+.list-col-header.drop-after { box-shadow: inset -2px 0 0 var(--active-button); }
+
+.list-col-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-sort-badge { flex: 0 0 auto; font-size: 0.68rem; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+
+.list-col-resizer { position: absolute; top: 0; right: -3px; bottom: 0; width: 6px; cursor: col-resize; z-index: 1; touch-action: none; }
+.list-col-resizer:hover, .list-col-resizer.dragging { background: color-mix(in srgb, var(--active-button) 65%, transparent); }
+
+/* Virtualized body and rows (ROW_HEIGHT = 26px in list-view.js) */
+.list-body { position: relative; width: 100%; }
+.list-row { position: absolute; top: 0; left: 0; width: 100%; height: 26px; display: flex; align-items: center; border-bottom: 1px solid color-mix(in srgb, var(--separator) 55%, transparent); cursor: default; font-size: 0.78rem; will-change: transform; }
+.list-row:hover { background: var(--control-hover); }
+.list-row.selected { background: color-mix(in srgb, var(--selected-border) 22%, transparent); }
+.list-row.selected:hover { background: color-mix(in srgb, var(--selected-border) 30%, transparent); }
+.list-row.active { box-shadow: inset 3px 0 0 var(--selected-border); }
+
+.list-cell { flex: 0 0 var(--col-w, 120px); width: var(--col-w, 120px); min-width: 0; height: 100%; display: block; line-height: 25px; padding: 0 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-right: 1px solid color-mix(in srgb, var(--separator) 35%, transparent); color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.list-cell-muted { color: var(--text-dim); }
+.list-cell-yes { color: var(--text-strong); }
+
+/* Extension pill: green for photos, red for videos, grey for RAW */
+.list-ext-pill { display: inline-block; vertical-align: middle; padding: 1px 0.4rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1.3; }
+.list-ext-pill.ext-photo { background: #266b3a; color: #fff; }
+.list-ext-pill.ext-video { background: #a82c2c; color: #fff; }
+.list-ext-pill.ext-raw { background: #5a5d62; color: #fff; }
+
+.list-stars { color: #ffd43b; letter-spacing: 1px; font-size: 0.8rem; line-height: 1; vertical-align: middle; }
+.list-cell .flag-indicator { display: inline-block; vertical-align: middle; width: 0.72rem; height: 0.72rem; }
+.list-cell .pick-indicator { display: inline-block; vertical-align: middle; width: 0.72rem; height: 0.72rem; }
+
+.list-empty { position: absolute; inset: 28px 0 0; display: flex; align-items: center; justify-content: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.85rem; pointer-events: none; }
+.list-empty[hidden] { display: none; }
+
+/* Column picker menu: explicit check/indeterminate indicator on the left so ::after remains free for submenu arrows. */
+.list-columns-menu .context-menu-item.checked::after { content: none; }
+.list-menu-item { display: flex; align-items: center; justify-content: flex-start; gap: 0.45rem; }
+.list-menu-check { flex: 0 0 auto; width: 0.9rem; text-align: center; font-size: 0.78rem; color: var(--accent-text); font-weight: 700; }
+.list-menu-label { flex: 1 1 auto; text-align: left; }

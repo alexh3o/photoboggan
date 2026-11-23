@@ -1,4 +1,4 @@
-<!-- verified: 6975837 | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
+<!-- verified: bd4faa3 | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
 
 # Thumbnails, RAW/HEIC/video previews, orientation
 

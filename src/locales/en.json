@@ -1919,5 +1919,18 @@
   "Include/exclude children with their parents in keywords filters": "Include/exclude children with their parents in keywords filters",
   "Include/exclude children with their parents in keywords filters help": "When enabled, pressing Enter or clicking a parent keyword in the filter includes its children (~), and Alt excludes them (-~). Use Ctrl+Enter or Ctrl+click to filter on the keyword alone",
   "Filter on a keyword alone (without its children)": "Filter on a keyword alone (without its children)",
-  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone"
+  "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone": "Keyword filter: ignores the Settings > Metadata children option. Ctrl+Alt: exclude the keyword alone",
+  "List": "List",
+  "List view: photos in a sortable table": "List view: photos in a sortable table (L)",
+  "List panel": "List panel",
+  "Columns": "Columns",
+  "Choose displayed columns": "Choose displayed columns",
+  "Extension": "Extension",
+  "Shoot settings": "Shoot settings",
+  "Flash used": "Flash used",
+  "Other data": "Other data",
+  "Faces status": "Faces status",
+  "Similarity hash": "Similarity hash",
+  "Clear sort": "Clear sort",
+  "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns": "Click to sort, Ctrl+Click to add a sort level (up to 9). Drag to reorder columns"
 }

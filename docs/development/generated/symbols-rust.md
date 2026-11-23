@@ -879,13 +879,13 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `clipboard_entry` · L2676
 - `file_uri` · L2682 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
 - `main` · L2696
-- `move_file_or_copy` · L2972 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L2993 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3011 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3028 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3056
-- `get_storage_location` · L3063
-- `change_storage_location` · L3073
+- `move_file_or_copy` · L2973 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L2994 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3012 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3029 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3057
+- `get_storage_location` · L3064
+- `change_storage_location` · L3074
 
 ## model_files.rs (11)
 
@@ -1291,7 +1291,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub keyword_photo_ids` · L770 — Photos of `scope` that carry a keyword named `query` (whole name, case ignored, at any level of the tree), by increasing id. The toolbar
 - `pub semantic_keyword_photos` · L804 — Photos of `scope` carrying the keyword typed in the toolbar box (see `keyword_photo_ids`). Needs no model: it only reads the keyword tables.
 
-## similar.rs (15)
+## similar.rs (17)
 
 - *struct* `pub Request` · L37
 - `pub init_schema` · L52 — Cache of the fingerprints (8 hashes of 8 bytes).
@@ -1308,6 +1308,8 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `closest` · L179
 - `find` · L185
 - `pub run` · L194 — Finds groups of similar photos. `progress` receives a fraction between 0 and 1. A cancelled run returns no group, flagged `cancelled`.
+- `pub phash_photo_ids` · L349 — Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
+- `pub get_phash_photo_ids` · L363 — Photo ids that have an up-to-date perceptual hash (List panel "Similarity hash" column).
 
 ## stats.rs (45)
 

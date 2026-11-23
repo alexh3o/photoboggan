@@ -61,6 +61,7 @@ const GROUPS = [
   { title: 'Panels (show / hide)', rows: [
     { a: 'Library panel', k: [['N']] },
     { a: 'Preview', k: [['P']] },
+    { a: 'List panel', k: [['L']] },
     { a: 'Info panel', k: [['I']] },
     { a: 'Keywords panel', k: [['K']] },
     { a: 'Description panel', tag: 'Normal view', k: [['D']] },

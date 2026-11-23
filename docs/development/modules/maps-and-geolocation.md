@@ -1,4 +1,4 @@
-<!-- verified: 4450b30 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
+<!-- verified: bd4faa3 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
 
 # Maps, map mode, location panel, geolocation editing, place search
 
@@ -14,7 +14,7 @@ Shows where photos were taken (small map in the Info panel, full map mode), lets
 | `map-tile-protocol.js`               | The `pbmap://` protocol: every style / tile / sprite / glyph request of MapLibre goes through it; the **only code allowed to fetch the provider**. |
 | `map-view.js`                        | Reusable MapLibre map (`createMapView`, `loadMapLibrary`, `reloadAllMaps`), WebGL check, one instance per container.                               |
 | `location-panel.js`                  | Info panel group "Location": GPS of the selection (read from the database, click copies), small map, padlock for private places.                   |
-| `map-mode.js`                        | Map mode (toolbar button): map beside / instead of the preview, photo points, grid filter by visible zone, pending positions.                      |
+| `map-mode.js`                        | Map mode (toolbar button): map beside / instead of the preview, photo points, grid filter by visible zone, pending positions (mutually exclusive with People, Faces and List panels).                      |
 | `geo-tools.js`                       | Context-menu actions `eraseGeolocation` / `restoreGeolocation`.                                                                                    |
 | `place-search.js`, `place_search.rs` | Place search box of the map mode, `search_places` (Nominatim).                                                                                     |
 | `maps-settings.js`                   | Settings > Maps: map style refresh, `openSettingsTab` links.                                                                                       |

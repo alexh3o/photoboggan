@@ -26,9 +26,14 @@ let initialized = false;
 const DUPLICATE_SORT_KEY = 'duplicateGroupSort';
 
 let duplicateSearch = null;
+const phashListeners = new Set();
 
 export const isDuplicateSearchActive = () => duplicateSearch !== null;
 export const getDuplicateSearch = () => duplicateSearch;
+export function onPhashChanged(listener) {
+  phashListeners.add(listener);
+  return () => phashListeners.delete(listener);
+}
 
 // File format shown and compared in the duplicate results: the extension in capitals (JPEG and JFIF count as JPG).
 export function photoFormat(path) {
@@ -244,6 +249,9 @@ export async function showReadyDuplicateResults(task) {
 // A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in the list
 // ('ready') and its toast announces the results: the view is never changed without the user's click.
 async function handleDuplicatesResult(result, stopped, error, titleKey, label, task, context) {
+  if (context?.kind === 'similar') {
+    for (const listener of phashListeners) listener();
+  }
   if (error) {
     host.showToast(t('Duplicate search failed: {error}', { error }));
     return;
@@ -325,6 +333,7 @@ export function findDuplicateImages(kind, { scope, label, compareWithLibrary }, 
       : { command: definition.command, args: { request: { scope, compareWithLibrary, ...definition.request(settings) } } }),
     labelKey: definition.labelKey(settings), labelParams: { scope: label },
     onResult: (result, stopped, error, task) => handleDuplicatesResult(result, stopped, error, definition.titleKey(settings), label, task, {
+      kind,
       criteria: describeSearch(kind, settings, { scope, compareWithLibrary }),
       // RAW and JPEG searched together: results are shown per format and never offered for cleanup. (The hash search never pairs them: only the name does.)
       mixedFormats: kind === 'identical' ? Boolean(settings.name && settings.includeRawPairs) : Boolean(settings.includeRawPairs),

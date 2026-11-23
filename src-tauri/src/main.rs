@@ -2811,6 +2811,7 @@ fn main() {
             integrity_scan,
             find_duplicates,
             find_similar_images,
+            similar::get_phash_photo_ids,
             list_duplicate_candidates,
             export_integrity_report,
             open_folder_in_file_manager,

@@ -1,4 +1,4 @@
-<!-- verified: 2257e87 | sources: src-tauri/src/faces.rs, src/faces-panel.js, src/faces-grid.js, src/persons-view.js, src/sidebar-search.js -->
+<!-- verified: bd4faa3 | sources: src-tauri/src/faces.rs, src/faces-panel.js, src/faces-grid.js, src/persons-view.js, src/sidebar-search.js -->
 # Faces: data, review, people (faces.rs and UI)
 
 ## Purpose
@@ -8,7 +8,7 @@ Faces are the face regions of a photo and the people they belong to. photoboggan
 | File | Role |
 |---|---|
 | `faces.rs` | XMP region parsers, schema (`init_schema`), import (`store_photo_faces`), review / person / write-plan commands. Sections are `// ----` banners (settings, parsing, database, UI commands, faces view, writing, grouping, persons, merge, manual regions). |
-| `faces-panel.js` | Settings > Faces, People section of the sidebar (list, sort button, quick search `visiblePersons`), person filter (AND / exclude), face overlays in full screen and preview (`layoutFullscreenFaces`, `layoutPreviewFaces`), person menu, detection settings and scan dialog (`openFaceScanDialog`), `initFacesPanel`. |
+| `faces-panel.js` | Settings > Faces, People section of the sidebar (list, sort button, quick search `visiblePersons`), person filter (AND / exclude), face overlays in full screen and preview (`layoutFullscreenFaces`, `layoutPreviewFaces`), person menu, detection settings and scan dialog (`openFaceScanDialog`), read-only status getters (`getFaceCounts`, `getFaceScanIndex`, `isFaceScanRawEnabled`) for `list-view.js`, `initFacesPanel`. |
 | `faces-grid.js` | "Faces" management view: virtual grid of face tiles grouped by status, actions, undo, pending-write mode (`openFacesView`, `initFacesGrid`). |
 | `sidebar-search.js` | The search field of the sidebar titles (Folders, Albums, People): `initSidebarSearch`. Here it only reports the text; `faces-panel.js` does the filtering. |
 | `persons-view.js` | People view: one big tile per person, search, size slider (`openPersonsView`, `initPersonsView`). |

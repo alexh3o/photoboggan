@@ -345,6 +345,26 @@ pub fn run(pool: &DbPool, thumbnails_dir: &Path, request: &Request, cancel: &Ato
     Ok(report)
 }
 
+/// Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
+pub fn phash_photo_ids(conn: &Connection) -> Result<Vec<i64>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT p.id FROM photos p WHERE EXISTS(
+                SELECT 1 FROM photo_phash h WHERE h.photo_id = p.id AND h.algo = ?1
+                AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0))",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt.query_map(params![ALGO_VERSION], |row| row.get::<_, i64>(0)).map_err(|e| e.to_string())?;
+    crate::keywords::collect_rows(rows)
+}
+
+/// Photo ids that have an up-to-date perceptual hash (List panel "Similarity hash" column).
+#[tauri::command(async)]
+pub fn get_phash_photo_ids(state: tauri::State<'_, crate::AppState>) -> Result<Vec<i64>, String> {
+    let conn = state.pool().get().map_err(|e| e.to_string())?;
+    phash_photo_ids(&conn)
+}
+
 #[cfg(test)]
 #[path = "tests/similar.rs"]
 mod tests;

@@ -1,4 +1,4 @@
-<!-- verified: 1e2ad20 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: bd4faa3 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -8,12 +8,12 @@ Finds groups of photos that are the same picture: identical image data (metadata
 | File | Role |
 |---|---|
 | `duplicates.rs` | Identical search (`run`): hashed byte ranges per format, 3-stage narrowing, cache table `photo_hashes`; shared types `Scope`, `Report`, `load_candidates`, `name_candidates`; `DataHash` also used by the semantic scan. |
-| `similar.rs` | Similar search (`run`): fingerprints cache `photo_phash`, pairwise comparison, bursts, grouping. |
+| `similar.rs` | Similar search (`run`): fingerprints cache `photo_phash`, pairwise comparison, bursts, grouping, plus `phash_photo_ids` / `get_phash_photo_ids`. |
 | `phash.rs` | 64-bit perceptual hash (32×32 grey, DCT, 8×8 low frequencies), 8 rotation / mirror variants. |
 | `duplicates.js` | Pure helpers: settings (identical, similar, keep criteria), group ordering, `mergeGroups`, descriptions. |
 | `duplicate-names.js` | Name search in JS (`findNameGroups`). |
 | `duplicates-modal.js` | "More…" window: kind, settings, scope, keep-order panel. |
-| `duplicates-view.js` | Results mode (`duplicateSearch`), banner, group indexing/separators, `selectDuplicatesExceptBest`, task runners (`initDuplicatesView`). |
+| `duplicates-view.js` | Results mode (`duplicateSearch`), banner, group indexing/separators, `selectDuplicatesExceptBest`, task runners (`initDuplicatesView`), `onPhashChanged` listener hook. |
 | `main.js` | Wires `initDuplicatesView`, grid medal/metadata, group sort, `Escape` exit, and backend entry commands (`find_duplicates`, `find_similar_images`, `list_duplicate_candidates` in `main.rs`). |
 
 ## How it works
@@ -35,7 +35,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 **Results mode** (`showDuplicateResults`): a snapshot of the view is saved, filters cleared, a banner offers group sorting (count / size / path, remembered in `duplicateGroupSort`), the keep-order panel (`duplicateKeepSettings`: ordered criteria pixels, size, rating, date, short name, path last; applied at once, no new search) and "Select all but the best" (`selectDuplicatesExceptBest`): it only selects, deletion is the normal Delete with trash and confirmation. A finished search stays `ready` in the task list until "Show" or "Ignore"; the grid never changes without a click. Navigating by hand ends the mode.
 
 ## Contracts
-- IPC commands: `find_duplicates`, `find_similar_images`, `list_duplicate_candidates` (`generated/ipc-commands.md`).
+- IPC commands: `find_duplicates`, `find_similar_images`, `get_phash_photo_ids`, `list_duplicate_candidates` (`generated/ipc-commands.md`).
 - Events: `scan-progress` (fraction ×100).
 - Database: `photo_hashes` (photo_id, mode, version, size, modified, data_len, tolerant, partial_hash, full_hash), `photo_phash` (8 hashes blob + version); rows of removed photos are deleted at each run; see `generated/db-schema.md`.
 - Settings: `identicalSearchSettings`, `similarSearchSettings`, `duplicateGroupSort`, `duplicateKeepSettings`.
@@ -53,7 +53,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 - Zero impact at rest: no thread, tables empty until the first search.
 
 ## Tests
-`tests/duplicates.rs` (metadata ignored, PNG text chunks, whole-file formats, scopes, cache reuse / invalidation, cancel, videos, shared `DataHash`), `tests/similar.rs` (resized, rotation option, flat, bursts, cache, loose threshold chain), `tests/phash.rs`. Gap: name search and the results mode (JS) are not tested.
+`tests/duplicates.rs` (metadata ignored, PNG text chunks, whole-file formats, scopes, cache reuse / invalidation, cancel, videos, shared `DataHash`), `tests/similar.rs` (resized, rotation option, flat, bursts, cache, loose threshold chain, `phash_photo_ids_returns_only_up_to_date_entries`), `tests/phash.rs`. Gap: name search and the results mode (JS) are not tested.
 
 ## How to extend
 1. New format with metadata tolerance: add a `*_ranges` parser in `layout_of`, bump `LAYOUT_VERSION`, add a test beside `png_text_chunks_are_ignored`.

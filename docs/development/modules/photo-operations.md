@@ -1,4 +1,4 @@
-<!-- verified: 6975837 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
+<!-- verified: bd4faa3 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
 
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 
@@ -75,7 +75,7 @@ Queued task (`kind: 'integrity'`), events `scan-progress` and `scan-detail` (cur
 
 ### Frontend (`photo-actions.js`)
 
-`initPhotoActions(options)` receives the app services (`api`); menus are built by `openThumbnailMenu` (single and multiple selection), `openFolderMenu`, `openTextFieldMenu`; `openContextMenuAt` lets other modules reuse the menu. Dialog helpers are exported for other modules. Per-section "Open with" program lists (`programSection`, stored in localStorage and drag-reorderable) are only a UI list: the real permission is the backend allow-list.
+`initPhotoActions(options)` receives the app services (`api`); menus are built by `openThumbnailMenu` (single and multiple selection, shared by grid thumbnails and `.list-row` items of `list-view.js` while leaving `#list-panel` toolbar/headers to their own menu), `openFolderMenu`, `openTextFieldMenu`; `openContextMenuAt` lets other modules reuse the menu. Dialog helpers are exported for other modules. Per-section "Open with" program lists (`programSection`, stored in localStorage and drag-reorderable) are only a UI list: the real permission is the backend allow-list.
 
 ## Contracts
 

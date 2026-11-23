@@ -203,6 +203,10 @@ export function getPersons() {
   return persons;
 }
 
+export const getFaceCounts = () => faceCounts;
+export const getFaceScanIndex = () => scanIndex;
+export const isFaceScanRawEnabled = () => Boolean(faceSettings.scanRaw);
+
 // ==========================================
 // ÉCRITURE DES VISAGES DANS LES FICHIERS (lot 4)
 // ==========================================
@@ -1435,6 +1439,7 @@ function initDetectionSettings() {
     faceSettings.scanRaw = raw.checked;
     writeStored(FACE_SETTINGS_STORAGE_KEY, JSON.stringify(faceSettings));
     sendFaceSettings();
+    host?.onFacesChanged?.();
   });
   for (const [key, id] of Object.entries(THRESHOLD_INPUTS)) {
     const input = document.getElementById(id);
@@ -1485,6 +1490,7 @@ function applyDetectionEnabled() {
   if (!isFaceDetectionEnabled()) host.closeFacesView?.();
   renderPersons();
   renderPersonFilterTags(); // the face scan chip only exists while the detection is on
+  host?.onFacesChanged?.();
   if (detectionEnabled) {
     refreshModelStatus();
     refreshFaces();
@@ -1648,6 +1654,7 @@ function applyReadingEnabled() {
     renderPersonFilterTags();
   }
   relayoutOverlays();
+  host?.onFacesChanged?.();
 }
 
 // hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),

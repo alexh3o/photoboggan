@@ -62,7 +62,7 @@ export function buildCatalog() {
 // Comparaison
 // ---------------------------------------------------------------------------
 
-const extensionOf = photo => {
+export const extensionOf = photo => {
   if (photo.fileExtension === undefined) {
     const path = photo.path || '';
     const dot = path.lastIndexOf('.');

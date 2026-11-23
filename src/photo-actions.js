@@ -1356,6 +1356,7 @@ function closeContextMenu() {
   window.removeEventListener('resize', closeContextMenu);
   window.removeEventListener('wheel', closeContextMenu);
   document.getElementById('grid-view')?.removeEventListener('scroll', closeContextMenu);
+  document.getElementById('list-scroll')?.removeEventListener('scroll', closeContextMenu);
 }
 
 function onOutsidePointerDown(event) {
@@ -2004,6 +2005,7 @@ function showContextMenu(menu, event) {
   window.addEventListener('resize', closeContextMenu);
   window.addEventListener('wheel', closeContextMenu, { passive: true });
   document.getElementById('grid-view')?.addEventListener('scroll', closeContextMenu);
+  document.getElementById('list-scroll')?.addEventListener('scroll', closeContextMenu);
   menu.querySelector('.context-menu-item')?.focus();
 }
 
@@ -2012,6 +2014,11 @@ function findTargetPhoto(target) {
   const thumbnail = target?.closest('.thumbnail');
   if (thumbnail && thumbnail.dataset.index !== undefined) {
     return { index: Number(thumbnail.dataset.index), source: 'grid' };
+  }
+
+  const listRow = target?.closest('.list-row');
+  if (listRow && listRow.dataset.index !== undefined) {
+    return { index: Number(listRow.dataset.index), source: 'grid' };
   }
 
   const previewCell = target?.closest('.preview-cell');
@@ -2130,6 +2137,8 @@ function onContextMenu(event) {
   if (target?.closest('#albums-section')) return;
   // Panneau carte (mode Carte) : son menu propre est ouvert par map-mode.js, pas celui de la sélection.
   if (target?.closest('#map-panel')) return;
+  // List panel: rows open the standard photo context menu; toolbar and headers have their own menu.
+  if (target?.closest('#list-panel') && !target?.closest('.list-row')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');
