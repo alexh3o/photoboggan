@@ -10,6 +10,8 @@
 - [x] *feat*: `thumbnail` option to add a visual tag on RAW files
 - [x] *feat*: `filters` accept keywords children even if the chosen one is not active
 - [x] *feat*: `filters` add option to always include children, and Ctrl key to disable it when entering new keyword
+- [x] *refactor*: `histogram` allow clipping shdow/highlights display independantly of histogram display
+- [x] *chore*: `language` add a recipe for languages implementation
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -18,7 +20,6 @@
 - [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
-- [x] *chore*: `language` add a recipe for languages implementation
 - [ ] *fix*: `toasts` blurry toasts when a modal is on top
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [ ] *feat*: `undo` better ctrl+z info
