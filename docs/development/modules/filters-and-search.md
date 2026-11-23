@@ -1,4 +1,4 @@
-<!-- verified: 2682fac | sources: src/shooting-filters.js, src/format-filters.js, src/author-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/find-raw-mode.js, src/raw-settings.js, src/histogram.js, src/date-filter.js, src/main.js, src-tauri/src/db.rs -->
+<!-- verified: 2d2e8b4 | sources: src/shooting-filters.js, src/format-filters.js, src/author-filters.js, src/filter-suggest.js, src/filter-tags.js, src/find-raw.js, src/find-raw-mode.js, src/raw-settings.js, src/histogram.js, src/date-filter.js, src/main.js, src-tauri/src/db.rs -->
 
 # Filters and search (sidebar filters, SQL prefilter, "Find the RAW", histogram)
 

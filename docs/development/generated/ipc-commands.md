@@ -41,13 +41,13 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `link_person_keyword` | `faces.rs` | `person_id: i64, keyword_id: Option<i64>` | `()` | async pool | faces-panel.js |
 | `get_faces_for_photos` | `faces.rs` | `photo_ids: Vec<i64>` | `Vec<FaceItem>` | async pool | faces-grid.js |
 | `get_face_scan_index` | `faces.rs` | — | `Vec<(i64, bool)>` | async pool | faces-panel.js |
-| `confirm_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-grid.js ×3, faces-panel.js |
-| `assign_faces` | `faces.rs` | `face_ids: Vec<i64>, person_id: Option<i64>, keyword_id: Option<i64>, name: Option<String>, root: Option<String>` | `i64` | async pool | undo.js, faces-grid.js ×3, faces-panel.js ×2 |
-| `set_faces_unknown` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-grid.js ×2, faces-panel.js ×2, metadata-writes.js |
-| `ignore_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-grid.js ×2, faces-panel.js |
-| `unignore_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-grid.js ×2 |
-| `mark_faces_not_a_face` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-grid.js ×2, faces-panel.js |
-| `unmark_faces_not_a_face` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-grid.js ×2 |
+| `confirm_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-grid.js ×3, faces-panel.js, undo.js |
+| `assign_faces` | `faces.rs` | `face_ids: Vec<i64>, person_id: Option<i64>, keyword_id: Option<i64>, name: Option<String>, root: Option<String>` | `i64` | async pool | faces-grid.js ×3, faces-panel.js ×2, undo.js |
+| `set_faces_unknown` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-grid.js ×2, faces-panel.js ×2, metadata-writes.js, undo.js |
+| `ignore_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-grid.js ×2, faces-panel.js, undo.js |
+| `unignore_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-grid.js ×2, undo.js |
+| `mark_faces_not_a_face` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-grid.js ×2, faces-panel.js, undo.js |
+| `unmark_faces_not_a_face` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-grid.js ×2, undo.js |
 | `snapshot_faces` | `faces.rs` | `face_ids: Vec<i64>` | `Vec<FaceSnapshot>` | async pool | faces-grid.js, faces-panel.js ×2 |
 | `restore_faces` | `faces.rs` | `snapshots: Vec<FaceSnapshot>` | `usize` | async pool | faces-grid.js, faces-panel.js ×2 |
 | `snapshot_full_faces` | `faces.rs` | `face_ids: Vec<i64>` | `Vec<DeletedFaceSnapshot>` | async pool | faces-panel.js |
@@ -70,8 +70,8 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `undo_person_merge` | `faces.rs` | `merge_id: i64` | `usize` | async pool | faces-panel.js |
 | `get_persons_without_faces` | `faces.rs` | — | `Vec<(i64, String)>` | async pool | faces-panel.js |
 | `delete_persons` | `faces.rs` | `person_ids: Vec<i64>` | `usize` | async pool | faces-panel.js |
-| `add_manual_face` | `faces.rs` | `photo_id: i64, rect: [f64; 4], person_id: Option<i64>, keyword_id: Option<i64>, name: Option<String>, root: Option<String>` | `(i64, i64)` | async pool | undo.js, faces-panel.js ×2 |
-| `delete_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | undo.js, faces-panel.js ×4 |
+| `add_manual_face` | `faces.rs` | `photo_id: i64, rect: [f64; 4], person_id: Option<i64>, keyword_id: Option<i64>, name: Option<String>, root: Option<String>` | `(i64, i64)` | async pool | faces-panel.js ×2, undo.js |
+| `delete_faces` | `faces.rs` | `face_ids: Vec<i64>` | `usize` | async pool | faces-panel.js ×4, undo.js |
 | `get_person_cover` | `faces.rs` | `person_id: i64` | `Option<String>` | async pool | persons-view.js |
 | `get_erased_location_ids` | `geolocation.rs` | — | `Vec<i64>` | async pool | geo-tools.js |
 | `erase_geolocation` | `geolocation.rs` | `photo_ids: Vec<i64>, task_id: Option<String>` | `GeoWriteResult` | async pool | geo-tools.js |
