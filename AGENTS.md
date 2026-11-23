@@ -45,17 +45,20 @@
 ## 5. Règles par Domaine
 
 ### A. Frontend, CSS, grille
+
 - **rem** pour typographie, espacements, boutons, icônes, modales ; **px** seulement pour les filets et ombres fines et **tous les calculs de la grille virtuelle** de `main.js` (au pixel près, sinon interstices en vue justifiée). Détails : `style.md`, `modules/grid-and-viewer.md`.
 - Panneaux masqués : `.sidebar-section.hidden` et `#exif-panel.hidden` gardent `width: 0 !important` (et `min-width: 0` pour la barre latérale).
 - Vue justifiée : photos jamais recadrées, ratio conservé, aucune marge, dernière ligne non étirée. Une miniature n'est jamais affichée plus grande que sa taille réelle (plafond sur le plus grand côté).
 - **Cache des miniatures** : 256 sous-dossiers (`<2 car. du hash>/<hash>.jpg`). Chemin toujours par `thumbnail_cache_file` / `raw_preview_cache_file`, liste par `cache_files` (jamais `read_dir` à plat), dossier parent créé avant écriture. Changer le contenu d'une miniature impose d'incrémenter `PREVIEW_VERSION`. Résolution 512 px minimum (la détection des visages lit ces miniatures).
 
 ### B. Formats
+
 - **RAW** : ne jamais dématricer ; toujours l'aperçu JPEG intégré (`extract_raw_preview`), plein écran par `get_raw_preview_path`. **Vidéos** : image fixe uniquement, lecture dans le lecteur de l'OS.
 - Les miniatures non gérées côté Rust (ex. PNG) retombent sur la génération du webview : ne pas casser ce repli.
 - Ajouter un format : `recipes.md` §4. RAW : une seule liste côté Rust (`thumbnails::RAW_EXTENSIONS`), sa copie JS (`format-filters.js`) est vérifiée par un test.
 
 ### C. Métadonnées
+
 - **Deux chemins d'écriture** (`metadataWriter`) : **ExifTool** (défaut) ou **interne**. Mêmes champs dans les deux ; tout nouveau champ écrit va dans les deux et dans la relecture de vérification (`recipes.md` §3). ExifTool introuvable : écriture refusée, **jamais de repli** sur l'autre chemin.
 - **Cibles** : JPEG et HEIC/HEIF dans le fichier ; le reste dans un sidecar. Les noms de sidecars ne sont construits que par `sidecar_target` / `read_sidecar` / `sidecar_candidates` ; un `photo.xmp` partagé avec une autre image n'est jamais écrit ; une image ne lit qu'un sidecar. Champs écrits et règles : `modules/metadata-read-write.md`, `invariants.md` §2.
 - **Priorités de lecture** réglables (`set_metadata_read_order`) : la première source qui a une donnée l'emporte, une valeur 0 est une réponse ; un nouvel ordre ne vaut que pour les fichiers relus.
@@ -63,27 +66,33 @@
 - **Rotation sans perte** : seule la balise d'orientation change ; HEIC/HEIF et vidéos exclus ; ce que la WebView n'applique pas passe par `view_fix`.
 
 ### D. Protection des Photos
+
 - Ne jamais toucher aux données image : seules les métadonnées changent ; préserver les métadonnées non concernées.
 - Toute modification passe par un fichier temporaire puis un remplacement : jamais de fichier partiellement écrit. ExifTool : toujours `-overwrite_original` (jamais `_in_place`) ; après un échec, ne supprimer `<fichier>_exiftool_tmp` **que si l'original existe encore** (sinon c'est la seule copie : `recover_after_failure`).
 - Pas d'écritures concurrentes sur un même fichier (`exiftool::path_lock`). Un échec d'écriture n'est jamais présenté comme un succès.
 
 ### E. Tâches longues
+
 - Tout scan, vérification, copie, déplacement, redimensionnement, téléchargement, recherche de doublons ou analyse passe par la file de `main.js` (`enqueueScanTask`, injectée aux modules en `enqueueTask`), avec `task_id` unique, progression `scan-progress` et annulation (`scan_cancel_flag` / `release_scan_cancel_flag`). Écritures de mots-clés : file à partir de 20 photos. Détails : `modules/main-window.md`.
 - Ne jamais bloquer le thread principal : travail lourd dans `spawn_blocking` ou `rayon`, jamais dans un `#[tauri::command] fn` synchrone.
 
 ### F. Internationalisation
-- Tout nouveau texte : clé anglaise dans `src/locales/en.json`, **source de vérité**. Les agents ne touchent **pas** aux autres langues (`fr.json`, `es.json`…) sauf demande explicite de l'utilisateur (économie de quota) : `t()` retombe sur l'anglais en attendant, et `npm run docs:gen` liste les clés manquantes de chaque langue. `labelWithColon('Key')` pour « : » selon la langue, `tp('Key', count)` pour les pluriels (`Key` = forme « one », `Key|other`, `Key|few`… selon la langue), attributs `data-i18n*`. Ajouter une langue : `recipes.md` §11.
+
+- Tout nouveau texte : clé anglaise dans `src/locales/en.json`, **source de vérité**. Les agents ajoutent les clés dans les autres langues (`fr.json`, `es.json`…) sauf demande explicite de l'utilisateur (économie de quota) : dans ce cas `t()` retombe sur l'anglais en attendant, et `npm run docs:gen` liste les clés manquantes de chaque langue. `labelWithColon('Key')` pour « : » selon la langue, `tp('Key', count)` pour les pluriels (`Key` = forme « one », `Key|other`, `Key|few`… selon la langue), attributs `data-i18n*`. Ajouter une langue : `recipes.md` §11.
 
 ### G. Réglages, fenêtre
+
 - Tout nouveau réglage mémorisé en `localStorage` a son défaut dans `src/defaults.jsonc` (commentaires en ligne entière seulement) ; jamais de défaut codé en dur. Le backend lit `faceSettings` (`face_detect.rs`) et `thumbnailCacheSize` (`main.rs`) du même fichier. Un réglage du backend gardé en statique Rust est renvoyé par le frontend **au démarrage** et à chaque changement (`configuration.md`).
 - Restauration de la fenêtre : toujours `check_window_visibility` ; écran disparu → 1024×768 centré. Fermeture (`onCloseRequested`) : confirmation si des écritures sont en attente ou en cours (permission `core:window:allow-destroy`).
 
 ### H. Tests
+
 - Backend Rust uniquement : `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` en fin de module, code dans `src-tauri/src/tests/`. Fichiers synthétiques dans un `tempfile` (`test_support.rs`) : jamais de vraie photo, de réseau ni de modèle.
 - Tout correctif sur l'écriture de métadonnées, la base ou la synchronisation s'accompagne d'un test qui l'aurait attrapé. Les tests d'écriture interne appellent les fonctions internes (`write_jpeg_metadata`, `write_xmp_sidecar_with`…).
 - Test lent ou dépendant d'ExifTool : `#[ignore = "raison"]`. Un test ignoré qui échoue documente un écart connu : le dire, ne pas affaiblir l'assertion. État global (`sync_library`, réglages ExifTool) : un seul test par scénario. Détails : `testing.md`.
 
 ### I. Fonctions optionnelles et sensibles
+
 - **Mises à jour** (`modules/updates.md`) : source unique, les releases GitHub du dépôt ; l'interface ne fournit jamais d'adresse ni de chemin ; SHA-256 publié exigé, vérifié au téléchargement et avant le lancement. La release garde un `.msi` et un `.deb`.
 - **Doublons** (`modules/duplicates.md`) : changer les octets hachés impose `LAYOUT_VERSION` + 1 (idem `ALGO_VERSION` du pHash) ; jamais d'écriture dans le cache de miniatures ; zéro impact au repos ; la grille ne change jamais sans clic.
 - **Recherche par contenu** (`modules/semantic.md`) : invisible et sans aucune IPC si désactivée ; données dérivées uniquement ; **accepter une suggestion = `addPendingKeyword`**, jamais d'écriture sans « Appliquer » ; tout appel asynchrone ignore une réponse périmée (compteur de requêtes) ; modèle et ONNX Runtime jamais dans l'installeur.
