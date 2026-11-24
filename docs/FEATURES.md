@@ -139,7 +139,10 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 - **Metadata reading** across major standards (EXIF, IPTC, XMP) and schemas (digiKam, Lightroom, Media Pro, Microsoft, ACDSee...) with user-editable per-field reading priority
 - **Safe sidecar targeting** (avoids overwriting shared sidecars in RAW+JPEG / RAW+DNG pairs, logs conflicts)
 - **Atomic writes**, **post-write verification** (every write is re-read and checked), and **ExifTool failure recovery** with detailed logs
+- **Files left in an incomplete form** during an unlucky crash of app, exiftool or computer during a metadata write are detected on new files scans
 - Full metadata inspector & file-dates details
+- Undoing an operation on a file that has been modified outside of photoboggan between modification and undo attempt opens a warning dialog
+- Overwriting a file during copy or resize asks for confirmation and sends the overwritten file to the system trash
 
 ## File Operations & Maintenance
 
