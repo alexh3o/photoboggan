@@ -210,6 +210,154 @@ fn safe_arg_path_prefixes_leading_dash_only() {
     assert_eq!(safe_arg_path(Path::new("C:/photos/-dash.jpg")), "C:/photos/-dash.jpg");
 }
 
+#[test]
+fn has_non_face_mwg_regions_detects_only_non_face_types() {
+    let wrap = |ns_prefix: &str, body: &str| {
+        format!(
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\
+             <rdf:Description xmlns:{ns_prefix}=\"http://www.metadataworkinggroup.com/schemas/regions/\">{body}</rdf:Description>\
+             </rdf:RDF></x:xmpmeta>"
+        )
+    };
+    assert!(!crate::faces::has_non_face_mwg_regions(""));
+    assert!(!crate::faces::has_non_face_mwg_regions(&wrap("mwg-rs", "")));
+
+    let face_only = wrap(
+        "mwg-rs",
+        "<mwg-rs:Regions><mwg-rs:RegionList><rdf:Bag>\
+         <rdf:li><mwg-rs:Type>Face</mwg-rs:Type><mwg-rs:Name>Alice</mwg-rs:Name></rdf:li>\
+         <rdf:li><mwg-rs:Type>face</mwg-rs:Type></rdf:li>\
+         <rdf:li><mwg-rs:Type>  </mwg-rs:Type></rdf:li>\
+         <rdf:li><mwg-rs:Name>NoType</mwg-rs:Name></rdf:li>\
+         </rdf:Bag></mwg-rs:RegionList></mwg-rs:Regions>",
+    );
+    assert!(!crate::faces::has_non_face_mwg_regions(&face_only));
+
+    for region_type in ["Pet", "Focus", "BarCode"] {
+        let xml = wrap(
+            "mwg-rs",
+            &format!(
+                "<mwg-rs:Regions><mwg-rs:RegionList><rdf:Bag>\
+                 <rdf:li><mwg-rs:Type>Face</mwg-rs:Type></rdf:li>\
+                 <rdf:li><mwg-rs:Type>{region_type}</mwg-rs:Type></rdf:li>\
+                 </rdf:Bag></mwg-rs:RegionList></mwg-rs:Regions>"
+            ),
+        );
+        assert!(crate::faces::has_non_face_mwg_regions(&xml), "expected true for {region_type}");
+    }
+
+    let custom_prefix = wrap(
+        "myreg",
+        "<myreg:Regions><myreg:RegionList><rdf:Bag>\
+         <rdf:li myreg:Type=\"BarCode\" myreg:BarCodeValue=\"12345\"/>\
+         </rdf:Bag></myreg:RegionList></myreg:Regions>",
+    );
+    assert!(crate::faces::has_non_face_mwg_regions(&custom_prefix));
+}
+
+#[test]
+fn json_to_exiftool_struct_handles_nested_objects_special_chars_and_primitives() {
+    let value = serde_json::json!({
+        "Area": {
+            "X": 0.5,
+            "Y": 0.25,
+            "W": 0.1,
+            "H": 0.2,
+            "D": 0.05,
+            "Unit": "normalized"
+        },
+        "Type": "Pet",
+        "Description": "  a,b=c{d}[e]|f#g\\h\ni  ",
+        "Flags": [true, 42, null]
+    });
+    let serialized = json_to_exiftool_struct(&value);
+    assert!(serialized.contains("Area={D=0.05,H=0.2,Unit=normalized,W=0.1,X=0.5,Y=0.25}"));
+    assert!(serialized.contains("Type=Pet"));
+    assert!(serialized.contains("Flags=[true,42,]"));
+    assert!(serialized.contains("Description=| | a|,b|=c|{d|}|[e|]||f|#g\\h\ni| | "));
+
+    let assigned = assign("XMP-mwg-rs:RegionInfo#", &serialized);
+    assert!(!assigned.contains('\n') && !assigned.contains('\r'), "raw newline in {assigned:?}");
+    assert!(assigned.contains("g\\\\h\\ni"), "expected C-escaped backslash/newline in {assigned:?}");
+}
+
+#[test]
+fn parse_preserved_mwg_regions_handles_array_single_object_and_errors() {
+    let array_json = r#"[{
+        "RegionInfo": {
+            "AppliedToDimensions": {"W": 4000, "H": 3000, "Unit": "pixel"},
+            "RegionList": [
+                {"Type": "Face", "Name": "Alice"},
+                {"Type": "face"},
+                {"Name": "NoType"},
+                {"Type": "  "},
+                {"Type": "Pet", "Name": "Rex"},
+                {"Type": "Focus", "FocusUsage": "EvaluatedUsed"},
+                {"Type": "BarCode", "BarCodeValue": "ABC"}
+            ]
+        }
+    }]"#;
+    let parsed = parse_preserved_mwg_regions(array_json).unwrap();
+    assert_eq!(parsed.applied_to_dimensions, Some(serde_json::json!({"W": 4000, "H": 3000, "Unit": "pixel"})));
+    assert_eq!(parsed.regions.len(), 3);
+    assert_eq!(parsed.regions[0]["Type"], "Pet");
+    assert_eq!(parsed.regions[1]["Type"], "Focus");
+    assert_eq!(parsed.regions[2]["Type"], "BarCode");
+
+    let single_json = r#"[{
+        "RegionInfo": {
+            "RegionList": {"Type": "Pet", "Name": "Solo"}
+        }
+    }]"#;
+    let single = parse_preserved_mwg_regions(single_json).unwrap();
+    assert_eq!(single.regions.len(), 1);
+    assert_eq!(single.regions[0]["Name"], "Solo");
+
+    assert!(parse_preserved_mwg_regions("not json").is_err());
+    assert!(parse_preserved_mwg_regions(r#"[{"SourceFile": "a.jpg"}]"#).is_err());
+    assert!(parse_preserved_mwg_regions(r#"[{"RegionInfo": {}}]"#).is_err());
+}
+
+#[test]
+fn region_args_preserves_non_face_regions_and_clears_microsoft_when_no_faces() {
+    let preserved = PreservedMwgRegions {
+        regions: vec![serde_json::json!({
+            "Area": {"X": 100, "Y": 100, "W": 50, "H": 50, "Unit": "pixel"},
+            "Type": "Pet",
+            "Name": "Rex"
+        })],
+        applied_to_dimensions: Some(serde_json::json!({"W": 800, "H": 600, "Unit": "pixel"})),
+    };
+
+    // 1. Faces + preserved non-faces
+    let with_faces = crate::exif::RegionsUpdate {
+        width: 800,
+        height: 600,
+        regions: vec![crate::exif::RegionWrite { name: Some("Alice".into()), x: 0.1, y: 0.2, w: 0.3, h: 0.4 }],
+    };
+    let args = region_args(&with_faces, Some(&preserved));
+    assert_eq!(args.len(), 2);
+    assert!(args[0].starts_with("-XMP-mwg-rs:RegionInfo#="));
+    assert!(args[0].contains("Type=Face"));
+    assert!(args[0].contains("Type=Pet"));
+    assert!(args[1].starts_with("-XMP-MP:RegionInfoMP="));
+    assert!(args[1].contains("PersonDisplayName=Alice"));
+    assert!(!args[1].contains("Pet"));
+
+    // 2. 0 faces + preserved non-faces, width/height = 0 -> keep preserved AppliedToDimensions, clear RegionInfoMP
+    let no_faces = crate::exif::RegionsUpdate { width: 0, height: 0, regions: vec![] };
+    let args_no_faces = region_args(&no_faces, Some(&preserved));
+    assert!(args_no_faces[0].starts_with("-XMP-mwg-rs:RegionInfo#="));
+    assert!(args_no_faces[0].contains("AppliedToDimensions={H=600,Unit=pixel,W=800}"));
+    assert!(args_no_faces[0].contains("Type=Pet"));
+    assert!(!args_no_faces[0].contains("Type=Face"));
+    assert_eq!(args_no_faces[1], "-XMP-MP:RegionInfoMP=");
+
+    // 3. 0 faces + no preserved regions -> both cleared
+    let args_empty = region_args(&no_faces, None);
+    assert_eq!(args_empty, ["-XMP-mwg-rs:RegionInfo=", "-XMP-MP:RegionInfoMP="]);
+}
+
 // --- Intégration (ExifTool réel) ---
 
 /// Prépare ExifTool : version embarquée du dépôt si elle est présente (Windows), sinon celui du PATH. Faux (avec un message) s'il est introuvable.
@@ -708,5 +856,217 @@ fn failed_seed_sidecar_write_records_no_false_recovery() {
     assert!(take_recoveries().is_empty(), "seed temp failure must not record a Recovery");
     assert_eq!(std::fs::read(&shared).unwrap(), corrupt_xmp);
     assert!(!dir.path().join("photo.cr2.xmp").exists());
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+struct FaceReadingGuard(bool);
+
+impl FaceReadingGuard {
+    fn enable() -> Self {
+        let previous = crate::faces::reading_enabled();
+        crate::faces::set_face_reading(true);
+        Self(previous)
+    }
+}
+
+impl Drop for FaceReadingGuard {
+    fn drop(&mut self) {
+        crate::faces::set_face_reading(self.0);
+    }
+}
+
+fn query_exiftool_json(path: &Path, args: &[&str]) -> serde_json::Value {
+    let output = launcher()
+        .unwrap()
+        .command()
+        .args(["-j", "-struct", "-n"])
+        .args(args)
+        .arg("--")
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "ExifTool query failed: {}", String::from_utf8_lossy(&output.stderr));
+    let text = String::from_utf8(output.stdout).unwrap();
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("invalid JSON from ExifTool: {e}\n{text}"))
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn jpeg_face_write_preserves_non_face_mwg_regions_and_clears_faces_only() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(200, 150);
+    let path = dir.path().join("pet_focus.jpg");
+    std::fs::write(&path, &original).unwrap();
+
+    // Seed JPEG with Pet (special chars + edge spaces + backslash/newline), Focus (FocusUsage + Area.D), and an unconfirmed Face.
+    let pet_name = "  Rex #1  ";
+    let pet_desc = "line1\nline2, {a}=b [c]|d #e \\n end  ";
+    let initial_struct = format!(
+        "{{AppliedToDimensions={{W=200,H=150,Unit=pixel}},RegionList=[\
+         {{Area={{X=0.25,Y=0.35,W=0.1,H=0.15,Unit=normalized}},Name={},Description={},Type=Pet}},\
+         {{Area={{X=0.5,Y=0.5,D=0.1,Unit=normalized}},FocusUsage=EvaluatedUsed,Type=Focus}},\
+         {{Area={{X=0.8,Y=0.8,W=0.1,H=0.1,Unit=normalized}},Name=Imported,Type=Face}}\
+         ]}}",
+        struct_value(pet_name),
+        struct_value(pet_desc)
+    );
+    overwrite(&path, vec![assign("XMP-mwg-rs:RegionInfo#", &initial_struct)]).unwrap();
+
+    // 1. Write confirmed face "Alice" -> "Imported" must be replaced by "Alice", while Pet and Focus stay intact.
+    let update = MetadataUpdate {
+        regions: Some(crate::exif::RegionsUpdate {
+            width: 200,
+            height: 150,
+            regions: vec![crate::exif::RegionWrite { name: Some("Alice".into()), x: 0.1, y: 0.1, w: 0.2, h: 0.2 }],
+        }),
+        ..Default::default()
+    };
+    write_metadata(&path, &update).unwrap();
+
+    let json = query_exiftool_json(&path, &["-XMP-mwg-rs:RegionInfo"]);
+    let list = json[0]["RegionInfo"]["RegionList"].as_array().unwrap();
+    assert_eq!(list.len(), 3, "expected Alice + Pet + Focus, got {list:?}");
+
+    let faces: Vec<&serde_json::Value> = list.iter().filter(|r| r["Type"] == "Face").collect();
+    assert_eq!(faces.len(), 1);
+    assert_eq!(faces[0]["Name"], "Alice");
+
+    let pet = list.iter().find(|r| r["Type"] == "Pet").expect("Pet region missing");
+    assert_eq!(pet["Name"], pet_name);
+    assert_eq!(pet["Description"], pet_desc);
+    assert_eq!(pet["Area"]["Unit"], "normalized");
+
+    let focus = list.iter().find(|r| r["Type"] == "Focus").expect("Focus region missing");
+    assert_eq!(focus["FocusUsage"], "EvaluatedUsed");
+    assert_eq!(focus["Area"]["D"], 0.1);
+    assert_eq!(focus["Area"]["Unit"], "normalized");
+
+    {
+        let _guard = FaceReadingGuard::enable();
+        let meta = read_exif(&path);
+        let names: Vec<Option<&str>> = meta.faces.regions.as_deref().unwrap_or_default().iter().map(|r| r.name.as_deref()).collect();
+        assert_eq!(names, vec![Some("Alice")]);
+    }
+
+    // 2. Clear all faces (empty regions, width/height = 0) -> RegionInfoMP removed, no Face left, Pet + Focus + AppliedToDimensions preserved.
+    let clear_faces = MetadataUpdate {
+        regions: Some(crate::exif::RegionsUpdate { width: 0, height: 0, regions: vec![] }),
+        ..Default::default()
+    };
+    write_metadata(&path, &clear_faces).unwrap();
+
+    let after = query_exiftool_json(&path, &["-XMP-mwg-rs:RegionInfo", "-XMP-MP:RegionInfoMP"]);
+    assert!(after[0].get("RegionInfoMP").is_none(), "expected RegionInfoMP deleted, got {}", after[0]);
+    assert_eq!(after[0]["RegionInfo"]["AppliedToDimensions"], serde_json::json!({"W": 200, "H": 150, "Unit": "pixel"}));
+    let after_list = after[0]["RegionInfo"]["RegionList"].as_array().unwrap();
+    assert_eq!(after_list.len(), 2, "expected only Pet + Focus, got {after_list:?}");
+    assert!(after_list.iter().all(|r| r["Type"] != "Face"));
+    assert_eq!(after_list.iter().find(|r| r["Type"] == "Pet").unwrap()["Description"], pet_desc);
+    assert_eq!(after_list.iter().find(|r| r["Type"] == "Focus").unwrap()["FocusUsage"], "EvaluatedUsed");
+
+    assert_eq!(decoded_pixels(&std::fs::read(&path).unwrap()), decoded_pixels(&original));
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn sidecar_and_shared_seed_preserve_barcode_region_on_face_write() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+
+    // 1. Existing own sidecar: b.cr2 + b.cr2.xmp with BarCode + unconfirmed Face.
+    let raw_bytes = b"II*\0 faux raw".to_vec();
+    let raw = dir.path().join("b.cr2");
+    std::fs::write(&raw, &raw_bytes).unwrap();
+    let own_sidecar = dir.path().join("b.cr2.xmp");
+    let barcode_struct = "{AppliedToDimensions={W=400,H=300,Unit=pixel},RegionList=[\
+        {Area={X=200,Y=150,W=80,H=40,Unit=pixel},BarCodeValue=EAN-9780131103627,Type=BarCode},\
+        {Area={X=0.5,Y=0.5,W=0.2,H=0.2,Unit=normalized},Name=Unconfirmed,Type=Face}\
+    ]}";
+    run(vec!["-o".into(), safe_arg_path(&own_sidecar), assign("XMP-mwg-rs:RegionInfo#", barcode_struct)]).unwrap();
+
+    write_metadata(
+        &raw,
+        &MetadataUpdate {
+            regions: Some(crate::exif::RegionsUpdate {
+                width: 400,
+                height: 300,
+                regions: vec![crate::exif::RegionWrite { name: Some("Bob".into()), x: 0.1, y: 0.1, w: 0.2, h: 0.2 }],
+            }),
+            ..Default::default()
+        },
+    ).unwrap();
+
+    assert_eq!(std::fs::read(&raw).unwrap(), raw_bytes);
+    let json = query_exiftool_json(&own_sidecar, &["-XMP-mwg-rs:RegionInfo"]);
+    let list = json[0]["RegionInfo"]["RegionList"].as_array().unwrap();
+    assert_eq!(list.len(), 2, "got {list:?}");
+    assert_eq!(list.iter().find(|r| r["Type"] == "Face").unwrap()["Name"], "Bob");
+    let barcode = list.iter().find(|r| r["Type"] == "BarCode").unwrap();
+    assert_eq!(barcode["BarCodeValue"], "EAN-9780131103627");
+    assert_eq!(barcode["Area"]["Unit"], "pixel");
+
+    // 2. Shared seed photo.xmp: photo.cr2 + photo.dng -> photo.cr2.xmp gets Bob + BarCode, photo.xmp stays untouched.
+    let shared = dir.path().join("photo.xmp");
+    let shared_struct = "{AppliedToDimensions={W=500,H=400,Unit=pixel},RegionList=[\
+        {Area={X=100,Y=100,W=60,H=30,Unit=pixel},BarCodeValue=QR-42,Type=BarCode}\
+    ]}";
+    run(vec!["-o".into(), safe_arg_path(&shared), assign("XMP-mwg-rs:RegionInfo#", shared_struct)]).unwrap();
+    let shared_bytes = std::fs::read(&shared).unwrap();
+
+    let photo_cr2 = dir.path().join("photo.cr2");
+    let photo_dng = dir.path().join("photo.dng");
+    std::fs::write(&photo_cr2, b"cr2").unwrap();
+    std::fs::write(&photo_dng, b"dng").unwrap();
+
+    write_metadata(
+        &photo_cr2,
+        &MetadataUpdate {
+            regions: Some(crate::exif::RegionsUpdate {
+                width: 500,
+                height: 400,
+                regions: vec![crate::exif::RegionWrite { name: Some("Bob".into()), x: 0.2, y: 0.2, w: 0.2, h: 0.2 }],
+            }),
+            ..Default::default()
+        },
+    ).unwrap();
+
+    assert_eq!(std::fs::read(&shared).unwrap(), shared_bytes, "shared photo.xmp must remain untouched");
+    let cr2_sidecar = dir.path().join("photo.cr2.xmp");
+    let seed_json = query_exiftool_json(&cr2_sidecar, &["-XMP-mwg-rs:RegionInfo"]);
+    let seed_list = seed_json[0]["RegionInfo"]["RegionList"].as_array().unwrap();
+    assert_eq!(seed_list.len(), 2, "got {seed_list:?}");
+    assert_eq!(seed_list.iter().find(|r| r["Type"] == "Face").unwrap()["Name"], "Bob");
+    assert_eq!(seed_list.iter().find(|r| r["Type"] == "BarCode").unwrap()["BarCodeValue"], "QR-42");
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn write_without_regions_leaves_anonymous_face_and_pet_untouched() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("kw_only.jpg");
+    std::fs::write(&path, jpeg_bytes(100, 100)).unwrap();
+
+    let initial_struct = "{AppliedToDimensions={W=100,H=100,Unit=pixel},RegionList=[\
+        {Area={X=0.2,Y=0.2,W=0.2,H=0.2,Unit=normalized},Type=Face},\
+        {Area={X=0.7,Y=0.7,W=0.2,H=0.2,Unit=normalized},Name=Milo,Type=Pet}\
+    ]}";
+    overwrite(&path, vec![assign("XMP-mwg-rs:RegionInfo#", initial_struct)]).unwrap();
+
+    write_metadata(
+        &path,
+        &MetadataUpdate { keywords: Some(paths(&[&["Nature"]])), regions: None, ..Default::default() },
+    ).unwrap();
+
+    let json = query_exiftool_json(&path, &["-XMP-mwg-rs:RegionInfo"]);
+    let list = json[0]["RegionInfo"]["RegionList"].as_array().unwrap();
+    assert_eq!(list.len(), 2, "expected anonymous Face and Pet untouched, got {list:?}");
+    assert_eq!(list[0]["Type"], "Face");
+    assert!(list[0].get("Name").is_none());
+    assert_eq!(list[1]["Type"], "Pet");
+    assert_eq!(list[1]["Name"], "Milo");
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
 }

@@ -526,14 +526,15 @@ pub fn begin_shutdown_and_wait(timeout: Duration) -> bool {
     finished
 }
 
-/// Exécute une commande d'écriture : succès seulement si ExifTool annonce le fichier écrit (ou déjà à jour) sans erreur.
-fn run(args: Vec<String>) -> std::io::Result<()> {
+/// Executes an ExifTool command on the persistent pool, rejecting raw newlines, checking for `Error` lines on stderr,
+/// and logging any `Warning` lines. Returns `(stdout, stderr)`.
+fn run_raw(args: &[String]) -> std::io::Result<(String, String)> {
     if args.iter().any(|arg| arg.contains(['\n', '\r'])) {
         return Err(std::io::Error::other("Valeur de métadonnée invalide (retour à la ligne)"));
     }
     let found = launcher().map_err(|error| std::io::Error::other(format!("{error} : écriture refusée (voir Paramètres, onglet Métadonnées)")))?;
     let mut process = acquire(&found).map_err(std::io::Error::other)?;
-    let result = process.execute(&args);
+    let result = process.execute(args);
     release(process, result.is_ok());
     let (stdout, stderr) = result.map_err(std::io::Error::other)?;
     let errors: Vec<&str> = stderr.lines().filter(|line| line.starts_with("Error")).map(|line| line.trim_start_matches("Error:").trim()).collect();
@@ -542,6 +543,12 @@ fn run(args: Vec<String>) -> std::io::Result<()> {
     for warning in stderr.lines().filter(|line| line.starts_with("Warning")) {
         eprintln!("ExifTool warning: {} ({})", warning.trim(), args.last().map(String::as_str).unwrap_or_default());
     }
+    Ok((stdout, stderr))
+}
+
+/// Exécute une commande d'écriture : succès seulement si ExifTool annonce le fichier écrit (ou déjà à jour) sans erreur.
+fn run(args: Vec<String>) -> std::io::Result<()> {
+    let (stdout, stderr) = run_raw(&args)?;
     let done = stdout.lines().any(|line| {
         let line = line.trim();
         line.starts_with("1 ") && (line.ends_with("files updated") || line.ends_with("files unchanged") || line.ends_with("files created"))
@@ -814,15 +821,19 @@ fn temp_sidecar_path(image_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.photoboggan-{}-{n}.tmp.xmp", image_path.display(), std::process::id()))
 }
 
-/// Writes `tag_args` to the file or its XMP sidecar depending on format. `has_values`: false when only deleting,
-/// in which case a missing sidecar is not created.
-fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
-    let _active_write = ActiveWriteGuard::enter()?;
-    let _guard = path_lock(image_path);
-    if !matches!(target_of(image_path), Target::Sidecar) { return overwrite(image_path, tag_args); }
+/// Writes `tag_args` to the file or its already-resolved XMP sidecar target under `ActiveWriteGuard` + `path_lock`.
+/// `has_values`: false when only deleting, in which case a missing sidecar (without `seed`) is not created.
+fn write_to_resolved(
+    image_path: &Path,
+    target: Target,
+    sidecar: Option<crate::exif::SidecarTarget>,
+    tag_args: Vec<String>,
+    has_values: bool,
+) -> std::io::Result<()> {
+    if !matches!(target, Target::Sidecar) { return overwrite(image_path, tag_args); }
     // See exif::write_xmp_sidecar_with: never a sidecar for an image that is no longer there.
     if !image_path.is_file() { return Err(crate::exif::image_gone(image_path)); }
-    let crate::exif::SidecarTarget { path: sidecar, exists, seed } = crate::exif::sidecar_target(image_path);
+    let crate::exif::SidecarTarget { path: sidecar, exists, seed } = sidecar.unwrap_or_else(|| crate::exif::sidecar_target(image_path));
     if exists { return overwrite(&sidecar, tag_args); }
     let temp = temp_sidecar_path(image_path);
     remove_temp_file(&temp);
@@ -858,6 +869,67 @@ fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::
     Ok(())
 }
 
+/// Writes `tag_args` to the file or its XMP sidecar depending on format. `has_values`: false when only deleting,
+/// in which case a missing sidecar is not created.
+fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
+    let _active_write = ActiveWriteGuard::enter()?;
+    let _guard = path_lock(image_path);
+    write_to_resolved(image_path, target_of(image_path), None, tag_args, has_values)
+}
+
+/// Preserved non-face MWG regions read from the target's existing `XMP-mwg-rs:RegionInfo`.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct PreservedMwgRegions {
+    regions: Vec<serde_json::Value>,
+    applied_to_dimensions: Option<serde_json::Value>,
+}
+
+/// Returns true if a JSON MWG region object has a present, non-empty `Type` different from `Face` (case-insensitive).
+fn is_non_face_region_json(item: &serde_json::Value) -> bool {
+    item.as_object()
+        .and_then(|map| map.get("Type"))
+        .and_then(|value| value.as_str())
+        .is_some_and(|region_type| {
+            let trimmed = region_type.trim();
+            !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("face")
+        })
+}
+
+/// Parses ExifTool `-j -struct -n -XMP-mwg-rs:RegionInfo` output and keeps only non-face MWG regions.
+fn parse_preserved_mwg_regions(json: &str) -> std::io::Result<PreservedMwgRegions> {
+    let root: serde_json::Value = serde_json::from_str(json)
+        .map_err(|error| std::io::Error::other(format!("Impossible de lire les régions MWG existantes (JSON invalide) : {error}")))?;
+    let region_info = root
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(|entry| entry.as_object())
+        .and_then(|entry| entry.get("RegionInfo"))
+        .and_then(|info| info.as_object())
+        .ok_or_else(|| std::io::Error::other("Impossible de lire les régions MWG existantes : structure RegionInfo absente"))?;
+    let applied_to_dimensions = region_info.get("AppliedToDimensions").filter(|value| value.is_object()).cloned();
+    let regions = match region_info.get("RegionList") {
+        Some(serde_json::Value::Array(items)) => items.iter().filter(|item| is_non_face_region_json(item)).cloned().collect(),
+        Some(single @ serde_json::Value::Object(_)) => {
+            if is_non_face_region_json(single) { vec![single.clone()] } else { Vec::new() }
+        }
+        _ => return Err(std::io::Error::other("Impossible de lire les régions MWG existantes : RegionList absent ou invalide")),
+    };
+    Ok(PreservedMwgRegions { regions, applied_to_dimensions })
+}
+
+/// Reads `XMP-mwg-rs:RegionInfo` from `source` via the persistent ExifTool pool using `-j -struct -n`.
+fn read_preserved_mwg_regions(source: &Path) -> std::io::Result<PreservedMwgRegions> {
+    let args = vec![
+        "-j".to_string(),
+        "-struct".to_string(),
+        "-n".to_string(),
+        "-XMP-mwg-rs:RegionInfo".to_string(),
+        safe_arg_path(source),
+    ];
+    let (stdout, _) = run_raw(&args)?;
+    parse_preserved_mwg_regions(&stdout)
+}
+
 /// Écrit les modifications `update` en une seule commande ExifTool :
 /// - mots-clés actifs (un chemin par mot-clé) : dc:subject, digiKam TagsList, Lightroom hierarchicalSubject, Media Pro CatalogSets,
 ///   Microsoft LastKeywordXMP, ACDSee categories ; dans les JPEG, aussi IPTC Keywords et EXIF XPKeywords ;
@@ -869,21 +941,56 @@ fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::
 /// - crédit : XMP photoshop:Credit ; dans les JPEG, aussi IPTC Credit ; conditions d'utilisation : XMP xmpRights:UsageTerms ;
 ///   e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / CiEmailWork ;
 /// - zones de visage : MWG RegionInfo et Microsoft RegionInfoMP (mêmes champs que exif::update_xmp_regions ; ACDSee non écrit).
+///   When writing face regions, existing non-face MWG regions (`Pet`, `Focus`, `BarCode`, etc.) are preserved.
 pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -> std::io::Result<()> {
     let mut args = metadata_args(image_path, update);
-    if let Some(regions) = &update.regions { args.extend(region_args(regions)); }
-    if args.is_empty() { return Ok(()); }
-    write_to(image_path, args, update.adds_values())
+    let Some(regions) = &update.regions else {
+        if args.is_empty() { return Ok(()); }
+        return write_to(image_path, args, update.adds_values());
+    };
+
+    let _active_write = ActiveWriteGuard::enter()?;
+    let _guard = path_lock(image_path);
+    let target = target_of(image_path);
+    let mut sidecar_target: Option<crate::exif::SidecarTarget> = None;
+    let (source, raw_xmp): (Option<PathBuf>, Option<String>) = match target {
+        Target::Jpeg => {
+            ensure_writable(image_path)?;
+            (Some(image_path.to_path_buf()), crate::exif::read_embedded_jpeg_xmp(image_path))
+        }
+        Target::Heif => {
+            ensure_writable(image_path)?;
+            (Some(image_path.to_path_buf()), crate::heif::read_xmp(image_path))
+        }
+        Target::Sidecar => {
+            if !image_path.is_file() { return Err(crate::exif::image_gone(image_path)); }
+            let sc = crate::exif::sidecar_target(image_path);
+            if sc.exists { ensure_writable(&sc.path)?; }
+            let src = if sc.exists { Some(sc.path.clone()) } else { sc.seed.clone() };
+            let xml = src.as_deref().and_then(|path| std::fs::read_to_string(path).ok());
+            sidecar_target = Some(sc);
+            (src, xml)
+        }
+    };
+    let preserved = if raw_xmp.as_deref().is_some_and(crate::faces::has_non_face_mwg_regions) {
+        let source_path = source.as_deref().ok_or_else(|| std::io::Error::other("Source XMP introuvable pour préserver les régions"))?;
+        Some(read_preserved_mwg_regions(source_path)?)
+    } else {
+        None
+    };
+    let has_preserved = preserved.as_ref().is_some_and(|item| !item.regions.is_empty());
+    args.extend(region_args(regions, preserved.as_ref()));
+    write_to_resolved(image_path, target, sidecar_target, args, update.adds_values() || has_preserved)
 }
 
 /// Escapes a value inside an ExifTool structure (`{Field=value,...}`): syntax characters, `#` (comment start),
-/// and leading/trailing spaces or tabs (otherwise trimmed by ExifTool's struct parser) are prefixed with `|`.
+/// and leading/trailing whitespace (otherwise trimmed by ExifTool's struct parser) are prefixed with `|`.
 fn struct_value(value: &str) -> String {
-    let trimmed_start = value.len() - value.trim_start_matches([' ', '\t']).len();
-    let trimmed_end = value.trim_end_matches([' ', '\t']).len();
+    let trimmed_start = value.len() - value.trim_start_matches([' ', '\t', '\n', '\r']).len();
+    let trimmed_end = value.trim_end_matches([' ', '\t', '\n', '\r']).len();
     let mut escaped = String::with_capacity(value.len());
     for (index, character) in value.char_indices() {
-        let is_edge_space = matches!(character, ' ' | '\t') && (index < trimmed_start || index >= trimmed_end);
+        let is_edge_space = matches!(character, ' ' | '\t' | '\n' | '\r') && (index < trimmed_start || index >= trimmed_end);
         if is_edge_space || matches!(character, '|' | ',' | '=' | '{' | '}' | '[' | ']' | '#') {
             escaped.push('|');
         }
@@ -892,33 +999,63 @@ fn struct_value(value: &str) -> String {
     escaped
 }
 
-/// Zones de visage : la structure entière est remplacée (liste vide : supprimée). MWG : centre de la zone ; Microsoft : coin haut-gauche,
-/// valeurs séparées par des virgules (échappées dans la structure).
-fn region_args(update: &crate::exif::RegionsUpdate) -> Vec<String> {
-    if update.regions.is_empty() {
-        return vec![assign("XMP-mwg-rs:RegionInfo", ""), assign("XMP-MP:RegionInfoMP", "")];
+/// Serializes a `serde_json::Value` into ExifTool's `{Key=val,...}` / `[...]` struct syntax.
+fn json_to_exiftool_struct(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Bool(b) => if *b { "true" } else { "false" }.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::String(s) => struct_value(s),
+        serde_json::Value::Array(items) => {
+            let parts: Vec<String> = items.iter().map(json_to_exiftool_struct).collect();
+            format!("[{}]", parts.join(","))
+        }
+        serde_json::Value::Object(map) => {
+            let parts: Vec<String> = map.iter().map(|(key, val)| format!("{key}={}", json_to_exiftool_struct(val))).collect();
+            format!("{{{}}}", parts.join(","))
+        }
     }
+}
+
+/// Zones de visage : la structure entière est remplacée (liste vide : supprimée, sauf si des régions MWG non-visage sont préservées).
+/// MWG : centre de la zone ; Microsoft : coin haut-gauche, valeurs séparées par des virgules (échappées dans la structure).
+fn region_args(update: &crate::exif::RegionsUpdate, preserved: Option<&PreservedMwgRegions>) -> Vec<String> {
     let number = |value: f64| format!("{:.6}", value.clamp(0.0, 1.0));
-    let mwg_regions: Vec<String> = update.regions.iter().map(|region| {
+    let mut mwg_regions: Vec<String> = update.regions.iter().map(|region| {
         let name = region.name.as_deref().map(|name| format!(",Name={}", struct_value(name))).unwrap_or_default();
         format!(
             "{{Area={{X={},Y={},W={},H={},Unit=normalized}}{name},Type=Face}}",
             number(region.x + region.w / 2.0), number(region.y + region.h / 2.0), number(region.w), number(region.h)
         )
     }).collect();
-    let dimensions = if update.width > 0 && update.height > 0 {
-        format!("AppliedToDimensions={{W={},H={},Unit=pixel}},", update.width, update.height)
+    if let Some(preserved) = preserved {
+        mwg_regions.extend(preserved.regions.iter().map(json_to_exiftool_struct));
+    }
+
+    let mwg_arg = if mwg_regions.is_empty() {
+        assign("XMP-mwg-rs:RegionInfo", "")
     } else {
-        String::new()
+        let dimensions = if update.width > 0 && update.height > 0 {
+            format!("AppliedToDimensions={{W={},H={},Unit=pixel}},", update.width, update.height)
+        } else if let Some(dims) = preserved.and_then(|item| item.applied_to_dimensions.as_ref()) {
+            format!("AppliedToDimensions={},", json_to_exiftool_struct(dims))
+        } else {
+            String::new()
+        };
+        assign("XMP-mwg-rs:RegionInfo#", &format!("{{{dimensions}RegionList=[{}]}}", mwg_regions.join(",")))
     };
-    let microsoft_regions: Vec<String> = update.regions.iter().map(|region| {
-        let name = region.name.as_deref().map(|name| format!("PersonDisplayName={},", struct_value(name))).unwrap_or_default();
-        format!("{{{name}Rectangle={}|, {}|, {}|, {}}}", number(region.x), number(region.y), number(region.w), number(region.h))
-    }).collect();
-    vec![
-        assign("XMP-mwg-rs:RegionInfo", &format!("{{{dimensions}RegionList=[{}]}}", mwg_regions.join(","))),
-        assign("XMP-MP:RegionInfoMP", &format!("{{Regions=[{}]}}", microsoft_regions.join(","))),
-    ]
+
+    let microsoft_arg = if update.regions.is_empty() {
+        assign("XMP-MP:RegionInfoMP", "")
+    } else {
+        let microsoft_regions: Vec<String> = update.regions.iter().map(|region| {
+            let name = region.name.as_deref().map(|name| format!("PersonDisplayName={},", struct_value(name))).unwrap_or_default();
+            format!("{{{name}Rectangle={}|, {}|, {}|, {}}}", number(region.x), number(region.y), number(region.w), number(region.h))
+        }).collect();
+        assign("XMP-MP:RegionInfoMP", &format!("{{Regions=[{}]}}", microsoft_regions.join(",")))
+    };
+
+    vec![mwg_arg, microsoft_arg]
 }
 
 /// Nom d'une propriété XMP « liste de langues » à écrire. Valeur non vide : seule l'entrée `x-default` est remplacée, les traductions

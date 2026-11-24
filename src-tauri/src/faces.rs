@@ -103,6 +103,19 @@ fn mwg_regions(xml: &str) -> Vec<FaceRegion> {
     regions
 }
 
+/// Returns true if the XMP packet contains any MWG region whose `Type` is present,
+/// non-empty, and different from `Face` (case-insensitive), such as `Pet`, `Focus`, or `BarCode`.
+pub(crate) fn has_non_face_mwg_regions(xml: &str) -> bool {
+    for prefix in namespace_prefixes(xml, MWG_NS) {
+        let Some(container) = element_by_name(xml, &format!("{prefix}:Regions")) else { continue; };
+        let Some(list) = element_by_name(container, &format!("{prefix}:RegionList")) else { continue; };
+        for item in list_items(list) {
+            if !is_face_type(field_value(item, "Type")) { return true; }
+        }
+    }
+    false
+}
+
 /// Microsoft Photo : `MP:RegionInfo` > `Regions` > `rdf:li` (PersonDisplayName, Rectangle « x, y, w, h » avec x, y = COIN HAUT-GAUCHE).
 fn mp_regions(xml: &str) -> Vec<FaceRegion> {
     let mut regions = Vec::new();

@@ -158,7 +158,7 @@ fn find_jpeg_xmp_segment(data: &[u8]) -> Option<(usize, usize, usize)> {
         .map(|segment| (segment.start, segment.end, segment.payload + JPEG_XMP_HEADER.len()))
 }
 
-fn read_embedded_jpeg_xmp(path: &Path) -> Option<String> {
+pub(crate) fn read_embedded_jpeg_xmp(path: &Path) -> Option<String> {
     let file = fs::File::open(path).ok()?;
     let mut data = Vec::new();
     file.take(4 * 1024 * 1024).read_to_end(&mut data).ok()?;
