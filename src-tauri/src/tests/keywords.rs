@@ -95,15 +95,77 @@ fn name_validation() {
 }
 
 // ---------------------------------------------------------------------------
-// Batch writes (run_write, run_rename, run_delete) on real synthetic JPEG files, with the internal writer: the global writer setting is
-// never changed (WriteEnv carries the writer).
+// Batch writes (run_write, run_rename, run_delete) on real synthetic JPEG/PNG files, using a local test stub so the fast suite runs without ExifTool.
 // ---------------------------------------------------------------------------
+
+fn test_write_stub(image_path: &str, update: &crate::exif::MetadataUpdate) -> std::io::Result<()> {
+    let path = Path::new(image_path);
+    if !path.is_file() { return Err(crate::exif::image_gone(path)); }
+    let ext = path.extension().and_then(|v| v.to_str()).unwrap_or_default().to_ascii_lowercase();
+    let is_jpeg = matches!(ext.as_str(), "jpg" | "jpeg");
+    let target_sidecar = (!is_jpeg).then(|| crate::exif::sidecar_target(path));
+    let current_xml = if is_jpeg {
+        let data = std::fs::read(path)?;
+        crate::exif::jpeg_segments(&data)
+            .find(|s| s.marker == 0xe1 && s.content(&data).starts_with(b"http://ns.adobe.com/xap/1.0/\0"))
+            .and_then(|s| std::str::from_utf8(&s.content(&data)[29..]).ok().map(str::to_string))
+            .unwrap_or_default()
+    } else {
+        let target = target_sidecar.as_ref().unwrap();
+        std::fs::read_to_string(target.seed.as_deref().unwrap_or(&target.path)).unwrap_or_default()
+    };
+    let meta = crate::exif::read_exif(path);
+    let kw_paths = update.keywords.clone().unwrap_or(meta.keyword_paths);
+    let title = update.clean_title().unwrap_or(meta.title);
+    let authors = update.author_list().unwrap_or_else(|| crate::exif::split_authors(&meta.rights.author));
+    let copyright = update.clean_copyright().unwrap_or(meta.rights.copyright);
+    let credit = update.clean_credit().unwrap_or(meta.rights.credit);
+    let terms = update.clean_usage_terms().unwrap_or(meta.rights.usage_terms);
+    let email = update.clean_author_email().unwrap_or(meta.rights.author_email);
+    let has_any = !kw_paths.is_empty() || !title.is_empty() || !authors.is_empty() || !copyright.is_empty() || !credit.is_empty() || !terms.is_empty() || !email.is_empty();
+    if current_xml.is_empty() && !has_any { return Ok(()); }
+    let mut body = String::new();
+    if !kw_paths.is_empty() {
+        let items: String = kw_paths.iter().map(|s| format!("<rdf:li>{}</rdf:li>", s.join("/"))).collect();
+        body.push_str(&format!("<digiKam:TagsList><rdf:Seq>{items}</rdf:Seq></digiKam:TagsList>"));
+    }
+    if !title.is_empty() { body.push_str(&format!("<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{title}</rdf:li></rdf:Alt></dc:title><acdsee:caption>{title}</acdsee:caption>")); }
+    if !authors.is_empty() {
+        let items: String = authors.iter().map(|a| format!("<rdf:li>{a}</rdf:li>")).collect();
+        body.push_str(&format!("<dc:creator><rdf:Seq>{items}</rdf:Seq></dc:creator><tiff:Artist>{}</tiff:Artist>", authors.join("; ")));
+    }
+    if !copyright.is_empty() {
+        body.push_str(&format!("<dc:rights><rdf:Alt><rdf:li xml:lang=\"x-default\">{copyright}</rdf:li></rdf:Alt></dc:rights><tiff:Copyright><rdf:Alt><rdf:li xml:lang=\"x-default\">{copyright}</rdf:li></rdf:Alt></tiff:Copyright>"));
+    }
+    if !credit.is_empty() { body.push_str(&format!("<photoshop:Credit>{credit}</photoshop:Credit>")); }
+    if !terms.is_empty() { body.push_str(&format!("<xmpRights:UsageTerms><rdf:Alt><rdf:li xml:lang=\"x-default\">{terms}</rdf:li></rdf:Alt></xmpRights:UsageTerms>")); }
+    if !email.is_empty() { body.push_str(&format!("<Iptc4xmpCore:CreatorContactInfo rdf:parseType=\"Resource\"><Iptc4xmpCore:CiEmailWork>{email}</Iptc4xmpCore:CiEmailWork></Iptc4xmpCore:CreatorContactInfo>")); }
+    let xml = format!(
+        "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:digiKam=\"http://www.digikam.org/ns/1.0/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:acdsee=\"http://ns.acdsee.com/iptc/1.0/\" xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\" xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\" xmlns:xmpRights=\"http://ns.adobe.com/xap/1.0/rights/\" xmlns:Iptc4xmpCore=\"http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/\">{body}</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>"
+    );
+    if is_jpeg {
+        let data = std::fs::read(path)?;
+        let header = b"http://ns.adobe.com/xap/1.0/\0";
+        let len = (2 + header.len() + xml.len()) as u16;
+        let mut seg = vec![0xff, 0xe1];
+        seg.extend_from_slice(&len.to_be_bytes());
+        seg.extend_from_slice(header);
+        seg.extend_from_slice(xml.as_bytes());
+        let out = match crate::exif::jpeg_segments(&data).find(|s| s.marker == 0xe1 && s.content(&data).starts_with(header)) {
+            Some(s) => [&data[..s.start], seg.as_slice(), &data[s.end..]].concat(),
+            None => [&data[..2], seg.as_slice(), &data[2..]].concat(),
+        };
+        std::fs::write(path, out)
+    } else {
+        std::fs::write(&target_sidecar.unwrap().path, xml)
+    }
+}
 
 fn write_env(dir: &Path) -> WriteEnv {
     let cache_dirs = crate::ImageCacheDirs { thumbnails: dir.join("thumbnails"), raw_previews: dir.join("raw_previews") };
     std::fs::create_dir_all(&cache_dirs.thumbnails).unwrap();
     std::fs::create_dir_all(&cache_dirs.raw_previews).unwrap();
-    WriteEnv { cache_dirs, progress: Box::new(|_| {}), write: crate::exif::write_metadata_internal }
+    WriteEnv { cache_dirs, progress: Box::new(|_| {}), write: test_write_stub }
 }
 
 /// A synthetic JPEG in `dir`, catalogued: (photo id, path).

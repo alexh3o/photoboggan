@@ -134,8 +134,11 @@ fn sync_detects_added_modified_removed_and_never_trusts_a_missing_disk() {
     };
     let (image_date, effective) = dates(&conn);
     assert!(image_date > 0 && effective == image_date, "without a sidecar the effective date is the image's own");
-    let update = crate::exif::MetadataUpdate { title: Some("Titre".to_string()), ..Default::default() };
-    crate::exif::write_metadata_internal(&png_text, &update).unwrap();
+    fs::write(
+        format!("{png_text}.xmp"),
+        "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">Titre</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>",
+    )
+    .unwrap();
     assert!(Path::new(&format!("{png_text}.xmp")).is_file(), "the metadata went to the sidecar");
     // What the write commands do in their own UPDATE: `modified` untouched, `effective_modified` = later of the image's and the sidecar's mtime.
     let recorded = effective_modified_millis(Path::new(&png_text), image_date);

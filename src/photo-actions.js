@@ -4,7 +4,6 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, onLanguageChange } from './i18n.js';
 import { isVideoPath, isRawPath } from './file-kinds.js';
 import { isWriteLocked, failureDetailsAction } from './metadata-writes.js';
-import { getWriterMode } from './metadata-settings.js';
 import { getIdenticalSettings, getSimilarSettings, describeIdenticalSettings, describeSimilarSettings } from './duplicates.js';
 import { SLIDESHOW_DELAYS, getSlideshowSettings, setSlideshowOption, isSlideshowActive, isSlideshowPaused, startSlideshow, stopSlideshow, toggleSlideshowPause } from './slideshow.js';
 
@@ -783,8 +782,6 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     let keepMetadata = saved.keepMetadata;
     let keepMarks = saved.keepMarks;
     let preserveFolderStructure = saved.preserveFolderStructure;
-    // L'option n'existe que sur le chemin d'écriture ExifTool ; en écriture interne, les marquages sont recopiés tels quels.
-    const exiftoolWriter = getWriterMode() === 'exiftool';
     let result = null;
     const modal = createModal({
       title: `${t('Resize')} · ${tp('{count} photo selected', count)}`,
@@ -822,7 +819,6 @@ function resizeOptionsDialog(count, firstPhotoPath) {
     const metadataRow = optionRow(labelled(metadataCheck, t('Keep metadata (EXIF, XMP, IPTC)')));
     const marksCheck = makeInput('checkbox');
     const marksRow = optionRow(labelled(marksCheck, t('Keep marks (rating, color, flags)')));
-    marksRow.hidden = !exiftoolWriter;
     const formatSection = makeElement('section', 'settings-section');
     formatSection.append(
       makeElement('h4', '', t('Output format')),

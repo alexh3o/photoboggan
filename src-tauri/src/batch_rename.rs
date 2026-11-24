@@ -510,6 +510,7 @@ fn try_unit(unit: &mut Unit) -> Step {
             return if is_already_exists(&error) { Step::Wait } else { Step::Failed("io", error.to_string()) };
         }
     }
+    let previous_img_at = unit.img_at.clone();
     if let Err(error) = fs::rename(&unit.img_at, &unit.target) {
         let _ = fs::remove_file(&unit.target);
         if let Some(sidecar) = &unit.sidecar { let _ = fs::remove_file(&sidecar.to); }
@@ -523,8 +524,12 @@ fn try_unit(unit: &mut Unit) -> Step {
         };
         if let Err(error) = result {
             let _ = fs::remove_file(&sidecar.to);
-            // The photo goes back to where it was: a photo and its sidecar are never left apart.
-            unit.img_at = if fs::rename(&unit.target, &unit.source).is_ok() { unit.source.clone() } else { unit.target.clone() };
+            // Return the photo to where it was before this step, never overwriting a file now at `unit.source` (e.g. after a swap).
+            unit.img_at = if !previous_img_at.exists() && fs::rename(&unit.target, &previous_img_at).is_ok() {
+                previous_img_at
+            } else {
+                unit.target.clone()
+            };
             return Step::Failed("io", error.to_string());
         }
     }
@@ -533,20 +538,37 @@ fn try_unit(unit: &mut Unit) -> Step {
 
 /// Sets the unit aside under a temporary name in the same folder (photo and moved sidecar), to break a swap or a case-only change.
 fn park(unit: &mut Unit, counter: &mut usize, conn: &rusqlite::Connection) -> Result<(), String> {
+    let _write_guard = crate::exiftool::path_lock(&unit.source);
     let parent = unit.source.parent().map(Path::to_path_buf).ok_or("Dossier introuvable")?;
-    *counter += 1;
     // The temporary name keeps the extension (the photo stays a photo for the catalogue) and its moved sidecar becomes its own `.xmp`: if the
     // application were killed while a file is parked, the photo would still be there, with its metadata, under this name.
     let extension = unit.source.extension().map(|extension| format!(".{}", extension.to_string_lossy())).unwrap_or_default();
-    let image_temp = parent.join(format!(".photoboggan-rename-{}-{}{}", std::process::id(), *counter, extension));
-    fs::rename(&unit.img_at, &image_temp).map_err(|error| error.to_string())?;
+    let image_temp = loop {
+        *counter += 1;
+        let candidate = parent.join(format!(".photoboggan-rename-{}-{}{}", std::process::id(), *counter, extension));
+        match crate::reserve_new_file(&candidate) {
+            Ok(()) => break candidate,
+            Err(error) if is_already_exists(&error) => continue,
+            Err(error) => return Err(error.to_string()),
+        }
+    };
+    if let Err(error) = fs::rename(&unit.img_at, &image_temp) {
+        let _ = fs::remove_file(&image_temp);
+        return Err(error.to_string());
+    }
     let previous = std::mem::replace(&mut unit.img_at, image_temp);
     let moved_sidecar = unit.sidecar.as_ref().filter(|sidecar| !sidecar.copy).map(|sidecar| sidecar.from.clone());
     let mut sidecar_temp = None;
     if let Some(from) = moved_sidecar {
         let temp = appended_sidecar(&unit.img_at); // img_at is the temporary photo name here
+        if let Err(error) = crate::reserve_new_file(&temp) {
+            let _ = fs::rename(&unit.img_at, &previous);
+            unit.img_at = previous;
+            return Err(error.to_string());
+        }
         let current = unit.sidecar_at.clone().unwrap_or(from);
         if let Err(error) = fs::rename(&current, &temp) {
+            let _ = fs::remove_file(&temp);
             let _ = fs::rename(&unit.img_at, &previous);
             unit.img_at = previous;
             return Err(error.to_string());
@@ -580,7 +602,17 @@ fn restore(unit: &mut Unit, conn: &rusqlite::Connection) -> Option<String> {
                 unit.db_path = unit.path.clone();
             }
         } else {
-            left_at = Some(unit.img_at.to_string_lossy().into_owned());
+            let current_path = unit.img_at.to_string_lossy().into_owned();
+            if unit.db_path != current_path {
+                let new_name = file_name_of(&unit.img_at);
+                if conn
+                    .execute("UPDATE photos SET path = ?1, filename = ?2 WHERE path = ?3", params![current_path, new_name, unit.db_path])
+                    .is_ok()
+                {
+                    unit.db_path = current_path.clone();
+                }
+            }
+            left_at = Some(current_path);
         }
     }
     if let (Some(current), Some(sidecar)) = (unit.sidecar_at.clone(), unit.sidecar.as_ref()) {

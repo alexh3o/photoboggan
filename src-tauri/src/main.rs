@@ -1364,12 +1364,6 @@ async fn rotate_photos(
 fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<(u32, u32, i64), String> {
     let source = Path::new(path);
     if !orientation::is_rotatable(source) { return Err("Rotation sans perte impossible pour ce format (HEIC, HEIF, vidéo)".into()); }
-    // Internal writer reading the EXIF tag first: the XMP it would write could not change what is displayed. Refused before writing anything.
-    if orientation::kind_of(source) == orientation::Kind::Jpeg && !exiftool::is_enabled() && !exiftool::skip_exif_metadata()
-        && thumbnails::exif_orientation(source).is_some()
-    {
-        return Err("L'orientation EXIF de ce JPEG l'emporte sur le XMP : utilisez ExifTool, ou cochez « Ne pas lire les métadonnées EXIF » (Paramètres > Métadonnées)".into());
-    }
     let wanted = orientation::rotate(orientation::read(source).stored, quarter_turns);
     let _priority = semantic::PriorityGuard::new(); // like every metadata write (keep_cached_images): the semantic scan waits meanwhile
     let cached_before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];

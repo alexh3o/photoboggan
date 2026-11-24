@@ -39,14 +39,13 @@ fn saved_coordinates_follow_the_photo() {
 fn exif_gps_is_refused_when_it_cannot_be_erased() {
     let jpeg = Path::new("C:/Photos/a.jpg");
     let raw = Path::new("C:/Photos/a.cr2");
-    // GPS seulement dans le XMP : toujours effaçable.
-    assert_eq!(erase_refusal(jpeg, false, false), None);
-    assert_eq!(erase_refusal(raw, false, true), None);
-    // GPS dans l'EXIF : il faut ExifTool, et un format écrit directement (pas un sidecar).
-    assert_eq!(erase_refusal(jpeg, true, false), Some("gps_in_exif_internal_writer"));
-    assert_eq!(erase_refusal(jpeg, true, true), None);
-    assert_eq!(erase_refusal(raw, true, true), Some("gps_in_exif_sidecar_format"));
-    assert_eq!(erase_refusal(Path::new("C:/Photos/a.png"), true, true), Some("gps_in_exif_sidecar_format"));
+    // GPS only in XMP: always erasable.
+    assert_eq!(erase_refusal(jpeg, false), None);
+    assert_eq!(erase_refusal(raw, false), None);
+    // GPS in EXIF: requires a format written directly (not a sidecar).
+    assert_eq!(erase_refusal(jpeg, true), None);
+    assert_eq!(erase_refusal(raw, true), Some("gps_in_exif_sidecar_format"));
+    assert_eq!(erase_refusal(Path::new("C:/Photos/a.png"), true), Some("gps_in_exif_sidecar_format"));
 }
 
 #[test]

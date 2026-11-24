@@ -97,14 +97,14 @@ pub(crate) struct Resolved {
     pub view_fix: u32,
 }
 
-/// `skip_exif`: internal writer with the "ignore EXIF metadata" option (see `exiftool::skip_exif_metadata`): in a JPEG, the XMP it wrote
-/// wins over the EXIF tag it cannot write. Otherwise the EXIF tag wins in a JPEG, as in most software.
-pub(crate) fn resolve(kind: Kind, exif: Option<u32>, xmp: Option<u32>, skip_exif: bool) -> Resolved {
+/// Orientation of a file: in a JPEG, the EXIF tag wins over XMP, as in most software;
+/// in sidecar formats, the sidecar's XMP wins over the file's EXIF.
+pub(crate) fn resolve(kind: Kind, exif: Option<u32>, xmp: Option<u32>) -> Resolved {
     let exif = exif.filter(|value| (1..=8).contains(value));
     let xmp = xmp.filter(|value| (1..=8).contains(value));
     let stored = match kind {
         Kind::Fixed => return Resolved { stored: 1, view_fix: 1 },
-        Kind::Jpeg if !skip_exif => exif.or(xmp),
+        Kind::Jpeg => exif.or(xmp),
         _ => xmp.or(exif),
     }
     .unwrap_or(1);
@@ -121,14 +121,14 @@ pub(crate) fn raw_preview_orientation(preview: u32, container: u32, sidecar: Opt
     }
 }
 
-/// Orientation read in the files (EXIF of the file, XMP of the file or of its sidecar), with the current reading settings.
+/// Orientation read in the files (EXIF of the file, XMP of the file or of its sidecar).
 pub(crate) fn read(path: &Path) -> Resolved {
     let kind = kind_of(path);
     if kind == Kind::Fixed { return Resolved { stored: 1, view_fix: 1 }; }
-    resolve(kind, crate::thumbnails::exif_orientation(path), crate::exif::read_xmp_orientation(path), crate::exiftool::skip_exif_metadata())
+    resolve(kind, crate::thumbnails::exif_orientation(path), crate::exif::read_xmp_orientation(path))
 }
 
-/// Writes `orientation` where the active writer puts it (see the module comment). Refused for HEIC / HEIF and videos.
+/// Writes `orientation` via ExifTool (see the module comment). Refused for HEIC / HEIF and videos.
 pub(crate) fn write(path: &Path, orientation: u32) -> std::io::Result<()> {
     if !is_rotatable(path) {
         return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Rotation not supported for this format"));
@@ -136,8 +136,7 @@ pub(crate) fn write(path: &Path, orientation: u32) -> std::io::Result<()> {
     if !(1..=8).contains(&orientation) {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid orientation"));
     }
-    if crate::exiftool::is_enabled() { return crate::exiftool::write_orientation(path, orientation); }
-    crate::exif::write_xmp_orientation(path, orientation)
+    crate::exiftool::write_orientation(path, orientation)
 }
 
 #[cfg(test)]

@@ -66,10 +66,6 @@ fn synthetic_heif(xmp: Option<&str>) -> Vec<u8> {
 
 const XMP: &str = "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmp:Rating=\"2\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>";
 
-fn leftovers(dir: &Path) -> usize {
-    fs::read_dir(dir).unwrap().filter_map(|e| e.ok()).filter(|e| e.file_name().to_string_lossy().ends_with("-tmp")).count()
-}
-
 #[test]
 fn xmp_is_read_from_a_synthetic_container() {
     let dir = tempfile::tempdir().unwrap();
@@ -78,56 +74,6 @@ fn xmp_is_read_from_a_synthetic_container() {
     assert_eq!(read_xmp(&path).as_deref(), Some(XMP));
     fs::write(dir.path().join("b.heic"), synthetic_heif(None)).unwrap();
     assert_eq!(read_xmp(&dir.path().join("b.heic")), None);
-}
-
-#[test]
-fn unverifiable_rewrite_is_refused_and_the_file_is_untouched() {
-    let dir = tempfile::tempdir().unwrap();
-    for (name, xmp) in [("avec.heic", Some(XMP)), ("sans.heic", None)] {
-        let original = synthetic_heif(xmp);
-        let path = dir.path().join(name);
-        fs::write(&path, &original).unwrap();
-        let outcome = update_xmp(&path, &|xml| if xml.is_empty() { XMP.to_string() } else { xml.replace("xmp:Rating=\"2\"", "xmp:Rating=\"5\"") }).unwrap();
-        assert!(matches!(outcome, Outcome::Unsupported(_)), "{name} : {outcome:?}");
-        assert_eq!(fs::read(&path).unwrap(), original, "{name} a été modifié");
-    }
-    assert_eq!(leftovers(dir.path()), 0);
-}
-
-#[test]
-fn unchanged_packet_reports_unchanged_without_writing() {
-    let dir = tempfile::tempdir().unwrap();
-    let original = synthetic_heif(Some(XMP));
-    let path = dir.path().join("a.heic");
-    fs::write(&path, &original).unwrap();
-    assert_eq!(update_xmp(&path, &|xml| xml.to_string()).unwrap(), Outcome::Unchanged);
-    assert_eq!(fs::read(&path).unwrap(), original);
-    // Rien à retirer d'un fichier sans XMP.
-    let bare = dir.path().join("b.heic");
-    fs::write(&bare, synthetic_heif(None)).unwrap();
-    assert_eq!(update_xmp(&bare, &|_| String::new()).unwrap(), Outcome::Unchanged);
-}
-
-#[test]
-fn garbage_and_truncated_containers_are_refused_untouched() {
-    let dir = tempfile::tempdir().unwrap();
-    let full = synthetic_heif(Some(XMP));
-    let cases: Vec<(&str, Vec<u8>)> = vec![
-        ("vide", Vec::new()),
-        ("texte", b"ceci n'est pas un HEIC".to_vec()),
-        ("coupe-meta", full[..full.len() / 3].to_vec()),
-        ("coupe-fin", full[..full.len() - 5].to_vec()),
-        ("boite-geante", [&[0xff, 0xff, 0xff, 0xff][..], b"meta", &[0; 16]].concat()),
-    ];
-    for (name, bytes) in cases {
-        let path = dir.path().join(format!("{name}.heic"));
-        fs::write(&path, &bytes).unwrap();
-        let outcome = update_xmp(&path, &|_| XMP.to_string()).unwrap();
-        assert!(matches!(outcome, Outcome::Unsupported(_)), "{name} : {outcome:?}");
-        assert_eq!(fs::read(&path).unwrap(), bytes, "{name} a été modifié");
-        assert_eq!(read_xmp(&path), None);
-    }
-    assert_eq!(leftovers(dir.path()), 0);
 }
 
 #[test]
@@ -147,14 +93,6 @@ fn box_walker_rejects_overflowing_sizes() {
     let mut too_small = ok.clone();
     too_small[..4].copy_from_slice(&4u32.to_be_bytes());
     assert!(children(&too_small, 0, too_small.len()).is_none());
-}
-
-#[test]
-fn padding_keeps_the_packet_trailer_last_and_the_exact_length() {
-    let padded = pad_packet(XMP, XMP.len() + 40);
-    assert_eq!(padded.len(), XMP.len() + 40);
-    assert!(padded.ends_with(b"<?xpacket end=\"w\"?>"));
-    assert_eq!(pad_packet(XMP, 3), XMP.as_bytes(), "jamais de coupe d'un paquet trop long");
 }
 
 #[test]

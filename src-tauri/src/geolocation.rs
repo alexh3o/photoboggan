@@ -71,10 +71,9 @@ pub fn get_erased_location_ids(state: State<'_, AppState>) -> Result<Vec<i64>, S
     rows.collect::<rusqlite::Result<_>>().map_err(|e| e.to_string())
 }
 
-/// Raison pour laquelle le GPS de ce fichier ne peut pas être effacé par le chemin d'écriture actif, s'il y en a une.
-pub fn erase_refusal(path: &Path, exif_gps: bool, exiftool: bool) -> Option<&'static str> {
+/// Reason why GPS in this file cannot be erased by ExifTool, if any.
+pub fn erase_refusal(path: &Path, exif_gps: bool) -> Option<&'static str> {
     if !exif_gps { return None; }
-    if !exiftool { return Some("gps_in_exif_internal_writer"); }
     if !crate::exiftool::writes_in_file(path) { return Some("gps_in_exif_sidecar_format"); }
     None
 }
@@ -150,7 +149,6 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
     let cache_dirs = crate::ImageCacheDirs::of(&app.state::<AppState>());
     let conn = pool.get().map_err(|e| e.to_string())?;
     let targets = load_targets(&conn, &photo_ids)?;
-    let exiftool = crate::exiftool::is_enabled();
     let mut result = GeoWriteResult::default();
     let total = targets.len().max(1);
     let done = AtomicUsize::new(0);
@@ -169,7 +167,7 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
             let meta = crate::exif::read_exif(Path::new(&path));
             match meta.gps.or(located) {
                 None => None,
-                Some(coordinates) => match erase_refusal(Path::new(&path), meta.gps_sources[0].is_some(), exiftool) {
+                Some(coordinates) => match erase_refusal(Path::new(&path), meta.gps_sources[0].is_some()) {
                     Some(reason) => {
                         result.refused.push(GeoFailure { photo_id, path: path.clone(), error: reason.to_string() });
                         None

@@ -290,3 +290,66 @@ fn presets_are_saved_replaced_ignoring_case_and_deleted() {
     let list = delete_preset(&conn, list[0].id).unwrap();
     assert_eq!(list.len(), 1);
 }
+
+#[test]
+fn swap_rollback_on_sidecar_failure_never_overwrites_the_other_photo() {
+    struct SabotageParkedSidecar {
+        dir: PathBuf,
+        done: bool,
+    }
+    impl Hooks for SabotageParkedSidecar {
+        fn cancelled(&self) -> bool { false }
+        fn advance(&mut self, _size: u64) {
+            if self.done { return; }
+            self.done = true;
+            // Remove the parked sidecar right after B takes A's name, so A's final sidecar rename fails.
+            for entry in fs::read_dir(&self.dir).unwrap().flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with(".photoboggan-rename-") && name.ends_with(".xmp") {
+                    let _ = fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let a = write(dir.path(), "a.jpg", "contenu A");
+    write(dir.path(), "a.jpg.xmp", "xmp A");
+    let b = write(dir.path(), "b.jpg", "contenu B");
+
+    let items = vec![item(&a, "b"), item(&b, "a")];
+    let (catalog_dir, pool) = temp_catalog();
+    {
+        let conn = pool.get().unwrap();
+        for it in &items { insert_photo(&conn, &it.path); }
+    }
+    let conn = pool.get().unwrap();
+    let mut hooks = SabotageParkedSidecar { dir: dir.path().to_path_buf(), done: false };
+    let outcome = execute(plan_batch(&items), &conn, &catalog_dir.path().join("thumbnails"), &catalog_dir.path().join("raw"), &mut hooks);
+
+    assert_eq!(outcome.renamed.len(), 1);
+    assert_eq!(outcome.failed.len(), 1);
+    // Photo B moved to a.jpg and was never overwritten by Photo A.
+    assert_eq!(read(dir.path(), "a.jpg").as_deref(), Some("contenu B"));
+    assert_eq!(read(dir.path(), "b.jpg"), None);
+
+    // Photo A stayed intact at its parked temporary path.
+    let parked_a: Vec<PathBuf> = fs::read_dir(dir.path())
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.file_name().unwrap().to_string_lossy().starts_with(".photoboggan-rename-"))
+        .collect();
+    assert_eq!(parked_a.len(), 1, "expected parked photo A, found {parked_a:?}");
+    assert_eq!(fs::read_to_string(&parked_a[0]).ok().as_deref(), Some("contenu A"));
+
+    // Database paths match the files on disk.
+    let mut db_paths: Vec<String> = Vec::new();
+    let mut stmt = conn.prepare("SELECT path FROM photos ORDER BY path").unwrap();
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0)).unwrap();
+    for row in rows { db_paths.push(row.unwrap()); }
+    let mut expected = vec![dir.path().join("a.jpg").to_string_lossy().into_owned(), parked_a[0].to_string_lossy().into_owned()];
+    expected.sort();
+    db_paths.sort();
+    assert_eq!(db_paths, expected);
+}

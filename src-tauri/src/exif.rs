@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::io::{Read, Write};
+use std::io::Read;
 use exif::{Context, In, Tag, Value};
 
 #[derive(Default)]
@@ -494,11 +494,7 @@ static CREDIT_PRIORITY: std::sync::RwLock<[usize; 2]> = std::sync::RwLock::new([
 static USAGE_TERMS_PRIORITY: std::sync::RwLock<[usize; 1]> = std::sync::RwLock::new([0]);
 static AUTHOR_EMAIL_PRIORITY: std::sync::RwLock<[usize; 1]> = std::sync::RwLock::new([0]);
 
-const PHOTOSHOP_NS: &str = "http://ns.adobe.com/photoshop/1.0/";
-const XMP_RIGHTS_NS: &str = "http://ns.adobe.com/xap/1.0/rights/";
-const IPTC_CORE_NS: &str = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/";
-
-/// Auteur et droits retenus à la lecture (colonnes `author`, `copyright`, `credit`, `usage_terms` et `author_email` de la base). Plusieurs auteurs :
+/// Auteurs et droits retenus à la lecture (colonnes `author`, `copyright`, `credit`, `usage_terms` et `author_email` de la base). Plusieurs auteurs :
 /// « A; B ».
 #[derive(Default, Clone, Debug, PartialEq, serde::Serialize)]
 pub struct Rights {
@@ -533,12 +529,6 @@ pub struct ContactInfo {
     pub phone: String,
     pub email: String,
     pub url: String,
-}
-
-impl ContactInfo {
-    fn is_empty(&self) -> bool {
-        *self == ContactInfo::default()
-    }
 }
 
 /// Auteurs d'une saisie : séparés par « ; », espaces de début et de fin retirés, entrées vides écartées.
@@ -639,20 +629,6 @@ fn parse_contact_info(xml: &str) -> Option<ContactInfo> {
         email: value("CiEmailWork"),
         url: value("CiUrlWork"),
     })
-}
-
-/// Élément XMP `Iptc4xmpCore:CreatorContactInfo` (forme d'ExifTool : structure `rdf:parseType="Resource"`), sans les champs vides.
-fn contact_info_element(contact: &ContactInfo) -> String {
-    let fields = [
-        ("CiAdrExtadr", &contact.address), ("CiAdrCity", &contact.city), ("CiAdrRegion", &contact.region), ("CiAdrPcode", &contact.postal_code),
-        ("CiAdrCtry", &contact.country), ("CiTelWork", &contact.phone), ("CiEmailWork", &contact.email), ("CiUrlWork", &contact.url),
-    ];
-    let mut element = String::from("<Iptc4xmpCore:CreatorContactInfo rdf:parseType=\"Resource\">");
-    for (name, value) in fields {
-        if !value.is_empty() { element.push_str(&format!("<Iptc4xmpCore:{name}>{}</Iptc4xmpCore:{name}>", xml_escape_text(value))); }
-    }
-    element.push_str("</Iptc4xmpCore:CreatorContactInfo>");
-    element
 }
 
 /// Indices de `order` dans `ids` : chaque identifiant doit y figurer une fois.
@@ -927,7 +903,7 @@ pub fn read_marking(path: &Path) -> ExifMetadata {
         for (slot, value) in meta.color_sources.iter_mut().zip(xmp_colors(&xml)) { if slot.is_none() { *slot = value; } }
         for (slot, value) in meta.pick_sources.iter_mut().zip(xmp_picks(&xml)) { if slot.is_none() { *slot = value; } }
     }
-    if jpeg && !crate::exiftool::skip_exif_metadata() {
+    if jpeg {
         // JPEG: the EXIF reader stops at the APP1 segment, at the start of the file.
         for exif in crate::thumbnails::read_exif_sources(path) {
             keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
@@ -1329,38 +1305,34 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     meta.rights_sources.copyright[2] = jpeg.copyright;
     meta.rights_sources.credit[1] = jpeg.credit;
     let mut xp_keywords: Vec<String> = Vec::new();
-    // Internal writer + option: the EXIF metadata fields are ignored (it neither writes nor erases them); camera data is still read.
-    let skip_exif_metadata = crate::exiftool::skip_exif_metadata();
     // Une ou plusieurs sources EXIF (CR3 : boîtes CMT, RAF : JPEG intégré, voir read_exif_sources) ; les valeurs absentes d'une source n'effacent pas celles d'une autre.
     for exif in crate::thumbnails::read_exif_sources(path) {
-        if !skip_exif_metadata {
-            // XPKeywords (EXIF, mots-clés de l'Explorateur Windows) : texte UTF-16 terminé par un zéro, mots séparés par « ; ».
-            if let Some(text) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY).and_then(exif_xp_text) {
-                xp_keywords = text.split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
+        // XPKeywords (EXIF, mots-clés de l'Explorateur Windows) : texte UTF-16 terminé par un zéro, mots séparés par « ; ».
+        if let Some(text) = exif.get_field(Tag(Context::Tiff, 0x9c9e), In::PRIMARY).and_then(exif_xp_text) {
+            xp_keywords = text.split(';').map(|word| word.trim().to_string()).filter(|word| !word.is_empty()).collect();
+        }
+        // Note EXIF de Windows : Rating (étoiles) et RatingPercent.
+        keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
+        keep(&mut meta.rating_sources[4], exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32)));
+        // Titre et description EXIF : XPTitle, ImageDescription, UserComment, XPComment.
+        keep(&mut meta.text_sources.title[3], exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text)));
+        if let Some(field) = exif.get_field(Tag::ImageDescription, In::PRIMARY) {
+            if let Value::Ascii(ref parts) = field.value {
+                let bytes: Vec<u8> = parts.iter().flatten().copied().collect();
+                meta.text_sources.description[5] = clean_exif_description(&text_from_bytes(&bytes));
             }
-            // Note EXIF de Windows : Rating (étoiles) et RatingPercent.
-            keep(&mut meta.rating_sources[3], exif.get_field(Tag(Context::Tiff, 0x4746), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|rating| (rating as i32).clamp(0, 5)));
-            keep(&mut meta.rating_sources[4], exif.get_field(Tag(Context::Tiff, 0x4749), In::PRIMARY).and_then(|field| field.value.get_uint(0)).map(|percent| stars_from_percent(percent as i32)));
-            // Titre et description EXIF : XPTitle, ImageDescription, UserComment, XPComment.
-            keep(&mut meta.text_sources.title[3], exif.get_field(Tag(Context::Tiff, 0x9c9b), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_title(&text)));
-            if let Some(field) = exif.get_field(Tag::ImageDescription, In::PRIMARY) {
-                if let Value::Ascii(ref parts) = field.value {
-                    let bytes: Vec<u8> = parts.iter().flatten().copied().collect();
-                    meta.text_sources.description[5] = clean_exif_description(&text_from_bytes(&bytes));
-                }
-            }
-            keep(&mut meta.text_sources.description[6], exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian())));
-            keep(&mut meta.text_sources.description[7], exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text)));
-            // Auteur (EXIF Artist) et copyright (EXIF Copyright, photographe et éditeur éventuels séparés par « - »).
-            if let Some(Value::Ascii(parts)) = exif.get_field(Tag::Artist, In::PRIMARY).map(|field| &field.value) {
-                let text = parts.iter().map(|part| text_from_bytes(part)).collect::<Vec<_>>().join(" ");
-                let authors = split_authors(&text).join("; ");
-                keep(&mut meta.rights_sources.author[3], (!authors.is_empty()).then_some(authors));
-            }
-            if let Some(Value::Ascii(parts)) = exif.get_field(Tag::Copyright, In::PRIMARY).map(|field| &field.value) {
-                let text = parts.iter().map(|part| text_from_bytes(part)).filter(|part| !part.trim().is_empty()).collect::<Vec<_>>().join(" - ");
-                keep(&mut meta.rights_sources.copyright[3], clean_title(&text));
-            }
+        }
+        keep(&mut meta.text_sources.description[6], exif.get_field(Tag::UserComment, In::PRIMARY).and_then(|field| exif_user_comment(field, exif.little_endian())));
+        keep(&mut meta.text_sources.description[7], exif.get_field(Tag(Context::Tiff, 0x9c9c), In::PRIMARY).and_then(exif_xp_text).and_then(|text| clean_text(&text)));
+        // Auteur (EXIF Artist) et copyright (EXIF Copyright, photographe et éditeur éventuels séparés par « - »).
+        if let Some(Value::Ascii(parts)) = exif.get_field(Tag::Artist, In::PRIMARY).map(|field| &field.value) {
+            let text = parts.iter().map(|part| text_from_bytes(part)).collect::<Vec<_>>().join(" ");
+            let authors = split_authors(&text).join("; ");
+            keep(&mut meta.rights_sources.author[3], (!authors.is_empty()).then_some(authors));
+        }
+        if let Some(Value::Ascii(parts)) = exif.get_field(Tag::Copyright, In::PRIMARY).map(|field| &field.value) {
+            let text = parts.iter().map(|part| text_from_bytes(part)).filter(|part| !part.trim().is_empty()).collect::<Vec<_>>().join(" - ");
+            keep(&mut meta.rights_sources.copyright[3], clean_title(&text));
         }
         if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
             meta.date_taken = field.display_value().with_unit(&exif).to_string();
@@ -1419,7 +1391,7 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     resolve_values(&mut meta);
     // Orientation (EXIF tag or XMP tiff:Orientation, see orientation.rs): face areas are in the frame of the stored image and the interface
     // turns them with it; `view_fix` is what the interface adds on top of the webview, which only knows the EXIF tag.
-    let orientation = crate::orientation::resolve(crate::orientation::kind_of(path), exif_orientation, xmp_orientation, skip_exif_metadata);
+    let orientation = crate::orientation::resolve(crate::orientation::kind_of(path), exif_orientation, xmp_orientation);
     meta.faces.orientation = orientation.stored;
     meta.faces.view_fix = orientation.view_fix;
     if crate::heif::is_heif_path(path) {
@@ -1440,163 +1412,7 @@ pub fn read_exif(path: &Path) -> ExifMetadata {
     meta
 }
 
-fn update_xmp_rating(xml: &str, rating: i32) -> String {
-    let rating = rating.clamp(0, 5);
-    let mut updated = xml.to_string();
-    let microsoft_rating = match rating { 0 => 0, 1 => 1, 2 => 25, 3 => 50, 4 => 75, _ => 99 };
-    for (name, value) in [("xmp:Rating", rating), ("acdsee:rating", rating), ("MicrosoftPhoto:Rating", microsoft_rating)] {
-        let value = value.to_string();
-        let opening = format!("<{name}");
-        let closing = format!("</{name}>");
-        let mut search_from = 0;
-        let mut found_element = false;
-        while let Some(relative) = updated[search_from..].find(&opening) {
-            let start = search_from + relative;
-            let Some(open_end_relative) = updated[start..].find('>') else { break; };
-            let content_start = start + open_end_relative + 1;
-            let Some(close_relative) = updated[content_start..].find(&closing) else { break; };
-            let content_end = content_start + close_relative;
-            if !found_element {
-                updated.replace_range(content_start..content_end, &value);
-                found_element = true;
-                search_from = content_start + value.len() + closing.len();
-            } else {
-                updated.replace_range(start..content_end + closing.len(), "");
-                search_from = start;
-            }
-        }
-        if found_element { continue; }
-
-        let mut found_attribute = false;
-        if let Some(start) = updated.find(name) {
-            let mut pos = start + name.len();
-            while updated.as_bytes().get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
-            if updated.as_bytes().get(pos) == Some(&b'=') {
-                pos += 1;
-                while updated.as_bytes().get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
-                if let Some(quote @ (b'\'' | b'"')) = updated.as_bytes().get(pos).copied() {
-                    let value_start = pos + 1;
-                    if let Some(end_relative) = updated.as_bytes()[value_start..].iter().position(|b| *b == quote) {
-                        updated.replace_range(value_start..value_start + end_relative, &value);
-                        found_attribute = true;
-                    }
-                }
-            }
-        }
-        if found_attribute { continue; }
-
-        if let Some(description) = updated.find("<rdf:Description") {
-            if let Some(open_end_relative) = updated[description..].find('>') {
-                let mut insert_at = description + open_end_relative;
-                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
-                let namespace = match name {
-                    "xmp:Rating" if !updated.contains("xmlns:xmp=") => " xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"",
-                    "acdsee:rating" if !updated.contains("xmlns:acdsee=") => " xmlns:acdsee=\"http://ns.acdsee.com/iptc/1.0/\"",
-                    "MicrosoftPhoto:Rating" if !updated.contains("xmlns:MicrosoftPhoto=") => " xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\"",
-                    _ => "",
-                };
-                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{value}\""));
-            }
-        }
-    }
-    if updated.is_empty() || !updated.contains("rdf:Description") {
-        format!("<?xpacket begin=\"﻿\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:acdsee=\"http://ns.acdsee.com/iptc/1.0/\" xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\" xmp:Rating=\"{rating}\" acdsee:rating=\"{rating}\" MicrosoftPhoto:Rating=\"{microsoft_rating}\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>")
-    } else { fix_microsoft_namespace(updated) }
-}
-
 const EMPTY_XMP_PACKET: &str = "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?><x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description rdf:about=\"\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"/></rdf:RDF></x:xmpmeta><?xpacket end=\"w\"?>";
-
-/// Écrit (`Some`) ou retire (`None`) xmp:Label, que le paquet l'exprime en élément ou en attribut,
-/// sans toucher au reste du paquet XMP.
-fn update_xmp_label(xml: &str, label: Option<&str>) -> String {
-    let mut updated = xml.to_string();
-    let name = "xmp:Label";
-    let opening = format!("<{name}");
-    let closing = format!("</{name}>");
-    let mut placed = false;
-
-    // Forme élément : <xmp:Label>Red</xmp:Label> (ou <xmp:Label/>). Les doublons sont supprimés.
-    let mut search_from = 0;
-    while let Some(relative) = updated[search_from..].find(&opening) {
-        let start = search_from + relative;
-        let after = start + opening.len();
-        let boundary_ok = updated.as_bytes().get(after).is_some_and(|b| *b == b'>' || *b == b'/' || b.is_ascii_whitespace());
-        if !boundary_ok { search_from = after; continue; }
-        let Some(open_end_relative) = updated[start..].find('>') else { break; };
-        let open_end = start + open_end_relative;
-        if updated.as_bytes()[open_end - 1] == b'/' {
-            match (label, placed) {
-                (Some(value), false) => {
-                    let element = format!("<{name}>{value}</{name}>");
-                    updated.replace_range(start..open_end + 1, &element);
-                    placed = true;
-                    search_from = start + element.len();
-                }
-                _ => { updated.replace_range(start..open_end + 1, ""); search_from = start; }
-            }
-            continue;
-        }
-        let content_start = open_end + 1;
-        let Some(close_relative) = updated[content_start..].find(&closing) else { break; };
-        let content_end = content_start + close_relative;
-        match (label, placed) {
-            (Some(value), false) => {
-                updated.replace_range(content_start..content_end, value);
-                placed = true;
-                search_from = content_start + value.len() + closing.len();
-            }
-            _ => { updated.replace_range(start..content_end + closing.len(), ""); search_from = start; }
-        }
-    }
-
-    // Forme attribut : xmp:Label="Red"
-    let mut search_from = 0;
-    while let Some(relative) = updated[search_from..].find(name) {
-        let start = search_from + relative;
-        let name_end = start + name.len();
-        let found = {
-            let bytes = updated.as_bytes();
-            let mut pos = name_end;
-            while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
-            let mut result = None;
-            if start > 0 && bytes[start - 1].is_ascii_whitespace() && bytes.get(pos) == Some(&b'=') {
-                pos += 1;
-                while bytes.get(pos).is_some_and(|b| b.is_ascii_whitespace()) { pos += 1; }
-                if let Some(quote @ (b'"' | b'\'')) = bytes.get(pos).copied() {
-                    let value_start = pos + 1;
-                    if let Some(end_relative) = bytes[value_start..].iter().position(|b| *b == quote) {
-                        let mut attribute_start = start;
-                        while attribute_start > 0 && bytes[attribute_start - 1].is_ascii_whitespace() { attribute_start -= 1; }
-                        result = Some((attribute_start, value_start, value_start + end_relative));
-                    }
-                }
-            }
-            result
-        };
-        let Some((attribute_start, value_start, value_end)) = found else { search_from = name_end; continue; };
-        match (label, placed) {
-            (Some(value), false) => {
-                updated.replace_range(value_start..value_end, value);
-                placed = true;
-                search_from = value_start + value.len();
-            }
-            _ => { updated.replace_range(attribute_start..value_end + 1, ""); search_from = attribute_start; }
-        }
-    }
-
-    // Absent : ajout en attribut du premier rdf:Description.
-    if let (Some(value), false) = (label, placed) {
-        if let Some(description) = updated.find("<rdf:Description") {
-            if let Some(open_end_relative) = updated[description..].find('>') {
-                let mut insert_at = description + open_end_relative;
-                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
-                let namespace = if updated[..insert_at].contains("xmlns:xmp=") { "" } else { " xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\"" };
-                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{value}\""));
-            }
-        }
-    }
-    updated
-}
 
 // Conversion des flags couleur standard vers digikam et photoshop (numériques)
 pub(crate) fn color_to_urgency_and_digikam(flag: &str) -> Option<i32> {
@@ -1612,48 +1428,6 @@ pub(crate) fn color_to_urgency_and_digikam(flag: &str) -> Option<i32> {
         "white" => Some(9),
         _ => None,
     }
-}
-
-fn update_photoshop_urgency(xml: &str, urgency: Option<i32>) -> String {
-    let mut updated = xml.to_string();
-    let name = "photoshop:Urgency";
-    
-    // Nettoyage préalable de l'attribut s'il existe déjà
-    updated = remove_xmp_attribute(&updated, name);
-
-    if let Some(val) = urgency {
-        let val_str = val.to_string();
-        if let Some(description) = updated.find("<rdf:Description") {
-            if let Some(open_end_relative) = updated[description..].find('>') {
-                let mut insert_at = description + open_end_relative;
-                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
-                let namespace = if updated[..insert_at].contains("xmlns:photoshop=") { "" } else { " xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\"" };
-                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{val_str}\""));
-            }
-        }
-    }
-    updated
-}
-
-fn update_digikam_color_label(xml: &str, label_id: Option<i32>) -> String {
-    let mut updated = xml.to_string();
-    let name = "digikam:ColorLabel";
-    
-    // Nettoyage préalable
-    updated = remove_xmp_attribute(&updated, name);
-
-    if let Some(val) = label_id {
-        let val_str = val.to_string();
-        if let Some(description) = updated.find("<rdf:Description") {
-            if let Some(open_end_relative) = updated[description..].find('>') {
-                let mut insert_at = description + open_end_relative;
-                if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
-                let namespace = if updated[..insert_at].contains("xmlns:digikam=") { "" } else { " xmlns:digikam=\"http://www.digikam.org/ns/1.0/\"" };
-                updated.insert_str(insert_at, &format!("{namespace} {name}=\"{val_str}\""));
-            }
-        }
-    }
-    updated
 }
 
 /// Helper pour supprimer un attribut XMP existant (ex: photoshop:Urgency ou digikam:ColorLabel)
@@ -1754,138 +1528,10 @@ pub(crate) fn strip_xmp_marks(xml: &str) -> String {
     updated
 }
 
-/// Remplace une propriété XMP par un attribut du premier rdf:Description (la propriété existante, en attribut ou en élément, est retirée avant).
-/// `names` : toutes les graphies possibles du préfixe (ex. digiKam / digikam) ; `value` `None` retire simplement la propriété.
-fn set_description_attribute(xml: &str, names: &[&str], namespace: (&str, &str), value: Option<&str>) -> String {
-    let mut updated = xml.to_string();
-    for name in names {
-        updated = remove_xmp_attribute(&updated, name);
-        updated = remove_xmp_element(&updated, name);
-    }
-    let Some(value) = value else { return updated; };
-    let Some(description) = updated.find("<rdf:Description") else { return updated; };
-    let Some(open_end_relative) = updated[description..].find('>') else { return updated; };
-    let mut insert_at = description + open_end_relative;
-    if insert_at > description && updated.as_bytes()[insert_at - 1] == b'/' { insert_at -= 1; }
-    let (prefix, uri) = namespace;
-    // Préfixe déjà déclaré dans le paquet (quelle que soit sa casse) : réutilisé tel quel, sans seconde déclaration du même espace de noms.
-    let declared = updated[..insert_at].contains(&format!("xmlns:{prefix}="));
-    let declaration = if declared { String::new() } else { format!(" xmlns:{prefix}=\"{uri}\"") };
-    let name = format!("{prefix}:{}", names[0].rsplit(':').next().unwrap_or_default());
-    updated.insert_str(insert_at, &format!("{declaration} {name}=\"{value}\""));
-    updated
-}
-
-/// Écrit le fanion pick dans les trois formats : digiKam:PickLabel (0 à 3), xmpDM:pick (-1, 0, 1) et xmpDM:good (True / False, retiré sans fanion).
-fn update_xmp_pick(xml: &str, pick: &str) -> String {
-    let (digikam, xmpdm_pick, xmpdm_good) = pick_values(pick);
-    // digiKam : le préfixe déjà présent dans le paquet est conservé (« digikam » écrit par cette application pour ColorLabel, « digiKam » ailleurs).
-    let digikam_prefix = if xml.contains("xmlns:digikam=") && !xml.contains("xmlns:digiKam=") { "digikam" } else { "digiKam" };
-    let digikam_names = [format!("{digikam_prefix}:PickLabel"), format!("{}:PickLabel", if digikam_prefix == "digikam" { "digiKam" } else { "digikam" })];
-    let mut updated = set_description_attribute(xml, &[digikam_names[0].as_str(), digikam_names[1].as_str()], (digikam_prefix, "http://www.digikam.org/ns/1.0/"), Some(&digikam.to_string()));
-    let dynamic_media = ("xmpDM", "http://ns.adobe.com/xmp/1.0/DynamicMedia/");
-    updated = set_description_attribute(&updated, &["xmpDM:pick"], dynamic_media, Some(&xmpdm_pick.to_string()));
-    set_description_attribute(&updated, &["xmpDM:good"], dynamic_media, xmpdm_good)
-}
-
-/// Applique uniquement ce qui est demandé (voir XmpEdit).
-fn update_xmp_metadata(xml: &str, edit: XmpEdit) -> String {
-    // Rien à retirer d'un fichier sans XMP (note 0 comprise) : aucun paquet n'est créé, comme avec ExifTool (voir XmpEdit::adds_values).
-    if !xml.contains("rdf:Description") && !edit.adds_values() { return xml.to_string(); }
-    let mut updated = xml.to_string();
-    if let Some(rating) = edit.rating { updated = update_xmp_rating(&updated, rating); }
-    if (edit.label.is_some() || edit.pick.is_some()) && !updated.contains("rdf:Description") {
-        // Rien à retirer d'un fichier sans XMP : le paquet n'est créé que pour écrire une valeur.
-        let adds = edit.label.is_some_and(|label| label.is_some()) || edit.pick.is_some_and(|pick| pick != "none");
-        if !adds { return updated; }
-        updated = EMPTY_XMP_PACKET.to_string();
-    }
-    if let Some(label) = edit.label {
-        // label xmp standard
-        updated = update_xmp_label(&updated, label);
-        // Couleurs dans Photoshop Urgency et digiKam ColorLabel
-        let color_str = label.unwrap_or_default();
-        let urgency_val = if color_str.is_empty() { None } else { color_to_urgency_and_digikam(color_str) };
-        updated = update_photoshop_urgency(&updated, urgency_val);
-        updated = update_digikam_color_label(&updated, urgency_val);
-    }
-    if let Some(pick) = edit.pick { updated = update_xmp_pick(&updated, pick); }
-    updated
-}
-
-/// Écrit la note, la couleur et/ou le fanion pick (voir `XmpEdit` : seules les valeurs fournies sont modifiées), sans toucher au reste du fichier.
-/// JPEG : paquet XMP du segment APP1, réécrit sans décompresser l'image. HEIC / HEIF : paquet XMP du conteneur (voir heif.rs), sidecar
-/// seulement si la structure du fichier ne le permet pas. Autres formats : sidecar XMP, leurs conteneurs étant trop différents.
-/// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles et mêmes valeurs).
+/// Writes rating, color label and/or pick flag via ExifTool (see `XmpEdit`).
 pub fn write_xmp_metadata(image_path: &str, edit: XmpEdit) -> std::io::Result<()> {
-    let path = Path::new(image_path);
-    if crate::exiftool::is_enabled() { return crate::exiftool::write_marking(path, edit); }
-    // Écriture interne : jamais deux écritures en même temps sur la même image (le chemin ExifTool prend ce verrou lui-même, d'où le placement ici).
-    let _guard = crate::exiftool::path_lock(path);
-    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
-    let xmp_update = |xml: &str| update_xmp_metadata(xml, edit);
-    if matches!(extension.as_str(), "heic" | "heif" | "hif") {
-        return match crate::heif::update_xmp(path, &xmp_update)? {
-            crate::heif::Outcome::Written | crate::heif::Outcome::Unchanged => Ok(()),
-            crate::heif::Outcome::Unsupported(reason) => {
-                eprintln!("HEIF cannot be edited in place for {} ({reason}): writing to a sidecar instead", path.display());
-                write_xmp_sidecar_with(path, &xmp_update)
-            }
-        };
-    }
-    if extension != "jpg" && extension != "jpeg" { return write_xmp_sidecar_with(path, &xmp_update); }
-
-    let data = fs::read(path)?;
-    if data.len() < 2 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
-    let output = jpeg_replace_xmp(&data, &xmp_update)?;
-    if output == data { return Ok(()); } // rien à modifier (ou rien à retirer d'un fichier sans XMP)
-    write_file_atomically(path, &output)
+    crate::exiftool::write_marking(Path::new(image_path), edit)
 }
-
-/// XMP `tiff:Orientation` set to `orientation` (packet created when there is none). The MicrosoftPhoto namespace of an old packet is fixed
-/// on the way, as by the other writes (otherwise ExifTool warns about it at every later read or write).
-fn set_xmp_orientation(xml: &str, orientation: u32) -> String {
-    let base = if xml.contains("rdf:Description") { xml.to_string() } else { EMPTY_XMP_PACKET.to_string() };
-    fix_microsoft_namespace(set_description_attribute(&base, &["tiff:Orientation"], ("tiff", TIFF_NS), Some(&orientation.to_string())))
-}
-
-/// Lossless rotation with the internal writer (see orientation.rs): XMP `tiff:Orientation` only, never the EXIF tag nor the image data.
-/// JPEG: packet of the APP1 segment, rewritten without decoding the image. RAW, PNG…: sidecar. HEIC / HEIF and videos: refused.
-pub(crate) fn write_xmp_orientation(path: &Path, orientation: u32) -> std::io::Result<()> {
-    let _guard = crate::exiftool::path_lock(path); // no two writes at once on the same image (see write_xmp_metadata)
-    let update = |xml: &str| set_xmp_orientation(xml, orientation);
-    match crate::orientation::kind_of(path) {
-        crate::orientation::Kind::Jpeg => {
-            let data = fs::read(path)?;
-            if data.len() < 2 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
-            let output = jpeg_replace_xmp(&data, &update)?;
-            if output == data { return Ok(()); }
-            write_file_atomically(path, &output)
-        }
-        crate::orientation::Kind::Raw | crate::orientation::Kind::Sidecar => write_xmp_sidecar_with(path, &update),
-        crate::orientation::Kind::Fixed => Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Rotation not supported for this format")),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Écriture des mots-clés hiérarchiques : XMP (dc:subject, digiKam, Lightroom, Media Pro, Microsoft) et IPTC des JPEG.
-// Ce qui est actif dans l'arbre de l'application remplace le contenu de TOUS ces formats : les entrées absentes de l'arbre sont retirées.
-// XPKeywords (EXIF) n'est pas écrit : il oblige à réécrire la structure TIFF de l'EXIF (risque pour les MakerNote).
-// ---------------------------------------------------------------------------
-
-const DC_NS: &str = "http://purl.org/dc/elements/1.1/";
-const DIGIKAM_NS: &str = "http://www.digikam.org/ns/1.0/";
-const LIGHTROOM_NS: &str = "http://ns.adobe.com/lightroom/1.0/";
-const MEDIAPRO_NS: &str = "http://ns.iview-multimedia.com/mediapro/1.0/";
-// Avec le « / » final : sans lui, ExifTool signale « Fixed incorrect URI for xmlns:MicrosoftPhoto » à chaque lecture ou écriture du fichier.
-const MICROSOFT_NS: &str = "http://ns.microsoft.com/photo/1.0/";
-
-/// Paquet XMP dont la déclaration du namespace MicrosoftPhoto est corrigée : les versions précédentes l'écrivaient sans le « / » final.
-fn fix_microsoft_namespace(xml: String) -> String {
-    xml.replace("xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0\"", "xmlns:MicrosoftPhoto=\"http://ns.microsoft.com/photo/1.0/\"")
-        .replace("xmlns:MicrosoftPhoto='http://ns.microsoft.com/photo/1.0'", "xmlns:MicrosoftPhoto='http://ns.microsoft.com/photo/1.0/'")
-}
-const ACDSEE_NS: &str = "http://ns.acdsee.com/iptc/1.0/";
 
 fn xml_escape_text(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
@@ -1926,18 +1572,6 @@ fn remove_xmp_list_property(xml: &str, local_name: &str, only_prefix: Option<&st
     updated
 }
 
-/// Élément XMP liste : `<nom><rdf:Bag><rdf:li>…</rdf:li></rdf:Bag></nom>` (ou `rdf:Seq`).
-fn xmp_list_element(qualified_name: &str, container: &str, items: &[String]) -> String {
-    let mut element = format!("<{qualified_name}><rdf:{container}>");
-    for item in items {
-        element.push_str("<rdf:li>");
-        element.push_str(&xml_escape_text(item));
-        element.push_str("</rdf:li>");
-    }
-    element.push_str(&format!("</rdf:{container}></{qualified_name}>"));
-    element
-}
-
 /// Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élément.
 fn insert_description_children(xml: &str, children: &str, namespaces: &[(&str, &str)]) -> Option<String> {
     let description = xml.find("<rdf:Description")?;
@@ -1971,44 +1605,6 @@ fn insert_description_children(xml: &str, children: &str, namespaces: &[(&str, &
         output.push_str(&xml[close..]);
     }
     Some(output)
-}
-
-/// Remplace les mots-clés d'un paquet XMP par les mots-clés actifs `paths` (un chemin hiérarchique par mot-clé actif) :
-/// `dc:subject` (noms seuls), `digiKam:TagsList` (A/B/C), `lr:hierarchicalSubject` (A|B|C), `mediapro:CatalogSets` (A|B|C),
-/// `MicrosoftPhoto:LastKeywordXMP` (A/B/C) et `acdsee:categories` (arbre, voir acdsee_categories_value). Le reste du paquet n'est pas touché. Sans mot-clé, ces propriétés sont retirées.
-/// Renvoie le paquet inchangé, ou vide s'il n'y a ni paquet ni mot-clé à écrire.
-fn update_xmp_keywords(xml: &str, paths: &[Vec<String>]) -> String {
-    let mut updated = xml.to_string();
-    if !updated.contains("rdf:Description") {
-        if paths.is_empty() { return updated; }
-        updated = EMPTY_XMP_PACKET.to_string();
-    }
-    updated = remove_xmp_list_property(&updated, "subject", Some("dc"));
-    for local_name in ["TagsList", "hierarchicalSubject", "CatalogSets", "LastKeywordXMP"] {
-        updated = remove_xmp_list_property(&updated, local_name, None);
-    }
-    // Catégories ACDSee : élément simple (ou attribut) dont la valeur est l'arbre en texte.
-    updated = remove_xmp_list_property(&updated, "categories", Some("acdsee"));
-    updated = remove_xmp_attribute(&updated, "acdsee:categories");
-    if paths.is_empty() { return updated; }
-
-    let mut flat: Vec<String> = Vec::new();
-    for segments in paths {
-        if let Some(leaf) = segments.last() {
-            if !flat.iter().any(|word| word.to_lowercase() == leaf.to_lowercase()) { flat.push(leaf.clone()); }
-        }
-    }
-    let joined = |separator: &str| -> Vec<String> { paths.iter().map(|segments| segments.join(separator)).collect() };
-    let children = [
-        xmp_list_element("dc:subject", "Bag", &flat),
-        xmp_list_element("digiKam:TagsList", "Seq", &joined("/")),
-        xmp_list_element("lr:hierarchicalSubject", "Bag", &joined("|")),
-        xmp_list_element("mediapro:CatalogSets", "Bag", &joined("|")),
-        xmp_list_element("MicrosoftPhoto:LastKeywordXMP", "Bag", &joined("/")),
-        format!("<acdsee:categories>{}</acdsee:categories>", xml_escape_text(&acdsee_categories_value(paths))),
-    ].concat();
-    let namespaces = [("dc", DC_NS), ("digiKam", DIGIKAM_NS), ("lr", LIGHTROOM_NS), ("mediapro", MEDIAPRO_NS), ("MicrosoftPhoto", MICROSOFT_NS), ("acdsee", ACDSEE_NS)];
-    insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
 }
 
 /// Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
@@ -2113,228 +1709,6 @@ pub(crate) fn keyword_leaves(paths: &[Vec<String>]) -> Vec<String> {
     leaves
 }
 
-const EXIF_NS: &str = "http://ns.adobe.com/exif/1.0/";
-const TIFF_NS: &str = "http://ns.adobe.com/tiff/1.0/";
-
-/// Entrées d'une liste de langues XMP (`rdf:Alt`) autres que `x-default` (ex. `fr-FR` ajoutée par digiKam), telles qu'écrites dans le
-/// paquet (balise `<rdf:li …>…</rdf:li>` complète, donc réinjectables sans transformation). Vide si la propriété est absente, simple ou
-/// sans traduction.
-fn xmp_other_language_items(xml: &str, qualified_name: &str) -> Vec<String> {
-    let opening = format!("<{qualified_name}");
-    let closing = format!("</{qualified_name}>");
-    let mut items = Vec::new();
-    let mut from = 0;
-    while let Some(relative) = xml[from..].find(&opening) {
-        let start = from + relative;
-        let name_end = start + opening.len();
-        from = name_end;
-        if !xml.as_bytes().get(name_end).is_some_and(|byte| *byte == b'>' || byte.is_ascii_whitespace()) { continue; }
-        let Some(tag_end) = xml_tag_end(xml, start) else { break; };
-        if xml.as_bytes()[tag_end - 1] == b'/' { continue; }
-        let Some(close) = xml[tag_end + 1..].find(&closing).map(|end| tag_end + 1 + end) else { break; };
-        let mut rest = &xml[tag_end + 1..close];
-        while let Some(li) = rest.find("<rdf:li") {
-            let Some(li_tag_end) = rest[li..].find('>').map(|end| li + end) else { break; };
-            if rest[li..li_tag_end].ends_with('/') { rest = &rest[li_tag_end + 1..]; continue; }
-            let Some(item_end) = rest[li_tag_end + 1..].find("</rdf:li>").map(|end| li_tag_end + 1 + end + "</rdf:li>".len()) else { break; };
-            if !rest[li..li_tag_end].contains("x-default") { items.push(rest[li..item_end].to_string()); }
-            rest = &rest[item_end..];
-        }
-        break;
-    }
-    items
-}
-
-/// Élément XMP « liste de langues » : la valeur par défaut `<rdf:li xml:lang="x-default">…</rdf:li>` suivie des autres langues
-/// conservées (`other_languages`, voir `xmp_other_language_items`) : `<nom><rdf:Alt>…</rdf:Alt></nom>`.
-fn xmp_alt_element(qualified_name: &str, text: &str, other_languages: &[String]) -> String {
-    format!(
-        "<{qualified_name}><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li>{}</rdf:Alt></{qualified_name}>",
-        xml_escape_text(text), other_languages.concat()
-    )
-}
-
-/// Remplace le titre (dc:title, acdsee:caption) et/ou la description (dc:description, exif:UserComment, tiff:ImageDescription, acdsee:notes)
-/// d'un paquet XMP. Seule la valeur par défaut (`x-default`) est remplacée : les autres langues (traductions de digiKam) sont conservées,
-/// sauf si le champ est vidé (retrait complet).
-fn update_xmp_texts(xml: &str, update: &MetadataUpdate) -> String {
-    let title = update.clean_title();
-    let description = update.clean_description();
-    if title.is_none() && description.is_none() { return xml.to_string(); }
-    let mut updated = xml.to_string();
-    if !updated.contains("rdf:Description") {
-        let adds = title.as_deref().is_some_and(|text| !text.is_empty()) || description.as_deref().is_some_and(|text| !text.is_empty());
-        if !adds { return updated; }
-        updated = EMPTY_XMP_PACKET.to_string();
-    }
-    let mut children = String::new();
-    let mut namespaces: Vec<(&str, &str)> = Vec::new();
-    if let Some(title) = &title {
-        let title_languages = xmp_other_language_items(&updated, "dc:title");
-        for (prefix, local_name) in [("dc", "title"), ("acdsee", "caption")] {
-            updated = remove_xmp_list_property(&updated, local_name, Some(prefix));
-            updated = remove_xmp_attribute(&updated, &format!("{prefix}:{local_name}"));
-        }
-        if !title.is_empty() {
-            children.push_str(&xmp_alt_element("dc:title", title, &title_languages));
-            children.push_str(&format!("<acdsee:caption>{}</acdsee:caption>", xml_escape_text(title)));
-            namespaces.extend([("dc", DC_NS), ("acdsee", ACDSEE_NS)]);
-        }
-    }
-    if let Some(description) = &description {
-        let languages_of = |name: &str| xmp_other_language_items(&updated, name);
-        let (dc_languages, comment_languages, tiff_languages) =
-            (languages_of("dc:description"), languages_of("exif:UserComment"), languages_of("tiff:ImageDescription"));
-        for (prefix, local_name) in [("dc", "description"), ("exif", "UserComment"), ("tiff", "ImageDescription"), ("acdsee", "notes")] {
-            updated = remove_xmp_list_property(&updated, local_name, Some(prefix));
-            updated = remove_xmp_attribute(&updated, &format!("{prefix}:{local_name}"));
-        }
-        if !description.is_empty() {
-            children.push_str(&xmp_alt_element("dc:description", description, &dc_languages));
-            children.push_str(&xmp_alt_element("exif:UserComment", description, &comment_languages));
-            children.push_str(&xmp_alt_element("tiff:ImageDescription", description, &tiff_languages));
-            children.push_str(&format!("<acdsee:notes>{}</acdsee:notes>", xml_escape_text(description)));
-            for namespace in [("dc", DC_NS), ("exif", EXIF_NS), ("tiff", TIFF_NS), ("acdsee", ACDSEE_NS)] {
-                if !namespaces.contains(&namespace) { namespaces.push(namespace); }
-            }
-        }
-    }
-    if children.is_empty() { return updated; }
-    insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
-}
-
-/// Ajoute `namespace` à la liste des espaces de noms à déclarer, une seule fois.
-fn push_namespace(namespaces: &mut Vec<(&'static str, &'static str)>, namespace: (&'static str, &'static str)) {
-    if !namespaces.contains(&namespace) { namespaces.push(namespace); }
-}
-
-/// Auteur, copyright, crédit, conditions d'utilisation et e-mail de l'auteur d'un paquet XMP : `dc:creator` (liste, un auteur par entrée) et
-/// `tiff:Artist` ; `dc:rights` et `tiff:Copyright` ; `photoshop:Credit` ; `xmpRights:UsageTerms` ; e-mail dans la structure
-/// `Iptc4xmpCore:CreatorContactInfo` (`CiEmailWork`), dont les autres champs sont conservés. Seul `x-default` est écrit pour `dc:rights` et
-/// `xmpRights:UsageTerms` : les autres langues sont effacées (les traductions de `tiff:Copyright` sont conservées). Un champ `None` est laissé tel quel,
-/// un champ vide est retiré.
-fn update_xmp_rights(xml: &str, update: &MetadataUpdate) -> String {
-    let author = update.author_list();
-    let copyright = update.clean_copyright();
-    let credit = update.clean_credit();
-    let usage_terms = update.clean_usage_terms();
-    let email = update.clean_author_email();
-    if author.is_none() && copyright.is_none() && credit.is_none() && usage_terms.is_none() && email.is_none() { return xml.to_string(); }
-    let mut updated = xml.to_string();
-    if !updated.contains("rdf:Description") {
-        if !update.adds_rights() { return updated; }
-        updated = EMPTY_XMP_PACKET.to_string();
-    }
-    let mut children = String::new();
-    let mut namespaces: Vec<(&'static str, &'static str)> = Vec::new();
-    if let Some(authors) = &author {
-        updated = remove_xmp_list_property(&updated, "creator", Some("dc"));
-        updated = remove_xmp_attribute(&updated, "dc:creator");
-        updated = remove_xmp_list_property(&updated, "Artist", Some("tiff"));
-        updated = remove_xmp_attribute(&updated, "tiff:Artist");
-        if !authors.is_empty() {
-            children.push_str(&xmp_list_element("dc:creator", "Seq", authors));
-            children.push_str(&format!("<tiff:Artist>{}</tiff:Artist>", xml_escape_text(&authors.join("; "))));
-            push_namespace(&mut namespaces, ("dc", DC_NS));
-            push_namespace(&mut namespaces, ("tiff", TIFF_NS));
-        }
-    }
-    if let Some(copyright) = &copyright {
-        let tiff_languages = xmp_other_language_items(&updated, "tiff:Copyright");
-        updated = remove_xmp_list_property(&updated, "rights", Some("dc"));
-        updated = remove_xmp_attribute(&updated, "dc:rights");
-        updated = remove_xmp_list_property(&updated, "Copyright", Some("tiff"));
-        updated = remove_xmp_attribute(&updated, "tiff:Copyright");
-        if !copyright.is_empty() {
-            children.push_str(&xmp_alt_element("dc:rights", copyright, &[]));
-            children.push_str(&xmp_alt_element("tiff:Copyright", copyright, &tiff_languages));
-            push_namespace(&mut namespaces, ("dc", DC_NS));
-            push_namespace(&mut namespaces, ("tiff", TIFF_NS));
-        }
-    }
-    if let Some(credit) = &credit {
-        updated = remove_xmp_list_property(&updated, "Credit", Some("photoshop"));
-        updated = remove_xmp_attribute(&updated, "photoshop:Credit");
-        if !credit.is_empty() {
-            children.push_str(&format!("<photoshop:Credit>{}</photoshop:Credit>", xml_escape_text(credit)));
-            push_namespace(&mut namespaces, ("photoshop", PHOTOSHOP_NS));
-        }
-    }
-    if let Some(terms) = &usage_terms {
-        updated = remove_xmp_list_property(&updated, "UsageTerms", Some("xmpRights"));
-        updated = remove_xmp_attribute(&updated, "xmpRights:UsageTerms");
-        if !terms.is_empty() {
-            children.push_str(&xmp_alt_element("xmpRights:UsageTerms", terms, &[]));
-            push_namespace(&mut namespaces, ("xmpRights", XMP_RIGHTS_NS));
-        }
-    }
-    if let Some(email) = &email {
-        // The whole structure is read, the e-mail replaced and the structure written back: address, phone and web address are kept.
-        let mut contact = parse_contact_info(&updated).unwrap_or_default();
-        contact.email = email.clone();
-        updated = remove_xmp_list_property(&updated, "CreatorContactInfo", None);
-        if !contact.is_empty() {
-            children.push_str(&contact_info_element(&contact));
-            push_namespace(&mut namespaces, ("Iptc4xmpCore", IPTC_CORE_NS));
-        }
-    }
-    if children.is_empty() { return updated; }
-    insert_description_children(&updated, &children, &namespaces).unwrap_or(updated)
-}
-
-/// Paquet XMP mis à jour pour toutes les modifications demandées (mots-clés, titre, description, auteur et droits, zones de visage, GPS).
-fn update_xmp_all(xml: &str, update: &MetadataUpdate) -> String {
-    let with_keywords = match &update.keywords {
-        Some(paths) => update_xmp_keywords(xml, paths),
-        None => xml.to_string(),
-    };
-    let with_texts = update_xmp_texts(&with_keywords, update);
-    let with_rights = update_xmp_rights(&with_texts, update);
-    let with_regions = match &update.regions {
-        Some(regions) => update_xmp_regions(&with_rights, regions),
-        None => with_rights,
-    };
-    fix_microsoft_namespace(match update.gps {
-        Some(gps) => update_xmp_gps(&with_regions, gps),
-        None => with_regions,
-    })
-}
-
-/// Coordonnée au format XMP de la norme EXIF : « DDD,MM.mmmmmmk » (k = N, S, E ou W), lue par parse_xmp_gps_coordinate.
-pub(crate) fn xmp_gps_coordinate(value: f64, positive: char, negative: char) -> String {
-    let absolute = value.abs();
-    let degrees = absolute.trunc();
-    format!("{},{:.6}{}", degrees as u32, (absolute - degrees) * 60.0, if value < 0.0 { negative } else { positive })
-}
-
-/// Coordonnées GPS du paquet XMP : toutes les propriétés `exif:GPS…` (position, altitude, heure, version…) sont retirées, puis, pour une
-/// restauration, latitude et longitude sont écrites. Rien n'est créé dans un fichier sans XMP quand il n'y a rien à écrire.
-pub(crate) fn update_xmp_gps(xml: &str, gps: Option<(f64, f64)>) -> String {
-    let mut updated = xml.to_string();
-    if !updated.contains("rdf:Description") {
-        if gps.is_none() { return updated; }
-        updated = EMPTY_XMP_PACKET.to_string();
-    }
-    let mut names: Vec<String> = Vec::new();
-    let mut from = 0;
-    while let Some(relative) = updated[from..].find("exif:GPS") {
-        let start = from + relative;
-        let end = updated[start + 5..].find(|c: char| !c.is_ascii_alphanumeric()).map_or(updated.len(), |offset| start + 5 + offset);
-        let name = updated[start..end].to_string();
-        if !names.contains(&name) { names.push(name); }
-        from = end;
-    }
-    for name in &names {
-        updated = remove_xmp_attribute(&updated, name);
-        updated = remove_xmp_element(&updated, name);
-    }
-    if let Some((latitude, longitude)) = gps {
-        updated = set_description_attribute(&updated, &["exif:GPSLatitude"], ("exif", EXIF_NS), Some(&xmp_gps_coordinate(latitude, 'N', 'S')));
-        updated = set_description_attribute(&updated, &["exif:GPSLongitude"], ("exif", EXIF_NS), Some(&xmp_gps_coordinate(longitude, 'E', 'W')));
-    }
-    updated
-}
-
 // ---------------------------------------------------------------------------
 // Zones de visage (lot 4) : MWG Regions et Microsoft Photo RegionInfo, mêmes champs que l'écriture par ExifTool (exiftool.rs).
 // ACDSee n'est pas écrit tant que le repère de ses coordonnées n'est pas confirmé (spec §6.1).
@@ -2421,118 +1795,11 @@ pub(crate) fn rotate_xmp_regions(xml: &str, orientation: u32, width: i64, height
     update_xmp_regions(xml, &RegionsUpdate { regions: rotated, width, height })
 }
 
-/// JPEG dont les commentaires (segments COM) sont remplacés par un seul contenant `text` (aucun si `text` est vide), placé après les segments
-/// APPn de l'en-tête. Le reste du fichier est recopié tel quel.
-fn jpeg_replace_comment(data: &[u8], text: &str) -> std::io::Result<Vec<u8>> {
-    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
-    let mut parser = jpeg_segments(data);
-    let segments: Vec<JpegSegment> = parser.by_ref().collect();
-    if parser.malformed { return Err(invalid_data("Structure JPEG illisible")); }
-    let mut comment = Vec::new();
-    if !text.is_empty() {
-        let bytes = truncate_utf8(text, 65533).as_bytes();
-        comment.extend_from_slice(&[0xff, 0xfe]);
-        comment.extend_from_slice(&((bytes.len() + 2) as u16).to_be_bytes());
-        comment.extend_from_slice(bytes);
-    }
-    // Le nouveau commentaire va après le dernier segment APPn (ou juste après SOI s'il n'y en a pas).
-    let insert_at = segments.iter().rev().find(|segment| (0xe0..=0xef).contains(&segment.marker)).map_or(2, |segment| segment.end);
-    let mut output = Vec::with_capacity(data.len() + comment.len());
-    let mut cursor = 0;
-    let mut inserted = false;
-    for old in segments.iter().filter(|segment| segment.marker == 0xfe) {
-        if !inserted && insert_at <= old.start {
-            output.extend_from_slice(&data[cursor..insert_at]);
-            output.extend_from_slice(&comment);
-            cursor = insert_at;
-            inserted = true;
-        }
-        output.extend_from_slice(&data[cursor..old.start]);
-        cursor = old.end;
-    }
-    if !inserted {
-        output.extend_from_slice(&data[cursor..insert_at]);
-        output.extend_from_slice(&comment);
-        cursor = insert_at;
-    }
-    output.extend_from_slice(&data[cursor..]);
-    Ok(output)
-}
-
-/// Position où insérer un nouveau segment APP : après les segments APP0 (JFIF) et APP1 Exif du début du fichier.
-fn jpeg_insert_position(data: &[u8]) -> usize {
-    let mut at = 2;
-    for segment in jpeg_segments(data) {
-        let is_exif = segment.marker == 0xe1 && segment.content(data).starts_with(b"Exif\0\0");
-        if segment.marker != 0xe0 && !is_exif { break; }
-        at = segment.end;
-    }
-    at
-}
-
-fn invalid_data(message: &str) -> std::io::Error {
-    std::io::Error::new(std::io::ErrorKind::InvalidData, message.to_string())
-}
-
-/// JPEG dont le paquet XMP (segment APP1) est remplacé par `update(paquet actuel)` ; paquet créé si absent ; octets inchangés s'il n'y a rien à modifier.
-/// Refuses a JPEG whose segment structure cannot be read up to the image data (invalid segment length, missing marker): the XMP or IPTC
-/// segment may then be missed, and a second one inserted. The file is left as it is (headers only are read: negligible cost).
-fn check_jpeg_structure(data: &[u8]) -> std::io::Result<()> {
-    if data.len() < 4 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
-    let mut parser = jpeg_segments(data);
-    parser.by_ref().for_each(drop);
-    if parser.malformed { return Err(invalid_data("Structure JPEG illisible : fichier non modifié")); }
-    Ok(())
-}
-
-fn jpeg_replace_xmp(data: &[u8], update: &dyn Fn(&str) -> String) -> std::io::Result<Vec<u8>> {
-    check_jpeg_structure(data)?;
-    let build_segment = |packet: &str| -> std::io::Result<Vec<u8>> {
-        let mut payload = Vec::with_capacity(JPEG_XMP_HEADER.len() + packet.len());
-        payload.extend_from_slice(JPEG_XMP_HEADER);
-        payload.extend_from_slice(packet.as_bytes());
-        let length = payload.len() + 2;
-        if length > u16::MAX as usize { return Err(invalid_data("Le paquet XMP dépasse la taille maximale d'un segment JPEG")); }
-        let mut segment = vec![0xff, 0xe1];
-        segment.extend_from_slice(&(length as u16).to_be_bytes());
-        segment.extend_from_slice(&payload);
-        Ok(segment)
-    };
-    if let Some((segment_start, segment_end, packet_start)) = find_jpeg_xmp_segment(data) {
-        let packet = std::str::from_utf8(&data[packet_start..segment_end]).map_err(|_| invalid_data("Le paquet XMP JPEG n'est pas en UTF-8"))?;
-        let updated = update(packet);
-        if updated == packet { return Ok(data.to_vec()); }
-        let segment = build_segment(&updated)?;
-        let mut output = Vec::with_capacity(data.len() + segment.len());
-        output.extend_from_slice(&data[..segment_start]);
-        output.extend_from_slice(&segment);
-        output.extend_from_slice(&data[segment_end..]);
-        Ok(output)
-    } else {
-        let packet = update("");
-        if packet.is_empty() { return Ok(data.to_vec()); }
-        let segment = build_segment(&packet)?;
-        let at = jpeg_insert_position(data);
-        let mut output = Vec::with_capacity(data.len() + segment.len());
-        output.extend_from_slice(&data[..at]);
-        output.extend_from_slice(&segment);
-        output.extend_from_slice(&data[at..]);
-        Ok(output)
-    }
-}
-
 // « Photoshop 3.0 » suivi d'un octet nul.
 const PHOTOSHOP_HEADER: &[u8] = &[80, 104, 111, 116, 111, 115, 104, 111, 112, 32, 51, 46, 48, 0];
 const IPTC_RESOURCE_ID: u16 = 0x0404;
 
-/// Segment APP13 « Photoshop 3.0 » : (début du segment, fin, début de son contenu).
-fn find_jpeg_photoshop_segment(data: &[u8]) -> Option<(usize, usize, usize)> {
-    jpeg_segments(data)
-        .find(|segment| segment.marker == 0xed && segment.content(data).starts_with(PHOTOSHOP_HEADER))
-        .map(|segment| (segment.start, segment.end, segment.payload))
-}
-
-struct PhotoshopResource { id: u16, name: Vec<u8>, data: Vec<u8> }
+struct PhotoshopResource { id: u16, data: Vec<u8> }
 
 /// Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
 fn parse_photoshop_resources(payload: &[u8]) -> (Vec<PhotoshopResource>, Vec<u8>) {
@@ -2548,7 +1815,7 @@ fn parse_photoshop_resources(payload: &[u8]) -> (Vec<PhotoshopResource>, Vec<u8>
         let size = u32::from_be_bytes([payload[q], payload[q + 1], payload[q + 2], payload[q + 3]]) as usize;
         let data_start = q + 4;
         if data_start + size > payload.len() { break; }
-        resources.push(PhotoshopResource { id, name: payload[name_start..name_start + name_length].to_vec(), data: payload[data_start..data_start + size].to_vec() });
+        resources.push(PhotoshopResource { id, data: payload[data_start..data_start + size].to_vec() });
         p = data_start + size;
         if !size.is_multiple_of(2) { p += 1; }
     }
@@ -2556,187 +1823,11 @@ fn parse_photoshop_resources(payload: &[u8]) -> (Vec<PhotoshopResource>, Vec<u8>
     (resources, trailer)
 }
 
-struct IptcDataset { record: u8, dataset: u8, raw: Vec<u8>, value: Vec<u8> }
-
-/// Jeux de données d'un bloc IPTC-IIM ; `None` si le bloc est mal formé (il n'est alors pas modifié).
-fn parse_iptc_datasets(iptc: &[u8]) -> Option<Vec<IptcDataset>> {
-    let mut datasets = Vec::new();
-    let mut q = 0;
-    while q < iptc.len() {
-        if iptc[q..].iter().all(|byte| *byte == 0) { break; } // remplissage final
-        if iptc[q] != 0x1c || q + 5 > iptc.len() { return None; }
-        let record = iptc[q + 1];
-        let dataset = iptc[q + 2];
-        let mut value_length = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
-        let mut header = 5;
-        if value_length & 0x8000 != 0 {
-            let count = value_length & 0x7fff;
-            if count == 0 || count > 4 || q + 5 + count > iptc.len() { return None; }
-            value_length = 0;
-            for byte in &iptc[q + 5..q + 5 + count] { value_length = (value_length << 8) | *byte as usize; }
-            header += count;
-        }
-        if q + header + value_length > iptc.len() { return None; }
-        datasets.push(IptcDataset { record, dataset, raw: iptc[q..q + header + value_length].to_vec(), value: iptc[q + header..q + header + value_length].to_vec() });
-        q += header + value_length;
-    }
-    Some(datasets)
-}
-
 pub(crate) fn truncate_utf8(text: &str, max_bytes: usize) -> &str {
     if text.len() <= max_bytes { return text; }
     let mut end = max_bytes;
     while !text.is_char_boundary(end) { end -= 1; }
     &text[..end]
-}
-
-/// Modifications IPTC : mots-clés (2:25, plusieurs), titre ObjectName (2:05), description Caption (2:120), auteurs By-line (2:80, plusieurs),
-/// crédit (2:110), copyright CopyrightNotice (2:116) ; `None` = inchangé, valeur vide = retiré.
-#[derive(Default)]
-struct IptcChanges<'a> {
-    keywords: Option<&'a [String]>,
-    object_name: Option<&'a str>,
-    caption: Option<&'a str>,
-    by_lines: Option<&'a [String]>,
-    copyright_notice: Option<&'a str>,
-    credit: Option<&'a str>,
-}
-
-impl IptcChanges<'_> {
-    /// Nouveaux jeux de données (numéro, valeur), coupés à la longueur maximale de la norme (64 octets ; 2000 pour la description).
-    fn datasets(&self) -> Vec<(u8, &str)> {
-        let mut values: Vec<(u8, &str)> = Vec::new();
-        if let Some(name) = self.object_name.filter(|text| !text.is_empty()) { values.push((5, truncate_utf8(name, 64))); }
-        for keyword in self.keywords.unwrap_or_default() { values.push((25, truncate_utf8(keyword, 64))); }
-        for author in self.by_lines.unwrap_or_default() { values.push((80, truncate_utf8(author, 32))); }
-        if let Some(credit) = self.credit.filter(|text| !text.is_empty()) { values.push((110, truncate_utf8(credit, 32))); }
-        if let Some(notice) = self.copyright_notice.filter(|text| !text.is_empty()) { values.push((116, truncate_utf8(notice, 128))); }
-        if let Some(caption) = self.caption.filter(|text| !text.is_empty()) { values.push((120, truncate_utf8(caption, 2000))); }
-        values.retain(|(_, value)| !value.is_empty());
-        values
-    }
-}
-
-/// Nouveau bloc IPTC : les jeux de données concernés par `changes` sont remplacés, tout le reste est recopié tel quel.
-/// Des valeurs non ASCII déclarent le jeu de caractères UTF-8 (1:90) s'il n'est pas déjà déclaré. `None` : le bloc est laissé intact
-/// (illisible, ou déclaré dans un autre jeu de caractères que l'UTF-8 alors que des valeurs non ASCII doivent y entrer).
-fn iptc_with(existing: Option<&[u8]>, changes: &IptcChanges) -> Option<Vec<u8>> {
-    let mut datasets = match existing { Some(bytes) => parse_iptc_datasets(bytes)?, None => Vec::new() };
-    let replaced: Vec<u8> = [
-        (changes.object_name.is_some(), 5u8), (changes.keywords.is_some(), 25), (changes.by_lines.is_some(), 80),
-        (changes.credit.is_some(), 110), (changes.copyright_notice.is_some(), 116), (changes.caption.is_some(), 120),
-    ]
-        .into_iter().filter(|(changed, _)| *changed).map(|(_, number)| number).collect();
-    datasets.retain(|dataset| !(dataset.record == 2 && replaced.contains(&dataset.dataset)));
-    let values = changes.datasets();
-    const UTF8_ESCAPE: [u8; 3] = [0x1b, 0x25, 0x47];
-    if values.iter().any(|(_, value)| !value.is_ascii()) {
-        match datasets.iter().find(|dataset| dataset.record == 1 && dataset.dataset == 90) {
-            Some(declared) => { if declared.value != UTF8_ESCAPE { return None; } }
-            None => datasets.insert(0, IptcDataset { record: 1, dataset: 90, raw: vec![0x1c, 1, 90, 0, 3, 0x1b, 0x25, 0x47], value: UTF8_ESCAPE.to_vec() }),
-        }
-    }
-    // Chaque nouveau jeu de données est placé dans l'ordre des numéros, après ceux de même numéro déjà placés.
-    for (number, value) in values {
-        let bytes = value.as_bytes();
-        let mut raw = vec![0x1c, 2, number];
-        raw.extend_from_slice(&(bytes.len() as u16).to_be_bytes());
-        raw.extend_from_slice(bytes);
-        let at = datasets.iter().position(|dataset| (dataset.record, dataset.dataset) > (2, number)).unwrap_or(datasets.len());
-        datasets.insert(at, IptcDataset { record: 2, dataset: number, raw, value: Vec::new() });
-    }
-    Some(datasets.into_iter().flat_map(|dataset| dataset.raw).collect())
-}
-
-/// JPEG dont les jeux de données IPTC concernés par `changes` sont remplacés. Les autres ressources Photoshop et jeux de données IPTC sont
-/// conservés ; le segment est créé s'il n'existe pas et qu'il y a des valeurs à écrire, et retiré s'il devient vide.
-fn jpeg_replace_iptc(data: &[u8], changes: &IptcChanges) -> std::io::Result<Vec<u8>> {
-    check_jpeg_structure(data)?;
-    let segment = find_jpeg_photoshop_segment(data);
-    let (mut resources, trailer) = match segment {
-        Some((_, end, payload_start)) => parse_photoshop_resources(&data[payload_start + PHOTOSHOP_HEADER.len()..end]),
-        None => (Vec::new(), Vec::new()),
-    };
-    let existing: Option<Vec<u8>> = resources.iter().find(|resource| resource.id == IPTC_RESOURCE_ID).map(|resource| resource.data.clone());
-    if existing.is_none() && changes.datasets().is_empty() { return Ok(data.to_vec()); }
-    let Some(new_iptc) = iptc_with(existing.as_deref(), changes) else { return Ok(data.to_vec()); };
-    if existing.as_deref() == Some(new_iptc.as_slice()) { return Ok(data.to_vec()); }
-
-    resources.retain(|resource| resource.id != IPTC_RESOURCE_ID);
-    if !new_iptc.is_empty() {
-        let at = resources.iter().position(|resource| resource.id > IPTC_RESOURCE_ID).unwrap_or(resources.len());
-        resources.insert(at, PhotoshopResource { id: IPTC_RESOURCE_ID, name: Vec::new(), data: new_iptc });
-    }
-    if resources.is_empty() && trailer.is_empty() {
-        // Plus rien à garder dans le segment : il est retiré.
-        return Ok(match segment {
-            Some((start, end, _)) => [&data[..start], &data[end..]].concat(),
-            None => data.to_vec(),
-        });
-    }
-    let mut payload = PHOTOSHOP_HEADER.to_vec();
-    for resource in &resources {
-        payload.extend_from_slice(b"8BIM");
-        payload.extend_from_slice(&resource.id.to_be_bytes());
-        payload.push(resource.name.len() as u8);
-        payload.extend_from_slice(&resource.name);
-        if (1 + resource.name.len()) % 2 != 0 { payload.push(0); }
-        payload.extend_from_slice(&(resource.data.len() as u32).to_be_bytes());
-        payload.extend_from_slice(&resource.data);
-        if resource.data.len() % 2 != 0 { payload.push(0); }
-    }
-    payload.extend_from_slice(&trailer);
-    let length = payload.len() + 2;
-    if length > u16::MAX as usize { return Err(invalid_data("Le bloc IPTC dépasse la taille maximale d'un segment JPEG")); }
-    let mut new_segment = vec![0xff, 0xed];
-    new_segment.extend_from_slice(&(length as u16).to_be_bytes());
-    new_segment.extend_from_slice(&payload);
-    Ok(match segment {
-        Some((start, end, _)) => [&data[..start], new_segment.as_slice(), &data[end..]].concat(),
-        None => {
-            let at = jpeg_insert_position(data);
-            [&data[..at], new_segment.as_slice(), &data[at..]].concat()
-        }
-    })
-}
-
-pub(crate) fn write_file_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let temp_path = std::path::PathBuf::from(format!("{}.photoboggan-tmp", path.display()));
-    // Écriture, synchronisation sur disque puis remplacement : au moindre échec, le fichier temporaire est supprimé.
-    let result = (|| {
-        let mut file = fs::File::create(&temp_path)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        drop(file);
-        fs::rename(&temp_path, path)
-    })();
-    if result.is_err() { let _ = fs::remove_file(&temp_path); }
-    result
-}
-
-/// JPEG : XMP, IPTC et commentaire réécrits en une seule fois (écriture atomique), le reste du fichier (pixels, EXIF…) est recopié tel quel.
-fn write_jpeg_metadata(path: &Path, update: &MetadataUpdate) -> std::io::Result<()> {
-    let data = fs::read(path)?;
-    if data.len() < 2 || data[0..2] != [0xff, 0xd8] { return Err(invalid_data("Le fichier n'est pas un JPEG valide")); }
-    let mut output = jpeg_replace_xmp(&data, &|xml| update_xmp_all(xml, update))?;
-    let leaves = update.keywords.as_deref().map(keyword_leaves);
-    let title = update.clean_title();
-    let description = update.clean_description();
-    let authors = update.author_list();
-    let copyright = update.clean_copyright();
-    let credit = update.clean_credit();
-    let changes = IptcChanges {
-        keywords: leaves.as_deref(),
-        object_name: title.as_deref(),
-        caption: description.as_deref(),
-        by_lines: authors.as_deref(),
-        copyright_notice: copyright.as_deref(),
-        credit: credit.as_deref(),
-    };
-    output = jpeg_replace_iptc(&output, &changes)?;
-    if let Some(description) = &description { output = jpeg_replace_comment(&output, description)?; }
-    if output == data { return Ok(()); }
-    write_file_atomically(path, &output)
 }
 
 pub(crate) fn image_gone(image_path: &Path) -> std::io::Error {
@@ -2814,57 +1905,16 @@ pub(crate) fn sidecar_candidates(image_path: &Path) -> [std::path::PathBuf; 2] {
     [std::path::PathBuf::from(format!("{}.xmp", image_path.display())), image_path.with_extension("xmp")]
 }
 
-/// XMP sidecar (see `sidecar_target`) whose content is replaced by `update(current content)`; created if needed (from the shared
-/// `photo.xmp` when the image gets its own sidecar).
-fn write_xmp_sidecar_with(image_path: &Path, update: &dyn Fn(&str) -> String) -> std::io::Result<()> {
-    // Image moved, renamed or deleted in the meantime: no sidecar is created for a file that is no longer there (it would stay an orphan).
-    if !image_path.is_file() { return Err(image_gone(image_path)); }
-    let target = sidecar_target(image_path);
-    let sidecar = target.path;
-    let xml = match fs::read_to_string(target.seed.as_deref().unwrap_or(&sidecar)) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(error),
-    };
-    let updated = update(&xml);
-    if updated.is_empty() || updated == xml { return Ok(()); }
-    write_file_atomically(&sidecar, updated.as_bytes())
-}
-
-/// Écrit les modifications `update` (mots-clés, titre, description) dans le fichier, en une seule écriture :
-/// JPEG : XMP, IPTC et commentaire du fichier ; HEIC / HEIF : XMP du conteneur (sidecar si la structure ne le permet pas) ; autres formats et
-/// vidéos : sidecar XMP. L'EXIF n'est jamais modifié par ce chemin interne.
-/// En mode ExifTool (Paramètres), l'écriture est confiée à exiftool.rs (mêmes cibles, plus l'EXIF des JPEG : XPKeywords, XPTitle,
-/// ImageDescription, UserComment, XPComment).
+/// Writes `update` (keywords, title, description, rights, regions, GPS) to the file or its sidecar via ExifTool.
 pub fn write_metadata(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
-    if crate::exiftool::is_enabled() { return crate::exiftool::write_metadata(Path::new(image_path), update); }
-    write_metadata_internal(image_path, update)
-}
-
-/// The internal writer of write_metadata, whatever the writer setting (tests of the batch writes use it directly).
-pub(crate) fn write_metadata_internal(image_path: &str, update: &MetadataUpdate) -> std::io::Result<()> {
-    let path = Path::new(image_path);
-    let _guard = crate::exiftool::path_lock(path); // écriture interne : voir write_xmp_metadata
-    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
-    let xmp_update = |xml: &str| update_xmp_all(xml, update);
-    if matches!(extension.as_str(), "heic" | "heif" | "hif") {
-        return match crate::heif::update_xmp(path, &xmp_update)? {
-            crate::heif::Outcome::Written | crate::heif::Outcome::Unchanged => Ok(()),
-            crate::heif::Outcome::Unsupported(reason) => {
-                eprintln!("HEIF cannot be edited in place for {} ({reason}): writing to a sidecar instead", path.display());
-                write_xmp_sidecar_with(path, &xmp_update)
-            }
-        };
-    }
-    if extension != "jpg" && extension != "jpeg" { return write_xmp_sidecar_with(path, &xmp_update); }
-    write_jpeg_metadata(path, update)
+    crate::exiftool::write_metadata(Path::new(image_path), update)
 }
 
 /// Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
 /// maximale du champ). None si tout est conforme, sinon la description de l'écart.
 pub fn text_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) -> Option<String> {
     let jpeg = matches!(path.extension().and_then(|value| value.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("jpg" | "jpeg"));
-    let with_exif = jpeg && crate::exiftool::is_enabled();
+    let with_exif = jpeg;
     if let Some(title) = update.clean_title() {
         let mut sources = vec![0, 1];
         if jpeg { sources.push(2); }
@@ -2897,7 +1947,7 @@ pub fn text_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) 
 /// par ExifTool), valeurs coupées à la longueur maximale du champ IPTC, `©` remplacé par `(c)` dans l'EXIF Copyright.
 fn rights_mismatch(path: &Path, update: &MetadataUpdate, meta: &ExifMetadata) -> Option<String> {
     let jpeg = matches!(path.extension().and_then(|value| value.to_str()).map(str::to_ascii_lowercase).as_deref(), Some("jpg" | "jpeg"));
-    let with_exif = jpeg && crate::exiftool::is_enabled();
+    let with_exif = jpeg;
     let sources = &meta.rights_sources;
     // The source holds exactly `expected`, or nothing when `expected` is empty.
     let differs = |actual: &Option<String>, expected: &str| *actual != (!expected.is_empty()).then(|| expected.to_string());

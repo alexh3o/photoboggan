@@ -1,15 +1,12 @@
-//! Écriture des métadonnées par ExifTool (https://exiftool.org), second chemin d'écriture à côté de l'écriture interne d'exif.rs.
+//! Metadata writing via ExifTool (https://exiftool.org).
 //!
-//! Choix de l'utilisateur (Paramètres, onglet Métadonnées) : mode « ExifTool » (par défaut) ou « interne ». En mode ExifTool, si l'outil est
-//! introuvable, l'écriture est refusée avec un message (jamais de repli silencieux sur l'autre chemin).
+//! Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources,
+//! see scripts/fetch-exiftool.mjs), then `exiftool` from PATH. Windows: official distribution with embedded Perl
+//! (`exiftool.exe`); Linux / macOS: pure Perl distribution, launched by the system `perl`.
 //!
-//! Exécutable, dans cet ordre : chemin choisi dans les Paramètres, version embarquée (dossier `exiftool` des ressources de l'application,
-//! voir scripts/fetch-exiftool.mjs), puis `exiftool` du PATH. Windows : distribution officielle avec Perl embarqué (`exiftool.exe`) ;
-//! Linux / macOS : distribution Perl pure, lancée par le `perl` du système.
-//!
-//! Processus persistants (`-stay_open True -@ -`) : démarrés à la demande (au plus MAX_PROCESSES, autant que d'écritures parallèles
-//! dans keywords.rs), arrêtés après IDLE_TIMEOUT sans activité et à la fermeture de l'application. ExifTool écrit dans un fichier temporaire
-//! puis remplace l'original (`-overwrite_original`) : jamais d'écriture en place. La relecture de vérification reste faite par l'appelant.
+//! Persistent processes (`-stay_open True -@ -`): started on demand (up to MAX_PROCESSES, matching parallel writes
+//! in keywords.rs), stopped after IDLE_TIMEOUT of inactivity and on app shutdown. ExifTool writes to a temporary file
+//! then replaces the original (`-overwrite_original`): never writes in place. Verification read-back is done by the caller.
 
 use std::collections::hash_map::DefaultHasher;
 use std::ffi::OsString;
@@ -36,13 +33,10 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 // ---------------------------------------------------------------------------
 
 struct Settings {
-    use_exiftool: bool,
     custom_path: Option<PathBuf>,
-    /// With the internal writer: do not read the EXIF metadata fields (see `skip_exif_metadata`).
-    skip_exif: bool,
 }
 
-static SETTINGS: RwLock<Settings> = RwLock::new(Settings { use_exiftool: true, custom_path: None, skip_exif: true });
+static SETTINGS: RwLock<Settings> = RwLock::new(Settings { custom_path: None });
 /// Dossier de la version embarquée (`<ressources>/exiftool`), fixé au démarrage.
 static BUNDLED_DIR: OnceLock<PathBuf> = OnceLock::new();
 /// Exécutable détecté (ou raison de l'échec), gardé jusqu'au prochain changement de réglage ou à la prochaine demande d'état.
@@ -55,35 +49,14 @@ pub fn init(resource_dir: Option<PathBuf>) {
     }
 }
 
-/// Vrai quand les écritures de métadonnées doivent passer par ExifTool.
-pub fn is_enabled() -> bool {
-    SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner()).use_exiftool
-}
-
-/// True when the EXIF metadata fields (XPTitle, XPComment, XPKeywords, ImageDescription, UserComment, Rating, RatingPercent) must not be read:
-/// the internal writer is active and the user asked to ignore them, because that writer neither writes nor erases them, so they could contradict
-/// what it wrote in XMP / IPTC. Camera data (date, exposure, GPS recorded by the camera…) is always read.
-pub fn skip_exif_metadata() -> bool {
-    let settings = SETTINGS.read().unwrap_or_else(|poisoned| poisoned.into_inner());
-    !settings.use_exiftool && settings.skip_exif
-}
-
-/// Règle le chemin d'écriture (`mode` : « exiftool » ou « internal »), le chemin d'ExifTool choisi par l'utilisateur (vide : aucun) et
-/// la lecture des métadonnées EXIF en écriture interne (`skip_exif`).
-/// Un changement de chemin arrête les processus en cours et relance la détection à la prochaine écriture.
+/// Sets the user-chosen ExifTool executable path (empty/None = auto-detect).
+/// Changing the path stops running processes and triggers detection on the next write.
 #[tauri::command]
-pub fn set_metadata_writer(mode: String, custom_path: Option<String>, skip_exif: bool) -> Result<(), String> {
-    let use_exiftool = match mode.as_str() {
-        "exiftool" => true,
-        "internal" => false,
-        _ => return Err("invalid_mode".to_string()),
-    };
+pub fn set_metadata_writer(custom_path: Option<String>) -> Result<(), String> {
     let custom_path = custom_path.map(|path| path.trim().to_string()).filter(|path| !path.is_empty()).map(PathBuf::from);
     {
         let mut settings = SETTINGS.write().unwrap_or_else(|poisoned| poisoned.into_inner());
-        settings.skip_exif = skip_exif;
-        if settings.use_exiftool == use_exiftool && settings.custom_path == custom_path { return Ok(()); }
-        settings.use_exiftool = use_exiftool;
+        if settings.custom_path == custom_path { return Ok(()); }
         settings.custom_path = custom_path;
     }
     *lock(&LAUNCHER) = None;
@@ -125,7 +98,7 @@ pub fn get_exiftool_status() -> ExifToolStatus {
 #[tauri::command]
 pub fn exiftool_prewarm() {
     static PREWARMING: AtomicBool = AtomicBool::new(false);
-    if !is_enabled() || lock(&POOL).running > 0 || PREWARMING.swap(true, Ordering::SeqCst) { return; }
+    if lock(&POOL).running > 0 || PREWARMING.swap(true, Ordering::SeqCst) { return; }
     std::thread::spawn(|| {
         match launcher().and_then(|found| acquire(&found)) {
             Ok(process) => release(process, true),

@@ -784,14 +784,8 @@
             </section>
           </div>
 
-          <!-- Onglet Métadonnées (écriture et priorités de lecture : metadata-settings.js ; application automatique : metadata-writes.js) -->
+          <!-- Onglet Métadonnées (ExifTool et priorités de lecture : metadata-settings.js ; application automatique : metadata-writes.js) -->
           <div id="settings-tab-metadata" class="settings-tab-pane" role="tabpanel" hidden>
-            <section class="settings-section" role="radiogroup" aria-labelledby="metadata-writer-title">
-              <h4 id="metadata-writer-title" data-i18n="Writing metadata to files"></h4>
-              <label class="settings-row settings-check" data-i18n-title="Writing metadata to files help"><input type="radio" name="metadata-writer" value="exiftool" /><span data-i18n="With ExifTool (recommended)"></span></label>
-              <label class="settings-row settings-check" data-i18n-title="Writing metadata to files help"><input type="radio" name="metadata-writer" value="internal" /><span data-i18n="Internal (XMP and IPTC only)"></span></label>
-              <label id="skip-exif-row" class="settings-row settings-check settings-sub" data-i18n-title="Skip EXIF metadata help"><input id="skip-exif-toggle" type="checkbox" /><span data-i18n="Do not read EXIF metadata when internal metadata writer is used"></span></label>
-            </section>
             <section class="settings-section">
               <h4>ExifTool</h4>
               <div class="settings-storage-actions exiftool-line">

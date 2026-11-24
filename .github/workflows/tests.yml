@@ -50,7 +50,8 @@ jobs:
             libssl-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev
+            librsvg2-dev \
+            perl
 
       - name: Install npm dependencies
         run: npm install
@@ -64,13 +65,11 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
-      # Tests d'intégration ExifTool (marqués #[ignore]) : sous Windows, avec la version embarquée téléchargée comme pour une release.
-      # Le test ignoré de exif.rs (écart connu, voir son commentaire) n'en fait pas partie : on ne lance que le module exiftool.
+      # ExifTool integration tests (marked #[ignore]): run with the bundled version fetched as for a release.
+      # The ignored test in exif.rs (known discrepancy, see its comment) is excluded: only the exiftool module is run.
       - name: Fetch ExifTool
-        if: matrix.platform == 'windows-latest'
         run: npm run fetch-exiftool
 
       - name: Run ExifTool integration tests
-        if: matrix.platform == 'windows-latest'
         working-directory: src-tauri
         run: "cargo test exiftool:: -- --ignored --test-threads=1"

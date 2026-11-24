@@ -380,3 +380,56 @@ fn lossless_rotation_changes_only_the_orientation_tags() {
     assert_eq!(crate::exif::read_xmp_orientation(&raw), Some(8));
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
 }
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn missing_sidecar_image_creates_no_orphan_sidecar() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let missing_raw = dir.path().join("absent.cr2");
+    assert!(write_metadata(&missing_raw, &sample_update()).is_err());
+    assert!(!dir.path().join("absent.cr2.xmp").exists());
+    assert!(!dir.path().join("absent.xmp").exists());
+    assert!(write_marking(&missing_raw, XmpEdit { rating: Some(4), ..Default::default() }).is_err());
+    assert!(!dir.path().join("absent.cr2.xmp").exists());
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn rights_round_trip_in_jpeg_preserves_pixels_and_clears_cleanly() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(40, 30);
+    let path = dir.path().join("rights.jpg");
+    std::fs::write(&path, &original).unwrap();
+    let update = MetadataUpdate {
+        author: Some("Ada Lovelace; Bob".into()),
+        copyright: Some("© 2026 Ada Lovelace".into()),
+        credit: Some("Agence".into()),
+        usage_terms: Some("Usage libre".into()),
+        author_email: Some("ada@example.org".into()),
+        ..Default::default()
+    };
+    write_metadata(&path, &update).unwrap();
+    let meta = read_exif(&path);
+    assert_eq!(meta.rights.author, "Ada Lovelace; Bob");
+    assert_eq!(meta.rights.copyright, "© 2026 Ada Lovelace");
+    assert_eq!(meta.rights.credit, "Agence");
+    assert_eq!(meta.rights.usage_terms, "Usage libre");
+    assert_eq!(meta.rights.author_email, "ada@example.org");
+    assert!(crate::exif::text_mismatch(&path, &update, &meta).is_none());
+    assert_eq!(decoded_pixels(&std::fs::read(&path).unwrap()), decoded_pixels(&original));
+
+    let clear = MetadataUpdate {
+        author: Some(String::new()),
+        copyright: Some(String::new()),
+        credit: Some(String::new()),
+        usage_terms: Some(String::new()),
+        author_email: Some(String::new()),
+        ..Default::default()
+    };
+    write_metadata(&path, &clear).unwrap();
+    let after = read_exif(&path);
+    assert_eq!(after.rights, crate::exif::Rights::default());
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}

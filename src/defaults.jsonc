@@ -106,10 +106,6 @@
   "fullscreenThumbnailPreload": false,
 
   // ---------------------------------------------------------------- Settings: Metadata, Maps
-  // Metadata writer: "exiftool" | "internal".
-  "metadataWriter": "exiftool",
-  // Internal writer: skip EXIF fields when reading.
-  "skipExifWithInternalWriter": true,
   // Color labels enabled.
   "colorLabelEnabled": true,
   // Pick / reject flags enabled.

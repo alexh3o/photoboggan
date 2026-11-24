@@ -41,10 +41,9 @@ function report(result, error, restored) {
       ? tp('Geolocation restored for {count} photo', result.updated.length)
       : tp('Geolocation erased for {count} photo', result.updated.length));
   }
-  const internal = result.refused.filter(item => item.error === 'gps_in_exif_internal_writer').length;
-  const sidecar = result.refused.length - internal;
-  if (internal) messages.push(tp('{count} photo kept: its location is in the EXIF, enable ExifTool (Settings > Metadata) to erase it', internal));
-  if (sidecar) messages.push(tp('{count} photo kept: the location stored inside this file format cannot be erased', sidecar));
+  if (result.refused.length) {
+    messages.push(tp('{count} photo kept: the location stored inside this file format cannot be erased', result.refused.length));
+  }
   if (result.failed.length) {
     console.error('Geolocation write failures', result.failed);
     messages.push(tp('{count} photo failed: {error}', result.failed.length, { error: result.failed[0].error }));

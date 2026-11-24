@@ -1,22 +1,18 @@
-// Paramètres, onglet Métadonnées : chemin d'écriture des métadonnées (ExifTool ou écriture interne), exécutable ExifTool, et priorité de lecture
-// des formats de chaque type de métadonnée (liste déroulante du type + tableau ordonnable).
-// Les réglages sont mémorisés localement et envoyés au backend au démarrage puis à chaque changement (voir src-tauri/src/exiftool.rs et
-// exif::set_read_priority).
+// Settings, Metadata tab: ExifTool executable and reading priority of metadata formats
+// (metadata kind dropdown + reorderable table). Settings are stored locally and sent to the
+// backend at startup and on every change (see src-tauri/src/exiftool.rs and exif::set_read_priority).
 
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, onLanguageChange } from './i18n.js';
-import { DEFAULTS, readChoice } from './settings-defaults.js';
-import { createOrderList, resolveOrder, formatCells, markIgnored } from './order-list.js';
+import { createOrderList, resolveOrder, formatCells } from './order-list.js';
 
-const WRITER_STORAGE_KEY = 'metadataWriter'; // « exiftool » (par défaut) ou « internal »
-const EXIFTOOL_PATH_STORAGE_KEY = 'exiftoolPath'; // exécutable choisi par l'utilisateur ; vide : détection automatique
-const SKIP_EXIF_STORAGE_KEY = 'skipExifWithInternalWriter'; // « 0 » : lire aussi les champs EXIF en écriture interne ; absent : ne pas les lire
-const ORDER_KIND_STORAGE_KEY = 'metadataOrderKind'; // type de métadonnée affiché dans le tableau des priorités
+const EXIFTOOL_PATH_STORAGE_KEY = 'exiftoolPath'; // user-chosen executable; empty = auto-detect
+const ORDER_KIND_STORAGE_KEY = 'metadataOrderKind'; // metadata kind shown in the priority table
 
 // Formats read for each metadata type, in default reading order. The first one holding a value wins; all are written.
-// Each format is shown as three parts: `source` (XMP, IPTC, EXIF, JPEG: where the data lives in the file, which tells what the internal writer
-// can reach), `schema` (who defines it) and `field` (technical name, with its XMP prefix when it has one).
+// Each format is shown as three parts: `source` (XMP, IPTC, EXIF, JPEG), `schema` (who defines it) and `field`
+// (technical name, with its XMP prefix when it has one).
 // Ids are those of exif.rs (HIERARCHY_IDS, TITLE_SOURCE_IDS, DESCRIPTION_SOURCE_IDS, RATING_SOURCE_IDS, COLOR_SOURCE_IDS, PICK_SOURCE_IDS,
 // GPS_SOURCE_IDS). Display only: ids are what is stored and sent to the backend.
 const READ_ORDERS = {
@@ -33,7 +29,7 @@ const READ_ORDERS = {
     flat: [
       { source: 'XMP', schema: 'Dublin Core', field: 'dc:subject' },
       { source: 'IPTC', schema: 'Application', field: 'Keywords', note: 'JPEG only' },
-      { source: 'EXIF', schema: 'Windows XP', field: 'XPKeywords', note: 'ExifTool only (JPEG)' },
+      { source: 'EXIF', schema: 'Windows XP', field: 'XPKeywords', note: 'JPEG only' },
     ],
   },
   title: {
@@ -153,21 +149,13 @@ export function topPickFormat() {
   return resolveOrder(formats, storageKey)[0]; // même ordre que le tableau et le backend
 }
 
-let writerMode = readChoice(WRITER_STORAGE_KEY, ['exiftool', 'internal']);
-/** Chemin d'écriture actif : « exiftool » ou « internal ». */
-export function getWriterMode() {
-  return writerMode;
-}
-// Internal writer only: ignore the EXIF metadata fields it neither writes nor erases (checked by default).
-// Saved as "0" / "1" (not "true" / "false"); nothing saved gives the default.
-let skipExif = localStorage.getItem(SKIP_EXIF_STORAGE_KEY) === null ? DEFAULTS.skipExifWithInternalWriter : localStorage.getItem(SKIP_EXIF_STORAGE_KEY) !== '0';
 let customPath = localStorage.getItem(EXIFTOOL_PATH_STORAGE_KEY) || '';
 let lastStatus = null; // dernier état renvoyé par get_exiftool_status
 let statusToken = 0;
 
 function sendSettings() {
-  return invoke('set_metadata_writer', { mode: writerMode, customPath: customPath || null, skipExif })
-    .catch(error => console.error("Réglage de l'écriture des métadonnées refusé", error));
+  return invoke('set_metadata_writer', { customPath: customPath || null })
+    .catch(error => console.error('Metadata writer settings refused', error));
 }
 
 function renderStatus() {
@@ -190,8 +178,8 @@ function renderStatus() {
     });
     status.title = path;
   } else {
-    // Le message du backend détaille ce qui a été essayé (version embarquée, PATH, chemin choisi).
-    status.textContent = `${lastStatus.error}${writerMode === 'exiftool' ? ` ${t('Metadata will not be written until ExifTool is found.')}` : ''}`;
+    // Backend error details what was tried (embedded version, PATH, chosen path).
+    status.textContent = `${lastStatus.error} ${t('Metadata will not be written until ExifTool is found.')}`;
   }
   status.classList.toggle('exiftool-missing', !lastStatus.available);
 }
@@ -210,26 +198,8 @@ async function refreshStatus() {
   if (token === statusToken) renderStatus();
 }
 
-// EXIF fields not read right now: internal writer + option. Camera GPS is still read, so the GPS list is never concerned.
-let refreshOrderViews = () => {};
-function isExifIgnored(kind, format) {
-  return skipExif && writerMode === 'internal' && format.source === 'EXIF' && kind !== 'gps';
-}
-
-// The option only applies to the internal writer: greyed out and not editable while ExifTool is the active path.
-function renderSkipExif() {
-  const toggle = document.getElementById('skip-exif-toggle');
-  toggle.checked = skipExif;
-  toggle.disabled = writerMode !== 'internal';
-  document.getElementById('skip-exif-row').classList.toggle('disabled', toggle.disabled);
-  refreshOrderViews();
-}
-
 async function changeSettings(update) {
   update();
-  localStorage.setItem(WRITER_STORAGE_KEY, writerMode);
-  localStorage.setItem(SKIP_EXIF_STORAGE_KEY, skipExif ? '1' : '0');
-  renderSkipExif();
   if (customPath) localStorage.setItem(EXIFTOOL_PATH_STORAGE_KEY, customPath);
   else localStorage.removeItem(EXIFTOOL_PATH_STORAGE_KEY);
   await sendSettings();
@@ -237,15 +207,9 @@ async function changeSettings(update) {
 }
 
 export function initMetadataSettings() {
+  localStorage.removeItem('metadataWriter');
+  localStorage.removeItem('skipExifWithInternalWriter');
   sendSettings();
-  for (const radio of document.querySelectorAll('input[name="metadata-writer"]')) {
-    radio.checked = radio.value === writerMode;
-    radio.addEventListener('change', () => {
-      if (radio.checked) changeSettings(() => { writerMode = radio.value; });
-    });
-  }
-  renderSkipExif();
-  document.getElementById('skip-exif-toggle').addEventListener('change', event => changeSettings(() => { skipExif = event.target.checked; }));
   document.getElementById('btn-choose-exiftool').addEventListener('click', async () => {
     const chosen = await open({ multiple: false, directory: false, title: t('Choose ExifTool…') });
     if (typeof chosen === 'string' && chosen) changeSettings(() => { customPath = chosen; });
@@ -261,7 +225,6 @@ export function initMetadataSettings() {
     element: listElement,
     formats,
     storageKey,
-    isIgnored: format => isExifIgnored(kind, format),
     send: order => {
       if (kind === 'pick') for (const listener of pickOrderListeners) listener();
       return invoke('set_metadata_read_order', { kind, order }).catch(error => console.error(`Ordre de lecture refusé (${kind})`, error));
@@ -286,7 +249,6 @@ export function initMetadataSettings() {
         noteElement.textContent = t(format.note);
         row.append(noteElement);
       }
-      markIgnored(row, format, candidate => isExifIgnored(kind, candidate));
       return row;
     });
     const list = document.createElement('ul');
@@ -299,10 +261,6 @@ export function initMetadataSettings() {
   kindSelect.value = shownKind;
   orderLists[shownKind].render();
   renderFlat(shownKind);
-  refreshOrderViews = () => {
-    orderLists[shownKind].render();
-    renderFlat(shownKind);
-  };
   kindSelect.addEventListener('change', () => {
     shownKind = kindSelect.value;
     localStorage.setItem(ORDER_KIND_STORAGE_KEY, shownKind);
