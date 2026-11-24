@@ -1,4 +1,4 @@
-<!-- verified: 46133ac | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
+<!-- verified: d94b6f9 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
 # Troubleshooting
 
 Only problems visible in the code. Each entry: symptom → likely cause (named) → how to check → what to do. Entries that rest on a reading of one place only are marked `⚠ unverified`.
@@ -12,6 +12,7 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 | User-visible failures | Toasts, the "Hourglass" task list, and failure dialogs of writes (`failureDetailsAction` in `metadata-writes.js`). |
 | Write recoveries | `<data dir>/logs/write-recovery_<date>_<time>.log` (`exiftool::write_recovery_log`, one file per operation, `-2`, `-3`… added if the name exists), reported by the dialog after `take_write_recoveries`. |
 | Sidecar name conflicts | `<data dir>/logs/sidecar-conflicts_<date>_<time>.log` (`log_sidecar_renames`, main.rs). |
+| Crash-leftover temp items | `<data dir>/logs/temp-leftovers_<date>_<time>.log` (`log_temp_leftovers`, main.rs), surfaced by `notifyTempLeftovers` in `main.js`. |
 | Settings file | `config.json` in the OS app-config dir (see below). |
 | Catalogue | `<data dir>/photos_library.db` (SQLite WAL: `-wal` and `-shm` files beside it are normal). |
 
@@ -19,7 +20,7 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 
 ## Frequent failures
 
-**Metadata write refused, "ExifTool not found".** Cause: ExifTool is the sole metadata writer and the binary is missing. Search order: path chosen in Settings (`exiftoolPath`) > bundled `exiftool/` resource > `PATH` (`exiftool.rs`, messages "ExifTool introuvable…"; Homebrew paths checked on macOS). Check Settings > Metadata (`get_exiftool_status`). In a source checkout run `npm run fetch-exiftool` (the binary is not versioned, `src-tauri/vendor/exiftool/`). Fix: install ExifTool or set its path in Settings > Metadata.
+**Metadata write refused, "ExifTool not found" or version too old.** Cause: ExifTool is the sole metadata writer and the binary is missing or older than `12.00` (`MIN_VERSION` in `probe`). Search order: path chosen in Settings (`exiftoolPath`) > bundled `exiftool/` resource > `PATH` (`exiftool.rs`, messages "ExifTool introuvable…", "version … trop ancienne"; Homebrew paths checked on macOS). Check Settings > Metadata (`get_exiftool_status`). In a source checkout run `npm run fetch-exiftool` (the binary is not versioned, `src-tauri/vendor/exiftool/`). Fix: install ExifTool ≥ 12.00 or set its path in Settings > Metadata.
 
 **A write is reported as failed although the file changed.** Cause: after every write the file is re-read and compared (`marking_mismatch`, `text_mismatch`, `regions_mismatch`, `gps_mismatch`); a difference is a failure, never a success (`invariants.md` §1.5). Typical reason: the read-priority order makes another source win (e.g. EXIF read before XMP for GPS, or an existing sidecar read first). Check the priority lists in Settings > Metadata and the failure details dialog.
 

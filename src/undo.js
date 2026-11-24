@@ -282,15 +282,19 @@ export async function runUndo(stackName, targetEntry = null) {
     return false;
   }
   const entry = stack.entries[index];
-  if (entry.canRun && entry.canRun() === false) return false;
   const modal = document.getElementById('undo-modal');
   const keepModalFocus = openStack === stackName && isUndoModalOpen() && modal
     && (modal.contains(document.activeElement) || document.activeElement === document.body);
-  stack.entries.splice(index, 1);
   stack.busy = true;
   if (openStack === stackName) renderUndoModal();
   try {
+    if (entry.canRun && (await entry.canRun()) === false) return false;
+    const currentIndex = stack.entries.lastIndexOf(entry);
+    if (currentIndex < 0) return false;
+    stack.entries.splice(currentIndex, 1);
+    if (openStack === stackName) renderUndoModal();
     await entry.run();
+    return true;
   } finally {
     stack.busy = false;
     if (openStack === stackName) renderUndoModal();
@@ -299,7 +303,6 @@ export async function runUndo(stackName, targetEntry = null) {
       nextFocus?.focus();
     }
   }
-  return true;
 }
 
 export function historyToastAction() {

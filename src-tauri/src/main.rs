@@ -2023,15 +2023,58 @@ fn remove_missing_photos(state: State<'_, AppState>, paths: Vec<String>) -> Resu
     Ok(removed)
 }
 
+/// Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
+fn log_temp_leftovers(base_dir: &Path, items: &[String], total: usize) -> Option<String> {
+    if items.is_empty() { return None; }
+    static LOGGED: std::sync::Mutex<Option<(Vec<String>, Option<String>)>> = std::sync::Mutex::new(None);
+    let mut guard = LOGGED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some((prev_items, prev_log)) = guard.as_ref() {
+        if prev_items == items {
+            return prev_log.clone();
+        }
+    }
+    let now = chrono::Local::now();
+    let mut text = format!(
+        "photoboggan {} - crash-leftover temporary items - {}\n{} temporary item(s) found in tracked folders (shown: {}).\nThey were left untouched; inspect and remove them manually if no operation is in progress.\n",
+        env!("CARGO_PKG_VERSION"), now.format("%Y-%m-%d %H:%M:%S %:z"), total, items.len()
+    );
+    for item in items {
+        text.push_str(&format!("\n{item}"));
+    }
+    text.push('\n');
+    let log_path = match write_timestamped_log(&base_dir.join("logs"), "temp-leftovers", &text, now) {
+        Ok(path) => Some(path.to_string_lossy().into_owned()),
+        Err(error) => {
+            eprintln!("Temp leftovers log not written: {error}");
+            None
+        }
+    };
+    *guard = Some((items.to_vec(), log_path.clone()));
+    log_path
+}
+
+/// Checks whether any undo target file or its active sidecar was modified externally since the original action.
+#[tauri::command]
+async fn check_external_modifications(targets: Vec<library_sync::ExternalModificationTarget>) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || library_sync::find_externally_modified(&targets))
+        .await
+        .map_err(|error| error.to_string())
+}
+
 // Synchronisation incrémentale avec le disque (voir library_sync.rs) : fichiers ajoutés, modifiés ou supprimés hors de l'application.
 // Exécutée hors du thread principal et hors des threads asynchrones ; l'interface la lance au démarrage et au retour de focus.
 #[tauri::command]
 // `excluded`: folders of paused scans, left for the scan to read when it is resumed.
 async fn sync_library(state: State<'_, AppState>, excluded: Option<Vec<String>>) -> Result<library_sync::SyncChanges, String> {
     let pool = state.pool();
+    let base_dir = state.base_dir();
     tokio::task::spawn_blocking(move || {
         let _priority = semantic::PriorityGuard::new();
-        library_sync::sync_library(&pool, &excluded.unwrap_or_default())
+        let mut changes = library_sync::sync_library(&pool, &excluded.unwrap_or_default())?;
+        if !changes.temp_leftovers.is_empty() {
+            changes.temp_leftovers_log = log_temp_leftovers(&base_dir, &changes.temp_leftovers, changes.temp_leftovers_total);
+        }
+        Ok(changes)
     })
         .await
         .map_err(|error| error.to_string())?
@@ -3079,6 +3122,7 @@ fn main() {
             count_permanent_deletions,
             remove_missing_photos,
             sync_library,
+            check_external_modifications,
             copy_photos,
             copy_photos_to_tracked_folder,
             move_photos,

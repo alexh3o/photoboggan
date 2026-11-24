@@ -1991,5 +1991,14 @@
   "Manual face added": "Manual face added",
   "face area deleted ({sources})": "face area deleted ({sources})",
   "face area deleted": "face area deleted",
-  "Face area deleted": "Face area deleted"
+  "Face area deleted": "Face area deleted",
+  "{count} temporary item left by an interrupted operation (see log)": "{count} temporary item left by an interrupted operation (see log)",
+  "{count} temporary item left by an interrupted operation (see log)|other": "{count} temporary items left by an interrupted operation (see log)",
+  "{count} temporary item left by an interrupted operation": "{count} temporary item left by an interrupted operation",
+  "{count} temporary item left by an interrupted operation|other": "{count} temporary items left by an interrupted operation",
+  "Show folder": "Show folder",
+  "External modification detected": "External modification detected",
+  "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?": "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?",
+  "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?|other": "{count} files were modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?",
+  "Undo anyway": "Undo anyway"
 }

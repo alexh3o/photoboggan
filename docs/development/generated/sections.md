@@ -152,7 +152,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1257–L1530 | 274 | Columns picker menu (stays open until Esc or outside click) |
 | L1531–L1697 | 167 | Open, close, and refresh API |
 
-## src/main.js (6227 lines)
+## src/main.js (6281 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -163,27 +163,27 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L2231–L2324 | 94 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
 | L2325–L2702 | 378 | VIRTUAL SCROLLING |
 | L2703–L2768 | 66 | NAVIGATION (GRID & FULLSCREEN) |
-| L2769–L3197 | 429 | SELECTION MULTIPLE |
-| L3198–L3314 | 117 | LOSSLESS ROTATION (orientation.rs) |
-| L3315–L3655 | 341 | Keyboard shortcuts Memo |
-| L3656–L3675 | 20 | MODALE PARAMÈTRES |
-| L3676–L3783 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
-| L3784–L3840 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
-| L3841–L3888 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
-| L3889–L4008 | 120 | BOUTONS VUES & SIDEBAR |
-| L4009–L4120 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
-| L4121–L4850 | 730 | TRI DES MINIATURES |
-| L4851–L5192 | 342 | MARQUAGE (note et couleur de la sélection) |
-| L5193–L5345 | 153 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
-| L5346–L5365 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L5366–L5409 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L5410–L5415 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L5416–L5812 | 397 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L5813–L5839 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
-| L5840–L5865 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L5866–L5989 | 124 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L5990–L6168 | 179 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L6169–L6227 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L2769–L3227 | 459 | SELECTION MULTIPLE |
+| L3228–L3348 | 121 | LOSSLESS ROTATION (orientation.rs) |
+| L3349–L3689 | 341 | Keyboard shortcuts Memo |
+| L3690–L3709 | 20 | MODALE PARAMÈTRES |
+| L3710–L3817 | 108 | MODALE PARAMÈTRES (Gestion des dossiers) |
+| L3818–L3874 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
+| L3875–L3922 | 48 | MODALE Guide (ouverte depuis les Paramètres) |
+| L3923–L4042 | 120 | BOUTONS VUES & SIDEBAR |
+| L4043–L4154 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
+| L4155–L4884 | 730 | TRI DES MINIATURES |
+| L4885–L5227 | 343 | MARQUAGE (note et couleur de la sélection) |
+| L5228–L5380 | 153 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
+| L5381–L5400 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L5401–L5444 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L5445–L5450 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L5451–L5847 | 397 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L5848–L5874 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
+| L5875–L5900 | 26 | FIND THE RAW (find-raw-mode.js) |
+| L5901–L6024 | 124 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L6025–L6222 | 198 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L6223–L6281 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (516 lines)
 
@@ -328,7 +328,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L440–L597 | 158 | Candidates and cache |
 | L598–L762 | 165 | Search |
 
-## src-tauri/src/exif.rs (2241 lines)
+## src-tauri/src/exif.rs (2346 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -336,17 +336,17 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L380–L439 | 60 | Flash : tag EXIF Flash (0x9209), entier 16 bits dont le bit 0 indique que le flash s'est déclenché (les autres bits déc… |
 | L440–L475 | 36 | Titre et description : plusieurs sources par fichier, la première non vide dans l'ordre de priorité réglé (Paramètres, … |
 | L476–L1738 | 1263 | Auteur et droits : cinq champs (auteur, mention de copyright, crédit, conditions d'utilisation, e-mail de l'auteur), ch… |
-| L1739–L2015 | 277 | Zones de visage (lot 4) : MWG Regions et Microsoft Photo RegionInfo, mêmes champs que l'écriture par ExifTool (exiftool… |
-| L2016–L2233 | 218 | Détail complet des métadonnées (fenêtre « Infos ») : EXIF, XMP et IPTC tels qu'ils sont dans le fichier. |
+| L1739–L2078 | 340 | Zones de visage (lot 4) : MWG Regions et Microsoft Photo RegionInfo, mêmes champs que l'écriture par ExifTool (exiftool… |
+| L2079–L2338 | 260 | Détail complet des métadonnées (fenêtre « Infos ») : EXIF, XMP et IPTC tels qu'ils sont dans le fichier. |
 
-## src-tauri/src/exiftool.rs (1249 lines)
+## src-tauri/src/exiftool.rs (1383 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L31–L110 | 80 | Réglages (envoyés par l'interface au démarrage et à chaque changement) |
-| L111–L286 | 176 | Détection de l'exécutable |
-| L287–L560 | 274 | Processus persistants |
-| L561–L1241 | 681 | Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus l'EXIF des JPEG) |
+| L34–L113 | 80 | Réglages (envoyés par l'interface au démarrage et à chaque changement) |
+| L114–L308 | 195 | Détection de l'exécutable |
+| L309–L582 | 274 | Processus persistants |
+| L583–L1375 | 793 | Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus l'EXIF des JPEG) |
 
 ## src-tauri/src/face_detect.rs (803 lines)
 
@@ -380,18 +380,18 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L51–L111 | 61 | Lecture des pixels |
 | L112–L282 | 171 | Analyse du conteneur (positions des champs, nécessaires pour modifier le fichier sur place) |
 
-## src-tauri/src/keywords.rs (925 lines)
+## src-tauri/src/keywords.rs (941 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L249–L632 | 384 | Écriture des mots-clés dans les fichiers |
-| L633–L921 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
+| L249–L648 | 400 | Écriture des mots-clés dans les fichiers |
+| L649–L937 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (3224 lines)
+## src-tauri/src/main.rs (3490 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L2476–L3220 | 745 | Programs allowed for "Open with" |
+| L2741–L3486 | 746 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 
@@ -409,12 +409,12 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L637–L794 | 158 | Téléchargement depuis le fournisseur |
 | L795–L1152 | 358 | Commandes |
 
-## src-tauri/src/resize.rs (615 lines)
+## src-tauri/src/resize.rs (571 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L287–L477 | 191 | Décodage, redimensionnement, encodage |
-| L478–L611 | 134 | Métadonnées JPEG : lecture des segments APPn de la source et mise à jour pour l'image redimensionnée |
+| L243–L433 | 191 | Décodage, redimensionnement, encodage |
+| L434–L567 | 134 | Métadonnées JPEG : lecture des segments APPn de la source et mise à jour pour l'image redimensionnée |
 
 ## src-tauri/src/semantic.rs (1237 lines)
 

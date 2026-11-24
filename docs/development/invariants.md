@@ -1,4 +1,4 @@
-<!-- verified: 904ba65 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
+<!-- verified: d94b6f9 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
 
 # Business rules and invariants
 
@@ -33,7 +33,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 
 **2.1 Single metadata writer (ExifTool).** `exif::write_metadata` and `exif::write_xmp_metadata` delegate to `exiftool::write_to` and `exiftool::write_marking`. ExifTool writes XMP, IPTC (recomputing `-Photoshop:IPTCDigest=new` or removing it when IPTC is cleared on JPEG), and EXIF fields of JPEG (`XPKeywords`, `XPTitle`, `XPComment`, `ImageDescription`, `UserComment`), HEIC/HEIF in the file, and `.xmp` sidecars for other formats. Non-face MWG regions (`Pet`, `Focus`, `BarCode`…) are preserved when writing faces (`regions: None` leaves existing regions untouched).
 
-- **No fallback**: if ExifTool is not found, `exiftool::run` fails ("écriture refusée") and nothing is written. Active ExifTool writes are drained (bounded timeout) on `RunEvent::ExitRequested` (`CLOSING` flag).
+- **No fallback**: if ExifTool is not found or is older than `12.00` (`probe`), `exiftool::run` fails ("écriture refusée") and nothing is written. Active ExifTool writes are drained (bounded timeout) on `RunEvent::ExitRequested` (`CLOSING` flag).
 
 **2.2 Sidecar targeting** (`sidecar_target`, `active_sidecar`, `read_sidecar`, `sidecar_candidates` in exif.rs; the only place where sidecar names are built). An image writes `photo.ext.xmp`, or an existing `photo.xmp` that is its own. A `photo.xmp` shared with another sidecar-writing image (RAW + DNG, HEIC + MOV…) is never written: the image gets its own `photo.ext.xmp`, seeded from `photo.xmp`. RAW + JPEG: `photo.xmp` stays the RAW's. An image reads one sidecar only, never two merged.
 
@@ -66,7 +66,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 ## 5. Library scan and sync
 
 - A scan is never reported successful when photos were not stored (`run_scan` returns an error if a batch failed). A file unreadable or changing during the read is skipped, never stored with empty metadata (`library_sync::read_photo`); it is retried by the next sync.
-- The incremental sync (`sync_library`) compares size + modification time only; it runs at startup and when the window regains focus, never while a foreground task runs (`syncLibraryWithDisk`, main.js). Its global flag (`library_sync::RUNNING`) means only one test may exercise it.
+- The incremental sync (`sync_library`) compares size + modification time only; it runs at startup and when the window regains focus, never while a foreground task runs (`syncLibraryWithDisk`, main.js). Its global flag (`library_sync::RUNNING`) means only one test may exercise it. During the same `WalkDir` pass it also collects crash-leftover temporary items (`_exiftool_tmp`, `.photoboggan-rename-*`, `.photoboggan-resize-backup-*`, `.photoboggan-tmp-*`) without modifying them.
 - `photos.modified` must remain strictly the image file's own mtime so sidecar writes never trigger unnecessary re-reads; sorting by modification date uses `photos.effective_modified` (later of the image's and its active sidecar's mtime, with `0` falling back to `modified`).
 - Photos missing on disk are removed lazily, when displaying them fails (`checkPhotoMissing` → `remove_missing_photos`), and only if their tracked folder is reachable.
 

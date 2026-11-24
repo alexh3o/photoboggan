@@ -53,7 +53,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `recipes.md` | 135 |  |
 | `style.md` | 69 |  |
 | `testing.md` | 75 |  |
-| `troubleshooting.md` | 74 |  |
+| `troubleshooting.md` | 75 |  |
 
 ## docs/development/generated
 
@@ -64,12 +64,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
 | `files.md` | 343 |  |
-| `ipc-commands.md` | 199 |  |
+| `ipc-commands.md` | 200 |  |
 | `module-deps.md` | 121 |  |
 | `sections.md` | 467 |  |
-| `symbols-js.md` | 1753 |  |
-| `symbols-rust.md` | 1433 |  |
-| `tests.md` | 510 |  |
+| `symbols-js.md` | 1754 |  |
+| `symbols-rust.md` | 1462 |  |
+| `tests.md` | 528 |  |
 
 ## docs/development/modules
 
@@ -83,7 +83,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `filters-and-search.md` | 108 |  |
 | `grid-and-viewer.md` | 122 |  |
 | `keywords.md` | 94 |  |
-| `library-and-database.md` | 82 |  |
+| `library-and-database.md` | 83 |  |
 | `main-window.md` | 91 |  |
 | `maps-and-geolocation.md` | 80 |  |
 | `metadata-read-write.md` | 126 |  |
@@ -153,7 +153,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `list-view.css` | 64 | List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage. |
 | `list-view.js` | 1697 | List panel (toolbar "List" button / L key): virtualized, multi-column sortable, customizable table of the displayed photos. Shares `photos`, `selectedIndices`, `lastSelectedIndex`, and context menus with the grid. Zero … |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6227 |  |
+| `main.js` | 6281 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 516 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -196,7 +196,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `undo.css` | 25 | Undo history modal (Ctrl+U, undo.js): uses global modal shell and theme tokens |
-| `undo.js` | 499 | Session undo stacks ("common" for the main/fullscreen view and "faces" for the Faces management view), unified toast formatting, photo/video/file item-kind naming, and the Undo history modal (Ctrl+U). |
+| `undo.js` | 502 | Session undo stacks ("common" for the main/fullscreen view and "faces" for the Faces management view), unified toast formatting, photo/video/file item-kind naming, and the Undo history modal (Ctrl+U). |
 | `update-check.js` | 316 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
 
@@ -245,8 +245,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `batch_rename.rs` | 873 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
 | `db.rs` | 780 |  |
 | `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
-| `exif.rs` | 2241 |  |
-| `exiftool.rs` | 1249 | Metadata writing via ExifTool (https://exiftool.org). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PATH. … |
+| `exif.rs` | 2346 |  |
+| `exiftool.rs` | 1383 | Metadata writing via ExifTool (https://exiftool.org). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PATH. … |
 | `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
 | `face_recognize.rs` | 320 | Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère de … |
@@ -254,17 +254,17 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 229 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `heif.rs` | 286 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
 | `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
-| `keywords.rs` | 925 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
-| `library_sync.rs` | 365 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 3224 |  |
+| `keywords.rs` | 941 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
+| `library_sync.rs` | 430 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
+| `main.rs` | 3490 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
-| `orientation.rs` | 145 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
+| `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
 | `phash.rs` | 201 | Perceptual hash (pHash) of an image, for the "similar images" search (similar.rs). The image is reduced to 32x32 grey levels, a 2D DCT keeps its 8x8 lowest frequencies, and each of the 63 AC coefficients becomes one bit… |
 | `place_search.rs` | 74 | Recherche d'un lieu par son nom (mode Carte, champ de recherche de la barre de la carte), pour aller y placer la carte. Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propr… |
 | `privacy.rs` | 251 | Photos privées : ensembles de confidentialité. Un ensemble actif masque, partout où le backend lit le catalogue, les photos qui répondent à AU MOINS UN de ses critères (OU entre critères) : - parties de chemin de dossie… |
 | `private_maps.rs` | 1156 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
-| `resize.rs` | 615 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
+| `resize.rs` | 571 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `rights.rs` | 229 | Auteur et droits : préréglages d'auteur (table `author_presets`), lecture à la demande des champs de droits des photos et liste des auteurs du catalogue (filtre « Auteur »). Les cinq champs (auteur, mention de copyright… |
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into … |
 | `semantic_models.rs` | 339 | Files of the semantic search (SigLIP 2, spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by scripts… |
@@ -282,13 +282,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
-| `batch_rename.rs` | 356 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
+| `batch_rename.rs` | 358 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
 | `db.rs` | 486 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
 | `duplicates.rs` | 287 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 110 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
-| `exif.rs` | 347 | Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs). Synthetic files in a temporary folder; ExifTool writes are tested in tests/exiftool.rs. |
+| `exif.rs` | 381 | Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs). Synthetic files in a temporary folder; ExifTool writes are tested in tests/exiftool.rs. |
 | `exiftool_rights.rs` | 67 | Tests des arguments ExifTool de l'auteur et des droits (exiftool.rs) : seuls les arguments sont vérifiés ici, ExifTool n'est pas lancé. Un JPEG reçoit aussi l'IPTC et l'EXIF ; les autres formats (sidecar XMP) ne reçoive… |
-| `exiftool.rs` | 1073 | Tests du chemin d'écriture ExifTool (exiftool.rs). Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus ExifTool n'est lancé. Intégration (`cargo test -- --ignored`) : écritures réel… |
+| `exiftool.rs` | 1239 | Tests du chemin d'écriture ExifTool (exiftool.rs). Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus ExifTool n'est lancé. Intégration (`cargo test -- --ignored`) : écritures réel… |
 | `face_detect.rs` | 46 | Tests of face_detect.rs: orientation conversions of face rectangles, and the shared defaults file (faceSettings, keys the frontend reads). |
 | `face_recognize.rs` | 22 | Tests of face_recognize.rs: alignment on the SFace template and embedding blobs. |
 | `faces_db.rs` | 240 | Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée. (Reading regions from XMP packets is tested in tests/faces.rs.) |
@@ -296,9 +296,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 59 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 103 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
 | `integrity.rs` | 209 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
-| `keywords.rs` | 427 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
-| `library_sync.rs` | 202 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
-| `main.rs` | 301 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
+| `keywords.rs` | 461 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
+| `library_sync.rs` | 241 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
+| `main.rs` | 504 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
 | `orientation.rs` | 98 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs. |
 | `phash.rs` | 62 | Tests of the perceptual hash: stability under resizing and recompression, difference between pictures, rotations, mirrors and flat pictures. |
 | `place_search.rs` | 25 | Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |
@@ -331,9 +331,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 1996 |  |
-| `es.json` | 1995 |  |
-| `fr.json` | 1996 |  |
+| `en.json` | 2005 |  |
+| `es.json` | 2004 |  |
+| `fr.json` | 2005 |  |
 
 ## webpage
 

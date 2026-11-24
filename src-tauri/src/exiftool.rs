@@ -27,6 +27,9 @@ const IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 /// Délai maximal de `exiftool -ver` lors de la détection.
 const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
+/// Minimum ExifTool version required (mature HEIC, XMP, and UTF-8 support; bundled is 13.59).
+const MIN_VERSION: (u32, u32) = (12, 0);
+const MIN_VERSION_STR: &str = "12.00";
 
 // ---------------------------------------------------------------------------
 // Réglages (envoyés par l'interface au démarrage et à chaque changement)
@@ -238,7 +241,23 @@ fn detect() -> Result<Launcher, String> {
     }
 }
 
-/// Lance `exiftool -ver` : renvoie l'exécutable avec sa version, ou la raison de l'échec (programme ou `perl` absent, réponse inattendue…).
+/// Parses an ExifTool `-ver` output (e.g. `"12.00"`, `"13.59"`, `"12.76a"`) into `(major, minor)`.
+pub(crate) fn parse_version(raw: &str) -> Option<(u32, u32)> {
+    let trimmed = raw.trim();
+    let (major_str, rest) = trimmed.split_once('.')?;
+    if major_str.is_empty() || !major_str.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let minor_digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if minor_digits.is_empty() {
+        return None;
+    }
+    let major = major_str.parse::<u32>().ok()?;
+    let minor = minor_digits.parse::<u32>().ok()?;
+    Some((major, minor))
+}
+
+/// Lance `exiftool -ver` : renvoie l'exécutable avec sa version, ou la raison de l'échec (programme ou `perl` absent, version trop ancienne, réponse inattendue…).
 fn probe(program: PathBuf, prefix: Vec<OsString>, source: &'static str) -> Result<Launcher, String> {
     let mut found = Launcher { program, prefix, source, version: String::new() };
     let mut command = found.command();
@@ -277,8 +296,11 @@ fn probe(program: PathBuf, prefix: Vec<OsString>, source: &'static str) -> Resul
     };
     // Un processus fils qui garderait le tube ouvert ne doit pas bloquer la détection : la lecture est attendue au plus quelques secondes.
     let version = text_receiver.recv_timeout(Duration::from_secs(2)).unwrap_or_default().trim().to_string();
-    if !status.success() || version.is_empty() || !version.starts_with(|c: char| c.is_ascii_digit()) {
+    let Some(parsed) = status.success().then(|| parse_version(&version)).flatten() else {
         return Err("réponse inattendue".to_string());
+    };
+    if parsed < MIN_VERSION {
+        return Err(format!("version {version} trop ancienne (minimum requis : {MIN_VERSION_STR})"));
     }
     found.version = version;
     Ok(found)

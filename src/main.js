@@ -3074,13 +3074,37 @@ function failureSummary(failures) {
   return failures.length ? ` · ${tp('{count} failure', failures.length)} (${failures[0].error})` : '';
 }
 
-// Checks whether a queued file task or an active move/rename currently touches any of `entries` (used before popping an undo entry).
-function canUndoFileTargets(entries) {
+// Checks whether a queued file task or an active move/rename currently touches any of `entries`,
+// and whether any target file (or its active sidecar) was modified externally since the original action.
+async function canUndoFileTargets(entries) {
   const byId = new Map(loadedPhotos.map(photo => [photo.id, photo]));
   const moving = queuedPathsBeingChanged();
   if (photoMoveRunning || entries.some(entry => moving.has(byId.get(entry.id)?.path ?? entry.path))) {
     showWriteToast(t('Wait for the running file task to finish.'));
     return false;
+  }
+  const targets = entries
+    .map(entry => ({
+      path: byId.get(entry.id)?.path ?? entry.path,
+      expected_effective_modified: entry.effectiveModified ?? 0,
+    }))
+    .filter(target => target.expected_effective_modified > 0);
+  if (targets.length > 0) {
+    try {
+      const modifiedExternally = await invoke('check_external_modifications', { targets });
+      if (modifiedExternally.length > 0) {
+        const confirmed = await confirmDialog({
+          title: t('External modification detected'),
+          message: tp('{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?', modifiedExternally.length),
+          confirmLabel: t('Undo anyway'),
+          cancelLabel: t('Cancel'),
+          focusCancel: true,
+        });
+        if (!confirmed) return false;
+      }
+    } catch (error) {
+      console.debug('External modification check failed', error);
+    }
   }
   return true;
 }
@@ -3119,8 +3143,14 @@ function writeMarking(targets, fields, { startMessage, doneMessage, apply, refil
     // Only the photos actually written can be given their previous value back.
     let undoEntry = null;
     if (!restore && successful.length && undoMeta) {
+      const dateById = new Map((result.dates ?? []).map(entry => [entry.id, entry.effective_modified]));
       const paths = successful.map(photo => photo.path);
-      const entries = successful.map(photo => ({ id: photo.id, path: photo.path, value: previous.get(photo.id) }));
+      const entries = successful.map(photo => ({
+        id: photo.id,
+        path: photo.path,
+        value: previous.get(photo.id),
+        effectiveModified: dateById.get(photo.id) ?? photo.effective_modified ?? 0,
+      }));
       const meta = {
         ...undoMeta,
         count: successful.length,
@@ -3234,7 +3264,11 @@ function rotatePhotos(quarterTurns, explicitTargets = null, { undo = false, undo
     }
     const reordered = applyEffectiveModified(result.written.map(entry => [entry.id, entry.effective_modified]));
     refreshRotatedPhotos(turned, quarterTurns, reordered);
-    const turnedEntries = turned.map(photo => ({ id: photo.id, path: photo.path }));
+    const turnedEntries = turned.map(photo => ({
+      id: photo.id,
+      path: photo.path,
+      effectiveModified: written.get(photo.id)?.effective_modified ?? photo.effective_modified ?? 0,
+    }));
     let undoEntry = null;
     if (turned.length && !undo) {
       const paths = turned.map(photo => photo.path);
@@ -5186,6 +5220,7 @@ initDragDrop({
   applyMovedPhotos: moved => applyMovedPhotos(moved),
   syncAfterCopy: async () => {
     const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
+    notifyTempLeftovers(changes);
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   },
 });
@@ -5996,6 +6031,24 @@ initUndo({
 const LIBRARY_SYNC_MIN_INTERVAL_MS = 10000;
 let librarySyncRunning = false;
 let librarySyncNotBefore = 0;
+const notifiedTempLeftovers = new Set();
+
+function notifyTempLeftovers(changes) {
+  const items = changes?.temp_leftovers ?? [];
+  if (!items.length) return;
+  const hasNew = items.some(path => !notifiedTempLeftovers.has(path));
+  for (const path of items) notifiedTempLeftovers.add(path);
+  if (!hasNew) return;
+  const count = changes.temp_leftovers_total || items.length;
+  const logPath = changes.temp_leftovers_log;
+  const message = logPath
+    ? tp('{count} temporary item left by an interrupted operation (see log)', count)
+    : tp('{count} temporary item left by an interrupted operation', count);
+  const action = logPath
+    ? { label: t('Show log'), onClick: () => invoke('reveal_in_file_manager', { path: logPath }).catch(err => showWriteToast(String(err))) }
+    : { label: t('Show folder'), onClick: () => invoke('reveal_in_file_manager', { path: items[0] }).catch(err => showWriteToast(String(err))) };
+  showWriteToast(message, false, action, 12000);
+}
 
 async function syncLibraryWithDisk() {
   if (librarySyncRunning || foregroundTaskCount() > 0 || photoMoveRunning || Date.now() < librarySyncNotBefore) return;
@@ -6003,6 +6056,7 @@ async function syncLibraryWithDisk() {
   const startedAt = Date.now();
   try {
     const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
+    notifyTempLeftovers(changes);
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   } catch (error) {
     console.debug('Disk synchronization failed', error);

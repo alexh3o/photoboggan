@@ -24,6 +24,21 @@ fn value_escaping_and_deletion_convention() {
 }
 
 #[test]
+fn version_parser_and_minimum_threshold() {
+    assert_eq!(parse_version("12.00"), Some((12, 0)));
+    assert_eq!(parse_version(" 13.59\n"), Some((13, 59)));
+    assert_eq!(parse_version("12.76a"), Some((12, 76)));
+    assert_eq!(parse_version("11.99"), Some((11, 99)));
+    assert_eq!(parse_version(""), None);
+    assert_eq!(parse_version("12"), None);
+    assert_eq!(parse_version("abc.12"), None);
+    assert_eq!(parse_version("12."), None);
+    assert!(parse_version("11.99").unwrap() < MIN_VERSION);
+    assert!(parse_version("12.00").unwrap() >= MIN_VERSION);
+    assert!(parse_version("13.59").unwrap() >= MIN_VERSION);
+}
+
+#[test]
 fn target_depends_on_extension_only() {
     let kind = |name: &str| match target_of(Path::new(name)) { Target::Jpeg => "jpeg", Target::Heif => "heif", Target::Sidecar => "sidecar" };
     assert_eq!([kind("a.JPG"), kind("a.jpeg"), kind("a.HEIC"), kind("a.hif")], ["jpeg", "jpeg", "heif", "heif"]);

@@ -39,6 +39,40 @@ fn sidecar_names_replace_only_the_last_extension() {
     assert_eq!(compatible, PathBuf::from("d/IMG.2024.xmp"));
 }
 
+#[test]
+fn sidecar_target_from_entries_matches_case_insensitively() {
+    let image = Path::new("d/IMG_001.CR2");
+    let [appended, compatible] = sidecar_candidates(image);
+
+    // Case-variant appended sidecar (`IMG_001.CR2.XMP`) is reused in place.
+    let entries = vec![image.to_path_buf(), PathBuf::from("d/IMG_001.CR2.XMP")];
+    let target = sidecar_target_from_dir_entries(image, &appended, &compatible, Some(&entries));
+    assert_eq!(target.path, PathBuf::from("d/IMG_001.CR2.XMP"));
+    assert!(target.exists);
+    assert_eq!(target.seed, None);
+
+    // Case-variant compatible sidecar (`IMG_001.XMP`) without sibling is reused in place.
+    let entries = vec![image.to_path_buf(), PathBuf::from("d/IMG_001.XMP")];
+    let target = sidecar_target_from_dir_entries(image, &appended, &compatible, Some(&entries));
+    assert_eq!(target.path, PathBuf::from("d/IMG_001.XMP"));
+    assert!(target.exists);
+    assert_eq!(target.seed, None);
+
+    // Case-variant compatible sidecar shared with another sidecar writer seeds `IMG_001.CR2.xmp`.
+    let entries = vec![image.to_path_buf(), PathBuf::from("d/IMG_001.DNG"), PathBuf::from("d/IMG_001.XMP")];
+    let target = sidecar_target_from_dir_entries(image, &appended, &compatible, Some(&entries));
+    assert_eq!(target.path, appended);
+    assert!(!target.exists);
+    assert_eq!(target.seed, Some(PathBuf::from("d/IMG_001.XMP")));
+
+    // Case-variant compatible sidecar paired only with a JPEG stays shared as intended.
+    let entries = vec![image.to_path_buf(), PathBuf::from("d/IMG_001.JPG"), PathBuf::from("d/IMG_001.XMP")];
+    let target = sidecar_target_from_dir_entries(image, &appended, &compatible, Some(&entries));
+    assert_eq!(target.path, PathBuf::from("d/IMG_001.XMP"));
+    assert!(target.exists);
+    assert_eq!(target.seed, None);
+}
+
 // --- Fonctions pures ---
 
 #[test]

@@ -31,6 +31,45 @@ fn supported_extensions_ignore_case_and_sidecars() {
 }
 
 #[test]
+fn crash_temp_entry_matches_known_patterns() {
+    for name in [
+        "photo.jpg_exiftool_tmp",
+        ".photoboggan-rename-123",
+        ".photoboggan-resize-backup-456",
+        ".photoboggan-tmp-789",
+    ] {
+        assert!(is_crash_temp_entry(Path::new(name)), "{name}");
+    }
+    for name in ["photo.jpg", "photo.jpg.xmp", ".photoboggan-other", "exiftool_tmp.jpg"] {
+        assert!(!is_crash_temp_entry(Path::new(name)), "{name}");
+    }
+}
+
+#[test]
+fn find_externally_modified_detects_image_or_sidecar_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    let jpg = dir.path().join("photo.jpg");
+    fs::write(&jpg, jpeg_bytes(8, 8)).unwrap();
+    let meta = fs::metadata(&jpg).unwrap();
+    let mtime = modified_millis(&meta);
+    let jpg_str = jpg.to_string_lossy().to_string();
+
+    // Unchanged file: not reported.
+    let unchanged = find_externally_modified(&[ExternalModificationTarget {
+        path: jpg_str.clone(),
+        expected_effective_modified: mtime,
+    }]);
+    assert!(unchanged.is_empty());
+
+    // Different expected timestamp: reported as externally modified.
+    let changed = find_externally_modified(&[ExternalModificationTarget {
+        path: jpg_str,
+        expected_effective_modified: mtime - 1000,
+    }]);
+    assert_eq!(changed.len(), 1);
+}
+
+#[test]
 fn read_photo_refuses_unreadable_or_changing_files() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("a.jpg");

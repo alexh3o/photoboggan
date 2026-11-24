@@ -1991,5 +1991,14 @@
   "Manual face added": "Zona manual añadida",
   "face area deleted ({sources})": "zona de rostro eliminada ({sources})",
   "face area deleted": "zona de rostro eliminada",
-  "Face area deleted": "Zona de rostro eliminada"
+  "Face area deleted": "Zona de rostro eliminada",
+  "{count} temporary item left by an interrupted operation (see log)": "{count} elemento temporal dejado por una operación interrumpida (ver el registro)",
+  "{count} temporary item left by an interrupted operation (see log)|other": "{count} elementos temporales dejados por una operación interrumpida (ver el registro)",
+  "{count} temporary item left by an interrupted operation": "{count} elemento temporal dejado por una operación interrumpida",
+  "{count} temporary item left by an interrupted operation|other": "{count} elementos temporales dejados por una operación interrumpida",
+  "Show folder": "Mostrar carpeta",
+  "External modification detected": "Modificación externa detectada",
+  "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?": "{count} archivo fue modificado fuera de photoboggan desde esta acción. Deshacer sobrescribirá esos cambios externos. ¿Continuar?",
+  "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?|other": "{count} archivos fueron modificados fuera de photoboggan desde esta acción. Deshacer sobrescribirá esos cambios externos. ¿Continuar?",
+  "Undo anyway": "Deshacer de todos modos"
 }

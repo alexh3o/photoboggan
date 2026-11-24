@@ -1,4 +1,4 @@
-<!-- verified: 46133ac | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
+<!-- verified: d94b6f9 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
 
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 
@@ -29,7 +29,7 @@ Everything the user does to photo *files* from menus and drag-and-drop: rename, 
 
 - `photo.ext.xmp` always belongs to that one file and moves / renames / is trashed with it.
 - `photo.xmp` (compatible name) may be shared by a RAW + JPEG pair: it is **copied, never moved**, when another file of the same stem exists (`has_same_stem_sibling`), moved / renamed otherwise; deletion (`sidecar_to_trash`) trashes it only when no sibling remains. `IMG.2024.cr2` never targets `IMG.xmp` (names are built by `exif::sidecar_candidates` only).
-- A failure to carry the sidecar is reported (`Sidecar XMP non déplacé / non copié`) but the photo operation stands.
+- A failure to carry the sidecar is reported in the operation's failure list (`Sidecar XMP non déplacé / non copié`), while the photo operation itself stands.
 
 ### Move (`move_photos`, drag-and-drop to the tree)
 
@@ -37,7 +37,7 @@ Queued task with `task_id` (`FileTaskProgress`: progress weighted by file size, 
 
 ### Copy (`copy_photos`, `copy_photos_to_tracked_folder`, `copy_conflicts`, `tracked_copy_conflicts`)
 
-Same task wrapper. The UI first asks for conflicts (`copy_conflicts` lists files whose name already exists, with sizes and dates; `askCopyResolutions` shows the dialog), then sends `resolutions` per source path: `replace`, `skip`, or `rename` (default). A photo copied into its own folder is never a conflict: it is always renamed. `replace` goes through `copy_replacing` (temp file `.photoboggan-tmp`, flush, rename: the old or the complete new file, never a partial one) and overwrites the sidecar too. Copies into a tracked folder are not added to the catalogue here: the UI then runs `sync_library`.
+Same task wrapper. The UI first asks for conflicts (`copy_conflicts` lists files whose name already exists, with sizes and dates; `askCopyResolutions` shows the dialog), then sends `resolutions` per source path: `replace`, `skip`, or `rename` (default). A photo copied into its own folder is never a conflict: it is always renamed. Normal copies write via a temp file + `flush_to_disk` + `rename` (`copy_durably`); `replace` goes through `copy_replacing` (using the shared trash-before-replace helper `trash_then_replace` / `replace_with_backup` also used by `resize.rs`, sending the existing file to the trash via `has_trash` + `trash::delete` and never overwriting partially) and overwrites the sidecar too. Copies into a tracked folder are not added to the catalogue here: the UI then runs `sync_library`.
 
 ### Rename and delete
 
@@ -57,7 +57,7 @@ F2 or "Rename…" of the context menu on **several** photos (one photo keeps the
 
 ### Marking and rotation commands
 
-- `update_photos_marking(photos, rating, colorFlag, pickFlag, taskId?)`: each photo may carry its own values (undo); all values are validated before any write (one invalid value refuses the batch); 3 rayon threads; per photo `write_photo_marking`: `keep_cached_images` + `exif::write_xmp_metadata`, then **read back** with `exif::read_marking` + `marking_mismatch`; on a difference the photo fails and the catalogue is untouched;  otherwise one transaction updates `rating`, `color_flag`, `pick_flag`, `file_size`, `modified` (image file's own mtime) and `effective_modified` (later of the image's and active sidecar's mtime). Direct command or queued task, result { `written`, `dates`, `failed`, `cancelled` } (`dates`: { `id`, `effective_modified` } pairs).
+- `update_photos_marking(photos, rating, colorFlag, pickFlag, taskId?)`: each photo may carry its own values (undo); all values are validated before any write (one invalid value refuses the batch); 3 rayon threads; per photo `write_photo_marking`: `keep_cached_images` + `exif::write_xmp_metadata`, then **read back** with `exif::read_marking` + `marking_mismatch`; on a difference or DB update failure the row is marked `file_size = -1` (so the next sync re-reads it) and the photo fails; otherwise one transaction updates `rating`, `color_flag`, `pick_flag`, `file_size`, `modified` (image file's own mtime) and `effective_modified` (later of the image's and active sidecar's mtime). Direct command or queued task, result { `written`, `dates`, `failed`, `cancelled` } (`dates`: { `id`, `effective_modified` } pairs).
 - `rotate_photos`: see `thumbnails-and-previews.md` (orientation section). UI of both: `grid-and-viewer.md`.
 
 ### Resize (`resize_photo`, `resize.rs`)

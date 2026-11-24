@@ -33,12 +33,27 @@ impl Drop for RunningGuard {
     }
 }
 
+/// Maximum number of crash-leftover temporary items returned in one sync result.
+const MAX_TEMP_LEFTOVERS: usize = 50;
+
+/// Returns true for temporary files or folders left behind by an interrupted write, rename, resize, or copy.
+pub(crate) fn is_crash_temp_entry(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else { return false; };
+    name.ends_with("_exiftool_tmp")
+        || name.starts_with(".photoboggan-rename-")
+        || name.starts_with(".photoboggan-resize-backup-")
+        || name.starts_with(".photoboggan-tmp-")
+}
+
 /// Chemins concernés par la synchronisation ; l'interface recharge ensuite la liste des photos.
 #[derive(Serialize, Default)]
 pub struct SyncChanges {
     pub added: Vec<String>,
     pub updated: Vec<String>,
     pub removed: Vec<String>,
+    pub temp_leftovers: Vec<String>,
+    pub temp_leftovers_total: usize,
+    pub temp_leftovers_log: Option<String>,
 }
 
 /// Date de modification en millisecondes depuis 1970 (0 si le système ne la fournit pas).
@@ -65,6 +80,28 @@ pub fn effective_modified_millis(image: &Path, image_modified: i64) -> i64 {
         .map(|metadata| modified_millis(&metadata))
         .unwrap_or(0);
     image_modified.max(sidecar_modified)
+}
+
+/// Target file and its expected `effective_modified` timestamp (ms) for external-modification checks before Undo.
+#[derive(serde::Deserialize)]
+pub struct ExternalModificationTarget {
+    pub path: String,
+    pub expected_effective_modified: i64,
+}
+
+/// Returns the paths from `targets` whose current `effective_modified_millis` differs from `expected_effective_modified`.
+pub fn find_externally_modified(targets: &[ExternalModificationTarget]) -> Vec<String> {
+    let mut modified = Vec::new();
+    for target in targets {
+        if target.expected_effective_modified <= 0 { continue; }
+        let path = Path::new(&target.path);
+        let Ok(meta) = fs::metadata(path) else { continue; };
+        let current = effective_modified_millis(path, modified_millis(&meta));
+        if current > 0 && current != target.expected_effective_modified {
+            modified.push(target.path.clone());
+        }
+    }
+    modified
 }
 
 /// Stores the modification date (ms) of files, by path (one transaction: all or nothing), without marking them as read.
@@ -270,12 +307,29 @@ pub fn sync_library(pool: &DbPool, excluded: &[String]) -> Result<SyncChanges, S
     }
 
     let mut seen: HashSet<String> = HashSet::new();
+    let mut temp_seen: HashSet<String> = HashSet::new();
+    let mut temp_leftovers: Vec<String> = Vec::new();
+    let mut temp_leftovers_total: usize = 0;
     // (chemin, taille, date de modification, nouveau fichier ?)
     let mut changed: Vec<(String, i64, i64, bool)> = Vec::new();
     let mut baseline: Vec<(String, i64)> = Vec::new();
     for root in &roots {
-        let walk = WalkDir::new(root).into_iter().filter_entry(|entry| !is_excluded(excluded, &entry.path().to_string_lossy()));
-        for entry in walk.filter_map(|entry| entry.ok()) {
+        let mut walk = WalkDir::new(root).into_iter().filter_entry(|entry| !is_excluded(excluded, &entry.path().to_string_lossy()));
+        while let Some(item) = walk.next() {
+            let Ok(entry) = item else { continue; };
+            if is_crash_temp_entry(entry.path()) {
+                let path_str = entry.path().to_string_lossy().to_string();
+                if temp_seen.insert(path_str.clone()) {
+                    temp_leftovers_total += 1;
+                    if temp_leftovers.len() < MAX_TEMP_LEFTOVERS {
+                        temp_leftovers.push(path_str);
+                    }
+                }
+                if entry.file_type().is_dir() {
+                    walk.skip_current_dir();
+                }
+                continue;
+            }
             if entry.file_type().is_dir() || !is_photo_file(entry.path()) {
                 continue;
             }
@@ -309,8 +363,16 @@ pub fn sync_library(pool: &DbPool, excluded: &[String]) -> Result<SyncChanges, S
         .cloned()
         .collect();
 
+    if !temp_leftovers.is_empty() {
+        eprintln!("Crash-leftover temporary items found ({temp_leftovers_total}): {}", temp_leftovers.join(", "));
+    }
+
     if changed.is_empty() && baseline.is_empty() && removed.is_empty() {
-        return Ok(SyncChanges::default());
+        return Ok(SyncChanges {
+            temp_leftovers,
+            temp_leftovers_total,
+            ..Default::default()
+        });
     }
 
     if !changed.is_empty() {
@@ -356,6 +418,9 @@ pub fn sync_library(pool: &DbPool, excluded: &[String]) -> Result<SyncChanges, S
         added: added.into_iter().map(|item| item.0).collect(),
         updated: updated.into_iter().map(|item| item.0).collect(),
         removed,
+        temp_leftovers,
+        temp_leftovers_total,
+        temp_leftovers_log: None,
     })
 }
 

@@ -1880,12 +1880,77 @@ pub(crate) struct SidecarTarget {
 pub(crate) fn sidecar_target(image_path: &Path) -> SidecarTarget {
     let [appended, compatible] = sidecar_candidates(image_path);
     if appended.exists() { return SidecarTarget { path: appended, exists: true, seed: None }; }
-    if !compatible.exists() { return SidecarTarget { path: appended, exists: false, seed: None }; }
-    // Folder unreadable: treated as shared, the safe side.
-    if shares_sidecar_with_sidecar_writer(image_path).unwrap_or(true) {
-        return SidecarTarget { path: appended, exists: false, seed: Some(compatible) };
+    #[cfg(not(windows))]
+    {
+        let entries = image_path
+            .parent()
+            .and_then(|parent| fs::read_dir(parent).ok())
+            .map(|dir| dir.flatten().map(|entry| entry.path()).collect::<Vec<_>>());
+        return sidecar_target_from_dir_entries(image_path, &appended, &compatible, entries.as_deref());
     }
-    SidecarTarget { path: compatible, exists: true, seed: None }
+    #[cfg(windows)]
+    {
+        if !compatible.exists() { return SidecarTarget { path: appended, exists: false, seed: None }; }
+        // Folder unreadable: treated as shared, the safe side.
+        if shares_sidecar_with_sidecar_writer(image_path).unwrap_or(true) {
+            return SidecarTarget { path: appended, exists: false, seed: Some(compatible) };
+        }
+        SidecarTarget { path: compatible, exists: true, seed: None }
+    }
+}
+
+#[cfg(any(not(windows), test))]
+fn find_case_insensitive_file(entries: &[std::path::PathBuf], expected: &Path) -> Option<std::path::PathBuf> {
+    let expected_name = expected.file_name()?.to_string_lossy();
+    if let Some(exact) = entries.iter().find(|entry| entry.file_name().is_some_and(|name| name.to_string_lossy() == expected_name)) {
+        return Some(exact.clone());
+    }
+    let expected_lower = expected_name.to_lowercase();
+    entries
+        .iter()
+        .find(|entry| entry.file_name().is_some_and(|name| name.to_string_lossy().to_lowercase() == expected_lower))
+        .cloned()
+}
+
+/// Resolves the write target on case-sensitive filesystems using the single `read_dir` already needed to check siblings.
+#[cfg(any(not(windows), test))]
+pub(crate) fn sidecar_target_from_dir_entries(
+    image_path: &Path,
+    appended: &Path,
+    compatible: &Path,
+    entries: Option<&[std::path::PathBuf]>,
+) -> SidecarTarget {
+    let Some(entries) = entries else {
+        if compatible.exists() {
+            return SidecarTarget { path: appended.to_path_buf(), exists: false, seed: Some(compatible.to_path_buf()) };
+        }
+        return SidecarTarget { path: appended.to_path_buf(), exists: false, seed: None };
+    };
+    if let Some(found_appended) = find_case_insensitive_file(entries, appended) {
+        return SidecarTarget { path: found_appended, exists: true, seed: None };
+    }
+    let Some(found_compatible) = find_case_insensitive_file(entries, compatible) else {
+        return SidecarTarget { path: appended.to_path_buf(), exists: false, seed: None };
+    };
+    let Some(stem) = image_path.file_stem().map(|value| value.to_string_lossy().to_lowercase()) else {
+        return SidecarTarget { path: appended.to_path_buf(), exists: false, seed: Some(found_compatible) };
+    };
+    let shared = entries.iter().any(|other| {
+        other != image_path
+            && other.file_stem().is_some_and(|name| name.to_string_lossy().to_lowercase() == stem)
+            && !other.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("xmp"))
+            && is_sidecar_writer_photo(other)
+    });
+    if shared {
+        SidecarTarget { path: appended.to_path_buf(), exists: false, seed: Some(found_compatible) }
+    } else {
+        SidecarTarget { path: found_compatible, exists: true, seed: None }
+    }
+}
+
+fn is_sidecar_writer_photo(path: &Path) -> bool {
+    crate::library_sync::is_photo_file(path)
+        && !path.extension().and_then(|value| value.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("jpg") || ext.eq_ignore_ascii_case("jpeg"))
 }
 
 /// True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
@@ -1895,12 +1960,10 @@ pub(crate) fn has_same_stem_sibling(image_path: &Path) -> Option<bool> {
 }
 
 /// Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
+#[cfg(any(windows, test))]
 fn shares_sidecar_with_sidecar_writer(image_path: &Path) -> Option<bool> {
     let siblings = same_stem_siblings(image_path)?;
-    Some(siblings.iter().any(|other| {
-        crate::library_sync::is_photo_file(other)
-            && !other.extension().and_then(|value| value.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("jpg") || ext.eq_ignore_ascii_case("jpeg"))
-    }))
+    Some(siblings.iter().any(|other| is_sidecar_writer_photo(other)))
 }
 
 fn same_stem_siblings(image_path: &Path) -> Option<Vec<std::path::PathBuf>> {
