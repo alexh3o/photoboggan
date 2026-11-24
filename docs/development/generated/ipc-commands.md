@@ -22,7 +22,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `list_rename_presets` | `batch_rename.rs` | — | `Vec<RenamePreset>` | main thread | batch-rename.js |
 | `save_rename_preset` | `batch_rename.rs` | `name: String, steps: String` | `Vec<RenamePreset>` | main thread | batch-rename.js |
 | `delete_rename_preset` | `batch_rename.rs` | `id: i64` | `Vec<RenamePreset>` | main thread | batch-rename.js |
-| `set_metadata_writer` | `exiftool.rs` | `mode: String, custom_path: Option<String>, skip_exif: bool` | `()` | main thread | metadata-settings.js |
+| `set_metadata_writer` | `exiftool.rs` | `custom_path: Option<String>` | `()` | main thread | metadata-settings.js |
 | `get_exiftool_status` | `exiftool.rs` | — | `ExifToolStatus` | async pool | metadata-settings.js |
 | `exiftool_prewarm` | `exiftool.rs` | — | `()` | main thread | description-panel.js, keywords-panel.js |
 | `set_face_settings` | `face_detect.rs` | `settings: FaceSettings` | `()` | main thread | faces-panel.js |

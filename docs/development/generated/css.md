@@ -377,7 +377,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L61 Mode noir / blanc : bords adoucis (flou) et pulsation entre une opacité minimale et une opacité maximale < 1 (reste translucide).
 - L71 Options d'affichage > Histogramme : deux réglages par ligne.
 
-### src/keywords.css (142 lines)
+### src/keywords.css (140 lines)
 
 - L1 PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywor…
 - L4 Le panneau passe en colonne : barre d'onglets en haut, puis le contenu de l'onglet affiché (qui défile seul).
@@ -403,8 +403,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L116 Tableau à hauteur fixe de 6 lignes : changer de type de métadonnée ne décale pas le reste de la fenêtre.
 - L124 Three parts per format: source pill, schema, technical field. Pill and schema share one size; the field is a bit larger than befo…
 - L133 Flat keyword fields: same rows without handle or arrows.
-- L136 Format not read right now (e.g. EXIF with the internal writer): greyed out, still movable.
-- L138 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
+- L136 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
 
 ### src/list-view.css (64 lines)
 

@@ -1,4 +1,4 @@
-<!-- verified: 2d2e8b4 | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
+<!-- verified: 46133ac | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
 
 # Thumbnails, RAW/HEIC/video previews, orientation
 
@@ -11,7 +11,7 @@ Produces the small JPEG thumbnails shown in the grid and the larger previews sho
 | File               | Role                                                                                                                                                                                   |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `thumbnails.rs`    | Render pipeline (`render_thumbnail`, `generate_thumbnail`), JPEG / PNG decoding, RAW preview extraction, EXIF sources (`read_exif_sources`), orientation helpers, resize, JPEG writing |
-| `heif.rs`          | HEIC / HEIF decode (`heic-rs`), preview JPEG, container XMP read / write (`read_xmp`, `update_xmp`, used by metadata writes)                                                           |
+| `heif.rs`          | HEIC / HEIF decode (`heic-rs`), preview JPEG, container XMP read (`read_xmp`)                                                                                                          |
 | `video.rs`         | Video extensions, still frame: `system_thumbnail` (Windows Shell) then `ffmpeg_frame_jpeg`                                                                                             |
 | `orientation.rs`   | Orientation algebra (`compose`, `inverse`, `rotate`), `resolve` (EXIF vs XMP), `read`, `write`                                                                                         |
 | `main.rs` (region) | Cache naming and files, thumbnail / preview commands, `keep_cached_images`, `purge_orphan_cache`, `rotate_photos` / `rotate_photo`                                                     |
@@ -63,9 +63,9 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 
 - Each orientation (1–8) is "optional mirror, then N clockwise quarter turns", so `compose`, `inverse`, `rotate` are simple.
 - `Kind` by format: `Jpeg` (EXIF tag + XMP), `Raw` and `Sidecar` (XMP `tiff:Orientation` of the sidecar wins, file never modified), `Fixed` (HEIC / HEIF, videos: never rotated by a tag).
-- `resolve(kind, exif, xmp, skip_exif)` returns `stored` (what a rotation starts from) and `view_fix`. In a JPEG the EXIF tag wins, except with the internal writer when "ignore EXIF" is on (then XMP wins); elsewhere XMP wins over EXIF. `view_fix = compose(inverse(exif), stored)` is what the UI must apply **on top of the webview**, which only applies the file's own EXIF tag; it is 1 for RAW, HEIC and videos (their previews are oriented by the backend). It is stored in `photos.view_fix` (filled by `faces::store_photo_faces`) and applied as a CSS transform in `main.js`.
+- `resolve(kind, exif, xmp)` returns `stored` (what a rotation starts from) and `view_fix`. In a JPEG the EXIF tag wins; elsewhere XMP wins over EXIF. `view_fix = compose(inverse(exif), stored)` is what the UI must apply **on top of the webview**, which only applies the file's own EXIF tag; it is 1 for RAW, HEIC and videos (their previews are oriented by the backend). It is stored in `photos.view_fix` (filled by `faces::store_photo_faces`) and applied as a CSS transform in `main.js`.
 - Preview orientation of a RAW: `raw_orientation` (preview's own tag, else the container's, depending on whether the preview is portrait), then `raw_preview_orientation` (a sidecar value replaces the container's one).
-- `rotate_photos(photos, quarterTurns, taskId?)` (3 threads, queued task or direct) → `rotate_photo`: refuses non-rotatable formats; refuses before writing when the internal writer reads EXIF first and the JPEG already has an EXIF tag (the XMP could not change the display); computes `rotate(read(...).stored, turns)`; `orientation::write` (ExifTool writes EXIF + XMP, internal writes XMP only); **deletes** the cached thumbnail and preview under the old and the current names (they are stored turned); reads the orientation back and fails if it differs; updates `orientation`, `view_fix`, `file_size`, `modified` (image file's own mtime) and `effective_modified` (image or active sidecar) in the catalogue, returning both `view_fix` and `effective_modified` in `RotatedPhoto`. Undo is the opposite rotation. Face regions are rotated by `exif::rotate_xmp_regions` (see `metadata-read-write.md`).
+- `rotate_photos(photos, quarterTurns, taskId?)` (3 threads, queued task or direct) → `rotate_photo`: refuses non-rotatable formats; computes `rotate(read(...).stored, turns)`; `orientation::write` (ExifTool writes EXIF + XMP in JPEG, or XMP in sidecars); **deletes** the cached thumbnail and preview under the old and the current names (they are stored turned); reads the orientation back and fails if it differs; updates `orientation`, `view_fix`, `file_size`, `modified` (image file's own mtime) and `effective_modified` (image or active sidecar) in the catalogue, returning both `view_fix` and `effective_modified` in `RotatedPhoto`. Undo is the opposite rotation. Face regions are rotated by `exif::rotate_xmp_regions` (see `metadata-read-write.md`).
 
 ## Contracts
 
@@ -76,7 +76,7 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 
 ## Dependencies
 
-- Uses: `exif.rs` (XMP orientation read / write, regions), `exiftool.rs` (writer, `skip_exif_metadata`), `heif.rs`, `video.rs`, `semantic::PriorityGuard`, `db` pool.
+- Uses: `exif.rs` (XMP orientation read, regions), `exiftool.rs` (writer), `heif.rs`, `video.rs`, `semantic::PriorityGuard`, `db` pool.
 - Used by: grid and viewer (all thumbnail commands), `exif::read_exif` (`read_exif_sources`, `orientation::resolve`), `integrity.rs` (decoding), the semantic scan (`render_thumbnail`), face detection (reads cached thumbnails), `similar.rs` (reads cached thumbnails, never writes), every metadata writer (`keep_cached_images`).
 
 ## Invariants and sensitive areas
@@ -89,7 +89,7 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 
 ## Tests
 
-`tests/thumbnails.rs` (CR3 boxes, preview orientation, DNG without JPEG, quality levels), `tests/orientation.rs` (algebra, reading order, `view_fix`, sidecar RAW preview, internal / sidecar rotation, HEIF and video refused), `tests/heif.rs` (synthetic container XMP read / write, refused rewrites, box-walker limits), `tests/main.rs` (cache subfolders, clearing, `cached_images_follow_a_rewritten_file`). Gaps: `generate_thumbnail` end to end on real JPEGs, `purge_orphan_cache`, video frames, and `get_raw_preview_path` are not tested.
+`tests/thumbnails.rs` (CR3 boxes, preview orientation, DNG without JPEG, quality levels), `tests/orientation.rs` (algebra, reading order, `view_fix`, sidecar RAW preview, sidecar rotation, HEIF and video refused), `tests/heif.rs` (synthetic container XMP read, box-walker limits), `tests/main.rs` (cache subfolders, clearing, `cached_images_follow_a_rewritten_file`). Gaps: `generate_thumbnail` end to end on real JPEGs, `purge_orphan_cache`, video frames, and `get_raw_preview_path` are not tested.
 
 ## How to extend
 

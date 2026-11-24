@@ -574,9 +574,9 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export hasGps(photo)` · L29
 - `export hasErasedLocation(photo)` · L30
 - `report(result, error, restored)` · L33 — Bilan affiché après l'écriture : photos traitées, refusées (GPS de l'EXIF non effaçable par le chemin actif) et en échec.
-- `run(command, photos, restored)` · L56
-- `export eraseGeolocation(targets)` · L69 — Efface la géolocalisation des photos géolocalisées de `targets` (après confirmation).
-- `export restoreGeolocation(targets)` · L83 — Réécrit les coordonnées sauvegardées des photos de `targets`.
+- `run(command, photos, restored)` · L55
+- `export eraseGeolocation(targets)` · L68 — Efface la géolocalisation des photos géolocalisées de `targets` (après confirmation).
+- `export restoreGeolocation(targets)` · L82 — Réécrit les coordonnées sauvegardées des photos de `targets`.
 
 ## src/guide.js (7)
 
@@ -1128,18 +1128,15 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `applyClasses()` · L23
 - `export initMarkingSettings()` · L28
 
-## src/metadata-settings.js (10)
+## src/metadata-settings.js (7)
 
-- `export onPickOrderChange(listener)` · L148
-- `export topPickFormat()` · L151
-- `export getWriterMode()` · L158 — Chemin d'écriture actif : « exiftool » ou « internal ».
-- `sendSettings()` · L168
-- `renderStatus()` · L173
-- `refreshStatus()` · L200 — Nouvelle détection (l'utilisateur a pu installer ou déplacer ExifTool) : à l'ouverture de l'onglet et après un changement de réglage.
-- `isExifIgnored(kind, format)` · L215
-- `renderSkipExif()` · L220 — The option only applies to the internal writer: greyed out and not editable while ExifTool is the active path.
-- `changeSettings(update)` · L228
-- `export initMetadataSettings()` · L239
+- `export onPickOrderChange(listener)` · L144
+- `export topPickFormat()` · L147
+- `sendSettings()` · L156
+- `renderStatus()` · L161
+- `refreshStatus()` · L188 — Nouvelle détection (l'utilisateur a pu installer ou déplacer ExifTool) : à l'ouverture de l'onglet et après un changement de réglage.
+- `changeSettings(update)` · L201
+- `export initMetadataSettings()` · L209
 
 ## src/metadata-writes.js (37)
 
@@ -1181,12 +1178,11 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `pendingSummary()` · L529 — Ce qui reste à écrire, pour la fenêtre de fermeture : seuls les types de métadonnées en attente, chacun avec son nombre de photos, ex.
 - `export confirmCloseWithPendingEdits()` · L551 — Fermeture de l'application (appelée par main.js) : renvoie true si elle peut se poursuivre. Des modifications non écrites donnent lieu à
 
-## src/order-list.js (4)
+## src/order-list.js (3)
 
 - `export resolveOrder(formats, storageKey)` · L9 — Ordre en vigueur des formats `formats` (identifiants) : celui enregistré sous `storageKey` s'il est valide, sinon l'ordre par défaut. Seule
 - `export formatCells(format)` · L24 — Cells of one format row: source pill (XMP / IPTC / EXIF / JPEG), schema, technical field. Shared by the reorderable table and the static ro…
-- `export markIgnored(item, format, isIgnored)` · L40 — Greys out a row whose format is not read (tooltip says why); the row keeps its place in the order.
-- `export createOrderList({ element, formats, storageKey, send, isIgnored = ()` · L49 — `formats` : [{ id, source, schema, field }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : tra…
+- `export createOrderList({ element, formats, storageKey, send })` · L41 — `formats` : [{ id, source, schema, field }] dans l'ordre par défaut. `storageKey` : clé localStorage de l'ordre choisi. `send(order)` : tra…
 
 ## src/orientation.js (2)
 
@@ -1212,87 +1208,87 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/photo-actions.js (81)
 
-- `baseName(path)` · L23
-- `photoName(photo)` · L24
-- `defaultProgramName(path)` · L25
-- `cleanPrograms(list)` · L30 — ==========================================
-- `programSection(path)` · L38 — Section d'un fichier : vidéos, RAW, sinon images rendues (JPEG, PNG, HEIC…).
-- `loadAllPrograms()` · L43
-- `loadPrograms(section)` · L58
-- `savePrograms(section, programs)` · L60
-- `pickDirectory(defaultPath)` · L65 — Boîte de dialogue de l'OS pour choisir un dossier de destination ; null si l'utilisateur annule ou si la boîte ne s'ouvre pas.
-- `pickProgram()` · L82 — OS dialog to choose a program; null if the user cancels. Opened by the backend (pick_program), which then allows that program for
-- `shownProgramSection()` · L92
-- `startProgramDrag(event, item, handle, list, section)` · L99 — Glisser la poignée : la ligne change de place dès que le pointeur passe le milieu d'une voisine ; l'ordre est enregistré au relâchement
-- `renderProgramList()` · L125
-- `addProgramFromDialog()` · L206
-- `export createModal({ title, cardClass = '', onClose = null, focusSelector = 'b…)` · L229 — ==========================================
-- `arrowKeysBetween(overlay, buttons)` · L286 — Flèches dans une fenêtre : le focus passe d'un bouton de `buttons` à son voisin (gauche / haut = précédent, droite / bas = suivant).
-- `export confirmDialog({ title, message, confirmLabel, cancelLabel, extraLabel, on…)` · L300 — Confirmation Oui / Non
-- `export promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, on…)` · L342
-- `renderMetadataSections(details)` · L483
-- `export showPhotoInfo(photo)` · L515
-- `countPermanentDeletions(paths)` · L535 — ==========================================
-- `export confirmAndDelete(targets)` · L544
-- `formatCopySize(bytes)` · L580 — Taille d'un fichier pour la question « fichier existant » (Ko sous 1 Mo, Mo au-delà).
-- `copyConflictDialog(conflict)` · L588 — Question posée pour un fichier à copier dont le nom existe déjà à destination : montre taille et date de modification des deux fichiers.
-- `export askCopyResolutions(command, paths, destination)` · L629 — Avant une copie : cherche les fichiers dont le nom existe déjà à destination (`command` : copy_conflicts ou tracked_copy_conflicts) et pose…
-- `export copyPhotosTo(targets)` · L652 — Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
-- `export sidecarRenameNotice(result)` · L688 — Move or copy result: photos given another name because a sidecar that is not theirs was already at the destination (left untouched,
-- `export copyPhotosToClipboard(targets)` · L701 — Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite
-- `trackedRootForPath(path)` · L723
-- `makeElement(tag, className = '', text = '')` · L733
-- `makeInput(type, properties = {})` · L739
-- `optionRow(...children)` · L740
-- `labelled(input, text)` · L745
-- `loadResizeSettings()` · L752 — Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le chemin de destination reste une action explicite, initialement le dossie…
-- `resizeOptionsDialog(count, firstPhotoPath)` · L779 — Fenêtre d'options. Renvoie les options à envoyer au backend (sans la politique de conflit) ou null si l'utilisateur annule.
-- `resizeConflictDialog(output)` · L985 — Question posée quand le fichier de destination existe déjà. Renvoie { action: 'replace' | 'increment' | 'skip', applyAll }.
-- `runResizeBatch(targets, options, task, setPercent)` · L1015 — Traitement du lot, exécuté par la file des tâches (`task` : sa tâche, `setPercent` : avancement en %). Un arrêt demandé (`task.stopRequeste…
-- `showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped)` · L1073 — Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
-- `export resizePhotos(targets)` · L1086 — Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
-- `invokeOpen(command, args)` · L1118 — Lance une commande d'ouverture (programme externe, gestionnaire de fichiers) ; un échec est signalé par un message.
-- `openWith(program, targets, name = defaultProgramName(program)` · L1127 — `name` : nom du programme affiché dans le message « Ouverture avec … » (5 secondes).
-- `export openWithFirstProgram(targets)` · L1133 — Raccourci O : ouvre les photos avec le premier programme de la section de la première photo ; message si cette section est vide.
-- `chooseProgramAndOpen(targets)` · L1143
-- `export revealInFileManager(photo)` · L1150 — Affiche la photo dans le gestionnaire de fichiers de l'OS, avec le fichier sélectionné. Une seule photo est montrée :
-- `createSubfolder(parentPath)` · L1155 — Crée un sous-dossier dans un dossier de l'arborescence (nom demandé dans une fenêtre ; le backend vérifie le nom et refuse d'écraser).
-- `renameFolder(path)` · L1175 — Renomme un dossier de l'arborescence : la saisie reprend le nom actuel ; le backend vérifie le nom et refuse d'écraser (message affiché dan…
-- `export renamePhoto(photo)` · L1190 — Renomme une photo ou une vidéo : seul le nom sans extension est modifiable, l'extension (dernier point du nom) est conservée par le backend.
-- `formatDuration(milliseconds)` · L1215
-- `buildIntegrityReportPreamble(report, version, hasSuspects)` · L1226 — Première partie du rapport exporté (texte) : titre, version, date, dossier, extensions vérifiées / non vérifiées, chiffres, durée et durée …
-- `exportIntegrityReport(report)` · L1260
-- `export showIntegrityReport(report, stopped = false)` · L1280 — `report` : résultat de `integrity_scan` ; `stopped` : la tâche a été arrêtée avant la fin (le rapport ne couvre alors que les fichiers déjà…
-- `export openFolderInFileManager(path)` · L1339 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
-- `closeContextMenu()` · L1348
-- `onOutsidePointerDown(event)` · L1362
-- `menuButton(label, onSelect, { danger = false, shortcut = null, title =…)` · L1368 — `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
-- `setSubmenuExpanded(wrapper, expanded)` · L1403
-- `menuSeparator()` · L1417
-- `menuHeader(text, title = '')` · L1425 — Ligne d'en-tête (non cliquable) : ce que le menu vise (nom du fichier, ou nombre de photos).
-- `submenuEntry(item)` · L1436 — Entrée de sous-menu décorée : `swatch` (classes d'une pastille de couleur), `glyph` + `glyphClass` (symbole coloré), `labelClass`, `ariaLab…
-- `buildSubmenuItem(label, items)` · L1479 — Sous-menu : `items` = [{ label, onSelect, … }] (voir submenuEntry) ou { separator: true }.
-- `buildSlideshowItem()` · L1499 — Sous-menu « Diaporama » (plein écran) : lancer / arrêter, boucle, ordre aléatoire et durée entre les photos. Les mêmes réglages sont dans
-- `buildMarkingItem(targets)` · L1520 — Sous-menu « Marquage » : note, couleur et fanion pick (ces deux derniers seulement s'ils sont activés dans les Paramètres) de `targets`,
-- `duplicateEntries(spec, short)` · L1565 — Entries of the duplicate search, `spec` = { scope, label, compareWithLibrary } handed to main.js (section DUPLICATES). The quick entries us…
-- `buildDuplicatesItem(spec)` · L1579 — Without a RAW to look for (folder, "All photos", selection, a RAW or a video): the duplicates are the only way to find, so no "Find" level.
-- `buildFacesItem(scope, { source } = {})` · L1586 — Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (f…
-- `buildOpenWithItem(targets, section)` · L1616 — « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
-- `onMenuKeydown(event)` · L1642
-- `openThumbnailMenu(event, index, source = 'grid')` · L1677
-- `confirmUnrecognizedFilesDialog(folderName, files)` · L1837 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
-- `confirmAndDeleteFolder(path)` · L1861 — Supprime un dossier de l'arborescence : première confirmation habituelle,
-- `openFolderMenu(event, folderItem)` · L1897 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
-- `openAllPhotosMenu(event, item)` · L1951 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
-- `export openContextMenuAt(event, items)` · L1974 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
-- `showContextMenu(menu, event)` · L1990 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
-- `findTargetPhoto(target)` · L2013 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
-- `isTextField(field)` · L2049
-- `fieldExtraItems(field)` · L2052 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
-- `pasteIntoField(field)` · L2075 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
-- `openTextFieldMenu(event, field)` · L2088 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
-- `onContextMenu(event)` · L2117 — Remplace le menu contextuel du navigateur
-- `export initPhotoActions(options)` · L2162 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
+- `baseName(path)` · L22
+- `photoName(photo)` · L23
+- `defaultProgramName(path)` · L24
+- `cleanPrograms(list)` · L29 — ==========================================
+- `programSection(path)` · L37 — Section d'un fichier : vidéos, RAW, sinon images rendues (JPEG, PNG, HEIC…).
+- `loadAllPrograms()` · L42
+- `loadPrograms(section)` · L57
+- `savePrograms(section, programs)` · L59
+- `pickDirectory(defaultPath)` · L64 — Boîte de dialogue de l'OS pour choisir un dossier de destination ; null si l'utilisateur annule ou si la boîte ne s'ouvre pas.
+- `pickProgram()` · L81 — OS dialog to choose a program; null if the user cancels. Opened by the backend (pick_program), which then allows that program for
+- `shownProgramSection()` · L91
+- `startProgramDrag(event, item, handle, list, section)` · L98 — Glisser la poignée : la ligne change de place dès que le pointeur passe le milieu d'une voisine ; l'ordre est enregistré au relâchement
+- `renderProgramList()` · L124
+- `addProgramFromDialog()` · L205
+- `export createModal({ title, cardClass = '', onClose = null, focusSelector = 'b…)` · L228 — ==========================================
+- `arrowKeysBetween(overlay, buttons)` · L285 — Flèches dans une fenêtre : le focus passe d'un bouton de `buttons` à son voisin (gauche / haut = précédent, droite / bas = suivant).
+- `export confirmDialog({ title, message, confirmLabel, cancelLabel, extraLabel, on…)` · L299 — Confirmation Oui / Non
+- `export promptDialog({ title, message, inputLabel, confirmLabel, cancelLabel, on…)` · L341
+- `renderMetadataSections(details)` · L482
+- `export showPhotoInfo(photo)` · L514
+- `countPermanentDeletions(paths)` · L534 — ==========================================
+- `export confirmAndDelete(targets)` · L543
+- `formatCopySize(bytes)` · L579 — Taille d'un fichier pour la question « fichier existant » (Ko sous 1 Mo, Mo au-delà).
+- `copyConflictDialog(conflict)` · L587 — Question posée pour un fichier à copier dont le nom existe déjà à destination : montre taille et date de modification des deux fichiers.
+- `export askCopyResolutions(command, paths, destination)` · L628 — Avant une copie : cherche les fichiers dont le nom existe déjà à destination (`command` : copy_conflicts ou tracked_copy_conflicts) et pose…
+- `export copyPhotosTo(targets)` · L651 — Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
+- `export sidecarRenameNotice(result)` · L687 — Move or copy result: photos given another name because a sidecar that is not theirs was already at the destination (left untouched,
+- `export copyPhotosToClipboard(targets)` · L700 — Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite
+- `trackedRootForPath(path)` · L722
+- `makeElement(tag, className = '', text = '')` · L732
+- `makeInput(type, properties = {})` · L738
+- `optionRow(...children)` · L739
+- `labelled(input, text)` · L744
+- `loadResizeSettings()` · L751 — Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le chemin de destination reste une action explicite, initialement le dossie…
+- `resizeOptionsDialog(count, firstPhotoPath)` · L778 — Fenêtre d'options. Renvoie les options à envoyer au backend (sans la politique de conflit) ou null si l'utilisateur annule.
+- `resizeConflictDialog(output)` · L981 — Question posée quand le fichier de destination existe déjà. Renvoie { action: 'replace' | 'increment' | 'skip', applyAll }.
+- `runResizeBatch(targets, options, task, setPercent)` · L1011 — Traitement du lot, exécuté par la file des tâches (`task` : sa tâche, `setPercent` : avancement en %). Un arrêt demandé (`task.stopRequeste…
+- `showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped)` · L1069 — Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
+- `export resizePhotos(targets)` · L1082 — Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
+- `invokeOpen(command, args)` · L1114 — Lance une commande d'ouverture (programme externe, gestionnaire de fichiers) ; un échec est signalé par un message.
+- `openWith(program, targets, name = defaultProgramName(program)` · L1123 — `name` : nom du programme affiché dans le message « Ouverture avec … » (5 secondes).
+- `export openWithFirstProgram(targets)` · L1129 — Raccourci O : ouvre les photos avec le premier programme de la section de la première photo ; message si cette section est vide.
+- `chooseProgramAndOpen(targets)` · L1139
+- `export revealInFileManager(photo)` · L1146 — Affiche la photo dans le gestionnaire de fichiers de l'OS, avec le fichier sélectionné. Une seule photo est montrée :
+- `createSubfolder(parentPath)` · L1151 — Crée un sous-dossier dans un dossier de l'arborescence (nom demandé dans une fenêtre ; le backend vérifie le nom et refuse d'écraser).
+- `renameFolder(path)` · L1171 — Renomme un dossier de l'arborescence : la saisie reprend le nom actuel ; le backend vérifie le nom et refuse d'écraser (message affiché dan…
+- `export renamePhoto(photo)` · L1186 — Renomme une photo ou une vidéo : seul le nom sans extension est modifiable, l'extension (dernier point du nom) est conservée par le backend.
+- `formatDuration(milliseconds)` · L1211
+- `buildIntegrityReportPreamble(report, version, hasSuspects)` · L1222 — Première partie du rapport exporté (texte) : titre, version, date, dossier, extensions vérifiées / non vérifiées, chiffres, durée et durée …
+- `exportIntegrityReport(report)` · L1256
+- `export showIntegrityReport(report, stopped = false)` · L1276 — `report` : résultat de `integrity_scan` ; `stopped` : la tâche a été arrêtée avant la fin (le rapport ne couvre alors que les fichiers déjà…
+- `export openFolderInFileManager(path)` · L1335 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
+- `closeContextMenu()` · L1344
+- `onOutsidePointerDown(event)` · L1358
+- `menuButton(label, onSelect, { danger = false, shortcut = null, title =…)` · L1364 — `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
+- `setSubmenuExpanded(wrapper, expanded)` · L1399
+- `menuSeparator()` · L1413
+- `menuHeader(text, title = '')` · L1421 — Ligne d'en-tête (non cliquable) : ce que le menu vise (nom du fichier, ou nombre de photos).
+- `submenuEntry(item)` · L1432 — Entrée de sous-menu décorée : `swatch` (classes d'une pastille de couleur), `glyph` + `glyphClass` (symbole coloré), `labelClass`, `ariaLab…
+- `buildSubmenuItem(label, items)` · L1475 — Sous-menu : `items` = [{ label, onSelect, … }] (voir submenuEntry) ou { separator: true }.
+- `buildSlideshowItem()` · L1495 — Sous-menu « Diaporama » (plein écran) : lancer / arrêter, boucle, ordre aléatoire et durée entre les photos. Les mêmes réglages sont dans
+- `buildMarkingItem(targets)` · L1516 — Sous-menu « Marquage » : note, couleur et fanion pick (ces deux derniers seulement s'ils sont activés dans les Paramètres) de `targets`,
+- `duplicateEntries(spec, short)` · L1561 — Entries of the duplicate search, `spec` = { scope, label, compareWithLibrary } handed to main.js (section DUPLICATES). The quick entries us…
+- `buildDuplicatesItem(spec)` · L1575 — Without a RAW to look for (folder, "All photos", selection, a RAW or a video): the duplicates are the only way to find, so no "Find" level.
+- `buildFacesItem(scope, { source } = {})` · L1582 — Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (f…
+- `buildOpenWithItem(targets, section)` · L1612 — « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
+- `onMenuKeydown(event)` · L1638
+- `openThumbnailMenu(event, index, source = 'grid')` · L1673
+- `confirmUnrecognizedFilesDialog(folderName, files)` · L1833 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
+- `confirmAndDeleteFolder(path)` · L1857 — Supprime un dossier de l'arborescence : première confirmation habituelle,
+- `openFolderMenu(event, folderItem)` · L1893 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
+- `openAllPhotosMenu(event, item)` · L1947 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
+- `export openContextMenuAt(event, items)` · L1970 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
+- `showContextMenu(menu, event)` · L1986 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
+- `findTargetPhoto(target)` · L2009 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
+- `isTextField(field)` · L2045
+- `fieldExtraItems(field)` · L2048 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
+- `pasteIntoField(field)` · L2071 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
+- `openTextFieldMenu(event, field)` · L2084 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
+- `onContextMenu(event)` · L2113 — Remplace le menu contextuel du navigateur
+- `export initPhotoActions(options)` · L2158 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
 
 ## src/place-search.js (5)
 

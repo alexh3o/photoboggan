@@ -1,4 +1,4 @@
-<!-- verified: 3c84e7f | sources: src-tauri/src/test_support.rs, .github/workflows/tests.yml, src-tauri/Cargo.toml -->
+<!-- verified: 46133ac | sources: src-tauri/src/test_support.rs, .github/workflows/tests.yml, src-tauri/Cargo.toml -->
 # Testing
 
 ## Purpose
@@ -20,11 +20,10 @@ The only automated tests are Rust unit and integration tests of the backend. The
 cd src-tauri && cargo test                     # fast set, about a second of run time (compilation is longer)
 cd src-tauri && cargo test <module>::          # one module, e.g. keywords::
 cd src-tauri && cargo test exiftool:: -- --ignored --test-threads=1   # ExifTool integration (bundled copy or PATH)
-cd src-tauri && cargo test skipped_exif -- --ignored                  # a global-setting test, run alone
 ```
 - Other ignored tests need something the fast set must not depend on: `SEMANTIC_MODEL_DIR=<folder with vision.onnx, text.onnx, tokenizer.json> cargo test semantic:: -- --ignored` (4 in `semantic.rs`, 1 in `semantic_search.rs`, ignore reason "needs the SigLIP 2 model"; ONNX Runtime from `ORT_DYLIB_PATH`; usage in each file's header comment). The other ignored tests of `semantic_keywords.rs` / `semantic_search.rs` are speed measures or need a catalogue copy (`SEMANTIC_CATALOG`); benchmarks need a real photo or folder (`PHOTOBOGGAN_BENCH_PHOTO`, `PHOTOBOGGAN_BENCH_DIR`, run with `--release --nocapture`, see the doc comments of `marking_check_cost` and `move_cost`).
 - ExifTool prerequisites: `npm run fetch-exiftool` puts the pinned version in `src-tauri/vendor/exiftool/`; on Linux / macOS the system `perl` must exist.
-- The CI (`tests.yml`) runs on `ubuntu-22.04` and `windows-latest`: it builds the frontend first (`npm run build`: Tauri checks at compile time that `frontendDist` exists), installs the same Linux system libraries as the release workflow, runs `cargo test`, and on Windows only fetches ExifTool and runs `cargo test exiftool:: -- --ignored --test-threads=1`. The other ignored tests (global-setting test of `exif.rs`, benchmarks, model tests) are not run by CI.
+- The CI (`tests.yml`) runs on `ubuntu-22.04` and `windows-latest`: it builds the frontend first (`npm run build`: Tauri checks at compile time that `frontendDist` exists), installs the same Linux system libraries (plus `perl`) as the release workflow, runs `cargo test`, fetches ExifTool and runs `cargo test exiftool:: -- --ignored --test-threads=1` on both platforms. The other ignored tests (benchmarks, model tests) are not run by CI.
 - A test that fails after being ignored documents a known gap: report it, never weaken the assertion to "fix" it (AGENTS.md §5.H).
 
 ### Helpers (`test_support.rs`)
@@ -61,8 +60,8 @@ cd src-tauri && cargo test skipped_exif -- --ignored                  # a global
 - Used by: CI (`tests.yml`), and the developer before each commit (AGENTS.md §4.11).
 
 ## Invariants and sensitive areas
-- ⚠ sensitive: global state. `sync_library` has a global `RUNNING` flag; ExifTool, read priorities and `skip_exif` are Rust statics. Only one test may exercise each, and a fast test must never change the global writer setting (it would break parallel tests): such tests are `#[ignore = "…"]` and run alone.
-- Internal-writer tests call the internal functions (`write_jpeg_metadata`, `write_xmp_sidecar_with`…): the `write_metadata` dispatcher depends on the global ExifTool setting.
+- ⚠ sensitive: global state. `sync_library` has a global `RUNNING` flag; ExifTool path and read priorities are Rust statics. Only one test may exercise each global state at a time (`--test-threads=1` for `exiftool::`).
+- `tests/keywords.rs` exercises `run_write` / `run_rename` / `run_delete` with a test stub writer in `WriteEnv` without spawning ExifTool.
 - Never use a real photo and never the network.
 
 ## How to extend

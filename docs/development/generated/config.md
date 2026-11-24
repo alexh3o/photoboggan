@@ -49,7 +49,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `mapDefaultZoom` | `12` | location-panel.js, map-config.js |
 | `mapStyleRefresh` | `true` | maps-settings.js |
 | `markingPlacement` | `"hybrid"` | main.js |
-| `metadataWriter` | `"exiftool"` | metadata-settings.js |
+| `metadataWriter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | metadata-settings.js |
 | `minLength` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `offlineMode` | `false` | main.js, map-config.js, settings-defaults.js |
 | `pattern` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
@@ -91,7 +91,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `showRawBadges` | `true` | main.js |
 | `sidebarVisible` | `true` | main.js |
 | `sidebarWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
-| `skipExifWithInternalWriter` | `true` | metadata-settings.js |
+| `skipExifWithInternalWriter` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | metadata-settings.js |
 | `slideshowDelay` | `5` | slideshow.js |
 | `slideshowLoop` | `true` | slideshow.js |
 | `slideshowRandom` | `false` | slideshow.js |
@@ -109,7 +109,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (2003 keys), es (2003 keys), fr (2003 keys)
+- Languages: en (1993 keys), es (1993 keys), fr (1993 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

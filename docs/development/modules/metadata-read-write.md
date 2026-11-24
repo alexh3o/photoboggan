@@ -1,16 +1,16 @@
-<!-- verified: 42b3f57 | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
+<!-- verified: 46133ac | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
 # Metadata reading and writing (EXIF / IPTC / XMP, ExifTool, sidecars)
 
 ## Purpose
-Reads the metadata of a photo (camera data, rating, colour, pick, title, description, GPS, keywords, face regions, orientation) from the file and its sidecar, and writes the user's edits back so that digiKam, Lightroom and Windows Explorer see them. Two writers exist (ExifTool or internal) and the user chooses the read priority of every duplicated field. Rules that apply to all writes (pixels untouched, atomic replacement, ExifTool recovery, one write per file, sidecar naming) are in `../invariants.md` §1–2 and are not repeated here.
+Reads the metadata of a photo (camera data, rating, colour, pick, title, description, GPS, keywords, face regions, orientation) from the file and its sidecar, and writes the user's edits back via ExifTool so that digiKam, Lightroom and Windows Explorer see them. The user chooses the read priority of every duplicated field. Rules that apply to all writes (pixels untouched, atomic replacement, ExifTool recovery, one write per file, sidecar naming) are in `../invariants.md` §1–2 and are not repeated here.
 
 ## Files
 | File | Role |
 |---|---|
-| `exif.rs` | Reading (`read_exif`, `read_marking`), XMP text editing (`update_xmp_*`), JPEG segment rewriting (XMP / IPTC / comment), sidecar targeting, internal write entry points, "all metadata" view |
+| `exif.rs` | Reading (`read_exif`, `read_marking`), XMP/IPTC helpers (incl. resized-copy sidecar/XMP helpers), sidecar targeting, write dispatchers, "all metadata" view |
 | `exiftool.rs` | ExifTool detection, process pool, tag arguments, recovery after failure, per-file locks |
 | `metadata-writes.js` | The single write circuit of the right panel (Keywords and Description tabs, faces) |
-| `metadata-settings.js` | Settings > Metadata: writer choice, ExifTool path and status, read-order tables |
+| `metadata-settings.js` | Settings > Metadata: ExifTool path and status, read-order tables |
 | `order-list.js` | Reorderable table component (drag handle / arrows), stores the order in localStorage |
 | `marking-settings.js` | Settings > Metadata > marking: colours and pick on/off |
 | `rights.rs` | Author and rights: presets table (`author_presets`), `get_photo_rights`, `get_authors` (see "Author and rights" below) |
@@ -24,7 +24,7 @@ Reads the metadata of a photo (camera data, rating, colour, pick, title, descrip
 Called by `library_sync::read_photo` for every scan and sync. Videos go to `read_video_metadata` (sidecar only, no file read).
 1. `parse_xmp` reads the XMP: the embedded packet (JPEG APP1 via `read_embedded_xmp`, HEIC via `heif::read_xmp`) and the sidecar chosen by `read_sidecar` (never both merged for the same image). For rating, colour, pick, title and description, each source missing in the embedded packet is looked up in the sidecar; face regions come from the embedded packet, else from the sidecar.
 2. `read_jpeg_fields` reads IPTC (keywords, ObjectName, Caption) and the JPEG comment.
-3. For every EXIF source returned by `thumbnails::read_exif_sources` (several for CR3 / RAF): camera data (date, aperture, ISO, lens, size, flash), GPS, orientation; and, unless `exiftool::skip_exif_metadata()`, the Windows fields XPKeywords, XPTitle, XPComment, Rating, RatingPercent, ImageDescription, UserComment. A source that lacks a value never erases the one found by another (`keep`).
+3. For every EXIF source returned by `thumbnails::read_exif_sources` (several for CR3 / RAF): camera data (date, aperture, ISO, lens, size, flash), GPS, orientation, and the Windows fields XPKeywords, XPTitle, XPComment, Rating, RatingPercent, ImageDescription, UserComment. A source that lacks a value never erases the one found by another (`keep`).
 4. Flat keywords are merged without duplicates (XMP `dc:subject`, IPTC, XPKeywords), then `add_hierarchical_leaves`. XMP XML entities, including numeric references such as `&#39;` used for apostrophes by ExifTool, are decoded before values are compared or stored.
 5. `resolve_values` picks, for rating, colour, pick, title, description and GPS, the first source with data in the user's order. `ExifMetadata` keeps every source value (`rating_sources`, `text_sources`…) so that write checks can look at one source.
 6. Orientation is resolved with `orientation::resolve` (see `thumbnails-and-previews.md`); HEIC dimensions and orientation come from the container.
@@ -34,21 +34,19 @@ Called by `library_sync::read_photo` for every scan and sync. Videos go to `read
 ### Read priorities
 Six sources lists are in `exif.rs` as `*_SOURCE_IDS` constants with a matching `*_PRIORITY` static: `RATING`, `COLOR`, `PICK`, `TITLE`, `DESCRIPTION`, `GPS`, plus `HIERARCHY_IDS` (5 keyword formats, `HIERARCHY_PRIORITY`) and `faces::REGION_PRIORITY`. The frontend keeps each order in localStorage (`keywordFormatOrder`, `titleFormatOrder`, `descriptionFormatOrder`… one key per kind, listed in `READ_ORDERS` of `metadata-settings.js`; `resolveOrder` in `order-list.js` completes an old stored order with new ids) and sends it with `set_metadata_read_order { kind, order }` (command in `keywords.rs`, forwards to `exif::set_read_priority`; kinds `keywords`, `title`, `description`, `rating`, `color`, `pick`, `gps`, `faces`; `order` must contain each id exactly once, else `invalid_order`; unknown kind → `invalid_kind`). Orders are sent at startup (`initMetadataSettings`) and on each change; a new order only applies to files read afterwards, so the user must rescan. Value 0 is an answer; only absence falls through.
 
-Display-only rows: flat keyword fields (`dc:subject`, IPTC, XPKeywords) have no priority. With the internal writer and "ignore EXIF" (`skipExifWithInternalWriter`, default on), EXIF rows are greyed (`markIgnored`) because that writer neither writes nor erases them.
+Display-only rows: flat keyword fields (`dc:subject`, IPTC, XPKeywords) have no priority.
 
 ### Writing (backend)
-Entry points: `exif::write_metadata` (keywords, title, description, face regions, GPS: a `MetadataUpdate`, `None` field = untouched) and `exif::write_xmp_metadata` (rating, colour, pick: an `XmpEdit`). Callers: `keywords::run_write`, `update_photos_marking` (main.rs), `geolocation`, `faces`.
-1. If `exiftool::is_enabled()` → `exiftool::write_metadata` / `write_marking` (see below). Otherwise internal:
-2. `exiftool::path_lock(path)` (16 striped mutexes) is taken.
-3. HEIC / HEIF / HIF: `heif::update_xmp` writes the container XMP; `Unsupported(reason)` falls back to the sidecar with a log line.
-4. JPEG: `write_jpeg_metadata` rewrites XMP (`jpeg_replace_xmp` + `update_xmp_all`), IPTC (`jpeg_replace_iptc`: keywords, ObjectName, Caption) and the comment in one pass, then `write_file_atomically`. If the output is identical to the input nothing is written.
-5. Everything else: `write_xmp_sidecar_with`, which refuses (`image_gone`) if the image vanished, builds the target with `sidecar_target` and only writes if the content changed. A removal-only update on an image without XMP creates nothing (`adds_values`).
-6. EXIF is never modified by the internal path.
+Entry points: `exif::write_metadata` (keywords, title, description, face regions, GPS: a `MetadataUpdate`, `None` field = untouched) and `exif::write_xmp_metadata` (rating, colour, pick: an `XmpEdit`), which delegate to `exiftool::write_to` and `exiftool::write_marking`. Callers: `keywords::run_write`, `update_photos_marking` (main.rs), `geolocation`, `faces`.
+1. `exiftool::path_lock(path)` (16 striped mutexes, normalized path on Windows) is taken.
+2. Read-only files are refused upfront before invoking ExifTool.
+3. JPEG and HEIC / HEIF / HIF are written in the file (on JPEG, `-Photoshop:IPTCDigest=new` is recomputed, or removed when IPTC is cleared). Everything else goes to a `.xmp` sidecar (`write_to` refuses `image_gone` if the image vanished; a new sidecar is created as a unique temp file `<image>.<pid>-<seq>.photoboggan-tmp.xmp`, flushed via `flush_to_disk` + `sync_parent_dir`, and renamed; a removal-only update on an image without XMP creates nothing).
+4. Arguments pass `--` before the target path; `struct_value` escapes `#` and leading/trailing spaces.
 
-The same field set is written by both writers; ExifTool adds the JPEG-only EXIF fields (XPKeywords, XPTitle, XPComment, ImageDescription, UserComment, Rating, RatingPercent). Lists of tags: doc comments of `exiftool::write_metadata` and `write_marking`. IPTC fields are cut to their legal length (`truncate_utf8`: ObjectName 64 bytes, Caption 2000, JPEG comment 65533); `text_mismatch` applies the same cuts when verifying.
+ExifTool writes XMP, IPTC (on JPEG), and JPEG-only EXIF fields (XPKeywords, XPTitle, XPComment, ImageDescription, UserComment, Rating, RatingPercent). Lists of tags: doc comments of `exiftool::write_to` and `write_marking`. IPTC fields are cut to their legal length (`truncate_utf8`: ObjectName 64 bytes, Caption 2000, JPEG comment 65533); `text_mismatch` applies the same cuts when verifying.
 
 ### Author and rights
-Five fields, each read from several schemes (first one with data in the user's order wins) and written to all of them by both writers (a field set to `None` in `MetadataUpdate` is untouched, `Some("")` removes it everywhere):
+Five fields, each read from several schemes (first one with data in the user's order wins) and written to all of them by ExifTool (a field set to `None` in `MetadataUpdate` is untouched, `Some("")` removes it everywhere):
 
 | Field (`MetadataUpdate` / column) | XMP | IPTC | EXIF (ExifTool, JPEG only) | Source ids |
 |---|---|---|---|---|
@@ -59,9 +57,9 @@ Five fields, each read from several schemes (first one with data in the user's o
 | Author e-mail (`author_email`) | `Iptc4xmpCore:CreatorContactInfo` / `CiEmailWork` | - | - | `xmp-iptc-core` |
 
 - Several authors are typed separated by `;` (`split_authors`: trimmed, empty entries dropped) and shown `A; B`. `dc:creator` and By-line get one item per author; `tiff:Artist` and EXIF `Artist` get the joined string.
-- `dc:rights` and `xmpRights:UsageTerms`: only `x-default` is written, every other language is erased (`update_xmp_rights` removes the property first; ExifTool writes the tag without a language suffix). The translations of `tiff:Copyright` are kept.
-- `CreatorContactInfo` is read whole (`parse_contact_info`: element or nested `rdf:Description` attribute forms, any prefix) into `ExifMetadata::contact` and rewritten whole when the e-mail changes (`contact_info_element`): address, phone and web address are never lost, and the structure disappears only when it becomes empty. ExifTool merges `XMP-iptcCore:CreatorWorkEmail` into the existing structure itself.
-- `ExifMetadata::rights` is the resolved value (`Rights`), `rights_sources` keeps each source (`RightsSources`) for `rights_mismatch`, called at the end of `text_mismatch` with the same source rules as the title (XMP always, IPTC for a JPEG, EXIF for a JPEG written by ExifTool), IPTC cuts and the `©` -> `(c)` conversion.
+- `dc:rights` and `xmpRights:UsageTerms`: only `x-default` is written, every other language is erased (ExifTool writes the tag without a language suffix). The translations of `tiff:Copyright` are kept.
+- `CreatorContactInfo` is read whole (`parse_contact_info`: element or nested `rdf:Description` attribute forms, any prefix) into `ExifMetadata::contact`; ExifTool merges `XMP-iptcCore:CreatorWorkEmail` into the existing structure itself.
+- `ExifMetadata::rights` is the resolved value (`Rights`), `rights_sources` keeps each source (`RightsSources`) for `rights_mismatch`, called at the end of `text_mismatch` with the same source rules as the title (XMP always, IPTC and EXIF for a JPEG), IPTC cuts and the `©` -> `(c)` conversion.
 - Reading priorities: kinds `author`, `copyright`, `credit`, `usageTerms`, `authorEmail` of `set_metadata_read_order` (storage keys `authorFormatOrder`… in `READ_ORDERS`).
 
 Storage (`db.rs`, `library_sync::read_photo`, `keywords::run_write`): five `photos` columns. Only `author` is part of `Photo` and `PHOTO_COLUMNS` (it travels with the photo list for the Author filter); the other four are `#[serde(skip)]` on `Photo` and read on demand by `rights::get_photo_rights` for the selection. `run_write` stores the values read back from the file in the same transaction as title and description and returns them in `KeywordWritten` (flattened `rights`). Photos read before these columns existed have empty values until a rescan.
@@ -73,20 +71,20 @@ Frontend: `description-panel.js` handles the five fields exactly like the title 
 Details worth knowing:
 - Keywords: all active paths go to six places (`dc:subject` leaves from `keyword_leaves`, and the five hierarchical formats; ACDSee as XML text); an empty list removes them.
 - Title / description: empty string = remove from all sources. With ExifTool, `lang_alt_tag` replaces only the `x-default` entry and keeps translations.
-- Regions: MWG and Microsoft RegionInfo (`update_xmp_regions` / `region_args`); ACDSee is read but not written. Rotation rewrites them (`rotate_xmp_regions`).
+- Regions: MWG and Microsoft RegionInfo (`region_args` in `exiftool.rs`); ACDSee is read but not written. Non-face MWG regions (`Pet`, `Focus`, `BarCode`…) are preserved when writing faces (`regions: None` leaves existing regions untouched). Rotation rewrites them (`rotate_xmp_regions`).
 - Pick: `pick_values` maps `picked` / `rejected` / `pending` / `none` to `digiKam:PickLabel`, `xmpDM:pick`, `xmpDM:good`. Colour is written to `xmp:Label`, `photoshop:Urgency`, `digiKam:ColorLabel`.
 
 ### Written fields (reference)
 - Rating: `xmp:Rating` (0–5), `MicrosoftPhoto:Rating`, `acdsee:rating`. Colour: `xmp:Label` (Red, Orange, Yellow, Green, Blue, Magenta, Grey, Black, White or empty), `photoshop:Urgency`, `digiKam:ColorLabel`.
 - Pick (`pick_flag`): `none`, `pending` (digiKam only: `PickLabel=2`, `pick=0`, no `good`), `picked`, `rejected`, written to `digiKam:PickLabel` (0 none, 1 rejected, 2 pending, 3 picked), `xmpDM:pick` (−1, 0, 1), `xmpDM:good` (True / False, removed without flag). The first source of the pick read order decides the buttons offered (digiKam: none / pending / picked / rejected; `xmpDM:*`: none / picked / rejected), shown as a white / yellow / green / red flag.
-- Keywords: active paths replace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP`, `acdsee:categories` (XML tree as text, `Assigned="1"` = active) and IPTC 2:25 of JPEGs. XPKeywords is read, and written only by ExifTool (JPEG; names containing `;` left out). Reading: embedded XMP before sidecar, default hierarchy order digiKam > Lightroom > Media Pro > Microsoft > ACDSee; the flat fields never change the tree.
+- Keywords: active paths replace `dc:subject`, `digiKam:TagsList`, `lr:hierarchicalSubject`, `mediapro:CatalogSets`, `MicrosoftPhoto:LastKeywordXMP`, `acdsee:categories` (XML tree as text, `Assigned="1"` = active) and IPTC 2:25 of JPEGs. XPKeywords is read and written on JPEG (names containing `;` left out). Reading: embedded XMP before sidecar, default hierarchy order digiKam > Lightroom > Media Pro > Microsoft > ACDSee; the flat fields never change the tree.
 
 ### ExifTool (`exiftool.rs`)
-- **Settings** (`set_metadata_writer`: mode `exiftool` / `internal`, custom path, `skip_exif`): Rust statics, resent by `initMetadataSettings` at startup. Changing mode or path clears the detected launcher and calls `shutdown`; changing only `skip_exif` does not.
-- **Detection** (`detect`, `probe` = `exiftool -ver`): the custom path alone if set (no silent fallback), else the bundled copy (`exiftool.exe` on Windows, `perl exiftool` elsewhere), else `PATH`. The result is cached until a setting change or `get_exiftool_status`, which re-detects (the Settings tab calls it on opening).
-- **Pool** (`acquire` / `release`): persistent `-stay_open` processes, at most `MAX_PROCESSES` = 3 (same as the 3 write threads of `keywords::run_write`), a caller waits on a condvar when all are busy. `watch_idle` stops processes unused for `IDLE_TIMEOUT` (45 s); `COMMAND_TIMEOUT` (120 s) kills a stuck process and counts a failure; a failed or outdated-generation process is not reused. `exiftool_prewarm` starts one process when the user edits a first keyword. `shutdown` runs at window close (`main.rs`); on Windows a Job object (`bind_to_app_lifetime`) kills ExifTool if the app dies without it.
+- **Settings** (`set_metadata_writer`: custom `exiftoolPath`): Rust static, resent by `initMetadataSettings` at startup. Changing the path clears the detected launcher and calls `shutdown`.
+- **Detection** (`detect`, `probe` = `exiftool -ver`): the custom path alone if set (no silent fallback), else the bundled copy (`exiftool.exe` on Windows, `perl exiftool` elsewhere), else `PATH` (also checks Homebrew paths on macOS). The result is cached until a setting change or `get_exiftool_status`, which re-detects (the Settings tab calls it on opening).
+- **Pool** (`acquire` / `release`): persistent `-stay_open` processes, at most `MAX_PROCESSES` = 3 (same as the 3 write threads of `keywords::run_write`), a caller waits on a condvar when all are busy. `watch_idle` stops processes unused for `IDLE_TIMEOUT` (45 s); `COMMAND_TIMEOUT` (120 s) kills a stuck process and counts a failure; a failed or outdated-generation process is not reused. `exiftool_prewarm` starts one process when the user edits a first keyword. `shutdown` runs at window close (`RunEvent::ExitRequested` in `main.rs`, with `CLOSING` flag and a bounded drain of active writes); on Windows a Job object (`bind_to_app_lifetime`) kills ExifTool if the app dies without it.
 - **A write** (`run`): refuses values containing a newline; success only if ExifTool prints "1 files updated / unchanged / created"; `Error` lines on stderr = failure; `Warning` lines are logged only. `overwrite` always adds `-overwrite_original`; on failure `recover_after_failure` pushes a `Recovery` (see `../invariants.md` §1.3); `take_write_recoveries` (main.rs) writes the log file to `<data dir>/logs/` and the frontend shows it.
-- **Targets** (`target_of`): JPEG and HEIC in the file; all else in the sidecar, created through a temp name then renamed (`write_to`), or copied from the shared `photo.xmp` (`seed`) first.
+- **Targets** (`target_of`): JPEG and HEIC in the file; all else in the sidecar, created through a unique temp name then renamed (`write_to`), or seeded from a shared `photo.xmp` (`seed`, without recording a false `Recovery`).
 
 ### Frontend write circuit (`metadata-writes.js`)
 1. Each right-panel tab calls `registerEditor({ isDirty, pendingItems, afterWrite, discard, … })`; edits stay pending until Apply, Ctrl+Enter, selection change (confirmation, or automatic with `keywordsAutoApply`) or app close. The faces editor has `scope: 'library'` (pending across the whole library: no question on selection change, written only on explicit request or at close).
@@ -102,25 +100,24 @@ Marking (rating / colour / pick) does not use this circuit: it goes through `upd
 - IPC: `set_metadata_writer`, `get_exiftool_status`, `exiftool_prewarm` (exiftool.rs); `set_metadata_read_order` (keywords.rs); `get_photo_details` (→ `read_metadata_details`, the "all metadata" view: EXIF, XMP properties, IPTC, values capped at 1000 chars); `take_write_recoveries`, `update_photos_marking` (main.rs); `apply_metadata_changes` (keywords.rs, see `keywords.md`). Signatures: `../generated/ipc-commands.md`.
 - Events: none.
 - Database: none directly (callers store what `read_exif` returns).
-- Settings: `metadataWriter`, `exiftoolPath`, `skipExifWithInternalWriter`, `metadataOrderKind`, `<kind>FormatOrder` keys, `keywordsAutoApply`, `keywordsAutoApplyAsked`, `colorLabelEnabled`, `pickLabelEnabled` (`../generated/config.md`).
+- Settings: `exiftoolPath`, `metadataOrderKind`, `<kind>FormatOrder` keys, `keywordsAutoApply`, `keywordsAutoApplyAsked`, `colorLabelEnabled`, `pickLabelEnabled` (`../generated/config.md`).
 
 ## Dependencies
 - Uses: `heif.rs` (HEIC XMP), `thumbnails::read_exif_sources`, `orientation.rs`, `faces` (region types, `reading_enabled`), `video` (`is_video_path`), `library_sync::is_photo_file`.
 - Used by: `library_sync` (read), `keywords::run_write`, `main.rs` marking / rotation, `geolocation`, `faces`, `orientation` (`write_xmp_orientation`, ExifTool rotation args).
 
 ## Invariants and sensitive areas
-- ⚠ sensitive: any new written field must be added to both writers (`metadata_args` / `update_xmp_all` / `jpeg_replace_iptc`) and to the read-back checks, or one writer silently diverges (`../recipes.md`).
+- ⚠ sensitive: any new written field must be added to `exiftool::metadata_args` and to the read-back checks, or writes fail with a mismatch (`../recipes.md`).
 - ⚠ sensitive: `sidecar_target` / `read_sidecar` / `sidecar_candidates` are the only place sidecar names are built; reading and writing must stay in step (`../invariants.md` §2.2).
-- ⚠ sensitive: read priorities, `skip_exif`, and the writer mode are process-wide statics; a test touching them must be the only one (AGENTS.md §5.H).
-- ⚠ sensitive: `jpeg_replace_*` parse JPEG segments by hand; `check_jpeg_structure` rejects broken files rather than guessing.
+- ⚠ sensitive: read priorities are process-wide statics; a test touching them must be the only one (AGENTS.md §5.H).
 - Marking writes verify only the sources the file can hold: a RAW whose EXIF rating comes first in the order is not checked on that source (doc of `read_marking`).
 - Every write (`update_photos_marking`, `rotate_photos`, `apply_metadata_changes`, geolocation erase / restore) records `photos.effective_modified` (later of the image's and its active sidecar's mtime) and returns it to the interface (`dates` of `MarkingResult`, `RotatedPhoto`, `KeywordWritten`, `GeoPhoto`: field `effective_modified`). `photos.modified` is still only the image's mtime, so a sidecar write never makes `sync_library` re-read the photo (`library-and-database.md`). A removal on an image without sidecar writes nothing, and the recorded date is unchanged.
 
 ## Tests
-`tests/exif.rs` (46 fast tests: internal writer, sidecars, markings, atomic write, IPTC, regions) and `tests/exiftool.rs` (19, mostly `#[ignore]`: run `cargo test exiftool:: -- --ignored --test-threads=1`; the recovery tests are fast). Lists: `../generated/tests.md`. Gap: no test of the frontend circuit (AGENTS.md §5.H), nor of `order-list.js`.
+`tests/exif.rs` (fast tests: reading, sidecars, markings, IPTC cuts, regions) and `tests/exiftool.rs` (`cargo test exiftool:: -- --ignored --test-threads=1`; recovery, lock and escaping tests are fast). Lists: `../generated/tests.md`. Gap: no test of the frontend circuit (AGENTS.md §5.H), nor of `order-list.js`.
 
 ## How to extend
-1. New written field: add it in `MetadataUpdate` / `XmpEdit`, in `update_xmp_all` (+ IPTC if relevant) and in `exiftool::metadata_args`, then verify it in `keywords::run_write` read-back and add a test in `tests/exif.rs` (`../recipes.md`).
+1. New written field: add it in `MetadataUpdate` / `XmpEdit` and in `exiftool::metadata_args`, then verify it in `keywords::run_write` read-back and add tests in `tests/exif.rs` / `tests/exiftool.rs` (`../recipes.md`).
 2. New readable source for an existing field: add its id to the `*_SOURCE_IDS` array (extend the `[usize; N]` statics), fill the slot in `read_exif` / `parse_xmp`, add the row to `READ_ORDERS` in `metadata-settings.js` and locale keys in `en.json` / `fr.json`.
 3. New editor tab: `registerEditor` with `pendingItems` returning items for `apply_metadata_changes`.
 

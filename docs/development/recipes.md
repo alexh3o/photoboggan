@@ -1,4 +1,4 @@
-<!-- verified: 2d2e8b4 | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
+<!-- verified: 46133ac | sources: src-tauri/src/main.rs, src/defaults.jsonc, src/i18n.js, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src/settings-defaults.js, src/main.js, src/task-queue.js, src/format-filters.js, src-tauri/src/library_sync.rs, src-tauri/capabilities/default.json -->
 
 # Maintenance recipes
 
@@ -35,14 +35,13 @@ Examples: `keywordsAutoApply` (frontend only, `metadata-writes.js`), `thumbnailQ
 
 Example: **title** (`MetadataUpdate.title`). Read `invariants.md` §1–2 first.
 
-1. Data path: `KeywordWriteItem` (keywords.rs) → `MetadataUpdate` (exif.rs) → both writers. Add the field to both structs and to `MetadataUpdate::adds_values` (it decides whether a missing sidecar is created).
-2. **Internal writer** (exif.rs): XMP in `update_xmp_all` (title: `update_xmp_texts`, `XMP_TITLE_PROPERTIES`); for JPEG also IPTC in `write_jpeg_metadata` (`IptcChanges`, truncated with `truncate_utf8`).
-3. **ExifTool writer** (exiftool.rs): `metadata_args` (title: `XMP-dc:Title` lang-alt, `XMP-acdsee:Caption`, JPEG `IPTC:ObjectName` 64 bytes, `EXIF:XPTitle`). Update the doc comment of `exiftool::write_metadata`.
-4. **Reading**: sources and priority (`TITLE_SOURCE_IDS`, `TITLE_PRIORITY`, `set_read_priority`) and `read_exif`; a new catalogue column if it is shown or filtered (recipe 5).
-5. **Verification after write**: extend `text_mismatch` (or add a `*_mismatch`) so a value the file did not keep is a failure.
-6. **Frontend**: pending value in the editor (`description-panel.js` for title), sent through `applyPending` / `apply_metadata_changes` (`metadata-writes.js`). Never write outside that circuit.
-7. Tests: internal path in `tests/exif.rs` calling `write_jpeg_metadata` / `write_xmp_sidecar_with` directly (e.g. `empty_title_and_description_remove_them`); ExifTool path in `tests/exiftool.rs` with `#[ignore = "intégration : lance ExifTool"]`. Never toggle the global writer setting in a fast test.
-- Trap: forgetting one writer gives files that differ by setting; AGENTS.md §5.C requires both.
+1. Data path: `KeywordWriteItem` (keywords.rs) → `MetadataUpdate` (exif.rs) → `exiftool::write_to`. Add the field to both structs and to `MetadataUpdate::adds_values` (it decides whether a missing sidecar is created).
+2. **ExifTool writer** (exiftool.rs): `metadata_args` (title: `XMP-dc:Title` lang-alt, `XMP-acdsee:Caption`, JPEG `IPTC:ObjectName` 64 bytes, `EXIF:XPTitle`). Update the doc comment of `exiftool::write_to`.
+3. **Reading**: sources and priority (`TITLE_SOURCE_IDS`, `TITLE_PRIORITY`, `set_read_priority`) and `read_exif`; a new catalogue column if it is shown or filtered (recipe 5).
+4. **Verification after write**: extend `text_mismatch` (or add a `*_mismatch`) so a value the file did not keep is a failure.
+5. **Frontend**: pending value in the editor (`description-panel.js` for title), sent through `applyPending` / `apply_metadata_changes` (`metadata-writes.js`). Never write outside that circuit.
+6. **Tests**: ExifTool integration tests in `tests/exiftool.rs` with `#[ignore = "intégration : lance ExifTool"]` (run with `--test-threads=1`), and fast parsing/helper tests in `tests/exif.rs`.
+- Trap: forgetting to add the field to both `metadata_args` and `read_exif` verification causes writes to fail with a mismatch; AGENTS.md §5.C requires both.
 
 ## 4. Add a file format
 
@@ -52,7 +51,7 @@ Lists to update (search the extension `"cr2"` to find them all, there is no sing
 2. RAW: the single backend list `thumbnails::RAW_EXTENSIONS` (`is_raw_extension`, `is_raw_path`), used by the catalogue, previews, faces, resize and content search.
 3. Frontend: `RAW_EXTENSIONS` / `HEIF_EXTENSIONS` / `VIDEO_EXTENSIONS` / `RASTER_EXTENSIONS` (format-filters.js), used by `isRawPath` / `isVideoPath` (file-kinds.js).
 4. Thumbnail: `thumbnails::render_thumbnail` must decode it, or return an error so the webview fallback (`save_thumbnail_cache`) is used. Full screen: if the webview cannot show it, route it through `get_raw_preview_path`.
-5. Metadata target: `exif::write_metadata` / `exiftool::target_of` decide in-file vs sidecar; a new non-JPEG format defaults to a sidecar.
+5. Metadata target: `exiftool::target_of` decides in-file vs sidecar; a new non-JPEG / non-HEIC format defaults to a sidecar.
 6. Duplicates: decide which bytes `duplicates::layout_of` hashes; changing it requires `LAYOUT_VERSION` + 1.
 7. Integrity check (`integrity.rs`) and resize (`resize.rs`): check what they do with the extension.
 8. Tests `supported_extensions_ignore_case_and_sidecars` (library_sync) and `raw_extensions_match_the_frontend` (thumbnails: backend and frontend RAW lists must be equal); the user-facing list of formats is `docs/USER_GUIDE.md`.

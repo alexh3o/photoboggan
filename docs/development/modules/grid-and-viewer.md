@@ -1,4 +1,4 @@
-<!-- verified: 2d2e8b4 | sources: src/main.js, src/undo.js, src/undo.css, src/list-view.js, src/list-view.css, src/fullscreen.js, src/preview-zoom.js, src/drag-drop.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
+<!-- verified: 46133ac | sources: src/main.js, src/undo.js, src/undo.css, src/list-view.js, src/list-view.css, src/fullscreen.js, src/preview-zoom.js, src/drag-drop.js, src/slideshow.js, src/toolbar-a11y.js, src/file-dates.js, src/orientation.js, src/file-kinds.js, index.html, src/styles.css -->
 # Grid and viewer: virtual grid, list panel, thumbnails, selection, sort, full screen, compare, marking, drag-and-drop, slideshow (main.js, part 2 + list-view.js + fullscreen.js + preview-zoom.js + drag-drop.js)
 
 ## Purpose
@@ -40,7 +40,7 @@ What the user looks at and acts on: the virtual thumbnail grid (square, framed, 
 5. Modified files: `photoVersions` adds `?v=<time>` to URLs so a rewritten image is not served from the webview cache.
 
 ### Orientation, `view_fix`, RAW / HEIC / video in full screen
-- The webview applies only the EXIF orientation of an original. When the winning orientation is XMP (internal writer, sidecar), the backend sets `photo.view_fix` (1–8) and the frontend applies the rest (`orientationMatrix`, `swapsSides` from `src/orientation.js`; used in `layoutPreviewSlot` in `preview-zoom.js`, canvas fallback). Cached thumbnails and generated previews are already turned: their `view_fix` is 1. Rules of precedence: `orientation::resolve` (see `thumbnails-and-previews.md`).
+- The webview applies only the EXIF orientation of an original. When the winning orientation is XMP (sidecar), the backend sets `photo.view_fix` (1–8) and the frontend applies the rest (`orientationMatrix`, `swapsSides` from `src/orientation.js`; used in `layoutPreviewSlot` in `preview-zoom.js`, canvas fallback). Cached thumbnails and generated previews are already turned: their `view_fix` is 1. Rules of precedence: `orientation::resolve` (see `thumbnails-and-previews.md`).
 - `getPhotoDisplayUrl`: normal formats use the original (`photoUrl`); RAW, HEIC/HEIF and videos (`needsGeneratedPreview`) call `get_raw_preview_path` once per photo (promise memoised in `rawPreviewPromises`; failure is not memoised; a video never falls back to the file itself).
 - Extension lists (`RAW_EXTENSIONS`, `HEIF_EXTENSIONS`, `VIDEO_EXTENSIONS`) come from `format-filters.js`; `isRawPath` and `isVideoPath` (`src/file-kinds.js`) test a path against them. Videos are never played inside the app: `openFullscreen` sends them to `open_video_externally`.
 

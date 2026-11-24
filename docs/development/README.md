@@ -1,4 +1,4 @@
-<!-- verified: afbebc7 | sources: scripts/gen-docs.mjs, AGENTS.md -->
+<!-- verified: 46133ac | sources: scripts/gen-docs.mjs, AGENTS.md -->
 # Developer documentation — photoboggan
 
 Entry point for developers and AI assistants who maintain or extend the application. For the product itself, see `../USER_GUIDE.md`; for the rules AI agents must follow in every session, see `../../AGENTS.md`.
@@ -38,7 +38,7 @@ Rule of thumb: if a fact can be extracted from the code by a script, it is in `g
 
 ## Conventions
 
-- Reference code by **name** (`fn write_xmp_sidecar_with` in exif.rs), not by line number.
+- Reference code by **name** (`fn read_exif` in `exif.rs`), not by line number.
 - `⚠ unverified:` marks something the author could not confirm in the code. `⚠ sensitive:` marks an area where a change is likely to cause a regression.
 - Every hand-written doc starts with `<!-- verified: <git hash | none> | sources: <files> -->`. See `_TEMPLATE.md` for the writing rules and the module template.
 

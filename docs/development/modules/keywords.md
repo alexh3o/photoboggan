@@ -1,4 +1,4 @@
-<!-- verified: 6975837 | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
+<!-- verified: 46133ac | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
 
 # Hierarchical keywords and description
 
@@ -80,11 +80,11 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 
 ## Tests
 
-`tests/keywords.rs` (14): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation, `keyword_filter_tree_in` active ids, `keyword_descendant_photos_in` strict descendants; and on synthetic JPEGs: `run_write` writes then stores the re-read (pixels untouched), unknown keyword or photo fails without touching the file, rename rewrites every file of the subtree, delete removes the subtree, delete keeps the node when a file fails. `run_write` / `run_rename` / `run_delete` take a `WriteEnv` (cache dirs, progress callback, writer function; built from the `AppHandle` by `WriteEnv::of`), so tests pass the internal writer (`exif::write_metadata_internal`) without touching the global setting. Gaps: title / description / faces / GPS through `run_write` (their check follows the global writer setting), the frontend.  `a_sidecar_write_moves_the_effective_date_but_never_the_image_date` verifies that a sidecar write updates effective_modified while leaving modified unchanged and that removing metadata without a sidecar creates nothing.
+`tests/keywords.rs` (14): case-insensitive uniqueness, only the leaf active and the file wins, stored ids after re-read, unknown photo skipped, database failure reported, name validation, `keyword_filter_tree_in` active ids, `keyword_descendant_photos_in` strict descendants; and on synthetic JPEGs: `run_write` writes then stores the re-read (pixels untouched), unknown keyword or photo fails without touching the file, rename rewrites every file of the subtree, delete removes the subtree, delete keeps the node when a file fails. `run_write` / `run_rename` / `run_delete` take a `WriteEnv` (cache dirs, progress callback, writer function; built from the `AppHandle` by `WriteEnv::of`), so fast tests pass a test stub writer without spawning ExifTool. Gaps: title / description / faces / GPS through `run_write`, the frontend.  `a_sidecar_write_moves_the_effective_date_but_never_the_image_date` verifies that a sidecar write updates effective_modified while leaving modified unchanged and that removing metadata without a sidecar creates nothing.
 
 ## How to extend
 
-1. New field written with the keywords (like title): add it to `KeywordWriteItem`, `MetadataUpdate`, both writers, the verification step in `run_write`, and a pending editor in the frontend (`registerEditor`); see `../recipes.md`.
+1. New field written with the keywords (like title): add it to `KeywordWriteItem`, `MetadataUpdate`, `exiftool::metadata_args`, the verification step in `run_write`, and a pending editor in the frontend (`registerEditor`); see `../recipes.md`.
 2. New tree operation (move, merge): compute affected photos with `photos_carrying`, write through `run_write` before changing the tree, and call `semantic_keywords::on_keywords_changed`.
 3. New keyword source format: see `metadata-read-write.md` (read priorities).
 

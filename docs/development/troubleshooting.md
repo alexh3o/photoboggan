@@ -1,4 +1,4 @@
-<!-- verified: 2d2e8b4 | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
+<!-- verified: 46133ac | sources: src-tauri/src/main.rs, src-tauri/src/exiftool.rs, src-tauri/src/integrity.rs, src-tauri/src/db.rs, src-tauri/tauri.conf.json -->
 # Troubleshooting
 
 Only problems visible in the code. Each entry: symptom → likely cause (named) → how to check → what to do. Entries that rest on a reading of one place only are marked `⚠ unverified`.
@@ -19,13 +19,13 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 
 ## Frequent failures
 
-**Metadata write refused, "ExifTool not found".** Cause: writer set to ExifTool (default) and the binary is missing. Search order: path chosen in Settings (`exiftoolPath`) > bundled `exiftool/` resource > `PATH` (`exiftool.rs`, messages "ExifTool introuvable…"). There is **no fallback** to the internal writer, by design (`invariants.md` §2.1). Check Settings > Metadata (`get_exiftool_status`). In a source checkout run `npm run fetch-exiftool` (the binary is not versioned, `src-tauri/vendor/exiftool/`). Fix: install ExifTool, set its path, or switch the writer to "internal" in Settings.
+**Metadata write refused, "ExifTool not found".** Cause: ExifTool is the sole metadata writer and the binary is missing. Search order: path chosen in Settings (`exiftoolPath`) > bundled `exiftool/` resource > `PATH` (`exiftool.rs`, messages "ExifTool introuvable…"; Homebrew paths checked on macOS). Check Settings > Metadata (`get_exiftool_status`). In a source checkout run `npm run fetch-exiftool` (the binary is not versioned, `src-tauri/vendor/exiftool/`). Fix: install ExifTool or set its path in Settings > Metadata.
 
 **A write is reported as failed although the file changed.** Cause: after every write the file is re-read and compared (`marking_mismatch`, `text_mismatch`, `regions_mismatch`, `gps_mismatch`); a difference is a failure, never a success (`invariants.md` §1.5). Typical reason: the read-priority order makes another source win (e.g. EXIF read before XMP for GPS, or an existing sidecar read first). Check the priority lists in Settings > Metadata and the failure details dialog.
 
 **ExifTool left a `<file>_exiftool_tmp` or the original seems gone (network share, FAT32 / exFAT).** Cause: ExifTool can delete the original before its final rename fails. `recover_after_failure` restores the only copy and never deletes it; the dialog lists the recoveries and the `logs/write-recovery_*.log` file names the files. If the original still exists the temp is removed; if the state is unclear the temp is kept (tests in `invariants.md` §1.3). Fix: check the log, keep the file it names.
 
-**Keywords / title written to the wrong place, or a sidecar next to a RAW looks unexpected.** Cause: sidecar targeting (`sidecar_target`): `photo.ext.xmp`, or an existing `photo.xmp` that is the image's own; a `photo.xmp` shared by two sidecar-writing images (RAW + DNG, HEIC + MOV) is never written. Check `logs/sidecar-conflicts_*.log` (renames made to avoid conflicts) and `modules/metadata-read-write.md`. HEIC / HEIF are written inside the container (sidecar only as an internal-writer fallback, AGENTS.md §5.C).
+**Keywords / title written to the wrong place, or a sidecar next to a RAW looks unexpected.** Cause: sidecar targeting (`sidecar_target`): `photo.ext.xmp`, or an existing `photo.xmp` that is the image's own; a `photo.xmp` shared by two sidecar-writing images (RAW + DNG, HEIC + MOV) is never written. Check `logs/sidecar-conflicts_*.log` (renames made to avoid conflicts) and `modules/metadata-read-write.md`. HEIC / HEIF are written inside the container (AGENTS.md §5.C).
 
 **Thumbnail or preview looks stale or wrong after a code change.** Cause: the cache name is a hash of path, size, mtime and `PREVIEW_VERSION` (`thumbnail_cache_file`). After changing what a thumbnail contains, bump `PREVIEW_VERSION` (see `modules/thumbnails-and-previews.md`). To rebuild without losing data, clear the thumbnail cache (`clear_thumbnail_cache`, called only when the cache size is changed in Settings > Storage, after a confirmation; "Remove orphan thumbnails" in the same tab only removes old names, `purge_orphan_cache`); the cache holds only derived files. Never use a flat `read_dir` on the cache (256 subfolders, AGENTS.md §5.A).
 
@@ -51,7 +51,7 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 
 **Place search says it failed.** Needs Internet (not offline) and returns at most 6 results; the provider limit is one request per second (`place_search.rs`). Errors show the HTTP status.
 
-**GPS cannot be erased for some photos.** Codes `gps_in_exif_internal_writer`, `gps_in_exif_sidecar_format`: the GPS is in EXIF and the active writer cannot change it (internal writer, or RAW / PNG / WebP written in a sidecar). Use ExifTool on a JPEG / HEIC (`modules/maps-and-geolocation.md`).
+**GPS cannot be erased for some photos.** Code `gps_in_exif_sidecar_format`: the GPS is in EXIF and the file uses a sidecar format (RAW / PNG / WebP) where ExifTool writes only the `.xmp` sidecar (`modules/maps-and-geolocation.md`).
 
 **Face names or keywords are not in the file yet.** Face edits are `dirty` until written (button, Ctrl+Enter, Apply, or on closing the app). "Pending faces" lists them; `discard_pending_face_writes` drops them (`modules/faces.md`).
 

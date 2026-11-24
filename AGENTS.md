@@ -59,7 +59,7 @@
 
 ### C. Métadonnées
 
-- **Deux chemins d'écriture** (`metadataWriter`) : **ExifTool** (défaut) ou **interne**. Mêmes champs dans les deux ; tout nouveau champ écrit va dans les deux et dans la relecture de vérification (`recipes.md` §3). ExifTool introuvable : écriture refusée, **jamais de repli** sur l'autre chemin.
+- **Écriture via ExifTool uniquement** : tout nouveau champ écrit va dans `exiftool.rs` (`metadata_args`) et dans la relecture de vérification (`recipes.md` §3). ExifTool introuvable : écriture refusée. Préserver les régions MWG non-visage lors de l'écriture des visages.
 - **Cibles** : JPEG et HEIC/HEIF dans le fichier ; le reste dans un sidecar. Les noms de sidecars ne sont construits que par `sidecar_target` / `read_sidecar` / `sidecar_candidates` ; un `photo.xmp` partagé avec une autre image n'est jamais écrit ; une image ne lit qu'un sidecar. Champs écrits et règles : `modules/metadata-read-write.md`, `invariants.md` §2.
 - **Priorités de lecture** réglables (`set_metadata_read_order`) : la première source qui a une donnée l'emporte, une valeur 0 est une réponse ; un nouvel ordre ne vaut que pour les fichiers relus.
 - **Mots-clés** : seul le dernier niveau d'un chemin est actif ; noms interdits `/`, `|`, `,`. Après toute écriture, le fichier est relu et la base reflète la relecture.
@@ -88,7 +88,7 @@
 ### H. Tests
 
 - Backend Rust uniquement : `#[cfg(test)] #[path = "tests/<module>.rs"] mod tests;` en fin de module, code dans `src-tauri/src/tests/`. Fichiers synthétiques dans un `tempfile` (`test_support.rs`) : jamais de vraie photo, de réseau ni de modèle.
-- Tout correctif sur l'écriture de métadonnées, la base ou la synchronisation s'accompagne d'un test qui l'aurait attrapé. Les tests d'écriture interne appellent les fonctions internes (`write_jpeg_metadata`, `write_xmp_sidecar_with`…).
+- Tout correctif sur l'écriture de métadonnées, la base ou la synchronisation s'accompagne d'un test qui l'aurait attrapé.
 - Test lent ou dépendant d'ExifTool : `#[ignore = "raison"]`. Un test ignoré qui échoue documente un écart connu : le dire, ne pas affaiblir l'assertion. État global (`sync_library`, réglages ExifTool) : un seul test par scénario. Détails : `testing.md`.
 
 ### I. Fonctions optionnelles et sensibles

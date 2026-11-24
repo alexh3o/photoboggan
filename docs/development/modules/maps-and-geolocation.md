@@ -1,4 +1,4 @@
-<!-- verified: afbebc7 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
+<!-- verified: 46133ac | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
 
 # Maps, map mode, location panel, geolocation editing, place search
 
@@ -37,8 +37,8 @@ Shows where photos were taken (small map in the Info panel, full map mode), lets
 
 **4. Erase / restore** (`geolocation.rs`, queued from `geo-tools.js` with `runLocked`):
 
-1. `erase_refusal`: a photo whose GPS is in EXIF is refused when that EXIF cannot be modified (`gps_in_exif_internal_writer`, `gps_in_exif_sidecar_format`: RAW, PNG, WebP…), because it would stay geolocated.
-2. Erase: coordinates saved in `erased_locations`, then removed from the file (`write_one`: `keep_cached_images` → `exif::write_metadata`, re-read, database updated from the re-read including `file_size`, `modified` and `effective_modified`). Restore: saved coordinates rewritten by the active writer. `GeoPhoto.effective_modified` is returned to `geo-tools.js` (`onPhotosUpdated`) so the grid re-sorts when ordered by modification date.
+1. `erase_refusal`: a photo whose GPS is in EXIF is refused when that EXIF cannot be modified (`gps_in_exif_sidecar_format`: RAW, PNG, WebP…), because it would stay geolocated.
+2. Erase: coordinates saved in `erased_locations`, then removed from the file (`write_one`: `keep_cached_images` → `exif::write_metadata`, re-read, database updated from the re-read including `file_size`, `modified` and `effective_modified`). Restore: saved coordinates rewritten by ExifTool. `GeoPhoto.effective_modified` is returned to `geo-tools.js` (`onPhotosUpdated`) so the grid re-sorts when ordered by modification date.
 3. The backup disappears by itself: SQLite triggers `erased_locations_relocated` (photo gets coordinates again, including by a rescan) and `erased_locations_removed` (photo deleted).
    Result `GeoWriteResult` = `updated`, `refused`, `failed`, `cancelled`.
 

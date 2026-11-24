@@ -1,4 +1,4 @@
-<!-- verified: 3c84e7f | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
+<!-- verified: 46133ac | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
 # Build, packaging and release
 
 ## Purpose
@@ -50,7 +50,7 @@ Models and ONNX Runtime are never in the installer (AGENTS.md §5.I). `dev_tools
 
 ### CI workflows
 The release workflow passes the `TAURI_PRIVATE_KEY` and `TAURI_PRIVATE_KEY_PASSWORD` GitHub secrets to Tauri as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; `bundle.createUpdaterArtifacts` must remain enabled so signed updater bundles are produced.
-- `tests.yml`: push to `main` and every pull request; `ubuntu-22.04` and `windows-latest`; builds the frontend, `cargo test`, and on Windows the ExifTool integration tests (`testing.md`).
+- `tests.yml`: push to `main` and every pull request; `ubuntu-22.04` and `windows-latest`; builds the frontend, `cargo test`, and runs the ExifTool integration tests on both platforms (`testing.md`).
 - `release.yml`: triggered by pushing a tag `v*`. A `create-release` job checks out the full history, installs `git-cliff` (`cargo install git-cliff`), generates the changelog of the latest tag (`git cliff --latest --strip header`) and creates the GitHub release for the tag as a **draft and pre-release** (`gh api`; the id is read from the creation response, and a draft left by a previous run is reused through `gh release view`), exposing its id. The `publish-release` matrix (`ubuntu-22.04` with `--bundles deb,appimage`; `windows-latest` with the `bundle.targets` defaults) then builds and uploads the bundles with `tauri-apps/tauri-action@v0`, given that id. Creating the release once beforehand is deliberate: tauri-action never updates an existing release, so it kept the body of whichever platform created the draft first. The build jobs use Node 22 and `npm install`; all jobs use Rust stable; the Windows job's Linux-only targets are skipped with a warning. The `.deb` and `.AppImage` names follow the version of `tauri.conf.json` (`photoboggan_<version>_amd64.deb`, `photoboggan_<version>_amd64.AppImage`); the updater ignores suffixes anyway (three numbers only).
 
 ### Release procedure (as implied by the files)

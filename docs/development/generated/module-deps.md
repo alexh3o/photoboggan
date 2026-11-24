@@ -13,14 +13,14 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `batch_rename` | exiftool, main, semantic | db |
 | `db` | albums, batch_rename, duplicates, faces, geolocation, keywords, main, privacy, private_maps, rights, semantic, similar | albums, duplicates, faces, geolocation, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
 | `duplicates` | db, privacy, video | db, semantic, similar |
-| `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, heif, keywords, library_sync, orientation, place_search, resize, rights, thumbnails |
-| `exiftool` | exif, main | batch_rename, exif, geolocation, orientation |
+| `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, keywords, library_sync, orientation, place_search, resize, rights, thumbnails |
+| `exiftool` | exif, faces, heif, main | batch_rename, exif, geolocation, orientation |
 | `face_detect` | face_models, face_recognize, faces, heif, keywords, main, onnx_runtime, semantic, thumbnails, video | exif, faces |
 | `face_models` | main, model_files | face_detect, place_search, private_maps, semantic, semantic_keywords, semantic_models, semantic_search, update_check |
 | `face_recognize` | faces, keywords | face_detect, faces |
-| `faces` | db, exif, face_detect, face_recognize, keywords, main, privacy, thumbnails | db, exif, face_detect, face_recognize, keywords, library_sync |
+| `faces` | db, exif, face_detect, face_recognize, keywords, main, privacy, thumbnails | db, exif, exiftool, face_detect, face_recognize, keywords, library_sync |
 | `geolocation` | db, exif, exiftool, keywords, library_sync, main | db, keywords |
-| `heif` | exif | exif, face_detect, integrity, orientation, resize, thumbnails |
+| `heif` | — | exif, exiftool, face_detect, integrity, orientation, resize, thumbnails |
 | `integrity` | heif, main | semantic |
 | `keywords` | db, exif, faces, geolocation, library_sync, main, privacy, semantic, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search, similar |
 | `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, keywords |
@@ -87,12 +87,12 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `map-view` | i18n, map-config, map-tile-protocol | location-panel, main, map-mode, maps-settings, private-zones-modal |
 | `maps-settings` | i18n, map-view, settings-defaults | location-panel, main, map-mode, private-zones-modal |
 | `marking-settings` | settings-defaults | list-view, main, stats |
-| `metadata-settings` | i18n, order-list, settings-defaults | main, photo-actions |
+| `metadata-settings` | i18n, order-list | main |
 | `metadata-writes` | i18n, settings-defaults | batch-rename, description-panel, drag-drop, faces-grid, faces-panel, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
 | `order-list` | i18n | metadata-settings |
 | `orientation` | — | list-view, main, preview-zoom |
 | `persons-view` | faces-panel, i18n | main |
-| `photo-actions` | duplicates, file-kinds, i18n, metadata-settings, metadata-writes, slideshow | albums-panel, batch-rename, drag-drop, faces-panel, filter-tags, folder-tree, geo-tools, keywords-panel, main, privacy, private-zones-modal, semantic-results, semantic-settings |
+| `photo-actions` | duplicates, file-kinds, i18n, metadata-writes, slideshow | albums-panel, batch-rename, drag-drop, faces-panel, filter-tags, folder-tree, geo-tools, keywords-panel, main, privacy, private-zones-modal, semantic-results, semantic-settings |
 | `place-search` | i18n, settings-defaults | map-mode |
 | `preview-zoom` | file-kinds, i18n, orientation | fullscreen, main |
 | `privacy` | filter-suggest, filter-tags, i18n, photo-actions, settings-defaults | main |
@@ -106,7 +106,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic-results` | albums-panel, faces-grid, i18n, keywords-panel, photo-actions, semantic, semantic-settings, semantic-tagging, settings-defaults | main |
 | `semantic-settings` | i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, list-view, main, semantic, semantic-keywords, semantic-results, semantic-tagging, stats |
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, semantic-keywords, semantic-results |
-| `settings-defaults` | — | albums-panel, faces-grid, faces-panel, folder-tree, fullscreen, histogram, i18n, info-author, list-view, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, slideshow, task-queue, update-check |
+| `settings-defaults` | — | albums-panel, faces-grid, faces-panel, folder-tree, fullscreen, histogram, i18n, info-author, list-view, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, slideshow, task-queue, update-check |
 | `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, list-view, main |
 | `sidebar-search` | i18n | albums-panel, faces-panel, folder-tree |
 | `slideshow` | i18n, settings-defaults | fullscreen, main, photo-actions |

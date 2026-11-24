@@ -1,4 +1,4 @@
-<!-- verified: 2d2e8b4 | sources: AGENTS.md, src/locales/en.json -->
+<!-- verified: 46133ac | sources: AGENTS.md, src/locales/en.json -->
 # Glossary
 
 One line per term, built from the terms used by the other docs. Module docs hold the details (link given when useful). Each term was checked against the code or the doc it links.
@@ -6,8 +6,8 @@ One line per term, built from the terms used by the other docs. Module docs hold
 ## Files, metadata, formats
 
 - **In-place**: the folders on disk are the only source of truth; the catalogue and caches are rebuildable copies (`architecture.md`).
-- **Sidecar**: a `.xmp` file next to an image that cannot hold metadata (RAW, PNG, video…) or when the internal writer cannot write inside it; named `photo.ext.xmp` or an existing own `photo.xmp` (`metadata-read-write.md`, `invariants.md` §2.2).
-- **Internal writer / ExifTool writer**: the two metadata write paths (setting `metadataWriter`); same fields, no fallback from one to the other.
+- **Sidecar**: a `.xmp` file next to an image that cannot hold metadata (RAW, PNG, video…); named `photo.ext.xmp` or an existing own `photo.xmp` (`metadata-read-write.md`, `invariants.md` §2.2).
+- **ExifTool**: the single metadata writer (`exiftool.rs`), using up to 3 persistent `-stay_open` processes (bundled copy or user-configured path).
 - **XMP / EXIF / IPTC**: metadata standards. XMP is the main written format; EXIF holds camera data and orientation; IPTC is also written in JPEG.
 - **Pick / reject (flag)**: four states `none`, `pending`, `picked`, `rejected` (`pick_flag`), written in `digiKam:PickLabel`, `xmpDM:pick`, `xmpDM:good`.
 - **Colour label / rating**: `xmp:Label` and 0–5 stars (`xmp:Rating` and compatible fields).
