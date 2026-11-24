@@ -197,7 +197,7 @@ export function choiceDialog({ title, message, buttons, scrollable = false }) {
 // Lance une opération qui réécrit des fichiers (application des modifications, suppression ou renommage d'un mot-clé), verrou d'écriture pris
 // pendant sa durée. `count` photos ≥ QUEUE_THRESHOLD : tâche de la file, avec progression et arrêt possible (sauf `forceDirect`) ; sinon commande
 // directe. `finish(entry, resultat, erreur)` traite la fin ; `resultat` vaut null si la commande a échoué ou si la tâche a été retirée de la file.
-// Renvoie false si l'opération n'a pas pu être lancée (file indisponible).
+// Renvoie false si l'opération n'a pas pu être lancée (file indisponible), 'queued' si elle est en file, ou le résultat de `finish`.
 export async function runLocked(command, args, count, finish, { forceDirect = false } = {}) {
   if (!forceDirect && count >= QUEUE_THRESHOLD) {
     let settled = false;
@@ -218,7 +218,7 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
       return false;
     }
     notifyLock();
-    return true;
+    return 'queued';
   }
   directWrites += 1;
   notifyLock();
@@ -234,8 +234,7 @@ export async function runLocked(command, args, count, finish, { forceDirect = fa
     notifyLock();
   }
   await reportWriteRecoveries();
-  await finish(result, failure);
-  return true;
+  return await finish(result, failure);
 }
 
 // Files ExifTool left in an unusual state after a failed write (original erased then restored, only copy left as `<file>_exiftool_tmp`,
@@ -306,8 +305,10 @@ export async function applyPending(options = {}) {
 // Écrit directement des éléments déjà prêts (ex. « Effacer les données de visages ») : même circuit que « Appliquer ».
 export const writeMetadataItems = (items, options) => runWrite(items, options);
 
-const runWrite = (items, options, sentBy = new Map()) =>
-  runLocked('apply_metadata_changes', { items }, items.length, (result, error) => finishWrite(items, sentBy, result, error), options);
+const runWrite = (items, options = {}, sentBy = new Map()) => {
+  const sourceSnapshot = options.sourceSnapshot ?? host?.captureViewSnapshot?.() ?? null;
+  return runLocked('apply_metadata_changes', { items }, items.length, (result, error) => finishWrite(items, sentBy, result, error, sourceSnapshot), options);
+};
 
 // Mot-clé d'une personne retiré à la main alors qu'un de ses visages reste sur la photo (spec §6.3) : Garder (le mot-clé reste) ou Passer le
 // visage en inconnu (le mot-clé part avec le nom du visage). Renvoie les éléments à écrire, ou null si l'utilisateur annule.
@@ -375,10 +376,10 @@ export function publishWritten(written) {
   if (written.length) host.updatePhotoMetadata(written);
 }
 
-async function finishWrite(items, sentBy, result, error) {
+async function finishWrite(items, sentBy, result, error, sourceSnapshot = null) {
   if (!result) {
     if (error) host.showToast(t('Metadata writing failed: {error}', { error: String(error) }));
-    return;
+    return 'error';
   }
   // Une erreur dans un onglet ne doit pas empêcher le reste du compte rendu (listes de photos, fenêtre d'échec avec « Retenter », message).
   for (const editor of editors) {
@@ -393,19 +394,178 @@ async function finishWrite(items, sentBy, result, error) {
     const failedIds = new Set(result.failed.map(failure => failure.photo_id));
     const isFailed = item => failedIds.has(item.photo_id);
     const retrySentBy = new Map([...sentBy].map(([editor, own]) => [editor, own.filter(isFailed)]));
-    await showFailureDialog(result, () => runWrite(items.filter(isFailed), {}, retrySentBy));
+    return await showFailureDialog(result, () => runWrite(items.filter(isFailed), { sourceSnapshot }, retrySentBy), { hasPendingEdits: true, sourceSnapshot });
   }
-  else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
-  else { lastWriteOk = true; host.showToast(tp('Metadata written in {count} file', result.written.length)); }
+  if (result.cancelled) {
+    host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
+    return 'cancelled';
+  }
+  lastWriteOk = true;
+  host.showToast(tp('Metadata written in {count} file', result.written.length));
+  return 'ok';
 }
 
-// Every failure of a batch, one per line: file name, then its error (and its full path). Very long lists stop at MAX_LISTED_FAILURES.
-const MAX_LISTED_FAILURES = 1000;
-function failureLines(failures) {
-  const lines = failures.slice(0, MAX_LISTED_FAILURES).map(failure => `• ${fileName(failure.path)} : ${failure.error}\n   ${failure.path}`);
-  const more = failures.length - MAX_LISTED_FAILURES;
-  if (more > 0) lines.push(tp('… and {count} more file', more));
-  return lines.join('\n');
+const FAILURE_PAGE_SIZE = 50;
+
+/** Formats a failure reason, translating sidecar conflicts into user-facing text. */
+export function formatFailureError(failure) {
+  if (failure?.sidecar_conflict) {
+    return failure.sidecar_conflict.shared
+      ? t('Value still read from shared sidecar “{name}”', { name: failure.sidecar_conflict.sidecar_name })
+      : t('Value still read from sidecar “{name}”', { name: failure.sidecar_conflict.sidecar_name });
+  }
+  return failure?.error ?? '';
+}
+
+function failureListDialog({ title, summary, pendingNote = '', failures, notes = [], buttons }) {
+  return new Promise(resolve => {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    const card = document.createElement('div');
+    card.className = 'modal-card keyword-dialog failure-dialog';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    const summaryEl = document.createElement('p');
+    summaryEl.className = 'failure-summary';
+    summaryEl.textContent = summary;
+    card.append(heading, summaryEl);
+
+    if (pendingNote) {
+      const noteEl = document.createElement('p');
+      noteEl.className = 'failure-pending-note';
+      noteEl.textContent = pendingNote;
+      card.append(noteEl);
+    }
+
+    const conflicts = failures.map(failure => failure.sidecar_conflict).filter(Boolean);
+    if (conflicts.length) {
+      const hasShared = conflicts.some(conflict => conflict.shared);
+      const hasOwn = conflicts.some(conflict => !conflict.shared);
+      const banner = document.createElement('p');
+      banner.className = 'failure-sidecar-banner';
+      banner.textContent = hasShared && hasOwn
+        ? t('Sidecar conflict mixed help')
+        : hasShared
+          ? t('Sidecar conflict shared help')
+          : t('Sidecar conflict own help');
+      card.append(banner);
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'failure-list';
+    card.append(list);
+
+    let page = 0;
+    const pageCount = Math.max(1, Math.ceil(failures.length / FAILURE_PAGE_SIZE));
+    const paged = failures.length > FAILURE_PAGE_SIZE;
+    let prevBtn = null;
+    let nextBtn = null;
+    let pageLabel = null;
+
+    const renderPage = () => {
+      const slice = failures.slice(page * FAILURE_PAGE_SIZE, (page + 1) * FAILURE_PAGE_SIZE);
+      list.replaceChildren(...slice.map(failure => {
+        const item = document.createElement('li');
+        item.className = 'failure-item';
+        const head = document.createElement('div');
+        head.className = 'failure-item-head';
+        const name = document.createElement('strong');
+        name.className = 'failure-name';
+        name.textContent = fileName(failure.path);
+        head.append(name);
+        if (failure.sidecar_conflict) {
+          const reveal = document.createElement('button');
+          reveal.type = 'button';
+          reveal.className = 'failure-sidecar-btn';
+          reveal.textContent = t('Show sidecar');
+          reveal.title = failure.sidecar_conflict.sidecar_path;
+          reveal.addEventListener('click', () => {
+            invoke('reveal_in_file_manager', { path: failure.sidecar_conflict.sidecar_path }).catch(err => host?.showToast(String(err)));
+          });
+          head.append(reveal);
+        }
+        const errEl = document.createElement('div');
+        errEl.className = 'failure-error';
+        errEl.textContent = formatFailureError(failure);
+        const pathEl = document.createElement('div');
+        pathEl.className = 'failure-path';
+        pathEl.textContent = failure.path;
+        item.append(head, errEl, pathEl);
+        return item;
+      }));
+      list.scrollTop = 0;
+      if (paged && pageLabel && prevBtn && nextBtn) {
+        pageLabel.textContent = t('Photo page {page} of {total}', { page: page + 1, total: pageCount });
+        prevBtn.disabled = page <= 0;
+        nextBtn.disabled = page >= pageCount - 1;
+      }
+    };
+
+    if (paged) {
+      const pager = document.createElement('div');
+      pager.className = 'failure-pager';
+      prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.className = 'batch-page-button';
+      prevBtn.textContent = '‹';
+      prevBtn.title = t('Previous page');
+      prevBtn.setAttribute('aria-label', prevBtn.title);
+      prevBtn.addEventListener('click', () => { if (page > 0) { page -= 1; renderPage(); } });
+      pageLabel = document.createElement('span');
+      pageLabel.className = 'batch-page-label';
+      nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.className = 'batch-page-button';
+      nextBtn.textContent = '›';
+      nextBtn.title = t('Next page');
+      nextBtn.setAttribute('aria-label', nextBtn.title);
+      nextBtn.addEventListener('click', () => { if (page < pageCount - 1) { page += 1; renderPage(); } });
+      pager.append(prevBtn, pageLabel, nextBtn);
+      card.append(pager);
+    }
+
+    renderPage();
+
+    for (const note of notes.filter(Boolean)) {
+      const noteEl = document.createElement('p');
+      noteEl.className = 'failure-note';
+      noteEl.textContent = note;
+      card.append(noteEl);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'keyword-dialog-actions';
+    const close = value => {
+      document.removeEventListener('keydown', onKeyDown, true);
+      modal.remove();
+      resolve(value);
+    };
+    const onKeyDown = event => {
+      if (keepFocusInModal(modal, event) || event.key !== 'Escape') return;
+      const cancelButton = buttons.find(button => button.cancel);
+      event.preventDefault();
+      event.stopPropagation();
+      if (cancelButton) close(cancelButton.value);
+    };
+    let primaryElement = null;
+    for (const button of buttons) {
+      const element = document.createElement('button');
+      element.type = 'button';
+      element.textContent = button.label;
+      if (button.primary) { element.classList.add('active'); primaryElement = element; }
+      if (button.tone) element.classList.add(`tone-${button.tone}`);
+      element.addEventListener('click', () => close(button.value));
+      actions.append(element);
+    }
+    card.append(actions);
+    modal.append(card);
+    document.addEventListener('keydown', onKeyDown, true);
+    (document.getElementById('app') || document.body).append(modal);
+    (primaryElement || actions.firstElementChild)?.focus();
+  });
 }
 
 // Window listing every failure of a batch (the end-of-task toast only has room for the first one). `notes`: lines added below (e.g. photos
@@ -413,8 +573,13 @@ function failureLines(failures) {
 export async function showFailureDetails({ title, failures, notes = [], logPath = null }) {
   const buttons = [{ label: t('OK'), value: 'ok', primary: true, cancel: true }];
   if (logPath) buttons.push({ label: t('Show log'), value: 'log' });
-  const message = [tp('{count} failure', failures.length), failureLines(failures), ...notes].filter(Boolean).join('\n\n');
-  const choice = await choiceDialog({ title, message, buttons, scrollable: true });
+  const choice = await failureListDialog({
+    title,
+    summary: tp('{count} failure', failures.length),
+    failures,
+    notes,
+    buttons,
+  });
   if (choice === 'log') invoke('reveal_in_file_manager', { path: logPath }).catch(error => host?.showToast(String(error)));
 }
 
@@ -425,28 +590,40 @@ export function failureDetailsAction(title, failures, extra = {}) {
 }
 
 // `retry` relance l'opération pour les fichiers en échec (nouvelle application des modifications, ou nouvelle suppression du mot-clé).
-export async function showFailureDialog(result, retry) {
-  const choice = await choiceDialog({
+export async function showFailureDialog(result, retry, { hasPendingEdits = true, sourceSnapshot = null } = {}) {
+  const failedIds = new Set(result.failed.map(failure => failure.photo_id));
+  const canDiscard = hasPendingEdits && editors.some(editor => editor.isDirty() && editor.targetIds().some(id => failedIds.has(id)));
+  const buttons = [
+    { label: t('Close'), value: 'close', cancel: true },
+    ...(canDiscard ? [{ label: t('Discard changes'), value: 'discard', tone: 'red' }] : []),
+    { label: t('Retry'), value: 'retry' },
+    { label: t('Show failed files'), value: 'show', primary: true },
+  ];
+  const choice = await failureListDialog({
     title: t('Metadata could not be written to some files'),
-    message: `${t('{written} written · {failed} failed', { written: result.written.length, failed: result.failed.length })}\n\n${failureLines(result.failed)}`,
-    scrollable: true,
-    buttons: [
-      { label: t('Close'), value: 'no', cancel: true },
-      { label: t('Retry'), value: 'retry', primary: true },
-      { label: t('Show'), value: 'show' },
-    ],
+    summary: t('{written} written · {failed} failed', { written: result.written.length, failed: result.failed.length }),
+    pendingNote: canDiscard ? t('Changes to failed files remain pending.') : '',
+    failures: result.failed,
+    buttons,
   });
   if (choice === 'retry') {
-    await retry();
-  } else if (choice === 'show') {
-    // La vue des miniatures ne montre plus que les fichiers en échec ; leurs modifications en attente sont abandonnées (les fichiers n'ont pas
-    // changé). Celles d'autres photos (ex. la nouvelle sélection, pendant une écriture passée par la file) sont gardées.
-    const failedIds = new Set(result.failed.map(failure => failure.photo_id));
+    return await retry();
+  }
+  if (choice === 'discard') {
     for (const editor of editors) {
       if (editor.targetIds().some(id => failedIds.has(id))) editor.discard(failedIds);
     }
-    host.showFailedFiles(result.failed.map(failure => failure.path));
+    return 'discard';
   }
+  if (choice === 'show') {
+    // Keep pending edits on failed files so the user can inspect, adjust, retry or discard them.
+    for (const editor of editors) {
+      if (followsSelection(editor)) editor.keepOnlyTargets?.(failedIds);
+    }
+    await host.showFailedFiles(result.failed.map(failure => failure.path), sourceSnapshot, { selectAll: true });
+    return 'show';
+  }
+  return 'close';
 }
 
 // ---------------------------------------------------------------------------
@@ -487,7 +664,12 @@ export function resolvePendingSelection(currentIds) {
     }
     if (decision === 'apply') {
       // Écriture non lancée (question des personnes annulée, file indisponible…) : les modifications sont gardées, comme pour « Annuler ».
-      if (!(await applyPending())) {
+      const outcome = await applyPending();
+      if (outcome === false || outcome === 'show') {
+        if (outcome === false && previousIndices) host.setSelectionIndices(previousIndices);
+        return 'cancel';
+      }
+      if (outcome !== 'ok' && outcome !== 'queued' && outcome !== 'discard' && hasSelectionEdits()) {
         if (previousIndices) host.setSelectionIndices(previousIndices);
         return 'cancel';
       }

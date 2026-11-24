@@ -2000,5 +2000,15 @@
   "External modification detected": "External modification detected",
   "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?": "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?",
   "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?|other": "{count} files were modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?",
-  "Undo anyway": "Undo anyway"
+  "Undo anyway": "Undo anyway",
+  "Show failed files": "Show failed files",
+  "Changes to failed files remain pending.": "Changes to failed files remain pending.",
+  "Files whose metadata could not be written": "Files whose metadata could not be written",
+  "XMP sidecar": "XMP sidecar",
+  "Show sidecar": "Show sidecar",
+  "Value still read from sidecar “{name}”": "Value still read from sidecar “{name}”",
+  "Value still read from shared sidecar “{name}”": "Value still read from shared sidecar “{name}”",
+  "Sidecar conflict own help": "For JPEG and HEIC files, photoboggan writes inside the image file and never modifies .xmp sidecars. The change was written to the image, but the old value is still read from its .xmp sidecar. Remove or update the sidecar file, then rescan or sync.",
+  "Sidecar conflict shared help": "For JPEG and HEIC files, photoboggan writes inside the image file and never modifies .xmp sidecars. The old value is still read from a shared .xmp sidecar (e.g. a RAW+JPEG pair). Edit or erase the field on the sibling RAW file to update the shared sidecar, or remove/separate the sidecar if you no longer want to share it.",
+  "Sidecar conflict mixed help": "For JPEG and HEIC files, photoboggan writes inside the image file and never modifies .xmp sidecars. The old values are still read from .xmp sidecars. Remove or update own sidecars, or edit/erase the field on the sibling RAW file for shared sidecars, then rescan or sync."
 }

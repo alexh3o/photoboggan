@@ -7,7 +7,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { t, tp } from './i18n.js';
 import { confirmDialog } from './photo-actions.js';
-import { runLocked, isWriteLocked, failureDetailsAction } from './metadata-writes.js';
+import { runLocked, isWriteLocked, failureDetailsAction, formatFailureError } from './metadata-writes.js';
 
 let host = { showToast: () => {}, onPhotosUpdated: () => {} };
 let erasedIds = new Set(); // photos dont les coordonnées effacées sont sauvegardées
@@ -46,7 +46,7 @@ function report(result, error, restored) {
   }
   if (result.failed.length) {
     console.error('Geolocation write failures', result.failed);
-    messages.push(tp('{count} photo failed: {error}', result.failed.length, { error: result.failed[0].error }));
+    messages.push(tp('{count} photo failed: {error}', result.failed.length, { error: formatFailureError(result.failed[0]) }));
   }
   if (result.cancelled) messages.push(tp('{count} photo not processed (task stopped)', result.cancelled));
   if (messages.length) host.showToast(messages.join(' · '), failureDetailsAction(t('Some photos could not be updated'), result.failed));

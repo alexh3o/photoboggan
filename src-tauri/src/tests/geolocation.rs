@@ -56,3 +56,23 @@ fn written_coordinates_must_be_read_back_from_the_file() {
     assert!(gps_mismatch(paris, Some((48.8566, 2.4))).is_some());
     assert!(gps_mismatch(paris, None).is_some());
 }
+
+#[test]
+fn gps_erasure_masked_by_sidecar_detects_sidecar_conflict() {
+    let dir = tempfile::tempdir().unwrap();
+    let jpg = dir.path().join("geo.jpg");
+    std::fs::write(&jpg, jpeg_bytes(16, 16)).unwrap();
+    std::fs::write(
+        dir.path().join("geo.jpg.xmp"),
+        "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" exif:GPSLatitude=\"48,51.396N\" exif:GPSLongitude=\"2,21.132E\"/></rdf:RDF></x:xmpmeta>",
+    )
+    .unwrap();
+    let full = crate::exif::read_exif(&jpg);
+    assert!(verify_gps_write(None, full.gps).is_some());
+    let conflict = crate::exif::detect_sidecar_conflict(&jpg, || {
+        verify_gps_write(None, crate::exif::read_exif_without_sidecar(&jpg).gps).is_none()
+    })
+    .expect("sidecar conflict expected");
+    assert_eq!(conflict.sidecar_name, "geo.jpg.xmp");
+    assert!(!conflict.shared);
+}

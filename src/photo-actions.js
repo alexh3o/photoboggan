@@ -477,7 +477,7 @@ export function promptDialog({ title, message, inputLabel, confirmLabel, cancelL
 // ==========================================
 // INFOS (EXIF / XMP / IPTC)
 // ==========================================
-const FILE_LABELS = { path: 'Path', size: 'Filesize', dimensions: 'Dimensions' };
+const FILE_LABELS = { path: 'Path', size: 'Filesize', dimensions: 'Dimensions', sidecar: 'XMP sidecar' };
 
 function renderMetadataSections(details) {
   const sections = [

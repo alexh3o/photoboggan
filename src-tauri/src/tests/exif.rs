@@ -378,3 +378,42 @@ fn light_marking_read_matches_the_full_read() {
     }
     assert_eq!((read_marking(&mixed).rating, read_marking(&mixed).color_flag.as_str()), (5, "red"));
 }
+
+#[test]
+fn detect_sidecar_conflict_distinguishes_own_and_shared_sidecars() {
+    let dir = tempfile::tempdir().unwrap();
+    let own_jpg = write_sample(dir.path(), "own.jpg", &jpeg_bytes(16, 16));
+    fs::write(dir.path().join("own.jpg.xmp"), "<x:xmpmeta/>").unwrap();
+    let own = detect_sidecar_conflict(&own_jpg, || true).expect("own sidecar conflict expected");
+    assert_eq!(own.sidecar_name, "own.jpg.xmp");
+    assert!(!own.shared);
+
+    // Embedded mismatch -> not a sidecar conflict.
+    assert_eq!(detect_sidecar_conflict(&own_jpg, || false), None);
+
+    // Compatible photo.xmp shared with a sibling RAW -> shared = true.
+    let pair_jpg = write_sample(dir.path(), "pair.jpg", &jpeg_bytes(16, 16));
+    write_sample(dir.path(), "pair.cr2", b"raw");
+    fs::write(dir.path().join("pair.xmp"), "<x:xmpmeta/>").unwrap();
+    let shared = detect_sidecar_conflict(&pair_jpg, || true).expect("shared sidecar conflict expected");
+    assert_eq!(shared.sidecar_name, "pair.xmp");
+    assert!(shared.shared);
+
+    // RAW format itself is written in its sidecar, never reported as a JPEG/HEIC sidecar conflict.
+    let raw = write_sample(dir.path(), "only.cr2", b"raw");
+    fs::write(dir.path().join("only.cr2.xmp"), "<x:xmpmeta/>").unwrap();
+    assert_eq!(detect_sidecar_conflict(&raw, || true), None);
+}
+
+#[test]
+fn metadata_details_reports_active_sidecar_only_when_present() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = write_sample(dir.path(), "plain.jpg", &jpeg_bytes(16, 16));
+    let plain_details = read_metadata_details(&plain);
+    assert!(!plain_details.file.iter().any(|entry| entry.key == "sidecar"));
+
+    fs::write(dir.path().join("plain.jpg.xmp"), "<x:xmpmeta/>").unwrap();
+    let with_sidecar = read_metadata_details(&plain);
+    let sidecar_entry = with_sidecar.file.iter().find(|entry| entry.key == "sidecar").expect("sidecar entry expected");
+    assert_eq!(sidecar_entry.value, "plain.jpg.xmp");
+}

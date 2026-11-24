@@ -103,6 +103,22 @@
 .keyword-dialog-actions button.tone-orange:hover { filter: brightness(1.1); }
 .keyword-dialog-actions button.tone-red:hover { filter: brightness(1.15); }
 
+/* Structured failure report dialog (metadata writes, geolocation, marking, batch operations) */
+.failure-dialog { width: min(38rem, calc(100vw - 2.5rem)); }
+.failure-summary { color: var(--text-muted); font-size: 0.85rem; }
+.failure-pending-note { margin-top: 0.35rem; color: var(--pending-color); font-size: 0.8rem; }
+.failure-sidecar-banner { margin-top: 0.65rem; padding: 0.55rem 0.7rem; border: 1px solid color-mix(in srgb, var(--pending-color) 55%, var(--border)); border-radius: 4px; background: color-mix(in srgb, var(--pending-color) 10%, var(--row-bg)); color: var(--text-strong); font-size: 0.78rem; line-height: 1.4; }
+.failure-list { max-height: 50vh; margin-top: 0.75rem; padding: 0; overflow-y: auto; list-style: none; border: 1px solid var(--control-border); border-radius: 4px; background: var(--row-bg); }
+.failure-item { padding: 0.45rem 0.65rem; font-size: 0.78rem; }
+.failure-item + .failure-item { border-top: 1px solid var(--separator); }
+.failure-item-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.failure-name { color: var(--text-strong); overflow-wrap: anywhere; }
+.failure-sidecar-btn { flex: 0 0 auto; padding: 0.15rem 0.5rem; font-size: 0.72rem; }
+.failure-error { margin-top: 0.2rem; color: var(--danger-text); overflow-wrap: anywhere; }
+.failure-path { margin-top: 0.15rem; color: var(--text-faint); font-size: 0.72rem; overflow-wrap: anywhere; user-select: text; }
+.failure-pager { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.5rem; }
+.failure-note { margin-top: 0.6rem; color: var(--text-muted); font-size: 0.78rem; }
+
 /* Pastille du filtre « fichiers en échec » */
 .filter-tag.tag-failed { border-color: var(--tag-failed-border); }
 

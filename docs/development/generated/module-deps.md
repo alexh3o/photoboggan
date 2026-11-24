@@ -49,7 +49,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 
 | Module | Imports | Imported by |
 |---|---|---|
-| `albums-panel` | i18n, photo-actions, settings-defaults, sidebar-search | drag-drop, duplicates-view, find-raw-mode, folder-tree, main, semantic-results |
+| `albums-panel` | i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search | drag-drop, duplicates-view, find-raw-mode, folder-tree, main, semantic-results |
 | `app-fonts` | — | main |
 | `author-filters` | filter-suggest, filter-tags, i18n | main |
 | `batch-rename` | batch-rename-engine, i18n, metadata-writes, photo-actions, undo | main |
@@ -69,7 +69,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `filter-tags` | i18n, photo-actions | author-filters, faces-panel, format-filters, main, privacy, shooting-filters, stats |
 | `find-raw` | raw-settings, shooting-filters | find-raw-mode, main |
 | `find-raw-mode` | albums-panel, date-filter, find-raw, i18n, raw-settings | main |
-| `folder-tree` | albums-panel, i18n, photo-actions, settings-defaults, sidebar-search, sticky-folders | main |
+| `folder-tree` | albums-panel, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search, sticky-folders | main |
 | `format-filters` | filter-suggest, filter-tags, i18n | duplicates-view, file-kinds, list-view, main, stats |
 | `fullscreen` | date-filter, faces-panel, file-kinds, histogram, i18n, preview-zoom, settings-defaults, slideshow | main |
 | `geo-tools` | i18n, metadata-writes, photo-actions | main |
@@ -88,7 +88,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `maps-settings` | i18n, map-view, settings-defaults | location-panel, main, map-mode, private-zones-modal |
 | `marking-settings` | settings-defaults | list-view, main, stats |
 | `metadata-settings` | i18n, order-list | main |
-| `metadata-writes` | i18n, settings-defaults | batch-rename, description-panel, drag-drop, faces-grid, faces-panel, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
+| `metadata-writes` | i18n, settings-defaults | albums-panel, batch-rename, description-panel, drag-drop, faces-grid, faces-panel, folder-tree, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
 | `order-list` | i18n | metadata-settings |
 | `orientation` | — | list-view, main, preview-zoom |
 | `persons-view` | faces-panel, i18n | main |

@@ -174,7 +174,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `fill_hashes` · L619 — Computes the missing hashes of the files still in a group, in parallel.
 - `pub run` · L668 — Finds groups of identical images. `progress` receives a fraction between 0 and 1. A cancelled run returns what it has found so far (no grou…
 
-## exif.rs (132)
+## exif.rs (140)
 
 - *struct* `pub ExifMetadata` · L7
 - `xmp_value` · L55
@@ -194,120 +194,128 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `read_jpeg_fields` · L210
 - *struct* `ParsedXmp` · L263 — Contenu XMP utile d'un fichier (paquet intégré, puis sidecar pour ce qui manque).
 - `parse_xmp` · L290
-- `pub valid_gps` · L375 — Coordonnées utilisables : nombres finis dans les bornes, et pas exactement (0, 0), valeur écrite par des appareils sans position.
-- `pub flash_fired` · L386 — Le flash s'est-il déclenché ? (bit 0 du tag Flash : 0x19, 0x05, 0x01… oui ; 0x00, 0x10, 0x18, 0x20… non)
-- `xmp_flash_fired` · L391 — Valeur XMP exif:Fired (« True » / « False », attribut ou élément de la structure exif:Flash).
-- `exif_gps_coordinate` · L401 — Coordonnée EXIF : degrés, minutes, secondes (trois rationnels) et référence (N/S ou E/W), en degrés décimaux signés.
-- `exif_gps` · L413
-- `pub parse_xmp_gps_coordinate` · L420 — Coordonnée XMP : « DDD,MM,SSk » ou « DDD,MM.mmk » (k = N, S, E ou W, forme de la norme XMP), ou nombre décimal signé (écrit par certains ou…
-- `xmp_gps` · L434
-- *struct* `pub TextSources` · L471 — Valeur de chaque source, dans l'ordre de TITLE_SOURCE_IDS et DESCRIPTION_SOURCE_IDS (None : absente ou vide).
-- *struct* `pub Rights` · L500 — Auteurs et droits retenus à la lecture (colonnes `author`, `copyright`, `credit`, `usage_terms` et `author_email` de la base). Plusieurs au…
-- *struct* `pub RightsSources` · L510 — Valeur de chaque source des champs d'auteur et de droits, dans l'ordre des `*_SOURCE_IDS` (None : absente ou vide).
-- *struct* `pub ContactInfo` · L521 — Structure XMP `Iptc4xmpCore:CreatorContactInfo` (coordonnées du créateur). L'interface n'en modifie que l'e-mail, mais toute la structure e…
-- `pub split_authors` · L535 — Auteurs d'une saisie : séparés par « ; », espaces de début et de fin retirés, entrées vides écartées.
-- `xmp_creators` · L540 — Auteurs de `dc:creator` (liste ordonnée `rdf:Seq`, ou texte simple écrit par certains outils), sous la forme « A; B ».
-- `xmp_struct_body` · L551 — Contenu de la première propriété XMP de nom local `local_name` écrite en élément (préfixe quelconque, casse ignorée) ; None si absente ou v…
-- `xml_local_value` · L579 — Valeur du champ de nom local `local_name` dans le contenu d'une structure XMP, écrit en attribut (`pfx:Nom="…"`) ou en élément
-- `parse_contact_info` · L619 — Structure `Iptc4xmpCore:CreatorContactInfo` d'un paquet XMP (champs en éléments ou en attributs d'un `rdf:Description` imbriqué).
-- `pub order_indices` · L635 — Indices de `order` dans `ids` : chaque identifiant doit y figurer une fois.
-- `pub set_read_priority` · L650 — Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »,
-- `resolve_text` · L674 — Première source non vide dans l'ordre de priorité.
-- `pub clean_text` · L680 — Texte nettoyé : fins de ligne unifiées (`\n`), caractères nuls et espaces de début et de fin retirés ; None s'il ne reste rien
-- `pub clean_title` · L687 — Titre : une seule ligne.
-- `pub clean_exif_description` · L694
-- `xmp_text` · L700 — Propriété texte d'un paquet XMP (`qualified_name`, ex. « dc:title ») : attribut, élément simple, ou liste de langues (`rdf:Alt`, valeur
-- `exif_xp_text` · L739 — Champ EXIF « XP » de Windows (XPTitle, XPComment, XPKeywords) : UTF-16 little-endian terminé par un zéro, en type Byte ou Undefined.
-- `exif_user_comment` · L751 — EXIF UserComment : 8 octets de jeu de caractères (« ASCII », « UNICODE » = UTF-16 dans l'ordre d'octets du fichier, zéros = non précisé)
-- `pub normalize_color_flag` · L773 — Convertit une valeur xmp:Label en clé de couleur (« none » si vide ou non reconnue, ex. « Approved »).
-- `pub label_for_color_flag` · L789 — Valeur à écrire dans xmp:Label pour une couleur : `Ok(None)` pour « none » (le label est retiré).
-- `stars_from_percent` · L798 — Note en étoiles d'un pourcentage Microsoft (1, 25, 50, 75, 99 pour 1 à 5 étoiles ; valeurs intermédiaires arrondies à l'étoile la plus proc…
-- `color_from_number` · L810 — Couleur d'un numéro digiKam ColorLabel ou Photoshop Urgency (même table qu'à l'écriture, voir color_to_urgency_and_digikam) ; 0 = aucune.
-- `xmp_ratings` · L827 — Notes XMP d'un paquet, dans l'ordre de RATING_SOURCE_IDS : xmp:Rating (préfixe ancien « xap » accepté), MicrosoftPhoto:Rating (pourcentage),
-- `xmp_colors` · L838 — Couleurs XMP d'un paquet, dans l'ordre de COLOR_SOURCE_IDS : xmp:Label (nom de couleur ; un libellé qui n'est pas une couleur est ignoré),
-- `pick_from_digikam` · L848 — Fanion d'un numéro digiKam PickLabel : 0 aucun, 1 rejeté, 2 en attente, 3 accepté.
-- `pick_from_xmpdm` · L859 — Fanion d'un numéro xmpDM:pick (Lightroom) : -1 rejeté, 0 aucun, 1 retenu.
-- `xmp_picks` · L870 — Fanions pick d'un paquet XMP, dans l'ordre de PICK_SOURCE_IDS : digiKam:PickLabel, xmpDM:pick, xmpDM:good (booléen : true = retenu,
-- `pub read_marking` · L890 — Valeur normalisée d'un fanion pick demandé par l'interface (« none », « pending », « picked » ou « rejected »).
-- `read_jpeg_xmp_prefix` · L918 — XMP packet of a JPEG if it lies within its first `limit` bytes (None otherwise: the caller reads further).
-- `pub marking_mismatch` · L928 — Check after a marking write: the file, read back as the interface reads it (read orders included), must show each requested value
-- `pub normalize_pick_flag` · L943
-- `parse_xmp_subjects` · L954 — Mots-clés à plat d'un paquet XMP (dc:subject).
-- `xmp_list_items` · L978 — Éléments `rdf:li` de la première propriété XMP de nom local `local_name` (ex. « TagsList »), quel que soit le préfixe de namespace utilisé
-- `hierarchy_paths` · L1020 — Chemins hiérarchiques d'une propriété XMP : chaque entrée (« A/B/C » ou « A|B|C ») devient la liste de ses niveaux.
-- `parse_hierarchical_keywords` · L1048 — Mots-clés hiérarchiques d'un paquet XMP : le premier schéma qui contient des données, dans l'ordre de priorité réglé (par défaut digiKam,
-- `pub decode_xml_entities` · L1061 — Décode les entités XML (`&lt;`, `&amp;`, `&#39;`…) en une seule passe : `&amp;lt;` donne `&lt;`, jamais `<`.
-- `acdsee_category_paths` · L1090 — Catégories ACDSee : la propriété `acdsee:categories` contient, en texte, un arbre XML (échappé dans le paquet) :
-- `pub acdsee_categories_value` · L1138 — Valeur de `acdsee:categories` (arbre XML en texte, voir acdsee_category_paths) pour les mots-clés actifs `paths` : chemins fusionnés en un …
-- `add_hierarchical_leaves` · L1171 — Ajoute aux mots-clés à plat (`meta.keywords`) le nom des mots-clés hiérarchiques actifs, pour que le filtre et le panneau Info
-- `xml_unescape` · L1184 — Decodes XML entities from an XMP value. Delegates to `decode_xml_entities` so numeric references such as `&#39;`
-- `read_image_dimensions` · L1190 — Lit les dimensions réelles dans l'en-tête du fichier (JPEG : marqueur SOF, PNG : IHDR).
-- `video_date_taken` · L1210 — Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
-- `apply_parsed_xmp` · L1226 — Remplit les champs XMP de `meta` (sources XMP de la note, de la couleur, du titre et de la description ; mots-clés).
-- `resolve_values` · L1246 — Note, couleur, fanion, titre, description et coordonnées GPS retenus : la première source présente dans l'ordre de priorité réglé.
-- `lock_read` · L1268
-- `read_video_metadata` · L1274 — Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
-- `keep` · L1285 — Remplace `slot` par `value` quand celle-ci existe (une source qui ne connaît pas la valeur ne doit pas effacer celle d'une autre).
-- `pub read_exif` · L1289
-- `pub color_to_urgency_and_digikam` · L1418 — Conversion des flags couleur standard vers digikam et photoshop (numériques)
-- `remove_xmp_attribute` · L1434 — Helper pour supprimer un attribut XMP existant (ex: photoshop:Urgency ou digikam:ColorLabel)
-- *struct* `pub XmpEdit` · L1464 — Marquage demandé : seules les valeurs fournies sont modifiées.
-- `pub XmpEdit::adds_values` · L1475 — Vrai si la modification écrit une valeur (et pas seulement un retrait) : seule elle justifie de créer un paquet XMP ou un sidecar.
-- `pub pick_values` · L1484 — Valeurs écrites pour un fanion pick : (digiKam:PickLabel, xmpDM:pick, xmpDM:good). `good` est un booléen : sans fanion (ou « en attente »,
-- `remove_xmp_element` · L1494 — Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par remove_xmp_attribute.
-- `pub strip_xmp_marks` · L1517 — Retire d'un paquet XMP tous les marquages (note, couleur, fanions pick / rejet), quelle que soit la forme (attribut ou élément) :
-- `pub write_xmp_metadata` · L1531 — Writes rating, color label and/or pick flag via ExifTool (see `XmpEdit`).
-- `xml_escape_text` · L1535
-- `remove_xmp_list_property` · L1541 — Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
-- `insert_description_children` · L1574 — Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élém…
-- `matching_description_end` · L1609 — Finds the closing `</rdf:Description>` matching an already-opened `<rdf:Description>`, skipping nested `<rdf:Description>` elements.
-- *struct* `pub MetadataUpdate` · L1640 — Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
-- *struct* `pub RegionWrite` · L1660 — Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
-- *struct* `pub RegionsUpdate` · L1670 — Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
-- `pub MetadataUpdate::clean_title` · L1678 — Titre à écrire, nettoyé (une ligne) ; chaîne vide pour le retirer.
-- `pub MetadataUpdate::clean_description` · L1683 — Description à écrire, nettoyée ; chaîne vide pour la retirer.
-- `pub MetadataUpdate::adds_values` · L1688 — Vrai si l'écriture ajoute au moins une valeur (sinon elle ne fait que retirer : un sidecar absent n'est pas créé).
-- `pub MetadataUpdate::author_list` · L1698 — Auteurs à écrire (séparés par « ; » dans la saisie), nettoyés ; liste vide pour les retirer.
-- `pub MetadataUpdate::clean_copyright` · L1703 — Mention de copyright, crédit, conditions d'utilisation et e-mail : une seule ligne, espaces de début et de fin retirés ; chaîne vide pour r…
-- `pub MetadataUpdate::clean_credit` · L1707
-- `pub MetadataUpdate::clean_usage_terms` · L1711
-- `pub MetadataUpdate::clean_author_email` · L1715
-- `MetadataUpdate::adds_rights` · L1720 — Vrai si l'écriture ajoute au moins une valeur d'auteur ou de droits (sinon elle ne fait que retirer).
-- `pub keyword_leaves` · L1729 — Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
-- `pub update_xmp_regions` · L1754 — Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
-- `pub read_face_regions` · L1802 — Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
-- `pub rotate_xmp_regions` · L1813 — Resized copies with pixel rotation (resize.rs): only face regions in the XMP packet are rotated to match the output image
-- *struct* `PhotoshopResource` · L1830
-- `parse_photoshop_resources` · L1833 — Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
-- `pub truncate_utf8` · L1854
-- `pub image_gone` · L1861
-- *struct* `pub SidecarTarget` · L1866 — Sidecar an image's metadata is written to (see `sidecar_target`).
-- `pub sidecar_target` · L1880 — XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
-- `find_case_insensitive_file` · L1903
-- `pub sidecar_target_from_dir_entries` · L1917 — Resolves the write target on case-sensitive filesystems using the single `read_dir` already needed to check siblings.
-- `is_sidecar_writer_photo` · L1951
-- `pub has_same_stem_sibling` · L1958 — True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
-- `shares_sidecar_with_sidecar_writer` · L1964 — Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
-- `same_stem_siblings` · L1969
-- `pub read_sidecar` · L1981 — Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
-- `pub active_sidecar` · L1987 — The sidecar an image reads, if it exists: `photo.ext.xmp`, else `photo.xmp` (the same choice as `read_sidecar`, which reads it). Its
-- `pub sidecar_candidates` · L1995 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
-- `pub write_metadata` · L2000 — Writes `update` (keywords, title, description, rights, regions, GPS) to the file or its sidecar via ExifTool.
-- `pub text_mismatch` · L2006 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
-- `rights_mismatch` · L2039 — Vérification après écriture de l'auteur et des droits : mêmes sources que pour le titre (XMP toujours, IPTC pour un JPEG, EXIF pour un JPEG…
-- *struct* `pub MetadataEntry` · L2084
-- *struct* `pub MetadataDetails` · L2090
-- `detail_entry` · L2099
-- `read_exif_entries` · L2109
-- `read_xmp_packet` · L2125 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
-- `pub xml_tag_end` · L2131 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
-- `xml_attributes` · L2144
-- `list_xmp_properties` · L2161 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
-- `iptc_dataset_name` · L2219
-- `collect_iptc_datasets` · L2233 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
-- `read_iptc_entries` · L2262
-- `pub jpeg_has_legacy_non_utf8_iptc` · L2279 — Returns true if `path` is a JPEG whose IPTC block contains non-UTF-8 (e.g. Latin-1) record-2 values
-- `pub read_metadata_details` · L2319 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
+- `parse_xmp_with` · L294
+- `pub valid_gps` · L379 — Coordonnées utilisables : nombres finis dans les bornes, et pas exactement (0, 0), valeur écrite par des appareils sans position.
+- `pub flash_fired` · L390 — Le flash s'est-il déclenché ? (bit 0 du tag Flash : 0x19, 0x05, 0x01… oui ; 0x00, 0x10, 0x18, 0x20… non)
+- `xmp_flash_fired` · L395 — Valeur XMP exif:Fired (« True » / « False », attribut ou élément de la structure exif:Flash).
+- `exif_gps_coordinate` · L405 — Coordonnée EXIF : degrés, minutes, secondes (trois rationnels) et référence (N/S ou E/W), en degrés décimaux signés.
+- `exif_gps` · L417
+- `pub parse_xmp_gps_coordinate` · L424 — Coordonnée XMP : « DDD,MM,SSk » ou « DDD,MM.mmk » (k = N, S, E ou W, forme de la norme XMP), ou nombre décimal signé (écrit par certains ou…
+- `xmp_gps` · L438
+- *struct* `pub TextSources` · L475 — Valeur de chaque source, dans l'ordre de TITLE_SOURCE_IDS et DESCRIPTION_SOURCE_IDS (None : absente ou vide).
+- *struct* `pub Rights` · L504 — Auteurs et droits retenus à la lecture (colonnes `author`, `copyright`, `credit`, `usage_terms` et `author_email` de la base). Plusieurs au…
+- *struct* `pub RightsSources` · L514 — Valeur de chaque source des champs d'auteur et de droits, dans l'ordre des `*_SOURCE_IDS` (None : absente ou vide).
+- *struct* `pub ContactInfo` · L525 — Structure XMP `Iptc4xmpCore:CreatorContactInfo` (coordonnées du créateur). L'interface n'en modifie que l'e-mail, mais toute la structure e…
+- `pub split_authors` · L539 — Auteurs d'une saisie : séparés par « ; », espaces de début et de fin retirés, entrées vides écartées.
+- `xmp_creators` · L544 — Auteurs de `dc:creator` (liste ordonnée `rdf:Seq`, ou texte simple écrit par certains outils), sous la forme « A; B ».
+- `xmp_struct_body` · L555 — Contenu de la première propriété XMP de nom local `local_name` écrite en élément (préfixe quelconque, casse ignorée) ; None si absente ou v…
+- `xml_local_value` · L583 — Valeur du champ de nom local `local_name` dans le contenu d'une structure XMP, écrit en attribut (`pfx:Nom="…"`) ou en élément
+- `parse_contact_info` · L623 — Structure `Iptc4xmpCore:CreatorContactInfo` d'un paquet XMP (champs en éléments ou en attributs d'un `rdf:Description` imbriqué).
+- `pub order_indices` · L639 — Indices de `order` dans `ids` : chaque identifiant doit y figurer une fois.
+- `pub set_read_priority` · L654 — Règle l'ordre de priorité à la lecture d'un type de métadonnée (`kind` : « keywords », « title », « description », « rating », « color »,
+- `resolve_text` · L678 — Première source non vide dans l'ordre de priorité.
+- `pub clean_text` · L684 — Texte nettoyé : fins de ligne unifiées (`\n`), caractères nuls et espaces de début et de fin retirés ; None s'il ne reste rien
+- `pub clean_title` · L691 — Titre : une seule ligne.
+- `pub clean_exif_description` · L698
+- `xmp_text` · L704 — Propriété texte d'un paquet XMP (`qualified_name`, ex. « dc:title ») : attribut, élément simple, ou liste de langues (`rdf:Alt`, valeur
+- `exif_xp_text` · L743 — Champ EXIF « XP » de Windows (XPTitle, XPComment, XPKeywords) : UTF-16 little-endian terminé par un zéro, en type Byte ou Undefined.
+- `exif_user_comment` · L755 — EXIF UserComment : 8 octets de jeu de caractères (« ASCII », « UNICODE » = UTF-16 dans l'ordre d'octets du fichier, zéros = non précisé)
+- `pub normalize_color_flag` · L777 — Convertit une valeur xmp:Label en clé de couleur (« none » si vide ou non reconnue, ex. « Approved »).
+- `pub label_for_color_flag` · L793 — Valeur à écrire dans xmp:Label pour une couleur : `Ok(None)` pour « none » (le label est retiré).
+- `stars_from_percent` · L802 — Note en étoiles d'un pourcentage Microsoft (1, 25, 50, 75, 99 pour 1 à 5 étoiles ; valeurs intermédiaires arrondies à l'étoile la plus proc…
+- `color_from_number` · L814 — Couleur d'un numéro digiKam ColorLabel ou Photoshop Urgency (même table qu'à l'écriture, voir color_to_urgency_and_digikam) ; 0 = aucune.
+- `xmp_ratings` · L831 — Notes XMP d'un paquet, dans l'ordre de RATING_SOURCE_IDS : xmp:Rating (préfixe ancien « xap » accepté), MicrosoftPhoto:Rating (pourcentage),
+- `xmp_colors` · L842 — Couleurs XMP d'un paquet, dans l'ordre de COLOR_SOURCE_IDS : xmp:Label (nom de couleur ; un libellé qui n'est pas une couleur est ignoré),
+- `pick_from_digikam` · L852 — Fanion d'un numéro digiKam PickLabel : 0 aucun, 1 rejeté, 2 en attente, 3 accepté.
+- `pick_from_xmpdm` · L863 — Fanion d'un numéro xmpDM:pick (Lightroom) : -1 rejeté, 0 aucun, 1 retenu.
+- `xmp_picks` · L874 — Fanions pick d'un paquet XMP, dans l'ordre de PICK_SOURCE_IDS : digiKam:PickLabel, xmpDM:pick, xmpDM:good (booléen : true = retenu,
+- `pub read_marking` · L894 — Valeur normalisée d'un fanion pick demandé par l'interface (« none », « pending », « picked » ou « rejected »).
+- `pub read_marking_without_sidecar` · L898
+- `read_marking_with` · L902
+- `read_jpeg_xmp_prefix` · L931 — XMP packet of a JPEG if it lies within its first `limit` bytes (None otherwise: the caller reads further).
+- `pub marking_mismatch` · L941 — Check after a marking write: the file, read back as the interface reads it (read orders included), must show each requested value
+- `pub normalize_pick_flag` · L956
+- `parse_xmp_subjects` · L967 — Mots-clés à plat d'un paquet XMP (dc:subject).
+- `xmp_list_items` · L991 — Éléments `rdf:li` de la première propriété XMP de nom local `local_name` (ex. « TagsList »), quel que soit le préfixe de namespace utilisé
+- `hierarchy_paths` · L1033 — Chemins hiérarchiques d'une propriété XMP : chaque entrée (« A/B/C » ou « A|B|C ») devient la liste de ses niveaux.
+- `parse_hierarchical_keywords` · L1061 — Mots-clés hiérarchiques d'un paquet XMP : le premier schéma qui contient des données, dans l'ordre de priorité réglé (par défaut digiKam,
+- `pub decode_xml_entities` · L1074 — Décode les entités XML (`&lt;`, `&amp;`, `&#39;`…) en une seule passe : `&amp;lt;` donne `&lt;`, jamais `<`.
+- `acdsee_category_paths` · L1103 — Catégories ACDSee : la propriété `acdsee:categories` contient, en texte, un arbre XML (échappé dans le paquet) :
+- `pub acdsee_categories_value` · L1151 — Valeur de `acdsee:categories` (arbre XML en texte, voir acdsee_category_paths) pour les mots-clés actifs `paths` : chemins fusionnés en un …
+- `add_hierarchical_leaves` · L1184 — Ajoute aux mots-clés à plat (`meta.keywords`) le nom des mots-clés hiérarchiques actifs, pour que le filtre et le panneau Info
+- `xml_unescape` · L1197 — Decodes XML entities from an XMP value. Delegates to `decode_xml_entities` so numeric references such as `&#39;`
+- `read_image_dimensions` · L1203 — Lit les dimensions réelles dans l'en-tête du fichier (JPEG : marqueur SOF, PNG : IHDR).
+- `video_date_taken` · L1223 — Date de la vidéo : celle du sidecar XMP (exif:DateTimeOriginal, xmp:CreateDate ou photoshop:DateCreated) si elle y figure,
+- `apply_parsed_xmp` · L1239 — Remplit les champs XMP de `meta` (sources XMP de la note, de la couleur, du titre et de la description ; mots-clés).
+- `resolve_values` · L1259 — Note, couleur, fanion, titre, description et coordonnées GPS retenus : la première source présente dans l'ordre de priorité réglé.
+- `lock_read` · L1281
+- `read_video_metadata` · L1287 — Métadonnées d'une vidéo : note, couleur et mots-clés du sidecar XMP (`video.mp4.xmp` ou `video.xmp`) et date. Le fichier vidéo lui-même
+- `keep` · L1298 — Remplace `slot` par `value` quand celle-ci existe (une source qui ne connaît pas la valeur ne doit pas effacer celle d'une autre).
+- `pub read_exif` · L1302
+- `pub read_exif_without_sidecar` · L1306
+- `read_exif_with` · L1310
+- `pub color_to_urgency_and_digikam` · L1441 — Conversion des flags couleur standard vers digikam et photoshop (numériques)
+- `remove_xmp_attribute` · L1457 — Helper pour supprimer un attribut XMP existant (ex: photoshop:Urgency ou digikam:ColorLabel)
+- *struct* `pub XmpEdit` · L1487 — Marquage demandé : seules les valeurs fournies sont modifiées.
+- `pub XmpEdit::adds_values` · L1498 — Vrai si la modification écrit une valeur (et pas seulement un retrait) : seule elle justifie de créer un paquet XMP ou un sidecar.
+- `pub pick_values` · L1507 — Valeurs écrites pour un fanion pick : (digiKam:PickLabel, xmpDM:pick, xmpDM:good). `good` est un booléen : sans fanion (ou « en attente »,
+- `remove_xmp_element` · L1517 — Retire une propriété XMP exprimée en élément (`<nom>…</nom>` ou `<nom/>`) ; la forme attribut est traitée par remove_xmp_attribute.
+- `pub strip_xmp_marks` · L1540 — Retire d'un paquet XMP tous les marquages (note, couleur, fanions pick / rejet), quelle que soit la forme (attribut ou élément) :
+- `pub write_xmp_metadata` · L1554 — Writes rating, color label and/or pick flag via ExifTool (see `XmpEdit`).
+- `xml_escape_text` · L1558
+- `remove_xmp_list_property` · L1564 — Retire tous les éléments XMP de nom local `local_name` (casse ignorée, préfixe quelconque, ou seulement `only_prefix` s'il est donné),
+- `insert_description_children` · L1597 — Insère `children` à la fin du premier `rdf:Description` (rouvert s'il est auto-fermant), en déclarant les namespaces manquants sur cet élém…
+- `matching_description_end` · L1632 — Finds the closing `</rdf:Description>` matching an already-opened `<rdf:Description>`, skipping nested `<rdf:Description>` elements.
+- *struct* `pub MetadataUpdate` · L1663 — Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
+- *struct* `pub RegionWrite` · L1683 — Zone de visage à écrire : coin haut-gauche et taille normalisés, repère de l'image STOCKÉE (avant orientation EXIF), nom (None : sans nom).
+- *struct* `pub RegionsUpdate` · L1693 — Zones de visage d'un fichier et dimensions de l'image stockée (`AppliedToDimensions` de MWG ; 0 : inconnues, non écrites).
+- `pub MetadataUpdate::clean_title` · L1701 — Titre à écrire, nettoyé (une ligne) ; chaîne vide pour le retirer.
+- `pub MetadataUpdate::clean_description` · L1706 — Description à écrire, nettoyée ; chaîne vide pour la retirer.
+- `pub MetadataUpdate::adds_values` · L1711 — Vrai si l'écriture ajoute au moins une valeur (sinon elle ne fait que retirer : un sidecar absent n'est pas créé).
+- `pub MetadataUpdate::author_list` · L1721 — Auteurs à écrire (séparés par « ; » dans la saisie), nettoyés ; liste vide pour les retirer.
+- `pub MetadataUpdate::clean_copyright` · L1726 — Mention de copyright, crédit, conditions d'utilisation et e-mail : une seule ligne, espaces de début et de fin retirés ; chaîne vide pour r…
+- `pub MetadataUpdate::clean_credit` · L1730
+- `pub MetadataUpdate::clean_usage_terms` · L1734
+- `pub MetadataUpdate::clean_author_email` · L1738
+- `MetadataUpdate::adds_rights` · L1743 — Vrai si l'écriture ajoute au moins une valeur d'auteur ou de droits (sinon elle ne fait que retirer).
+- `pub keyword_leaves` · L1752 — Noms à plat des mots-clés (dernier niveau de chaque chemin), sans doublon (casse ignorée) : dc:subject, IPTC, XPKeywords.
+- `pub update_xmp_regions` · L1777 — Remplace les zones de visage du paquet XMP : les structures MWG (`<préfixe>:Regions`) et Microsoft (`<préfixe>:RegionInfo`) existantes sont
+- `pub read_face_regions` · L1825 — Zones de visage d'un fichier telles qu'il les contient (paquet intégré, sinon sidecar), quel que soit le réglage de lecture des visages :
+- `pub read_face_regions_without_sidecar` · L1834 — Face regions stored inside the image file itself, ignoring any `.xmp` sidecar (used for sidecar conflict detection).
+- `pub rotate_xmp_regions` · L1841 — Resized copies with pixel rotation (resize.rs): only face regions in the XMP packet are rotated to match the output image
+- *struct* `PhotoshopResource` · L1858
+- `parse_photoshop_resources` · L1861 — Ressources « 8BIM » d'un segment Photoshop (contenu après l'en-tête), plus les octets éventuels qui les suivent, conservés tels quels.
+- `pub truncate_utf8` · L1882
+- `pub image_gone` · L1889
+- *struct* `pub SidecarTarget` · L1894 — Sidecar an image's metadata is written to (see `sidecar_target`).
+- `pub sidecar_target` · L1908 — XMP sidecar of an image: `photo.ext.xmp` if it exists; otherwise `photo.xmp` (compatible name: Lightroom, digiKam option) if it exists and
+- `find_case_insensitive_file` · L1931
+- `pub sidecar_target_from_dir_entries` · L1945 — Resolves the write target on case-sensitive filesystems using the single `read_dir` already needed to check siblings.
+- `is_sidecar_writer_photo` · L1979
+- `pub has_same_stem_sibling` · L1986 — True if another file of the folder with the same name without extension (case ignored), not a `.xmp`, shares `photo.xmp` with the image.
+- `shares_sidecar_with_sidecar_writer` · L1992 — Same as `has_same_stem_sibling`, restricted to catalogued images that write to a sidecar (anything but JPEG).
+- `same_stem_siblings` · L1997
+- `pub read_sidecar` · L2009 — Content of the sidecar an image reads: `photo.ext.xmp` if it exists, else `photo.xmp`. Never both merged: once an image has its own
+- `pub active_sidecar` · L2015 — The sidecar an image reads, if it exists: `photo.ext.xmp`, else `photo.xmp` (the same choice as `read_sidecar`, which reads it). Its
+- `pub sidecar_candidates` · L2023 — Sidecars XMP possibles d'une image, par ordre de priorité : `photo.ext.xmp`, puis `photo.xmp` (nom compatible digiKam). Seul endroit
+- *struct* `pub SidecarConflict` · L2029 — Sidecar `.xmp` that still supplies an old value when a JPEG/HEIC file is modified or erased in-place.
+- `pub detect_sidecar_conflict` · L2038 — Returns a `SidecarConflict` when `path` is written in-file (JPEG/HEIC), has an active `.xmp` sidecar,
+- `pub write_metadata` · L2049 — Writes `update` (keywords, title, description, rights, regions, GPS) to the file or its sidecar via ExifTool.
+- `pub text_mismatch` · L2055 — Vérification après écriture du titre et de la description : chaque source écrite doit contenir la valeur demandée (coupée à la longueur
+- `rights_mismatch` · L2088 — Vérification après écriture de l'auteur et des droits : mêmes sources que pour le titre (XMP toujours, IPTC pour un JPEG, EXIF pour un JPEG…
+- *struct* `pub MetadataEntry` · L2133
+- *struct* `pub MetadataDetails` · L2139
+- `detail_entry` · L2148
+- `read_exif_entries` · L2158
+- `read_xmp_packet` · L2174 — Paquet XMP du fichier : celui intégré au JPEG, sinon le sidecar (`photo.jpg.xmp` ou `photo.xmp`).
+- `pub xml_tag_end` · L2180 — Fin (position du `>`) de la balise XML qui commence en `start`, en ignorant les `>` des valeurs entre guillemets.
+- `xml_attributes` · L2193
+- `list_xmp_properties` · L2210 — Liste à plat les propriétés d'un paquet XMP : attributs de `rdf:Description` et éléments simples ;
+- `iptc_dataset_name` · L2268
+- `collect_iptc_datasets` · L2282 — Jeux de données IPTC (enregistrement 2) d'un bloc IPTC ; les valeurs répétées d'un même champ (mots-clés) sont regroupées.
+- `read_iptc_entries` · L2311
+- `pub jpeg_has_legacy_non_utf8_iptc` · L2328 — Returns true if `path` is a JPEG whose IPTC block contains non-UTF-8 (e.g. Latin-1) record-2 values
+- `pub read_metadata_details` · L2368 — Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
 
 ## exiftool.rs (80)
 
@@ -571,22 +579,25 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub get_person_cover` · L2017 — Vignette d'une personne pour la vue Personnes : son visage représentatif (choisi, à défaut le plus grand), recadré en carré autour du visage
 - `render_face_cover` · L2047 — Recadre le visage `rect` (normalisé, repère de l'image stockée) dans un carré de 1,6 fois son plus grand côté, depuis l'original décodé à u…
 
-## geolocation.rs (14)
+## geolocation.rs (17)
 
 - `pub init_schema` · L22
 - *struct* `pub GeoPhoto` · L38
 - *struct* `pub GeoFailure` · L47
-- *struct* `pub GeoWriteResult` · L55
-- `pub get_erased_location_ids` · L67 — Photos dont les coordonnées effacées sont sauvegardées (menu « Restaurer la géolocalisation »).
-- `pub erase_refusal` · L75 — Reason why GPS in this file cannot be erased by ExifTool, if any.
-- `now_millis` · L81
-- `pub gps_mismatch` · L89 — Message d'erreur si les coordonnées relues dans le fichier ne sont pas celles écrites (aussi utilisé par l'écriture du mode Carte, keywords…
-- `write_one` · L100 — Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
-- `load_targets` · L132 — Photos visées : (identifiant, chemin, coordonnées en base).
-- `run` · L146
-- `run_command` · L205
-- `pub erase_geolocation` · L216 — Efface la géolocalisation des photos (coordonnées sauvegardées avant). Avec `task_id`, tâche de la file (progression, arrêt).
-- `pub restore_geolocation` · L222 — Réécrit les coordonnées sauvegardées des photos. Avec `task_id`, tâche de la file (progression, arrêt).
+- *struct* `pub GeoWriteResult` · L57
+- `pub get_erased_location_ids` · L69 — Photos dont les coordonnées effacées sont sauvegardées (menu « Restaurer la géolocalisation »).
+- `pub erase_refusal` · L77 — Reason why GPS in this file cannot be erased by ExifTool, if any.
+- `now_millis` · L83
+- `pub gps_mismatch` · L91 — Message d'erreur si les coordonnées relues dans le fichier ne sont pas celles écrites (aussi utilisé par l'écriture du mode Carte, keywords…
+- *struct* `GeoWriteError` · L102
+- `GeoWriteError::from` · L108
+- `pub verify_gps_write` · L113
+- `write_one` · L125 — Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
+- `load_targets` · L156 — Photos visées : (identifiant, chemin, coordonnées en base).
+- `run` · L170
+- `run_command` · L229
+- `pub erase_geolocation` · L240 — Efface la géolocalisation des photos (coordonnées sauvegardées avant). Avec `task_id`, tâche de la file (progression, arrêt).
+- `pub restore_geolocation` · L246 — Réécrit les coordonnées sauvegardées des photos. Avec `task_id`, tâche de la file (progression, arrêt).
 
 ## heif.rs (26)
 
@@ -646,7 +657,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `csv_field` · L528 — Champ CSV entre guillemets. Une valeur qui commence par = + - @ est précédée d'une apostrophe : sinon Excel la prendrait pour une formule.
 - `pub write_report` · L538 — Écrit le rapport dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.txt », jamais d'écrasement) et renvoie le chemin du fichier.
 
-## keywords.rs (41)
+## keywords.rs (43)
 
 - *struct* `pub KeywordNode` · L26 — Nœud de l'arbre envoyé à l'interface (`parent_id` 0 = premier niveau).
 - `pub init_schema` · L34 — Crée les tables à l'ouverture de la base (sans toucher aux données existantes). Appelée par `db::init_db`, après la création de `photos`.
@@ -667,28 +678,30 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub KeywordWriteItem` · L256 — Métadonnées à écrire dans une photo, chacune facultative (absente = laissée telle quelle) : l'ensemble final des mots-clés actifs
 - *struct* `pub KeywordWritten` · L286
 - *struct* `pub KeywordFailure` · L307
-- *struct* `pub KeywordWriteResult` · L314
-- `node_path` · L326 — Chemin complet (du premier niveau au mot-clé) d'un nœud de l'arbre.
-- `regions_mismatch` · L340 — Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
-- `normalized_paths` · L351
-- `push_failure` · L360 — Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
-- *struct* `pub WriteEnv` · L367 — What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
-- `WriteEnv::of` · L377
-- `run_write` · L389
-- `pub apply_metadata_changes` · L635 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
-- `validate_name` · L657 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
-- `pub create_keyword` · L666 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
-- `subtree_ids` · L689 — Le mot-clé et tous ses descendants.
-- *struct* `pub KeywordDeleteInfo` · L706
-- `pub get_keyword_delete_info` · L715 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
-- `photos_carrying` · L734 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
-- `restore_person_links` · L766 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
-- `pub delete_subtree` · L781 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
-- `run_delete` · L796
-- `pub delete_keyword` · L852 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
-- `run_rename` · L866
-- `pub rename_keyword` · L914 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
-- `pub set_metadata_read_order` · L934 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
+- *struct* `pub KeywordWriteResult` · L316
+- `node_path` · L328 — Chemin complet (du premier niveau au mot-clé) d'un nœud de l'arbre.
+- `regions_mismatch_with` · L342 — Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
+- `verify_written_metadata` · L355 — Verifies that the read-back metadata matches the requested update.
+- `normalized_paths` · L375
+- `push_failure_with_conflict` · L384 — Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
+- `push_failure` · L395
+- *struct* `pub WriteEnv` · L401 — What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
+- `WriteEnv::of` · L411
+- `run_write` · L423
+- `pub apply_metadata_changes` · L667 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
+- `validate_name` · L689 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
+- `pub create_keyword` · L698 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
+- `subtree_ids` · L721 — Le mot-clé et tous ses descendants.
+- *struct* `pub KeywordDeleteInfo` · L738
+- `pub get_keyword_delete_info` · L747 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
+- `photos_carrying` · L766 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
+- `restore_person_links` · L798 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
+- `pub delete_subtree` · L813 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
+- `run_delete` · L828
+- `pub delete_keyword` · L884 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
+- `run_rename` · L898
+- `pub rename_keyword` · L946 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
+- `pub set_metadata_read_order` · L966 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
 
 ## library_sync.rs (21)
 
@@ -714,7 +727,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `is_excluded` · L256 — The path is one of the `excluded` folders or lies inside one.
 - `pub sync_library` · L272 — Compare les dossiers suivis au catalogue :
 
-## main.rs (184)
+## main.rs (188)
 
 - *struct* `pub AppDataPaths` · L56
 - `pub AppDataPaths::from_base` · L65
@@ -792,114 +805,118 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `get_folder_counts` · L1145 — Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
 - *struct* `MarkingTarget` · L1156 — Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
 - *struct* `MarkingFailure` · L1168
-- *struct* `MarkingResult` · L1175
-- *struct* `WrittenDate` · L1187 — Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
-- `update_photos_marking` · L1196 — Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
-- `mark_photo_for_resync` · L1266 — Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
-- `write_photo_marking_with` · L1276 — Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
-- `write_photo_marking` · L1326
-- *struct* `RotatedPhoto` · L1341 — Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
-- *struct* `RotationResult` · L1350
-- `rotate_photos` · L1361 — Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
-- `rotate_photo_with` · L1408 — Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `vie…
-- `rotate_photo` · L1452
-- *struct* `FileFailure` · L1457
-- *struct* `DeleteResult` · L1463
-- *struct* `CopyResult` · L1469
-- *struct* `CopyConflict` · L1481 — Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en mill…
-- *struct* `MovedFile` · L1491
-- *struct* `MoveResult` · L1497
-- `get_photo_details` · L1509 — Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
-- *struct* `FileDates` · L1516 — File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file sys…
-- `get_file_dates` · L1522
-- `sidecar_to_trash` · L1536 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
-- `validate_new_name` · L1548 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
-- `same_existing_file` · L1563 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
-- `reserve_new_file` · L1569 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
-- `rename_photo` · L1577 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
-- `rename_folder` · L1679 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
-- `delete_photos_with` · L1749 — Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
-- `delete_photos` · L1812
-- *enum* `WindowsRoot` · L1828 — Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une cl…
-- `windows_root` · L1836 — Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
-- `pub has_trash` · L1854
-- `pub has_trash` · L1871
-- `count_permanent_deletions` · L1878 — Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur sup…
-- `is_folder_empty` · L1885 — Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
-- `get_folder_unrecognized_files` · L1900 — Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
-- `delete_folder` · L1941 — Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
-- `tracked_root_is_reachable` · L1992 — Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
-- `is_inside_folder` · L1997
-- `remove_missing_photos` · L2008 — Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
-- `log_temp_leftovers` · L2027 — Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
-- `check_external_modifications` · L2058 — Checks whether any undo target file or its active sidecar was modified externally since the original action.
-- `sync_library` · L2068 — `excluded`: folders of paused scans, left for the scan to read when it is resumed.
-- `sidecar_already_taken` · L2090 — Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fich…
-- *struct* `Reserved` · L2097 — Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
-- `Reserved::sidecar_rename` · L2103
-- `reserve_destination` · L2112
-- `copy_sidecar_with` · L2137 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
-- `copy_sidecar` · L2164
-- `lowercase_segments` · L2168
-- `set_verify_cross_drive_moves` · L2176
-- `pub flush_to_disk` · L2181 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
-- `pub sync_parent_dir` · L2212 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
-- `copy_durably` · L2222 — `fs::copy`, then the copy is flushed to the disk: once this returns, the copy survives a power cut, so the source may be deleted or replace…
-- `file_sha256` · L2229 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
-- `files_have_same_hash` · L2243
-- `remove_copied_target` · L2254 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
-- `temp_sibling_path` · L2267
-- `pub copy_atomically_to_reserved` · L2279 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-- `pub replace_file_via_backup` · L2293 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
-- `pub replace_file_via_trash_with` · L2339
-- `pub replace_file_via_trash` · L2354 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
-- `move_file_via_copy` · L2360
-- `move_file` · L2398
-- `move_sidecar` · L2409 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
-- *struct* `FileTaskProgress` · L2428 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
-- `FileTaskProgress::new` · L2437
-- `FileTaskProgress::cancelled` · L2444
-- `FileTaskProgress::advance` · L2449 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
-- `FileTaskProgress::drop` · L2459
-- `carry_cache_file` · L2466 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
-- `move_photos` · L2481 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
-- `find_copy_conflicts` · L2577 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
-- `copy_replacing_with` · L2598 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
-- `copy_replacing` · L2619
-- `copy_photos_with_progress` · L2633 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
-- `copy_conflicts` · L2695 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
-- `copy_photos` · L2700
-- `tracked_copy_conflicts` · L2709 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
-- `copy_photos_to_tracked_folder` · L2719 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
-- `resize_photo` · L2732 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
-- `same_program` · L2751
-- `is_allowed_program` · L2755
-- `allow_programs` · L2759
-- `pick_program` · L2772 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
-- `register_existing_programs` · L2786 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
-- `open_with` · L2792 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
-- `reveal_in_file_manager` · L2806 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
-- `pub write_timestamped_log` · L2813 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
-- *struct* `SidecarRename` · L2835 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
-- `log_sidecar_renames` · L2842 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
-- *struct* `WriteRecoveryReport` · L2863 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
-- `log_write_recoveries` · L2870 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
-- `take_write_recoveries` · L2885 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
-- `open_video_externally` · L2892 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
-- `copy_files_to_clipboard` · L2913
-- `read_clipboard_text` · L2938 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
-- `write_clipboard_text` · L2949 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
-- `clipboard_entry` · L2961 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
-- `clipboard_entry` · L2966
-- `file_uri` · L2972 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
-- `main` · L2986
-- `move_file_or_copy` · L3295 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3316 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3334 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3351 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3379
-- `get_storage_location` · L3386
-- `change_storage_location` · L3396
+- *struct* `MarkingError` · L1177
+- `MarkingError::from` · L1183
+- *struct* `MarkingResult` · L1189
+- *struct* `WrittenDate` · L1201 — Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
+- `update_photos_marking` · L1210 — Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
+- `mark_photo_for_resync` · L1285 — Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
+- `write_photo_marking_with` · L1295 — Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
+- `write_photo_marking` · L1349
+- *struct* `RotatedPhoto` · L1364 — Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
+- *struct* `RotationResult` · L1373
+- `rotate_photos` · L1384 — Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
+- `rotate_photo_with` · L1436 — Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `vie…
+- `rotate_photo` · L1480
+- *struct* `FileFailure` · L1485
+- *struct* `DeleteResult` · L1491
+- *struct* `CopyResult` · L1497
+- *struct* `CopyConflict` · L1509 — Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en mill…
+- *struct* `MovedFile` · L1519
+- *struct* `MoveResult` · L1525
+- `get_photo_details` · L1537 — Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
+- *struct* `PhotoSidecar` · L1542
+- `get_photo_sidecar` · L1549 — Active `.xmp` sidecar of `path`, if one exists on disk (used by the Info tab).
+- *struct* `FileDates` · L1558 — File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file sys…
+- `get_file_dates` · L1564
+- `sidecar_to_trash` · L1578 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
+- `validate_new_name` · L1590 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
+- `same_existing_file` · L1605 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
+- `reserve_new_file` · L1611 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
+- `rename_photo` · L1619 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
+- `rename_folder` · L1721 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
+- `delete_photos_with` · L1791 — Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
+- `delete_photos` · L1854
+- *enum* `WindowsRoot` · L1870 — Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une cl…
+- `windows_root` · L1878 — Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
+- `pub has_trash` · L1896
+- `pub has_trash` · L1913
+- `count_permanent_deletions` · L1920 — Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur sup…
+- `is_folder_empty` · L1927 — Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
+- `get_folder_unrecognized_files` · L1942 — Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
+- `delete_folder` · L1983 — Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
+- `tracked_root_is_reachable` · L2034 — Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
+- `is_inside_folder` · L2039
+- `remove_missing_photos` · L2050 — Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
+- `log_temp_leftovers` · L2069 — Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
+- `check_external_modifications` · L2100 — Checks whether any undo target file or its active sidecar was modified externally since the original action.
+- `sync_library` · L2110 — `excluded`: folders of paused scans, left for the scan to read when it is resumed.
+- `sidecar_already_taken` · L2132 — Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fich…
+- *struct* `Reserved` · L2139 — Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
+- `Reserved::sidecar_rename` · L2145
+- `reserve_destination` · L2154
+- `copy_sidecar_with` · L2179 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
+- `copy_sidecar` · L2206
+- `lowercase_segments` · L2210
+- `set_verify_cross_drive_moves` · L2218
+- `pub flush_to_disk` · L2223 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
+- `pub sync_parent_dir` · L2254 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
+- `copy_durably` · L2264 — `fs::copy`, then the copy is flushed to the disk: once this returns, the copy survives a power cut, so the source may be deleted or replace…
+- `file_sha256` · L2271 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
+- `files_have_same_hash` · L2285
+- `remove_copied_target` · L2296 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
+- `temp_sibling_path` · L2309
+- `pub copy_atomically_to_reserved` · L2321 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `pub replace_file_via_backup` · L2335 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+- `pub replace_file_via_trash_with` · L2381
+- `pub replace_file_via_trash` · L2396 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
+- `move_file_via_copy` · L2402
+- `move_file` · L2440
+- `move_sidecar` · L2451 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
+- *struct* `FileTaskProgress` · L2470 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
+- `FileTaskProgress::new` · L2479
+- `FileTaskProgress::cancelled` · L2486
+- `FileTaskProgress::advance` · L2491 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
+- `FileTaskProgress::drop` · L2501
+- `carry_cache_file` · L2508 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
+- `move_photos` · L2523 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
+- `find_copy_conflicts` · L2619 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
+- `copy_replacing_with` · L2640 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
+- `copy_replacing` · L2661
+- `copy_photos_with_progress` · L2675 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
+- `copy_conflicts` · L2737 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
+- `copy_photos` · L2742
+- `tracked_copy_conflicts` · L2751 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
+- `copy_photos_to_tracked_folder` · L2761 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
+- `resize_photo` · L2774 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
+- `same_program` · L2793
+- `is_allowed_program` · L2797
+- `allow_programs` · L2801
+- `pick_program` · L2814 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
+- `register_existing_programs` · L2828 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
+- `open_with` · L2834 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
+- `reveal_in_file_manager` · L2848 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
+- `pub write_timestamped_log` · L2855 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
+- *struct* `SidecarRename` · L2877 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
+- `log_sidecar_renames` · L2884 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
+- *struct* `WriteRecoveryReport` · L2905 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
+- `log_write_recoveries` · L2912 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
+- `take_write_recoveries` · L2927 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
+- `open_video_externally` · L2934 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
+- `copy_files_to_clipboard` · L2955
+- `read_clipboard_text` · L2980 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
+- `write_clipboard_text` · L2991 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
+- `clipboard_entry` · L3003 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
+- `clipboard_entry` · L3008
+- `file_uri` · L3014 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
+- `main` · L3028
+- `move_file_or_copy` · L3338 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3359 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3377 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3394 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3422
+- `get_storage_location` · L3429
+- `change_storage_location` · L3439
 
 ## model_files.rs (11)
 

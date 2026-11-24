@@ -2000,5 +2000,15 @@
   "External modification detected": "Modification externe détectée",
   "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?": "{count} fichier a été modifié hors de photoboggan depuis cette action. L'annulation écrasera ces modifications externes. Continuer ?",
   "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?|other": "{count} fichiers ont été modifiés hors de photoboggan depuis cette action. L'annulation écrasera ces modifications externes. Continuer ?",
-  "Undo anyway": "Annuler quand même"
+  "Undo anyway": "Annuler quand même",
+  "Show failed files": "Afficher les fichiers en échec",
+  "Changes to failed files remain pending.": "Les modifications des fichiers en échec restent en attente.",
+  "Files whose metadata could not be written": "Fichiers dont les métadonnées n'ont pas pu être écrites",
+  "XMP sidecar": "Sidecar XMP",
+  "Show sidecar": "Montrer le sidecar",
+  "Value still read from sidecar “{name}”": "Valeur toujours lue depuis le sidecar « {name} »",
+  "Value still read from shared sidecar “{name}”": "Valeur toujours lue depuis le sidecar partagé « {name} »",
+  "Sidecar conflict own help": "Pour les fichiers JPEG et HEIC, photoboggan écrit dans le fichier image et ne modifie jamais les sidecars .xmp. La modification a bien été écrite dans l'image, mais l'ancienne valeur reste lue depuis son sidecar .xmp. Supprimez ou mettez à jour le fichier sidecar, puis relancez une synchronisation ou une relecture.",
+  "Sidecar conflict shared help": "Pour les fichiers JPEG et HEIC, photoboggan écrit dans le fichier image et ne modifie jamais les sidecars .xmp. L'ancienne valeur reste lue depuis un sidecar .xmp partagé (par ex. paire RAW + JPEG). Modifiez ou effacez ce champ sur le fichier RAW frère pour mettre à jour le sidecar partagé, ou dissociez/supprimez le sidecar si vous ne souhaitez plus le partager.",
+  "Sidecar conflict mixed help": "Pour les fichiers JPEG et HEIC, photoboggan écrit dans le fichier image et ne modifie jamais les sidecars .xmp. Les anciennes valeurs restent lues depuis des sidecars .xmp. Supprimez ou mettez à jour les sidecars propres, ou modifiez/effacez le champ sur le fichier RAW frère pour les sidecars partagés, puis relancez une synchronisation ou une relecture."
 }

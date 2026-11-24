@@ -489,7 +489,8 @@ fn marking_and_rotation_mismatch_mark_photo_for_resync() {
     let err = write_photo_marking_with(&pool, &dirs, id, &path_str, Some(5), None, None, None, |p, _| {
         fs::write(format!("{p}.xmp"), "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmp:Rating=\"1\"/></rdf:RDF></x:xmpmeta>")
     }).unwrap_err();
-    assert!(err.contains("note"), "{err}");
+    assert!(err.message.contains("note"), "{}", err.message);
+    assert!(err.sidecar_conflict.is_none());
     let size_after_marking: i64 = pool.get().unwrap().query_row("SELECT file_size FROM photos WHERE id = ?1", [id], |r| r.get(0)).unwrap();
     assert_eq!(size_after_marking, -1);
 
@@ -500,4 +501,26 @@ fn marking_and_rotation_mismatch_mark_photo_for_resync() {
     assert!(err.contains("Orientation"), "{err}");
     let size_after_rotate: i64 = pool.get().unwrap().query_row("SELECT file_size FROM photos WHERE id = ?1", [id], |r| r.get(0)).unwrap();
     assert_eq!(size_after_rotate, -1);
+}
+
+#[test]
+fn marking_removal_masked_by_sidecar_reports_sidecar_conflict() {
+    let (dir, pool) = temp_catalog();
+    let dirs = cache_dirs(dir.path());
+    let jpg = dir.path().join("color.jpg");
+    put(&jpg, &jpeg_bytes(16, 16));
+    put(
+        &dir.path().join("color.jpg.xmp"),
+        b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmp:Label=\"Red\"/></rdf:RDF></x:xmpmeta>",
+    );
+    let path_str = jpg.to_string_lossy().into_owned();
+    let id = insert_photo(&pool.get().unwrap(), &path_str);
+
+    let err = write_photo_marking_with(&pool, &dirs, id, &path_str, None, Some(None), None, Some("none"), |p, _| {
+        fs::write(p, jpeg_bytes(16, 16))
+    })
+    .unwrap_err();
+    let conflict = err.sidecar_conflict.expect("sidecar conflict expected");
+    assert_eq!(conflict.sidecar_name, "color.jpg.xmp");
+    assert!(!conflict.shared);
 }

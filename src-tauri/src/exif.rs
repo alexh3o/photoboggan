@@ -288,8 +288,12 @@ struct ParsedXmp {
 }
 
 fn parse_xmp(path: &Path) -> ParsedXmp {
+    parse_xmp_with(path, true)
+}
+
+fn parse_xmp_with(path: &Path, include_sidecar: bool) -> ParsedXmp {
     // Only the sidecar in use (see read_sidecar): `photo.jpg.xmp`, else the compatible name `photo.xmp`.
-    let sources = read_sidecar(path);
+    let sources = if include_sidecar { read_sidecar(path) } else { None };
     let mut keywords = Vec::new();
     let mut hierarchical: Vec<Vec<String>> = Vec::new();
     let mut ratings: [Option<i32>; 3] = Default::default();
@@ -888,6 +892,14 @@ fn xmp_picks(xml: &str) -> [Option<&'static str>; 3] {
 /// - EXIF `Rating` / `RatingPercent` (Windows): JPEG only, and only if the internal writer does not ignore EXIF. In a RAW they are never
 ///   written (ExifTool writes to the sidecar): not read, so a RAW whose EXIF rating comes first in the read order is not checked on that source.
 pub fn read_marking(path: &Path) -> ExifMetadata {
+    read_marking_with(path, true)
+}
+
+pub(crate) fn read_marking_without_sidecar(path: &Path) -> ExifMetadata {
+    read_marking_with(path, false)
+}
+
+fn read_marking_with(path: &Path, include_sidecar: bool) -> ExifMetadata {
     let mut meta = ExifMetadata::default();
     let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase();
     let jpeg = matches!(extension.as_str(), "jpg" | "jpeg");
@@ -898,7 +910,8 @@ pub fn read_marking(path: &Path) -> ExifMetadata {
     } else {
         None
     };
-    for xml in [embedded, read_sidecar(path)].into_iter().flatten() {
+    let sidecar = if include_sidecar { read_sidecar(path) } else { None };
+    for xml in [embedded, sidecar].into_iter().flatten() {
         for (slot, value) in meta.rating_sources.iter_mut().zip(xmp_ratings(&xml)) { if slot.is_none() { *slot = value; } }
         for (slot, value) in meta.color_sources.iter_mut().zip(xmp_colors(&xml)) { if slot.is_none() { *slot = value; } }
         for (slot, value) in meta.pick_sources.iter_mut().zip(xmp_picks(&xml)) { if slot.is_none() { *slot = value; } }
@@ -1287,9 +1300,19 @@ fn keep<T>(slot: &mut Option<T>, value: Option<T>) {
 }
 
 pub fn read_exif(path: &Path) -> ExifMetadata {
-    if crate::video::is_video_path(path) { return read_video_metadata(path); }
+    read_exif_with(path, true)
+}
+
+pub(crate) fn read_exif_without_sidecar(path: &Path) -> ExifMetadata {
+    read_exif_with(path, false)
+}
+
+fn read_exif_with(path: &Path, include_sidecar: bool) -> ExifMetadata {
+    if crate::video::is_video_path(path) {
+        return if include_sidecar { read_video_metadata(path) } else { ExifMetadata::default() };
+    }
     let mut meta = ExifMetadata::default();
-    let parsed = parse_xmp(path);
+    let parsed = parse_xmp_with(path, include_sidecar);
     let xmp_orientation = parsed.orientation;
     apply_parsed_xmp(&mut meta, parsed);
     let mut exif_orientation: Option<u32> = None;
@@ -1807,6 +1830,11 @@ pub fn read_face_regions(path: &Path) -> Vec<crate::faces::FaceRegion> {
     read_sidecar(path).map(|text| crate::faces::parse_regions(&text)).unwrap_or_default()
 }
 
+/// Face regions stored inside the image file itself, ignoring any `.xmp` sidecar (used for sidecar conflict detection).
+pub(crate) fn read_face_regions_without_sidecar(path: &Path) -> Vec<crate::faces::FaceRegion> {
+    read_embedded_xmp(path).map(|embedded| crate::faces::parse_regions(&embedded)).unwrap_or_default()
+}
+
 /// Resized copies with pixel rotation (resize.rs): only face regions in the XMP packet are rotated to match the output image
 /// (EXIF `orientation`), and `AppliedToDimensions` is updated to the output size. Non-face MWG regions are not re-oriented on resized
 /// copies, and originals are never modified by this function. If there are no regions, the packet is returned unchanged.
@@ -1994,6 +2022,27 @@ pub(crate) fn active_sidecar(image_path: &Path) -> Option<std::path::PathBuf> {
 /// dernière extension : `IMG.2024.cr2` -> `IMG.2024.xmp`).
 pub(crate) fn sidecar_candidates(image_path: &Path) -> [std::path::PathBuf; 2] {
     [std::path::PathBuf::from(format!("{}.xmp", image_path.display())), image_path.with_extension("xmp")]
+}
+
+/// Sidecar `.xmp` that still supplies an old value when a JPEG/HEIC file is modified or erased in-place.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct SidecarConflict {
+    pub sidecar_path: String,
+    pub sidecar_name: String,
+    pub shared: bool,
+}
+
+/// Returns a `SidecarConflict` when `path` is written in-file (JPEG/HEIC), has an active `.xmp` sidecar,
+/// and `embedded_matches()` confirms the image file itself holds the expected written/erased values
+/// (meaning the mismatch on read-back comes solely from the untouched sidecar).
+pub(crate) fn detect_sidecar_conflict(path: &Path, embedded_matches: impl FnOnce() -> bool) -> Option<SidecarConflict> {
+    if !crate::exiftool::writes_in_file(path) { return None; }
+    let sidecar = active_sidecar(path)?;
+    if !embedded_matches() { return None; }
+    let [appended, _] = sidecar_candidates(path);
+    let shared = if sidecar == appended { false } else { has_same_stem_sibling(path).unwrap_or(true) };
+    let sidecar_name = sidecar.file_name()?.to_string_lossy().into_owned();
+    Some(SidecarConflict { sidecar_path: sidecar.to_string_lossy().into_owned(), sidecar_name, shared })
 }
 
 /// Writes `update` (keywords, title, description, rights, regions, GPS) to the file or its sidecar via ExifTool.
@@ -2321,6 +2370,11 @@ pub fn read_metadata_details(path: &Path) -> MetadataDetails {
     if let Ok(metadata) = fs::metadata(path) {
         details.file.push(detail_entry("path", path.display().to_string()));
         details.file.push(detail_entry("size", format!("{:.2} MB", metadata.len() as f64 / 1024.0 / 1024.0)));
+    }
+    if let Some(sidecar) = active_sidecar(path) {
+        if let Some(name) = sidecar.file_name() {
+            details.file.push(detail_entry("sidecar", name.to_string_lossy()));
+        }
     }
     if crate::video::is_video_path(path) {
         // Vidéo : seulement le sidecar XMP (pas d'EXIF, d'IPTC ni de dimensions à lire dans le fichier).

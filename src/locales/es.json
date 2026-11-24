@@ -2000,5 +2000,15 @@
   "External modification detected": "Modificación externa detectada",
   "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?": "{count} archivo fue modificado fuera de photoboggan desde esta acción. Deshacer sobrescribirá esos cambios externos. ¿Continuar?",
   "{count} file was modified outside photoboggan since this action. Undoing will overwrite those external changes. Continue?|other": "{count} archivos fueron modificados fuera de photoboggan desde esta acción. Deshacer sobrescribirá esos cambios externos. ¿Continuar?",
-  "Undo anyway": "Deshacer de todos modos"
+  "Undo anyway": "Deshacer de todos modos",
+  "Show failed files": "Mostrar los archivos con error",
+  "Changes to failed files remain pending.": "Los cambios de los archivos con error permanecen pendientes.",
+  "Files whose metadata could not be written": "Archivos cuyos metadatos no se pudieron escribir",
+  "XMP sidecar": "Sidecar XMP",
+  "Show sidecar": "Mostrar sidecar",
+  "Value still read from sidecar “{name}”": "Valor aún leído desde el sidecar «{name}»",
+  "Value still read from shared sidecar “{name}”": "Valor aún leído desde el sidecar compartido «{name}»",
+  "Sidecar conflict own help": "Para archivos JPEG y HEIC, photoboggan escribe dentro del archivo de imagen y nunca modifica los sidecars .xmp. El cambio se escribió en la imagen, pero el valor anterior sigue leyéndose desde su sidecar .xmp. Elimine o actualice el archivo sidecar y vuelva a sincronizar o releer.",
+  "Sidecar conflict shared help": "Para archivos JPEG y HEIC, photoboggan escribe dentro del archivo de imagen y nunca modifica los sidecars .xmp. El valor anterior sigue leyéndose desde un sidecar .xmp compartido (p. ej., par RAW+JPEG). Modifique o borre el campo en el archivo RAW hermano para actualizar el sidecar compartido, o separe/elimine el sidecar si ya no desea compartirlo.",
+  "Sidecar conflict mixed help": "Para archivos JPEG y HEIC, photoboggan escribe dentro del archivo de imagen y nunca modifica los sidecars .xmp. Los valores anteriores siguen leyéndose desde sidecars .xmp. Elimine o actualice los sidecars propios, o modifique/borre el campo en el archivo RAW hermano para los sidecars compartidos, y luego vuelva a sincronizar o releer."
 }

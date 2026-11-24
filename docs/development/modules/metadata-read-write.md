@@ -1,4 +1,4 @@
-<!-- verified: 67da365 | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
+<!-- verified: 7974f29 | sources: src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/rights.rs, src/metadata-writes.js, src/metadata-settings.js, src/marking-settings.js, src/order-list.js, src/description-panel.js, src/rights-presets.js, src/info-author.js -->
 # Metadata reading and writing (EXIF / IPTC / XMP, ExifTool, sidecars)
 
 ## Purpose
@@ -87,17 +87,17 @@ Details worth knowing:
 - **Targets** (`target_of`): JPEG and HEIC in the file; all else in the sidecar, created through a unique temp name then renamed (`write_to`), or seeded from a shared `photo.xmp` (`seed`, without recording a false `Recovery`).
 
 ### Frontend write circuit (`metadata-writes.js`)
-1. Each right-panel tab calls `registerEditor({ isDirty, pendingItems, afterWrite, discard, … })`; edits stay pending until Apply, Ctrl+Enter, selection change (confirmation, or automatic with `keywordsAutoApply`) or app close. The faces editor has `scope: 'library'` (pending across the whole library: no question on selection change, written only on explicit request or at close).
-2. `applyPending` merges all editors' items per photo (`photo_id`), runs `resolveFaceKeywordConflicts` (`face_keyword_conflicts`; the user keeps the keyword or turns the face to unknown), then `runWrite` → `runLocked('apply_metadata_changes', { items }, count, finish)`.
+1. Each right-panel tab calls `registerEditor({ isDirty, pendingItems, afterWrite, discard, keepOnlyTargets?, … })`; edits stay pending until Apply, Ctrl+Enter, selection/view change (confirmation via `resolvePendingSelection`, guarded before `selectFolder`, `toggleFolderInSelection`, `selectAlbum`, `recursive-folder-toggle` and `showPhotoInItsFolder`, or automatic with `keywordsAutoApply`) or app close. The faces editor has `scope: 'library'` (pending across the whole library: no question on selection change, written only on explicit request or at close).
+2. `applyPending` merges all editors' items per photo (`photo_id`), runs `resolveFaceKeywordConflicts` (`face_keyword_conflicts`; the user keeps the keyword or turns the face to unknown), then `runWrite` (capturing `sourceSnapshot`) → `runLocked('apply_metadata_changes', { items }, count, finish)`.
 3. `runLocked`: `count >= QUEUE_THRESHOLD` (20) goes through `host.enqueueKeywordTask` (cancellable task); below, a direct `invoke`. Either way a counter (`directWrites` / `queuedWrites`) locks the UI (`isWriteLocked`, `onLockChange`), and `reportWriteRecoveries` is awaited (calls serialized, one blocking dialog each) before `finish`.
-4. `finishWrite` updates the UI from the result (`afterWrite` of each editor) and lists failed files (`showFailedFiles`).
+4. `finishWrite` updates the UI from the result (`afterWrite` of each editor) and lists failed files (`showFailureDialog` → `failureListDialog`, scrollable with pagination above 50 items). "Show failed files" keeps pending edits (`keepOnlyTargets`) and restores `sourceSnapshot` / loads via `get_photos_by_paths` if needed; "Discard changes" explicitly drops failed photos' pending edits; "Close" leaves them pending. When a JPEG/HEIC write/erasure is masked by an untouched `.xmp` sidecar (`exif::detect_sidecar_conflict`, `sidecar_conflict` on `KeywordFailure`, `GeoFailure`, `MarkingFailure`), the dialog explains why and offers "Show sidecar" (`reveal_in_file_manager`).
 
 Marking (rating / colour / pick) does not use this circuit: it goes through `update_photos_marking` (see `photo-operations.md`, `../architecture.md` flow 3), which verifies with `read_marking` + `marking_mismatch`.
 
 `marking-settings.js` only toggles `colorLabelEnabled` (default true) and `pickLabelEnabled` (default false) and sets the body classes `no-color-labels` / `no-pick-labels`; values stay read and stored when disabled.
 
 ## Contracts
-- IPC: `set_metadata_writer`, `get_exiftool_status`, `exiftool_prewarm` (exiftool.rs); `set_metadata_read_order` (keywords.rs); `get_photo_details` (→ `read_metadata_details`, the "all metadata" view: EXIF, XMP properties, IPTC, values capped at 1000 chars); `take_write_recoveries`, `update_photos_marking` (main.rs); `apply_metadata_changes` (keywords.rs, see `keywords.md`). Signatures: `../generated/ipc-commands.md`.
+- IPC: `set_metadata_writer`, `get_exiftool_status`, `exiftool_prewarm` (exiftool.rs); `set_metadata_read_order` (keywords.rs); `get_photo_details` (→ `read_metadata_details`, the "all metadata" view: EXIF, XMP properties, IPTC, active `sidecar` filename when present, values capped at 1000 chars); `get_photo_sidecar` (main.rs, Info tab sidecar row); `take_write_recoveries`, `update_photos_marking` (main.rs); `apply_metadata_changes` (keywords.rs, see `keywords.md`). Signatures: `../generated/ipc-commands.md`.
 - Events: none.
 - Database: none directly (callers store what `read_exif` returns).
 - Settings: `exiftoolPath`, `metadataOrderKind`, `<kind>FormatOrder` keys, `keywordsAutoApply`, `keywordsAutoApplyAsked`, `colorLabelEnabled`, `pickLabelEnabled` (`../generated/config.md`).

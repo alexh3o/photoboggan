@@ -458,3 +458,49 @@ fn sidecar_mismatch_or_db_rollback_marks_photo_for_resync() {
     let file_size_after_db_err: i64 = conn.query_row("SELECT file_size FROM photos WHERE id = ?1", params![photo], |r| r.get(0)).unwrap();
     assert_eq!(file_size_after_db_err, -1, "DB rollback after write must mark photo for resync");
 }
+
+#[test]
+fn jpeg_erasure_masked_by_sidecar_reports_sidecar_conflict() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+
+    // 1. JPEG with own .jpg.xmp holding a title -> erasure leaves JPEG clean, sidecar still has title -> own conflict.
+    let own_jpg = dir.path().join("own.jpg");
+    std::fs::write(&own_jpg, jpeg_bytes(16, 16)).unwrap();
+    std::fs::write(
+        dir.path().join("own.jpg.xmp"),
+        "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:dc=\"http://purl.org/dc/elements/1.1/\" dc:title=\"Old Title\"/></rdf:RDF></x:xmpmeta>",
+    )
+    .unwrap();
+    let own_path = own_jpg.to_string_lossy().into_owned();
+    let own_id = insert_photo(&conn, &own_path);
+
+    let mut env = write_env(dir.path());
+    env.write = |image_path, _update| std::fs::write(image_path, jpeg_bytes(16, 16));
+    let mut own_item = item(own_id, &own_path, None);
+    own_item.title = Some(String::new());
+    let res = run_write(&env, &pool, vec![own_item], None).unwrap();
+    assert_eq!(res.failed.len(), 1);
+    let conflict = res.failed[0].sidecar_conflict.as_ref().expect("own sidecar conflict expected");
+    assert_eq!(conflict.sidecar_name, "own.jpg.xmp");
+    assert!(!conflict.shared);
+
+    // 2. JPEG paired with RAW sharing photo.xmp -> shared conflict.
+    let pair_jpg = dir.path().join("pair.jpg");
+    std::fs::write(&pair_jpg, jpeg_bytes(16, 16)).unwrap();
+    std::fs::write(dir.path().join("pair.cr2"), b"raw").unwrap();
+    std::fs::write(
+        dir.path().join("pair.xmp"),
+        "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:dc=\"http://purl.org/dc/elements/1.1/\" dc:description=\"Old Desc\"/></rdf:RDF></x:xmpmeta>",
+    )
+    .unwrap();
+    let pair_path = pair_jpg.to_string_lossy().into_owned();
+    let pair_id = insert_photo(&conn, &pair_path);
+    let mut pair_item = item(pair_id, &pair_path, None);
+    pair_item.description = Some(String::new());
+    let res = run_write(&env, &pool, vec![pair_item], None).unwrap();
+    assert_eq!(res.failed.len(), 1);
+    let conflict = res.failed[0].sidecar_conflict.as_ref().expect("shared sidecar conflict expected");
+    assert_eq!(conflict.sidecar_name, "pair.xmp");
+    assert!(conflict.shared);
+}

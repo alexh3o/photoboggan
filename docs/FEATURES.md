@@ -137,6 +137,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
   - **ExifTool** (recommended & default): writes XMP, IPTC, and EXIF across formats
   - **Internal native writer**: faster Rust writer limited to XMP & IPTC (never writes/erases risky EXIF tags)
 - **Metadata reading** across major standards (EXIF, IPTC, XMP) and schemas (digiKam, Lightroom, Media Pro, Microsoft, ACDSee...) with user-editable per-field reading priority
+- Reads xmp embedded data first with fallback on xmp sidecar. If deleting metadata fails because of persistence in sidecar, user is offered to view the sidecar for action.
 - **Safe sidecar targeting** (avoids overwriting shared sidecars in RAW+JPEG / RAW+DNG pairs, logs conflicts)
 - **Atomic writes**, **post-write verification** (every write is re-read and checked), and **ExifTool failure recovery** with detailed logs
 - **Files left in an incomplete form** during an unlucky crash of app, exiftool or computer during a metadata write are detected on new files scans

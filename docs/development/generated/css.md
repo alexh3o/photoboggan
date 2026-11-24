@@ -15,7 +15,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 1 | — |
 | `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 20 | — |
-| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 24 | — |
+| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 25 | — |
 | `--btn-text` | styles.css · `:root` · `#fff`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 12 | — |
 | `--card-bg` | styles.css · `:root` · `#222`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 13 | — |
 | `--clipping-bw-blur` | histogram.css · `:root` · `20px` | 1 | — |
@@ -29,9 +29,9 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--col-w` | — | 4 | list-view.js |
 | `--col-w-` | — | 2 | list-view.js |
 | `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 56 | — |
-| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 68 | — |
+| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 69 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 13 | — |
-| `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 25 | — |
+| `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 26 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
 | `--duplicate-meta-height` | duplicates.css · `:root` · `calc(0.68rem * 1.2 + 4px)` | 1 | — |
 | `--face-bar-reserve` | faces.css · `.faces-view` · `5.5rem` | 1 | — |
@@ -93,7 +93,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--histogram-width` | histogram.css · `:root` · `13rem` | 1 | — |
 | `--item-size` | styles.css · `:root` · `160px` | 2 | — |
 | `--list-table-width` | — | 1 | list-view.js |
-| `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 8 | — |
+| `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 11 | — |
 | `--pending-on` | styles.css · `:root` · `#000`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 1 | — |
 | `--pick-color` | styles.css · `.filter-summary .pick-indicator.pick-none` · `#f5f5f5`<br>styles.css · `.pick-picked` · `#2ecc71`<br>styles.css · `.pick-rejected` · `#e74c3c`<br>styles.css · `.pick-pending` · `#f1c40f`<br>styles.css · `.pick-none` · `#95a5a6`<br>styles.css · `.marking-pick .pick-square, #pick-filter-bar .pic…` · `var(--pick-state-color)` | 9 | — |
 | `--pick-state-color` | styles.css · `.marking-pick .pick-none, #pick-filter-bar .pick-…` · `#f5f5f5`<br>styles.css · `.marking-pick .pick-pending, #pick-filter-bar .pi…` · `#f1c40f`<br>styles.css · `.marking-pick .pick-picked, #pick-filter-bar .pic…` · `#2ecc71`<br>styles.css · `.marking-pick .pick-rejected, #pick-filter-bar .p…` · `#e74c3c` | 1 | — |
@@ -103,10 +103,10 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--raw-badge-radius` | styles.css · `:root` · `3px` | 1 | — |
 | `--raw-badge-size` | styles.css · `:root` · `18px` | 3 | — |
 | `--resizer-bg` | styles.css · `:root` · `#292929`<br>styles.css · (light) `:root[data-theme="light"]` · `#cfcfcf` | 3 | — |
-| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 17 | — |
+| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 19 | — |
 | `--selected-border` | styles.css · `:root` · `#15932a` | 11 | main.js |
 | `--selected-contrast` | — | 1 | main.js |
-| `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 35 | — |
+| `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 36 | — |
 | `--share` | — | 2 | stats.js |
 | `--side-block-gap` | styles.css · `:root` · `1rem` | 2 | — |
 | `--side-meta-size` | styles.css · `:root` · `0.7rem` | 11 | — |
@@ -154,11 +154,11 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-shot-bg` | shooting-filters.css · `:root` · `#865130` | 1 | — |
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
 | `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 30 | — |
-| `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 39 | — |
+| `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 40 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 4 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 74 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 76 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 87 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 89 | — |
 | `--thumb-badge-bg` | styles.css · `:root` · `rgba(145, 145, 145, 0.7)` | 2 | — |
 | `--thumb-badge-color` | styles.css · `:root` · `#fff` | 2 | — |
 | `--thumb-badge-gap` | styles.css · `:root` · `4px` | 1 | — |
@@ -377,7 +377,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L61 Mode noir / blanc : bords adoucis (flou) et pulsation entre une opacité minimale et une opacité maximale < 1 (reste translucide).
 - L71 Options d'affichage > Histogramme : deux réglages par ligne.
 
-### src/keywords.css (140 lines)
+### src/keywords.css (156 lines)
 
 - L1 PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywor…
 - L4 Le panneau passe en colonne : barre d'onglets en haut, puis le contenu de l'onglet affiché (qui défile seul).
@@ -397,13 +397,14 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L91 Fenêtre à choix multiples (modifications en attente, échec d'écriture)
 - L95 Long lists in a dialog (every failed file of a batch): the text scrolls, the buttons stay in view
 - L98 Boutons colorés des questions d'écriture : écrire (bleu), écrire plus tard (orange), abandonner / quitter sans écrire (rouge)
-- L106 Pastille du filtre « fichiers en échec »
-- L110 Fenêtre de saisie du nom d'un mot-clé
-- L115 Paramètres : liste ordonnable de la priorité de lecture des formats hiérarchiques
-- L116 Tableau à hauteur fixe de 6 lignes : changer de type de métadonnée ne décale pas le reste de la fenêtre.
-- L124 Three parts per format: source pill, schema, technical field. Pill and schema share one size; the field is a bit larger than befo…
-- L133 Flat keyword fields: same rows without handle or arrows.
-- L136 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
+- L106 Structured failure report dialog (metadata writes, geolocation, marking, batch operations)
+- L122 Pastille du filtre « fichiers en échec »
+- L126 Fenêtre de saisie du nom d'un mot-clé
+- L131 Paramètres : liste ordonnable de la priorité de lecture des formats hiérarchiques
+- L132 Tableau à hauteur fixe de 6 lignes : changer de type de métadonnée ne décale pas le reste de la fenêtre.
+- L140 Three parts per format: source pill, schema, technical field. Pill and schema share one size; the field is a bit larger than befo…
+- L149 Flat keyword fields: same rows without handle or arrows.
+- L152 Flèches discrètes, sans cadre ni fond : elles ne s'accentuent qu'au survol.
 
 ### src/list-view.css (64 lines)
 

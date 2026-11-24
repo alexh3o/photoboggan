@@ -531,6 +531,22 @@ const keywordEditor = {
     syncPhotoSuggestions({ force: true }); // written keywords are no longer suggested
   },
   discard: photoIds => resetChanges(photoIds),
+  keepOnlyTargets(photoIds) {
+    let removed = false;
+    for (const id of [...working.keys()]) {
+      if (!photoIds.has(id)) {
+        working.delete(id);
+        baseline.delete(id);
+        workingPhotos.delete(id);
+        removed = true;
+      }
+    }
+    if (removed) {
+      recomputeCounts();
+      renderTree();
+      updateButtons();
+    }
+  },
   // Photo renommée ou déplacée : ses mots-clés en attente seront écrits sous le nouveau chemin.
   photosMoved(destinations) {
     for (const photo of workingPhotos.values()) photo.path = destinations.get(photo.path) ?? photo.path;
@@ -1101,11 +1117,12 @@ export async function renameKeywordById(keywordId, name, after) {
 }
 
 function runKeywordRename(node, name, photoCount, after = null) {
-  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (result, error) => finishRename(node, name, photoCount, after, result, error));
+  const sourceSnapshot = host.captureViewSnapshot?.() ?? null;
+  return runLocked('rename_keyword', { keywordId: node.id, name }, photoCount, (result, error) => finishRename(node, name, photoCount, after, sourceSnapshot, result, error));
 }
 
 // Fin d'un renommage. L'arbre est renommé dès le début de l'opération, même si certains fichiers n'ont pas pu être réécrits (« Retenter » les reprend).
-async function finishRename(node, name, photoCount, after, result, error) {
+async function finishRename(node, name, photoCount, after, sourceSnapshot, result, error) {
   if (!result) {
     if (error) host.showToast(t('Could not rename the keyword: {error}', { error: describeKeywordError(error) }));
     return;
@@ -1116,7 +1133,7 @@ async function finishRename(node, name, photoCount, after, result, error) {
   publishWritten(result.written);
   host.onTreeChanged?.();
   await after?.();
-  if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount, after));
+  if (result.failed.length) await showFailureDialog(result, () => runKeywordRename({ ...node, name }, name, photoCount, after), { hasPendingEdits: false, sourceSnapshot });
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword renamed to “{name}”', { name }));
 }
@@ -1127,11 +1144,12 @@ async function finishRename(node, name, photoCount, after, result, error) {
 
 function runKeywordDelete(node, photoCount) {
   const ids = [node.id, ...descendantIds(node.id)];
-  return runLocked('delete_keyword', { keywordId: node.id }, photoCount, (result, error) => finishDelete(node, photoCount, ids, result, error));
+  const sourceSnapshot = host.captureViewSnapshot?.() ?? null;
+  return runLocked('delete_keyword', { keywordId: node.id }, photoCount, (result, error) => finishDelete(node, photoCount, ids, sourceSnapshot, result, error));
 }
 
 // Fin d'une suppression. Les photos écrites ne portent plus le mot-clé ; il ne quitte l'arbre que si plus aucun fichier ne le porte (`result.deleted`).
-async function finishDelete(node, photoCount, ids, result, error) {
+async function finishDelete(node, photoCount, ids, sourceSnapshot, result, error) {
   if (!result) {
     if (error) host.showToast(t('Could not delete the keyword: {error}', { error: String(error) }));
     return;
@@ -1151,7 +1169,7 @@ async function finishDelete(node, photoCount, ids, result, error) {
   publishWritten(result.written);
   host.onTreeChanged?.();
   if (isKeywordsTabVisible()) refreshTreeAndUsage().then(renderTree);
-  if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount));
+  if (result.failed.length) await showFailureDialog(result, () => runKeywordDelete(node, photoCount), { hasPendingEdits: false, sourceSnapshot });
   else if (result.cancelled) host.showToast(t('Metadata writing stopped: {count} not processed', { count: result.cancelled }));
   else host.showToast(t('Keyword “{name}” deleted', { name: node.name }));
   // Personnes qui étaient reliées à ce mot-clé (ou à un descendant) : désormais déliées, leur suppression est proposée (faces-panel.js).

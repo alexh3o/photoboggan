@@ -6,6 +6,7 @@ import { t, tp, normalizeSearch } from './i18n.js';
 import { initSidebarSearch } from './sidebar-search.js';
 import { openContextMenuAt } from './photo-actions.js';
 import { getSelectedAlbum, clearAlbumSelection, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
+import { hasSelectionEdits, resolvePendingSelection } from './metadata-writes.js';
 import { pinnedFolderRows } from './sticky-folders.js';
 
 let host = {};
@@ -167,12 +168,10 @@ export function getFolderPhotoCount(path) {
   return (host.getIncludeSubfolders() ? folderCountsTree : folderCountsOwn).get(folder) ?? 0;
 }
 
-export function selectFolder(path) {
+export async function selectFolder(path) {
   // Modified smart album: Save / Discard / Cancel before leaving it.
-  if (isSelectedAlbumDirty()) {
-    confirmLeaveAlbum().then(proceed => { if (proceed) selectFolder(path); });
-    return;
-  }
+  if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return;
+  if (hasSelectionEdits() && (await resolvePendingSelection([])) === 'cancel') return;
   host.abandonRawSearch(); // manual navigation ends "Find the RAW": pre-search filters return
   host.abandonDuplicateSearch(); // same for the duplicate search
   host.abandonSemanticSearch(); // and the content search
@@ -187,7 +186,7 @@ export function selectFolder(path) {
 }
 
 // Ctrl+click on a folder: adds it to the selection, or removes it if already selected. Without a current folder, behaves like a plain click.
-function toggleFolderInSelection(path) {
+async function toggleFolderInSelection(path) {
   const same = (a, b) => normalizeFolderKey(a) === normalizeFolderKey(b);
   let current = host.getCurrentFolderFilter();
   let extras = host.getExtraFolderFilters();
@@ -196,8 +195,9 @@ function toggleFolderInSelection(path) {
     return;
   }
   if (isSelectedAlbumDirty()) { selectFolder(path); return; }
+  if (same(current, path) && extras.length === 0) return; // the only selected folder stays selected
+  if (hasSelectionEdits() && (await resolvePendingSelection([])) === 'cancel') return;
   if (same(current, path)) {
-    if (extras.length === 0) return; // the only selected folder stays selected
     // The main folder is deselected: the first extra one takes over.
     [current, ...extras] = extras;
     host.setCurrentFolderFilter(current);

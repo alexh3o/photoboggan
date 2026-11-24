@@ -21,6 +21,9 @@
 - [x] *refactor*: `bundles` only one multilingual msi for windows instead of one per language
 - [x] *chore*: `maintenability` reduce main.js size by export of parts to fullscreen.js, folder-tree.js, find-raw-mode.js, semantic-results.js, duplicates-view.js, drag-drop.js, preview-zoom.js, task-queue.js
 - [x] *feat*: `lists` add format entries with resolution, orientation, ratio (1:1; 6:7; 4:3; 3:2; 16:10; 16:9 or ratio value if doesn't fit to 1%)
+- [x] *refactor*: `metadata` remove internal writer for safety and ease of maintenance
+- [ ] *fix*: `metadata` show action from metadata fail dialog doesn't work if view has changed
+- [ ] *fix*:  `metadata` inform user when failed gps/title/description is due to this data remaining in a sidecar xmp
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -33,6 +36,8 @@
 - [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
 - [x] *feat*: `undo` better ctrl+z info
 - [ ] *fix*: `metadata` xmp sidecars are not synced as image embedded metadata when modified
+- [ ] *feat*  `metadata` handle xmp sidecar leftovers (except if sidecar writing is implemented and active)
+- [ ] *feat*: `metadata`allow writing to xmp sidecar
 
 ## ⚖️ Undecided
 

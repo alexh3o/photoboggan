@@ -49,6 +49,8 @@ pub struct GeoFailure {
     pub path: String,
     /// Code (« gps_in_exif_internal_writer », « gps_in_exif_sidecar_format ») ou message d'erreur.
     pub error: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sidecar_conflict: Option<crate::exif::SidecarConflict>,
 }
 
 #[derive(Serialize, Debug, Default)]
@@ -96,18 +98,40 @@ pub(crate) fn gps_mismatch(written: (f64, f64), read: Option<(f64, f64)>) -> Opt
     }
 }
 
+#[derive(Debug)]
+struct GeoWriteError {
+    message: String,
+    sidecar_conflict: Option<crate::exif::SidecarConflict>,
+}
+
+impl From<String> for GeoWriteError {
+    fn from(message: String) -> Self {
+        Self { message, sidecar_conflict: None }
+    }
+}
+
+pub(crate) fn verify_gps_write(restore: Option<(f64, f64)>, read: Option<(f64, f64)>) -> Option<String> {
+    match (restore, read) {
+        (None, Some(_)) => Some("Le fichier relu est encore géolocalisé".to_string()),
+        (Some(_), None) => Some("Les coordonnées relues dans le fichier sont absentes".to_string()),
+        (Some((lat, lon)), Some((read_lat, read_lon))) if (lat - read_lat).abs() > SAME_PLACE || (lon - read_lon).abs() > SAME_PLACE => {
+            Some("Les coordonnées relues dans le fichier diffèrent de celles écrites".to_string())
+        }
+        _ => None,
+    }
+}
+
 /// Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
-fn write_one(conn: &rusqlite::Connection, cache_dirs: &crate::ImageCacheDirs, photo_id: i64, path: &str, restore: Option<(f64, f64)>) -> Result<GeoPhoto, String> {
+fn write_one(conn: &rusqlite::Connection, cache_dirs: &crate::ImageCacheDirs, photo_id: i64, path: &str, restore: Option<(f64, f64)>) -> Result<GeoPhoto, GeoWriteError> {
     let update = crate::exif::MetadataUpdate { gps: Some(restore), ..Default::default() };
     crate::keep_cached_images(cache_dirs, path, || crate::exif::write_metadata(path, &update).map_err(|error| error.to_string()))?;
-    let meta = crate::exif::read_exif(Path::new(path));
-    match (restore, meta.gps) {
-        (None, Some(_)) => return Err("Le fichier relu est encore géolocalisé".to_string()),
-        (Some(_), None) => return Err("Les coordonnées relues dans le fichier sont absentes".to_string()),
-        (Some((lat, lon)), Some((read_lat, read_lon))) if (lat - read_lat).abs() > SAME_PLACE || (lon - read_lon).abs() > SAME_PLACE => {
-            return Err("Les coordonnées relues dans le fichier diffèrent de celles écrites".to_string());
-        }
-        _ => {}
+    let path_obj = Path::new(path);
+    let meta = crate::exif::read_exif(path_obj);
+    if let Some(message) = verify_gps_write(restore, meta.gps) {
+        let sidecar_conflict = crate::exif::detect_sidecar_conflict(path_obj, || {
+            verify_gps_write(restore, crate::exif::read_exif_without_sidecar(path_obj).gps).is_none()
+        });
+        return Err(GeoWriteError { message, sidecar_conflict });
     }
     let (gps_lat, gps_lon) = (meta.gps.map(|gps| gps.0), meta.gps.map(|gps| gps.1));
     // La base reflète la relecture ; une restauration (coordonnées présentes) supprime la sauvegarde (déclencheur erased_locations_relocated).
@@ -124,7 +148,7 @@ fn write_one(conn: &rusqlite::Connection, cache_dirs: &crate::ImageCacheDirs, ph
         }
         Err(_) => conn.execute("UPDATE photos SET gps_lat = ?1, gps_lon = ?2 WHERE id = ?3", params![gps_lat, gps_lon, photo_id]),
     };
-    stored.map_err(|error| format!("Base de données non mise à jour : {error}"))?;
+    stored.map_err(|error| GeoWriteError::from(format!("Base de données non mise à jour : {error}")))?;
     Ok(GeoPhoto { photo_id, gps_lat, gps_lon, effective_modified })
 }
 
@@ -169,7 +193,7 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
                 None => None,
                 Some(coordinates) => match erase_refusal(Path::new(&path), meta.gps_sources[0].is_some()) {
                     Some(reason) => {
-                        result.refused.push(GeoFailure { photo_id, path: path.clone(), error: reason.to_string() });
+                        result.refused.push(GeoFailure { photo_id, path: path.clone(), error: reason.to_string(), sidecar_conflict: None });
                         None
                     }
                     None => {
@@ -179,7 +203,7 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
                             params![photo_id, coordinates.0, coordinates.1, now_millis()],
                         );
                         Some(match saved {
-                            Err(error) => Err(format!("Sauvegarde des coordonnées impossible : {error}")),
+                            Err(error) => Err(GeoWriteError::from(format!("Sauvegarde des coordonnées impossible : {error}"))),
                             Ok(_) => write_one(&conn, &cache_dirs, photo_id, &path, None).inspect_err(|_| {
                                 let still_located = crate::exif::read_exif(Path::new(&path)).gps.is_some();
                                 if still_located { let _ = conn.execute("DELETE FROM erased_locations WHERE photo_id = ?1", [photo_id]); }
@@ -191,7 +215,7 @@ fn run(app: &tauri::AppHandle, pool: &DbPool, photo_ids: Vec<i64>, restore: bool
         };
         match outcome {
             Some(Ok(photo)) => result.updated.push(photo),
-            Some(Err(error)) => result.failed.push(GeoFailure { photo_id, path, error }),
+            Some(Err(error)) => result.failed.push(GeoFailure { photo_id, path, error: error.message, sidecar_conflict: error.sidecar_conflict }),
             None => {}
         }
         let finished = done.fetch_add(1, Ordering::SeqCst) + 1;

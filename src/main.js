@@ -24,7 +24,7 @@ import {
   renderRawSearchBanner, abandonRawSearch, exitRawSearch, findRawFor,
 } from './find-raw-mode.js';
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
-import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction } from './metadata-writes.js';
+import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction, formatFailureError } from './metadata-writes.js';
 import { initGuide } from './guide.js';
 import { initBatchRename, openBatchRename } from './batch-rename.js';
 import { splitFileName } from './batch-rename-engine.js';
@@ -988,7 +988,10 @@ function schedulePrefilterReload() {
   }, 200);
 }
 
+let failedPhotosDirect = false;
+
 async function loadPhotos({ catalogChanged = true } = {}) {
+  failedPhotosDirect = false;
   // Album virtuel affiché : un album manuel montre son contenu ; un album intelligent part de toute la photothèque (ses filtres viennent ensuite).
   // Dans les deux cas le dossier du disque n'intervient plus.
   const album = getSelectedAlbum();
@@ -1170,6 +1173,8 @@ function applyPhotoFilters({ keepState = true } = {}) {
     if (selectedIndices.size === 0) selectedIndices.add(0);
     updateUIOnSelection();
   } else {
+    refreshKeywordsPanel();
+    refreshDescriptionPanel();
     renderPreview();
     clearFullscreenImage();
     updateRatingAction();
@@ -1177,6 +1182,7 @@ function applyPhotoFilters({ keepState = true } = {}) {
     document.getElementById('exif-caption').textContent = '-';
     renderInfoAuthor(null);
     renderFileDates(null);
+    renderInfoSidecar(null);
     updateInfoFolder(null);
     refreshInfoRows();
   }
@@ -1298,12 +1304,18 @@ function resetAllFilters() {
 
 // Efface les filtres d'un groupe (ou d'un seul type pour un badge) puis relance le filtrage une seule fois.
 function clearFilterKindsAndApply(kinds) {
+  const reloadFromDirect = failedPhotosDirect && kinds.includes('failed');
+  if (reloadFromDirect) failedPhotosDirect = false;
   for (const kind of kinds) clearFilterKinds[kind]();
+  if (reloadFromDirect) { loadPhotos({ catalogChanged: false }); return; }
   applyPhotoFilters();
 }
 
 function clearAllFilters() {
+  const reloadFromDirect = failedPhotosDirect;
+  failedPhotosDirect = false;
   resetAllFilters();
+  if (reloadFromDirect) { loadPhotos({ catalogChanged: false }); return; }
   // Réapplique la liste sans aucun filtre
   applyPhotoFilters();
 }
@@ -1968,6 +1980,12 @@ function renderFilterTags() {
       keywordChildrenFilters.delete(text);
     } else if (kind === 'failed') {
       pathFilter = null;
+      if (failedPhotosDirect) {
+        failedPhotosDirect = false;
+        renderFilterTags();
+        loadPhotos({ catalogChanged: false });
+        return;
+      }
     } else if (excluded) {
       excludedFilenameFilters = excludedFilenameFilters.filter(item => item !== text);
     } else {
@@ -2017,7 +2035,7 @@ function renderFilterTags() {
         ? (withChildren ? 'Excluded keyword (with children): {text}' : 'Excluded keyword: {text}')
         : (withChildren ? 'Keyword (with children): {text}' : 'Keyword: {text}'))
       : kind === 'failed'
-        ? 'Files whose keywords could not be written'
+        ? 'Files whose metadata could not be written'
         : excluded ? 'Filename without: {text}' : 'Filename: {text}';
     const tag = createFilterTag({
       kind,
@@ -2240,13 +2258,20 @@ function setIncludeSubfoldersTemporarily(value) {
 }
 
 // Reopens the view saved before a results mode (folder or album, scroll, selection). The caller has already left the mode.
-async function restoreViewSnapshot(snapshot) {
-  currentPhotoPage = 0; // back to the first page of the view
+async function restoreViewSnapshot(snapshot, { restoreFilters = false, restoreSubfolders = false, restorePage = false } = {}) {
+  if (restoreSubfolders && typeof snapshot.includeSubfolders === 'boolean') {
+    setIncludeSubfoldersTemporarily(snapshot.includeSubfolders);
+  }
+  currentPhotoPage = restorePage ? (snapshot.page ?? 0) : 0; // back to the first page of the view unless restoring exact page
   if (snapshot.albumId) {
     restoreAlbumSelection(snapshot.albumId);
     syncSmartAlbumWithSelection(); // album intelligent : ses filtres reviennent
   } else {
-    currentFolderFilter = snapshot.folder; extraFolderFilters = [];
+    currentFolderFilter = snapshot.folder;
+    extraFolderFilters = [...(snapshot.extraFolders ?? [])];
+  }
+  if (restoreFilters && !snapshot.albumId && snapshot.filterState) {
+    applyFilterState(snapshot.filterState);
   }
   renderFolderTree({ fromCounts: true });
   await loadPhotos({ catalogChanged: false });
@@ -2281,6 +2306,7 @@ function isAllPhotosView() { return currentFolderFilter === null && !getSelected
 async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
   const fromResults = isRawSearchActive() || isDuplicateSearchActive() || isSemanticSearchActive();
   if (!photo || !(fromResults || anyView || isAllPhotosView())) return;
+  if (hasSelectionEdits() && (await resolvePendingSelection([])) === 'cancel') return;
   if (isFullscreenOpen()) closeFullscreen();
   abandonRawSearch(); // option sous-dossiers d'avant la recherche
   abandonDuplicateSearch();
@@ -2312,7 +2338,9 @@ async function showPhotoInItsFolder(photo, { anyView = false } = {}) {
 function captureViewSnapshot(album = getSelectedAlbum()) {
   return {
     folder: currentFolderFilter,
+    extraFolders: [...extraFolderFilters],
     includeSubfolders,
+    page: currentPhotoPage,
     albumId: album?.id ?? 0,
     albumKind: album?.kind ?? null,
     filterState: captureFilterState(),
@@ -2835,6 +2863,7 @@ function updateUIOnSelection() {
     document.getElementById('exif-filename').textContent = photo.filename || photo.path.split(/[\\/]/).pop() || '-';
     updateInfoFolder(photo);
     renderFileDates(photo);
+    renderInfoSidecar(photo);
     document.getElementById('exif-date').textContent = photo.date_taken || '-';
     // Fabricant et modèle regroupés en un seul champ « Camera », séparés par une espace.
     document.getElementById('exif-camera').textContent =
@@ -2876,6 +2905,34 @@ document.getElementById('exif-folder').addEventListener('click', async () => {
   // Same guard as a folder change: an edited smart album is left only after Save / Discard / Cancel.
   if (isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) return;
   showPhotoInItsFolder(photo, { anyView: true });
+});
+
+// Info tab "XMP sidecar" row: shown only when an active `.xmp` sidecar exists for the photo; clicking it reveals the sidecar in the file explorer.
+let sidecarToken = 0;
+let activeSidecarPath = '';
+function renderInfoSidecar(photo) {
+  const button = document.getElementById('exif-sidecar');
+  if (!button) return;
+  const current = ++sidecarToken;
+  button.textContent = '-';
+  button.title = '';
+  button.disabled = true;
+  activeSidecarPath = '';
+  refreshInfoRows();
+  if (!photo?.path) return;
+  invoke('get_photo_sidecar', { path: photo.path })
+    .then(sidecar => {
+      if (current !== sidecarToken || !sidecar) return;
+      button.textContent = sidecar.name;
+      button.title = `${sidecar.path}\n${t('Show in file explorer')}`;
+      button.disabled = false;
+      activeSidecarPath = sidecar.path;
+      refreshInfoRows();
+    })
+    .catch(() => {});
+}
+document.getElementById('exif-sidecar')?.addEventListener('click', () => {
+  if (activeSidecarPath) invoke('reveal_in_file_manager', { path: activeSidecarPath }).catch(error => showWriteToast(String(error)));
 });
 
 // Onglet Info : les lignes sans valeur sont masquées (sauf Fichier, Mots-clés, Titre et Description, toujours présents), et un titre de groupe
@@ -3071,7 +3128,7 @@ async function setSelectionPickFlag(flag, { toggle = true, photos: explicitTarge
 
 // Échecs d'écriture de la note, de la couleur ou du fanion : leur nombre et la raison du premier (ex. ExifTool introuvable).
 function failureSummary(failures) {
-  return failures.length ? ` · ${tp('{count} failure', failures.length)} (${failures[0].error})` : '';
+  return failures.length ? ` · ${tp('{count} failure', failures.length)} (${formatFailureError(failures[0])})` : '';
 }
 
 // Checks whether a queued file task or an active move/rename currently touches any of `entries`,
@@ -5071,8 +5128,12 @@ document.getElementById('filename-filter-input').addEventListener('keydown', eve
   if (event.key === 'Enter') { event.preventDefault(); addFilenameFilter(event.target.value, event.altKey); }
 });
 document.getElementById('recursive-folder-toggle').checked = includeSubfolders;
-document.getElementById('recursive-folder-toggle').addEventListener('change', event => {
+document.getElementById('recursive-folder-toggle').addEventListener('change', async event => {
   const wanted = event.target.checked;
+  if (hasSelectionEdits() && (await resolvePendingSelection([])) === 'cancel') {
+    event.target.checked = includeSubfolders;
+    return;
+  }
   abandonRawSearch(); // la recherche du RAW impose les sous-dossiers : changer l'option la termine
   abandonSemanticSearch(); // the scope of a "view" search would no longer match what is shown
   includeSubfolders = wanted;
@@ -5716,11 +5777,54 @@ initMetadataWrites({
     updateUIOnSelection();
     restoreFaceSelection(indices.map(index => photos[index]?.id).filter(id => id !== undefined));
   },
-  // La vue des miniatures ne montre plus que ces fichiers (pastille « Fichiers en échec » pour revenir à la liste complète).
-  showFailedFiles: paths => {
-    pathFilter = new Set(paths);
+  captureViewSnapshot: () => captureViewSnapshot(),
+  // Show only the failed files in the grid, restoring the source view or loading them directly if needed.
+  showFailedFiles: async (paths, sourceSnapshot = null, { selectAll = false } = {}) => {
+    if (isFullscreenOpen()) closeFullscreen();
+    closeFacesView();
+    closePersonsView();
+    const wanted = new Set(paths);
+    const hasAllLoaded = () => {
+      const loadedSet = new Set(loadedPhotos.map(photo => photo.path));
+      return [...wanted].every(path => loadedSet.has(path));
+    };
+    if (!hasAllLoaded() && sourceSnapshot) {
+      abandonRawSearch();
+      abandonDuplicateSearch();
+      abandonSemanticSearch();
+      await restoreViewSnapshot(sourceSnapshot, { restoreFilters: true, restoreSubfolders: true, restorePage: true });
+    }
+    pathFilter = wanted;
     renderFilterTags();
-    applyPhotoFilters();
+    applyPhotoFilters({ keepState: false });
+    if (photos.length < wanted.size) {
+      if (hasAllLoaded()) {
+        resetAllFilters();
+        pathFilter = wanted;
+        renderFilterTags();
+        applyPhotoFilters({ keepState: false });
+      } else {
+        resetAllFilters();
+        try {
+          const direct = await invoke('get_photos_by_paths', { paths });
+          loadedPhotos = direct;
+          failedPhotosDirect = true;
+          pathFilter = wanted;
+          renderFilterTags();
+          applyPhotoFilters({ keepState: false });
+        } catch (error) {
+          console.error('Could not load failed files:', error);
+        }
+      }
+    }
+    if (selectAll && photos.length > 0) {
+      selectedIndices.clear();
+      for (let i = 0; i < photos.length; i++) selectedIndices.add(i);
+      lastSelectedIndex = 0;
+      scrollToPhotoIndex(0);
+      renderVisibleItems();
+      updateUIOnSelection();
+    }
   },
   // Lecture des visages activée : avant d'écrire des mots-clés, vérifier ceux des personnes encore présentes sur les photos (voir metadata-writes.js).
   faceReadingEnabled: () => document.getElementById('face-reading-toggle')?.checked === true,
@@ -5739,6 +5843,7 @@ initKeywordsPanel({
   // Content search: "Find photos that may match" in the context menu of a keyword (see CONTENT SEARCH RESULTS).
   findKeywordCandidates: keyword => findKeywordCandidates(keyword),
   onTreeChanged: () => refreshKeywordFilterTree(),
+  captureViewSnapshot: () => captureViewSnapshot(),
 });
 
 // Onglet Description du panneau de droite (voir description-panel.js) : titre et description des photos sélectionnées.

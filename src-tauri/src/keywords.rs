@@ -308,6 +308,8 @@ pub struct KeywordFailure {
     pub photo_id: i64,
     pub path: String,
     pub error: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sidecar_conflict: Option<crate::exif::SidecarConflict>,
 }
 
 #[derive(Serialize)]
@@ -337,12 +339,34 @@ fn node_path(nodes: &HashMap<i64, (i64, String)>, keyword_id: i64) -> Option<Vec
 }
 
 /// Zones de visage relues après écriture : même nombre et mêmes noms (casse ignorée) que celles écrites, sinon message d'erreur.
-fn regions_mismatch(path: &Path, written: &crate::exif::RegionsUpdate) -> Option<String> {
+fn regions_mismatch_with(
+    path: &Path,
+    written: &crate::exif::RegionsUpdate,
+    read_regions: fn(&Path) -> Vec<crate::faces::FaceRegion>,
+) -> Option<String> {
     let names = |list: Vec<Option<String>>| { let mut names: Vec<String> = list.into_iter().map(|name| name.unwrap_or_default().to_lowercase()).collect(); names.sort(); names };
-    let read = crate::exif::read_face_regions(path);
+    let read = read_regions(path);
     let expected = names(written.regions.iter().map(|region| region.name.clone()).collect());
     let found = names(read.into_iter().map(|region| region.name).collect());
     (expected != found).then(|| "Les zones de visage relues dans le fichier diffèrent de celles écrites".to_string())
+}
+
+/// Verifies that the read-back metadata matches the requested update.
+fn verify_written_metadata(
+    path: &Path,
+    update: &crate::exif::MetadataUpdate,
+    gps: Option<(f64, f64)>,
+    meta: &crate::exif::ExifMetadata,
+    read_regions: fn(&Path) -> Vec<crate::faces::FaceRegion>,
+) -> Option<String> {
+    match &update.keywords {
+        Some(desired) if normalized_paths(desired) != normalized_paths(&meta.keyword_paths) => {
+            Some("Les mots-clés relus dans le fichier diffèrent de ceux écrits".to_string())
+        }
+        _ => crate::exif::text_mismatch(path, update, meta),
+    }
+    .or_else(|| update.regions.as_ref().and_then(|regions| regions_mismatch_with(path, regions, read_regions)))
+    .or_else(|| gps.and_then(|written| crate::geolocation::gps_mismatch(written, meta.gps)))
 }
 
 /// Séparateur des niveaux dans les clés de comparaison de chemins (caractère de contrôle, absent des noms).
@@ -357,9 +381,19 @@ fn normalized_paths(paths: &[Vec<String>]) -> HashSet<String> {
 pub(crate) static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Enregistre l'échec d'une photo : renvoyé à l'interface et tracé dans les logs.
-fn push_failure(failed: &mut Vec<KeywordFailure>, photo_id: i64, path: String, error: String) {
+fn push_failure_with_conflict(
+    failed: &mut Vec<KeywordFailure>,
+    photo_id: i64,
+    path: String,
+    error: String,
+    sidecar_conflict: Option<crate::exif::SidecarConflict>,
+) {
     eprintln!("Keyword write failed for {path}: {error}");
-    failed.push(KeywordFailure { photo_id, path, error });
+    failed.push(KeywordFailure { photo_id, path, error, sidecar_conflict });
+}
+
+fn push_failure(failed: &mut Vec<KeywordFailure>, photo_id: i64, path: String, error: String) {
+    push_failure_with_conflict(failed, photo_id, path, error, None);
 }
 
 /// What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
@@ -534,19 +568,17 @@ fn run_write(
             None => cancelled += 1,
             Some(Err(error)) => push_failure(&mut failed, item.photo_id, item.path, error),
             Some(Ok(update)) => {
-                let meta = crate::exif::read_exif(Path::new(&item.path));
+                let path_obj = Path::new(&item.path);
+                let meta = crate::exif::read_exif(path_obj);
                 // File modified on disk but read-back differs: mark file_size = -1 so the next sync re-reads photo and sidecar.
-                let mismatch = match &update.keywords {
-                    Some(desired) if normalized_paths(desired) != normalized_paths(&meta.keyword_paths) => {
-                        Some("Les mots-clés relus dans le fichier diffèrent de ceux écrits".to_string())
-                    }
-                    _ => crate::exif::text_mismatch(Path::new(&item.path), &update, &meta),
-                }
-                .or_else(|| update.regions.as_ref().and_then(|regions| regions_mismatch(Path::new(&item.path), regions)))
-                .or_else(|| item.gps.and_then(|written| crate::geolocation::gps_mismatch(written, meta.gps)));
+                let mismatch = verify_written_metadata(path_obj, &update, item.gps, &meta, crate::exif::read_face_regions);
                 if let Some(error) = mismatch {
+                    let conflict = crate::exif::detect_sidecar_conflict(path_obj, || {
+                        let embedded = crate::exif::read_exif_without_sidecar(path_obj);
+                        verify_written_metadata(path_obj, &update, item.gps, &embedded, crate::exif::read_face_regions_without_sidecar).is_none()
+                    });
                     needs_resync.push(item.photo_id);
-                    push_failure(&mut failed, item.photo_id, item.path, error);
+                    push_failure_with_conflict(&mut failed, item.photo_id, item.path, error, conflict);
                     continue;
                 }
                 // `modified` stays the image file's own mtime (a sidecar-only write leaves it unchanged); `effective_modified` also counts the sidecar's.

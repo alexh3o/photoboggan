@@ -1169,6 +1169,20 @@ struct MarkingFailure {
     photo_id: i64,
     path: String,
     error: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sidecar_conflict: Option<exif::SidecarConflict>,
+}
+
+#[derive(Debug)]
+struct MarkingError {
+    message: String,
+    sidecar_conflict: Option<exif::SidecarConflict>,
+}
+
+impl From<String> for MarkingError {
+    fn from(message: String) -> Self {
+        Self { message, sidecar_conflict: None }
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -1228,8 +1242,8 @@ async fn update_photos_marking(
         let total = prepared.len().max(1);
         let done = AtomicUsize::new(0);
         let threads = rayon::ThreadPoolBuilder::new().num_threads(3).build().map_err(|error| error.to_string())?;
-        // None : photo non traitée (tâche arrêtée) ; Some(Err(message)) : échec ; Some(Ok(None)) : rien à écrire ; Some(Ok(Some(date))) : nouvelle date effective.
-        let outcomes: Vec<(MarkingTarget, Option<Result<Option<i64>, String>>)> = threads.install(|| {
+        // None : photo non traitée (tâche arrêtée) ; Some(Err(error)) : échec ; Some(Ok(None)) : rien à écrire ; Some(Ok(Some(date))) : nouvelle date effective.
+        let outcomes: Vec<(MarkingTarget, Option<Result<Option<i64>, MarkingError>>)> = threads.install(|| {
             prepared
                 .into_par_iter()
                 .map(|Prepared { photo, rating, label, pick, color_flag }| {
@@ -1251,7 +1265,12 @@ async fn update_photos_marking(
                     result.written.push(photo.id);
                     if let Some(effective_modified) = effective_modified { result.dates.push(WrittenDate { id: photo.id, effective_modified }); }
                 }
-                Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
+                Some(Err(error)) => result.failed.push(MarkingFailure {
+                    photo_id: photo.id,
+                    path: photo.path,
+                    error: error.message,
+                    sidecar_conflict: error.sidecar_conflict,
+                }),
             }
         }
         Ok(result)
@@ -1283,14 +1302,18 @@ fn write_photo_marking_with(
     pick: Option<&'static str>,
     color_flag: Option<&str>,
     write_fn: impl FnOnce(&str, exif::XmpEdit) -> std::io::Result<()>,
-) -> Result<Option<i64>, String> {
+) -> Result<Option<i64>, MarkingError> {
     if rating.is_none() && label.is_none() && pick.is_none() { return Ok(None); }
     keep_cached_images(dirs, path, || write_fn(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string()))?;
     // The file is read back before the catalog is updated: a write that did not put the value where the interface reads it (ignored field,
     // read order, sidecar of another file) is a failure, never shown as written. Only the marking is read (exif::read_marking): negligible cost.
-    if let Some(difference) = exif::marking_mismatch(&exif::read_marking(Path::new(path)), rating, color_flag, pick) {
+    let path_obj = Path::new(path);
+    if let Some(difference) = exif::marking_mismatch(&exif::read_marking(path_obj), rating, color_flag, pick) {
+        let sidecar_conflict = exif::detect_sidecar_conflict(path_obj, || {
+            exif::marking_mismatch(&exif::read_marking_without_sidecar(path_obj), rating, color_flag, pick).is_none()
+        });
         mark_photo_for_resync(pool, id);
-        return Err(difference);
+        return Err(MarkingError { message: difference, sidecar_conflict });
     }
     let result = (|| -> Result<i64, String> {
         let conn = pool.get().map_err(|error| error.to_string())?;
@@ -1317,7 +1340,7 @@ fn write_photo_marking_with(
         Ok(effective_modified) => Ok(Some(effective_modified)),
         Err(error) => {
             mark_photo_for_resync(pool, id);
-            Err(error)
+            Err(MarkingError::from(error))
         }
     }
 }
@@ -1332,7 +1355,7 @@ fn write_photo_marking(
     label: Option<Option<&'static str>>,
     pick: Option<&'static str>,
     color_flag: Option<&str>,
-) -> Result<Option<i64>, String> {
+) -> Result<Option<i64>, MarkingError> {
     write_photo_marking_with(pool, dirs, id, path, rating, label, pick, color_flag, exif::write_xmp_metadata)
 }
 
@@ -1393,7 +1416,12 @@ async fn rotate_photos(
             match outcome {
                 None => result.cancelled += 1,
                 Some(Ok((orientation, view_fix, effective_modified))) => result.written.push(RotatedPhoto { id: photo.id, orientation, view_fix, effective_modified }),
-                Some(Err(error)) => result.failed.push(MarkingFailure { photo_id: photo.id, path: photo.path, error }),
+                Some(Err(error)) => result.failed.push(MarkingFailure {
+                    photo_id: photo.id,
+                    path: photo.path,
+                    error,
+                    sidecar_conflict: None,
+                }),
             }
         }
         Ok(result)
@@ -1508,6 +1536,20 @@ struct MoveResult {
 #[tauri::command(async)]
 fn get_photo_details(path: String) -> exif::MetadataDetails {
     exif::read_metadata_details(Path::new(&path))
+}
+
+#[derive(serde::Serialize)]
+struct PhotoSidecar {
+    name: String,
+    path: String,
+}
+
+/// Active `.xmp` sidecar of `path`, if one exists on disk (used by the Info tab).
+#[tauri::command(async)]
+fn get_photo_sidecar(path: String) -> Option<PhotoSidecar> {
+    let sidecar = exif::active_sidecar(Path::new(&path))?;
+    let name = sidecar.file_name()?.to_string_lossy().into_owned();
+    Some(PhotoSidecar { name, path: sidecar.to_string_lossy().into_owned() })
 }
 
 // File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file systems)
@@ -3113,6 +3155,7 @@ fn main() {
             update_photos_marking,
             rotate_photos,
             get_photo_details,
+            get_photo_sidecar,
             get_file_dates,
             delete_photos,
             delete_folder,

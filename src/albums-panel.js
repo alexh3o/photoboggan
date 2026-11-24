@@ -4,6 +4,7 @@
 import './albums.css';
 import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange, normalizeSearch } from './i18n.js';
+import { hasSelectionEdits, resolvePendingSelection } from './metadata-writes.js';
 import { initSidebarSearch } from './sidebar-search.js';
 import { readBool } from './settings-defaults.js';
 import { openContextMenuAt, promptDialog, createModal, confirmDialog } from './photo-actions.js';
@@ -253,6 +254,7 @@ async function selectAlbum(id) {
   }
   // Quitter un album intelligent modifié pour un autre : Enregistrer / Abandonner / Annuler.
   if (id !== selectedId && !(await confirmLeaveAlbum())) return;
+  if (id !== selectedId && hasSelectionEdits() && (await resolvePendingSelection([])) === 'cancel') return;
   if (id !== selectedId) selectedDirty = false;
   selectedId = id;
   render();

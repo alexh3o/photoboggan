@@ -154,12 +154,30 @@ const descriptionEditor = {
     }
     render();
   },
-  discard() {
-    editedTitle = null;
-    editedDescription = null;
-    editedRights = noRightsEdits();
-    presets?.clearSelection(); // les champs reprennent les valeurs des fichiers : plus de préréglage
+  discard(photoIds = null) {
+    if (!photoIds) {
+      editedTitle = null;
+      editedDescription = null;
+      editedRights = noRightsEdits();
+      presets?.clearSelection(); // les champs reprennent les valeurs des fichiers : plus de préréglage
+      render();
+      return;
+    }
+    const allInScope = changedFor => [...targets.values()].every(target => !changedFor(target) || photoIds.has(target.id));
+    if (editedTitle !== null && allInScope(titleChangedFor)) editedTitle = null;
+    if (editedDescription !== null && allInScope(descriptionChangedFor)) editedDescription = null;
+    for (const field of RIGHTS_FIELDS) {
+      if (editedRights[field.key] !== null && allInScope(target => rightsChangedFor(target, field))) editedRights[field.key] = null;
+    }
+    if (!isDirty()) presets?.clearSelection();
     render();
+  },
+  keepOnlyTargets(photoIds) {
+    let removed = false;
+    for (const id of [...targets.keys()]) {
+      if (!photoIds.has(id)) { targets.delete(id); removed = true; }
+    }
+    if (removed) render();
   },
   // Photo renommée ou déplacée : sa saisie en attente sera écrite sous le nouveau chemin.
   photosMoved(destinations) {
