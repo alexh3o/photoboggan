@@ -1500,8 +1500,7 @@ fn remove_xmp_element(xml: &str, name: &str) -> String {
         let start = search_from + relative;
         let after = start + opening.len();
         if !updated.as_bytes().get(after).is_some_and(|b| *b == b'>' || *b == b'/' || b.is_ascii_whitespace()) { search_from = after; continue; }
-        let Some(open_end_relative) = updated[start..].find('>') else { break; };
-        let open_end = start + open_end_relative;
+        let Some(open_end) = xml_tag_end(&updated, start) else { break; };
         let end = if updated.as_bytes()[open_end - 1] == b'/' {
             open_end + 1
         } else {
@@ -1555,16 +1554,15 @@ fn remove_xmp_list_property(xml: &str, local_name: &str, only_prefix: Option<&st
         let ends_here = bytes.get(name_end) == Some(&b'>') || bytes.get(name_end) == Some(&b'/') || bytes.get(name_end).is_some_and(|byte| byte.is_ascii_whitespace());
         let prefix_ok = only_prefix.is_none_or(|wanted| &updated[prefix_start..colon] == wanted);
         if !(is_open_tag && ends_here && prefix_ok) { from = name_end; continue; }
-        let Some(open_end_relative) = lower[name_end..].find('>') else { break; };
-        let open_end = name_end + open_end_relative;
+        let Some(open_end) = xml_tag_end(&lower, prefix_start - 1) else { break; };
         let element_end = if bytes[open_end - 1] == b'/' {
             open_end + 1
         } else {
             let closing = format!("</{}{}", &lower[prefix_start..colon], needle);
             let Some(close_relative) = lower[open_end + 1..].find(&closing) else { from = name_end; continue; };
             let close_start = open_end + 1 + close_relative;
-            let Some(close_end_relative) = lower[close_start..].find('>') else { break; };
-            close_start + close_end_relative + 1
+            let Some(close_end) = xml_tag_end(&lower, close_start) else { break; };
+            close_end + 1
         };
         updated.replace_range(prefix_start - 1..element_end, "");
         from = prefix_start - 1;
@@ -1596,7 +1594,7 @@ fn insert_description_children(xml: &str, children: &str, namespaces: &[(&str, &
         output.push_str("</rdf:Description>");
         output.push_str(&xml[tag_end + 1..]);
     } else {
-        let close = tag_end + 1 + xml[tag_end + 1..].find("</rdf:Description>")?;
+        let close = matching_description_end(xml, tag_end + 1)?;
         output.push_str(&xml[..tag_end]);
         output.push_str(&declarations);
         output.push('>');
@@ -1605,6 +1603,35 @@ fn insert_description_children(xml: &str, children: &str, namespaces: &[(&str, &
         output.push_str(&xml[close..]);
     }
     Some(output)
+}
+
+/// Finds the closing `</rdf:Description>` matching an already-opened `<rdf:Description>`, skipping nested `<rdf:Description>` elements.
+fn matching_description_end(xml: &str, after_open: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut cursor = after_open;
+    while depth > 0 {
+        let close_pos = cursor + xml[cursor..].find("</rdf:Description>")?;
+        if let Some(open_rel) = xml[cursor..close_pos].find("<rdf:Description") {
+            let open_pos = cursor + open_rel;
+            let after = open_pos + "<rdf:Description".len();
+            if xml.as_bytes().get(after).is_some_and(|b| *b == b'>' || *b == b'/' || b.is_ascii_whitespace()) {
+                let nested_end = xml_tag_end(xml, open_pos)?;
+                if xml.as_bytes()[nested_end - 1] != b'/' {
+                    depth += 1;
+                }
+                cursor = nested_end + 1;
+                continue;
+            }
+            cursor = after;
+            continue;
+        }
+        depth -= 1;
+        if depth == 0 {
+            return Some(close_pos);
+        }
+        cursor = close_pos + "</rdf:Description>".len();
+    }
+    None
 }
 
 /// Modifications de métadonnées à écrire dans un fichier : un champ `None` est laissé tel quel. Titre ou description vide : retiré de toutes
@@ -1780,8 +1807,9 @@ pub fn read_face_regions(path: &Path) -> Vec<crate::faces::FaceRegion> {
     read_sidecar(path).map(|text| crate::faces::parse_regions(&text)).unwrap_or_default()
 }
 
-/// Redimensionnement avec rotation des pixels (resize.rs) : les zones de visage du paquet XMP subissent la même transformation que l'image
-/// (orientation EXIF `orientation`), et `AppliedToDimensions` prend la taille de sortie. Sans zone, le paquet est rendu tel quel.
+/// Resized copies with pixel rotation (resize.rs): only face regions in the XMP packet are rotated to match the output image
+/// (EXIF `orientation`), and `AppliedToDimensions` is updated to the output size. Non-face MWG regions are not re-oriented on resized
+/// copies, and originals are never modified by this function. If there are no regions, the packet is returned unchanged.
 pub(crate) fn rotate_xmp_regions(xml: &str, orientation: u32, width: i64, height: i64) -> String {
     let regions = crate::faces::parse_regions(xml);
     if regions.is_empty() || orientation <= 1 { return xml.to_string(); }

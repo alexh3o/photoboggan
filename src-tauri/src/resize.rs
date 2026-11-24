@@ -151,17 +151,57 @@ pub fn resize_photo(source: &Path, options: &ResizeOptions) -> Result<ResizeOutc
     // "Replace": the existing file (possibly an original of the same name in the chosen folder) goes to the trash, where it can be restored,
     // instead of being overwritten for good. No trash on that drive (network share, some removable media): nothing is replaced.
     if final_path.exists() {
-        if let Err(error) = trash::delete(&final_path) {
+        if !crate::has_trash(&path_text(&final_path)) {
             let _ = fs::remove_file(&temp);
-            return Err(format!("« {} » n'a pas pu être mis à la corbeille, il n'est pas remplacé : {error}", final_path.display()));
+            return Err(format!("Aucune corbeille disponible pour « {} », remplacement refusé", final_path.display()));
         }
-    }
-    if let Err(error) = fs::rename(&temp, &final_path) {
+        replace_via_backup(&temp, &final_path, |backup| trash::delete(backup).map_err(|error| error.to_string()))?;
+    } else if let Err(error) = fs::rename(&temp, &final_path) {
         let _ = fs::remove_file(&temp);
         return Err(format!("Écriture impossible : {error}"));
     }
     crate::sync_parent_dir(&final_path);
     Ok(ResizeOutcome::Done { output: path_text(&final_path), width: width as u32, height: height as u32 })
+}
+
+/// Replaces an existing `final_path` with `temp` in three reversible steps so the original is never lost on failure and the trashed
+/// copy keeps its real file name.
+fn replace_via_backup(temp: &Path, final_path: &Path, send_to_trash: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
+    let parent = final_path.parent().ok_or_else(|| {
+        let _ = fs::remove_file(temp);
+        "Dossier de destination invalide".to_string()
+    })?;
+    let file_name = final_path.file_name().ok_or_else(|| {
+        let _ = fs::remove_file(temp);
+        "Nom de fichier de destination invalide".to_string()
+    })?;
+    let backup_dir = parent.join(format!(".photoboggan-resize-backup-{}-{}", std::process::id(), TEMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
+    if let Err(error) = fs::create_dir(&backup_dir) {
+        let _ = fs::remove_file(temp);
+        return Err(format!("Création du dossier de sauvegarde impossible : {error}"));
+    }
+    let backup_file = backup_dir.join(file_name);
+    if let Err(error) = fs::rename(final_path, &backup_file) {
+        let _ = fs::remove_dir(&backup_dir);
+        let _ = fs::remove_file(temp);
+        return Err(format!("« {} » n'a pas pu être préparé pour la corbeille, il n'est pas remplacé : {error}", final_path.display()));
+    }
+    if let Err(error) = fs::rename(temp, final_path) {
+        let _ = fs::rename(&backup_file, final_path);
+        let _ = fs::remove_dir(&backup_dir);
+        let _ = fs::remove_file(temp);
+        return Err(format!("Écriture impossible : {error}"));
+    }
+    if let Err(error) = send_to_trash(&backup_file) {
+        // Rollback: move the new file back to `temp` so we can remove it and restore the original.
+        let _ = fs::rename(final_path, temp);
+        let _ = fs::rename(&backup_file, final_path);
+        let _ = fs::remove_dir(&backup_dir);
+        let _ = fs::remove_file(temp);
+        return Err(format!("« {} » n'a pas pu être mis à la corbeille, il n'est pas remplacé : {error}", final_path.display()));
+    }
+    let _ = fs::remove_dir(&backup_dir);
+    Ok(())
 }
 
 fn validate_options(options: &ResizeOptions) -> Result<(), String> {

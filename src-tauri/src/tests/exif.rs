@@ -231,6 +231,37 @@ fn strip_xmp_marks_removes_rating_color_and_pick_but_keeps_the_rest() {
     assert!(stripped.contains(r#"dc:creator="moi""#));
 }
 
+#[test]
+fn strip_xmp_marks_handles_gt_inside_attribute_values() {
+    let xml = r#"<x:xmpmeta><rdf:RDF><rdf:Description dc:creator="moi"><xmpDM:good custom="a>b">True</xmpDM:good><xmp:Rating xml:lang='x>y'>4</xmp:Rating></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+    let stripped = strip_xmp_marks(xml);
+    assert!(!stripped.contains("xmpDM:good"), "{stripped}");
+    assert!(!stripped.contains("True"), "{stripped}");
+    assert!(!stripped.contains("xmp:Rating"), "{stripped}");
+    assert!(stripped.contains(r#"dc:creator="moi""#), "{stripped}");
+}
+
+#[test]
+fn update_xmp_regions_inserts_into_root_description_not_nested_one() {
+    let xml = concat!(
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">"#,
+        r#"<rdf:Description rdf:about=""><dc:subject><rdf:Description xmp:Rating="5"/></dc:subject>"#,
+        r#"<other:Wrap><rdf:Description><other:Val>1</other:Val></rdf:Description></other:Wrap>"#,
+        r#"</rdf:Description></rdf:RDF></x:xmpmeta>"#,
+    );
+    let updated = update_xmp_regions(xml, &RegionsUpdate {
+        regions: vec![RegionWrite { name: Some("Alice".into()), x: 0.1, y: 0.2, w: 0.3, h: 0.4 }],
+        width: 100,
+        height: 100,
+    });
+    let wrap_end = updated.find("</other:Wrap>").unwrap();
+    let regions_pos = updated.find("<mwg-rs:Regions").unwrap();
+    assert!(regions_pos > wrap_end, "regions inserted inside nested rdf:Description: {updated}");
+    let read = crate::faces::parse_regions(&updated);
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].name.as_deref(), Some("Alice"));
+}
+
 // --- Flash ---
 
 /// APP1 Exif minimal (petit-boutien) dont l'IFD Exif ne contient que le tag Flash (0x9209).

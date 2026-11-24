@@ -285,3 +285,16 @@ fn storage_copy_carries_the_logs_and_cleanup_removes_them() {
     assert!(!from.path().join("logs").exists());
     assert!(!from.path().join("models").exists());
 }
+
+#[test]
+fn remove_copied_target_removes_read_only_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("readonly.jpg");
+    put(&target, b"photo");
+    let mut permissions = fs::metadata(&target).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&target, permissions).unwrap();
+
+    remove_copied_target(&target);
+    assert!(!target.exists(), "read-only copied target should be removed");
+}

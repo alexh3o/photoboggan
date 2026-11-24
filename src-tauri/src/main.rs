@@ -168,19 +168,29 @@ fn load_config_at_startup(app: &tauri::AppHandle) -> AppConfig {
     }
 }
 
-/// Écriture atomique : fichier temporaire puis remplacement, jamais un config.json à moitié écrit.
+static CONFIG_LOCK: Mutex<()> = Mutex::new(());
+static TEMP_FILE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Atomic write: unique temporary file flushed to disk then renamed, never a half-written config.json.
 fn save_config(app: &tauri::AppHandle, config: &AppConfig) -> Result<(), String> {
+    let _guard = CONFIG_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let path = config_file_path(app)?;
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    let temp = path.with_file_name("config.json.tmp");
-    if let Err(error) = fs::write(&temp, json) {
+    let temp = path.with_file_name(format!(
+        "config.json.tmp-{}-{}",
+        std::process::id(),
+        TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    if let Err(error) = fs::write(&temp, json).and_then(|_| flush_to_disk(&temp)) {
         let _ = fs::remove_file(&temp);
         return Err(error.to_string());
     }
-    fs::rename(&temp, &path).map_err(|error| {
+    if let Err(error) = fs::rename(&temp, &path) {
         let _ = fs::remove_file(&temp);
-        error.to_string()
-    })
+        return Err(error.to_string());
+    }
+    sync_parent_dir(&path);
+    Ok(())
 }
 
 /////////////////////////
@@ -1765,7 +1775,7 @@ fn windows_root(path: &str) -> WindowsRoot {
 }
 
 #[cfg(windows)]
-fn has_trash(path: &str) -> bool {
+pub(crate) fn has_trash(path: &str) -> bool {
     #[link(name = "kernel32")]
     extern "system" {
         fn GetDriveTypeW(root_path_name: *const u16) -> u32;
@@ -1782,7 +1792,7 @@ fn has_trash(path: &str) -> bool {
 }
 
 #[cfg(not(windows))]
-fn has_trash(_path: &str) -> bool {
+pub(crate) fn has_trash(_path: &str) -> bool {
     true
 }
 
@@ -2109,27 +2119,41 @@ fn files_have_same_hash(first: &Path, second: &Path) -> std::io::Result<bool> {
 // en cas de différence, la copie est retirée et l'original reste en place.
 // The copy is flushed to the disk (copy_durably) before the hash check and before the original is deleted: without it, the copy may still sit
 // in the system write cache when the original is gone (power cut, crash, USB drive unplugged), and the hash check would only read that cache.
+/// Removes a copied target file during rollback; on Windows, clears any copied read-only attribute first so `fs::remove_file` can succeed.
+fn remove_copied_target(path: &Path) {
+    #[cfg(windows)]
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        if permissions.readonly() {
+            #[allow(clippy::permissions_set_readonly_false)]
+            permissions.set_readonly(false);
+            let _ = fs::set_permissions(path, permissions);
+        }
+    }
+    let _ = fs::remove_file(path);
+}
+
 fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
     if fs::rename(source, target).is_ok() { return Ok(()); }
     if let Err(error) = copy_durably(source, target) {
-        let _ = fs::remove_file(target);
+        remove_copied_target(target);
         return Err(error);
     }
     if VERIFY_CROSS_DRIVE_MOVES.load(Ordering::Relaxed) {
         match files_have_same_hash(source, target) {
             Ok(true) => {}
             Ok(false) => {
-                let _ = fs::remove_file(target);
+                remove_copied_target(target);
                 return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "La copie diffère de l'original : déplacement annulé, l'original est conservé"));
             }
             Err(error) => {
-                let _ = fs::remove_file(target);
+                remove_copied_target(target);
                 return Err(error);
             }
         }
     }
     if let Err(error) = fs::remove_file(source) {
-        let _ = fs::remove_file(target);
+        remove_copied_target(target);
         return Err(error);
     }
     Ok(())
@@ -2324,7 +2348,13 @@ fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<CopyConflict
 // Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then renamed. A failure
 // on the way (full disk…) or a power cut leaves either the old file or the complete new one, never an empty or partial file.
 fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
-    let temp = PathBuf::from(format!("{}.photoboggan-tmp", target.display()));
+    let _write_guard = exiftool::path_lock(target);
+    let temp = PathBuf::from(format!(
+        "{}.photoboggan-tmp-{}-{}",
+        target.display(),
+        std::process::id(),
+        TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     let result = copy_durably(source, &temp).and_then(|_| fs::rename(&temp, target));
     if result.is_err() { let _ = fs::remove_file(&temp); } else { sync_parent_dir(target); }
     result
