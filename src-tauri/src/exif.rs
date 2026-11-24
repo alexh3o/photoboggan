@@ -2210,6 +2210,48 @@ fn read_iptc_entries(path: &Path) -> Vec<MetadataEntry> {
     grouped.into_iter().map(|(dataset, values)| detail_entry(iptc_dataset_name(dataset), values.join(", "))).collect()
 }
 
+/// Returns true if `path` is a JPEG whose IPTC block contains non-UTF-8 (e.g. Latin-1) record-2 values
+/// without a `1:90` (`CodedCharacterSet`) UTF-8 escape sequence (`\x1b%G`). Used to recode legacy IPTC
+/// fields to UTF-8 before adding `-IPTC:CodedCharacterSet=UTF8`, without touching already-UTF-8 files.
+pub(crate) fn jpeg_has_legacy_non_utf8_iptc(path: &Path) -> bool {
+    let Ok(file) = fs::File::open(path) else { return false; };
+    let mut bytes = Vec::new();
+    if file.take(16 * 1024 * 1024).read_to_end(&mut bytes).is_err() { return false; }
+    let mut has_non_utf8 = false;
+    for segment in jpeg_segments(&bytes).filter(|segment| segment.marker == 0xed) {
+        let data = segment.content(&bytes);
+        if !data.starts_with(PHOTOSHOP_HEADER) { continue; }
+        let (resources, _) = parse_photoshop_resources(&data[PHOTOSHOP_HEADER.len()..]);
+        for iptc in resources.iter().filter(|r| r.id == IPTC_RESOURCE_ID).map(|r| r.data.as_slice()) {
+            let mut q = 0;
+            while q + 5 <= iptc.len() {
+                if iptc[q] != 0x1c { q += 1; continue; }
+                let record = iptc[q + 1];
+                let dataset = iptc[q + 2];
+                let mut value_len = u16::from_be_bytes([iptc[q + 3], iptc[q + 4]]) as usize;
+                let mut header = 5;
+                if value_len & 0x8000 != 0 {
+                    let n = value_len & 0x7fff;
+                    if n == 0 || n > 4 || q + 5 + n > iptc.len() { break; }
+                    value_len = 0;
+                    for byte in &iptc[q + 5..q + 5 + n] { value_len = (value_len << 8) | *byte as usize; }
+                    header += n;
+                }
+                if q + header + value_len > iptc.len() { break; }
+                let value = &iptc[q + header..q + header + value_len];
+                if record == 1 && dataset == 90 && value == b"\x1b%G" {
+                    return false;
+                }
+                if record == 2 && !value.is_ascii() && std::str::from_utf8(value).is_err() {
+                    has_non_utf8 = true;
+                }
+                q += header + value_len;
+            }
+        }
+    }
+    has_non_utf8
+}
+
 /// Tout ce que la fenêtre « Infos » affiche : fichier, EXIF, XMP et IPTC. Les clés `file` sont traduites côté interface.
 pub fn read_metadata_details(path: &Path) -> MetadataDetails {
     let mut details = MetadataDetails::default();

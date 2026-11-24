@@ -424,3 +424,37 @@ fn keyword_descendant_photos_matches_strict_descendants_only() {
     assert_eq!(result.get("places").unwrap(), &vec![photo_paris, photo_france], "Places~ (case-insensitive) matches child and grandchild");
     assert!(result.get("paris").unwrap().is_empty(), "leaf keyword has no descendants");
 }
+
+#[test]
+fn sidecar_mismatch_or_db_rollback_marks_photo_for_resync() {
+    let (dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let png = dir.path().join("a.png");
+    std::fs::write(&png, png_bytes(8, 8)).unwrap();
+    let path = png.to_string_lossy().into_owned();
+    let photo = insert_photo(&conn, &path);
+    conn.execute("UPDATE photos SET file_size = 123 WHERE id = ?1", params![photo]).unwrap();
+    let paris = ensure_node(&conn, 0, "Paris").unwrap();
+
+    // 1. Stub writes wrong keyword -> mismatch -> file_size = -1.
+    let mut mismatch_env = write_env(dir.path());
+    mismatch_env.write = |image_path, _update| {
+        std::fs::write(
+            format!("{image_path}.xmp"),
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:digiKam=\"http://www.digikam.org/ns/1.0/\"><digiKam:TagsList><rdf:Seq><rdf:li>Wrong</rdf:li></rdf:Seq></digiKam:TagsList></rdf:Description></rdf:RDF></x:xmpmeta>",
+        )
+    };
+    let res = run_write(&mismatch_env, &pool, vec![item(photo, &path, Some(vec![paris]))], None).unwrap();
+    assert_eq!(res.failed.len(), 1);
+    let file_size: i64 = conn.query_row("SELECT file_size FROM photos WHERE id = ?1", params![photo], |r| r.get(0)).unwrap();
+    assert_eq!(file_size, -1, "mismatch on sidecar must mark photo for resync");
+
+    // 2. DB transaction fails on commit/keyword insert -> rolled back AND file_size = -1 persists on conn.
+    conn.execute("UPDATE photos SET file_size = 123 WHERE id = ?1", params![photo]).unwrap();
+    conn.execute_batch("CREATE TRIGGER fail_kw BEFORE INSERT ON photo_keywords BEGIN SELECT RAISE(ABORT, 'db failure'); END;").unwrap();
+    let res = run_write(&write_env(dir.path()), &pool, vec![item(photo, &path, Some(vec![paris]))], None).unwrap();
+    assert_eq!(res.failed.len(), 1);
+    assert!(res.written.is_empty());
+    let file_size_after_db_err: i64 = conn.query_row("SELECT file_size FROM photos WHERE id = ?1", params![photo], |r| r.get(0)).unwrap();
+    assert_eq!(file_size_after_db_err, -1, "DB rollback after write must mark photo for resync");
+}

@@ -138,7 +138,7 @@ fn replace_via_backup_replaces_file_with_real_name_for_trash_and_leaves_no_backu
     fs::write(&temp, b"new").unwrap();
 
     let mut trashed_name = None;
-    replace_via_backup(&temp, &final_path, |backup| {
+    crate::replace_file_via_backup(&temp, &final_path, |backup| {
         trashed_name = backup.file_name().map(|n| n.to_string_lossy().into_owned());
         assert_eq!(fs::read(backup).unwrap(), b"old");
         fs::remove_file(backup).map_err(|e| e.to_string())
@@ -158,14 +158,14 @@ fn replace_via_backup_rolls_back_when_trash_or_rename_fails() {
     fs::write(&final_path, b"old").unwrap();
     fs::write(&temp, b"new").unwrap();
 
-    let err = replace_via_backup(&temp, &final_path, |_| Err("trash unavailable".into())).unwrap_err();
+    let err = crate::replace_file_via_backup(&temp, &final_path, |_| Err("trash unavailable".into())).unwrap_err();
     assert!(err.contains("trash unavailable"), "{err}");
     assert_eq!(fs::read(&final_path).unwrap(), b"old");
     assert!(!temp.exists());
     assert_eq!(names(dir.path()), ["photo.jpg"]);
 
     let missing_temp = dir.path().join(".photoboggan-resize-missing.tmp");
-    assert!(replace_via_backup(&missing_temp, &final_path, |_| Ok(())).is_err());
+    assert!(crate::replace_file_via_backup(&missing_temp, &final_path, |_| Ok(())).is_err());
     assert_eq!(fs::read(&final_path).unwrap(), b"old");
     assert_eq!(names(dir.path()), ["photo.jpg"]);
 }

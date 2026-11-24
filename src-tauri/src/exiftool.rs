@@ -562,6 +562,7 @@ fn run(args: Vec<String>) -> std::io::Result<()> {
 // Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus l'EXIF des JPEG)
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy)]
 enum Target {
     /// JPEG : XMP, IPTC et EXIF du fichier.
     Jpeg,
@@ -821,6 +822,27 @@ fn temp_sidecar_path(image_path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.photoboggan-{}-{n}.tmp.xmp", image_path.display(), std::process::id()))
 }
 
+/// Publishes `temp` to a new `sidecar` without overwriting one that appeared meanwhile.
+/// Uses `hard_link` + unlink on filesystems that support it; falls back to checking absence
+/// via `symlink_metadata` + `rename` on filesystems without hard links (FAT32/exFAT/SMB).
+fn publish_new_sidecar(temp: &Path, sidecar: &Path) -> std::io::Result<()> {
+    match std::fs::hard_link(temp, sidecar) {
+        Ok(()) => {
+            remove_temp_file(temp);
+            Ok(())
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(error),
+        Err(_) => match std::fs::symlink_metadata(sidecar) {
+            Ok(_) => Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!("Le sidecar « {} » existe déjà", sidecar.display()),
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => std::fs::rename(temp, sidecar),
+            Err(error) => Err(error),
+        },
+    }
+}
+
 /// Writes `tag_args` to the file or its already-resolved XMP sidecar target under `ActiveWriteGuard` + `path_lock`.
 /// `has_values`: false when only deleting, in which case a missing sidecar (without `seed`) is not created.
 fn write_to_resolved(
@@ -839,12 +861,12 @@ fn write_to_resolved(
     remove_temp_file(&temp);
     if let Some(seed) = seed {
         // Own sidecar created from the shared `photo.xmp` (see exif::sidecar_target), even for a removal: the value to remove may come from
-        // `photo.xmp`, which the image would otherwise keep reading. Copy, update, flush, then rename: `photo.xmp` is never modified.
+        // `photo.xmp`, which the image would otherwise keep reading. Copy, update, flush, then publish without overwriting: `photo.xmp` is never modified.
         let created = std::fs::copy(&seed, &temp)
             .and_then(|_| make_writable(&temp))
             .and_then(|_| overwrite_file(&temp, tag_args, false))
             .and_then(|_| crate::flush_to_disk(&temp))
-            .and_then(|_| std::fs::rename(&temp, &sidecar));
+            .and_then(|_| publish_new_sidecar(&temp, &sidecar));
         if created.is_err() {
             remove_temp_file(&exiftool_temp_of(&temp));
             remove_temp_file(&temp);
@@ -854,14 +876,14 @@ fn write_to_resolved(
         return created;
     }
     if !has_values { return Ok(()); }
-    // New sidecar: created under a temporary name (.xmp extension kept so ExifTool infers format), flushed, then renamed.
+    // New sidecar: created under a temporary name (.xmp extension kept so ExifTool infers format), flushed, then published without overwriting.
     let mut args = vec!["-o".to_string(), safe_arg_path(&temp)];
     args.extend(tag_args);
     if let Err(error) = run(args) {
         remove_temp_file(&temp);
         return Err(error);
     }
-    if let Err(error) = crate::flush_to_disk(&temp).and_then(|_| std::fs::rename(&temp, &sidecar)) {
+    if let Err(error) = crate::flush_to_disk(&temp).and_then(|_| publish_new_sidecar(&temp, &sidecar)) {
         remove_temp_file(&temp);
         return Err(error);
     }
@@ -869,12 +891,22 @@ fn write_to_resolved(
     Ok(())
 }
 
+/// Writes `tag_args` to the file or its XMP sidecar while the caller already holds `path_lock(image_path)`.
+fn write_to_locked(
+    image_path: &Path,
+    _guard: &std::sync::MutexGuard<'static, ()>,
+    tag_args: Vec<String>,
+    has_values: bool,
+) -> std::io::Result<()> {
+    let _active_write = ActiveWriteGuard::enter()?;
+    write_to_resolved(image_path, target_of(image_path), None, tag_args, has_values)
+}
+
 /// Writes `tag_args` to the file or its XMP sidecar depending on format. `has_values`: false when only deleting,
 /// in which case a missing sidecar is not created.
 fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
-    let _active_write = ActiveWriteGuard::enter()?;
-    let _guard = path_lock(image_path);
-    write_to_resolved(image_path, target_of(image_path), None, tag_args, has_values)
+    let guard = path_lock(image_path);
+    write_to_locked(image_path, &guard, tag_args, has_values)
 }
 
 /// Preserved non-face MWG regions read from the target's existing `XMP-mwg-rs:RegionInfo`.
@@ -896,29 +928,63 @@ fn is_non_face_region_json(item: &serde_json::Value) -> bool {
 }
 
 /// Parses ExifTool `-j -struct -n -XMP-mwg-rs:RegionInfo` output and keeps only non-face MWG regions.
-fn parse_preserved_mwg_regions(json: &str) -> std::io::Result<PreservedMwgRegions> {
+/// When `require_present` is false (speculative probe for ExtendedXMP or non-UTF-8 sidecars), missing `RegionInfo`
+/// is treated as having no non-face regions rather than failing the write.
+fn parse_preserved_mwg_regions_with(json: &str, require_present: bool) -> std::io::Result<PreservedMwgRegions> {
     let root: serde_json::Value = serde_json::from_str(json)
         .map_err(|error| std::io::Error::other(format!("Impossible de lire les régions MWG existantes (JSON invalide) : {error}")))?;
-    let region_info = root
+    let entry = root
         .as_array()
         .and_then(|items| items.first())
         .and_then(|entry| entry.as_object())
-        .and_then(|entry| entry.get("RegionInfo"))
-        .and_then(|info| info.as_object())
-        .ok_or_else(|| std::io::Error::other("Impossible de lire les régions MWG existantes : structure RegionInfo absente"))?;
+        .ok_or_else(|| std::io::Error::other("Impossible de lire les régions MWG existantes : réponse JSON invalide"))?;
+    let Some(region_info) = entry.get("RegionInfo").and_then(|info| info.as_object()) else {
+        if !require_present {
+            return Ok(PreservedMwgRegions::default());
+        }
+        return Err(std::io::Error::other("Impossible de lire les régions MWG existantes : structure RegionInfo absente"));
+    };
     let applied_to_dimensions = region_info.get("AppliedToDimensions").filter(|value| value.is_object()).cloned();
     let regions = match region_info.get("RegionList") {
         Some(serde_json::Value::Array(items)) => items.iter().filter(|item| is_non_face_region_json(item)).cloned().collect(),
         Some(single @ serde_json::Value::Object(_)) => {
             if is_non_face_region_json(single) { vec![single.clone()] } else { Vec::new() }
         }
+        _ if !require_present => Vec::new(),
         _ => return Err(std::io::Error::other("Impossible de lire les régions MWG existantes : RegionList absent ou invalide")),
     };
     Ok(PreservedMwgRegions { regions, applied_to_dimensions })
 }
 
+#[cfg(test)]
+fn parse_preserved_mwg_regions(json: &str) -> std::io::Result<PreservedMwgRegions> {
+    parse_preserved_mwg_regions_with(json, true)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MwgProbe {
+    Skip,
+    KnownPresent,
+    Speculative,
+}
+
+/// Decides whether `write_metadata` needs to invoke ExifTool to read non-face MWG regions before writing face regions.
+/// Keeps the fast path (no extra ExifTool call) for standard JPEGs/HEICs/UTF-8 sidecars without non-face regions.
+fn mwg_preservation_probe(target: Target, source: Option<&Path>, raw_xmp: Option<&str>) -> MwgProbe {
+    if raw_xmp.is_some_and(crate::faces::has_non_face_mwg_regions) {
+        return MwgProbe::KnownPresent;
+    }
+    if raw_xmp.is_some_and(|xml| xml.contains("HasExtendedXMP")) {
+        return MwgProbe::Speculative;
+    }
+    if matches!(target, Target::Sidecar) && source.is_some() && raw_xmp.is_none() {
+        return MwgProbe::Speculative;
+    }
+    MwgProbe::Skip
+}
+
 /// Reads `XMP-mwg-rs:RegionInfo` from `source` via the persistent ExifTool pool using `-j -struct -n`.
-fn read_preserved_mwg_regions(source: &Path) -> std::io::Result<PreservedMwgRegions> {
+fn read_preserved_mwg_regions(source: &Path, require_present: bool) -> std::io::Result<PreservedMwgRegions> {
     let args = vec![
         "-j".to_string(),
         "-struct".to_string(),
@@ -927,7 +993,7 @@ fn read_preserved_mwg_regions(source: &Path) -> std::io::Result<PreservedMwgRegi
         safe_arg_path(source),
     ];
     let (stdout, _) = run_raw(&args)?;
-    parse_preserved_mwg_regions(&stdout)
+    parse_preserved_mwg_regions_with(&stdout, require_present)
 }
 
 /// Écrit les modifications `update` en une seule commande ExifTool :
@@ -942,16 +1008,47 @@ fn read_preserved_mwg_regions(source: &Path) -> std::io::Result<PreservedMwgRegi
 ///   e-mail de l'auteur : XMP Iptc4xmpCore:CreatorContactInfo / CiEmailWork ;
 /// - zones de visage : MWG RegionInfo et Microsoft RegionInfoMP (mêmes champs que exif::update_xmp_regions ; ACDSee non écrit).
 ///   When writing face regions, existing non-face MWG regions (`Pet`, `Focus`, `BarCode`, etc.) are preserved.
+/// Prepends `-tagsFromFile @ -IPTC:All` (excluding `CodedCharacterSet` and any IPTC tag overwritten by `update`)
+/// so legacy non-UTF-8 IPTC tags in a JPEG are decoded and re-encoded as UTF-8 when `-IPTC:CodedCharacterSet=UTF8` is applied.
+fn iptc_utf8_recode_prefix(update: &crate::exif::MetadataUpdate) -> Vec<String> {
+    let mut prefix = vec![
+        "-tagsFromFile".to_string(),
+        "@".to_string(),
+        "-IPTC:All".to_string(),
+        "--IPTC:CodedCharacterSet".to_string(),
+    ];
+    if update.keywords.is_some() { prefix.push("--IPTC:Keywords".to_string()); }
+    if update.clean_title().is_some() { prefix.push("--IPTC:ObjectName".to_string()); }
+    if update.clean_description().is_some() { prefix.push("--IPTC:Caption-Abstract".to_string()); }
+    if update.author_list().is_some() { prefix.push("--IPTC:By-line".to_string()); }
+    if update.clean_copyright().is_some() { prefix.push("--IPTC:CopyrightNotice".to_string()); }
+    if update.clean_credit().is_some() { prefix.push("--IPTC:Credit".to_string()); }
+    prefix
+}
+
 pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -> std::io::Result<()> {
     let mut args = metadata_args(image_path, update);
-    let Some(regions) = &update.regions else {
-        if args.is_empty() { return Ok(()); }
-        return write_to(image_path, args, update.adds_values());
-    };
+    if args.is_empty() && update.regions.is_none() {
+        return Ok(());
+    }
 
     let _active_write = ActiveWriteGuard::enter()?;
     let _guard = path_lock(image_path);
     let target = target_of(image_path);
+
+    if matches!(target, Target::Jpeg)
+        && args.iter().any(|arg| arg == "-IPTC:CodedCharacterSet=UTF8")
+        && crate::exif::jpeg_has_legacy_non_utf8_iptc(image_path)
+    {
+        let mut recoded = iptc_utf8_recode_prefix(update);
+        recoded.extend(args);
+        args = recoded;
+    }
+
+    let Some(regions) = &update.regions else {
+        return write_to_resolved(image_path, target, None, args, update.adds_values());
+    };
+
     let mut sidecar_target: Option<crate::exif::SidecarTarget> = None;
     let (source, raw_xmp): (Option<PathBuf>, Option<String>) = match target {
         Target::Jpeg => {
@@ -972,11 +1069,16 @@ pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -
             (src, xml)
         }
     };
-    let preserved = if raw_xmp.as_deref().is_some_and(crate::faces::has_non_face_mwg_regions) {
-        let source_path = source.as_deref().ok_or_else(|| std::io::Error::other("Source XMP introuvable pour préserver les régions"))?;
-        Some(read_preserved_mwg_regions(source_path)?)
-    } else {
-        None
+    let preserved = match mwg_preservation_probe(target, source.as_deref(), raw_xmp.as_deref()) {
+        MwgProbe::Skip => None,
+        MwgProbe::KnownPresent => {
+            let source_path = source.as_deref().ok_or_else(|| std::io::Error::other("Source XMP introuvable pour préserver les régions"))?;
+            Some(read_preserved_mwg_regions(source_path, true)?)
+        }
+        MwgProbe::Speculative => {
+            let source_path = source.as_deref().ok_or_else(|| std::io::Error::other("Source XMP introuvable pour préserver les régions"))?;
+            Some(read_preserved_mwg_regions(source_path, false)?)
+        }
     };
     let has_preserved = preserved.as_ref().is_some_and(|item| !item.regions.is_empty());
     args.extend(region_args(regions, preserved.as_ref()));
@@ -1235,8 +1337,18 @@ fn orientation_args(image_path: &Path, orientation: u32) -> Vec<String> {
 }
 
 /// Lossless rotation: only the orientation tags change (see `orientation_args`), the image data is never touched.
+#[cfg(test)]
 pub fn write_orientation(image_path: &Path, orientation: u32) -> std::io::Result<()> {
     write_to(image_path, orientation_args(image_path, orientation), true)
+}
+
+/// Lossless rotation when the caller already holds `path_lock(image_path)` (e.g. `rotate_photo` reading and writing atomically).
+pub(crate) fn write_orientation_locked(
+    image_path: &Path,
+    guard: &std::sync::MutexGuard<'static, ()>,
+    orientation: u32,
+) -> std::io::Result<()> {
+    write_to_locked(image_path, guard, orientation_args(image_path, orientation), true)
 }
 
 #[cfg(test)]

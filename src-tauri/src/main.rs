@@ -912,6 +912,9 @@ fn path_segments(path: &str) -> Vec<&str> {
 // (« D:\Photos/2024\a.jpg » au lieu de « D:\Photos\2024\a.jpg ») et créerait des doublons en base. Renvoie None si le dossier n'est pas suivi.
 fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
     let requested_segments = path_segments(requested);
+    if requested_segments.iter().any(|segment| matches!(*segment, "." | "..")) {
+        return None;
+    }
     db::get_folders(pool).into_iter().find_map(|folder| {
         let root_segments = path_segments(&folder.path);
         let inside_root = !root_segments.is_empty()
@@ -1258,9 +1261,67 @@ async fn update_photos_marking(
     outcome.map_err(|error| error.to_string())?
 }
 
+/// Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
+/// Used when a write succeeded on disk but verification read-back or catalog update failed.
+fn mark_photo_for_resync(pool: &DbPool, id: i64) {
+    if let Ok(conn) = pool.get() {
+        let _ = conn.execute("UPDATE photos SET file_size = -1 WHERE id = ?1", params![id]);
+    }
+}
+
 /// Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
 /// La miniature et l'aperçu en cache suivent le fichier réécrit (keep_cached_images).
 /// Returns the new `effective_modified` (None: nothing to write). `modified` stays the image file's own mtime, even when only a sidecar was written.
+#[allow(clippy::too_many_arguments)]
+fn write_photo_marking_with(
+    pool: &DbPool,
+    dirs: &ImageCacheDirs,
+    id: i64,
+    path: &str,
+    rating: Option<i32>,
+    label: Option<Option<&'static str>>,
+    pick: Option<&'static str>,
+    color_flag: Option<&str>,
+    write_fn: impl FnOnce(&str, exif::XmpEdit) -> std::io::Result<()>,
+) -> Result<Option<i64>, String> {
+    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(None); }
+    keep_cached_images(dirs, path, || write_fn(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string()))?;
+    // The file is read back before the catalog is updated: a write that did not put the value where the interface reads it (ignored field,
+    // read order, sidecar of another file) is a failure, never shown as written. Only the marking is read (exif::read_marking): negligible cost.
+    if let Some(difference) = exif::marking_mismatch(&exif::read_marking(Path::new(path)), rating, color_flag, pick) {
+        mark_photo_for_resync(pool, id);
+        return Err(difference);
+    }
+    let result = (|| -> Result<i64, String> {
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        let metadata = fs::metadata(path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
+        let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
+        // `modified` = the image file's mtime (unchanged when only the sidecar was written); `effective_modified` also counts the sidecar's.
+        let image_modified = library_sync::modified_millis(&metadata);
+        let effective_modified = library_sync::effective_modified_millis(Path::new(path), image_modified);
+        tx.execute("UPDATE photos SET file_size = ?, modified = ?, effective_modified = ? WHERE id = ?", params![metadata.len() as i64, image_modified, effective_modified, id])
+            .map_err(|error| error.to_string())?;
+        if let Some(rating) = rating {
+            tx.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|error| error.to_string())?;
+        }
+        if let Some(flag) = color_flag {
+            tx.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(flag), id]).map_err(|error| error.to_string())?;
+        }
+        if let Some(pick) = pick {
+            tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
+        }
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(effective_modified)
+    })();
+    match result {
+        Ok(effective_modified) => Ok(Some(effective_modified)),
+        Err(error) => {
+            mark_photo_for_resync(pool, id);
+            Err(error)
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn write_photo_marking(
     pool: &DbPool,
@@ -1272,34 +1333,7 @@ fn write_photo_marking(
     pick: Option<&'static str>,
     color_flag: Option<&str>,
 ) -> Result<Option<i64>, String> {
-    if rating.is_none() && label.is_none() && pick.is_none() { return Ok(None); }
-    keep_cached_images(dirs, path, || exif::write_xmp_metadata(path, exif::XmpEdit { rating, label, pick }).map_err(|e| e.to_string()))?;
-    // The file is read back before the catalog is updated: a write that did not put the value where the interface reads it (ignored field,
-    // read order, sidecar of another file) is a failure, never shown as written. Only the marking is read (exif::read_marking): negligible cost.
-    if let Some(difference) = exif::marking_mismatch(&exif::read_marking(Path::new(path)), rating, color_flag, pick) {
-        return Err(difference);
-    }
-    let conn = pool.get().map_err(|error| error.to_string())?;
-    // Le fichier vient d'être réécrit par l'application : sa nouvelle taille et sa date sont enregistrées avec les valeurs, dans une même
-    // transaction. Si l'enregistrement échoue, la base garde l'ancienne taille : la synchronisation relira le fichier et rétablira les valeurs.
-    let metadata = fs::metadata(path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
-    let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
-    // `modified` = the image file's mtime (unchanged when only the sidecar was written); `effective_modified` also counts the sidecar's.
-    let image_modified = library_sync::modified_millis(&metadata);
-    let effective_modified = library_sync::effective_modified_millis(Path::new(path), image_modified);
-    tx.execute("UPDATE photos SET file_size = ?, modified = ?, effective_modified = ? WHERE id = ?", params![metadata.len() as i64, image_modified, effective_modified, id])
-        .map_err(|error| error.to_string())?;
-    if let Some(rating) = rating {
-        tx.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|error| error.to_string())?;
-    }
-    if let Some(flag) = color_flag {
-        tx.execute("UPDATE photos SET color_flag = ? WHERE id = ?", params![exif::normalize_color_flag(flag), id]).map_err(|error| error.to_string())?;
-    }
-    if let Some(pick) = pick {
-        tx.execute("UPDATE photos SET pick_flag = ? WHERE id = ?", params![pick, id]).map_err(|error| error.to_string())?;
-    }
-    tx.commit().map_err(|error| error.to_string())?;
-    Ok(Some(effective_modified))
+    write_photo_marking_with(pool, dirs, id, path, rating, label, pick, color_flag, exif::write_xmp_metadata)
 }
 
 /// Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
@@ -1371,30 +1405,52 @@ async fn rotate_photos(
 
 /// Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `view_fix`
 /// and `effective_modified` (`modified` stays the image's own mtime, even when only a sidecar was written).
-fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<(u32, u32, i64), String> {
+fn rotate_photo_with(
+    pool: &DbPool,
+    dirs: &ImageCacheDirs,
+    id: i64,
+    path: &str,
+    quarter_turns: i32,
+    write_fn: impl FnOnce(&Path, &std::sync::MutexGuard<'static, ()>, u32) -> std::io::Result<()>,
+) -> Result<(u32, u32, i64), String> {
     let source = Path::new(path);
     if !orientation::is_rotatable(source) { return Err("Rotation sans perte impossible pour ce format (HEIC, HEIF, vidéo)".into()); }
+    // Hold one non-reentrant `path_lock` across read, write, read-back, and DB update so concurrent rotations compose cleanly.
+    let guard = exiftool::path_lock(source);
     let wanted = orientation::rotate(orientation::read(source).stored, quarter_turns);
     let _priority = semantic::PriorityGuard::new(); // like every metadata write (keep_cached_images): the semantic scan waits meanwhile
     let cached_before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
-    orientation::write(source, wanted).map_err(|error| error.to_string())?;
+    write_fn(source, &guard, wanted).map_err(|error| error.to_string())?;
     // The thumbnail and the preview are stored turned: both are dropped, under the old name (file rewritten) and the current one (sidecar
     // written, same file name), to be generated again on the next display.
     let cached_after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
     for file in cached_before.into_iter().chain(cached_after).flatten() { let _ = fs::remove_file(file); }
     // Read back before the catalog is updated: a value that did not land where it is read is a failure, never shown as written.
     let after = orientation::read(source);
-    if after.stored != wanted { return Err(format!("Orientation relue différente ({} au lieu de {wanted})", after.stored)); }
-    let metadata = fs::metadata(source).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
-    let conn = pool.get().map_err(|error| error.to_string())?;
-    let image_modified = library_sync::modified_millis(&metadata);
-    let effective_modified = library_sync::effective_modified_millis(source, image_modified);
-    conn.execute(
-        "UPDATE photos SET orientation = ?1, view_fix = ?2, file_size = ?3, modified = ?4, effective_modified = ?5 WHERE id = ?6",
-        params![after.stored, after.view_fix, metadata.len() as i64, image_modified, effective_modified, id],
-    )
-    .map_err(|error| error.to_string())?;
-    Ok((after.stored, after.view_fix, effective_modified))
+    if after.stored != wanted {
+        mark_photo_for_resync(pool, id);
+        return Err(format!("Orientation relue différente ({} au lieu de {wanted})", after.stored));
+    }
+    let result = (|| -> Result<(u32, u32, i64), String> {
+        let metadata = fs::metadata(source).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
+        let conn = pool.get().map_err(|error| error.to_string())?;
+        let image_modified = library_sync::modified_millis(&metadata);
+        let effective_modified = library_sync::effective_modified_millis(source, image_modified);
+        conn.execute(
+            "UPDATE photos SET orientation = ?1, view_fix = ?2, file_size = ?3, modified = ?4, effective_modified = ?5 WHERE id = ?6",
+            params![after.stored, after.view_fix, metadata.len() as i64, image_modified, effective_modified, id],
+        )
+        .map_err(|error| error.to_string())?;
+        Ok((after.stored, after.view_fix, effective_modified))
+    })();
+    if result.is_err() {
+        mark_photo_for_resync(pool, id);
+    }
+    result
+}
+
+fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quarter_turns: i32) -> Result<(u32, u32, i64), String> {
+    rotate_photo_with(pool, dirs, id, path, quarter_turns, orientation::write_locked)
 }
 
 #[derive(serde::Serialize)]
@@ -1592,13 +1648,13 @@ fn rename_photo(state: State<'_, AppState>, path: String, new_name: String) -> R
     }
     if let Some((from, to, copy_only)) = sidecar {
         let result = match (copy_only, sidecar_reserved) {
-            (true, true) => fs::copy(&from, &to).map(|_| ()),
+            (true, true) => copy_atomically_to_reserved(&from, &to),
             (true, false) => Ok(()),
             (false, _) => fs::rename(&from, &to),
         };
         if let Err(error) = result {
             // Photo et sidecar doivent rester ensemble : la photo reprend son nom (libre : elle vient de le quitter).
-            if sidecar_reserved { let _ = fs::remove_file(&to); }
+            if sidecar_reserved { remove_copied_target(&to); }
             let _ = fs::rename(&target, source);
             return Err(format!("Sidecar XMP non renommé : {error}"));
         }
@@ -1690,14 +1746,16 @@ fn rename_folder(state: State<'_, AppState>, path: String, new_name: String) -> 
 // Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
 // peuvent être supprimées. La photo disparaît du catalogue, avec sa miniature en cache ; son sidecar .xmp part à la corbeille avec elle.
 // Si le fichier n'est pas mis à la corbeille (erreur), la photo reste dans le catalogue et l'échec est signalé : jamais de suppression définitive de repli.
-#[tauri::command(async)]
-fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
-    let pool = state.pool();
+fn delete_photos_with(
+    pool: &DbPool,
+    thumbnails_dir: &Path,
+    raw_previews_dir: &Path,
+    paths: Vec<String>,
+    mut trash_fn: impl FnMut(&Path) -> Result<(), String>,
+) -> Result<DeleteResult, String> {
     let conn = pool.get().map_err(|error| error.to_string())?;
     let mut deleted = Vec::new();
     let mut failed = Vec::new();
-    let thumbnails_dir = state.thumbnails_dir();
-    let raw_previews_dir = state.raw_previews_dir();
 
     for path in paths {
         let tracked: bool = match conn.query_row("SELECT EXISTS(SELECT 1 FROM photos WHERE path = ?)", params![path], |row| row.get(0)) {
@@ -1713,20 +1771,26 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
         }
 
         // Calcule les chemins du cache miniature et preview RAW dans le bon dossier
-        let cache_file = thumbnail_cache_file(&thumbnails_dir, &path).ok();
-        let raw_preview_file = raw_preview_cache_file(&raw_previews_dir, &path).ok();
+        let cache_file = thumbnail_cache_file(thumbnails_dir, &path).ok();
+        let raw_preview_file = raw_preview_cache_file(raw_previews_dir, &path).ok();
 
         // Fichier déjà absent (supprimé hors de l'application) : rien à mettre à la corbeille, on retire simplement la photo du catalogue.
         if Path::new(&path).exists() {
             let _write_guard = exiftool::path_lock(Path::new(&path)); // see rename_photo
             // Sidecar repéré avant la mise à la corbeille : la recherche d'un fichier frère a besoin que l'original soit encore là.
             let sidecar = sidecar_to_trash(Path::new(&path));
-            if let Err(error) = trash::delete(&path) {
-                failed.push(FileFailure { path, error: error.to_string() });
+            if let Err(error) = trash_fn(Path::new(&path)) {
+                failed.push(FileFailure { path, error });
                 continue;
             }
-            // Le sidecar suit son fichier à la corbeille (restaurable aussi). Échec sans gravité : la photo, elle, est bien supprimée.
-            if let Some(sidecar) = sidecar { let _ = trash::delete(sidecar); }
+            if let Some(sidecar) = sidecar {
+                if let Err(error) = trash_fn(&sidecar) {
+                    failed.push(FileFailure {
+                        path: sidecar.to_string_lossy().into_owned(),
+                        error: format!("Sidecar XMP non mis à la corbeille : {error}"),
+                    });
+                }
+            }
         }
 
         // Le fichier est à la corbeille : la photo doit quitter le catalogue. Si ce n'est pas possible, l'échec est signalé (jamais de succès
@@ -1742,6 +1806,18 @@ fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<Delet
         deleted.push(path);
     }
     Ok(DeleteResult { deleted, failed })
+}
+
+#[tauri::command(async)]
+fn delete_photos(state: State<'_, AppState>, paths: Vec<String>) -> Result<DeleteResult, String> {
+    let pool = state.pool();
+    delete_photos_with(
+        &pool,
+        &state.thumbnails_dir(),
+        &state.raw_previews_dir(),
+        paths,
+        |path| trash::delete(path).map_err(|error| error.to_string()),
+    )
 }
 
 // Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une clé USB (support
@@ -2015,23 +2091,35 @@ fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr) -> std::io
 
 // Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
 // Un sidecar déjà présent à destination n'est écrasé qu'avec `overwrite` (copie qui remplace un fichier existant, choisie par l'utilisateur).
-fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Result<()> {
-    let appended = PathBuf::from(format!("{}.xmp", source.display()));
-    let (from, to) = if appended.is_file() {
-        (appended, PathBuf::from(format!("{}.xmp", target.display())))
+fn copy_sidecar_with(
+    source: &Path,
+    target: &Path,
+    overwrite: bool,
+    replace: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let [src_appended, src_compat] = exif::sidecar_candidates(source);
+    let [dst_appended, dst_compat] = exif::sidecar_candidates(target);
+    let (from, to) = if src_appended.is_file() {
+        (src_appended, dst_appended)
+    } else if src_compat.is_file() {
+        (src_compat, dst_compat)
     } else {
-        let compatible = source.with_extension("xmp");
-        if !compatible.is_file() { return Ok(()); }
-        (compatible, target.with_extension("xmp"))
+        return Ok(());
     };
     // Replacing an existing sidecar goes through copy_replacing: a direct copy would first truncate it.
-    if overwrite && to.exists() { return copy_replacing(&from, &to); }
+    if overwrite && to.exists() {
+        return replace(&from, &to);
+    }
     // Name reserved first (F2): an existing sidecar, even one that appeared just now, is never overwritten.
     match reserve_new_file(&to) {
-        Ok(()) => fs::copy(&from, &to).map(|_| ()).inspect_err(|_| { let _ = fs::remove_file(&to); }),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Ok(()) => copy_atomically_to_reserved(&from, &to),
+        Err(error) if overwrite && error.kind() == std::io::ErrorKind::AlreadyExists => replace(&from, &to),
         Err(error) => Err(error),
     }
+}
+
+fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Result<()> {
+    copy_sidecar_with(source, target, overwrite, copy_replacing)
 }
 
 fn lowercase_segments(path: &Path) -> Vec<String> {
@@ -2133,25 +2221,130 @@ fn remove_copied_target(path: &Path) {
     let _ = fs::remove_file(path);
 }
 
-fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
-    if fs::rename(source, target).is_ok() { return Ok(()); }
-    if let Err(error) = copy_durably(source, target) {
+fn temp_sibling_path(target: &Path) -> PathBuf {
+    let parent = target.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or_else(|| Path::new("."));
+    parent.join(format!(
+        ".photoboggan-tmp-{}-{}",
+        std::process::id(),
+        TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ))
+}
+
+/// Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+/// then atomically renames it over `reserved_target` (an empty placeholder created by
+/// `reserve_new_file` / `reserve_destination`). Cleans up both files on failure.
+pub(crate) fn copy_atomically_to_reserved(source: &Path, reserved_target: &Path) -> std::io::Result<()> {
+    let temp = temp_sibling_path(reserved_target);
+    let result = copy_durably(source, &temp).and_then(|_| fs::rename(&temp, reserved_target));
+    if result.is_err() {
+        remove_copied_target(&temp);
+        remove_copied_target(reserved_target);
+    } else {
+        sync_parent_dir(reserved_target);
+    }
+    result
+}
+
+/// Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+/// and the trashed copy keeps its real file name.
+pub(crate) fn replace_file_via_backup(
+    temp: &Path,
+    target: &Path,
+    send_to_trash: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let parent = target.parent().ok_or_else(|| {
+        remove_copied_target(temp);
+        "Dossier de destination invalide".to_string()
+    })?;
+    let file_name = target.file_name().ok_or_else(|| {
+        remove_copied_target(temp);
+        "Nom de fichier de destination invalide".to_string()
+    })?;
+    let backup_dir = parent.join(format!(
+        ".photoboggan-backup-{}-{}",
+        std::process::id(),
+        TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    if let Err(error) = fs::create_dir(&backup_dir) {
+        remove_copied_target(temp);
+        return Err(format!("Création du dossier de sauvegarde impossible : {error}"));
+    }
+    let backup_file = backup_dir.join(file_name);
+    if let Err(error) = fs::rename(target, &backup_file) {
+        let _ = fs::remove_dir(&backup_dir);
+        remove_copied_target(temp);
+        return Err(format!("« {} » n'a pas pu être préparé pour la corbeille, il n'est pas remplacé : {error}", target.display()));
+    }
+    if let Err(error) = fs::rename(temp, target) {
+        let _ = fs::rename(&backup_file, target);
+        let _ = fs::remove_dir(&backup_dir);
+        remove_copied_target(temp);
+        return Err(format!("Écriture impossible : {error}"));
+    }
+    if let Err(error) = send_to_trash(&backup_file) {
+        // Rollback: move the new file back to `temp` so we can remove it and restore the original.
+        let _ = fs::rename(target, temp);
+        let _ = fs::rename(&backup_file, target);
+        let _ = fs::remove_dir(&backup_dir);
+        remove_copied_target(temp);
+        return Err(format!("« {} » n'a pas pu être mis à la corbeille, il n'est pas remplacé : {error}", target.display()));
+    }
+    let _ = fs::remove_dir(&backup_dir);
+    Ok(())
+}
+
+pub(crate) fn replace_file_via_trash_with(
+    temp: &Path,
+    target: &Path,
+    trash_available: bool,
+    send_to_trash: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    if !trash_available {
+        remove_copied_target(temp);
+        return Err(format!("Aucune corbeille disponible pour « {} », remplacement refusé", target.display()));
+    }
+    replace_file_via_backup(temp, target, send_to_trash)
+}
+
+/// Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
+/// Refuses replacement if no trash is available on the target volume.
+pub(crate) fn replace_file_via_trash(temp: &Path, target: &Path) -> Result<(), String> {
+    replace_file_via_trash_with(temp, target, has_trash(&target.to_string_lossy()), |backup| {
+        trash::delete(backup).map_err(|error| error.to_string())
+    })
+}
+
+fn move_file_via_copy(source: &Path, target: &Path) -> std::io::Result<()> {
+    let temp = temp_sibling_path(target);
+    if let Err(error) = copy_durably(source, &temp) {
+        remove_copied_target(&temp);
         remove_copied_target(target);
         return Err(error);
     }
     if VERIFY_CROSS_DRIVE_MOVES.load(Ordering::Relaxed) {
-        match files_have_same_hash(source, target) {
+        match files_have_same_hash(source, &temp) {
             Ok(true) => {}
             Ok(false) => {
+                remove_copied_target(&temp);
                 remove_copied_target(target);
-                return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "La copie diffère de l'original : déplacement annulé, l'original est conservé"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "La copie diffère de l'original : déplacement annulé, l'original est conservé",
+                ));
             }
             Err(error) => {
+                remove_copied_target(&temp);
                 remove_copied_target(target);
                 return Err(error);
             }
         }
     }
+    if let Err(error) = fs::rename(&temp, target) {
+        remove_copied_target(&temp);
+        remove_copied_target(target);
+        return Err(error);
+    }
+    sync_parent_dir(target);
     if let Err(error) = fs::remove_file(source) {
         remove_copied_target(target);
         return Err(error);
@@ -2159,18 +2352,28 @@ fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-// Sidecar XMP d'une photo déplacée : « photo.jpg.xmp » est déplacé avec elle. Un sidecar « photo.xmp » peut être partagé avec un autre fichier du même nom
-// (paire RAW + JPEG) : il est copié et l'original reste en place, pour ne pas priver l'autre fichier de ses métadonnées.
-fn move_sidecar(source: &Path, target: &Path) -> std::io::Result<()> {
-    let appended = PathBuf::from(format!("{}.xmp", source.display()));
-    if appended.is_file() {
-        let destination = PathBuf::from(format!("{}.xmp", target.display()));
-        // Name reserved (F2): a sidecar that appeared since reserve_destination is never overwritten, it stays where it is.
-        match reserve_new_file(&destination) {
-            Ok(()) => move_file(&appended, &destination).inspect_err(|_| { let _ = fs::remove_file(&destination); }),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
-            Err(error) => Err(error),
-        }
+fn move_file(source: &Path, target: &Path) -> std::io::Result<()> {
+    if fs::rename(source, target).is_ok() {
+        sync_parent_dir(target);
+        return Ok(());
+    }
+    move_file_via_copy(source, target)
+}
+
+// XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
+// in the source folder shares its stem (`source_has_sibling == Some(false)`), and copied otherwise (`Some(true)` or `None`)
+// so any other file of the pair keeps its metadata.
+fn move_sidecar(source: &Path, target: &Path, source_has_sibling: Option<bool>) -> std::io::Result<()> {
+    let [src_appended, src_compat] = exif::sidecar_candidates(source);
+    let [dst_appended, dst_compat] = exif::sidecar_candidates(target);
+    if src_appended.is_file() {
+        reserve_new_file(&dst_appended)?;
+        move_file(&src_appended, &dst_appended).inspect_err(|_| remove_copied_target(&dst_appended))
+    } else if !src_compat.is_file() {
+        Ok(())
+    } else if matches!(source_has_sibling, Some(false)) {
+        reserve_new_file(&dst_compat)?;
+        move_file(&src_compat, &dst_compat).inspect_err(|_| remove_copied_target(&dst_compat))
     } else {
         copy_sidecar(source, target, false)
     }
@@ -2273,6 +2476,8 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 failed.push(FileFailure { path: path.clone(), error: "Fichier introuvable".into() });
                 break 'file;
             }
+            // Check sibling presence before moving `source` so an unshared `photo.xmp` can be moved instead of left behind.
+            let source_has_sibling = exif::has_same_stem_sibling(source);
             // Destination réservée (fichier vide, voir reserve_destination) : move_file la remplace, ou la supprime s'il échoue.
             let (target, sidecar_rename) = match reserve_destination(&destination_dir, file_name) {
                 Ok(reserved) => (reserved.path.clone(), reserved.sidecar_rename(&path)),
@@ -2290,7 +2495,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
                 break 'file;
             }
             renamed_for_sidecar.extend(sidecar_rename);
-            if let Err(error) = move_sidecar(source, &target) {
+            if let Err(error) = move_sidecar(source, &target, source_has_sibling) {
                 // La photo est déplacée mais pas son sidecar XMP : ses métadonnées sont restées à l'ancien emplacement, l'échec est signalé.
                 failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non déplacé : {error}") });
             }
@@ -2345,19 +2550,37 @@ fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<CopyConflict
     }).collect()
 }
 
-// Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then renamed. A failure
-// on the way (full disk…) or a power cut leaves either the old file or the complete new one, never an empty or partial file.
-fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
+// Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
+// swapped in via the OS trash so the previous file remains recoverable. Refuses replacement if no trash is available.
+fn copy_replacing_with(
+    source: &Path,
+    target: &Path,
+    replace: impl FnOnce(&Path, &Path) -> Result<(), String>,
+) -> std::io::Result<()> {
     let _write_guard = exiftool::path_lock(target);
-    let temp = PathBuf::from(format!(
-        "{}.photoboggan-tmp-{}-{}",
-        target.display(),
-        std::process::id(),
-        TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
-    ));
-    let result = copy_durably(source, &temp).and_then(|_| fs::rename(&temp, target));
-    if result.is_err() { let _ = fs::remove_file(&temp); } else { sync_parent_dir(target); }
-    result
+    let temp = temp_sibling_path(target);
+    if let Err(error) = copy_durably(source, &temp) {
+        remove_copied_target(&temp);
+        return Err(error);
+    }
+    if target.exists() {
+        replace(&temp, target).map_err(std::io::Error::other)?;
+    } else if let Err(error) = fs::rename(&temp, target) {
+        remove_copied_target(&temp);
+        return Err(error);
+    }
+    sync_parent_dir(target);
+    Ok(())
+}
+
+fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
+    if target.exists() && !has_trash(&target.to_string_lossy()) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            format!("Aucune corbeille disponible pour « {} », remplacement refusé", target.display()),
+        ));
+    }
+    copy_replacing_with(source, target, replace_file_via_trash)
 }
 
 // Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
@@ -2403,8 +2626,8 @@ fn copy_photos_with_progress(
                     // Destination réservée atomiquement : la copie ne peut écraser que ce fichier vide, créé par nous (supprimé si la copie échoue).
                     match reserve_destination(destination, file_name) {
                         Err(error) => failed.push(FileFailure { path: path.clone(), error: format!("Destination impossible à créer : {error}") }),
-                        Ok(reserved) => match fs::copy(source, &reserved.path) {
-                            Ok(_) => {
+                        Ok(reserved) => match copy_atomically_to_reserved(source, &reserved.path) {
+                            Ok(()) => {
                                 if let Err(error) = copy_sidecar(source, &reserved.path, false) {
                                     failed.push(FileFailure { path: path.clone(), error: format!("Sidecar XMP non copié : {error}") });
                                 }
@@ -2412,7 +2635,6 @@ fn copy_photos_with_progress(
                                 copied += 1;
                             }
                             Err(error) => {
-                                let _ = fs::remove_file(&reserved.path);
                                 failed.push(FileFailure { path: path.clone(), error: error.to_string() });
                             }
                         },

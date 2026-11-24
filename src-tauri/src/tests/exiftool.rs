@@ -316,6 +316,58 @@ fn parse_preserved_mwg_regions_handles_array_single_object_and_errors() {
     assert!(parse_preserved_mwg_regions("not json").is_err());
     assert!(parse_preserved_mwg_regions(r#"[{"SourceFile": "a.jpg"}]"#).is_err());
     assert!(parse_preserved_mwg_regions(r#"[{"RegionInfo": {}}]"#).is_err());
+    let optional = parse_preserved_mwg_regions_with(r#"[{"SourceFile": "a.jpg"}]"#, false).unwrap();
+    assert!(optional.regions.is_empty());
+}
+
+#[test]
+fn mwg_preservation_probe_keeps_fast_path_and_handles_extended_xmp_or_non_utf8_sidecar() {
+    let some_path = Path::new("photo.xmp");
+    assert_eq!(mwg_preservation_probe(Target::Jpeg, Some(some_path), Some("<x:xmpmeta/>")), MwgProbe::Skip);
+    assert_eq!(mwg_preservation_probe(Target::Jpeg, Some(some_path), Some("<x:xmpmeta xmpNote:HasExtendedXMP=\"ABC\"/>")), MwgProbe::Speculative);
+    assert_eq!(mwg_preservation_probe(Target::Sidecar, Some(some_path), None), MwgProbe::Speculative);
+    assert_eq!(mwg_preservation_probe(Target::Sidecar, None, None), MwgProbe::Skip);
+    let with_pet = "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\
+        <rdf:Description xmlns:mwg-rs=\"http://www.metadataworkinggroup.com/schemas/regions/\">\
+        <mwg-rs:Regions><mwg-rs:RegionList><rdf:Bag><rdf:li><mwg-rs:Type>Pet</mwg-rs:Type></rdf:li></rdf:Bag></mwg-rs:RegionList></mwg-rs:Regions>\
+        </rdf:Description></rdf:RDF></x:xmpmeta>";
+    assert_eq!(mwg_preservation_probe(Target::Jpeg, Some(some_path), Some(with_pet)), MwgProbe::KnownPresent);
+}
+
+#[test]
+fn publish_new_sidecar_never_overwrites_existing_sidecar() {
+    let dir = tempfile::tempdir().unwrap();
+    let temp = dir.path().join("temp.xmp");
+    let sidecar = dir.path().join("photo.cr2.xmp");
+    std::fs::write(&temp, b"new").unwrap();
+    publish_new_sidecar(&temp, &sidecar).unwrap();
+    assert!(!temp.exists());
+    assert_eq!(std::fs::read(&sidecar).unwrap(), b"new");
+
+    std::fs::write(&temp, b"attacker").unwrap();
+    let err = publish_new_sidecar(&temp, &sidecar).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(std::fs::read(&sidecar).unwrap(), b"new");
+}
+
+#[test]
+fn jpeg_has_legacy_non_utf8_iptc_detects_latin1_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("plain.jpg");
+    std::fs::write(&plain, jpeg_bytes(16, 16)).unwrap();
+    assert!(!crate::exif::jpeg_has_legacy_non_utf8_iptc(&plain));
+
+    let ascii = dir.path().join("ascii.jpg");
+    std::fs::write(&ascii, with_segment(&jpeg_bytes(16, 16), 0xed, &build_iptc_app13(&[(2, 90, b"Paris")]))).unwrap();
+    assert!(!crate::exif::jpeg_has_legacy_non_utf8_iptc(&ascii));
+
+    let utf8_declared = dir.path().join("utf8.jpg");
+    std::fs::write(&utf8_declared, with_segment(&jpeg_bytes(16, 16), 0xed, &build_iptc_app13(&[(1, 90, b"\x1b%G"), (2, 90, "Été".as_bytes())]))).unwrap();
+    assert!(!crate::exif::jpeg_has_legacy_non_utf8_iptc(&utf8_declared));
+
+    let latin1 = dir.path().join("latin1.jpg");
+    std::fs::write(&latin1, with_segment(&jpeg_bytes(16, 16), 0xed, &build_iptc_app13(&[(2, 90, &[0xC9, 0x74, 0xE9])]))).unwrap();
+    assert!(crate::exif::jpeg_has_legacy_non_utf8_iptc(&latin1));
 }
 
 #[test]
@@ -1068,5 +1120,104 @@ fn write_without_regions_leaves_anonymous_face_and_pet_untouched() {
     assert!(list[0].get("Name").is_none());
     assert_eq!(list[1]["Type"], "Pet");
     assert_eq!(list[1]["Name"], "Milo");
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+/// Builds an APP13 (`0xED`) Photoshop 3.0 + 8BIM 0x0404 payload from raw `(record, dataset, bytes)` IPTC entries.
+fn build_iptc_app13(entries: &[(u8, u8, &[u8])]) -> Vec<u8> {
+    let mut iptc = Vec::new();
+    for &(record, dataset, value) in entries {
+        iptc.extend_from_slice(&[0x1c, record, dataset]);
+        iptc.extend_from_slice(&(value.len() as u16).to_be_bytes());
+        iptc.extend_from_slice(value);
+    }
+    let mut payload = b"Photoshop 3.0\0".to_vec();
+    payload.extend_from_slice(b"8BIM");
+    payload.extend_from_slice(&0x0404u16.to_be_bytes());
+    payload.extend_from_slice(&[0x00, 0x00]); // empty Pascal name, padded to even
+    payload.extend_from_slice(&(iptc.len() as u32).to_be_bytes());
+    payload.extend_from_slice(&iptc);
+    if iptc.len() % 2 != 0 {
+        payload.push(0);
+    }
+    payload
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn writing_accented_title_preserves_latin1_iptc_city() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(32, 32);
+    // Record 2, Dataset 90 = IPTC:City ("Été" in Latin-1: 0xC9, 0x74, 0xE9), no CodedCharacterSet (1:90).
+    // Record 2, Dataset 25 = IPTC:Keywords ("OldKeyword").
+    let app13 = build_iptc_app13(&[(2, 90, &[0xC9, 0x74, 0xE9]), (2, 25, b"OldKeyword")]);
+    let jpeg = with_segment(&original, 0xed, &app13);
+    let path = dir.path().join("latin1_iptc.jpg");
+    std::fs::write(&path, &jpeg).unwrap();
+
+    let before = query_exiftool_json(&path, &["-IPTC:City"]);
+    assert_eq!(before[0]["City"], "Été");
+
+    let update = MetadataUpdate {
+        title: Some("Vacances d'été".into()),
+        keywords: Some(paths(&[&["Soleil"]])),
+        ..Default::default()
+    };
+    write_metadata(&path, &update).unwrap();
+
+    let after_city = query_exiftool_json(&path, &["-IPTC:City"]);
+    assert_eq!(after_city[0]["City"], "Été", "Latin-1 IPTC:City turned into mojibake: {after_city}");
+    let after_kw = query_exiftool_json(&path, &["-IPTC:Keywords"]);
+    assert_eq!(after_kw[0]["Keywords"], "Soleil", "unexpected keywords: {after_kw}");
+    let meta = read_exif(&path);
+    assert_eq!(meta.title, "Vacances d'été");
+    assert_eq!(meta.keyword_paths, paths(&[&["Soleil"]]));
+    assert_eq!(query_exiftool_tag(&path, "Photoshop:IPTCDigest"), query_exiftool_tag(&path, "CurrentIPTCDigest"));
+    assert_eq!(decoded_pixels(&std::fs::read(&path).unwrap()), decoded_pixels(&original));
+    assert_eq!(scan_data(&std::fs::read(&path).unwrap()), scan_data(&original));
+    assert!(!crate::exif::jpeg_has_legacy_non_utf8_iptc(&path), "IPTC should now be UTF-8");
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn utf16_sidecar_preserves_non_face_mwg_regions_on_face_write() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let raw = dir.path().join("utf16.cr2");
+    std::fs::write(&raw, b"raw").unwrap();
+    let sidecar = dir.path().join("utf16.cr2.xmp");
+    let xml = "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\
+        <x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\
+        <rdf:Description xmlns:mwg-rs=\"http://www.metadataworkinggroup.com/schemas/regions/\" xmlns:stArea=\"http://ns.adobe.com/xmp/sType/Area#\" xmlns:stDim=\"http://ns.adobe.com/xmp/sType/Dimensions#\">\
+        <mwg-rs:Regions rdf:parseType=\"Resource\"><mwg-rs:AppliedToDimensions stDim:w=\"400\" stDim:h=\"300\" stDim:unit=\"pixel\"/>\
+        <mwg-rs:RegionList><rdf:Bag><rdf:li rdf:parseType=\"Resource\"><mwg-rs:Type>Pet</mwg-rs:Type><mwg-rs:Name>Rex</mwg-rs:Name>\
+        <mwg-rs:Area stArea:x=\"0.5\" stArea:y=\"0.5\" stArea:w=\"0.2\" stArea:h=\"0.2\" stArea:unit=\"normalized\"/></rdf:li></rdf:Bag></mwg-rs:RegionList>\
+        </mwg-rs:Regions></rdf:Description></rdf:RDF></x:xmpmeta>";
+    let mut utf16_bytes = vec![0xFFu8, 0xFEu8]; // UTF-16LE BOM
+    for unit in xml.encode_utf16() {
+        utf16_bytes.extend_from_slice(&unit.to_le_bytes());
+    }
+    std::fs::write(&sidecar, utf16_bytes).unwrap();
+    assert!(std::fs::read_to_string(&sidecar).is_err(), "UTF-16 sidecar must fail read_to_string");
+
+    write_metadata(
+        &raw,
+        &MetadataUpdate {
+            regions: Some(crate::exif::RegionsUpdate {
+                width: 400,
+                height: 300,
+                regions: vec![crate::exif::RegionWrite { name: Some("Alice".into()), x: 0.1, y: 0.1, w: 0.2, h: 0.2 }],
+            }),
+            ..Default::default()
+        },
+    ).unwrap();
+
+    let json = query_exiftool_json(&sidecar, &["-XMP-mwg-rs:RegionInfo"]);
+    let list = json[0]["RegionInfo"]["RegionList"].as_array().unwrap();
+    assert_eq!(list.len(), 2, "expected Face + preserved Pet, got {list:?}");
+    assert_eq!(list.iter().find(|r| r["Type"] == "Face").unwrap()["Name"], "Alice");
+    assert_eq!(list.iter().find(|r| r["Type"] == "Pet").unwrap()["Name"], "Rex");
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
 }

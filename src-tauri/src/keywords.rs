@@ -516,15 +516,26 @@ fn run_write(
     let mut written_paths: HashMap<i64, String> = HashMap::new();
     let mut keyword_batches: Vec<(String, Vec<Vec<String>>)> = Vec::new();
     let mut face_batches: Vec<(String, crate::faces::PhotoFaces)> = Vec::new();
+    let mut needs_resync: Vec<i64> = Vec::new();
     let mut cancelled = 0usize;
-    let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
+    let tx = match conn.unchecked_transaction() {
+        Ok(tx) => tx,
+        Err(error) => {
+            for (item, outcome) in outcomes {
+                if matches!(outcome, Some(Ok(_))) {
+                    let _ = conn.execute("UPDATE photos SET file_size = -1 WHERE id = ?1", params![item.photo_id]);
+                }
+            }
+            return Err(error.to_string());
+        }
+    };
     for (item, outcome) in outcomes {
         match outcome {
             None => cancelled += 1,
             Some(Err(error)) => push_failure(&mut failed, item.photo_id, item.path, error),
             Some(Ok(update)) => {
                 let meta = crate::exif::read_exif(Path::new(&item.path));
-                // Le fichier est modifié mais ne contient pas ce qui était demandé : la base n'est pas touchée, la prochaine synchronisation relira le fichier.
+                // File modified on disk but read-back differs: mark file_size = -1 so the next sync re-reads photo and sidecar.
                 let mismatch = match &update.keywords {
                     Some(desired) if normalized_paths(desired) != normalized_paths(&meta.keyword_paths) => {
                         Some("Les mots-clés relus dans le fichier diffèrent de ceux écrits".to_string())
@@ -534,6 +545,7 @@ fn run_write(
                 .or_else(|| update.regions.as_ref().and_then(|regions| regions_mismatch(Path::new(&item.path), regions)))
                 .or_else(|| item.gps.and_then(|written| crate::geolocation::gps_mismatch(written, meta.gps)));
                 if let Some(error) = mismatch {
+                    needs_resync.push(item.photo_id);
                     push_failure(&mut failed, item.photo_id, item.path, error);
                     continue;
                 }
@@ -565,15 +577,15 @@ fn run_write(
                     if item.gps.is_none() { return Ok(0); }
                     tx.execute("UPDATE photos SET gps_lat = ?1, gps_lon = ?2 WHERE id = ?3", params![meta.gps.map(|gps| gps.0), meta.gps.map(|gps| gps.1), item.photo_id])
                 });
-                // Fichier écrit mais base non mise à jour : jamais présenté comme un succès (la synchronisation relira le fichier).
+                // File written but catalog not updated: never report success, and mark for resync after the transaction finishes.
                 if let Err(error) = stored {
+                    needs_resync.push(item.photo_id);
                     push_failure(&mut failed, item.photo_id, item.path, format!("Base de données non mise à jour : {error}"));
                     continue;
                 }
                 if let Some(plan) = face_plans.get(&item.photo_id) {
                     if let Err(error) = crate::faces::finish_face_write(&tx, item.photo_id, plan) {
-                        // Fichier écrit mais visages non notés en base : la photo est marquée pour être relue à la prochaine synchronisation.
-                        let _ = tx.execute("UPDATE photos SET file_size = -1 WHERE id = ?1", params![item.photo_id]);
+                        needs_resync.push(item.photo_id);
                         push_failure(&mut failed, item.photo_id, item.path, format!("Base de données non mise à jour : {error}"));
                         continue;
                     }
@@ -601,12 +613,16 @@ fn run_write(
         }
     };
     if let Err(error) = stored {
-        // Rien n'est enregistré en base : les fichiers déjà modifiés sont signalés en échec, la prochaine synchronisation les relira.
+        // Nothing persisted in DB: mark written files for resync and report them as failed.
         for photo in written.drain(..) {
+            needs_resync.push(photo.photo_id);
             let path = written_paths.remove(&photo.photo_id).unwrap_or_default();
             push_failure(&mut failed, photo.photo_id, path, format!("Base de données non mise à jour : {error}"));
         }
         face_batches.clear();
+    }
+    for photo_id in needs_resync {
+        let _ = conn.execute("UPDATE photos SET file_size = -1 WHERE id = ?1", params![photo_id]);
     }
     crate::faces::store_photo_faces(&conn, &face_batches);
     Ok(KeywordWriteResult { written, failed, cancelled, deleted: false, unlinked_persons: Vec::new() })

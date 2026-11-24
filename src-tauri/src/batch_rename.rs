@@ -518,7 +518,7 @@ fn try_unit(unit: &mut Unit) -> Step {
     }
     if let Some(sidecar) = &unit.sidecar {
         let result = if sidecar.copy {
-            fs::copy(&sidecar.from, &sidecar.to).map(|_| ())
+            crate::copy_atomically_to_reserved(&sidecar.from, &sidecar.to)
         } else {
             fs::rename(unit.sidecar_at.as_ref().unwrap_or(&sidecar.from), &sidecar.to)
         };

@@ -185,6 +185,8 @@ fn shared_sidecar_is_copied_when_another_reader_stays() {
     assert!(outcome.failed.is_empty(), "{:?}", outcome.failed);
     assert_eq!(read(dir.path(), "x.xmp").as_deref(), Some("xmp"));
     assert_eq!(read(dir.path(), "a.xmp").as_deref(), Some("xmp")); // the JPEG that stays still reads it
+    let has_temp = fs::read_dir(dir.path()).unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with(".photoboggan-tmp-"));
+    assert!(!has_temp, "no temporary file left behind");
 }
 
 #[test]

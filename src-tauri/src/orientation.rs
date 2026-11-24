@@ -129,6 +129,7 @@ pub(crate) fn read(path: &Path) -> Resolved {
 }
 
 /// Writes `orientation` via ExifTool (see the module comment). Refused for HEIC / HEIF and videos.
+#[cfg(test)]
 pub(crate) fn write(path: &Path, orientation: u32) -> std::io::Result<()> {
     if !is_rotatable(path) {
         return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Rotation not supported for this format"));
@@ -137,6 +138,21 @@ pub(crate) fn write(path: &Path, orientation: u32) -> std::io::Result<()> {
         return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid orientation"));
     }
     crate::exiftool::write_orientation(path, orientation)
+}
+
+/// Writes `orientation` while the caller already holds `exiftool::path_lock(path)`.
+pub(crate) fn write_locked(
+    path: &Path,
+    guard: &std::sync::MutexGuard<'static, ()>,
+    orientation: u32,
+) -> std::io::Result<()> {
+    if !is_rotatable(path) {
+        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Rotation not supported for this format"));
+    }
+    if !(1..=8).contains(&orientation) {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid orientation"));
+    }
+    crate::exiftool::write_orientation_locked(path, guard, orientation)
 }
 
 #[cfg(test)]

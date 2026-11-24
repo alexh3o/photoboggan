@@ -129,16 +129,22 @@ fn replacing_copy_and_sidecar_overwrite_leave_no_temporary_file() {
     put(&from.join("a.cr2.xmp"), b"new sidecar");
     put(&to.join("a.cr2"), b"old raw");
     put(&to.join("a.cr2.xmp"), b"old sidecar");
-    copy_replacing(&from.join("a.cr2"), &to.join("a.cr2")).unwrap();
-    copy_sidecar(&from.join("a.cr2"), &to.join("a.cr2"), true).unwrap();
+    let mock_trash_replace = |temp: &Path, target: &Path| {
+        replace_file_via_trash_with(temp, target, true, |backup| fs::remove_file(backup).map_err(|e| e.to_string()))
+    };
+    copy_replacing_with(&from.join("a.cr2"), &to.join("a.cr2"), mock_trash_replace).unwrap();
+    copy_sidecar_with(&from.join("a.cr2"), &to.join("a.cr2"), true, |src, dst| {
+        copy_replacing_with(src, dst, mock_trash_replace)
+    }).unwrap();
     assert_eq!(fs::read(to.join("a.cr2")).unwrap(), b"new raw");
     assert_eq!(fs::read(to.join("a.cr2.xmp")).unwrap(), b"new sidecar");
     let mut names: Vec<String> = fs::read_dir(&to).unwrap().map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned()).collect();
     names.sort();
     assert_eq!(names, ["a.cr2", "a.cr2.xmp"], "temporary file left in the destination");
-    // Without overwrite, an existing sidecar is left as is.
+    // Without overwrite, an existing sidecar is left as is and AlreadyExists is returned (not swallowed).
     put(&from.join("a.cr2.xmp"), b"newer sidecar");
-    copy_sidecar(&from.join("a.cr2"), &to.join("a.cr2"), false).unwrap();
+    let err = copy_sidecar(&from.join("a.cr2"), &to.join("a.cr2"), false).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(fs::read(to.join("a.cr2.xmp")).unwrap(), b"new sidecar");
 }
 
@@ -297,4 +303,201 @@ fn remove_copied_target_removes_read_only_file() {
 
     remove_copied_target(&target);
     assert!(!target.exists(), "read-only copied target should be removed");
+}
+
+#[test]
+fn move_sidecar_moves_unshared_compat_sidecar_and_copies_shared_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src_dir, dst_dir) = (dir.path().join("src"), dir.path().join("dst"));
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::create_dir_all(&dst_dir).unwrap();
+
+    // 1. Unshared photo.xmp (source_has_sibling == Some(false)) -> moved, not left orphan.
+    let src_photo = src_dir.join("solo.cr2");
+    let dst_photo = dst_dir.join("solo.cr2");
+    put(&src_dir.join("solo.xmp"), b"solo xmp");
+    move_sidecar(&src_photo, &dst_photo, Some(false)).unwrap();
+    assert!(!src_dir.join("solo.xmp").exists(), "unshared compat sidecar should be moved");
+    assert_eq!(fs::read(dst_dir.join("solo.xmp")).unwrap(), b"solo xmp");
+
+    // 2. Shared photo.xmp (Some(true)) or unreadable (None) -> copied, source stays intact.
+    for (name, sibling) in [("pair_true", Some(true)), ("pair_none", None)] {
+        let s_photo = src_dir.join(format!("{name}.cr2"));
+        let d_photo = dst_dir.join(format!("{name}.cr2"));
+        put(&src_dir.join(format!("{name}.xmp")), b"shared xmp");
+        move_sidecar(&s_photo, &d_photo, sibling).unwrap();
+        assert_eq!(fs::read(src_dir.join(format!("{name}.xmp"))).unwrap(), b"shared xmp");
+        assert_eq!(fs::read(dst_dir.join(format!("{name}.xmp"))).unwrap(), b"shared xmp");
+    }
+
+    // 3. Existing target sidecar returns AlreadyExists and leaves target untouched.
+    put(&src_dir.join("conflict.cr2.xmp"), b"new");
+    put(&dst_dir.join("conflict.cr2.xmp"), b"existing");
+    let err = move_sidecar(&src_dir.join("conflict.cr2"), &dst_dir.join("conflict.cr2"), Some(false)).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(fs::read(dst_dir.join("conflict.cr2.xmp")).unwrap(), b"existing");
+}
+
+#[test]
+fn atomic_copy_and_cross_drive_move_leave_no_temp_on_success_or_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.jpg");
+    put(&src, b"jpeg payload");
+
+    let reserved = reserve_destination(dir.path(), std::ffi::OsStr::new("copy.jpg")).unwrap();
+    copy_atomically_to_reserved(&src, &reserved.path).unwrap();
+    assert_eq!(fs::read(&reserved.path).unwrap(), b"jpeg payload");
+
+    let missing_reserved = reserve_destination(dir.path(), std::ffi::OsStr::new("fail.jpg")).unwrap();
+    assert!(copy_atomically_to_reserved(&dir.path().join("missing.jpg"), &missing_reserved.path).is_err());
+    assert!(!missing_reserved.path.exists(), "reserved placeholder must be removed on failure");
+
+    let moved = dir.path().join("moved.jpg");
+    move_file_via_copy(&src, &moved).unwrap();
+    assert!(!src.exists());
+    assert_eq!(fs::read(&moved).unwrap(), b"jpeg payload");
+
+    let names: Vec<String> = fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    assert!(!names.iter().any(|n| n.starts_with(".photoboggan-tmp-")), "leftover temp files: {names:?}");
+}
+
+#[test]
+fn replace_via_trash_refuses_missing_trash_and_rolls_back_on_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("photo.jpg");
+    put(&target, b"original");
+
+    // 1. No trash available -> refuses and cleans up temp without touching target.
+    let temp_no_trash = dir.path().join(".photoboggan-tmp-no-trash");
+    put(&temp_no_trash, b"replacement");
+    let err = replace_file_via_trash_with(&temp_no_trash, &target, false, |_| Ok(())).unwrap_err();
+    assert!(err.contains("corbeille"), "{err}");
+    assert_eq!(fs::read(&target).unwrap(), b"original");
+    assert!(!temp_no_trash.exists());
+
+    // 2. Trash fails -> rolls back target and removes temp + backup dir.
+    let temp_fail = dir.path().join(".photoboggan-tmp-fail");
+    put(&temp_fail, b"replacement");
+    let err = replace_file_via_trash_with(&temp_fail, &target, true, |_| Err("trash error".into())).unwrap_err();
+    assert!(err.contains("trash error"), "{err}");
+    assert_eq!(fs::read(&target).unwrap(), b"original");
+    assert!(!temp_fail.exists());
+
+    // 3. copy_replacing_with with mock trash succeeds and leaves no temp/backup.
+    let src = dir.path().join("src.jpg");
+    put(&src, b"new content");
+    copy_replacing_with(&src, &target, |temp, dst| {
+        replace_file_via_trash_with(temp, dst, true, |backup| fs::remove_file(backup).map_err(|e| e.to_string()))
+    }).unwrap();
+    assert_eq!(fs::read(&target).unwrap(), b"new content");
+    let mut names: Vec<String> = fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    assert_eq!(names, ["photo.jpg", "src.jpg"]);
+}
+
+#[cfg(windows)]
+#[test]
+fn unc_share_has_no_trash_and_refuses_replacement() {
+    let unc_target = Path::new(r"\\server\share\photo.jpg");
+    assert!(!has_trash(&unc_target.to_string_lossy()));
+    let dir = tempfile::tempdir().unwrap();
+    let temp = dir.path().join("temp.jpg");
+    put(&temp, b"data");
+    let err = replace_file_via_trash(&temp, unc_target).unwrap_err();
+    assert!(err.contains("corbeille"), "{err}");
+    assert!(!temp.exists());
+}
+
+#[test]
+fn resolve_tracked_folder_rejects_dot_and_parent_traversal() {
+    let (_dir, pool) = temp_catalog();
+    let root = "D:/Photos";
+    db::add_folder(&pool, root).unwrap();
+
+    assert_eq!(resolve_tracked_folder(&pool, "D:/Photos/2026.05"), Some(PathBuf::from(root).join("2026.05")));
+    assert_eq!(resolve_tracked_folder(&pool, "D:/Photos/../Windows"), None);
+    assert_eq!(resolve_tracked_folder(&pool, "D:/Photos/a/../../b"), None);
+    assert_eq!(resolve_tracked_folder(&pool, "D:/Photos/."), None);
+    assert_eq!(resolve_tracked_folder(&pool, "D:/Photos/./a"), None);
+}
+
+#[test]
+fn delete_photos_reports_sidecar_trash_failure() {
+    let (dir, pool) = temp_catalog();
+    let dirs = cache_dirs(dir.path());
+    let photo = dir.path().join("a.cr2");
+    let sidecar = dir.path().join("a.cr2.xmp");
+    put(&photo, b"raw");
+    put(&sidecar, b"<x/>");
+    let path_str = photo.to_string_lossy().into_owned();
+    insert_photo(&pool.get().unwrap(), &path_str);
+
+    let result = delete_photos_with(&pool, &dirs.thumbnails, &dirs.raw_previews, vec![path_str.clone()], |p| {
+        if p == sidecar {
+            Err("sidecar locked".into())
+        } else {
+            fs::remove_file(p).map_err(|e| e.to_string())
+        }
+    }).unwrap();
+
+    assert_eq!(result.deleted, vec![path_str]);
+    assert_eq!(result.failed.len(), 1);
+    assert_eq!(result.failed[0].path, sidecar.to_string_lossy());
+    assert!(result.failed[0].error.contains("sidecar locked"));
+}
+
+#[test]
+fn concurrent_rotations_compose_cleanly_under_single_path_lock() {
+    let (dir, pool) = temp_catalog();
+    let dirs = cache_dirs(dir.path());
+    let png = dir.path().join("turn.png");
+    put(&png, &png_bytes(16, 12));
+    let path_str = png.to_string_lossy().into_owned();
+    let id = insert_photo(&pool.get().unwrap(), &path_str);
+
+    let write_stub = |p: &Path, _guard: &std::sync::MutexGuard<'static, ()>, orientation: u32| -> std::io::Result<()> {
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        let xml = format!(
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\
+             <rdf:Description xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\" tiff:Orientation=\"{orientation}\"/>\
+             </rdf:RDF></x:xmpmeta>"
+        );
+        fs::write(format!("{}.xmp", p.display()), xml)
+    };
+
+    std::thread::scope(|scope| {
+        let h1 = scope.spawn(|| rotate_photo_with(&pool, &dirs, id, &path_str, 1, write_stub));
+        let h2 = scope.spawn(|| rotate_photo_with(&pool, &dirs, id, &path_str, 1, write_stub));
+        h1.join().unwrap().unwrap();
+        h2.join().unwrap().unwrap();
+    });
+
+    assert_eq!(orientation::read(&png).stored, 3, "two +90° rotations from 1 must reach 3, never 6");
+    let db_orientation: u32 = pool.get().unwrap().query_row("SELECT orientation FROM photos WHERE id = ?1", [id], |r| r.get(0)).unwrap();
+    assert_eq!(db_orientation, 3);
+}
+
+#[test]
+fn marking_and_rotation_mismatch_mark_photo_for_resync() {
+    let (dir, pool) = temp_catalog();
+    let dirs = cache_dirs(dir.path());
+    let png = dir.path().join("mismatch.png");
+    put(&png, &png_bytes(8, 8));
+    let path_str = png.to_string_lossy().into_owned();
+    let id = insert_photo(&pool.get().unwrap(), &path_str);
+
+    let err = write_photo_marking_with(&pool, &dirs, id, &path_str, Some(5), None, None, None, |p, _| {
+        fs::write(format!("{p}.xmp"), "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmp:Rating=\"1\"/></rdf:RDF></x:xmpmeta>")
+    }).unwrap_err();
+    assert!(err.contains("note"), "{err}");
+    let size_after_marking: i64 = pool.get().unwrap().query_row("SELECT file_size FROM photos WHERE id = ?1", [id], |r| r.get(0)).unwrap();
+    assert_eq!(size_after_marking, -1);
+
+    pool.get().unwrap().execute("UPDATE photos SET file_size = 100 WHERE id = ?1", [id]).unwrap();
+    let err = rotate_photo_with(&pool, &dirs, id, &path_str, 1, |p, _, _| {
+        fs::write(format!("{}.xmp", p.display()), "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><rdf:Description xmlns:tiff=\"http://ns.adobe.com/tiff/1.0/\" tiff:Orientation=\"8\"/></rdf:RDF></x:xmpmeta>")
+    }).unwrap_err();
+    assert!(err.contains("Orientation"), "{err}");
+    let size_after_rotate: i64 = pool.get().unwrap().query_row("SELECT file_size FROM photos WHERE id = ?1", [id], |r| r.get(0)).unwrap();
+    assert_eq!(size_after_rotate, -1);
 }
