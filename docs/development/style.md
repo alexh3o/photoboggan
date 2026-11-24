@@ -1,4 +1,4 @@
-<!-- verified: 46133ac | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/list-view.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/author-filters.css, src/author-rights.css, src/raw-settings.css, src/shooting-filters.css, src/privacy.css, src/batch-rename.css, src/undo.css, index.html, src/app-fonts.js -->
+<!-- verified: 202492b | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/list-view.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/author-filters.css, src/author-rights.css, src/raw-settings.css, src/shooting-filters.css, src/privacy.css, src/batch-rename.css, src/undo.css, index.html, src/app-fonts.js -->
 
 # Style and UI conventions
 
