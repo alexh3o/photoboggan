@@ -22,8 +22,8 @@
 - [x] *chore*: `maintenability` reduce main.js size by export of parts to fullscreen.js, folder-tree.js, find-raw-mode.js, semantic-results.js, duplicates-view.js, drag-drop.js, preview-zoom.js, task-queue.js
 - [x] *feat*: `lists` add format entries with resolution, orientation, ratio (1:1; 6:7; 4:3; 3:2; 16:10; 16:9 or ratio value if doesn't fit to 1%)
 - [x] *refactor*: `metadata` remove internal writer for safety and ease of maintenance
-- [ ] *fix*: `metadata` show action from metadata fail dialog doesn't work if view has changed
-- [ ] *fix*:  `metadata` inform user when failed gps/title/description is due to this data remaining in a sidecar xmp
+- [x] *fix*: `metadata` show action from metadata fail dialog doesn't work if view has changed
+- [x] *fix*:  `metadata` inform user when failed gps/title/description is due to this data remaining in a sidecar xmp
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
