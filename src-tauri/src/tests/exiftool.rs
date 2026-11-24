@@ -129,6 +129,87 @@ fn recoveries_of_one_operation_go_to_a_single_timestamped_log_never_overwritten(
     assert_eq!(std::fs::read_to_string(&first).unwrap(), text);
 }
 
+#[test]
+fn struct_value_escapes_hash_edge_spaces_and_syntax_chars() {
+    assert_eq!(struct_value("Alice #1"), "Alice |#1");
+    assert_eq!(struct_value("  Alice  "), "| | Alice| | ");
+    assert_eq!(struct_value("\tAlice\t"), "|\tAlice|\t");
+    assert_eq!(struct_value(" "), "| ");
+    assert_eq!(struct_value("  "), "| | ");
+    assert_eq!(struct_value(""), "");
+    assert_eq!(struct_value("a|b,c=d{e}f[g]h#i"), "a||b|,c|=d|{e|}f|[g|]h|#i");
+}
+
+#[test]
+fn metadata_args_updates_iptc_digest_on_jpeg_iptc_writes_and_clears() {
+    let jpeg = Path::new("photo.jpg");
+    let raw = Path::new("photo.cr2");
+    let heic = Path::new("photo.heic");
+
+    let with_keywords = MetadataUpdate { keywords: Some(paths(&[&["Nature"]])), ..Default::default() };
+    assert!(metadata_args(jpeg, &with_keywords).contains(&"-Photoshop:IPTCDigest=new".to_string()));
+    assert!(!metadata_args(raw, &with_keywords).contains(&"-Photoshop:IPTCDigest=new".to_string()));
+    assert!(!metadata_args(heic, &with_keywords).contains(&"-Photoshop:IPTCDigest=new".to_string()));
+
+    let cleared = MetadataUpdate {
+        keywords: Some(Vec::new()),
+        title: Some(String::new()),
+        description: Some(String::new()),
+        author: Some(String::new()),
+        copyright: Some(String::new()),
+        credit: Some(String::new()),
+        ..Default::default()
+    };
+    assert!(metadata_args(jpeg, &cleared).contains(&"-Photoshop:IPTCDigest=new".to_string()));
+
+    let non_iptc = MetadataUpdate {
+        usage_terms: Some("CC0".into()),
+        author_email: Some("a@b.c".into()),
+        gps: Some(Some((1.0, 2.0))),
+        ..Default::default()
+    };
+    assert!(!metadata_args(jpeg, &non_iptc).contains(&"-Photoshop:IPTCDigest=new".to_string()));
+}
+
+#[cfg(windows)]
+#[test]
+fn path_lock_normalizes_case_separators_and_extended_prefix() {
+    let a = normalized_lock_key(Path::new(r"C:\Photos\A.JPG"));
+    let b = normalized_lock_key(Path::new("c:/photos/a.jpg"));
+    let c = normalized_lock_key(Path::new(r"\\?\C:\Photos\A.JPG"));
+    assert_eq!(a, "c:/photos/a.jpg");
+    assert_eq!(a, b);
+    assert_eq!(a, c);
+
+    let unc_ext = normalized_lock_key(Path::new(r"\\?\UNC\Server\Share\A.JPG"));
+    let unc_std = normalized_lock_key(Path::new(r"\\server\share\a.jpg"));
+    assert_eq!(unc_ext, "//server/share/a.jpg");
+    assert_eq!(unc_ext, unc_std);
+}
+
+#[test]
+fn active_write_guard_tracks_in_flight_writes_and_notifies_waiters() {
+    let guard = ActiveWriteGuard::enter().unwrap();
+    assert!(has_active_writes());
+    assert!(!wait_for_active_writes(Duration::from_millis(50)));
+
+    let dropper = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(40));
+        drop(guard);
+    });
+    assert!(wait_for_active_writes(Duration::from_secs(2)));
+    dropper.join().unwrap();
+}
+
+#[test]
+fn safe_arg_path_prefixes_leading_dash_only() {
+    let dashed = safe_arg_path(Path::new("-dash.jpg"));
+    assert!(!dashed.starts_with('-'), "got {dashed:?}");
+    assert!(dashed.ends_with("-dash.jpg"), "got {dashed:?}");
+    assert_eq!(safe_arg_path(Path::new("normal.jpg")), "normal.jpg");
+    assert_eq!(safe_arg_path(Path::new("C:/photos/-dash.jpg")), "C:/photos/-dash.jpg");
+}
+
 // --- Intégration (ExifTool réel) ---
 
 /// Prépare ExifTool : version embarquée du dépôt si elle est présente (Windows), sinon celui du PATH. Faux (avec un message) s'il est introuvable.
@@ -146,7 +227,14 @@ fn exiftool_available() -> bool {
 
 fn leftovers(dir: &Path) -> Vec<String> {
     std::fs::read_dir(dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string())
-        .filter(|name| name.ends_with("_exiftool_tmp") || name.ends_with(".photoboggan-tmp") || name.contains(".photoboggan-tmp.")).collect()
+        .filter(|name| {
+            name.ends_with("_exiftool_tmp")
+                || name.ends_with(".photoboggan-tmp")
+                || name.contains(".photoboggan-tmp.")
+                || name.contains(".photoboggan-")
+                || name.ends_with(".tmp.xmp")
+        })
+        .collect()
 }
 
 fn sample_update() -> MetadataUpdate {
@@ -431,5 +519,194 @@ fn rights_round_trip_in_jpeg_preserves_pixels_and_clears_cleanly() {
     write_metadata(&path, &clear).unwrap();
     let after = read_exif(&path);
     assert_eq!(after.rights, crate::exif::Rights::default());
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+fn query_exiftool_tag(path: &Path, tag: &str) -> String {
+    let output = launcher()
+        .unwrap()
+        .command()
+        .args(["-s3", &format!("-{tag}")])
+        .arg("--")
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "ExifTool query failed: {}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn iptc_digest_stays_consistent_on_update_and_clear() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("digest.jpg");
+    std::fs::write(&path, jpeg_bytes(32, 32)).unwrap();
+
+    // 1. Write initial IPTC fields -> valid 32-hex IPTCDigest matching CurrentIPTCDigest.
+    write_metadata(&path, &sample_update()).unwrap();
+    let digest_initial = query_exiftool_tag(&path, "Photoshop:IPTCDigest");
+    let current_initial = query_exiftool_tag(&path, "CurrentIPTCDigest");
+    assert_eq!(digest_initial.len(), 32, "expected 32-hex IPTCDigest, got {digest_initial:?}");
+    assert_eq!(digest_initial, current_initial);
+
+    // 2. Update keywords and title -> digest updates and still matches CurrentIPTCDigest.
+    let updated = MetadataUpdate {
+        keywords: Some(paths(&[&["Voyage", "Lyon"]])),
+        title: Some("Nouveau titre".into()),
+        ..Default::default()
+    };
+    write_metadata(&path, &updated).unwrap();
+    let digest_updated = query_exiftool_tag(&path, "Photoshop:IPTCDigest");
+    let current_updated = query_exiftool_tag(&path, "CurrentIPTCDigest");
+    assert_eq!(digest_updated.len(), 32);
+    assert_ne!(digest_updated, digest_initial);
+    assert_eq!(digest_updated, current_updated);
+
+    // 3. Clear all written IPTC fields -> no error, no stale/mismatched digest.
+    let cleared = MetadataUpdate {
+        keywords: Some(Vec::new()),
+        title: Some(String::new()),
+        description: Some(String::new()),
+        author: Some(String::new()),
+        copyright: Some(String::new()),
+        credit: Some(String::new()),
+        ..Default::default()
+    };
+    write_metadata(&path, &cleared).unwrap();
+    let digest_cleared = query_exiftool_tag(&path, "Photoshop:IPTCDigest");
+    let current_cleared = query_exiftool_tag(&path, "CurrentIPTCDigest");
+    eprintln!("After clearing IPTC: Photoshop:IPTCDigest={digest_cleared:?}, CurrentIPTCDigest={current_cleared:?}");
+    assert_eq!(digest_cleared, current_cleared);
+    assert_ne!(digest_cleared, digest_updated);
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn face_region_with_hash_special_chars_and_edge_spaces_round_trips() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("faces.jpg");
+    std::fs::write(&path, jpeg_bytes(100, 100)).unwrap();
+
+    let update = MetadataUpdate {
+        regions: Some(crate::exif::RegionsUpdate {
+            width: 100,
+            height: 100,
+            regions: vec![
+                crate::exif::RegionWrite { name: Some("Alice #1".into()), x: 0.1, y: 0.1, w: 0.2, h: 0.2 },
+                crate::exif::RegionWrite { name: Some("Bob, {C} = [D]|E".into()), x: 0.4, y: 0.4, w: 0.2, h: 0.2 },
+                crate::exif::RegionWrite { name: Some("  Edge #2  ".into()), x: 0.7, y: 0.7, w: 0.2, h: 0.2 },
+            ],
+        }),
+        ..Default::default()
+    };
+    write_metadata(&path, &update).unwrap();
+
+    let was_enabled = crate::faces::reading_enabled();
+    crate::faces::set_face_reading(true);
+    let meta = read_exif(&path);
+    crate::faces::set_face_reading(was_enabled);
+    let names: Vec<&str> = meta.faces.regions.as_deref().unwrap_or_default().iter().filter_map(|r| r.name.as_deref()).collect();
+    assert!(names.contains(&"Alice #1"), "got {names:?}");
+    assert!(names.contains(&"Bob, {C} = [D]|E"), "got {names:?}");
+
+    // Also verify raw XMP-mwg-rs:RegionName via ExifTool JSON (plain text -s3 trims trailing whitespace on output).
+    let output = launcher()
+        .unwrap()
+        .command()
+        .args(["-j", "-XMP-mwg-rs:RegionName"])
+        .arg("--")
+        .arg(&path)
+        .output()
+        .unwrap();
+    let raw_names = String::from_utf8_lossy(&output.stdout);
+    assert!(raw_names.contains("\"  Edge #2  \""), "expected edge spaces preserved in {raw_names:?}");
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn readonly_file_is_refused_without_running_exiftool() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+
+    // 1. Read-only JPEG
+    let jpeg = dir.path().join("ro.jpg");
+    let original_jpeg = jpeg_bytes(16, 16);
+    std::fs::write(&jpeg, &original_jpeg).unwrap();
+    let mut perms = std::fs::metadata(&jpeg).unwrap().permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&jpeg, perms).unwrap();
+
+    let err = write_metadata(&jpeg, &sample_update()).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+    assert_eq!(std::fs::read(&jpeg).unwrap(), original_jpeg);
+
+    // 2. Read-only existing sidecar
+    let raw = dir.path().join("ro.cr2");
+    std::fs::write(&raw, b"raw").unwrap();
+    write_marking(&raw, XmpEdit { rating: Some(2), ..Default::default() }).unwrap();
+    let sidecar = dir.path().join("ro.cr2.xmp");
+    let original_sidecar = std::fs::read(&sidecar).unwrap();
+    let mut sc_perms = std::fs::metadata(&sidecar).unwrap().permissions();
+    sc_perms.set_readonly(true);
+    std::fs::set_permissions(&sidecar, sc_perms).unwrap();
+
+    let err = write_marking(&raw, XmpEdit { rating: Some(5), ..Default::default() }).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+    assert_eq!(std::fs::read(&sidecar).unwrap(), original_sidecar);
+
+    // Restore writable permissions so tempdir cleans up cleanly on Windows.
+    #[allow(clippy::permissions_set_readonly_false)]
+    {
+        let mut p1 = std::fs::metadata(&jpeg).unwrap().permissions();
+        p1.set_readonly(false);
+        std::fs::set_permissions(&jpeg, p1).unwrap();
+        let mut p2 = std::fs::metadata(&sidecar).unwrap().permissions();
+        p2.set_readonly(false);
+        std::fs::set_permissions(&sidecar, p2).unwrap();
+    }
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn filename_starting_with_dash_is_written_and_read_back() {
+    if !exiftool_available() { return; }
+    let dir = tempfile::tempdir().unwrap();
+    let original = jpeg_bytes(32, 32);
+    let path = dir.path().join("-dash.jpg");
+    std::fs::write(&path, &original).unwrap();
+
+    write_metadata(&path, &sample_update()).unwrap();
+
+    let written = std::fs::read(&path).unwrap();
+    assert_eq!(decoded_pixels(&written), decoded_pixels(&original));
+    let meta = read_exif(&path);
+    assert_eq!(meta.title, "Titre é & <b>");
+    assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
+}
+
+#[test]
+#[ignore = "intégration : lance ExifTool"]
+fn failed_seed_sidecar_write_records_no_false_recovery() {
+    if !exiftool_available() { return; }
+    let _ = take_recoveries();
+    let dir = tempfile::tempdir().unwrap();
+    let raw = dir.path().join("photo.cr2");
+    let dng = dir.path().join("photo.dng");
+    let shared = dir.path().join("photo.xmp");
+    std::fs::write(&raw, b"raw").unwrap();
+    std::fs::write(&dng, b"dng").unwrap();
+    let corrupt_xmp = b"not valid xmp xml at all <<<";
+    std::fs::write(&shared, corrupt_xmp).unwrap();
+
+    let result = write_marking(&raw, XmpEdit { rating: Some(4), ..Default::default() });
+    assert!(result.is_err(), "expected corrupt seed XMP update to fail");
+    assert!(take_recoveries().is_empty(), "seed temp failure must not record a Recovery");
+    assert_eq!(std::fs::read(&shared).unwrap(), corrupt_xmp);
+    assert!(!dir.path().join("photo.cr2.xmp").exists());
     assert!(leftovers(dir.path()).is_empty(), "{:?}", leftovers(dir.path()));
 }

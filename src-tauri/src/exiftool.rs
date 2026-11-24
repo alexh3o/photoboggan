@@ -14,7 +14,7 @@ use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Condvar, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant};
@@ -223,6 +223,16 @@ fn detect() -> Result<Launcher, String> {
         Ok(found) => Ok(found),
         Err(error) => {
             reasons.push(format!("PATH : {error}"));
+            #[cfg(target_os = "macos")]
+            for candidate in ["/opt/homebrew/bin/exiftool", "/usr/local/bin/exiftool"] {
+                let path = PathBuf::from(candidate);
+                if path.is_file() {
+                    match probe(path, Vec::new(), "path") {
+                        Ok(found) => return Ok(found),
+                        Err(err) => reasons.push(format!("{candidate} : {err}")),
+                    }
+                }
+            }
             Err(format!("ExifTool introuvable ({})", reasons.join(" ; ")))
         }
     }
@@ -310,8 +320,8 @@ fn spawn_line_reader(stream: impl std::io::Read + Send + 'static) -> Receiver<St
 impl Process {
     fn start(found: &Launcher, generation: u64) -> Result<Process, String> {
         let mut command = found.command();
-        // Les noms de fichiers sont transmis en UTF-8 (indispensable sous Windows pour les noms accentués). -ec : les valeurs écrites sont
-        // échappées à la façon du C (voir assign), ce qui permet les retours à la ligne dans un fichier d'arguments lu ligne par ligne.
+        // Filenames are passed in UTF-8 (required on Windows for accented names). -ec: written values are
+        // C-escaped (see assign), allowing line breaks inside a line-by-line argument stream.
         command
             .args(["-stay_open", "True", "-@", "-", "-common_args", "-charset", "filename=UTF8", "-ec"])
             .stdin(Stdio::piped())
@@ -326,8 +336,7 @@ impl Process {
         Ok(Process { child, stdin, stdout: spawn_line_reader(stdout), stderr: spawn_line_reader(stderr), next_id: 1, generation })
     }
 
-    /// Exécute une commande (un argument par ligne) et renvoie (sortie standard, sortie d'erreur). Erreur si le processus ne répond pas :
-    /// il ne doit alors plus servir.
+    /// Executes one command (one argument per line) and returns (stdout, stderr). On failure, the process must not be reused.
     fn execute(&mut self, args: &[String]) -> Result<(String, String), String> {
         let id = self.next_id;
         self.next_id += 1;
@@ -337,7 +346,7 @@ impl Process {
             input.push_str(arg);
             input.push('\n');
         }
-        // -echo4 écrit le repère sur la sortie d'erreur une fois la commande traitée : les deux flux se lisent ainsi jusqu'au même repère.
+        // -echo4 writes the marker to stderr once the command is processed so both streams can be read up to the same marker.
         input.push_str(&format!("-echo4\n{ready}\n-execute{id}\n"));
         self.stdin.write_all(input.as_bytes()).and_then(|_| self.stdin.flush()).map_err(|error| format!("ExifTool ne répond plus : {error}"))?;
         let deadline = Instant::now() + COMMAND_TIMEOUT;
@@ -445,7 +454,8 @@ fn watch_idle() {
     }
 }
 
-/// Arrête les processus au repos ; ceux au travail le seront quand ils seront rendus. Appelée à la fermeture et au changement de réglage.
+/// Stops idle processes; active processes are stopped when returned. Called on app exit and setting changes.
+/// Does not set CLOSING because `set_metadata_writer` also calls `shutdown()`.
 pub fn shutdown() {
     let idle: Vec<Process> = {
         let mut pool = lock(&POOL);
@@ -455,6 +465,65 @@ pub fn shutdown() {
         idle
     };
     for process in idle { process.stop(); }
+}
+
+static ACTIVE_WRITES: Mutex<usize> = Mutex::new(0);
+static WRITES_CHANGED: Condvar = Condvar::new();
+static CLOSING: AtomicBool = AtomicBool::new(false);
+
+/// RAII guard tracking an active `write_to` call (ExifTool execution, recovery, flush, rename).
+struct ActiveWriteGuard;
+
+impl ActiveWriteGuard {
+    fn enter() -> std::io::Result<Self> {
+        let mut active = lock(&ACTIVE_WRITES);
+        if CLOSING.load(Ordering::SeqCst) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "Fermeture de l'application en cours : écriture annulée",
+            ));
+        }
+        *active += 1;
+        Ok(Self)
+    }
+}
+
+impl Drop for ActiveWriteGuard {
+    fn drop(&mut self) {
+        let mut active = lock(&ACTIVE_WRITES);
+        *active = active.saturating_sub(1);
+        WRITES_CHANGED.notify_all();
+    }
+}
+
+/// Returns true if any `write_to` call is currently in progress.
+pub fn has_active_writes() -> bool {
+    *lock(&ACTIVE_WRITES) > 0
+}
+
+/// Waits up to `timeout` for active writes to reach zero. Returns true if all active writes finished.
+#[cfg(test)]
+fn wait_for_active_writes(timeout: Duration) -> bool {
+    let active = lock(&ACTIVE_WRITES);
+    let (guard, _) = WRITES_CHANGED
+        .wait_timeout_while(active, timeout, |count| *count > 0)
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *guard == 0
+}
+
+/// Rejects any new `write_to` calls, waits up to `timeout` for in-flight writes to finish, and stops idle processes.
+/// Returns true if all active writes finished before `timeout`.
+pub fn begin_shutdown_and_wait(timeout: Duration) -> bool {
+    let finished = {
+        let active = lock(&ACTIVE_WRITES);
+        CLOSING.store(true, Ordering::SeqCst);
+        let (guard, _) = WRITES_CHANGED
+            .wait_timeout_while(active, timeout, |count| *count > 0)
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard == 0
+    };
+    shutdown();
+    finished
 }
 
 /// Exécute une commande d'écriture : succès seulement si ExifTool annonce le fichier écrit (ou déjà à jour) sans erreur.
@@ -517,20 +586,85 @@ fn push_list(args: &mut Vec<String>, tag: &str, values: impl IntoIterator<Item =
     if args.len() == before { args.push(assign(tag, "")); }
 }
 
-/// Modifies an existing file: ExifTool writes `<file>_exiftool_tmp`, then replaces the original. After a failure, see `recover_after_failure`.
-fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
+/// Refuses immediately if `file` is read-only so ExifTool cannot replace it via rename (POSIX) or fail mid-write (Windows).
+fn ensure_writable(file: &Path) -> std::io::Result<()> {
+    if std::fs::metadata(file)?.permissions().readonly() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!("Fichier en lecture seule : {}", file.display()),
+        ));
+    }
+    Ok(())
+}
+
+/// Clears the read-only attribute on a disposable temporary file (e.g., copied from a read-only shared `seed` sidecar).
+fn make_writable(path: &Path) -> std::io::Result<()> {
+    let metadata = std::fs::metadata(path)?;
+    let mut permissions = metadata.permissions();
+    if permissions.readonly() {
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        std::fs::set_permissions(path, permissions)?;
+    }
+    Ok(())
+}
+
+/// Best-effort removal of a disposable temporary file, clearing Windows read-only attribute if needed.
+fn remove_temp_file(path: &Path) {
+    #[cfg(windows)]
+    if let Ok(metadata) = std::fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        if permissions.readonly() {
+            #[allow(clippy::permissions_set_readonly_false)]
+            permissions.set_readonly(false);
+            let _ = std::fs::set_permissions(path, permissions);
+        }
+    }
+    let _ = std::fs::remove_file(path);
+}
+
+/// Prevents ExifTool from interpreting a relative path starting with `-` as an option.
+/// `--` cannot be used in `-stay_open True -@ -` mode because ExifTool would treat `-execute` and `-stay_open` as filenames.
+fn safe_arg_path(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    if raw.starts_with('-') {
+        Path::new(".").join(path).to_string_lossy().into_owned()
+    } else {
+        raw.into_owned()
+    }
+}
+
+/// Executes `-overwrite_original` on `file` with a dash-safe path.
+/// When `track_recovery` is true, invokes `recover_after_failure` and records any `Recovery`; when false (disposable temp), cleans up silently.
+fn overwrite_file(file: &Path, tag_args: Vec<String>, track_recovery: bool) -> std::io::Result<()> {
     let mut args = vec!["-overwrite_original".to_string()];
     args.extend(tag_args);
-    args.push(file.to_string_lossy().into_owned());
-    run(args).map_err(|error| match recover_after_failure(file) {
-        None => error,
-        Some(mut recovery) => {
-            let message = format!("{error} ; {}", recovery.note());
-            recovery.error = error.to_string();
-            lock(&RECOVERIES).push(recovery);
-            std::io::Error::other(message)
+    args.push(safe_arg_path(file));
+    run(args).map_err(|error| {
+        if track_recovery {
+            match recover_after_failure(file) {
+                None => error,
+                Some(mut recovery) => {
+                    let message = format!("{error} ; {}", recovery.note());
+                    recovery.error = error.to_string();
+                    lock(&RECOVERIES).push(recovery);
+                    std::io::Error::other(message)
+                }
+            }
+        } else {
+            remove_temp_file(&exiftool_temp_of(file));
+            remove_temp_file(file);
+            error
         }
     })
+}
+
+/// Modifies an existing file: checks writability, runs ExifTool (`<file>_exiftool_tmp` then replace), tracks recovery on failure, and flushes to disk.
+fn overwrite(file: &Path, tag_args: Vec<String>) -> std::io::Result<()> {
+    ensure_writable(file)?;
+    overwrite_file(file, tag_args, true)?;
+    let _ = crate::flush_to_disk(file);
+    Ok(())
 }
 
 /// What `recover_after_failure` had to do beyond removing a leftover: these cases must reach the user (blocking dialog and log file),
@@ -646,6 +780,19 @@ fn recover_after_failure(file: &Path) -> Option<Recovery> {
     }
 }
 
+#[cfg(windows)]
+fn normalized_lock_key(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    let stripped = if let Some(unc) = raw.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{unc}")
+    } else if let Some(rest) = raw.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        raw.into_owned()
+    };
+    stripped.replace('\\', "/").to_ascii_lowercase()
+}
+
 /// Verrous par « tranche » de chemin, aussi pris par les écritures internes d'exif.rs (HEIC, JPEG, sidecars) : deux écritures sur la même image
 /// (ou son sidecar) ne se font jamais en même temps (lecture-modification-remplacement qui s'écraseraient, fichiers temporaires communs, sidecar créé deux fois), alors que des photos différentes restent écrites en parallèle (sauf rencontre de tranche, sans conséquence).
 pub(crate) fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
@@ -653,37 +800,62 @@ pub(crate) fn path_lock(path: &Path) -> std::sync::MutexGuard<'static, ()> {
     const UNLOCKED: Mutex<()> = Mutex::new(());
     static LOCKS: [Mutex<()>; 16] = [UNLOCKED; 16];
     let mut hasher = DefaultHasher::new();
+    #[cfg(windows)]
+    normalized_lock_key(path).hash(&mut hasher);
+    #[cfg(not(windows))]
     path.hash(&mut hasher);
     lock(&LOCKS[(hasher.finish() % LOCKS.len() as u64) as usize])
 }
 
-/// Écrit `tag_args` dans le fichier, ou dans son sidecar XMP selon le format. `has_values` : faux quand la commande ne fait que supprimer,
-/// auquel cas un sidecar absent n'est pas créé.
+/// Unique temporary sidecar path preserving the `.xmp` extension so ExifTool infers XMP format.
+fn temp_sidecar_path(image_path: &Path) -> PathBuf {
+    static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(1);
+    let n = NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed);
+    PathBuf::from(format!("{}.photoboggan-{}-{n}.tmp.xmp", image_path.display(), std::process::id()))
+}
+
+/// Writes `tag_args` to the file or its XMP sidecar depending on format. `has_values`: false when only deleting,
+/// in which case a missing sidecar is not created.
 fn write_to(image_path: &Path, tag_args: Vec<String>, has_values: bool) -> std::io::Result<()> {
+    let _active_write = ActiveWriteGuard::enter()?;
     let _guard = path_lock(image_path);
     if !matches!(target_of(image_path), Target::Sidecar) { return overwrite(image_path, tag_args); }
     // See exif::write_xmp_sidecar_with: never a sidecar for an image that is no longer there.
     if !image_path.is_file() { return Err(crate::exif::image_gone(image_path)); }
     let crate::exif::SidecarTarget { path: sidecar, exists, seed } = crate::exif::sidecar_target(image_path);
     if exists { return overwrite(&sidecar, tag_args); }
-    let temp = PathBuf::from(format!("{}.photoboggan-tmp.xmp", image_path.display()));
-    let _ = std::fs::remove_file(&temp);
+    let temp = temp_sidecar_path(image_path);
+    remove_temp_file(&temp);
     if let Some(seed) = seed {
         // Own sidecar created from the shared `photo.xmp` (see exif::sidecar_target), even for a removal: the value to remove may come from
-        // `photo.xmp`, which the image would otherwise keep reading. Copy, update, then rename: `photo.xmp` is never modified.
-        let created = std::fs::copy(&seed, &temp).and_then(|_| overwrite(&temp, tag_args)).and_then(|_| std::fs::rename(&temp, &sidecar));
-        if created.is_err() { let _ = std::fs::remove_file(&temp); }
+        // `photo.xmp`, which the image would otherwise keep reading. Copy, update, flush, then rename: `photo.xmp` is never modified.
+        let created = std::fs::copy(&seed, &temp)
+            .and_then(|_| make_writable(&temp))
+            .and_then(|_| overwrite_file(&temp, tag_args, false))
+            .and_then(|_| crate::flush_to_disk(&temp))
+            .and_then(|_| std::fs::rename(&temp, &sidecar));
+        if created.is_err() {
+            remove_temp_file(&exiftool_temp_of(&temp));
+            remove_temp_file(&temp);
+        } else {
+            crate::sync_parent_dir(&sidecar);
+        }
         return created;
     }
     if !has_values { return Ok(()); }
-    // Nouveau sidecar : créé sous un nom temporaire (extension .xmp conservée, ExifTool en déduit le format), puis renommé.
-    let mut args = vec!["-o".to_string(), temp.to_string_lossy().into_owned()];
+    // New sidecar: created under a temporary name (.xmp extension kept so ExifTool infers format), flushed, then renamed.
+    let mut args = vec!["-o".to_string(), safe_arg_path(&temp)];
     args.extend(tag_args);
     if let Err(error) = run(args) {
-        let _ = std::fs::remove_file(&temp);
+        remove_temp_file(&temp);
         return Err(error);
     }
-    std::fs::rename(&temp, &sidecar).inspect_err(|_| { let _ = std::fs::remove_file(&temp); })
+    if let Err(error) = crate::flush_to_disk(&temp).and_then(|_| std::fs::rename(&temp, &sidecar)) {
+        remove_temp_file(&temp);
+        return Err(error);
+    }
+    crate::sync_parent_dir(&sidecar);
+    Ok(())
 }
 
 /// Écrit les modifications `update` en une seule commande ExifTool :
@@ -704,11 +876,17 @@ pub fn write_metadata(image_path: &Path, update: &crate::exif::MetadataUpdate) -
     write_to(image_path, args, update.adds_values())
 }
 
-/// Valeur d'un champ de structure ExifTool (`{Champ=valeur,…}`) : les caractères de la syntaxe sont précédés de « | ».
+/// Escapes a value inside an ExifTool structure (`{Field=value,...}`): syntax characters, `#` (comment start),
+/// and leading/trailing spaces or tabs (otherwise trimmed by ExifTool's struct parser) are prefixed with `|`.
 fn struct_value(value: &str) -> String {
+    let trimmed_start = value.len() - value.trim_start_matches([' ', '\t']).len();
+    let trimmed_end = value.trim_end_matches([' ', '\t']).len();
     let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        if matches!(character, '|' | ',' | '=' | '{' | '}' | '[' | ']') { escaped.push('|'); }
+    for (index, character) in value.char_indices() {
+        let is_edge_space = matches!(character, ' ' | '\t') && (index < trimmed_start || index >= trimmed_end);
+        if is_edge_space || matches!(character, '|' | ',' | '=' | '{' | '}' | '[' | ']' | '#') {
+            escaped.push('|');
+        }
         escaped.push(character);
     }
     escaped
@@ -753,8 +931,10 @@ fn lang_alt_tag(tag: &str, value: &str) -> String {
 fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec<String> {
     let jpeg = matches!(target_of(image_path), Target::Jpeg);
     let mut args = Vec::new();
-    // Valeurs IPTC écrites : UTF-8 déclaré si l'une n'est pas en ASCII.
+    // Written IPTC values: declare UTF-8 when any value is non-ASCII.
     let mut iptc_values: Vec<String> = Vec::new();
+    // Track any IPTC tag write or deletion on JPEG so Photoshop:IPTCDigest is recalculated.
+    let mut wrote_iptc = false;
     if let Some(paths) = &update.keywords {
         let leaves = crate::exif::keyword_leaves(paths);
         let joined = |separator: &str| paths.iter().map(|segments| segments.join(separator)).collect::<Vec<_>>();
@@ -771,6 +951,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             let iptc: Vec<String> = leaves.iter().map(|word| crate::exif::truncate_utf8(word, 64).to_string()).collect();
             push_list(&mut args, "IPTC:Keywords", iptc.clone());
             iptc_values.extend(iptc);
+            wrote_iptc = true;
             // XPKeywords : mots séparés par « ; », donc les noms qui en contiennent sont omis de ce seul champ.
             let xp: Vec<&str> = leaves.iter().map(String::as_str).filter(|word| !word.contains(';')).collect();
             args.push(assign("EXIF:XPKeywords", &xp.join(";")));
@@ -783,6 +964,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             let object_name = crate::exif::truncate_utf8(&title, 64).to_string();
             args.push(assign("IPTC:ObjectName", &object_name));
             iptc_values.push(object_name);
+            wrote_iptc = true;
             args.push(assign("EXIF:XPTitle", &title));
         }
     }
@@ -798,6 +980,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             let caption = crate::exif::truncate_utf8(&description, 2000).to_string();
             args.push(assign("IPTC:Caption-Abstract", &caption));
             iptc_values.push(caption);
+            wrote_iptc = true;
         }
     }
     // Auteur et droits (exif::update_xmp_rights pour le XMP). Les valeurs IPTC sont coupées à la longueur de la norme comme à l'écriture interne.
@@ -809,6 +992,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             let by_lines: Vec<String> = authors.iter().map(|name| crate::exif::truncate_utf8(name, 32).to_string()).collect();
             push_list(&mut args, "IPTC:By-line", by_lines.clone());
             iptc_values.extend(by_lines);
+            wrote_iptc = true;
             args.push(assign("EXIF:Artist", &joined));
         }
     }
@@ -820,6 +1004,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             let notice = crate::exif::truncate_utf8(&copyright, 128).to_string();
             args.push(assign("IPTC:CopyrightNotice", &notice));
             iptc_values.push(notice);
+            wrote_iptc = true;
             // L'EXIF Copyright est de l'ASCII : « © » devient « (c) ».
             args.push(assign("EXIF:Copyright", &copyright.replace('©', "(c)")));
         }
@@ -830,6 +1015,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
             let iptc = crate::exif::truncate_utf8(&credit, 32).to_string();
             args.push(assign("IPTC:Credit", &iptc));
             iptc_values.push(iptc);
+            wrote_iptc = true;
         }
     }
     if let Some(terms) = update.clean_usage_terms() {
@@ -840,6 +1026,7 @@ fn metadata_args(image_path: &Path, update: &crate::exif::MetadataUpdate) -> Vec
         args.push(assign("XMP-iptcCore:CreatorWorkEmail", &email));
     }
     if iptc_values.iter().any(|value| !value.is_ascii()) { args.push("-IPTC:CodedCharacterSet=UTF8".to_string()); }
+    if wrote_iptc { args.push("-Photoshop:IPTCDigest=new".to_string()); }
     // Coordonnées GPS (geolocation.rs) : XMP exif:GPS… et, quand le fichier lui-même est écrit (JPEG, HEIC), le bloc GPS de l'EXIF.
     if let Some(gps) = update.gps {
         let in_file = !matches!(target_of(image_path), Target::Sidecar);

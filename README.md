@@ -54,7 +54,7 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
 
   - Cross-drive moves are **checksum-verified** before removing originals (toggleable in Settings).
   - Built-in **Integrity Check** scans folders for corrupted files (JPEG, PNG, WebP, HEIC, RAW previews) while generating missing thumbnails in the same pass.
-  - Full interoperability with **digiKam, Lightroom, ACDSee, Windows Photos**, and OS file managers: writes standard embedded XMP/IPTC (JPEG), **in-place XMP in HEIC/HEIF**, or `.xmp` sidecars (RAW, PNG, video), with configurable read priority between formats and your choice of **ExifTool** or the **built-in writer**.
+  - Full interoperability with **digiKam, Lightroom, ACDSee, Windows Photos**, and OS file managers: writes standard embedded XMP/IPTC (JPEG), **in-place XMP in HEIC/HEIF**, or `.xmp` sidecars (RAW, PNG, video), with configurable read priority between formats and writes handled by **ExifTool**.
 
 - 🔒 **100% local by default, with an explicit Offline Mode**
   Your photos never leave your computer. Online features (map tiles, place search, model downloads, update checks) are strictly opt-in, **local model/map imports work fully offline**, and flipping **Offline Mode** in Settings blocks all network connections across the app.
@@ -125,7 +125,7 @@ Optional components downloaded on request (never bundled in the installer), unde
 
 Bundled with the installer:
 
-- **ExifTool** ([Phil Harvey](https://exiftool.org)), the recommended metadata writer: Perl license (Artistic License or GPL).
+- **ExifTool** ([Phil Harvey](https://exiftool.org)), the metadata writer: Perl license (Artistic License or GPL).
 
 Maps and places:
 
