@@ -20,7 +20,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 122 |  |
+| `release.yml` | 146 |  |
 | `static.yml` | 51 |  |
 | `tests.yml` | 76 |  |
 
@@ -60,16 +60,16 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 166 |  |
-| `css.md` | 632 |  |
+| `css.md` | 633 |  |
 | `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
 | `files.md` | 343 |  |
-| `ipc-commands.md` | 200 |  |
+| `ipc-commands.md` | 201 |  |
 | `module-deps.md` | 121 |  |
 | `sections.md` | 467 |  |
-| `symbols-js.md` | 1754 |  |
-| `symbols-rust.md` | 1462 |  |
-| `tests.md` | 528 |  |
+| `symbols-js.md` | 1756 |  |
+| `symbols-rust.md` | 1479 |  |
+| `tests.md` | 533 |  |
 
 ## docs/development/modules
 

@@ -108,7 +108,12 @@ jobs:
         run: npm install
 
       # Build the bundles and upload them to the draft release created above.
-      - name: Build and Release Tauri App
+      # On Linux, tauri-action builds and uploads .deb and .AppImage directly.
+      # On Windows, tauri-wrapper.mjs merges per-language MSIs into a single
+      # multi-language MSI and removes the per-language files, which would make
+      # tauri-action fail with "No artifacts were found".
+      - name: Build and Release Tauri App (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -119,3 +124,22 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
           args: ${{ matrix.args }}
+
+      - name: Build Tauri App (Windows)
+        if: matrix.platform == 'windows-latest'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build
+
+      - name: Upload Windows MSI artifacts
+        if: matrix.platform == 'windows-latest'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $msiDir = "src-tauri/target/release/bundle/msi"
+          $files = @(Get-ChildItem -Path $msiDir -File | Where-Object { $_.Name -like "*.msi" -or $_.Name -like "*.msi.sig" } | Select-Object -ExpandProperty FullName)
+          if ($files.Count -eq 0) {
+            throw "No MSI artifacts found in $msiDir"
+          }
+          gh release upload "${{ github.ref_name }}" $files --clobber
