@@ -727,7 +727,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `is_excluded` · L256 — The path is one of the `excluded` folders or lies inside one.
 - `pub sync_library` · L272 — Compare les dossiers suivis au catalogue :
 
-## main.rs (188)
+## main.rs (190)
 
 - *struct* `pub AppDataPaths` · L56
 - `pub AppDataPaths::from_base` · L65
@@ -861,62 +861,64 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `set_verify_cross_drive_moves` · L2218
 - `pub flush_to_disk` · L2223 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
 - `pub sync_parent_dir` · L2254 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
-- `copy_durably` · L2264 — `fs::copy`, then the copy is flushed to the disk: once this returns, the copy survives a power cut, so the source may be deleted or replace…
-- `file_sha256` · L2271 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
-- `files_have_same_hash` · L2285
-- `remove_copied_target` · L2296 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
-- `temp_sibling_path` · L2309
-- `pub copy_atomically_to_reserved` · L2321 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-- `pub replace_file_via_backup` · L2335 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
-- `pub replace_file_via_trash_with` · L2381
-- `pub replace_file_via_trash` · L2396 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
-- `move_file_via_copy` · L2402
-- `move_file` · L2440
-- `move_sidecar` · L2451 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
-- *struct* `FileTaskProgress` · L2470 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
-- `FileTaskProgress::new` · L2479
-- `FileTaskProgress::cancelled` · L2486
-- `FileTaskProgress::advance` · L2491 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
-- `FileTaskProgress::drop` · L2501
-- `carry_cache_file` · L2508 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
-- `move_photos` · L2523 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
-- `find_copy_conflicts` · L2619 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
-- `copy_replacing_with` · L2640 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
-- `copy_replacing` · L2661
-- `copy_photos_with_progress` · L2675 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
-- `copy_conflicts` · L2737 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
-- `copy_photos` · L2742
-- `tracked_copy_conflicts` · L2751 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
-- `copy_photos_to_tracked_folder` · L2761 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
-- `resize_photo` · L2774 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
-- `same_program` · L2793
-- `is_allowed_program` · L2797
-- `allow_programs` · L2801
-- `pick_program` · L2814 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
-- `register_existing_programs` · L2828 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
-- `open_with` · L2834 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
-- `reveal_in_file_manager` · L2848 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
-- `pub write_timestamped_log` · L2855 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
-- *struct* `SidecarRename` · L2877 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
-- `log_sidecar_renames` · L2884 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
-- *struct* `WriteRecoveryReport` · L2905 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
-- `log_write_recoveries` · L2912 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
-- `take_write_recoveries` · L2927 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
-- `open_video_externally` · L2934 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
-- `copy_files_to_clipboard` · L2955
-- `read_clipboard_text` · L2980 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
-- `write_clipboard_text` · L2991 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
-- `clipboard_entry` · L3003 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
-- `clipboard_entry` · L3008
-- `file_uri` · L3014 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
-- `main` · L3028
-- `move_file_or_copy` · L3338 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3359 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3377 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3394 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3422
-- `get_storage_location` · L3429
-- `change_storage_location` · L3439
+- `source_snapshot` · L2263
+- `copy_durably_with` · L2270 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
+- `copy_durably` · L2305 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
+- `file_sha256` · L2310 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
+- `files_have_same_hash` · L2324
+- `remove_copied_target` · L2335 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
+- `temp_sibling_path` · L2348
+- `pub copy_atomically_to_reserved` · L2360 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `pub replace_file_via_backup` · L2374 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+- `pub replace_file_via_trash_with` · L2420
+- `pub replace_file_via_trash` · L2435 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
+- `move_file_via_copy` · L2441
+- `move_file` · L2479
+- `move_sidecar` · L2490 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
+- *struct* `FileTaskProgress` · L2509 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
+- `FileTaskProgress::new` · L2518
+- `FileTaskProgress::cancelled` · L2525
+- `FileTaskProgress::advance` · L2530 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
+- `FileTaskProgress::drop` · L2540
+- `carry_cache_file` · L2547 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
+- `move_photos` · L2562 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
+- `find_copy_conflicts` · L2658 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
+- `copy_replacing_with` · L2679 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
+- `copy_replacing` · L2700
+- `copy_photos_with_progress` · L2714 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
+- `copy_conflicts` · L2776 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
+- `copy_photos` · L2781
+- `tracked_copy_conflicts` · L2790 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
+- `copy_photos_to_tracked_folder` · L2800 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
+- `resize_photo` · L2813 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
+- `same_program` · L2832
+- `is_allowed_program` · L2836
+- `allow_programs` · L2840
+- `pick_program` · L2853 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
+- `register_existing_programs` · L2867 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
+- `open_with` · L2873 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
+- `reveal_in_file_manager` · L2887 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
+- `pub write_timestamped_log` · L2894 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
+- *struct* `SidecarRename` · L2916 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
+- `log_sidecar_renames` · L2923 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
+- *struct* `WriteRecoveryReport` · L2944 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
+- `log_write_recoveries` · L2951 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
+- `take_write_recoveries` · L2966 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
+- `open_video_externally` · L2973 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
+- `copy_files_to_clipboard` · L2994
+- `read_clipboard_text` · L3019 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
+- `write_clipboard_text` · L3030 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
+- `clipboard_entry` · L3042 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
+- `clipboard_entry` · L3047
+- `file_uri` · L3053 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
+- `main` · L3067
+- `move_file_or_copy` · L3377 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3398 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3416 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3433 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3461
+- `get_storage_location` · L3468
+- `change_storage_location` · L3478
 
 ## model_files.rs (11)
 

@@ -2260,11 +2260,50 @@ pub(crate) fn sync_parent_dir(path: &Path) {
     let _ = path;
 }
 
-/// `fs::copy`, then the copy is flushed to the disk: once this returns, the copy survives a power cut, so the source may be deleted or replaced.
-fn copy_durably(source: &Path, target: &Path) -> std::io::Result<u64> {
-    let size = fs::copy(source, target)?;
-    flush_to_disk(target)?;
+fn source_snapshot(path: &Path) -> std::io::Result<(u64, Option<std::time::SystemTime>)> {
+    let meta = fs::metadata(path)?;
+    Ok((meta.len(), meta.modified().ok()))
+}
+
+/// Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
+/// size and modification time across the copy, and flushes `target` to disk.
+fn copy_durably_with(
+    source: &Path,
+    target: &Path,
+    copy_fn: impl FnOnce(&Path, &Path) -> std::io::Result<u64>,
+) -> std::io::Result<u64> {
+    let before = source_snapshot(source)?;
+    let size = match copy_fn(source, target) {
+        Ok(size) => size,
+        Err(error) => {
+            remove_copied_target(target);
+            return Err(error);
+        }
+    };
+    let after = match source_snapshot(source) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            remove_copied_target(target);
+            return Err(error);
+        }
+    };
+    if size != before.0 || after != before {
+        remove_copied_target(target);
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Le fichier source a été modifié pendant la copie",
+        ));
+    }
+    if let Err(error) = flush_to_disk(target) {
+        remove_copied_target(target);
+        return Err(error);
+    }
     Ok(size)
+}
+
+/// `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
+fn copy_durably(source: &Path, target: &Path) -> std::io::Result<u64> {
+    copy_durably_with(source, target, |src, dst| fs::copy(src, dst))
 }
 
 // Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).

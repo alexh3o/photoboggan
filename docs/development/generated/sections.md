@@ -387,11 +387,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L249–L680 | 432 | Écriture des mots-clés dans les fichiers |
 | L681–L969 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (3533 lines)
+## src-tauri/src/main.rs (3572 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L2783–L3529 | 747 | Programs allowed for "Open with" |
+| L2822–L3568 | 747 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 

@@ -524,3 +524,69 @@ fn marking_removal_masked_by_sidecar_reports_sidecar_conflict() {
     assert_eq!(conflict.sidecar_name, "color.jpg.xmp");
     assert!(!conflict.shared);
 }
+
+#[test]
+fn copy_durably_succeeds_when_source_is_stable() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.bin");
+    let dst = dir.path().join("dst.tmp");
+    put(&src, b"stable-content");
+
+    let copied = copy_durably(&src, &dst).unwrap();
+    assert_eq!(copied, b"stable-content".len() as u64);
+    assert_eq!(fs::read(&dst).unwrap(), b"stable-content");
+}
+
+#[test]
+fn copy_durably_rejects_source_resized_during_copy() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.bin");
+    let dst = dir.path().join("dst.tmp");
+    put(&src, b"initial");
+
+    let err = copy_durably_with(&src, &dst, |s, d| {
+        let n = fs::copy(s, d)?;
+        put(s, b"initial-and-more");
+        Ok(n)
+    })
+    .unwrap_err();
+
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    assert!(!dst.exists(), "temporary target must be removed on mismatch");
+}
+
+#[test]
+fn copy_durably_rejects_same_size_source_with_changed_mtime() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.bin");
+    let dst = dir.path().join("dst.tmp");
+    put(&src, b"12345678");
+
+    let err = copy_durably_with(&src, &dst, |s, d| {
+        let n = fs::copy(s, d)?;
+        let file = fs::OpenOptions::new().write(true).open(s)?;
+        file.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5))?;
+        Ok(n)
+    })
+    .unwrap_err();
+
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    assert!(!dst.exists(), "temporary target must be removed on mtime mismatch");
+}
+
+#[test]
+fn copy_durably_rejects_copied_byte_count_mismatch() {
+    let dir = tempfile::tempdir().unwrap();
+    let src = dir.path().join("src.bin");
+    let dst = dir.path().join("dst.tmp");
+    put(&src, b"12345678");
+
+    let err = copy_durably_with(&src, &dst, |s, d| {
+        let _ = fs::copy(s, d)?;
+        Ok(4)
+    })
+    .unwrap_err();
+
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    assert!(!dst.exists(), "temporary target must be removed on byte count mismatch");
+}
