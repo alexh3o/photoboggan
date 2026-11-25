@@ -2,28 +2,25 @@
 
 ## 🚀 Next in line / Done
 
-- [x] *fix*: `linux` deb update download works but opening the download with app manager does nothing
-- [x] *fix*: `linux` deb update downloads to random folder instead of user's download folder
-- [x] *feat*: `theme` option to follow system theme, enabled by default
-- [x] *FEAT*: `list` list panel
-- [x] *fix*: `fullscreen` V&H keys toasts are not displayed in fullscreen
-- [x] *chore*: `locales` prepare code and add recipes to ease adding more locales later
-- [x] *feat*: `locales` add spanish language
-- [x] *docs*: `build` add source compilation instructions in README & BUILDING docs
-- [x] *fix*: `locales` In french and spanish, "lancer/iniciar" is used instead of "début/inicio" in renaming modal, as english only needed one "start" key for both
-- [x] *feat*: `filters` have map zone filter appear and be treated as a normal filter
-- [x] *feat*: `thumbnail` option to add a visual badge on RAW files thumbnails
-- [x] *feat*: `filters` accept keywords children even if the chosen one is not active
-- [x] *feat*: `filters` add option to always include children in positive/negative keywords, and Ctrl key to disable it when entering new keyword
-- [x] *refactor*: `histogram` allow clipping shadow/highlights display independantly of histogram display
-- [x] *chore*: `language` add a recipe for languages implementation
-- [x] *PERF*: `grid` accelerate thumbnails grid display when changing folders
-- [x] *refactor*: `bundles` only one multilingual msi for windows instead of one per language
-- [x] *chore*: `maintenability` reduce main.js size by export of parts to fullscreen.js, folder-tree.js, find-raw-mode.js, semantic-results.js, duplicates-view.js, drag-drop.js, preview-zoom.js, task-queue.js
-- [x] *feat*: `lists` add format entries with resolution, orientation, ratio (1:1; 6:7; 4:3; 3:2; 16:10; 16:9 or ratio value if doesn't fit to 1%)
-- [x] *refactor*: `metadata` remove internal writer for safety and ease of maintenance
-- [x] *fix*: `metadata` show action from metadata fail dialog doesn't work if view has changed
-- [x] *fix*:  `metadata` inform user when failed gps/title/description is due to this data remaining in a sidecar xmp
+- [ ] *feat*: `duplicates` inform user when launching a long search necessiting a hash scan
+- [ ] *feat*: `duplicates` pass in same queue as semantic, low priority
+- [ ] *perf*: `duplicates` save per chunks of 128 to protect progress from crashes
+- [ ] *feat*: `duplicates` mark failing files for exclusion and report them in log + report
+- [ ] *perf*: `duplicates` keep hashes valid when file is modified in photoboggan
+- [ ] *perf*: `duplicates` option to calculate hashes during semantic
+- [ ] *perf*: `duplicates` option to calculate hashes during integrity check
+- [ ] *perf*: `duplicates` pause pro-active compute when a search is launched
+- [ ] *feat*: `duplicates` option to include/exclude RAW on detail search
+- [ ] *refactor*: `duplicates` better info in toasts and task modal
+- [ ] *feat*: `duplicates` add duplicates scan info in statistics
+- [ ] *feat*: `list` add duplicates exact hash column
+- [ ] *fix*: `semantic` count analyzed photos that have been modified and expired
+- [ ] *feat*: `duplicates` add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
+- [ ] *feat*: `duplicates` add control to start calculations prior to scans
+- [ ] *refactor*: `duplicates` identical scan results always take a bit of time and only appear in a short toast that can be missed
+- [ ] *fix*: `update` available update is not visible (daily toast?)
+- [ ] *feat*: `duplicates` prefilter duplicates search targets to reduce scan/ search time
+- [ ] *fix*: `semantic` some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -33,11 +30,9 @@
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
 - [ ] *fix*: `toasts` blurry toasts when a modal is on top
-- [ ] *fix*: `duplicates` similar images search (phash) seems stuck on big collections by lack of user info
-- [x] *feat*: `undo` better ctrl+z info
 - [ ] *fix*: `metadata` xmp sidecars are not synced as image embedded metadata when modified
-- [ ] *feat*  `metadata` handle xmp sidecar leftovers (except if sidecar writing is implemented and active)
 - [ ] *feat*: `metadata`allow writing to xmp sidecar
+- [ ] *chore*: `semantic` add content search score setting filter to recipes
 
 ## ⚖️ Undecided
 
@@ -48,6 +43,7 @@
 - [ ] *feat*: `files` **sd card** import
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *refactor*: `semantic` allow larger scores
+- [ ] *feat*: `collection` database data dashboard (hash, phash, face scanned, content analyzed, thumbnails)
 
 ## ❄️ Cold storage
 
