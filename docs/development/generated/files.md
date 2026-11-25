@@ -20,7 +20,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 167 |  |
+| `release.yml` | 193 |  |
 | `static.yml` | 51 |  |
 | `tests.yml` | 76 |  |
 
@@ -63,7 +63,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 633 |  |
 | `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
-| `files.md` | 344 |  |
+| `files.md` | 343 |  |
 | `ipc-commands.md` | 201 |  |
 | `module-deps.md` | 121 |  |
 | `sections.md` | 467 |  |

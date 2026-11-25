@@ -151,16 +151,42 @@ jobs:
             Accept = "application/vnd.github+json"
             "X-GitHub-Api-Version" = "2022-11-28"
           }
-          $existing = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$releaseId/assets" -Headers $headers)
+          $existing = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$releaseId/assets?per_page=100" -Headers $headers)
+          Write-Host "Existing assets on release ${releaseId}: $($existing.Count)"
           foreach ($file in $files) {
-            $match = $existing | Where-Object { $_.name -eq $file.Name }
-            if ($match) {
-              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/$repo/releases/assets/$($match.id)" -Headers $headers | Out-Null
+            $matchedAssets = @($existing | Where-Object { $_.name -eq $file.Name })
+            foreach ($m in $matchedAssets) {
+              Write-Host "Deleting existing $($m.name) (id=$($m.id), state=$($m.state))..."
+              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/$repo/releases/assets/$($m.id)" -Headers $headers | Out-Null
             }
+            if ($matchedAssets.Count -gt 0) {
+              Start-Sleep -Seconds 2
+            }
+            $uploadUri = "https://uploads.github.com/repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($file.Name))"
             Write-Host "Uploading $($file.Name)..."
-            Invoke-RestMethod -Method Post `
-              -Uri "https://uploads.github.com/repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($file.Name))" `
-              -Headers $headers `
-              -ContentType "application/octet-stream" `
-              -InFile $file.FullName | Out-Null
+            try {
+              Invoke-RestMethod -Method Post `
+                -Uri $uploadUri `
+                -Headers $headers `
+                -ContentType "application/octet-stream" `
+                -InFile $file.FullName | Out-Null
+            } catch {
+              if ($_.Exception.Response.StatusCode.value__ -eq 422) {
+                Write-Host "Upload returned 422 for $($file.Name); re-checking existing assets and retrying..."
+                Start-Sleep -Seconds 3
+                $refreshed = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$releaseId/assets?per_page=100" -Headers $headers)
+                foreach ($m in @($refreshed | Where-Object { $_.name -eq $file.Name })) {
+                  Write-Host "Deleting $($m.name) (id=$($m.id), state=$($m.state))..."
+                  Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/$repo/releases/assets/$($m.id)" -Headers $headers | Out-Null
+                }
+                Start-Sleep -Seconds 2
+                Invoke-RestMethod -Method Post `
+                  -Uri $uploadUri `
+                  -Headers $headers `
+                  -ContentType "application/octet-stream" `
+                  -InFile $file.FullName | Out-Null
+              } else {
+                throw
+              }
+            }
           }
