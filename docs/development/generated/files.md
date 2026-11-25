@@ -35,7 +35,6 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `FEATURES.md` | 177 |  |
-| `TESTS.md` | 92 |  |
 | `USER_GUIDE.md` | 608 |  |
 
 ## docs/development
@@ -64,13 +63,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 633 |  |
 | `db-schema.md` | 279 |  |
 | `events.md` | 11 |  |
-| `files.md` | 343 |  |
+| `files.md` | 344 |  |
 | `ipc-commands.md` | 201 |  |
 | `module-deps.md` | 121 |  |
 | `sections.md` | 467 |  |
 | `symbols-js.md` | 1756 |  |
-| `symbols-rust.md` | 1479 |  |
-| `tests.md` | 533 |  |
+| `symbols-rust.md` | 1481 |  |
+| `tests.md` | 537 |  |
 
 ## docs/development/modules
 
