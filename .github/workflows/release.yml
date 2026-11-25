@@ -138,8 +138,29 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $msiDir = "src-tauri/target/release/bundle/msi"
-          $files = @(Get-ChildItem -Path $msiDir -File | Where-Object { $_.Name -like "*.msi" -or $_.Name -like "*.msi.sig" } | Select-Object -ExpandProperty FullName)
+          $files = @(Get-ChildItem -Path $msiDir -File | Where-Object { $_.Name -like "*.msi" -or $_.Name -like "*.msi.sig" })
           if ($files.Count -eq 0) {
             throw "No MSI artifacts found in $msiDir"
           }
-          gh release upload "${{ github.ref_name }}" $files --clobber
+          # `gh release upload <tag>` uses the REST tags endpoint, which cannot find draft releases.
+          # Upload directly to the draft release ID via the GitHub Releases API instead.
+          $repo = "${{ github.repository }}"
+          $releaseId = "${{ needs.create-release.outputs.release_id }}"
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $existing = @(Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/$releaseId/assets" -Headers $headers)
+          foreach ($file in $files) {
+            $match = $existing | Where-Object { $_.name -eq $file.Name }
+            if ($match) {
+              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/$repo/releases/assets/$($match.id)" -Headers $headers | Out-Null
+            }
+            Write-Host "Uploading $($file.Name)..."
+            Invoke-RestMethod -Method Post `
+              -Uri "https://uploads.github.com/repos/$repo/releases/$releaseId/assets?name=$([uri]::EscapeDataString($file.Name))" `
+              -Headers $headers `
+              -ContentType "application/octet-stream" `
+              -InFile $file.FullName | Out-Null
+          }

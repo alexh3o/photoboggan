@@ -20,7 +20,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `release.yml` | 146 |  |
+| `release.yml` | 167 |  |
 | `static.yml` | 51 |  |
 | `tests.yml` | 76 |  |
 
