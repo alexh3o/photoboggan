@@ -340,6 +340,7 @@ fn a_scan_with_nothing_to_do_does_not_need_the_model_and_a_missing_model_is_repo
         recursive: true,
         skip_raw: false,
         threads: 1,
+        compute_phash: false,
         write_thumbnail_side: None,
         cancel: Arc::new(AtomicBool::new(false)),
     };
@@ -361,21 +362,24 @@ fn pixels_come_from_the_thumbnail_and_nothing_is_written_to_the_cache() {
     let photo = photos.path().join("a.jpg");
     std::fs::write(&photo, jpeg_bytes(800, 600)).unwrap();
     let photo = photo.to_string_lossy().into_owned();
-    assert!(prepare(&photo, thumbnails.path(), None, model).is_ok());
+    assert!(prepare(&photo, thumbnails.path(), None, model, false).1.is_ok());
     assert_eq!(std::fs::read_dir(thumbnails.path()).unwrap().count(), 0);
     // With a cached thumbnail, the thumbnail is used (here a uniform grey picture, unlike the photo).
     let cached = crate::thumbnail_cache_file(thumbnails.path(), &photo).unwrap();
     std::fs::create_dir_all(cached.parent().unwrap()).unwrap();
     std::fs::write(&cached, crate::test_support::jpeg_from_rgb(&[128u8; 64 * 48 * 3], 64, 48, 95)).unwrap();
-    let tensor = prepare(&photo, thumbnails.path(), None, model).ok().expect("tensor");
+    let tensor = prepare(&photo, thumbnails.path(), None, model, false).1.ok().expect("tensor");
     assert!(tensor.iter().all(|value| value.abs() < 0.05), "the uniform thumbnail was read");
     // A video without thumbnail is skipped; an unreadable photo fails.
     let video = photos.path().join("clip.mp4");
     std::fs::write(&video, b"not a video").unwrap();
-    assert!(matches!(prepare(&video.to_string_lossy(), thumbnails.path(), None, model), Err(Outcome::Skipped)));
+    assert!(matches!(prepare(&video.to_string_lossy(), thumbnails.path(), None, model, false).1, Err(Outcome::Skipped)));
     let broken = photos.path().join("broken.jpg");
     std::fs::write(&broken, b"not a jpeg").unwrap();
-    assert!(matches!(prepare(&broken.to_string_lossy(), thumbnails.path(), None, model), Err(Outcome::Failed(_))));
+    assert!(matches!(prepare(&broken.to_string_lossy(), thumbnails.path(), None, model, false).1, Err(Outcome::Failed(_))));
+    // With compute_phash = true on a valid JPEG, a perceptual fingerprint is produced alongside the tensor.
+    let (phash, tensor_res) = prepare(&photo, thumbnails.path(), None, model, true);
+    assert!(phash.is_some() && tensor_res.is_ok());
 }
 
 #[test]
@@ -387,8 +391,8 @@ fn with_the_option_a_missing_thumbnail_is_written_at_the_cache_size_and_used() {
     let photo = photos.path().join("a.jpg");
     std::fs::write(&photo, jpeg_bytes(800, 600)).unwrap();
     let photo = photo.to_string_lossy().into_owned();
-    let direct = prepare(&photo, thumbnails.path(), None, model).ok().expect("tensor without the option");
-    let tensor = prepare(&photo, thumbnails.path(), Some(256), model).ok().expect("tensor with the option");
+    let direct = prepare(&photo, thumbnails.path(), None, model, false).1.ok().expect("tensor without the option");
+    let tensor = prepare(&photo, thumbnails.path(), Some(256), model, false).1.ok().expect("tensor with the option");
     let cached = crate::thumbnail_cache_file(thumbnails.path(), &photo).unwrap();
     let size = crate::thumbnails::jpeg_size(&cached).expect("thumbnail written");
     assert_eq!((size.width, size.height), (256, 192));
@@ -397,13 +401,13 @@ fn with_the_option_a_missing_thumbnail_is_written_at_the_cache_size_and_used() {
     assert!(mean_gap < 0.05, "mean gap {mean_gap}");
     // An existing thumbnail is read, never rewritten.
     let written = std::fs::metadata(&cached).unwrap().modified().unwrap();
-    assert!(prepare(&photo, thumbnails.path(), Some(256), model).is_ok());
+    assert!(prepare(&photo, thumbnails.path(), Some(256), model, false).1.is_ok());
     assert_eq!(std::fs::metadata(&cached).unwrap().modified().unwrap(), written);
     // A PNG (thumbnail made by the webview in the grid) is still decoded in memory only.
     let png = photos.path().join("b.png");
     std::fs::write(&png, crate::test_support::png_bytes(80, 60)).unwrap();
     let png = png.to_string_lossy().into_owned();
-    assert!(prepare(&png, thumbnails.path(), Some(256), model).is_ok());
+    assert!(prepare(&png, thumbnails.path(), Some(256), model, false).1.is_ok());
     assert!(!crate::thumbnail_cache_file(thumbnails.path(), &png).unwrap().exists());
 }
 
@@ -422,10 +426,10 @@ fn a_photo_moved_during_the_scan_is_skipped_not_failed_for_good() {
 
 #[test]
 fn a_panic_while_reading_a_photo_fails_that_photo_only() {
-    let ok = guard_panic(|| (None, None, Err(Outcome::Skipped)));
-    assert!(matches!(ok, (None, None, Err(Outcome::Skipped))));
+    let ok = guard_panic(|| (None, None, None, Err(Outcome::Skipped)));
+    assert!(matches!(ok, (None, None, None, Err(Outcome::Skipped))));
     let crashed = guard_panic(|| panic!("decoder bug on a damaged file"));
-    assert!(matches!(crashed, (None, None, Err(Outcome::Failed(_)))));
+    assert!(matches!(crashed, (None, None, None, Err(Outcome::Failed(_)))));
 }
 
 #[test]
@@ -509,7 +513,7 @@ fn analyse_pending(conn: &Connection, thumbnails: &Path, cache: Option<&SearchCa
     let mut outcomes = Vec::new();
     for target in pending.iter_mut() {
         let job = DecodeJob { path: target.path.clone(), stored_key: target.stored_key, cached_hash: cached.remove(&target.photo_id) };
-        let (key, computed, work) = prepare_job(&job, thumbnails, None, active_model(), &AtomicBool::new(false));
+        let (key, computed, _phash, work) = prepare_job(&job, thumbnails, None, active_model(), false, &AtomicBool::new(false));
         target.key = key;
         if let Some(data) = computed { hashes.push((target.photo_id, data)); }
         outcomes.push(match work {
@@ -684,6 +688,7 @@ fn a_scan_that_only_refreshes_never_loads_the_model() {
         recursive: true,
         skip_raw: false,
         threads: 1,
+        compute_phash: false,
         write_thumbnail_side: None,
         cancel: Arc::new(AtomicBool::new(false)),
     };
@@ -804,6 +809,7 @@ fn a_scan_stores_what_the_encoder_computes_and_stops_when_asked() {
         recursive: true,
         skip_raw: false,
         threads: 2,
+        compute_phash: false,
         write_thumbnail_side: None,
         cancel,
     };
@@ -841,7 +847,26 @@ fn a_scan_stores_what_the_encoder_computes_and_stops_when_asked() {
     let environment = crate::onnx_runtime::environment(&runtime_library()).unwrap();
     let mut encoder = VisionEncoder::load(&environment, &model_dir().join("vision.onnx"), model, 2).unwrap();
     let path: String = conn.query_row("SELECT path FROM photos WHERE id = ?1", [ids[7]], |row| row.get(0)).unwrap();
-    let direct = encoder.embed(prepare(&path, thumbnails.path(), None, model).ok().unwrap(), 1).unwrap().remove(0);
+    let direct = encoder.embed(prepare(&path, thumbnails.path(), None, model, false).1.ok().unwrap(), 1).unwrap().remove(0);
     let blob: Vec<u8> = conn.query_row("SELECT vec FROM photo_embeddings WHERE photo_id = ?1", [ids[7]], |row| row.get(0)).unwrap();
     assert!(cosine(&direct, &blob_to_vector(&blob, model.embed_dim).unwrap()) > 0.9999);
+}
+
+#[test]
+fn store_batch_with_all_hashes_populates_phash_alongside_embeddings() {
+    let (_catalog, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let id = add_photo(&conn, "C:/photos/p.jpg", 1234, 5678);
+    let t = target(&conn, id);
+    let fp = crate::phash::Fingerprint { hashes: [0x1234_5678_9abc_def0; 8], flat: false };
+    let phashes = [(id, 1234u64, 5678i64, fp)];
+    store_batch_with_all_hashes(&conn, MODEL, &[(&t, Outcome::Embedded(unit_vector()))], &[], &phashes).unwrap();
+
+    let (stored_hashes, stored_size, stored_mod, stored_flat): (Vec<u8>, i64, i64, i64) = conn
+        .query_row("SELECT hashes, size, modified, flat FROM photo_phash WHERE photo_id = ?1", [id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })
+        .unwrap();
+    assert_eq!(stored_hashes.len(), 64);
+    assert_eq!((stored_size, stored_mod, stored_flat), (1234, 5678, 0));
 }

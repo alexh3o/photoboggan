@@ -94,6 +94,15 @@ pub struct ShootingStats {
     pub iso: Distribution,
 }
 
+#[derive(Serialize, Default, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CoverageStats {
+    pub eligible: i64,
+    pub up_to_date: i64,
+    pub expired: i64,
+    pub excluded: i64,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectionStats {
@@ -128,8 +137,12 @@ pub struct CollectionStats {
     pub persons: i64,
     pub top_persons: Vec<RankedItem>,
     pub shooting: ShootingStats,
-    /// Photos analysed by the content search; None when not asked.
-    pub analysed_photos: Option<i64>,
+    /// Photos analysed by the content search (up to date vs expired); None when not asked.
+    pub analysis: Option<CoverageStats>,
+    /// Duplicate hash coverage over eligible photos in the filtered set.
+    pub exact_prepass: CoverageStats,
+    pub exact_full: CoverageStats,
+    pub similarity: CoverageStats,
 }
 
 /// Values offered by the filters of the window, over the whole catalogue.
@@ -400,15 +413,79 @@ fn face_stats(conn: &Connection, ids: Option<&[i64]>) -> rusqlite::Result<(i64, 
     Ok((faces, persons, top))
 }
 
-/// Photos analysed by the content search (embedding of the active model), among the photos counted.
-fn analysed_count(conn: &Connection, ids: Option<&[i64]>) -> rusqlite::Result<i64> {
+/// Photos analysed by the content search (up-to-date vs expired) among the photos counted.
+fn analysis_stats(conn: &Connection, ids: Option<&[i64]>, eligible: i64) -> rusqlite::Result<CoverageStats> {
     let (scope, mut bound) = period_scope("e.photo_id", ids);
     bound.push(crate::semantic_models::active_model().id.to_string().into());
-    let sql = format!("SELECT COUNT(*) FROM photo_embeddings e JOIN photos p ON p.id = e.photo_id WHERE e.model_id = ?{} AND {scope}", bound.len());
-    match conn.query_row(&sql, rusqlite::params_from_iter(bound.iter()), |row| row.get(0)) {
-        // The table is created with the first analysis: before it, nothing is analysed.
-        Err(rusqlite::Error::SqliteFailure(_, Some(message))) if message.contains("no such table") => Ok(0),
-        other => other,
+    let sql = format!(
+        "SELECT
+            COALESCE(SUM(CASE WHEN e.file_size = COALESCE(p.file_size, 0) AND e.file_mtime = COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN e.file_size != COALESCE(p.file_size, 0) OR e.file_mtime != COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0)
+         FROM photo_embeddings e JOIN photos p ON p.id = e.photo_id
+         WHERE e.model_id = ?{} AND {scope}",
+        bound.len()
+    );
+    match conn.query_row(&sql, rusqlite::params_from_iter(bound.iter()), |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))) {
+        Ok((up_to_date, expired)) => Ok(CoverageStats { eligible, up_to_date, expired, excluded: 0 }),
+        Err(rusqlite::Error::SqliteFailure(_, Some(message))) if message.contains("no such table") => {
+            Ok(CoverageStats { eligible, up_to_date: 0, expired: 0, excluded: 0 })
+        }
+        Err(other) => Err(other),
+    }
+}
+
+/// Exact hash coverage (mode 1: pre-pass and full pass, up-to-date vs expired) among the non-video photos counted.
+fn exact_hash_stats(
+    conn: &Connection,
+    ids: Option<&[i64]>,
+    eligible: i64,
+    excluded: i64,
+) -> rusqlite::Result<(CoverageStats, CoverageStats)> {
+    let (scope, mut bound) = period_scope("h.photo_id", ids);
+    bound.push(crate::duplicates::LAYOUT_VERSION.into());
+    let ver_param = bound.len();
+    let sql = format!(
+        "SELECT
+            COALESCE(SUM(CASE WHEN h.version = ?{ver_param} AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN h.version != ?{ver_param} OR h.size != COALESCE(p.file_size, 0) OR h.modified != COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN h.full_hash IS NOT NULL AND h.version = ?{ver_param} AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN h.full_hash IS NOT NULL AND (h.version != ?{ver_param} OR h.size != COALESCE(p.file_size, 0) OR h.modified != COALESCE(p.modified, 0)) THEN 1 ELSE 0 END), 0)
+         FROM photo_hashes h JOIN photos p ON p.id = h.photo_id
+         WHERE h.mode = 1 AND {scope}"
+    );
+    match conn.query_row(&sql, rusqlite::params_from_iter(bound.iter()), |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?))
+    }) {
+        Ok((pre_ok, pre_exp, full_ok, full_exp)) => Ok((
+            CoverageStats { eligible, up_to_date: pre_ok, expired: pre_exp, excluded },
+            CoverageStats { eligible, up_to_date: full_ok, expired: full_exp, excluded },
+        )),
+        Err(rusqlite::Error::SqliteFailure(_, Some(message))) if message.contains("no such table") => Ok((
+            CoverageStats { eligible, up_to_date: 0, expired: 0, excluded },
+            CoverageStats { eligible, up_to_date: 0, expired: 0, excluded },
+        )),
+        Err(other) => Err(other),
+    }
+}
+
+/// Similarity hash coverage (`photo_phash`, up-to-date vs expired) among supported image formats.
+fn similarity_stats(conn: &Connection, ids: Option<&[i64]>, eligible: i64, excluded: i64) -> rusqlite::Result<CoverageStats> {
+    let (scope, mut bound) = period_scope("h.photo_id", ids);
+    bound.push(crate::phash::ALGO_VERSION.into());
+    let ver_param = bound.len();
+    let sql = format!(
+        "SELECT
+            COALESCE(SUM(CASE WHEN h.algo = ?{ver_param} AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN h.algo != ?{ver_param} OR h.size != COALESCE(p.file_size, 0) OR h.modified != COALESCE(p.modified, 0) THEN 1 ELSE 0 END), 0)
+         FROM photo_phash h JOIN photos p ON p.id = h.photo_id
+         WHERE {scope}"
+    );
+    match conn.query_row(&sql, rusqlite::params_from_iter(bound.iter()), |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))) {
+        Ok((up_to_date, expired)) => Ok(CoverageStats { eligible, up_to_date, expired, excluded }),
+        Err(rusqlite::Error::SqliteFailure(_, Some(message))) if message.contains("no such table") => {
+            Ok(CoverageStats { eligible, up_to_date: 0, expired: 0, excluded })
+        }
+        Err(other) => Err(other),
     }
 }
 
@@ -514,6 +591,8 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
     let restricted = selection.restricts();
 
     let mut photos = 0i64;
+    let mut non_video_photos = 0i64;
+    let mut phash_eligible_photos = 0i64;
     let mut total_size = 0i64;
     let mut dated_photos = 0i64;
     let (mut cameras, mut lenses) = (NameCounts::default(), NameCounts::default());
@@ -564,6 +643,13 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
         }
 
         photos += 1;
+        let path_obj = std::path::Path::new(&path);
+        if !crate::video::is_video_path(path_obj) {
+            non_video_photos += 1;
+        }
+        if crate::similar::is_phash_supported(path_obj) {
+            phash_eligible_photos += 1;
+        }
         let size = row.get::<_, Option<i64>>(10)?.unwrap_or(0).max(0);
         total_size += size;
         let entry = by_extension.entry(extension).or_insert((0, 0));
@@ -600,7 +686,9 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
     let scope_ids = restricted.then_some(ids.as_slice());
     let (keywords, keyword_photos) = keyword_stats(conn, scope_ids)?;
     let (faces, persons, top_persons) = face_stats(conn, scope_ids)?;
-    let analysed_photos = if filter.with_analysis { Some(analysed_count(conn, scope_ids)?) } else { None };
+    let analysis = if filter.with_analysis { Some(analysis_stats(conn, scope_ids, photos)?) } else { None };
+    let (exact_prepass, exact_full) = exact_hash_stats(conn, scope_ids, non_video_photos, photos - non_video_photos)?;
+    let similarity = similarity_stats(conn, scope_ids, phash_eligible_photos, photos - phash_eligible_photos)?;
 
     let mut extensions: Vec<ExtensionStat> = by_extension.into_iter().map(|(extension, (count, size))| ExtensionStat { extension, count, size }).collect();
     extensions.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.extension.cmp(&b.extension)));
@@ -633,7 +721,10 @@ fn compute_with(conn: &Connection, filter: &StatsFilter) -> rusqlite::Result<Col
         persons,
         top_persons,
         shooting: ShootingStats { focal: focal.finish(), aperture: aperture.finish(), shutter: shutter.finish(), iso: iso.finish() },
-        analysed_photos,
+        analysis,
+        exact_prepass,
+        exact_full,
+        similarity,
     })
 }
 
@@ -707,3 +798,7 @@ pub async fn get_stats_filter_options(state: State<'_, AppState>) -> Result<Filt
     let pool = state.pool();
     tokio::task::spawn_blocking(move || filter_options(&pool)).await.map_err(|error| error.to_string())?
 }
+
+#[cfg(test)]
+#[path = "tests/stats.rs"]
+mod tests;

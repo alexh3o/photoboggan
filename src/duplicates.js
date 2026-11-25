@@ -118,7 +118,7 @@ export function orderGroups(groups, mode) {
 // sensitivity: strict / normal / loose = largest number of differing bits (of 64) between two photos.
 const SIMILAR_STORAGE_KEY = 'similarSearchSettings';
 const SIMILAR_DISTANCES = { strict: 3, normal: 6, loose: 10 };
-const SIMILAR_DEFAULTS = { sensitivity: 'normal', rotations: false, ignoreBursts: true, burstMs: 1000, includeRawPairs: false };
+const SIMILAR_DEFAULTS = { sensitivity: 'normal', rotations: false, ignoreBursts: true, burstMs: 1000, includeRawPairs: false, includeRaw: true };
 
 export function getSimilarSettings() {
   try {
@@ -130,6 +130,7 @@ export function getSimilarSettings() {
       ignoreBursts: typeof saved.ignoreBursts === 'boolean' ? saved.ignoreBursts : SIMILAR_DEFAULTS.ignoreBursts,
       burstMs: Number.isFinite(burstMs) && burstMs >= 0 && burstMs <= 60000 ? Math.round(burstMs) : SIMILAR_DEFAULTS.burstMs,
       includeRawPairs: typeof saved.includeRawPairs === 'boolean' ? saved.includeRawPairs : SIMILAR_DEFAULTS.includeRawPairs,
+      includeRaw: typeof saved.includeRaw === 'boolean' ? saved.includeRaw : SIMILAR_DEFAULTS.includeRaw,
     };
   } catch {
     return { ...SIMILAR_DEFAULTS };
@@ -168,6 +169,7 @@ export function describeSearch(kind, settings, { scope, compareWithLibrary }) {
     lines.push(describeSimilarSettings(settings));
     if (settings.includeRawPairs) lines.push(t('RAW and JPEG together'));
   }
+  if (settings.includeRaw === false) lines.push(t('RAW files excluded'));
   lines.push(compareWithLibrary ? t('Compared with the whole library') : t('Compared inside the scope only'));
   if (scope.kind === 'folder') lines.push(scope.recursive ? t('Subfolders included') : t('Subfolders not included'));
   return `${t('Search criteria')}\n${lines.map(line => `• ${line}`).join('\n')}`;
@@ -181,6 +183,7 @@ export function similarRequestFields(settings) {
     ignoreBursts: settings.ignoreBursts,
     burstMs: settings.burstMs,
     includeRawPairs: settings.includeRawPairs,
+    includeRaw: settings.includeRaw ?? true,
   };
 }
 
@@ -188,7 +191,7 @@ export function similarRequestFields(settings) {
 // "Identical images" menu entry uses. Two criteria, joined by "or": the image data (hash) and the file name. The name pattern is a regular expression
 // of its own, separate from the one used to find a RAW; empty = the whole name without extension is the key.
 const IDENTICAL_STORAGE_KEY = 'identicalSearchSettings';
-const IDENTICAL_DEFAULTS = { hash: true, ignoreMetadata: true, name: false, pattern: '', minLength: 3, sameDate: false, includeRawPairs: false };
+const IDENTICAL_DEFAULTS = { hash: true, ignoreMetadata: true, name: false, pattern: '', minLength: 3, sameDate: false, includeRawPairs: false, includeRaw: true };
 
 export function getIdenticalSettings() {
   try {
@@ -196,7 +199,7 @@ export function getIdenticalSettings() {
     const flag = key => (typeof saved[key] === 'boolean' ? saved[key] : IDENTICAL_DEFAULTS[key]);
     const minLength = Math.round(Number(saved.minLength));
     const settings = {
-      hash: flag('hash'), ignoreMetadata: flag('ignoreMetadata'), name: flag('name'), sameDate: flag('sameDate'), includeRawPairs: flag('includeRawPairs'),
+      hash: flag('hash'), ignoreMetadata: flag('ignoreMetadata'), name: flag('name'), sameDate: flag('sameDate'), includeRawPairs: flag('includeRawPairs'), includeRaw: flag('includeRaw'),
       pattern: typeof saved.pattern === 'string' ? saved.pattern : IDENTICAL_DEFAULTS.pattern,
       minLength: Number.isFinite(minLength) && minLength >= 2 && minLength <= 50 ? minLength : IDENTICAL_DEFAULTS.minLength,
     };

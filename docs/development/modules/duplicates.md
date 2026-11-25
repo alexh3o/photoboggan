@@ -1,4 +1,4 @@
-<!-- verified: e511daa | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: b9ea942 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -10,6 +10,8 @@ Finds groups of photos that are the same picture: identical image data (metadata
 | `duplicates.rs` | Identical search (`run`): hashed byte ranges per format, 3-stage narrowing, cache table `photo_hashes`; shared types `Scope`, `Report`, `load_candidates`, `name_candidates`; `DataHash` also used by the semantic scan. |
 | `similar.rs` | Similar search (`run`): fingerprints cache `photo_phash`, pairwise comparison, bursts, grouping, plus `phash_photo_ids` / `get_phash_photo_ids`. |
 | `phash.rs` | 64-bit perceptual hash (32×32 grey, DCT, 8×8 low frequencies), 8 rotation / mirror variants. |
+| `hash_tasks.rs` | Low-priority background precomputation (`precompute_hashes`), pre-flight work estimation (`count_duplicate_work`), settings stats (`get_duplicate_hash_stats`), `delete_duplicate_hashes`, and list-view `get_exact_hash_states`. |
+| `duplicates-settings.js` | Settings > Search > Duplicates UI: coverage stats, pre-pass/full-pass mode, background precomputation launcher, speed/synergy/auto-hash toggles, and cache deletion. |
 | `duplicates.js` | Pure helpers: settings (identical, similar, keep criteria), group ordering, `mergeGroups`, descriptions. |
 | `duplicate-names.js` | Name search in JS (`findNameGroups`). |
 | `duplicates-modal.js` | "More…" window: kind, settings, scope, keep-order panel. |
@@ -20,7 +22,9 @@ Finds groups of photos that are the same picture: identical image data (metadata
 
 **Launch.** Context menu "Find duplicates" (photo, selection, folder, all) or the "More…" window → `findDuplicateImages(kind, spec, settings)` queues a task `kind: 'duplicates'` with `dedupeKey = <kind>:<scope>` (same kind on the same scope is refused while running or waiting, see `main-window.md`). `scope` is `All`, `Folder {path, recursive}` or `Paths`; `compareWithLibrary` also loads the rest of the library, and a group is kept only if it contains a scanned photo. `load_candidates` discards photos matching active privacy sets via `privacy::visible_condition("")` right from candidate loading, so hidden photos are never compared or grouped (shared by identical, similar and by-name searches).
 
-**Identical** (`find_duplicates` → `duplicates::run`, holding a `PriorityGuard`):
+**Launch, pre-flight warning & priority.** Context menu "Find duplicates" (photo, selection, folder, all) or the "More…" window → `findDuplicateImages(kind, spec, settings)` checks `count_duplicate_work` (with cached-thumbnail fast count within a 1.5 s budget) and warns on long runs (≥ 500 similar, ≥ 2000 identical) before queueing `kind: 'duplicates'` with `dedupeKey = <kind>:<scope>`. Interactive searches hold a `BackgroundPauseGuard` (yielding to Level 0 `PriorityGuard` foreground work, pausing Level 2 background precomputation / `semantic`, and running on `build_low_priority_pool`). Both interactive searches and `hash_tasks::run_precompute` process files in chunks of 128 (`HASH_CHUNK_SIZE`), isolate decoder/hashing panics (`catch_unwind`), record persistent failures in `photo_hash_failures` / `photo_phash_failures` (skipped on rerun), and write failure logs in `<data dir>/logs/`. Metadata-only writes (`main.rs`, `keywords.rs`, `geolocation.rs` — never `rotate_photo_with`) call `restamp_photo_caches` to keep up-to-date hashes valid. Settings > Search > Duplicates (`duplicates-settings.js`) also wires `duplicateHashOnSemantic`, `duplicateHashOnIntegrity`, and `duplicateAutoHash` (after `add` scans).
+
+**Identical** (`find_duplicates` → `duplicates::run_with_options`, holding a `BackgroundPauseGuard`):
 1. Stage 0: per file, size / mtime and the length of its *image data* from headers only (cache first). Hashed bytes (`layout_of`): JPEG = all segments except APPn / COM plus the scan; PNG = IHDR, PLTE, tRNS, IDAT, animation chunks; WebP = bitstream, alpha, animation chunks; everything else (HEIC, AVIF, GIF, BMP, RAW) whole. Videos are skipped (`is_video`). `ignoreMetadata` off = whole files (`mode` 0 vs 1 in the cache).
 2. Stage 1 groups by data length; stage 2 by hash of the first + last 64 KB; stage 3 by hash of everything (`regroup`, `fill_hashes`). Only files still sharing a key go on; each stage saves new values (`save_dirty`). Hash = first 16 bytes of SHA-256.
 3. A cancelled run returns no group (groups are certain only after stage 3). Result: `Report` with groups of paths, `unreadable`, `wholeFileExtensions` (formats where metadata could not be ignored). Workers: half the cores, clamped to 2–6.

@@ -58,8 +58,9 @@ import {
   initDuplicatesView, isDuplicateSearchActive, getDuplicateSearch, photoFormat,
   indexDuplicateGroups, computeDuplicateSeparators, renderDuplicateBanner,
   abandonDuplicateSearch, exitDuplicateSearch, showReadyDuplicateResults,
-  findDuplicateImages, openDuplicatesDialog,
+  findDuplicateImages, openDuplicatesDialog, notifyPhashChanged,
 } from './duplicates-view.js';
+import { initDuplicatesSettings, scheduleAutoHash, notifyExactHashChanged, refreshDuplicateHashStats } from './duplicates-settings.js';
 import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isSlideshowActive } from './slideshow.js';
 import { initToolbarAria } from './toolbar-a11y.js';
 import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
@@ -75,7 +76,7 @@ import { isRawPath, isVideoPath } from './file-kinds.js';
 import { dateFilter, dateFilterInput, setDateFilter, matchesDateFilter, parseDateFilter, photoTimeKey, photoDateKey, isValidDateKey, updateDateFilterUI, closeDatePicker, isDatePickerOpen, refreshDatePickerLanguage, initDateFilter } from './date-filter.js';
 import {
   initTaskQueue, enqueueScanTask, folderBaseName, foregroundTaskCount, hasFileTask,
-  queuedPathsBeingChanged, pausedScanFolders, dropScanTasksForFolder, stopSemanticTasks,
+  queuedPathsBeingChanged, pausedScanFolders, dropScanTasksForFolder, stopSemanticTasks, stopHashPrecomputeTasks,
   confirmCloseWithRunningTasks, restorePausedTasks, showTaskToast, hideTaskToast,
   closeTasksModal, keepTaskReady, removeReadyTask, checkFolderIntegrity, rescanFolder,
 } from './task-queue.js';
@@ -5184,9 +5185,15 @@ initFolderTree({
 // Task queue (see task-queue.js): sequential main lane, parallel semantic lane, toasts, tasks modal, pause/resume and backend progress events.
 initTaskQueue({
   showToast: message => showWriteToast(message),
-  onIntegrityResult: (result, stopped) => showIntegrityReport(result, stopped),
+  onIntegrityResult: (result, stopped) => {
+    notifyPhashChanged();
+    notifyExactHashChanged();
+    refreshDuplicateHashStats();
+    showIntegrityReport(result, stopped);
+  },
   onRescanComplete: () => reloadPhotosAfterRescan(),
   onPausedScan: () => refreshAfterPausedScan(),
+  onFolderScanComplete: path => scheduleAutoHash({ kind: 'folder', path, recursive: true }),
   onMainQueueIdle: () => { if (syncAfterTasks && foregroundTaskCount() === 0) runRequestedSync(); },
   onShowReadyTask: task => showReadyDuplicateResults(task),
   getTrackedFolders: () => folders,
@@ -5282,6 +5289,9 @@ initDragDrop({
   syncAfterCopy: async () => {
     const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
     notifyTempLeftovers(changes);
+    if (changes.added.length || changes.updated.length) {
+      scheduleAutoHash({ kind: 'paths', paths: [...changes.added, ...changes.updated] });
+    }
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   },
 });
@@ -5950,6 +5960,13 @@ initSemanticSettings({
   stopTasks: () => stopSemanticTasks(), // disabling the feature: the analyses of the queue are stopped
 });
 
+initDuplicatesSettings({
+  showToast: message => showWriteToast(message),
+  enqueueTask: task => enqueueScanTask(task),
+  keepTaskReady: (task, payload, options) => keepTaskReady(task, payload, options),
+  stopHashPrecomputeTasks: () => stopHashPrecomputeTasks(),
+});
+
 // ==========================================
 // CONTENT SEARCH RESULTS (semantic-results.js)
 // ==========================================
@@ -6162,6 +6179,9 @@ async function syncLibraryWithDisk() {
   try {
     const changes = await invoke('sync_library', { excluded: pausedScanFolders() });
     notifyTempLeftovers(changes);
+    if (changes.added.length || changes.updated.length) {
+      scheduleAutoHash({ kind: 'paths', paths: [...changes.added, ...changes.updated] });
+    }
     if (changes.added.length || changes.updated.length || changes.removed.length) await refreshLibraryAfterSync(changes);
   } catch (error) {
     console.debug('Disk synchronization failed', error);

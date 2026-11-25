@@ -1,10 +1,10 @@
 // Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches,
-// model downloads, duplicate searches, updates, private maps) plus a parallel lane for content analysis (`semantic`).
+// model downloads, duplicate searches, updates, private maps) plus a parallel background lane (`semantic` and `hash-precompute`).
 // Keeps track of toasts, the "Running tasks" modal, pause/resume persistence (`pausedScanTasks`), close/reload guards,
 // and backend `scan-progress` / `scan-detail` events. `main.js` wires host callbacks via `initTaskQueue()`.
 import { invoke } from '@tauri-apps/api/core';
 import { listen as listenToBackend } from '@tauri-apps/api/event';
-import { DEFAULTS, readStored } from './settings-defaults.js';
+import { DEFAULTS, readBool, readStored } from './settings-defaults.js';
 import { t, tp, onLanguageChange } from './i18n.js';
 import { choiceDialog } from './metadata-writes.js';
 
@@ -17,7 +17,7 @@ let initialized = false;
 const scanTasks = [];
 let scanTaskCounter = 0;
 let scanPumpActive = false;
-let semanticPumpActive = false;
+let backgroundPumpActive = false;
 let transientToast = null; // single toast for short non-queue operations (moving data/cache, clearing thumbnails): showTaskToast / hideTaskToast
 let tasksClockTimer = null;
 
@@ -37,10 +37,11 @@ const taskPercent = task => Math.max(0, Math.min(100, Math.round(task.percent)))
 // progress, so it never holds back the queue, the library synchronisation or the reload shortcut.
 const activeTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused').length;
 
-// Content analysis: its own lane, in parallel with the main queue (see pumpSemanticQueue). It counts in activeTaskCount (closing the application,
-// reloading the page) but not in foregroundTaskCount: a library synchronisation never waits for it (the analysis pauses itself instead).
-const isSemanticLaneTask = task => task.kind === 'semantic';
-export const foregroundTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused' && !isSemanticLaneTask(task)).length;
+// Background lane (content analysis + hash precomputation): runs in parallel with the main queue (see pumpBackgroundQueue).
+// Counts in activeTaskCount (closing the application, reloading the page) but not in foregroundTaskCount.
+const isBackgroundLaneTask = task => task.kind === 'semantic' || task.kind === 'hash-precompute';
+const hasRichProgress = task => isBackgroundLaneTask(task) || task.kind === 'duplicates';
+export const foregroundTaskCount = () => scanTasks.filter(task => task.status !== 'ready' && task.status !== 'paused' && !isBackgroundLaneTask(task)).length;
 
 // Scans that can be paused: the scan stops (photos already read stay in the catalogue), the task stays in the list without holding back the queue,
 // and resuming puts it first in line; the backend then skips the files read since its first start (`resumeSince`, see run_scan).
@@ -60,7 +61,7 @@ function taskStatusText(task) {
   if (task.status === 'paused') return `${taskPercent(task)} % · ${t('Paused')}`;
   if (task.pauseRequested) return t('Pausing…');
   if (task.stopRequested) return t('Stopping…');
-  if (isSemanticLaneTask(task)) {
+  if (hasRichProgress(task)) {
     // Paused while another task works; otherwise the progress and the time left estimated by the backend.
     if (task.paused) return `${taskPercent(task)} % · ${t('Paused (other task running)')}`;
     const parts = [`${taskPercent(task)} %`];
@@ -94,8 +95,8 @@ function taskTimingText(task) {
   const elapsed = Date.now() - task.startedAt;
   const parts = [formatTaskDuration(elapsed)];
   const percent = taskPercent(task);
-  // The content analysis gives its own estimate (taskStatusText): an extrapolation from the elapsed time would count the pauses.
-  if (!isSemanticLaneTask(task) && !task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
+  // Tasks with rich progress give their own estimate (taskStatusText): an extrapolation from the elapsed time would count pauses.
+  if (!hasRichProgress(task) && !task.stopRequested && percent >= 3 && percent < 100 && elapsed >= 4000) {
     parts.push(t('{time} left', { time: `~${formatTaskDuration(elapsed * (100 - percent) / percent)}` }));
   }
   return parts.join(' · ');
@@ -402,6 +403,7 @@ function familyOf(taskKind) {
   if (taskKind === 'update') return 'update';
   if (taskKind === 'semantic-models') return 'semantic-models';
   if (taskKind === 'semantic') return 'semantic';
+  if (taskKind === 'hash-precompute') return 'hash-precompute';
   if (taskKind === 'private-map') return 'private-map';
   if (taskKind === 'duplicates') return 'duplicates';
   return FILE_TASK_KINDS.includes(taskKind) ? 'files' : 'scan';
@@ -413,12 +415,17 @@ function familyOf(taskKind) {
 export function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey }) {
   const sameKey = dedupeKey && scanTasks.find(task => task.dedupeKey === dedupeKey && !task.stopRequested && task.status !== 'ready');
   if (sameKey) {
-    host.showToast(t(kind === 'semantic' ? 'A content analysis of this is already in progress or waiting: {name}' : 'A duplicate search on this is already in progress or waiting: {name}', { name: taskName(sameKey) }));
+    const key = kind === 'semantic'
+      ? 'A content analysis of this is already in progress or waiting: {name}'
+      : kind === 'hash-precompute'
+        ? 'A hash computation is already in progress or waiting: {name}'
+        : 'A duplicate search on this is already in progress or waiting: {name}';
+    host.showToast(t(key, { name: taskName(sameKey) }));
     return false;
   }
   const isIntegrity = kind === 'integrity';
   const sameFamily = task => familyOf(task.kind) === familyOf(kind);
-  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || kind === 'semantic' || FILE_TASK_KINDS.includes(kind) ? null : path === null
+  const covering = kind === 'keywords' || kind === 'faces-selection' || kind === 'private-map' || kind === 'duplicates' || kind === 'semantic' || kind === 'hash-precompute' || FILE_TASK_KINDS.includes(kind) ? null : path === null
     ? scanTasks.find(task => task.path === null && !task.stopRequested && sameFamily(task))
     : scanTasks.find(task => !task.stopRequested && sameFamily(task) && taskCoversFolder(task, path));
   if (covering?.status === 'paused') {
@@ -437,16 +444,16 @@ export function enqueueScanTask({ kind, path, command, args, labelKey, labelPara
   });
   if (isResumableTask({ kind })) saveResumableTasks();
   syncTaskUI();
-  if (isSemanticLaneTask({ kind })) pumpSemanticQueue();
+  if (isBackgroundLaneTask({ kind })) pumpBackgroundQueue();
   else pumpScanQueue();
   return true;
 }
 
-// Runs main-lane tasks strictly sequentially in arrival order. Content analysis ('semantic') uses `pumpSemanticQueue` instead so long analyses do not block other tasks.
+// Runs main-lane tasks strictly sequentially in arrival order. Background tasks ('semantic', 'hash-precompute') use `pumpBackgroundQueue` instead so long analyses do not block other tasks.
 async function pumpScanQueue() {
   if (scanPumpActive) return;
   scanPumpActive = true;
-  const nextWaiting = () => scanTasks.find(item => item.status === 'waiting' && !isSemanticLaneTask(item));
+  const nextWaiting = () => scanTasks.find(item => item.status === 'waiting' && !isBackgroundLaneTask(item));
   try {
     for (let task = nextWaiting(); task; task = nextWaiting()) {
       await runScanTask(task);
@@ -458,24 +465,29 @@ async function pumpScanQueue() {
   host.onMainQueueIdle?.();
 }
 
-// Dedicated lane for content analysis: one analysis at a time (the backend refuses a second one with 'semantic_scan_running'),
-// running concurrently with the main lane; the backend pauses itself while foreground work runs.
-async function pumpSemanticQueue() {
-  if (semanticPumpActive) return;
-  semanticPumpActive = true;
+// Dedicated lane for background tasks (content analysis & hash precomputation): one task at a time,
+// running concurrently with the main lane; the backend pauses itself while foreground or interactive duplicate work runs.
+async function pumpBackgroundQueue() {
+  if (backgroundPumpActive) return;
+  backgroundPumpActive = true;
   try {
-    for (let task = scanTasks.find(item => item.status === 'waiting' && isSemanticLaneTask(item)); task;
-      task = scanTasks.find(item => item.status === 'waiting' && isSemanticLaneTask(item))) {
+    for (let task = scanTasks.find(item => item.status === 'waiting' && isBackgroundLaneTask(item)); task;
+      task = scanTasks.find(item => item.status === 'waiting' && isBackgroundLaneTask(item))) {
       await runScanTask(task);
     }
   } finally {
-    semanticPumpActive = false;
+    backgroundPumpActive = false;
   }
 }
 
 // Stops all queued or running content analyses (called when content search is disabled).
 export function stopSemanticTasks() {
-  for (const task of scanTasks.filter(isSemanticLaneTask)) removeOrStopTask(task);
+  for (const task of scanTasks.filter(task => task.kind === 'semantic')) removeOrStopTask(task);
+}
+
+// Stops all queued or running hash precomputations (called before deleting duplicate hashes).
+export function stopHashPrecomputeTasks() {
+  for (const task of scanTasks.filter(task => task.kind === 'hash-precompute')) removeOrStopTask(task);
 }
 
 async function runScanTask(task) {
@@ -502,6 +514,7 @@ async function runScanTask(task) {
     else await host.onRescanComplete();
     if (task.pauseRequested) host.showToast(t('Task paused: {name}', { name: taskName(task) }));
     else if (task.stopRequested) host.showToast(t('Task stopped: {name}', { name: taskName(task) }));
+    else if (task.kind === 'add') host.onFolderScanComplete?.(task.path);
   } catch (error) {
     console.error('Rescan failed', error);
     if (task.onResult) await task.onResult(null, task.stopRequested, error, task);
@@ -542,7 +555,7 @@ function pauseTask(task) {
 function resumeTask(task) {
   if (task.status !== 'paused') return;
   scanTasks.splice(scanTasks.indexOf(task), 1);
-  const firstWaiting = scanTasks.findIndex(item => item.status === 'waiting' && !isSemanticLaneTask(item));
+  const firstWaiting = scanTasks.findIndex(item => item.status === 'waiting' && !isBackgroundLaneTask(item));
   scanTasks.splice(firstWaiting < 0 ? scanTasks.length : firstWaiting, 0, task);
   task.status = 'waiting';
   saveResumableTasks();
@@ -590,7 +603,7 @@ export function restorePausedTasks() {
 
 // Integrity check of a folder in the tree (subfolders included), launched from its context menu: decodes every file and generates missing cached thumbnails.
 export function checkFolderIntegrity(path) {
-  return enqueueScanTask({ kind: 'integrity', path, command: 'integrity_scan', args: { path }, labelKey: 'Integrity check: {folder}', labelParams: { folder: folderBaseName(path) } });
+  return enqueueScanTask({ kind: 'integrity', path, command: 'integrity_scan', args: { path, computeHashes: readBool('duplicateHashOnIntegrity') }, labelKey: 'Integrity check: {folder}', labelParams: { folder: folderBaseName(path) } });
 }
 
 // Rescan of a folder in the tree (subfolders included), launched from its context menu.
@@ -637,16 +650,24 @@ export function initTaskQueue(deps) {
 
   // Progress of queued tasks (percentage never moves backwards if events arrive out of order).
   listenToBackend('scan-progress', event => {
-    const { taskId, percent, done, total, remainingSeconds, paused } = event.payload || {};
+    const { taskId, percent, done, total, remainingSeconds, paused, phase } = event.payload || {};
     const task = scanTasks.find(item => item.id === taskId);
     if (!task || task.status !== 'running') return;
     task.percent = Math.max(task.percent, Number(percent) || 0);
-    // Content analysis: photos handled / to handle, backend ETA (null initially, excludes pauses) and pause flag.
-    if (isSemanticLaneTask(task)) {
+    if (hasRichProgress(task)) {
       task.done = Number(done) || 0;
       task.total = Number(total) || 0;
       task.remainingSeconds = Number.isFinite(remainingSeconds) ? remainingSeconds : null;
       task.paused = paused === true;
+      if (phase === 'hashing') {
+        task.detail = task.total > 0
+          ? t('Computing hashes on {count} photos', { count: task.total.toLocaleString() })
+          : t('Computing hashes…');
+      } else if (phase === 'comparing') {
+        task.detail = task.total > 0
+          ? t('Comparing {count} photos…', { count: task.total.toLocaleString() })
+          : t('Comparing photos…');
+      }
     }
     syncTaskUI();
   }).catch(error => console.debug('Progress tracking unavailable', error));

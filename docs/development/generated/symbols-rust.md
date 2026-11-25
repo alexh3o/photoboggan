@@ -132,47 +132,58 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub get_photos_by_ids` · L739 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
 - `pub get_folder_counts` · L756 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
 
-## duplicates.rs (39)
+## duplicates.rs (50)
 
-- *enum* `pub Scope` · L52 — What to scan. Folder paths follow the catalog convention (`/` or `\`, compared after normalisation).
-- *struct* `pub Request` · L60
-- *struct* `pub Report` · L70
-- `pub init_schema` · L92 — Cache of the hashes. `mode`: 0 = whole file, 1 = image data only. A row is valid while the file keeps its size and modification date.
-- *struct* `Layout` · L115
-- `Layout::len` · L122
-- `pub extension_of` · L127
-- `layout_of` · L131
-- `merge` · L148 — Joins ranges that touch each other.
-- `read_u8` · L159
-- `jpeg_ranges` · L166 — JPEG: the segments that are not metadata (everything but APPn and COM, except APP14 "Adobe" which sets the colour transform), then the scan…
-- `jpeg_header` · L177 — Walks the segments before the scan (seeking over their content). Returns the kept segments and the offset of the SOS marker.
-- `jpeg_end` · L223 — End of the image: just after the last EOI marker of the file tail (data appended after it, like a trailing preview, is not image data).
-- `png_ranges` · L232 — PNG: signature, then the chunks that carry pixels or their interpretation. Text, EXIF, time and colour profile chunks are left out.
-- `webp_ranges` · L267 — WebP: the bitstream, alpha and animation chunks. The RIFF size and the VP8X flags change with metadata, so they are left out.
-- `finish` · L303
-- `interrupted` · L310
-- `feed` · L314
-- `full_hash` · L329
-- `partial_hash` · L339 — Start and end of the largest range (the scan, in practice): enough to tell apart almost every pair of files of the same length.
-- *struct* `pub DataHash` · L359 — Image-data hash (mode 1: metadata left out where the format allows it) of one file, and the file version it was computed from, in the
-- `pub is_video` · L369 — Videos are never hashed (whole files of several GB, and the duplicate search does not compare them).
-- `file_version` · L374 — Size and modification date (ms) of a file, the key of a cached hash.
-- `pub current_version` · L380 — Size and modification date of a file as `photo_hashes` keys them (compare with a cached `DataHash` before reading the file).
-- `pub image_data_hash` · L386 — Reads one file and computes its image-data hash: layout (headers only), then every image byte. Fails when the file changed while it was
-- `pub cached_data_hashes` · L401 — Full image-data hashes already in `photo_hashes` (mode 1, current layout version) for these photos. The caller compares their version
-- `pub remember_data_hash` · L426 — Stores a hash computed outside a duplicate search, so that search does not read the file again. The partial hash of the row is kept when
-- *struct* `Entry` · L444
-- *struct* `Cached` · L458
-- `to_hash` · L467
-- `load_cache` · L471
-- `save_dirty` · L493
-- `normalize` · L521
-- *struct* `pub Candidate` · L526 — A photo of the catalog taken into a search.
-- `pub load_candidates` · L538 — Photos of the scope, then (when asked) the rest of the library. Videos are left out.
-- `pub name_candidates` · L592 — For the search by file name, which runs in the interface (the name pattern is a JavaScript regular expression): path, shooting date and
-- `regroup` · L603 — Splits each group by `key`; keeps the buckets of two or more files holding at least one scanned photo. Entries without a key are dropped.
-- `fill_hashes` · L619 — Computes the missing hashes of the files still in a group, in parallel.
-- `pub run` · L668 — Finds groups of identical images. `progress` receives a fraction between 0 and 1. A cancelled run returns what it has found so far (no grou…
+- *enum* `pub Scope` · L57 — What to scan. Folder paths follow the catalog convention (`/` or `\`, compared after normalisation).
+- `default_true` · L63
+- *struct* `pub Request` · L69
+- *struct* `pub HashFailure` · L85
+- *struct* `pub RichProgress` · L91
+- *struct* `pub Report` · L102
+- `pub init_schema` · L129 — Cache of the hashes. `mode`: 0 = whole file, 1 = image data only. A row is valid while the file keeps its size and modification date.
+- `pub write_failure_log` · L157 — Writes `failures` to `<base_dir>/logs/photoboggan-<prefix>-YYYYMMDD-HHMMSS.log`, returning its path on success.
+- *struct* `Layout` · L202
+- `Layout::len` · L209
+- `pub extension_of` · L214
+- `layout_of` · L218
+- `merge` · L235 — Joins ranges that touch each other.
+- `read_u8` · L246
+- `jpeg_ranges` · L253 — JPEG: the segments that are not metadata (everything but APPn and COM, except APP14 "Adobe" which sets the colour transform), then the scan…
+- `jpeg_header` · L264 — Walks the segments before the scan (seeking over their content). Returns the kept segments and the offset of the SOS marker.
+- `jpeg_end` · L310 — End of the image: just after the last EOI marker of the file tail (data appended after it, like a trailing preview, is not image data).
+- `png_ranges` · L319 — PNG: signature, then the chunks that carry pixels or their interpretation. Text, EXIF, time and colour profile chunks are left out.
+- `webp_ranges` · L354 — WebP: the bitstream, alpha and animation chunks. The RIFF size and the VP8X flags change with metadata, so they are left out.
+- `finish` · L390
+- `interrupted` · L397
+- `feed` · L401
+- `full_hash` · L416
+- `partial_hash` · L426 — Start and end of the largest range (the scan, in practice): enough to tell apart almost every pair of files of the same length.
+- *struct* `pub DataHash` · L446 — Image-data hash (mode 1: metadata left out where the format allows it) of one file, and the file version it was computed from, in the
+- `pub is_video` · L456 — Videos are never hashed (whole files of several GB, and the duplicate search does not compare them).
+- `file_version` · L461 — Size and modification date (ms) of a file, the key of a cached hash.
+- `pub current_version` · L467 — Size and modification date of a file as `photo_hashes` keys them (compare with a cached `DataHash` before reading the file).
+- `pub image_data_hash` · L473 — Reads one file and computes its image-data hash: layout (headers only), then every image byte. Fails when the file changed while it was
+- `pub image_data_hash_from_jpeg_bytes` · L487 — Computes the image-data hash (mode 1) from an already-loaded JPEG byte buffer in RAM (zero extra disk I/O).
+- `pub prepass_layout` · L507 — Reads only the file headers to compute the pre-pass layout `(size, modified, data_len, tolerant)`.
+- `pub remember_prepass` · L517 — Stores a pre-pass (`data_len` only) in `photo_hashes`, keeping `partial_hash` and `full_hash` when the file version and `data_len` match.
+- `pub save_hash_failure` · L544 — Records an unreadable/corrupt file failure for `photo_hashes` so it is not retried until the file changes.
+- `pub cached_data_hashes` · L555 — Full image-data hashes already in `photo_hashes` (mode 1, current layout version) for these photos. The caller compares their version
+- `pub remember_data_hash` · L580 — Stores a hash computed outside a duplicate search, so that search does not read the file again. The partial hash of the row is kept when
+- *struct* `Entry` · L600
+- *struct* `Cached` · L614
+- `to_hash` · L623
+- `load_cache` · L627
+- `load_failure_cache` · L649
+- `save_dirty_and_failures` · L659
+- `normalize` · L699
+- *struct* `pub Candidate` · L704 — A photo of the catalog taken into a search.
+- `pub load_candidates` · L716 — Photos of the scope, then (when asked) the rest of the library. Videos are left out.
+- `pub load_candidates_filtered` · L769 — Same as `load_candidates`, optionally excluding RAW files when `include_raw` is false.
+- `pub name_candidates` · L779 — For the search by file name, which runs in the interface (the name pattern is a JavaScript regular expression): path, shooting date and
+- `regroup` · L790 — Splits each group by `key`; keeps the buckets of two or more files holding at least one scanned photo. Entries without a key are dropped.
+- `fill_hashes` · L806 — Computes the missing hashes of the files still in a group, in parallel chunks of `HASH_CHUNK_SIZE`, committing after each chunk.
+- `pub run` · L906 — Finds groups of identical images (tests and simple callers).
+- `pub run_with_options` · L911 — Finds groups of identical images with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
 
 ## exif.rs (140)
 
@@ -593,11 +604,51 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `GeoWriteError::from` · L108
 - `pub verify_gps_write` · L113
 - `write_one` · L125 — Écriture d'une photo, puis relecture et mise à jour de la base. `restore` : Some(coordonnées) pour restaurer, None pour effacer.
-- `load_targets` · L156 — Photos visées : (identifiant, chemin, coordonnées en base).
-- `run` · L170
-- `run_command` · L229
-- `pub erase_geolocation` · L240 — Efface la géolocalisation des photos (coordonnées sauvegardées avant). Avec `task_id`, tâche de la file (progression, arrêt).
-- `pub restore_geolocation` · L246 — Réécrit les coordonnées sauvegardées des photos. Avec `task_id`, tâche de la file (progression, arrêt).
+- `load_targets` · L168 — Photos visées : (identifiant, chemin, coordonnées en base).
+- `run` · L182
+- `run_command` · L241
+- `pub erase_geolocation` · L252 — Efface la géolocalisation des photos (coordonnées sauvegardées avant). Avec `task_id`, tâche de la file (progression, arrêt).
+- `pub restore_geolocation` · L258 — Réécrit les coordonnées sauvegardées des photos. Avec `task_id`, tâche de la file (progression, arrêt).
+
+## hash_tasks.rs (37)
+
+- `current_precompute` · L35
+- *struct* `PrecomputeSlot` · L39
+- `PrecomputeSlot::take` · L42
+- `PrecomputeSlot::drop` · L53
+- `pub cancel_running_precompute` · L58
+- `pub stop_precompute_and_wait` · L64
+- `chunk_gate` · L76
+- *struct* `ChunkActiveGuard` · L81
+- `ChunkActiveGuard::enter` · L84
+- `ChunkActiveGuard::drop` · L92
+- `pub wait_for_precompute_chunk` · L100 — Waits until any active precompute chunk finishes and commits before an interactive duplicate search reads the cache.
+- *enum* `ExactMode` · L119
+- *struct* `pub PrecomputeMode` · L126
+- `pub PrecomputeMode::parse` · L132
+- *struct* `pub PrecomputeProgress` · L146
+- *struct* `pub PrecomputeReport` · L158
+- *struct* `TargetPhoto` · L169
+- `load_scope_photos` · L176
+- `exact_uptodate_set` · L224
+- `exact_failed_set` · L239
+- `similarity_uptodate_set` · L250
+- `similarity_failed_set` · L261
+- *enum* `PhotoWorkOutcome` · L272
+- `pub run_precompute` · L290
+- `pub precompute_hashes` · L542
+- *struct* `pub WorkCount` · L595
+- `pub compute_work_count` · L605
+- `pub count_duplicate_work` · L700
+- *struct* `pub HashKindStats` · L725
+- *struct* `pub DuplicateHashStats` · L736
+- `pub compute_duplicate_hash_stats` · L743
+- `pub get_duplicate_hash_stats` · L856
+- `pub delete_all_hashes` · L861
+- `pub delete_duplicate_hashes` · L873
+- *struct* `pub ExactHashStates` · L881
+- `pub exact_hash_states` · L886
+- `pub get_exact_hash_states` · L910
 
 ## heif.rs (26)
 
@@ -628,34 +679,41 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `xmp_text` · L270
 - `pub read_xmp` · L276 — Paquet XMP intégré au fichier, s'il y en a un.
 
-## integrity.rs (26)
+## integrity.rs (33)
 
-- *struct* `pub IntegrityIssue` · L44 — Un fichier suspect du rapport.
-- *struct* `pub ExtensionStat` · L52 — Fichiers analysés pour une extension, avec la durée moyenne d'analyse d'un fichier (en millisecondes).
-- *struct* `pub ExtensionCount` · L61 — Fichiers non vérifiés (pas de décodeur) pour une extension.
-- *struct* `pub IntegrityReport` · L68
-- *enum* `Thumbnail` · L92
-- *enum* `Outcome` · L98
-- *enum* `Format` · L103
-- *struct* `Gate` · L111 — Limite le nombre de décodages lourds simultanés (sémaphore).
-- *struct* `SlotToken` · L119 — Créneau de décodage lourd d'un fichier : rendu une seule fois, soit par le décodage qui se termine, soit par l'analyse si elle abandonne le…
-- *struct* `GateGuard` · L124
-- `Gate::new` · L130
-- `Gate::enter` · L134
-- `Gate::release` · L146
-- `Gate::give_back` · L152 — Rend le créneau d'un fichier abandonné (sans effet s'il n'en tenait pas ou s'il l'a déjà rendu).
-- `GateGuard::drop` · L158
-- `run_bounded` · L164 — Exécute `work` dans un fil dédié. None si le délai est dépassé ou si l'arrêt est demandé : le fil, resté bloqué, est alors abandonné.
-- `extension_of` · L180 — Extension en minuscules, sans le point (« sans extension » si absente), pour les statistiques du rapport.
-- `sniff` · L193 — Format reconnu d'après le contenu du fichier (une extension trompeuse ne fait pas échouer un fichier sain).
-- `flatten` · L208 — Aplatit un pixel transparent sur fond blanc (le JPEG de la miniature n'a pas de transparence).
-- `pub decode_png` · L215 — Décode un PNG. `want_pixels` faux : le fichier est entièrement décodé et contrôlé, mais les pixels ne sont pas convertis en RGB (vecteur vi…
-- `pub decode_webp` · L227 — Décode un WebP (première image s'il est animé). `want_pixels` faux : décodage complet, mais pas de conversion en RGB (vecteur vide renvoyé).
-- `pub check_jpeg_structure` · L255 — Structural check of a JPEG, from its markers only (no entropy decoding, well under a millisecond per file).
-- `check_file` · L321 — Analyse un fichier. `Err` = fichier suspect (message affiché dans le rapport).
-- `pub run` · L385 — Parcourt le dossier (sous-dossiers compris) et renvoie le rapport. `progress` reçoit l'avancement de 0 à 1 (environ tous les 1 %) ;
-- `csv_field` · L528 — Champ CSV entre guillemets. Une valeur qui commence par = + - @ est précédée d'une apostrophe : sinon Excel la prendrait pour une formule.
-- `pub write_report` · L538 — Écrit le rapport dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.txt », jamais d'écrasement) et renvoie le chemin du fichier.
+- *struct* `pub IntegrityIssue` · L46 — Un fichier suspect du rapport.
+- *struct* `pub ExtensionStat` · L54 — Fichiers analysés pour une extension, avec la durée moyenne d'analyse d'un fichier (en millisecondes).
+- *struct* `pub ExtensionCount` · L63 — Fichiers non vérifiés (pas de décodeur) pour une extension.
+- *struct* `pub IntegrityReport` · L70
+- *enum* `Thumbnail` · L94
+- *enum* `Outcome` · L100
+- *enum* `Format` · L105
+- *struct* `Gate` · L113 — Limite le nombre de décodages lourds simultanés (sémaphore).
+- *struct* `SlotToken` · L121 — Créneau de décodage lourd d'un fichier : rendu une seule fois, soit par le décodage qui se termine, soit par l'analyse si elle abandonne le…
+- *struct* `GateGuard` · L126
+- `Gate::new` · L132
+- `Gate::enter` · L136
+- `Gate::release` · L148
+- `Gate::give_back` · L154 — Rend le créneau d'un fichier abandonné (sans effet s'il n'en tenait pas ou s'il l'a déjà rendu).
+- `GateGuard::drop` · L160
+- `run_bounded` · L166 — Exécute `work` dans un fil dédié. None si le délai est dépassé ou si l'arrêt est demandé : le fil, resté bloqué, est alors abandonné.
+- `extension_of` · L182 — Extension en minuscules, sans le point (« sans extension » si absente), pour les statistiques du rapport.
+- `sniff` · L195 — Format reconnu d'après le contenu du fichier (une extension trompeuse ne fait pas échouer un fichier sain).
+- `flatten` · L210 — Aplatit un pixel transparent sur fond blanc (le JPEG de la miniature n'a pas de transparence).
+- `pub decode_png` · L217 — Décode un PNG. `want_pixels` faux : le fichier est entièrement décodé et contrôlé, mais les pixels ne sont pas convertis en RGB (vecteur vi…
+- `pub decode_webp` · L229 — Décode un WebP (première image s'il est animé). `want_pixels` faux : décodage complet, mais pas de conversion en RGB (vecteur vide renvoyé).
+- `pub check_jpeg_structure` · L257 — Structural check of a JPEG, from its markers only (no entropy decoding, well under a millisecond per file).
+- *struct* `ComputedHashes` · L323
+- `check_file` · L331 — Analyse un fichier. `Err` = fichier suspect (message affiché dans le rapport).
+- `check_file_with_hashes` · L337
+- `normalize_path_key` · L451
+- *struct* `HashTargetInfo` · L455
+- `load_hash_targets` · L461
+- `flush_computed_hashes` · L503
+- `pub run` · L528 — Parcourt le dossier (sous-dossiers compris) et renvoie le rapport. `progress` reçoit l'avancement de 0 à 1 (environ tous les 1 %) ;
+- `pub run_with_hashes` · L540
+- `csv_field` · L710 — Champ CSV entre guillemets. Une valeur qui commence par = + - @ est précédée d'une apostrophe : sinon Excel la prendrait pour une formule.
+- `pub write_report` · L720 — Écrit le rapport dans `directory` (« photoboggan-integrity-AAAAMMJJ-HHMMSS.txt », jamais d'écrasement) et renvoie le chemin du fichier.
 
 ## keywords.rs (43)
 
@@ -688,20 +746,20 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub WriteEnv` · L401 — What a batch write needs from the application, given by the commands (`WriteEnv::of`) so that the write logic (run_write, run_rename,
 - `WriteEnv::of` · L411
 - `run_write` · L423
-- `pub apply_metadata_changes` · L667 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
-- `validate_name` · L689 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
-- `pub create_keyword` · L698 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
-- `subtree_ids` · L721 — Le mot-clé et tous ses descendants.
-- *struct* `pub KeywordDeleteInfo` · L738
-- `pub get_keyword_delete_info` · L747 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
-- `photos_carrying` · L766 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
-- `restore_person_links` · L798 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
-- `pub delete_subtree` · L813 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
-- `run_delete` · L828
-- `pub delete_keyword` · L884 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
-- `run_rename` · L898
-- `pub rename_keyword` · L946 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
-- `pub set_metadata_read_order` · L966 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
+- `pub apply_metadata_changes` · L679 — Écrit dans les fichiers, en une seule écriture par fichier, ce que chaque élément demande : l'ensemble final de ses mots-clés, son titre,
+- `validate_name` · L701 — Nom nettoyé (espaces de début et de fin retirés) ; `invalid_name` s'il est vide ou contient un caractère refusé.
+- `pub create_keyword` · L710 — Crée un mot-clé sous `parent_id` (0 = premier niveau). Erreurs : `invalid_name`, `unknown_parent`, `duplicate` (un frère de même nom existe…
+- `subtree_ids` · L733 — Le mot-clé et tous ses descendants.
+- *struct* `pub KeywordDeleteInfo` · L750
+- `pub get_keyword_delete_info` · L759 — Ce que supprimer un mot-clé (et son sous-arbre) entraînerait : de quoi remplir la fenêtre de confirmation.
+- `photos_carrying` · L778 — Photos du catalogue qui portent au moins un des mots-clés `ids`, chacune avec l'ensemble de ses mots-clés actifs moins ceux de `dropped`
+- `restore_person_links` · L810 — Relie de nouveau les personnes déliées par une suppression qui n'a pas abouti (le mot-clé reste dans l'arbre). Au mieux : un échec est trac…
+- `pub delete_subtree` · L825 — Retire de l'arbre le mot-clé et ses descendants, avec leurs associations (une seule transaction).
+- `run_delete` · L840
+- `pub delete_keyword` · L896 — Supprime un mot-clé et son sous-arbre : il est retiré des fichiers de toutes les photos qui le portent, puis de l'arbre.
+- `run_rename` · L910
+- `pub rename_keyword` · L958 — Renomme un mot-clé dans l'arbre et réécrit les fichiers des photos qui le portent, lui ou l'un de ses descendants (même mécanisme que l'app…
+- `pub set_metadata_read_order` · L978 — Sets the reading priority of one metadata kind (`kind`: "keywords", "title", "description", "rating", "color", "pick", "gps", "faces",
 
 ## library_sync.rs (21)
 
@@ -727,198 +785,200 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `is_excluded` · L256 — The path is one of the `excluded` folders or lies inside one.
 - `pub sync_library` · L272 — Compare les dossiers suivis au catalogue :
 
-## main.rs (190)
+## main.rs (192)
 
-- *struct* `pub AppDataPaths` · L56
-- `pub AppDataPaths::from_base` · L65
-- `pub AppState::pool` · L74
-- `pub AppState::base_dir` · L77
-- `pub AppState::thumbnails_dir` · L80
-- `pub AppState::raw_previews_dir` · L83
-- `pub AppState::is_custom` · L86
-- `pub AppState::thumbnail_cache_size` · L89
-- *struct* `pub WindowStateConfig` · L97
-- *struct* `pub WindowTracker` · L106
-- *struct* `pub AppState` · L113
-- *struct* `AppConfig` · L121
-- `config_file_path` · L137
-- `load_config` · L145 — Config lue sur le disque. Fichier absent : config par défaut. Fichier présent mais illisible ou invalide : erreur, jamais la config par déf…
-- `load_config_at_startup` · L154 — Config au démarrage : un config.json invalide est mis de côté (`config.json.invalid-<date>`, jamais supprimé) et l'application démarre avec
-- `save_config` · L175 — Atomic write: unique temporary file flushed to disk then renamed, never a half-written config.json.
-- `check_window_visibility` · L199 — //////////////////////
-- `restore_window_state` · L244 — Restaure la géométrie de la fenêtre avec vérification de sécurité.
-- `save_current_window_state` · L302 — Sauvegarde l'état actuel de la fenêtre dans config.json.
-- `default_data_directory` · L329
-- `resolve_app_paths` · L334
-- `thumbnail_cache_file` · L359
-- `cache_files` · L380 — Tous les fichiers d'un dossier de cache (miniatures ou aperçus) : ceux des sous-dossiers de répartition, et d'éventuels fichiers à la racin…
-- `remove_empty_cache_subdirs` · L388 — Supprime les sous-dossiers de répartition devenus vides (les non vides sont conservés : `remove_dir` échoue, c'est voulu).
-- `decode_thumbnail_base64` · L395
-- `get_cached_thumbnail_paths` · L424 — Cached thumbnail lookup, batched: one IPC round trip for many thumbnails. `async` so the disk
-- *struct* `GeneratedThumbnail` · L434
-- `generate_thumbnail` · L451
-- `raw_preview_cache_file` · L470 — Les aperçus (RAW, HEIC, vidéo) ont le même nom de cache que les miniatures (chemin, taille, date du fichier), dans leur propre dossier.
-- *struct* `pub ImageCacheDirs` · L476 — Dossiers du cache d'images (miniatures, aperçus extraits des RAW / HEIC / vidéos).
-- `pub ImageCacheDirs::of` · L482
-- `pub keep_cached_images` · L490 — Écriture de métadonnées seules (note, couleur, mots-clés, titre, zones de visage…) : l'image ne change pas, mais la taille et la date du
-- `write_cache_file` · L504 — Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est s…
-- `get_raw_preview_path` · L524
-- `save_thumbnail_cache` · L547
-- `clear_thumbnail_cache` · L558 — Vidage miniatures
-- `purge_orphan_cache` · L578 — Supprime du cache (miniatures et aperçus RAW / vidéo) les fichiers qui ne correspondent plus à aucune photo du catalogue : photo modifiée (…
-- `purge_orphan_thumbnails` · L616 — Bouton « Supprimer les miniatures orphelines » (Paramètres > Stockage) ; la même purge termine le rescan complet (voir rescan_all_folders).
-- `default_thumbnail_cache_size` · L631 — Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
-- `startup_thumbnail_cache_size` · L643 — Cache size used at startup: the one saved in config.json when it is valid, otherwise the shared default.
-- `set_thumbnail_cache_size` · L648
-- `set_thumbnail_quality` · L665 — Thumbnail quality chosen in Settings > Storage: "normal" or "high". Applies to thumbnails written from now on,
-- `get_folders` · L680
-- `add_folder` · L688 — Ajoute le dossier à la liste des dossiers suivis, sans le scanner : l'interface met le scan en file d'attente (commande `scan_folder`),
-- `remove_folder` · L696
-- *enum* `ScanMode` · L703
-- *struct* `ScanProgress` · L712 — Progression d'une tâche de scan, publiée dans l'événement « scan-progress » : l'interface retrouve sa tâche grâce à `taskId`
-- *struct* `CancelEntry` · L719 — Drapeaux d'annulation des scans, par identifiant de tâche. Le drapeau est créé par le premier qui le demande (le scan ou la demande d'arrêt…
-- `scan_cancel_flags` · L724
-- `scan_cancel_flag` · L729
-- `running_tasks` · L738 — Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargem…
-- `release_scan_cancel_flag` · L742
-- `cancel_scan` · L749 — Arrête un scan ou une relecture en cours : le parcours cesse et les photos déjà lues restent dans le catalogue.
-- `run_scan` · L758 — `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
-- `scan_folder` · L871 — `resume_since` (ms): resumes a paused scan first started at that time (see run_scan); absent for a new scan.
-- `rescan_all_folders` · L880
-- `path_segments` · L906
-- `resolve_tracked_folder` · L913 — Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
-- `rescan_folder` · L933 — Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
-- *struct* `ScanDetail` · L946 — Dossier en cours d'analyse par une tâche (vérification d'intégrité), publié dans l'événement « scan-detail » à chaque changement de dossier.
-- `integrity_scan` · L955 — Vérification d'intégrité d'un dossier de l'arborescence (voir integrity.rs) : chaque fichier est décodé (RAW : vignette JPEG intégrée) et l…
-- `find_duplicates` · L980 — Duplicate search, identical images (see duplicates.rs): the scope is resolved in the backend, only groups of paths are returned. Progress g…
-- `list_duplicate_candidates` · L997 — Duplicate search by file name: the interface applies the name pattern (a JavaScript regular expression), so the backend only lists the phot…
-- `find_similar_images` · L1004 — Duplicate search, similar images (see similar.rs): same flow as find_duplicates. Fingerprints are read from the thumbnail cache when a thum…
-- `export_integrity_report` · L1023 — Exporte le rapport d'intégrité en .txt dans le dossier choisi par l'utilisateur : texte d'en-tête fourni par l'interface, puis fichiers sus…
-- `open_folder_in_file_manager` · L1030 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
-- `create_subfolder` · L1042 — Crée un sous-dossier dans un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi). Le nom est vérifié ici : un seul niveau,
-- `list_disk_folders` · L1056 — Liste tous les sous-dossiers présents sur le disque sous les dossiers suivis. L'arborescence de l'interface est déduite des photos : cette …
-- `insert_batch` · L1071 — Insère (ou met à jour) un lot de photos en une seule transaction : tout ou rien, l'erreur est renvoyée à l'appelant.
-- `get_photos_by_paths` · L1104 — Catalog records of a list of paths (results of the duplicate search); unknown paths are left out.
-- `get_photos_by_ids` · L1113 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
-- `get_photos_paginated` · L1125 — `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
-- `count_photos` · L1139 — Number of photos of a folder (or of the whole catalogue), optionally prefiltered: it decides whether the backend prefilters, and
-- `get_folder_counts` · L1145 — Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
-- *struct* `MarkingTarget` · L1156 — Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
-- *struct* `MarkingFailure` · L1168
-- *struct* `MarkingError` · L1177
-- `MarkingError::from` · L1183
-- *struct* `MarkingResult` · L1189
-- *struct* `WrittenDate` · L1201 — Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
-- `update_photos_marking` · L1210 — Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
-- `mark_photo_for_resync` · L1285 — Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
-- `write_photo_marking_with` · L1295 — Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
-- `write_photo_marking` · L1349
-- *struct* `RotatedPhoto` · L1364 — Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
-- *struct* `RotationResult` · L1373
-- `rotate_photos` · L1384 — Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
-- `rotate_photo_with` · L1436 — Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `vie…
-- `rotate_photo` · L1480
-- *struct* `FileFailure` · L1485
-- *struct* `DeleteResult` · L1491
-- *struct* `CopyResult` · L1497
-- *struct* `CopyConflict` · L1509 — Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en mill…
-- *struct* `MovedFile` · L1519
-- *struct* `MoveResult` · L1525
-- `get_photo_details` · L1537 — Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
-- *struct* `PhotoSidecar` · L1542
-- `get_photo_sidecar` · L1549 — Active `.xmp` sidecar of `path`, if one exists on disk (used by the Info tab).
-- *struct* `FileDates` · L1558 — File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file sys…
-- `get_file_dates` · L1564
-- `sidecar_to_trash` · L1578 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
-- `validate_new_name` · L1590 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
-- `same_existing_file` · L1605 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
-- `reserve_new_file` · L1611 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
-- `rename_photo` · L1619 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
-- `rename_folder` · L1721 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
-- `delete_photos_with` · L1791 — Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
-- `delete_photos` · L1854
-- *enum* `WindowsRoot` · L1870 — Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une cl…
-- `windows_root` · L1878 — Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
-- `pub has_trash` · L1896
-- `pub has_trash` · L1913
-- `count_permanent_deletions` · L1920 — Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur sup…
-- `is_folder_empty` · L1927 — Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
-- `get_folder_unrecognized_files` · L1942 — Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
-- `delete_folder` · L1983 — Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
-- `tracked_root_is_reachable` · L2034 — Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
-- `is_inside_folder` · L2039
-- `remove_missing_photos` · L2050 — Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
-- `log_temp_leftovers` · L2069 — Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
-- `check_external_modifications` · L2100 — Checks whether any undo target file or its active sidecar was modified externally since the original action.
-- `sync_library` · L2110 — `excluded`: folders of paused scans, left for the scan to read when it is resumed.
-- `sidecar_already_taken` · L2132 — Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fich…
-- *struct* `Reserved` · L2139 — Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
-- `Reserved::sidecar_rename` · L2145
-- `reserve_destination` · L2154
-- `copy_sidecar_with` · L2179 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
-- `copy_sidecar` · L2206
-- `lowercase_segments` · L2210
-- `set_verify_cross_drive_moves` · L2218
-- `pub flush_to_disk` · L2223 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
-- `pub sync_parent_dir` · L2254 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
-- `source_snapshot` · L2263
-- `copy_durably_with` · L2270 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
-- `copy_durably` · L2305 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
-- `file_sha256` · L2310 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
-- `files_have_same_hash` · L2324
-- `remove_copied_target` · L2335 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
-- `temp_sibling_path` · L2348
-- `pub copy_atomically_to_reserved` · L2360 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-- `pub replace_file_via_backup` · L2374 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
-- `pub replace_file_via_trash_with` · L2420
-- `pub replace_file_via_trash` · L2435 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
-- `move_file_via_copy` · L2441
-- `move_file` · L2479
-- `move_sidecar` · L2490 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
-- *struct* `FileTaskProgress` · L2509 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
-- `FileTaskProgress::new` · L2518
-- `FileTaskProgress::cancelled` · L2525
-- `FileTaskProgress::advance` · L2530 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
-- `FileTaskProgress::drop` · L2540
-- `carry_cache_file` · L2547 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
-- `move_photos` · L2562 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
-- `find_copy_conflicts` · L2658 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
-- `copy_replacing_with` · L2679 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
-- `copy_replacing` · L2700
-- `copy_photos_with_progress` · L2714 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
-- `copy_conflicts` · L2776 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
-- `copy_photos` · L2781
-- `tracked_copy_conflicts` · L2790 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
-- `copy_photos_to_tracked_folder` · L2800 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
-- `resize_photo` · L2813 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
-- `same_program` · L2832
-- `is_allowed_program` · L2836
-- `allow_programs` · L2840
-- `pick_program` · L2853 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
-- `register_existing_programs` · L2867 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
-- `open_with` · L2873 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
-- `reveal_in_file_manager` · L2887 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
-- `pub write_timestamped_log` · L2894 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
-- *struct* `SidecarRename` · L2916 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
-- `log_sidecar_renames` · L2923 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
-- *struct* `WriteRecoveryReport` · L2944 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
-- `log_write_recoveries` · L2951 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
-- `take_write_recoveries` · L2966 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
-- `open_video_externally` · L2973 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
-- `copy_files_to_clipboard` · L2994
-- `read_clipboard_text` · L3019 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
-- `write_clipboard_text` · L3030 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
-- `clipboard_entry` · L3042 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
-- `clipboard_entry` · L3047
-- `file_uri` · L3053 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
-- `main` · L3067
-- `move_file_or_copy` · L3377 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3398 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3416 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3433 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3461
-- `get_storage_location` · L3468
-- `change_storage_location` · L3478
+- *struct* `pub AppDataPaths` · L57
+- `pub AppDataPaths::from_base` · L66
+- `pub AppState::pool` · L75
+- `pub AppState::base_dir` · L78
+- `pub AppState::thumbnails_dir` · L81
+- `pub AppState::raw_previews_dir` · L84
+- `pub AppState::is_custom` · L87
+- `pub AppState::thumbnail_cache_size` · L90
+- *struct* `pub WindowStateConfig` · L98
+- *struct* `pub WindowTracker` · L107
+- *struct* `pub AppState` · L114
+- *struct* `AppConfig` · L122
+- `config_file_path` · L138
+- `load_config` · L146 — Config lue sur le disque. Fichier absent : config par défaut. Fichier présent mais illisible ou invalide : erreur, jamais la config par déf…
+- `load_config_at_startup` · L155 — Config au démarrage : un config.json invalide est mis de côté (`config.json.invalid-<date>`, jamais supprimé) et l'application démarre avec
+- `save_config` · L176 — Atomic write: unique temporary file flushed to disk then renamed, never a half-written config.json.
+- `check_window_visibility` · L200 — //////////////////////
+- `restore_window_state` · L245 — Restaure la géométrie de la fenêtre avec vérification de sécurité.
+- `save_current_window_state` · L303 — Sauvegarde l'état actuel de la fenêtre dans config.json.
+- `default_data_directory` · L330
+- `resolve_app_paths` · L335
+- `thumbnail_cache_file` · L360
+- `cache_files` · L381 — Tous les fichiers d'un dossier de cache (miniatures ou aperçus) : ceux des sous-dossiers de répartition, et d'éventuels fichiers à la racin…
+- `remove_empty_cache_subdirs` · L389 — Supprime les sous-dossiers de répartition devenus vides (les non vides sont conservés : `remove_dir` échoue, c'est voulu).
+- `decode_thumbnail_base64` · L396
+- `get_cached_thumbnail_paths` · L425 — Cached thumbnail lookup, batched: one IPC round trip for many thumbnails. `async` so the disk
+- *struct* `GeneratedThumbnail` · L435
+- `generate_thumbnail` · L452
+- `raw_preview_cache_file` · L471 — Les aperçus (RAW, HEIC, vidéo) ont le même nom de cache que les miniatures (chemin, taille, date du fichier), dans leur propre dossier.
+- *struct* `pub ImageCacheDirs` · L477 — Dossiers du cache d'images (miniatures, aperçus extraits des RAW / HEIC / vidéos).
+- `pub ImageCacheDirs::of` · L483
+- `pub keep_cached_images` · L491 — Écriture de métadonnées seules (note, couleur, mots-clés, titre, zones de visage…) : l'image ne change pas, mais la taille et la date du
+- `pub restamp_photo_caches` · L506 — Re-stamps up-to-date cache rows (`photo_phash`, metadata-tolerant `photo_hashes` mode 1, and `photo_embeddings`) after a metadata-only
+- `write_cache_file` · L533 — Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est s…
+- `get_raw_preview_path` · L553
+- `save_thumbnail_cache` · L576
+- `clear_thumbnail_cache` · L587 — Vidage miniatures
+- `purge_orphan_cache` · L607 — Supprime du cache (miniatures et aperçus RAW / vidéo) les fichiers qui ne correspondent plus à aucune photo du catalogue : photo modifiée (…
+- `purge_orphan_thumbnails` · L645 — Bouton « Supprimer les miniatures orphelines » (Paramètres > Stockage) ; la même purge termine le rescan complet (voir rescan_all_folders).
+- `default_thumbnail_cache_size` · L660 — Cache size of a new installation: `thumbnailCacheSize` of src/defaults.jsonc, the file that also feeds the frontend. Both sides must
+- `startup_thumbnail_cache_size` · L672 — Cache size used at startup: the one saved in config.json when it is valid, otherwise the shared default.
+- `set_thumbnail_cache_size` · L677
+- `set_thumbnail_quality` · L694 — Thumbnail quality chosen in Settings > Storage: "normal" or "high". Applies to thumbnails written from now on,
+- `get_folders` · L709
+- `add_folder` · L717 — Ajoute le dossier à la liste des dossiers suivis, sans le scanner : l'interface met le scan en file d'attente (commande `scan_folder`),
+- `remove_folder` · L725
+- *enum* `ScanMode` · L732
+- *struct* `ScanProgress` · L741 — Progression d'une tâche de scan, publiée dans l'événement « scan-progress » : l'interface retrouve sa tâche grâce à `taskId`
+- *struct* `CancelEntry` · L748 — Drapeaux d'annulation des scans, par identifiant de tâche. Le drapeau est créé par le premier qui le demande (le scan ou la demande d'arrêt…
+- `scan_cancel_flags` · L753
+- `scan_cancel_flag` · L758
+- `running_tasks` · L767 — Nombre de tâches de la file en cours (scan, rescan, intégrité, copie, déplacement, écriture de mots-clés, détection de visages, téléchargem…
+- `release_scan_cancel_flag` · L771
+- `cancel_scan` · L778 — Arrête un scan ou une relecture en cours : le parcours cesse et les photos déjà lues restent dans le catalogue.
+- `run_scan` · L787 — `scan_mode` : mode de calcul de l'avancement (relecture, éventuellement d'une partie des dossiers suivis, ou découverte d'un dossier)
+- `scan_folder` · L900 — `resume_since` (ms): resumes a paused scan first started at that time (see run_scan); absent for a new scan.
+- `rescan_all_folders` · L909
+- `path_segments` · L935
+- `resolve_tracked_folder` · L942 — Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
+- `rescan_folder` · L962 — Rescan d'un seul dossier suivi ou d'un de ses sous-dossiers (sous-dossiers compris), comme le rescan complet : les métadonnées de chaque
+- *struct* `ScanDetail` · L975 — Dossier en cours d'analyse par une tâche (vérification d'intégrité), publié dans l'événement « scan-detail » à chaque changement de dossier.
+- `integrity_scan` · L984 — Vérification d'intégrité d'un dossier de l'arborescence (voir integrity.rs) : chaque fichier est décodé (RAW : vignette JPEG intégrée) et l…
+- *struct* `RichScanProgress` · L1009
+- `find_duplicates` · L1022 — Duplicate search, identical images (see duplicates.rs): pauses any background precomputation, runs at low OS priority,
+- `list_duplicate_candidates` · L1049 — Duplicate search by file name: the interface applies the name pattern (a JavaScript regular expression), so the backend only lists the phot…
+- `find_similar_images` · L1056 — Duplicate search, similar images (see similar.rs): pauses any background precomputation, runs at low OS priority,
+- `export_integrity_report` · L1085 — Exporte le rapport d'intégrité en .txt dans le dossier choisi par l'utilisateur : texte d'en-tête fourni par l'interface, puis fichiers sus…
+- `open_folder_in_file_manager` · L1092 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers par défaut de l'OS (Explorateur Windows, Finder, gestionnaire Linux).
+- `create_subfolder` · L1104 — Crée un sous-dossier dans un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi). Le nom est vérifié ici : un seul niveau,
+- `list_disk_folders` · L1118 — Liste tous les sous-dossiers présents sur le disque sous les dossiers suivis. L'arborescence de l'interface est déduite des photos : cette …
+- `insert_batch` · L1133 — Insère (ou met à jour) un lot de photos en une seule transaction : tout ou rien, l'erreur est renvoyée à l'appelant.
+- `get_photos_by_paths` · L1166 — Catalog records of a list of paths (results of the duplicate search); unknown paths are left out.
+- `get_photos_by_ids` · L1175 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out.
+- `get_photos_paginated` · L1187 — `sort_key` / `sort_order` (optional, default newest first): the interface sort, so that a capped list holds the right photos.
+- `count_photos` · L1201 — Number of photos of a folder (or of the whole catalogue), optionally prefiltered: it decides whether the backend prefilters, and
+- `get_folder_counts` · L1207 — Photos et vidéos de chaque dossier du catalogue (niveau direct), pour l'option « Montrer le nombre de photos des dossiers ».
+- *struct* `MarkingTarget` · L1218 — Photo visée par une écriture de marquage (identifiant et chemin du catalogue).
+- *struct* `MarkingFailure` · L1230
+- *struct* `MarkingError` · L1239
+- `MarkingError::from` · L1245
+- *struct* `MarkingResult` · L1251
+- *struct* `WrittenDate` · L1263 — Effective modification date (ms, see `library_sync::effective_modified_millis`) of a photo a write has just changed.
+- `update_photos_marking` · L1272 — Note, couleur et/ou fanion pick d'un lot de photos, en une commande (directe, ou tâche de la file avec `task_id` : progression et arrêt).
+- `mark_photo_for_resync` · L1347 — Marks `id` in the catalog (`file_size = -1`) so the next incremental sync re-reads the photo and its sidecar.
+- `write_photo_marking_with` · L1357 — Marquage d'une photo : fichier (ou sidecar), puis base. `label` et `pick` déjà vérifiés ; `color_flag` : valeur enregistrée en base.
+- `write_photo_marking` · L1416
+- *struct* `RotatedPhoto` · L1431 — Photo turned by `rotate_photos`: its new `view_fix` (see orientation::Resolved), which the interface applies to the original it shows.
+- *struct* `RotationResult` · L1440
+- `rotate_photos` · L1451 — Lossless rotation of a batch of photos by `quarter_turns` (1: clockwise, -1: counterclockwise, 2: 180°): only the orientation tag changes
+- `rotate_photo_with` · L1503 — Rotation of one photo: tag written, read back, cached images dropped (they are oriented), then catalog. Returns the new `orientation`, `vie…
+- `rotate_photo` · L1547
+- *struct* `FileFailure` · L1552
+- *struct* `DeleteResult` · L1558
+- *struct* `CopyResult` · L1564
+- *struct* `CopyConflict` · L1576 — Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en mill…
+- *struct* `MovedFile` · L1586
+- *struct* `MoveResult` · L1592
+- `get_photo_details` · L1604 — Contenu de la fenêtre « Infos » du menu contextuel : fichier, EXIF, XMP et IPTC.
+- *struct* `PhotoSidecar` · L1609
+- `get_photo_sidecar` · L1616 — Active `.xmp` sidecar of `path`, if one exists on disk (used by the Info tab).
+- *struct* `FileDates` · L1625 — File dates read from the disk (milliseconds since 1970). `None` when the system does not provide them (creation date on some Linux file sys…
+- `get_file_dates` · L1631
+- `sidecar_to_trash` · L1645 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
+- `validate_new_name` · L1657 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
+- `same_existing_file` · L1672 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
+- `reserve_new_file` · L1678 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
+- `rename_photo` · L1686 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
+- `rename_folder` · L1788 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
+- `delete_photos_with` · L1858 — Suppression vers la corbeille de l'OS (crate `trash`) : le fichier est restaurable depuis la corbeille. Seules les photos du catalogue
+- `delete_photos` · L1921
+- *enum* `WindowsRoot` · L1937 — Windows : la corbeille n'existe que sur les disques fixes (HDD et SSD, y compris les disques externes que Windows voit comme fixes). Une cl…
+- `windows_root` · L1945 — Lecteur (« D:\ ») ou partage UNC d'un chemin, avec « / » ou « \ » et préfixes « \\?\ » acceptés.
+- `pub has_trash` · L1963
+- `pub has_trash` · L1980
+- `count_permanent_deletions` · L1987 — Nombre de ces chemins (fichiers ou dossiers) que la suppression n'enverra PAS à la corbeille mais effacera définitivement, d'après leur sup…
+- `is_folder_empty` · L1994 — Vrai si le dossier ne contient aucun fichier (sous-dossiers vides acceptés). Fichiers cachés compris, sauf les fichiers que l'OS recrée seul
+- `get_folder_unrecognized_files` · L2009 — Recense les fichiers présents dans le dossier qui ne sont ni des photos/vidéos gérées par l'application,
+- `delete_folder` · L2050 — Supprime un dossier de l'arborescence (sous-dossier d'un dossier suivi) vers la corbeille de l'OS, avec tout son contenu : sous-dossiers et
+- `tracked_root_is_reachable` · L2101 — Un dossier suivi est « joignable » s'il existe, ou si son dossier parent existe (dossier supprimé ou renommé hors de l'application).
+- `is_inside_folder` · L2106
+- `remove_missing_photos` · L2117 — Synchronisation « paresseuse » avec le disque : l'interface signale les photos qu'elle n'arrive pas à afficher
+- `log_temp_leftovers` · L2136 — Logs crash-leftover temporary items found during sync to `<storage>/logs`, once per distinct set in a session.
+- `check_external_modifications` · L2167 — Checks whether any undo target file or its active sidecar was modified externally since the original action.
+- `sync_library` · L2177 — `excluded`: folders of paused scans, left for the scan to read when it is resumed.
+- `sidecar_already_taken` · L2199 — Réserve dans le dossier de destination le premier nom libre (« photo.jpg », puis « photo (1).jpg », « photo (2).jpg »…) en y créant un fich…
+- *struct* `Reserved` · L2206 — Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
+- `Reserved::sidecar_rename` · L2212
+- `reserve_destination` · L2221
+- `copy_sidecar_with` · L2246 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
+- `copy_sidecar` · L2273
+- `lowercase_segments` · L2277
+- `set_verify_cross_drive_moves` · L2285
+- `pub flush_to_disk` · L2290 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
+- `pub sync_parent_dir` · L2321 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
+- `source_snapshot` · L2330
+- `copy_durably_with` · L2337 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
+- `copy_durably` · L2372 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
+- `file_sha256` · L2377 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
+- `files_have_same_hash` · L2391
+- `remove_copied_target` · L2402 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
+- `temp_sibling_path` · L2415
+- `pub copy_atomically_to_reserved` · L2427 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `pub replace_file_via_backup` · L2441 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+- `pub replace_file_via_trash_with` · L2487
+- `pub replace_file_via_trash` · L2502 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
+- `move_file_via_copy` · L2508
+- `move_file` · L2546
+- `move_sidecar` · L2557 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
+- *struct* `FileTaskProgress` · L2576 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
+- `FileTaskProgress::new` · L2585
+- `FileTaskProgress::cancelled` · L2592
+- `FileTaskProgress::advance` · L2597 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
+- `FileTaskProgress::drop` · L2607
+- `carry_cache_file` · L2614 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
+- `move_photos` · L2629 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
+- `find_copy_conflicts` · L2725 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
+- `copy_replacing_with` · L2746 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
+- `copy_replacing` · L2767
+- `copy_photos_with_progress` · L2781 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
+- `copy_conflicts` · L2843 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
+- `copy_photos` · L2848
+- `tracked_copy_conflicts` · L2857 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
+- `copy_photos_to_tracked_folder` · L2867 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
+- `resize_photo` · L2880 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
+- `same_program` · L2899
+- `is_allowed_program` · L2903
+- `allow_programs` · L2907
+- `pick_program` · L2920 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
+- `register_existing_programs` · L2934 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
+- `open_with` · L2940 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
+- `reveal_in_file_manager` · L2954 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
+- `pub write_timestamped_log` · L2961 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
+- *struct* `SidecarRename` · L2983 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
+- `log_sidecar_renames` · L2990 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
+- *struct* `WriteRecoveryReport` · L3011 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
+- `log_write_recoveries` · L3018 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
+- `take_write_recoveries` · L3033 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
+- `open_video_externally` · L3040 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
+- `copy_files_to_clipboard` · L3061
+- `read_clipboard_text` · L3086 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
+- `write_clipboard_text` · L3097 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
+- `clipboard_entry` · L3109 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
+- `clipboard_entry` · L3114
+- `file_uri` · L3120 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
+- `main` · L3134
+- `move_file_or_copy` · L3449 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3470 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3488 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3505 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3533
+- `get_storage_location` · L3540
+- `change_storage_location` · L3550
 
 ## model_files.rs (11)
 
@@ -1141,7 +1201,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub author_counts` · L194 — Auteurs individuels d'une liste de valeurs du champ `author` (« A; B » compte pour A et pour B), chacun avec son nombre de photos. Les noms…
 - `pub get_authors` · L213 — Auteurs du catalogue (photos visibles avec l'ensemble de confidentialité actif), pour la liste du filtre « Auteur ».
 
-## semantic.rs (67)
+## semantic.rs (75)
 
 - `pub f32_to_f16` · L38 — Nearest IEEE half float (round half to even), with subnormals, infinities and NaN.
 - `pub f16_to_f32` · L69 — Exact f32 value of an IEEE half float.
@@ -1163,53 +1223,61 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub TextEncoder` · L291 — Text encoder (`input_ids` i64 [N, length] → `pooler_output` f32 [N, dim]) with its tokenizer.
 - `pub TextEncoder::load` · L299 — Loads the tokenizer (~1.3 s) and the text model (~1 s) at the same time, each on its own thread (§15.2). Call it off the main thread.
 - `pub TextEncoder::embed` · L309 — Embeddings of already normalised texts (`normalise_query`).
-- *struct* `pub PriorityGuard` · L330 — Marks a foreground task for as long as it lives (RAII): `let _priority = crate::semantic::PriorityGuard::new();`. A single atomic
-- `pub PriorityGuard::new` · L333
-- `PriorityGuard::drop` · L340
-- `pub foreground_busy` · L345
-- `lower_thread_priority` · L355 — Lowers the priority of the current thread (the scan worker and its decoder are dedicated threads, never pool threads). Windows only:
-- `lower_thread_priority` · L364
-- `pub init_schema` · L372 — Creates the tables (empty until a scan runs) and removes the rows of photos that left the catalogue and the rejections of deleted
-- `pub remove_orphans` · L408 — Rows whose photo left the catalogue (photo ids are never reused) or whose keyword was deleted.
-- *enum* `pub Standing` · L423 — Where a photo stands for the active model.
-- *struct* `pub ImageKey` · L436 — What identifies the displayed pixels of a file (§6.4): its image-data hash (duplicates.rs, metadata left out) and, for the formats whose
-- *struct* `pub Target` · L441
-- `pub select_targets` · L456 — Photos of a scope: a selection (`photo_ids`), a folder (`folder`, subfolders included if `recursive`), or the whole library (neither).
-- `pub load_stored_keys` · L500 — Sets `stored_key` on targets whose row of `model_id` (embedding or failure) carries an image key of the current hash version. Rows
-- `current_key` · L535 — Image key of a file as it is now (§6.4). The image-data hash comes from `photo_hashes` when the cached row has the file's current size
-- `renders_thumbnail` · L568 — Formats whose thumbnail the backend renders itself (`thumbnails::render_thumbnail`): the only ones the scan writes to the cache. PNG,
-- *enum* `pub Outcome` · L573 — Result of the analysis of one photo.
-- `load_pixels` · L589 — RGB pixels of the photo as displayed: the cached thumbnail (oriented) when it exists, otherwise a reduced decode of the file in memory.
-- `prepare` · L634 — Input tensor of one photo, or why there is none.
-- `pub store_batch` · L650 — Stores the results of one batch in a single transaction (never one per photo, so grid queries are not starved). An embedding replaces
-- `pub store_batch_with_hashes` · L656 — `store_batch`, plus the image-data hashes the scan computed (`photo_hashes`, shared with the duplicate search) in the same transaction.
-- `current_scan` · L722
-- *struct* `ScanSlot` · L727 — The single scan slot: clears CURRENT_SCAN when dropped, whatever the way the scan ends (error, panic).
-- `ScanSlot::take` · L731 — Takes the slot, or None when a scan is running.
-- `ScanSlot::drop` · L740
-- `pub cancel_running_scan` · L746 — Asks the running scan (if any) to stop, without waiting.
-- `pub stop_scan_and_wait` · L751 — Stops the running scan and waits until it has released the model and stopped writing (at most one batch: a few seconds).
-- `pub on_disabled` · L762 — Called when the feature is disabled: the scan stops and releases its model; the search index and text encoder are released.
-- *struct* `pub ScanProgress` · L770 — Progress of a semantic scan, sent in "scan-progress" like the other queue tasks (`taskId`, `percent`), with the details of this task.
-- *struct* `pub ScanFailure` · L783
-- *struct* `pub ScanReport` · L790
-- *struct* `ScanJob` · L807 — Scan settings, resolved before the worker starts.
-- `wait_for_foreground` · L824 — Waits while foreground work runs (500 ms steps); `on_pause` is called once when the pause starts. Returns false when a stop was
-- *struct* `Prepared` · L838 — One photo prepared by the decoder thread.
-- *struct* `PreparedBatch` · L850 — One batch from the decoder, with what it cost (for the per-batch trace).
-- *struct* `DecodeJob` · L861 — What the decoder needs to know about one pending photo.
-- `prepare_job` · L869 — Decoder side of one photo (§6.4): image key first; same key as the stored row → refreshed without decoding the pixels; otherwise the
-- `guard_panic` · L882 — Runs the decoder work of one photo, turning a panic (a decoder crate failing on a damaged file) into a failure of that photo, so the
-- `run_scan` · L891 — The scan itself, on the dedicated worker thread. `emit` publishes the progress.
-- `scan_pending` · L910 — Analyses the pending photos with the model files `paths` (separate from `run_scan` so that the parity tests can give their own files).
-- `pub semantic_scan` · L1091 — Content analysis of a selection (`photo_ids`), a folder (`folder`, subfolders if `recursive`) or the whole library (neither): computes
-- *struct* `pub Stats` · L1147
-- `pub stats` · L1164 — Counts of a scope (`folder` / `photo_ids` / whole library, as for the scan) and storage used.
-- `pub get_semantic_stats` · L1182 — "x of y photos analysed" and storage (Settings; "not analysed yet" line of the searches).
-- `pub analysed_photo_ids` · L1189 — Ids of the photos with an up-to-date embedding of `model_id` (same rule as `Standing::Analysed`), for the "Content analysis" filter.
-- `pub get_analysed_photo_ids` · L1203 — Photos already analysed (filter "Analysed / Not analysed" of "More filters"): the interface keeps the ids and filters the loaded list.
-- `pub delete_data` · L1210 — Deletes every embedding, failure and dismissed suggestion (all models), in one transaction.
-- `pub delete_semantic_data` · L1223 — "Delete analysis data" (with confirmation in the interface): stops a running scan first, then empties the tables and releases what
+- *struct* `pub PriorityGuard` · L332 — Marks a foreground task for as long as it lives (RAII): `let _priority = crate::semantic::PriorityGuard::new();`. A single atomic
+- `pub PriorityGuard::new` · L335
+- `PriorityGuard::drop` · L342
+- *struct* `pub BackgroundPauseGuard` · L349 — Marks an interactive duplicate search for as long as it lives (RAII): pauses background tasks (content analysis, hash precomputation)
+- `pub BackgroundPauseGuard::new` · L352
+- `BackgroundPauseGuard::drop` · L359
+- `pub foreground_busy` · L364
+- `pub background_busy` · L368
+- `pub lower_thread_priority` · L378 — Lowers the priority of the current thread (the scan worker and its decoder are dedicated threads, never pool threads). Windows only:
+- `pub lower_thread_priority` · L387
+- `pub resolve_hash_threads` · L390 — Resolves the worker thread count for duplicate hashing from the UI setting (`"auto"`, `"1"`, `"2"`, `"4"`).
+- `pub build_low_priority_pool` · L407 — Builds a Rayon thread pool whose worker threads run at lowered OS priority.
+- `pub init_schema` · L421 — Creates the tables (empty until a scan runs) and removes the rows of photos that left the catalogue and the rejections of deleted
+- `pub remove_orphans` · L457 — Rows whose photo left the catalogue (photo ids are never reused) or whose keyword was deleted.
+- *enum* `pub Standing` · L472 — Where a photo stands for the active model.
+- *struct* `pub ImageKey` · L485 — What identifies the displayed pixels of a file (§6.4): its image-data hash (duplicates.rs, metadata left out) and, for the formats whose
+- *struct* `pub Target` · L490
+- `pub select_targets` · L505 — Photos of a scope: a selection (`photo_ids`), a folder (`folder`, subfolders included if `recursive`), or the whole library (neither).
+- `pub load_stored_keys` · L549 — Sets `stored_key` on targets whose row of `model_id` (embedding or failure) carries an image key of the current hash version. Rows
+- `current_key` · L584 — Image key of a file as it is now (§6.4). The image-data hash comes from `photo_hashes` when the cached row has the file's current size
+- `renders_thumbnail` · L617 — Formats whose thumbnail the backend renders itself (`thumbnails::render_thumbnail`): the only ones the scan writes to the cache. PNG,
+- *enum* `pub Outcome` · L622 — Result of the analysis of one photo.
+- `load_pixels` · L638 — RGB pixels of the photo as displayed: the cached thumbnail (oriented) when it exists, otherwise a reduced decode of the file in memory.
+- `prepare` · L684 — Input tensor of one photo, or why there is none. When `compute_phash` is true, also computes the perceptual hash on the already-decoded
+- `pub store_batch` · L711 — Stores the results of one batch in a single transaction (never one per photo, so grid queries are not starved). An embedding replaces
+- `pub store_batch_with_hashes` · L718 — `store_batch`, plus the image-data hashes (`photo_hashes`) and similarity hashes (`photo_phash`) computed during the scan, in the same
+- `pub store_batch_with_all_hashes` · L727
+- `current_scan` · L797
+- *struct* `ScanSlot` · L802 — The single scan slot: clears CURRENT_SCAN when dropped, whatever the way the scan ends (error, panic).
+- `ScanSlot::take` · L806 — Takes the slot, or None when a scan is running.
+- `ScanSlot::drop` · L815
+- `pub cancel_running_scan` · L821 — Asks the running scan (if any) to stop, without waiting.
+- `pub stop_scan_and_wait` · L826 — Stops the running scan and waits until it has released the model and stopped writing (at most one batch: a few seconds).
+- `pub on_disabled` · L837 — Called when the feature is disabled: the scan stops and releases its model; the search index and text encoder are released.
+- *struct* `pub ScanProgress` · L845 — Progress of a semantic scan, sent in "scan-progress" like the other queue tasks (`taskId`, `percent`), with the details of this task.
+- *struct* `pub ScanFailure` · L858
+- *struct* `pub ScanReport` · L865
+- *struct* `ScanJob` · L882 — Scan settings, resolved before the worker starts.
+- `pub wait_while_busy` · L900 — Waits while `busy()` is true (500 ms steps); `on_pause` is called once when the pause starts. Returns false when a stop was requested.
+- `wait_for_foreground` · L914 — Waits while foreground or interactive hash work runs (500 ms steps); `on_pause` is called once when the pause starts.
+- *struct* `Prepared` · L919 — One photo prepared by the decoder thread.
+- *struct* `PreparedBatch` · L933 — One batch from the decoder, with what it cost (for the per-batch trace).
+- *struct* `DecodeJob` · L944 — What the decoder needs to know about one pending photo.
+- `prepare_job` · L952 — Decoder side of one photo (§6.4): image key first; same key as the stored row → refreshed without decoding the pixels; otherwise the
+- `guard_panic` · L978 — Runs the decoder work of one photo, turning a panic (a decoder crate failing on a damaged file) into a failure of that photo, so the
+- `run_scan` · L992 — The scan itself, on the dedicated worker thread. `emit` publishes the progress.
+- `scan_pending` · L1011 — Analyses the pending photos with the model files `paths` (separate from `run_scan` so that the parity tests can give their own files).
+- `pub semantic_scan` · L1195 — Content analysis of a selection (`photo_ids`), a folder (`folder`, subfolders if `recursive`) or the whole library (neither): computes
+- *struct* `pub Stats` · L1253
+- `pub stats` · L1270 — Counts of a scope (`folder` / `photo_ids` / whole library, as for the scan) and storage used.
+- `pub get_semantic_stats` · L1288 — "x of y photos analysed" and storage (Settings; "not analysed yet" line of the searches).
+- `pub analysed_photo_ids` · L1295 — Ids of the photos with an up-to-date embedding of `model_id` (same rule as `Standing::Analysed`), for the "Content analysis" filter.
+- `pub get_analysed_photo_ids` · L1309 — Photos already analysed (filter "Analysed / Not analysed" of "More filters"): the interface keeps the ids and filters the loaded list.
+- `pub delete_data` · L1316 — Deletes every embedding, failure and dismissed suggestion (all models), in one transaction.
+- `pub delete_semantic_data` · L1329 — "Delete analysis data" (with confirmation in the interface): stops a running scan first, then empties the tables and releases what
 
 ## semantic_keywords.rs (21)
 
@@ -1325,27 +1393,33 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub keyword_photo_ids` · L770 — Photos of `scope` that carry a keyword named `query` (whole name, case ignored, at any level of the tree), by increasing id. The toolbar
 - `pub semantic_keyword_photos` · L804 — Photos of `scope` carrying the keyword typed in the toolbar box (see `keyword_photo_ids`). Needs no model: it only reads the keyword tables.
 
-## similar.rs (17)
+## similar.rs (23)
 
-- *struct* `pub Request` · L37
-- `pub init_schema` · L52 — Cache of the fingerprints (8 hashes of 8 bytes).
-- *struct* `Item` · L67
-- *struct* `Cached` · L79
-- `encode` · L85
-- `decode` · L89
-- `load_cache` · L100
-- `save_new` · L118
-- `parse_time` · L132 — Shooting time in seconds from the date stored in the catalog ("2024-05-04 12:34:56", EXIF style "2024:05:04 12:34:56" also accepted).
-- `read_subsec_ms` · L141 — Milliseconds of the shooting time (EXIF SubSecTimeOriginal), 0 when the file has none: the catalog only keeps whole seconds.
-- `is_burst` · L154 — The two photos were taken within `burst_ms` of each other, but not at the same instant. Times are whole seconds in the catalog, so the
-- `proportions_compatible` · L173 — Whether the shapes of the two pictures allow them to be the same picture.
-- `closest` · L179
-- `find` · L185
-- `pub run` · L194 — Finds groups of similar photos. `progress` receives a fraction between 0 and 1. A cancelled run returns no group, flagged `cancelled`.
-- `pub phash_photo_ids` · L349 — Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
-- `pub get_phash_photo_ids` · L363 — Photo ids that have an up-to-date perceptual hash (List panel "Similarity hash" column).
+- `default_true` · L38
+- `pub is_phash_supported` · L43 — Whether `phash` can decode and fingerprint this file's format.
+- *struct* `pub Request` · L50
+- `pub init_schema` · L71 — Cache of the fingerprints (8 hashes of 8 bytes) and known unreadable/corrupt failures.
+- `pub save_phash_row` · L93 — Stores one up-to-date perceptual hash and clears any prior failure for this photo.
+- `pub save_phash_failure` · L102 — Records an unreadable/corrupt file failure for `photo_phash` and drops any stale hash row.
+- *struct* `Item` · L110
+- *struct* `Cached` · L122
+- `encode` · L128
+- `decode` · L132
+- `load_cache` · L143
+- `load_failure_cache` · L161
+- `save_chunk` · L171
+- `parse_time` · L190 — Shooting time in seconds from the date stored in the catalog ("2024-05-04 12:34:56", EXIF style "2024:05:04 12:34:56" also accepted).
+- `read_subsec_ms` · L199 — Milliseconds of the shooting time (EXIF SubSecTimeOriginal), 0 when the file has none: the catalog only keeps whole seconds.
+- `is_burst` · L212 — The two photos were taken within `burst_ms` of each other, but not at the same instant. Times are whole seconds in the catalog, so the
+- `proportions_compatible` · L231 — Whether the shapes of the two pictures allow them to be the same picture.
+- `closest` · L237
+- `find` · L243
+- `pub run` · L253 — Finds groups of similar photos (tests and simple callers).
+- `pub run_with_options` · L258 — Finds groups of similar photos with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
+- `pub phash_photo_ids` · L520 — Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
+- `pub get_phash_photo_ids` · L534 — Photo ids that have an up-to-date perceptual hash (List panel "Similarity hash" column).
 
-## stats.rs (45)
+## stats.rs (48)
 
 - *struct* `pub StatsFilter` · L32 — What to count. Every list empty and no period = the whole catalogue.
 - *struct* `pub RankedItem` · L49 — A name and the number of photos it appears on.
@@ -1354,44 +1428,47 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub ExtensionStat` · L74 — Photos and bytes of one file extension ("" = no extension).
 - *struct* `pub Distribution` · L83 — Photos per range of one shooting parameter. `known`: photos that have the parameter (the others are in no range).
 - *struct* `pub ShootingStats` · L90
-- *struct* `pub CollectionStats` · L99
-- *struct* `pub FilterOptions` · L138 — Values offered by the filters of the window, over the whole catalogue.
-- *struct* `pub FolderOption` · L146
-- `days_in_month` · L153 — Days of a month (Gregorian leap years).
-- `date_key` · L166 — Date taken of a photo as YYYYMMDD, or None when the text holds no usable date.
-- *struct* `Scale` · L188 — Fixed ranges of a shooting parameter, in display order. `edges` are the lower bounds (included) of every range but the first, ascending,
-- *struct* `Histogram` · L221 — Counts of the photos counted per range of a scale.
-- `Histogram::new` · L228
-- `Histogram::add` · L234 — A photo without the parameter (None) is in no range.
-- `Histogram::finish` · L240
-- `parse_decimal` · L250 — `^\d+(?:[.,]\d+)?$` as a number (the interface's `parseDecimal`).
-- `without_spaces` · L262
-- `parse_focal` · L267 — Focal length in mm: the leading number of "50 mm", "50.0 mm" (like the filter's `parseFloat`).
-- `parse_aperture` · L285 — F-number of "f/2.8", "F2.8" or "2.8".
-- `parse_shutter` · L295 — Exposure time in seconds: "1/250" (also unreduced, "10/2500"), or "2" / "2.5" above one second; a trailing "s" is accepted.
-- `camera_label` · L314 — Camera label of the interface (`cameraLabel`, shooting-filters.js): make and model, the make dropped when the model already starts with it
-- *struct* `NameCounts` · L328 — Counts of names, grouped without regard to case; the first spelling met is the one shown.
-- `NameCounts::add` · L331
-- `NameCounts::top` · L336 — The most frequent names first (ties by name), at most `GEAR_TOP_COUNT`, and how many different names there were.
-- `extension_of` · L346 — Lower-case extension of a path without the dot ("" when it has none).
-- `normalize_path` · L355 — Path compared without regard to case or separator kind (Windows paths may mix them).
-- `folder_prefix` · L360 — Prefix every photo below a root folder starts with: the folder, normalised, ending with one separator.
-- `ids_json` · L365 — A JSON array of ids, for `json_each` (one bound parameter instead of thousands).
-- `period_scope` · L371 — SQL condition restricting `column` (a photo id) to the photos counted, and its bound parameter. `ids`: those photos passed as one JSON arra…
-- `face_stats` · L382 — Faces, distinct people and the people with the most faces, on the photos counted. Only faces the interface shows count: not ignored, not
-- `analysed_count` · L404 — Photos analysed by the content search (embedding of the active model), among the photos counted.
-- `keyword_name_and_path` · L416 — Name and ancestors path of a keyword node, or None if the node no longer exists.
-- `keyword_stats` · L439 — Most given keywords and the number of photos with at least one keyword. `ids`: the photos counted; None: the whole catalogue.
-- *struct* `Selection` · L464 — The filters of a request, ready to test a photo against.
-- `Selection::dated` · L475
-- `Selection::restricts` · L480 — True when some filter narrows the catalogue (then the keyword, face and analysis queries are limited to the photos kept).
-- `selection_of` · L485
-- `compute` · L507
-- `compute_with` · L512
-- `filter_options` · L640
-- `filter_options_with` · L645
-- `pub get_collection_stats` · L699 — Statistics of the collection for a set of filters (see `StatsFilter`).
-- `pub get_stats_filter_options` · L706 — Cameras, root folders and extensions of the catalogue, with their photo counts: what the filters of the window offer.
+- *struct* `pub CoverageStats` · L99
+- *struct* `pub CollectionStats` · L108
+- *struct* `pub FilterOptions` · L151 — Values offered by the filters of the window, over the whole catalogue.
+- *struct* `pub FolderOption` · L159
+- `days_in_month` · L166 — Days of a month (Gregorian leap years).
+- `date_key` · L179 — Date taken of a photo as YYYYMMDD, or None when the text holds no usable date.
+- *struct* `Scale` · L201 — Fixed ranges of a shooting parameter, in display order. `edges` are the lower bounds (included) of every range but the first, ascending,
+- *struct* `Histogram` · L234 — Counts of the photos counted per range of a scale.
+- `Histogram::new` · L241
+- `Histogram::add` · L247 — A photo without the parameter (None) is in no range.
+- `Histogram::finish` · L253
+- `parse_decimal` · L263 — `^\d+(?:[.,]\d+)?$` as a number (the interface's `parseDecimal`).
+- `without_spaces` · L275
+- `parse_focal` · L280 — Focal length in mm: the leading number of "50 mm", "50.0 mm" (like the filter's `parseFloat`).
+- `parse_aperture` · L298 — F-number of "f/2.8", "F2.8" or "2.8".
+- `parse_shutter` · L308 — Exposure time in seconds: "1/250" (also unreduced, "10/2500"), or "2" / "2.5" above one second; a trailing "s" is accepted.
+- `camera_label` · L327 — Camera label of the interface (`cameraLabel`, shooting-filters.js): make and model, the make dropped when the model already starts with it
+- *struct* `NameCounts` · L341 — Counts of names, grouped without regard to case; the first spelling met is the one shown.
+- `NameCounts::add` · L344
+- `NameCounts::top` · L349 — The most frequent names first (ties by name), at most `GEAR_TOP_COUNT`, and how many different names there were.
+- `extension_of` · L359 — Lower-case extension of a path without the dot ("" when it has none).
+- `normalize_path` · L368 — Path compared without regard to case or separator kind (Windows paths may mix them).
+- `folder_prefix` · L373 — Prefix every photo below a root folder starts with: the folder, normalised, ending with one separator.
+- `ids_json` · L378 — A JSON array of ids, for `json_each` (one bound parameter instead of thousands).
+- `period_scope` · L384 — SQL condition restricting `column` (a photo id) to the photos counted, and its bound parameter. `ids`: those photos passed as one JSON arra…
+- `face_stats` · L395 — Faces, distinct people and the people with the most faces, on the photos counted. Only faces the interface shows count: not ignored, not
+- `analysis_stats` · L417 — Photos analysed by the content search (up-to-date vs expired) among the photos counted.
+- `exact_hash_stats` · L438 — Exact hash coverage (mode 1: pre-pass and full pass, up-to-date vs expired) among the non-video photos counted.
+- `similarity_stats` · L472 — Similarity hash coverage (`photo_phash`, up-to-date vs expired) among supported image formats.
+- `keyword_name_and_path` · L493 — Name and ancestors path of a keyword node, or None if the node no longer exists.
+- `keyword_stats` · L516 — Most given keywords and the number of photos with at least one keyword. `ids`: the photos counted; None: the whole catalogue.
+- *struct* `Selection` · L541 — The filters of a request, ready to test a photo against.
+- `Selection::dated` · L552
+- `Selection::restricts` · L557 — True when some filter narrows the catalogue (then the keyword, face and analysis queries are limited to the photos kept).
+- `selection_of` · L562
+- `compute` · L584
+- `compute_with` · L589
+- `filter_options` · L731
+- `filter_options_with` · L736
+- `pub get_collection_stats` · L790 — Statistics of the collection for a set of filters (see `StatsFilter`).
+- `pub get_stats_filter_options` · L797 — Cameras, root folders and extensions of the catalogue, with their photo counts: what the filters of the window offer.
 
 ## test_support.rs (15)
 

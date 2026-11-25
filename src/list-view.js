@@ -14,6 +14,7 @@ import { isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './markin
 import { isSemanticEnabled, onSemanticChange, onAnalysisChanged } from './semantic-settings.js';
 import { isFaceDetectionEnabled, getFaceCounts, getFaceScanIndex, isFaceScanRawEnabled } from './faces-panel.js';
 import { onPhashChanged } from './duplicates-view.js';
+import { onExactHashChanged } from './duplicates-settings.js';
 
 const STORAGE_KEYS = {
   visible: 'listVisibleColumns',
@@ -47,6 +48,11 @@ let analysedToken = 0;
 let phashIds = new Set();
 let phashLoaded = false;
 let phashToken = 0;
+
+// 0 = not computed, 1 = pre-pass, 2 = complete
+let exactHashStates = new Map();
+let exactHashLoaded = false;
+let exactHashToken = 0;
 
 // Virtual list & sort state
 let lastPhotosRef = null;
@@ -459,6 +465,28 @@ const COLUMN_DEFS = [
     sortValue: photo => (phashIds.has(photo.id) ? 1 : 0),
     render: (cell, photo) => renderBoolean(cell, phashIds.has(photo.id)),
   },
+  {
+    id: 'exact_hash',
+    label: 'Exact hash',
+    defaultWidth: 96,
+    sortType: 'number',
+    sortValue: photo => (exactHashStates.get(photo.id) ?? 0),
+    render: (cell, photo) => {
+      const state = exactHashStates.get(photo.id) ?? 0;
+      if (state === 2) {
+        cell.textContent = t('Complete');
+        cell.classList.add('list-cell-yes');
+        cell.classList.remove('list-cell-muted');
+      } else if (state === 1) {
+        cell.textContent = t('Pre-pass');
+        cell.classList.remove('list-cell-yes', 'list-cell-muted');
+      } else {
+        cell.textContent = t('No');
+        cell.classList.add('list-cell-muted');
+        cell.classList.remove('list-cell-yes');
+      }
+    },
+  },
 ];
 
 const COLUMNS_BY_ID = new Map(COLUMN_DEFS.map(col => [col.id, col]));
@@ -473,7 +501,7 @@ const MENU_STRUCTURE = [
   { col: 'author' },
   { label: 'Shoot settings', children: ['aperture', 'shutter_speed', 'iso', 'focal_length', 'flash'] },
   { label: 'Labels', children: ['rating', 'color_flag', 'pick_flag'] },
-  { label: 'Other data', children: ['analysed', 'faces_status', 'geolocated', 'phash'] },
+  { label: 'Other data', children: ['analysed', 'faces_status', 'geolocated', 'phash', 'exact_hash'] },
 ];
 
 function renderPlainText(cell, value) {
@@ -696,6 +724,11 @@ export function formatListGridScrollPosition(photo) {
     const val = col.sortValue(photo);
     return `${t(col.label)}: ${val === null ? '-' : t(val ? 'Yes' : 'No')}`;
   }
+  if (col.id === 'exact_hash') {
+    const state = exactHashStates.get(photo.id) ?? 0;
+    const text = state === 2 ? t('Complete') : state === 1 ? t('Pre-pass') : t('No');
+    return `${t(col.label)}: ${text}`;
+  }
   return String(col.sortValue(photo) || '-');
 }
 
@@ -749,6 +782,22 @@ async function ensureAuxiliaryData() {
       if (open) onAuxiliaryDataUpdated('phash');
     } catch (error) {
       console.debug('List view: phash ids unavailable', error);
+    }
+  }
+
+  if (activeIds.has('exact_hash') && !exactHashLoaded) {
+    const token = ++exactHashToken;
+    try {
+      const states = await invoke('get_exact_hash_states');
+      if (token !== exactHashToken) return;
+      const next = new Map();
+      for (const id of states.prepass ?? []) next.set(id, 1);
+      for (const id of states.full ?? []) next.set(id, 2);
+      exactHashStates = next;
+      exactHashLoaded = true;
+      if (open) onAuxiliaryDataUpdated('exact_hash');
+    } catch (error) {
+      console.debug('List view: exact hash states unavailable', error);
     }
   }
 }
@@ -1691,6 +1740,11 @@ export function initListView(hostApi) {
 
   onPhashChanged(() => {
     phashLoaded = false;
+    if (open) ensureAuxiliaryData();
+  });
+
+  onExactHashChanged(() => {
+    exactHashLoaded = false;
     if (open) ensureAuxiliaryData();
   });
 }

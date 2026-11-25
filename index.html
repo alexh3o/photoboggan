@@ -929,6 +929,51 @@
                 <span data-i18n="Scope suffix"></span>
               </div>
             </section>
+            <section class="settings-section" id="duplicates-settings">
+              <h4 data-i18n="Duplicates"></h4>
+              <p id="dup-stats-exact-prepass" class="sort-note"></p>
+              <p id="dup-stats-exact-full" class="sort-note"></p>
+              <p id="dup-stats-similarity" class="sort-note"></p>
+              <label class="settings-row" for="dup-precompute-exact-mode" data-i18n-title="Exact hash mode help">
+                <span data-i18n="Exact hashes mode"></span>
+                <select id="dup-precompute-exact-mode">
+                  <option value="prepass" data-i18n="Pre-pass (headers)"></option>
+                  <option value="full" data-i18n="Full pass (whole image data)"></option>
+                </select>
+              </label>
+              <div class="settings-storage-actions">
+                <button id="btn-dup-compute-exact" class="btn-secondary" type="button" data-i18n="Compute exact hashes…"></button>
+                <button id="btn-dup-compute-similar" class="btn-secondary" type="button" data-i18n="Compute similarity hashes…"></button>
+                <button id="btn-dup-compute-both" class="btn-highlight" type="button" data-i18n="Compute both…"></button>
+              </div>
+              <label class="settings-row" for="dup-hash-threads" data-i18n-title="Duplicate hash speed hint">
+                <span data-i18n="Computation speed"></span>
+                <select id="dup-hash-threads">
+                  <option value="auto" data-i18n="Auto"></option>
+                  <option value="1" data-i18n="Low"></option>
+                  <option value="2" data-i18n="Normal"></option>
+                  <option value="4" data-i18n="High"></option>
+                </select>
+              </label>
+              <label class="settings-row settings-check"><input id="dup-hash-on-semantic" type="checkbox" /><span data-i18n="Compute similarity hashes during content analysis"></span></label>
+              <label class="settings-row settings-check" data-i18n-title="Compute hashes during integrity checks help"><input id="dup-hash-on-integrity" type="checkbox" /><span data-i18n="Compute hashes during integrity checks"></span></label>
+              <label class="settings-row settings-check"><input id="dup-auto-hash" type="checkbox" /><span data-i18n="Automatically compute hashes for new photos in the background"></span></label>
+              <label class="settings-row duplicates-sub" for="dup-auto-hash-mode">
+                <span data-i18n="Hashes to compute"></span>
+                <select id="dup-auto-hash-mode">
+                  <option value="similarity" data-i18n="Similarity hashes"></option>
+                  <option value="exact_prepass" data-i18n="Exact hashes (pre-pass)"></option>
+                  <option value="exact_full" data-i18n="Exact hashes (full pass)"></option>
+                  <option value="both_prepass" data-i18n="Both (pre-pass)"></option>
+                  <option value="both_full" data-i18n="Both (full pass)"></option>
+                </select>
+              </label>
+              <label class="settings-row settings-check duplicates-sub"><input id="dup-auto-hash-raw" type="checkbox" /><span data-i18n="Include RAW files"></span></label>
+              <p id="dup-stats-storage" class="sort-note"></p>
+              <div class="settings-storage-actions">
+                <button id="btn-dup-delete-data" type="button" data-i18n="Delete duplicate hashes"></button>
+              </div>
+            </section>
             <section class="settings-section">
               <h4 data-i18n="Content search">Recherche par contenu</h4>
               <label class="settings-row settings-check"><input id="semantic-toggle" type="checkbox" /><span data-i18n="Enable content search (local AI)"></span></label>
@@ -1212,6 +1257,7 @@
           <section id="dup-identical" class="settings-section">
             <label class="settings-row settings-check"><input id="dup-hash" type="checkbox" /><span data-i18n="Same image data"></span></label>
             <label class="settings-row settings-check duplicates-sub"><input id="dup-ignore-metadata" type="checkbox" /><span data-i18n="Ignore metadata" id="dup-ignore-metadata-label"></span></label>
+            <label class="settings-row settings-check"><input id="dup-identical-raw-files" type="checkbox" /><span data-i18n="Include RAW files"></span></label>
             <label class="settings-row settings-check"><input id="dup-name" type="checkbox" /><span data-i18n="Same file name"></span></label>
             <p class="sort-note duplicates-hint" data-i18n="Duplicate name rule hint"></p>
             <div class="raw-pattern-grid duplicates-sub">
@@ -1239,6 +1285,7 @@
             <label class="settings-row settings-check"><input id="dup-bursts" type="checkbox" /><span data-i18n="Ignore bursts"></span></label>
             <label class="settings-row duplicates-sub" for="dup-burst-ms"><span data-i18n="Photos taken less than this apart (ms)"></span>
               <input id="dup-burst-ms" type="number" min="0" max="60000" step="100" /></label>
+            <label class="settings-row settings-check"><input id="dup-similar-raw-files" type="checkbox" /><span data-i18n="Include RAW files"></span></label>
             <label class="settings-row settings-check"><input id="dup-similar-raw" type="checkbox" /><span data-i18n="Include the RAW of a JPEG and the other way round"></span></label>
           </section>
 
@@ -1249,6 +1296,7 @@
             <label id="dup-subfolders-row" class="settings-row settings-check"><input id="dup-subfolders" type="checkbox" /><span data-i18n="Include subfolders"></span></label>
             <label class="settings-row settings-check"><input id="dup-library" type="checkbox" /><span data-i18n="Also compare with the rest of the library"></span></label>
             <p class="sort-note duplicates-hint" data-i18n="Library comparison hint"></p>
+            <p id="dup-coverage" class="sort-note duplicates-hint" hidden></p>
           </section>
           <!-- Enregistrement des réglages du type choisi (la portée n'est jamais enregistrée) : appliqué au lancement -->
           <div class="duplicates-actions">
@@ -1532,6 +1580,18 @@
             <section id="stats-analysis-section" class="stats-section" hidden>
               <h4 class="stats-section-title" data-i18n="Content analysis"></h4>
               <ol id="stats-analysis" class="stats-ranking"></ol>
+            </section>
+            <section id="stats-hashes-section" class="stats-section">
+              <h4 class="stats-section-title" data-i18n="Duplicate hashes"></h4>
+              <h5 class="stats-subtitle" data-i18n="Exact hashes (pre-pass)"></h5>
+              <ol id="stats-exact-prepass" class="stats-ranking"></ol>
+              <p id="stats-exact-prepass-note" class="stats-note"></p>
+              <h5 class="stats-subtitle" data-i18n="Exact hashes (full pass)"></h5>
+              <ol id="stats-exact-full" class="stats-ranking"></ol>
+              <p id="stats-exact-full-note" class="stats-note"></p>
+              <h5 class="stats-subtitle" data-i18n="Similarity hashes"></h5>
+              <ol id="stats-similarity" class="stats-ranking"></ol>
+              <p id="stats-similarity-note" class="stats-note"></p>
             </section>
           </div>
         </div>

@@ -7,7 +7,7 @@ use crate::duplicates::Report;
 use crate::test_support::{blobs_rgb, insert_photo, jpeg_from_rgb, rotate_quarter, temp_catalog};
 
 fn settings(scope: Scope) -> Request {
-    Request { scope, compare_with_library: false, max_distance: 6, rotations: false, ignore_bursts: false, burst_ms: 1000, include_raw_pairs: false }
+    Request { scope, compare_with_library: false, max_distance: 6, rotations: false, ignore_bursts: false, burst_ms: 1000, include_raw_pairs: false, include_raw: true, threads: None }
 }
 
 fn search(pool: &DbPool, dir: &Path, request: &Request) -> Report {
@@ -191,4 +191,53 @@ fn phash_photo_ids_returns_only_up_to_date_entries() {
     conn.execute("UPDATE photos SET file_size = file_size + 1 WHERE id = ?1", params![ids[0]]).unwrap();
     conn.execute("UPDATE photo_phash SET algo = 0 WHERE photo_id = ?1", params![ids[1]]).unwrap();
     assert!(phash_photo_ids(&conn).unwrap().is_empty());
+}
+
+#[test]
+fn include_raw_false_skips_raw_and_failures_are_recorded_and_skipped() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let thumbs = tempfile::tempdir().unwrap();
+    let base = tempfile::tempdir().unwrap();
+    add_picture(&pool, dir.path(), "a.jpg", 200, 150, 1);
+    let raw = dir.path().join("b.cr2").to_string_lossy().into_owned();
+    std::fs::write(&raw, b"not-a-raw").unwrap();
+    insert_photo(&pool.get().unwrap(), &raw);
+
+    // include_raw = false skips b.cr2 completely (no failure recorded for it).
+    let rep1 = run_with_options(
+        &pool,
+        thumbs.path(),
+        Some(base.path()),
+        &Request { include_raw: false, ..settings(Scope::All) },
+        &AtomicBool::new(false),
+        &|_| {},
+    )
+    .unwrap();
+    assert_eq!(rep1.failures_total, 0);
+
+    // include_raw = true attempts b.cr2, records failure, and writes a log file.
+    let rep2 = run_with_options(
+        &pool,
+        thumbs.path(),
+        Some(base.path()),
+        &Request { include_raw: true, ..settings(Scope::All) },
+        &AtomicBool::new(false),
+        &|_| {},
+    )
+    .unwrap();
+    assert_eq!(rep2.failures_total, 1);
+    assert!(rep2.log_path.is_some());
+
+    // Rerun skips the recorded failed RAW file.
+    let rep3 = run_with_options(
+        &pool,
+        thumbs.path(),
+        Some(base.path()),
+        &Request { include_raw: true, ..settings(Scope::All) },
+        &AtomicBool::new(false),
+        &|_| {},
+    )
+    .unwrap();
+    assert_eq!(rep3.failures_total, 0);
 }

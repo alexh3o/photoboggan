@@ -20,7 +20,7 @@ fn add(pool: &DbPool, dir: &Path, name: &str, bytes: &[u8]) -> String {
 }
 
 fn request(scope: Scope, compare_with_library: bool, ignore_metadata: bool) -> Request {
-    Request { scope, compare_with_library, ignore_metadata }
+    Request { scope, compare_with_library, ignore_metadata, include_raw: true, threads: None }
 }
 
 fn search(pool: &DbPool, request: &Request) -> Report {
@@ -283,4 +283,229 @@ fn the_hash_of_one_file_ignores_metadata_and_is_shared_with_the_search_cache() {
     assert_eq!(partial_after(&conn), partial);
     remember_data_hash(&conn, id_of(&a), &DataHash { modified: hash_a.modified + 1, ..hash_a }).unwrap();
     assert_eq!(partial_after(&conn), None);
+}
+
+#[test]
+fn include_raw_filters_out_raw_files_when_disabled() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let jpg_a = add(&pool, dir.path(), "a.jpg", &jpeg_bytes(40, 30));
+    let jpg_b = add(&pool, dir.path(), "b.jpg", &jpeg_bytes(40, 30));
+    let raw_bytes = b"not-real-raw-but-identical";
+    let raw_a = add(&pool, dir.path(), "a.cr2", raw_bytes);
+    let raw_b = add(&pool, dir.path(), "b.cr2", raw_bytes);
+
+    let without_raw = search(&pool, &Request { include_raw: false, ..request(Scope::All, false, true) });
+    assert_eq!(without_raw.groups, vec![vec![jpg_a.clone(), jpg_b.clone()]]);
+
+    let with_raw = search(&pool, &Request { include_raw: true, ..request(Scope::All, false, true) });
+    assert_eq!(with_raw.groups.len(), 2);
+    assert!(with_raw.groups.iter().any(|g| g == &vec![raw_a.clone(), raw_b.clone()]));
+}
+
+#[test]
+fn failures_are_recorded_logged_and_skipped_on_rerun() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let thumbs = tempfile::tempdir().unwrap();
+    let base = tempfile::tempdir().unwrap();
+    let good = add(&pool, dir.path(), "good.jpg", &jpeg_bytes(32, 32));
+    let bad_s = add(&pool, dir.path(), "bad.jpg", b"not-a-jpeg");
+    {
+        let conn = pool.get().unwrap();
+        for p in [&good, &bad_s] {
+            let meta = fs::metadata(p).unwrap();
+            let modified = meta.modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+            conn.execute("UPDATE photos SET file_size = ?1, modified = ?2 WHERE path = ?3", rusqlite::params![meta.len() as i64, modified, p]).unwrap();
+        }
+    }
+
+    let mode = crate::hash_tasks::PrecomputeMode::parse("similarity").unwrap();
+    let report = crate::hash_tasks::run_precompute(
+        &pool,
+        thumbs.path(),
+        Some(base.path()),
+        mode,
+        false,
+        None,
+        Some("1"),
+        &AtomicBool::new(false),
+        &|_| {},
+    )
+    .expect("precompute");
+    assert_eq!(report.failures_total, 1);
+    assert_eq!(report.failures.len(), 1);
+    assert_eq!(report.failures[0].path, bad_s);
+    let log_path = report.log_path.as_ref().expect("log file written");
+    assert!(Path::new(log_path).exists());
+
+    // Second run skips the recorded failed file instead of failing again.
+    let report2 = crate::hash_tasks::run_precompute(
+        &pool,
+        thumbs.path(),
+        Some(base.path()),
+        mode,
+        false,
+        None,
+        Some("1"),
+        &AtomicBool::new(false),
+        &|_| {},
+    )
+    .expect("rerun");
+    assert_eq!(report2.failures_total, 0);
+    assert!(report2.log_path.is_none());
+
+    // An exact-hash failure recorded in `photo_hash_failures` is also skipped by `exact_prepass`.
+    {
+        let conn = pool.get().unwrap();
+        let bad_id: i64 = conn.query_row("SELECT id FROM photos WHERE path = ?1", [&bad_s], |r| r.get(0)).unwrap();
+        let meta = fs::metadata(&bad_s).unwrap();
+        let modified = meta.modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        save_hash_failure(&conn, bad_id, 1, meta.len(), modified, "unreadable").unwrap();
+    }
+    let exact_mode = crate::hash_tasks::PrecomputeMode::parse("exact_prepass").unwrap();
+    let report3 = crate::hash_tasks::run_precompute(
+        &pool,
+        thumbs.path(),
+        Some(base.path()),
+        exact_mode,
+        false,
+        None,
+        Some("1"),
+        &AtomicBool::new(false),
+        &|_| {},
+    )
+    .expect("exact precompute");
+    assert_eq!((report3.computed, report3.failures_total), (1, 0));
+}
+
+#[test]
+fn image_data_hash_from_jpeg_bytes_matches_file_hash() {
+    let dir = tempfile::tempdir().unwrap();
+    let bytes = with_segment(&jpeg_bytes(48, 36), 0xE1, b"http://ns.adobe.com/xap/1.0/\0<x:xmpmeta/>");
+    let path = dir.path().join("photo.jpg");
+    fs::write(&path, &bytes).unwrap();
+    let from_file = image_data_hash(&path, &AtomicBool::new(false)).expect("file hash");
+    let from_mem = image_data_hash_from_jpeg_bytes(&bytes, from_file.size, from_file.modified)
+        .expect("mem hash");
+    assert_eq!(from_file.hash, from_mem.hash);
+    assert_eq!(from_file.data_len, from_mem.data_len);
+    assert_eq!(from_file.tolerant, from_mem.tolerant);
+}
+
+#[test]
+fn restamp_photo_caches_preserves_uptodate_entries_and_leaves_expired_untouched() {
+    let (_catalog, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    let id_ok = insert_photo(&conn, "C:/photos/ok.jpg");
+    let id_expired = insert_photo(&conn, "C:/photos/expired.jpg");
+    let id_strict = insert_photo(&conn, "C:/photos/strict.jpg");
+
+    conn.execute("UPDATE photos SET file_size = 1000, modified = 2000 WHERE id = ?1", rusqlite::params![id_ok]).unwrap();
+    conn.execute("UPDATE photos SET file_size = 1000, modified = 2000 WHERE id = ?1", rusqlite::params![id_expired]).unwrap();
+    conn.execute("UPDATE photos SET file_size = 1000, modified = 2000 WHERE id = ?1", rusqlite::params![id_strict]).unwrap();
+
+    // Up-to-date entries for id_ok (mode=1 tolerant=1, phash, embedding).
+    conn.execute(
+        "INSERT INTO photo_hashes (photo_id, mode, version, size, modified, tolerant, data_len) VALUES (?1, 1, ?2, 1000, 2000, 1, 900)",
+        rusqlite::params![id_ok, LAYOUT_VERSION],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO photo_phash (photo_id, size, modified, algo, flat, hashes) VALUES (?1, 1000, 2000, ?2, 0, ?3)",
+        rusqlite::params![id_ok, crate::phash::ALGO_VERSION, vec![0u8; 64]],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO photo_embeddings (photo_id, model_id, file_size, file_mtime, vec) VALUES (?1, 'siglip2', 1000, 2000, X'00000000')",
+        rusqlite::params![id_ok],
+    ).unwrap();
+
+    // Already-expired entry for id_expired (size = 999 != 1000).
+    conn.execute(
+        "INSERT INTO photo_hashes (photo_id, mode, version, size, modified, tolerant, data_len) VALUES (?1, 1, ?2, 999, 2000, 1, 900)",
+        rusqlite::params![id_expired, LAYOUT_VERSION],
+    ).unwrap();
+
+    // mode=0 entry for id_strict must not be restamped.
+    conn.execute(
+        "INSERT INTO photo_hashes (photo_id, mode, version, size, modified, tolerant, data_len) VALUES (?1, 0, ?2, 1000, 2000, 1, 1000)",
+        rusqlite::params![id_strict, LAYOUT_VERSION],
+    ).unwrap();
+
+    crate::restamp_photo_caches(&conn, id_ok, 1000, 2000, 1050, 3000);
+    crate::restamp_photo_caches(&conn, id_expired, 1000, 2000, 1050, 3000);
+    crate::restamp_photo_caches(&conn, id_strict, 1000, 2000, 1050, 3000);
+
+    let (h_size, h_mod): (i64, i64) = conn
+        .query_row("SELECT size, modified FROM photo_hashes WHERE photo_id = ?1 AND mode = 1", rusqlite::params![id_ok], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap();
+    assert_eq!((h_size, h_mod), (1050, 3000));
+    let (p_size, p_mod): (i64, i64) = conn
+        .query_row("SELECT size, modified FROM photo_phash WHERE photo_id = ?1", rusqlite::params![id_ok], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap();
+    assert_eq!((p_size, p_mod), (1050, 3000));
+    let (e_size, e_mod): (i64, i64) = conn
+        .query_row("SELECT file_size, file_mtime FROM photo_embeddings WHERE photo_id = ?1", rusqlite::params![id_ok], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap();
+    assert_eq!((e_size, e_mod), (1050, 3000));
+
+    let exp_size: i64 = conn
+        .query_row("SELECT size FROM photo_hashes WHERE photo_id = ?1 AND mode = 1", rusqlite::params![id_expired], |r| r.get(0))
+        .unwrap();
+    assert_eq!(exp_size, 999);
+    let strict_size: i64 = conn
+        .query_row("SELECT size FROM photo_hashes WHERE photo_id = ?1 AND mode = 0", rusqlite::params![id_strict], |r| r.get(0))
+        .unwrap();
+    assert_eq!(strict_size, 1000);
+}
+
+#[test]
+fn hash_tasks_precompute_stats_work_count_states_and_delete() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let thumbs = tempfile::tempdir().unwrap();
+    let base = tempfile::tempdir().unwrap();
+    let jpg = add(&pool, dir.path(), "a.jpg", &jpeg_bytes(64, 48));
+    let raw = add(&pool, dir.path(), "b.cr2", b"synthetic-raw");
+    {
+        let conn = pool.get().unwrap();
+        for p in [&jpg, &raw] {
+            let meta = fs::metadata(p).unwrap();
+            let modified = meta.modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+            conn.execute("UPDATE photos SET file_size = ?1, modified = ?2 WHERE path = ?3", rusqlite::params![meta.len() as i64, modified, p]).unwrap();
+        }
+    }
+
+    let work_before = crate::hash_tasks::compute_work_count(&pool.get().unwrap(), Some(thumbs.path()), "identical", &Scope::All, false, true, true, false).unwrap();
+    assert_eq!((work_before.total, work_before.missing, work_before.missing_raw), (2, 2, 1));
+
+    // Pre-pass only, excluding RAW.
+    let mode_prepass = crate::hash_tasks::PrecomputeMode::parse("exact_prepass").unwrap();
+    let rep1 = crate::hash_tasks::run_precompute(&pool, thumbs.path(), Some(base.path()), mode_prepass, false, None, Some("1"), &AtomicBool::new(false), &|_| {}).unwrap();
+    assert_eq!((rep1.computed, rep1.failures_total), (1, 0));
+
+    let states1 = crate::hash_tasks::exact_hash_states(&pool.get().unwrap()).unwrap();
+    assert_eq!((states1.prepass.len(), states1.full.len()), (1, 0));
+
+    // Full exact pass, including RAW (both succeed).
+    let mode_full = crate::hash_tasks::PrecomputeMode::parse("exact_full").unwrap();
+    let rep2 = crate::hash_tasks::run_precompute(&pool, thumbs.path(), Some(base.path()), mode_full, true, None, Some("1"), &AtomicBool::new(false), &|_| {}).unwrap();
+    assert_eq!((rep2.computed, rep2.failures_total), (2, 0));
+
+    let states2 = crate::hash_tasks::exact_hash_states(&pool.get().unwrap()).unwrap();
+    assert_eq!((states2.prepass.len(), states2.full.len()), (0, 2));
+
+    // Similarity pass excluding RAW (a.jpg succeeds).
+    let mode_sim = crate::hash_tasks::PrecomputeMode::parse("similarity").unwrap();
+    let rep3 = crate::hash_tasks::run_precompute(&pool, thumbs.path(), Some(base.path()), mode_sim, false, None, Some("1"), &AtomicBool::new(false), &|_| {}).unwrap();
+    assert_eq!((rep3.computed, rep3.failures_total), (1, 0));
+
+    let stats = crate::hash_tasks::compute_duplicate_hash_stats(&pool.get().unwrap()).unwrap();
+    assert_eq!(stats.exact_prepass.up_to_date, 2);
+    assert_eq!(stats.exact_full.up_to_date, 2);
+    assert_eq!(stats.similarity.up_to_date, 1);
+    assert!(stats.bytes > 0);
+
+    crate::hash_tasks::delete_all_hashes(&pool.get().unwrap()).unwrap();
+    let stats_after = crate::hash_tasks::compute_duplicate_hash_stats(&pool.get().unwrap()).unwrap();
+    assert_eq!((stats_after.exact_prepass.up_to_date, stats_after.exact_full.up_to_date, stats_after.similarity.up_to_date), (0, 0, 0));
 }

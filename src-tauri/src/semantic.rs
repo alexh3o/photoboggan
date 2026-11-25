@@ -321,9 +321,11 @@ impl TextEncoder {
 // Priority: the scan gives way to every foreground task (§6.2)
 // ---------------------------------------------------------------------------
 
-/// Foreground tasks running now (library sync, catalogue scans, metadata and keyword writes, integrity check, face scan, duplicate search,
-/// thumbnail generation). While it is above zero, the semantic scan waits between two batches.
+/// Foreground tasks running now (library sync, catalogue scans, metadata and keyword writes, integrity check, face scan,
+/// thumbnail generation). While it is above zero, both interactive duplicate searches and background tasks yield.
 static FOREGROUND_TASKS: AtomicUsize = AtomicUsize::new(0);
+/// Interactive duplicate searches running now (Level 1). While above zero, background tasks (content analysis, hash precomputation) pause.
+static INTERACTIVE_HASH_TASKS: AtomicUsize = AtomicUsize::new(0);
 
 /// Marks a foreground task for as long as it lives (RAII): `let _priority = crate::semantic::PriorityGuard::new();`. A single atomic
 /// increment: no cost when the semantic search is off.
@@ -342,8 +344,29 @@ impl Drop for PriorityGuard {
     }
 }
 
+/// Marks an interactive duplicate search for as long as it lives (RAII): pauses background tasks (content analysis, hash precomputation)
+/// without blocking foreground UI tasks.
+pub struct BackgroundPauseGuard(());
+
+impl BackgroundPauseGuard {
+    pub fn new() -> Self {
+        INTERACTIVE_HASH_TASKS.fetch_add(1, Ordering::SeqCst);
+        BackgroundPauseGuard(())
+    }
+}
+
+impl Drop for BackgroundPauseGuard {
+    fn drop(&mut self) {
+        INTERACTIVE_HASH_TASKS.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 pub fn foreground_busy() -> bool {
     FOREGROUND_TASKS.load(Ordering::SeqCst) > 0
+}
+
+pub fn background_busy() -> bool {
+    FOREGROUND_TASKS.load(Ordering::SeqCst) > 0 || INTERACTIVE_HASH_TASKS.load(Ordering::SeqCst) > 0
 }
 
 /// Step of the pause while foreground work runs (the stop request is checked at each step).
@@ -352,7 +375,7 @@ const PAUSE_STEP: Duration = Duration::from_millis(500);
 /// Lowers the priority of the current thread (the scan worker and its decoder are dedicated threads, never pool threads). Windows only:
 /// Linux would need the `libc` crate, and the small number of threads is enough there (§6.2).
 #[cfg(windows)]
-fn lower_thread_priority() {
+pub(crate) fn lower_thread_priority() {
     use windows::Win32::System::Threading::{GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_BELOW_NORMAL};
     // SAFETY: GetCurrentThread returns a pseudo-handle valid in the calling thread; a failure only leaves the normal priority.
     unsafe {
@@ -361,7 +384,33 @@ fn lower_thread_priority() {
 }
 
 #[cfg(not(windows))]
-fn lower_thread_priority() {}
+pub(crate) fn lower_thread_priority() {}
+
+/// Resolves the worker thread count for duplicate hashing from the UI setting (`"auto"`, `"1"`, `"2"`, `"4"`).
+pub(crate) fn resolve_hash_threads(setting: Option<&str>, interactive: bool) -> usize {
+    match setting {
+        Some("1") => 1,
+        Some("2") => 2,
+        Some("4") => 4,
+        _ => {
+            let cores = std::thread::available_parallelism().map(|count| count.get()).unwrap_or(4);
+            if interactive {
+                (cores / 2).clamp(2, 4)
+            } else {
+                2.min((cores / 2).max(1))
+            }
+        }
+    }
+}
+
+/// Builds a Rayon thread pool whose worker threads run at lowered OS priority.
+pub(crate) fn build_low_priority_pool(threads: usize) -> Result<rayon::ThreadPool, String> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads.max(1))
+        .start_handler(|_| lower_thread_priority())
+        .build()
+        .map_err(|error| error.to_string())
+}
 
 // ---------------------------------------------------------------------------
 // Tables (§5.1)
@@ -630,13 +679,25 @@ fn load_pixels(path: &str, thumbnails_dir: &Path, write_side: Option<usize>) -> 
     Ok(thumbnails::resize_to_fit(rgb, width, height, FALLBACK_SIDE))
 }
 
-/// Input tensor of one photo, or why there is none.
-fn prepare(path: &str, thumbnails_dir: &Path, write_side: Option<usize>, model: &ModelSpec) -> Result<Vec<f32>, Outcome> {
+/// Input tensor of one photo, or why there is none. When `compute_phash` is true, also computes the perceptual hash on the already-decoded
+/// oriented RGB buffer (zero extra disk I/O).
+fn prepare(
+    path: &str,
+    thumbnails_dir: &Path,
+    write_side: Option<usize>,
+    model: &ModelSpec,
+    compute_phash: bool,
+) -> (Option<crate::phash::Fingerprint>, Result<Vec<f32>, Outcome>) {
     match load_pixels(path, thumbnails_dir, write_side) {
-        Ok((rgb, width, height)) if width > 0 && height > 0 => Ok(image_tensor(&rgb, width, height, model)),
-        Ok(_) => Err(Outcome::Failed("empty image".to_string())),
-        Err(None) => Err(Outcome::Skipped),
-        Err(Some(reason)) => Err(Outcome::Failed(reason)),
+        Ok((rgb, width, height)) if width > 0 && height > 0 => {
+            let fp = (compute_phash && crate::similar::is_phash_supported(Path::new(path)))
+                .then(|| crate::phash::fingerprint_rgb(&rgb, width, height))
+                .flatten();
+            (fp, Ok(image_tensor(&rgb, width, height, model)))
+        }
+        Ok(_) => (None, Err(Outcome::Failed("empty image".to_string()))),
+        Err(None) => (None, Err(Outcome::Skipped)),
+        Err(Some(reason)) => (None, Err(Outcome::Failed(reason))),
     }
 }
 
@@ -651,13 +712,24 @@ pub fn store_batch(conn: &Connection, model_id: &str, results: &[(&Target, Outco
     store_batch_with_hashes(conn, model_id, results, &[])
 }
 
-/// `store_batch`, plus the image-data hashes the scan computed (`photo_hashes`, shared with the duplicate search) in the same transaction.
-/// Embeddings and failures carry the image key of their target (`Target::key`); a refreshed row only takes the new stamp.
+/// `store_batch`, plus the image-data hashes (`photo_hashes`) and similarity hashes (`photo_phash`) computed during the scan, in the same
+/// transaction. Embeddings and failures carry the image key of their target (`Target::key`); a refreshed row only takes the new stamp.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn store_batch_with_hashes(
     conn: &Connection,
     model_id: &str,
     results: &[(&Target, Outcome)],
     hashes: &[(i64, crate::duplicates::DataHash)],
+) -> rusqlite::Result<()> {
+    store_batch_with_all_hashes(conn, model_id, results, hashes, &[])
+}
+
+pub(crate) fn store_batch_with_all_hashes(
+    conn: &Connection,
+    model_id: &str,
+    results: &[(&Target, Outcome)],
+    hashes: &[(i64, crate::duplicates::DataHash)],
+    phashes: &[(i64, u64, i64, crate::phash::Fingerprint)],
 ) -> rusqlite::Result<()> {
     let transaction = conn.unchecked_transaction()?;
     {
@@ -701,6 +773,9 @@ pub fn store_batch_with_hashes(
         }
         for (photo_id, data) in hashes {
             crate::duplicates::remember_data_hash(&transaction, *photo_id, data)?;
+        }
+        for (photo_id, size, modified, fp) in phashes {
+            crate::similar::save_phash_row(&transaction, *photo_id, *size, *modified, fp)?;
         }
     }
     transaction.commit()
@@ -816,14 +891,15 @@ struct ScanJob {
     threads: usize,
     /// "Generate thumbnails during the analysis": size of the thumbnail cache, the missing thumbnails being written there (`load_pixels`).
     write_thumbnail_side: Option<usize>,
+    /// Also compute `photo_phash` on the decoded RGB buffer while analysing content (zero extra disk I/O).
+    compute_phash: bool,
     cancel: Arc<AtomicBool>,
 }
 
-/// Waits while foreground work runs (500 ms steps); `on_pause` is called once when the pause starts. Returns false when a stop was
-/// requested.
-fn wait_for_foreground(cancel: &AtomicBool, on_pause: &mut dyn FnMut()) -> bool {
+/// Waits while `busy()` is true (500 ms steps); `on_pause` is called once when the pause starts. Returns false when a stop was requested.
+pub(crate) fn wait_while_busy(busy: impl Fn() -> bool, cancel: &AtomicBool, on_pause: &mut dyn FnMut()) -> bool {
     let mut announced = false;
-    while foreground_busy() {
+    while busy() {
         if cancel.load(Ordering::Relaxed) { return false; }
         if !announced {
             on_pause();
@@ -834,6 +910,11 @@ fn wait_for_foreground(cancel: &AtomicBool, on_pause: &mut dyn FnMut()) -> bool 
     !cancel.load(Ordering::Relaxed)
 }
 
+/// Waits while foreground or interactive hash work runs (500 ms steps); `on_pause` is called once when the pause starts.
+fn wait_for_foreground(cancel: &AtomicBool, on_pause: &mut dyn FnMut()) -> bool {
+    wait_while_busy(background_busy, cancel, on_pause)
+}
+
 /// One photo prepared by the decoder thread.
 struct Prepared {
     /// Index in the pending list.
@@ -842,6 +923,8 @@ struct Prepared {
     key: Option<ImageKey>,
     /// Image-data hash computed here (not found in `photo_hashes`): stored there with the batch.
     computed_hash: Option<crate::duplicates::DataHash>,
+    /// Similarity hash computed from the decoded RGB buffer (`photo_phash`): `(size, modified, fingerprint)`.
+    computed_phash: Option<(u64, i64, crate::phash::Fingerprint)>,
     /// Tensor to infer, or the outcome without inference (refreshed, skipped, failed).
     work: Result<Vec<f32>, Outcome>,
 }
@@ -866,26 +949,44 @@ struct DecodeJob {
 
 /// Decoder side of one photo (§6.4): image key first; same key as the stored row → refreshed without decoding the pixels; otherwise the
 /// tensor (or why there is none).
-fn prepare_job(job: &DecodeJob, thumbnails_dir: &Path, write_side: Option<usize>, model: &ModelSpec, cancel: &AtomicBool) -> PreparedWork {
+fn prepare_job(
+    job: &DecodeJob,
+    thumbnails_dir: &Path,
+    write_side: Option<usize>,
+    model: &ModelSpec,
+    compute_phash: bool,
+    cancel: &AtomicBool,
+) -> PreparedWork {
     let (key, computed_hash) = match current_key(Path::new(&job.path), job.cached_hash.as_ref(), cancel) {
         Some((key, computed)) => (Some(key), computed),
         None => (None, None),
     };
     if key.is_some() && key == job.stored_key {
-        return (key, computed_hash, Err(Outcome::Refreshed));
+        return (key, computed_hash, None, Err(Outcome::Refreshed));
     }
-    (key, computed_hash, prepare(&job.path, thumbnails_dir, write_side, model))
+    let (fp, work) = prepare(&job.path, thumbnails_dir, write_side, model, compute_phash);
+    let computed_phash = fp.and_then(|fingerprint| {
+        crate::duplicates::current_version(Path::new(&job.path))
+            .ok()
+            .map(|(size, modified)| (size, modified, fingerprint))
+    });
+    (key, computed_hash, computed_phash, work)
 }
 
 /// Runs the decoder work of one photo, turning a panic (a decoder crate failing on a damaged file) into a failure of that photo, so the
 /// scan goes on with the next ones instead of ending as if it had been cancelled.
 fn guard_panic(work: impl FnOnce() -> PreparedWork) -> PreparedWork {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
-        .unwrap_or_else(|_| (None, None, Err(Outcome::Failed("internal error while reading the file".to_string()))))
+        .unwrap_or_else(|_| (None, None, None, Err(Outcome::Failed("internal error while reading the file".to_string()))))
 }
 
-/// What the decoder computes for one photo: image key, hash to store in `photo_hashes`, tensor or outcome.
-type PreparedWork = (Option<ImageKey>, Option<crate::duplicates::DataHash>, Result<Vec<f32>, Outcome>);
+/// What the decoder computes for one photo: image key, hash to store in `photo_hashes`, optional similarity hash, tensor or outcome.
+type PreparedWork = (
+    Option<ImageKey>,
+    Option<crate::duplicates::DataHash>,
+    Option<(u64, i64, crate::phash::Fingerprint)>,
+    Result<Vec<f32>, Outcome>,
+);
 
 /// The scan itself, on the dedicated worker thread. `emit` publishes the progress.
 fn run_scan(job: ScanJob, emit: &dyn Fn(ScanProgress)) -> Result<ScanReport, String> {
@@ -935,6 +1036,7 @@ fn scan_pending(
     let decoder_cancel = job.cancel.clone();
     let thumbnails_dir = job.thumbnails_dir.clone();
     let write_side = job.write_thumbnail_side;
+    let compute_phash = job.compute_phash;
     let decoder = std::thread::Builder::new()
         .name("semantic-decode".to_string())
         .spawn(move || {
@@ -949,9 +1051,9 @@ fn scan_pending(
                     .iter()
                     .enumerate()
                     .map(|(offset, decode_job)| {
-                        let (key, computed_hash, work) =
-                            guard_panic(|| prepare_job(decode_job, &thumbnails_dir, write_side, active_model(), &decoder_cancel));
-                        Prepared { index: chunk_index * BATCH + offset, key, computed_hash, work }
+                        let (key, computed_hash, computed_phash, work) =
+                            guard_panic(|| prepare_job(decode_job, &thumbnails_dir, write_side, active_model(), compute_phash, &decoder_cancel));
+                        Prepared { index: chunk_index * BATCH + offset, key, computed_hash, computed_phash, work }
                     })
                     .collect();
                 let batch = PreparedBatch {
@@ -994,12 +1096,14 @@ fn scan_pending(
             report.cancelled = true;
             break;
         }
-        // Image keys read by the decoder go with the targets (stored with their outcome); new hashes go to `photo_hashes`.
+        // Image keys read by the decoder go with the targets (stored with their outcome); new hashes go to `photo_hashes` / `photo_phash`.
         let mut hashes = Vec::new();
+        let mut phashes = Vec::new();
         for prepared in &batch {
             let target = &mut pending[prepared.index];
             target.key = prepared.key;
             if let Some(data) = prepared.computed_hash { hashes.push((target.photo_id, data)); }
+            if let Some(fp) = prepared.computed_phash { phashes.push((target.photo_id, fp.0, fp.1, fp.2)); }
         }
         let mut pixels = Vec::with_capacity(batch.len() * 3 * model.image_size * model.image_size);
         let mut results: Vec<(&Target, Outcome)> = Vec::with_capacity(batch.len());
@@ -1036,7 +1140,7 @@ fn scan_pending(
         }
         let inference = inference_started.elapsed();
         let store_started = Instant::now();
-        if let Err(error) = store_batch_with_hashes(conn, &model.id, &results, &hashes) {
+        if let Err(error) = store_batch_with_all_hashes(conn, &model.id, &results, &hashes, &phashes) {
             failure = Some(format!("database: {error}"));
             break;
         }
@@ -1098,6 +1202,7 @@ pub async fn semantic_scan(
     threads: Option<usize>,
     skip_raw: Option<bool>,
     write_thumbnails: Option<bool>,
+    compute_phash: Option<bool>,
 ) -> Result<ScanReport, String> {
     ensure_enabled()?;
     let cancel = crate::scan_cancel_flag(&task_id);
@@ -1115,6 +1220,7 @@ pub async fn semantic_scan(
             skip_raw: skip_raw.unwrap_or(false),
             threads: threads.unwrap_or(1).clamp(1, 4),
             write_thumbnail_side: write_thumbnails.unwrap_or(false).then(|| state.thumbnail_cache_size()),
+            compute_phash: compute_phash.unwrap_or(true),
             cancel: cancel.clone(),
         };
         let (sender, receiver) = tokio::sync::oneshot::channel();

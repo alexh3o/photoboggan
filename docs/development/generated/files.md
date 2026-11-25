@@ -10,10 +10,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `AGENTS.md` | 120 |  |
 | `BUILDING.md` | 87 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1555 |  |
+| `index.html` | 1615 |  |
 | `package.json` | 29 |  |
 | `README.md` | 217 |  |
-| `TODO.md` | 84 |  |
+| `TODO.md` | 80 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
@@ -59,17 +59,17 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `config.md` | 166 |  |
+| `config.md` | 174 |  |
 | `css.md` | 633 |  |
-| `db-schema.md` | 279 |  |
+| `db-schema.md` | 301 |  |
 | `events.md` | 11 |  |
-| `files.md` | 343 |  |
-| `ipc-commands.md` | 201 |  |
-| `module-deps.md` | 121 |  |
-| `sections.md` | 467 |  |
-| `symbols-js.md` | 1756 |  |
-| `symbols-rust.md` | 1481 |  |
-| `tests.md` | 537 |  |
+| `files.md` | 346 |  |
+| `ipc-commands.md` | 206 |  |
+| `module-deps.md` | 123 |  |
+| `sections.md` | 476 |  |
+| `symbols-js.md` | 1779 |  |
+| `symbols-rust.md` | 1558 |  |
+| `tests.md` | 551 |  |
 
 ## docs/development/modules
 
@@ -77,7 +77,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.md` | 63 |  |
 | `app-shell.md` | 73 |  |
-| `duplicates.md` | 66 |  |
+| `duplicates.md` | 70 |  |
 | `face-detection.md` | 72 |  |
 | `faces.md` | 69 |  |
 | `filters-and-search.md` | 108 |  |
@@ -91,7 +91,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `privacy.md` | 70 |  |
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 66 |  |
-| `stats.md` | 44 |  |
+| `stats.md` | 45 |  |
 | `thumbnails-and-previews.md` | 103 |  |
 | `updates.md` | 66 |  |
 
@@ -120,14 +120,15 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
 | `batch-rename.js` | 656 |  |
 | `date-filter.js` | 285 | Date filter of the Filters block (date taken, from the EXIF date): text field (YYYYMMDD or YYYYMMDD-YYYYMMDD), calendar pop-up (single day or range) and clear button, plus the helpers that turn the date of a photo into … |
-| `defaults.jsonc` | 213 |  |
+| `defaults.jsonc` | 229 |  |
 | `description-panel.js` | 410 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `drag-drop.js` | 423 | Grid drag-scroll (with exponential inertia and click suppression) and photo drag-and-drop from the thumbnail grid onto the folder tree (including sticky pinned rows), manual albums, and the map, plus the queued folder m… |
 | `duplicate-names.js` | 122 | Duplicate search by file name (no file is read): photos whose names, reduced to a "key" by the user's pattern, contain one another. Pure functions; the task around them (candidates from the backend, progress, stop) is i… |
-| `duplicates-modal.js` | 310 | Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are applied to this search only, unless "Save these settings as default" is tick… |
-| `duplicates-view.js` | 371 | Duplicate search results mode: group indexing, banner rendering, group sorting, "Best copy" ranking, cleanup selection, task execution, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initDup… |
+| `duplicates-modal.js` | 349 | Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are applied to this search only, unless "Save these settings as default" is tick… |
+| `duplicates-settings.js` | 285 | Settings > Search > Duplicates: hash coverage stats, precomputation launch (exact, similarity, or both), worker speed, synergies (content analysis, integrity check), background auto-hashing, and deletion. |
+| `duplicates-view.js` | 475 | Duplicate search results mode: group indexing, banner rendering, group sorting, "Best copy" ranking, cleanup selection, task execution, and view snapshot entry/exit. `main.js` wires host state and callbacks via `initDup… |
 | `duplicates.css` | 61 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
-| `duplicates.js` | 259 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
+| `duplicates.js` | 262 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1121 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
 | `faces-panel.js` | 1911 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
@@ -151,9 +152,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `keywords-panel.js` | 1274 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 156 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
 | `list-view.css` | 64 | List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage. |
-| `list-view.js` | 1697 | List panel (toolbar "List" button / L key): virtualized, multi-column sortable, customizable table of the displayed photos. Shares `photos`, `selectedIndices`, `lastSelectedIndex`, and context menus with the grid. Zero … |
+| `list-view.js` | 1751 | List panel (toolbar "List" button / L key): virtualized, multi-column sortable, customizable table of the displayed photos. Shares `photos`, `selectedIndices`, `lastSelectedIndex`, and context menus with the grid. Zero … |
 | `location-panel.js` | 245 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6386 |  |
+| `main.js` | 6406 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 516 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -179,7 +180,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic-exclusions.js` | 154 | Content search: keywords never suggested (Settings > Content search). Camera gear, lenses and other keywords that the content of a photo cannot tell give poor suggestions: the user lists them here, and neither they nor … |
 | `semantic-keywords.js` | 200 | Content search, keyword filter side (SigLIP 2, Phase 5): photos suggested for the keywords of the filter. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestio… |
 | `semantic-results.js` | 279 | Content search results mode: relevance cut, banner rendering, keyword-candidate actions, similar-content / keyword-candidate entry points, and view snapshot entry/exit. `main.js` wires host state and callbacks via `init… |
-| `semantic-settings.js` | 431 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
+| `semantic-settings.js` | 436 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
 | `semantic-tagging.js` | 161 | Content search, tagging help (SigLIP 2, Phase 6): keyword -> photos and photo -> keywords. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§8, §23.5, §26). Nothing here writes anything: accepting a suggestion… |
 | `semantic.css` | 73 | Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. |
 | `semantic.js` | 112 | Content search, search side (SigLIP 2): the toolbar field, its scope toggle and the requests to the backend. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7, §9, §18). Everything here stays idle while the … |
@@ -189,10 +190,10 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `sidebar-search.js` | 56 | Quick search field in the title row of a sidebar block (Folders, Albums). A magnifier button (shown when the title row is hovered, like the "+" of the Albums block) opens a text field that grows to the left of the butto… |
 | `slideshow.js` | 311 | Diaporama : un état du plein écran (pas un mode à part). Un minuteur fait passer le plein écran à la photo suivante ; tout le reste (chargement, préchargement, zoom, notes, Échap) est assuré par le plein écran lui-même.… |
 | `stats.css` | 355 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
-| `stats.js` | 616 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
+| `stats.js` | 666 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `sticky-folders.js` | 36 | Sticky folders of the folder tree: which rows stay pinned at the top while the tree is scrolled. Pure code: no state, no DOM. The layer that draws the pinned rows (copies of the real rows, see "STICKY FOLDERS" in main.j… |
 | `styles.css` | 1135 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
-| `task-queue.js` | 663 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel lane for content analys… |
+| `task-queue.js` | 684 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel background lane (`seman… |
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `undo.css` | 25 | Undo history modal (Ctrl+U, undo.js): uses global modal shell and theme tokens |
@@ -244,19 +245,20 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `batch_rename.rs` | 873 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
 | `db.rs` | 780 |  |
-| `duplicates.rs` | 766 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
+| `duplicates.rs` | 1109 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 2400 |  |
 | `exiftool.rs` | 1383 | Metadata writing via ExifTool (https://exiftool.org). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PATH. … |
 | `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
 | `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
 | `face_recognize.rs` | 320 | Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère de … |
 | `faces.rs` | 2082 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
-| `geolocation.rs` | 253 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
+| `geolocation.rs` | 265 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
+| `hash_tasks.rs` | 914 | Background duplicate hash precomputation, pre-flight work counting, settings stats, deletion, and list-view exact hash states. Runs in the shared low-priority background lane (`semantic::background_busy`), commits in ch… |
 | `heif.rs` | 286 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
-| `integrity.rs` | 578 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
-| `keywords.rs` | 973 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
+| `integrity.rs` | 760 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
+| `keywords.rs` | 985 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
 | `library_sync.rs` | 430 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 3572 |  |
+| `main.rs` | 3644 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -269,9 +271,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into … |
 | `semantic_models.rs` | 339 | Files of the semantic search (SigLIP 2, spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by scripts… |
 | `semantic_search.rs` | 817 | Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - Index … |
-| `semantic.rs` | 1237 | Semantic search with SigLIP 2 (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan task.… |
-| `similar.rs` | 371 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
-| `stats.rs` | 710 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
+| `semantic.rs` | 1343 | Semantic search with SigLIP 2 (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan task.… |
+| `similar.rs` | 542 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
+| `stats.rs` | 805 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
 | `thumbnails.rs` | 726 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
 | `update_check.rs` | 356 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
@@ -284,7 +286,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
 | `batch_rename.rs` | 358 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
 | `db.rs` | 486 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
-| `duplicates.rs` | 287 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
+| `duplicates.rs` | 512 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 110 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
 | `exif.rs` | 420 | Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs). Synthetic files in a temporary folder; ExifTool writes are tested in tests/exiftool.rs. |
 | `exiftool_rights.rs` | 67 | Tests des arguments ExifTool de l'auteur et des droits (exiftool.rs) : seuls les arguments sont vérifiés ici, ExifTool n'est pas lancé. Un JPEG reçoit aussi l'IPTC et l'EXIF ; les autres formats (sidecar XMP) ne reçoive… |
@@ -295,7 +297,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `faces.rs` | 54 | Tests of faces.rs: reading face regions from XMP packets (MWG written by ExifTool or Exiv2, Microsoft, priority, unnamed faces). Database side: tests/faces_db.rs. |
 | `geolocation.rs` | 79 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 103 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
-| `integrity.rs` | 209 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
+| `integrity.rs` | 240 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
 | `keywords.rs` | 507 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
 | `library_sync.rs` | 241 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
 | `main.rs` | 593 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
@@ -308,8 +310,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic_keywords.rs` | 1069 | Tests of the keyword suggestions: scores, thresholds, exclusions, invalidation, gating. Fake vectors only, no model. The measure that chose the score and the thresholds (§23) reads a copy of a real catalogue and needs t… |
 | `semantic_models.rs` | 80 | Tests of the semantic model files: manifest, status, deletion, gating. No download, no real model: empty or fake files only. |
 | `semantic_search.rs` | 644 | Tests of the semantic searches: ranking, relative threshold and cap, stable order, scopes, index updates and release. Fake vectors only, no model. Parity of the text search with the reference model is `#[ignore]`: run i… |
-| `semantic.rs` | 848 | Tests of the semantic search, model side: fp16 storage, image preprocessing (parity with PIL on the Phase 0 fixtures), query normalisation. Synthetic images only (the PNG fixtures are generated by dev_tools/semantic/mak… |
-| `similar.rs` | 195 | Tests of the similar-image search: grouping, rotations, bursts, flat pictures, cache and cancellation. Synthetic files in a temporary folder only. |
+| `semantic.rs` | 873 | Tests of the semantic search, model side: fp16 storage, image preprocessing (parity with PIL on the Phase 0 fixtures), query normalisation. Synthetic images only (the PNG fixtures are generated by dev_tools/semantic/mak… |
+| `similar.rs` | 244 | Tests of the similar-image search: grouping, rotations, bursts, flat pictures, cache and cancellation. Synthetic files in a temporary folder only. |
+| `stats.rs` | 67 | Tests for collection statistics coverage counts (content analysis and duplicate hashes). |
 | `thumbnails.rs` | 147 | Tests de non-régression de l'orientation et de l'EXIF des RAW (thumbnails.rs). Aucun vrai RAW : un CR3 minimal (boîtes CMT1 / CMT2) et des JPEG synthétiques sont fabriqués à la main. |
 | `update_check.rs` | 184 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
 
@@ -331,9 +334,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 2015 |  |
-| `es.json` | 2014 |  |
-| `fr.json` | 2015 |  |
+| `en.json` | 2086 |  |
+| `es.json` | 2085 |  |
+| `fr.json` | 2086 |  |
 
 ## webpage
 

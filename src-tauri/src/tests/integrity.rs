@@ -206,3 +206,34 @@ fn full_run_flags_only_the_corrupt_file_and_honours_cancellation() {
         assert!(!serde_json::to_string(&report).unwrap().contains("mauvais.png"));
     }
 }
+
+#[test]
+fn run_with_hashes_populates_exact_and_similarity_hashes() {
+    let (_catalog, pool) = temp_catalog();
+    let dir = tempfile::tempdir().unwrap();
+    let thumbnails = tempfile::tempdir().unwrap();
+    let jpg_path = write(dir.path(), "ok.jpg", &jpeg_bytes(48, 36));
+    let png_path = write(dir.path(), "ok.png", &png_bytes(32, 32));
+    {
+        let conn = pool.get().unwrap();
+        for p in [&jpg_path, &png_path] {
+            let s = p.to_string_lossy().into_owned();
+            let id = insert_photo(&conn, &s);
+            let meta = fs::metadata(p).unwrap();
+            let modified = meta.modified().unwrap().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+            conn.execute("UPDATE photos SET file_size = ?1, modified = ?2 WHERE id = ?3", rusqlite::params![meta.len() as i64, modified, id]).unwrap();
+        }
+    }
+
+    let cancel = AtomicBool::new(false);
+    let report = run_with_hashes(dir.path(), thumbnails.path(), 256, Some(&pool), true, &cancel, &|_| {}, &|_| {}).unwrap();
+    assert_eq!(report.healthy, 2);
+
+    let conn = pool.get().unwrap();
+    let full_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM photo_hashes WHERE mode = 1 AND full_hash IS NOT NULL", [], |r| r.get(0))
+        .unwrap();
+    let phash_count: i64 = conn.query_row("SELECT COUNT(*) FROM photo_phash", [], |r| r.get(0)).unwrap();
+    assert_eq!(full_count, 2);
+    assert_eq!(phash_count, 2);
+}

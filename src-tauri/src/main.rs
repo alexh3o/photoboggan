@@ -21,6 +21,7 @@ mod similar;
 mod update_check;
 mod private_maps;
 mod geolocation;
+mod hash_tasks;
 mod face_recognize;
 mod faces;
 mod heif;
@@ -499,6 +500,34 @@ pub(crate) fn keep_cached_images<T>(dirs: &ImageCacheDirs, path: &str, write: im
     Ok(result)
 }
 
+/// Re-stamps up-to-date cache rows (`photo_phash`, metadata-tolerant `photo_hashes` mode 1, and `photo_embeddings`) after a metadata-only
+/// write by photoboggan so unchanged pixels are not re-hashed or re-analysed. Rows whose `(size, modified)` did not match `(old_size,
+/// old_modified)` are left untouched so already-expired entries are never resurrected.
+pub(crate) fn restamp_photo_caches(
+    conn: &rusqlite::Connection,
+    photo_id: i64,
+    old_size: i64,
+    old_modified: i64,
+    new_size: i64,
+    new_modified: i64,
+) {
+    if old_size <= 0 || (old_size == new_size && old_modified == new_modified) {
+        return;
+    }
+    let queries = [
+        "UPDATE photo_phash SET size = ?1, modified = ?2 WHERE photo_id = ?3 AND size = ?4 AND modified = ?5",
+        "UPDATE photo_hashes SET size = ?1, modified = ?2 WHERE photo_id = ?3 AND mode = 1 AND tolerant = 1 AND size = ?4 AND modified = ?5",
+        "UPDATE photo_embeddings SET file_size = ?1, file_mtime = ?2 WHERE photo_id = ?3 AND file_size = ?4 AND file_mtime = ?5",
+    ];
+    for sql in queries {
+        if let Err(error) = conn.execute(sql, params![new_size, new_modified, photo_id, old_size, old_modified]) {
+            if !error.to_string().contains("no such table") {
+                eprintln!("Cache restamp failed for photo {photo_id}: {error}");
+            }
+        }
+    }
+}
+
 /// Écrit `bytes` dans le cache sous `destination` : fichier temporaire du même dossier (préfixe `prefix`) puis renommage ; le temporaire est supprimé
 /// en cas d'erreur. Un fichier déjà présent à la fin (écrit entre-temps par une autre tâche) est accepté.
 fn write_cache_file(destination: &Path, prefix: &str, bytes: &[u8]) -> Result<(), String> {
@@ -952,7 +981,7 @@ struct ScanDetail {
 // seulement si elle est absente du cache. Renvoie le rapport (fichiers suspects compris). La progression est publiée par « scan-progress » comme les autres tâches de la file ;
 // l'arrêt (cancel_scan) rend un rapport partiel. Le catalogue n'est pas modifié.
 #[tauri::command]
-async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String) -> Result<integrity::IntegrityReport, String> {
+async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String, compute_hashes: Option<bool>) -> Result<integrity::IntegrityReport, String> {
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
@@ -960,6 +989,7 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
     let max_side = state.thumbnail_cache_size();
     let cancel = scan_cancel_flag(&task_id);
     let worker_task_id = task_id.clone();
+    let do_hashes = compute_hashes.unwrap_or(true);
     let outcome = tokio::task::spawn_blocking(move || {
         let publish = |fraction: f64| {
             let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
@@ -968,25 +998,47 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
             let _ = app.emit("scan-detail", ScanDetail { task_id: worker_task_id.clone(), detail: folder_label.to_string() });
         };
         let _priority = semantic::PriorityGuard::new();
-        integrity::run(&folder, &thumbnails_dir, max_side, &cancel, &publish, &publish_folder)
+        integrity::run_with_hashes(&folder, &thumbnails_dir, max_side, Some(&pool), do_hashes, &cancel, &publish, &publish_folder)
     }).await;
     release_scan_cancel_flag(&task_id);
     outcome.map_err(|error| error.to_string())?
 }
 
-// Duplicate search, identical images (see duplicates.rs): the scope is resolved in the backend, only groups of paths are returned. Progress goes through
-// "scan-progress" like the other queue tasks; stopping (cancel_scan) returns a report flagged `cancelled`. The catalog only gets the hash cache.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RichScanProgress {
+    task_id: String,
+    percent: u32,
+    done: usize,
+    total: usize,
+    remaining_seconds: Option<u64>,
+    paused: bool,
+    phase: Option<&'static str>,
+}
+
+// Duplicate search, identical images (see duplicates.rs): pauses any background precomputation, runs at low OS priority,
+// yields to strict foreground tasks, and reports rich progress + failure logs.
 #[tauri::command]
 async fn find_duplicates(app: tauri::AppHandle, state: State<'_, AppState>, request: duplicates::Request, task_id: String) -> Result<duplicates::Report, String> {
     let pool = state.pool();
+    let base_dir = state.base_dir();
     let cancel = scan_cancel_flag(&task_id);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || {
-        let publish = |fraction: f64| {
-            let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
+        let publish = |rich: duplicates::RichProgress| {
+            let _ = app.emit("scan-progress", RichScanProgress {
+                task_id: worker_task_id.clone(),
+                percent: rich.percent,
+                done: rich.done,
+                total: rich.total,
+                remaining_seconds: rich.remaining_seconds,
+                paused: rich.paused,
+                phase: rich.phase,
+            });
         };
-        let _priority = semantic::PriorityGuard::new();
-        duplicates::run(&pool, &request, &cancel, &publish)
+        let _bg_pause = semantic::BackgroundPauseGuard::new();
+        hash_tasks::wait_for_precompute_chunk(&cancel);
+        duplicates::run_with_options(&pool, Some(&base_dir), &request, &cancel, &publish)
     }).await;
     release_scan_cancel_flag(&task_id);
     outcome.map_err(|error| error.to_string())?
@@ -998,20 +1050,30 @@ fn list_duplicate_candidates(state: State<'_, AppState>, scope: duplicates::Scop
     duplicates::name_candidates(&state.pool(), &scope, compare_with_library)
 }
 
-// Duplicate search, similar images (see similar.rs): same flow as find_duplicates. Fingerprints are read from the thumbnail cache when a thumbnail exists
-// (nothing is ever written there) and kept in the catalog.
+// Duplicate search, similar images (see similar.rs): pauses any background precomputation, runs at low OS priority,
+// yields to strict foreground tasks, and reports rich progress + failure logs.
 #[tauri::command]
 async fn find_similar_images(app: tauri::AppHandle, state: State<'_, AppState>, request: similar::Request, task_id: String) -> Result<duplicates::Report, String> {
     let pool = state.pool();
     let thumbnails_dir = state.thumbnails_dir();
+    let base_dir = state.base_dir();
     let cancel = scan_cancel_flag(&task_id);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || {
-        let publish = |fraction: f64| {
-            let _ = app.emit("scan-progress", ScanProgress { task_id: worker_task_id.clone(), percent: (fraction * 100.0).round() as u32 });
+        let publish = |rich: duplicates::RichProgress| {
+            let _ = app.emit("scan-progress", RichScanProgress {
+                task_id: worker_task_id.clone(),
+                percent: rich.percent,
+                done: rich.done,
+                total: rich.total,
+                remaining_seconds: rich.remaining_seconds,
+                paused: rich.paused,
+                phase: rich.phase,
+            });
         };
-        let _priority = semantic::PriorityGuard::new();
-        similar::run(&pool, &thumbnails_dir, &request, &cancel, &publish)
+        let _bg_pause = semantic::BackgroundPauseGuard::new();
+        hash_tasks::wait_for_precompute_chunk(&cancel);
+        similar::run_with_options(&pool, &thumbnails_dir, Some(&base_dir), &request, &cancel, &publish)
     }).await;
     release_scan_cancel_flag(&task_id);
     outcome.map_err(|error| error.to_string())?
@@ -1319,11 +1381,16 @@ fn write_photo_marking_with(
         let conn = pool.get().map_err(|error| error.to_string())?;
         let metadata = fs::metadata(path).map_err(|error| format!("Fichier introuvable après l'écriture : {error}"))?;
         let tx = conn.unchecked_transaction().map_err(|error| error.to_string())?;
+        let previous: (i64, i64) = tx
+            .query_row("SELECT COALESCE(file_size, 0), COALESCE(modified, 0) FROM photos WHERE id = ?1", params![id], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap_or((0, 0));
         // `modified` = the image file's mtime (unchanged when only the sidecar was written); `effective_modified` also counts the sidecar's.
+        let new_size = metadata.len() as i64;
         let image_modified = library_sync::modified_millis(&metadata);
         let effective_modified = library_sync::effective_modified_millis(Path::new(path), image_modified);
-        tx.execute("UPDATE photos SET file_size = ?, modified = ?, effective_modified = ? WHERE id = ?", params![metadata.len() as i64, image_modified, effective_modified, id])
+        tx.execute("UPDATE photos SET file_size = ?, modified = ?, effective_modified = ? WHERE id = ?", params![new_size, image_modified, effective_modified, id])
             .map_err(|error| error.to_string())?;
+        restamp_photo_caches(&tx, id, previous.0, previous.1, new_size, image_modified);
         if let Some(rating) = rating {
             tx.execute("UPDATE photos SET rating = ? WHERE id = ?", params![rating, id]).map_err(|error| error.to_string())?;
         }
@@ -3184,6 +3251,11 @@ fn main() {
             find_similar_images,
             similar::get_phash_photo_ids,
             list_duplicate_candidates,
+            hash_tasks::precompute_hashes,
+            hash_tasks::count_duplicate_work,
+            hash_tasks::get_duplicate_hash_stats,
+            hash_tasks::delete_duplicate_hashes,
+            hash_tasks::get_exact_hash_states,
             export_integrity_report,
             open_folder_in_file_manager,
             create_subfolder,

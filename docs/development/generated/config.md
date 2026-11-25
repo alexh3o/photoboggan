@@ -18,6 +18,13 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `clippingRange` | `3` | histogram.js |
 | `colorLabelEnabled` | `true` | marking-settings.js |
 | `dimUnselectedOnHover` | `"0.65"` | main.js |
+| `duplicateAutoHash` | `false` | duplicates-settings.js |
+| `duplicateAutoHashMode` | `"both_prepass"` | duplicates-settings.js |
+| `duplicateAutoHashRaw` | `false` | duplicates-settings.js |
+| `duplicateHashOnIntegrity` | `true` | duplicates-settings.js, task-queue.js |
+| `duplicateHashOnSemantic` | `true` | duplicates-settings.js, semantic-settings.js |
+| `duplicateHashThreads` | `"auto"` | duplicates-settings.js |
+| `duplicatePrecomputeExactMode` | `"prepass"` | duplicates-settings.js |
 | `exifPanelWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
 | `exifVisible` | `true` | main.js |
 | `faceDetection` | `false` | faces-panel.js |
@@ -34,6 +41,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `histogramRgb` | `false` | histogram.js |
 | `ignoreBursts` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includePrereleases` | `false` | update-check.js |
+| `includeRaw` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includeRawPairs` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includeSubfolders` | `false` | main.js |
 | `infoAuthorOpen` | `false` | info-author.js |
@@ -109,7 +117,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (2012 keys), es (2012 keys), fr (2012 keys)
+- Languages: en (2081 keys), es (2081 keys), fr (2081 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

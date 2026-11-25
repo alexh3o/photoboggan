@@ -585,12 +585,24 @@ fn run_write(
                 let mut effective_modified = 0i64;
                 let stored = match std::fs::metadata(&item.path) {
                     Ok(file) => {
+                        let previous: (i64, i64) = tx
+                            .query_row(
+                                "SELECT COALESCE(file_size, 0), COALESCE(modified, 0) FROM photos WHERE id = ?1",
+                                params![item.photo_id],
+                                |row| Ok((row.get(0)?, row.get(1)?)),
+                            )
+                            .unwrap_or((0, 0));
+                        let new_size = file.len() as i64;
                         let image_modified = crate::library_sync::modified_millis(&file);
                         effective_modified = crate::library_sync::effective_modified_millis(Path::new(&item.path), image_modified);
-                        tx.execute(
+                        let res = tx.execute(
                             "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3, file_size = ?4, modified = ?5, effective_modified = ?6 WHERE id = ?7",
-                            params![meta.keywords, meta.title, meta.caption, file.len() as i64, image_modified, effective_modified, item.photo_id],
-                        )
+                            params![meta.keywords, meta.title, meta.caption, new_size, image_modified, effective_modified, item.photo_id],
+                        );
+                        if res.is_ok() {
+                            crate::restamp_photo_caches(&tx, item.photo_id, previous.0, previous.1, new_size, image_modified);
+                        }
+                        res
                     }
                     Err(_) => tx.execute(
                         "UPDATE photos SET keywords = ?1, title = ?2, caption = ?3 WHERE id = ?4",

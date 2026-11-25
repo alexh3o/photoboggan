@@ -1,4 +1,4 @@
-<!-- verified: 202492b | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
+<!-- verified: b9ea942 | sources: src-tauri/src/keywords.rs, src/keywords-panel.js, src/description-panel.js -->
 
 # Hierarchical keywords and description
 

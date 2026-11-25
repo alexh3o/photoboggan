@@ -14,23 +14,36 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::BufReader;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::{Instant, UNIX_EPOCH};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use rayon::prelude::*;
 use rusqlite::{params, Connection};
 use serde::Deserialize;
 
 use crate::db::DbPool;
-use crate::duplicates::{load_candidates, Report, Scope};
+use crate::duplicates::{
+    load_candidates_filtered, write_failure_log, HashFailure, Report, RichProgress, Scope, HASH_CHUNK_SIZE, MAX_REPORTED_FAILURES,
+};
 use crate::phash::{self, Failure, Fingerprint, ALGO_VERSION};
 
 /// A group larger than this is dropped: a threshold too loose chains unrelated photos into one useless blob.
 const MAX_GROUP: usize = 500;
 /// Two photos whose proportions differ by more than this (as a ratio, 1.15 = 15 %) are not compared, unless rotations are tolerated.
 const RATIO_TOLERANCE: f32 = 1.15;
+
+fn default_true() -> bool {
+    true
+}
+
+/// Whether `phash` can decode and fingerprint this file's format.
+pub(crate) fn is_phash_supported(path: &Path) -> bool {
+    let ext = path.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
+    matches!(ext.as_str(), "jpg" | "jpeg" | "jfif" | "heic" | "heif" | "png" | "webp") || crate::thumbnails::is_raw_path(path)
+}
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -46,11 +59,17 @@ pub struct Request {
     pub burst_ms: u32,
     /// Allow a RAW to be grouped with its JPEG (or the other way round).
     pub include_raw_pairs: bool,
+    /// Include RAW files in the search (default true).
+    #[serde(default = "default_true")]
+    pub include_raw: bool,
+    /// Worker threads setting (`"auto"`, `"1"`, `"2"`, `"4"`).
+    #[serde(default)]
+    pub threads: Option<String>,
 }
 
-/// Cache of the fingerprints (8 hashes of 8 bytes).
+/// Cache of the fingerprints (8 hashes of 8 bytes) and known unreadable/corrupt failures.
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
-    conn.execute(
+    conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS photo_phash (
             photo_id INTEGER PRIMARY KEY,
             size INTEGER NOT NULL,
@@ -58,9 +77,33 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             algo INTEGER NOT NULL,
             flat INTEGER NOT NULL,
             hashes BLOB NOT NULL
-        )",
-        [],
+        );
+        CREATE TABLE IF NOT EXISTS photo_phash_failures (
+            photo_id INTEGER PRIMARY KEY,
+            size INTEGER NOT NULL,
+            modified INTEGER NOT NULL,
+            algo INTEGER NOT NULL,
+            reason TEXT NOT NULL
+        );",
     )?;
+    Ok(())
+}
+
+/// Stores one up-to-date perceptual hash and clears any prior failure for this photo.
+pub(crate) fn save_phash_row(conn: &Connection, photo_id: i64, size: u64, modified: i64, fingerprint: &Fingerprint) -> rusqlite::Result<()> {
+    conn.prepare_cached("INSERT OR REPLACE INTO photo_phash (photo_id, size, modified, algo, flat, hashes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")?
+        .execute(params![photo_id, size as i64, modified, ALGO_VERSION, fingerprint.flat as i64, encode(&fingerprint.hashes)])?;
+    conn.prepare_cached("DELETE FROM photo_phash_failures WHERE photo_id = ?1")?
+        .execute(params![photo_id])?;
+    Ok(())
+}
+
+/// Records an unreadable/corrupt file failure for `photo_phash` and drops any stale hash row.
+pub(crate) fn save_phash_failure(conn: &Connection, photo_id: i64, size: u64, modified: i64, reason: &str) -> rusqlite::Result<()> {
+    conn.prepare_cached("INSERT OR REPLACE INTO photo_phash_failures (photo_id, size, modified, algo, reason) VALUES (?1, ?2, ?3, ?4, ?5)")?
+        .execute(params![photo_id, size as i64, modified, ALGO_VERSION, reason])?;
+    conn.prepare_cached("DELETE FROM photo_phash WHERE photo_id = ?1")?
+        .execute(params![photo_id])?;
     Ok(())
 }
 
@@ -115,15 +158,30 @@ fn load_cache(conn: &Connection) -> Result<HashMap<i64, Cached>, String> {
     Ok(cache)
 }
 
-fn save_new(conn: &Connection, fresh: &[(i64, u64, i64, Fingerprint)]) -> Result<(), String> {
+fn load_failure_cache(conn: &Connection) -> Result<HashMap<i64, (u64, i64)>, String> {
+    let mut stmt = conn
+        .prepare("SELECT photo_id, size, modified FROM photo_phash_failures WHERE algo = ?1")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![ALGO_VERSION], |row| Ok((row.get::<_, i64>(0)?, (row.get::<_, i64>(1)? as u64, row.get::<_, i64>(2)?))))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<HashMap<_, _>>>().map_err(|e| e.to_string())
+}
+
+fn save_chunk(
+    conn: &Connection,
+    fresh: &[(i64, u64, i64, Fingerprint)],
+    failures: &[(i64, u64, i64, String)],
+) -> Result<(), String> {
+    if fresh.is_empty() && failures.is_empty() {
+        return Ok(());
+    }
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    {
-        let mut stmt = tx
-            .prepare_cached("INSERT OR REPLACE INTO photo_phash (photo_id, size, modified, algo, flat, hashes) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
-            .map_err(|e| e.to_string())?;
-        for (id, size, modified, fingerprint) in fresh {
-            stmt.execute(params![id, *size as i64, modified, ALGO_VERSION, fingerprint.flat as i64, encode(&fingerprint.hashes)]).map_err(|e| e.to_string())?;
-        }
+    for (id, size, modified, fingerprint) in fresh {
+        save_phash_row(&tx, *id, *size, *modified, fingerprint).map_err(|e| e.to_string())?;
+    }
+    for (id, size, modified, reason) in failures {
+        save_phash_failure(&tx, *id, *size, *modified, reason).map_err(|e| e.to_string())?;
     }
     tx.commit().map_err(|e| e.to_string())
 }
@@ -190,129 +248,238 @@ fn find(parents: &mut [usize], mut index: usize) -> usize {
     index
 }
 
-/// Finds groups of similar photos. `progress` receives a fraction between 0 and 1. A cancelled run returns no group, flagged `cancelled`.
+/// Finds groups of similar photos (tests and simple callers).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn run(pool: &DbPool, thumbnails_dir: &Path, request: &Request, cancel: &AtomicBool, progress: &(dyn Fn(f64) + Sync)) -> Result<Report, String> {
+    run_with_options(pool, thumbnails_dir, None, request, cancel, &|rich| progress(rich.percent as f64 / 100.0))
+}
+
+/// Finds groups of similar photos with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
+pub fn run_with_options(
+    pool: &DbPool,
+    thumbnails_dir: &Path,
+    base_dir: Option<&Path>,
+    request: &Request,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(RichProgress) + Sync),
+) -> Result<Report, String> {
     let started = Instant::now();
     let conn = pool.get().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM photo_phash WHERE photo_id NOT IN (SELECT id FROM photos)", []).map_err(|e| e.to_string())?;
-    let candidates = load_candidates(&conn, &request.scope, request.compare_with_library)?;
+    conn.execute_batch(
+        "DELETE FROM photo_phash WHERE photo_id NOT IN (SELECT id FROM photos);
+         DELETE FROM photo_phash_failures WHERE photo_id NOT IN (SELECT id FROM photos);",
+    )
+    .map_err(|e| e.to_string())?;
+    let candidates = load_candidates_filtered(&conn, &request.scope, request.compare_with_library, request.include_raw)?;
     let cache = load_cache(&conn)?;
+    let failure_cache = load_failure_cache(&conn)?;
 
-    // Same sizing as the integrity check: leave room for the interface.
-    let cores = std::thread::available_parallelism().map(|count| count.get()).unwrap_or(4);
-    let workers = rayon::ThreadPoolBuilder::new().num_threads((cores / 2).clamp(2, 6)).build().map_err(|e| e.to_string())?;
+    let threads = crate::semantic::resolve_hash_threads(request.threads.as_deref(), true);
+    let workers = crate::semantic::build_low_priority_pool(threads)?;
 
-    // Step 1: fingerprints, from the cache or computed.
-    let unreadable = AtomicUsize::new(0);
-    let unsupported = AtomicUsize::new(0);
-    let done = AtomicUsize::new(0);
-    let total = candidates.len().max(1);
-    let computed: Vec<Option<(Item, Option<(u64, i64)>)>> = workers.install(|| {
-        candidates
-            .par_iter()
-            .map(|candidate| {
-                if cancel.load(Ordering::Relaxed) {
-                    return None;
-                }
-                let outcome = (|| {
-                    let metadata = fs::metadata(&candidate.path).ok()?;
-                    let size = metadata.len();
-                    let modified = metadata.modified().ok()?.duration_since(UNIX_EPOCH).ok()?.as_millis() as i64;
-                    if let Some(cached) = cache.get(&candidate.id).filter(|cached| cached.size == size && cached.modified == modified) {
-                        return Some((cached.fingerprint, None));
-                    }
-                    match phash::fingerprint_file(Path::new(&candidate.path), thumbnails_dir) {
-                        Ok(fingerprint) => Some((fingerprint, Some((size, modified)))),
-                        Err(Failure::Unsupported) => {
-                            unsupported.fetch_add(1, Ordering::Relaxed);
-                            None
-                        }
-                        Err(Failure::Unreadable) => {
-                            unreadable.fetch_add(1, Ordering::Relaxed);
-                            None
-                        }
-                    }
-                })();
-                let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished.is_multiple_of(32) {
-                    progress(0.8 * finished as f64 / total as f64);
-                }
-                let (fingerprint, fresh) = outcome?;
-                let ratio = (candidate.width > 0 && candidate.height > 0).then(|| candidate.width as f32 / candidate.height as f32);
-                let item = Item {
-                    id: candidate.id,
-                    path: candidate.path.clone(),
-                    in_scope: candidate.in_scope,
-                    fingerprint,
-                    ratio,
-                    time: parse_time(&candidate.date_taken),
-                    is_raw: crate::thumbnails::is_raw_path(Path::new(&candidate.path)),
-                };
-                Some((item, fresh))
-            })
-            .collect()
-    });
-    let mut fresh = Vec::new();
-    let mut items = Vec::with_capacity(computed.len());
-    for (item, new_values) in computed.into_iter().flatten() {
-        if let Some((size, modified)) = new_values {
-            fresh.push((item.id, size, modified, item.fingerprint));
+    // Step 1: separate already-cached, unsupported, and known failures from photos that actually need fingerprinting.
+    let mut items: Vec<Item> = Vec::with_capacity(candidates.len());
+    let mut to_compute: Vec<(&crate::duplicates::Candidate, u64, i64)> = Vec::new();
+    let mut unsupported_count = 0usize;
+    let mut unreadable_count = 0usize;
+    let mut new_failures: Vec<HashFailure> = Vec::new();
+
+    for candidate in &candidates {
+        if cancel.load(Ordering::Relaxed) {
+            break;
         }
-        items.push(item);
+        let path = Path::new(&candidate.path);
+        if !is_phash_supported(path) {
+            unsupported_count += 1;
+            continue;
+        }
+        let Ok(metadata) = fs::metadata(path) else {
+            unreadable_count += 1;
+            continue;
+        };
+        let size = metadata.len();
+        let Some(modified) = metadata.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_millis() as i64) else {
+            unreadable_count += 1;
+            continue;
+        };
+        if let Some(cached) = cache.get(&candidate.id).filter(|cached| cached.size == size && cached.modified == modified) {
+            let ratio = (candidate.width > 0 && candidate.height > 0).then(|| candidate.width as f32 / candidate.height as f32);
+            items.push(Item {
+                id: candidate.id,
+                path: candidate.path.clone(),
+                in_scope: candidate.in_scope,
+                fingerprint: cached.fingerprint,
+                ratio,
+                time: parse_time(&candidate.date_taken),
+                is_raw: crate::thumbnails::is_raw_path(path),
+            });
+        } else if failure_cache.get(&candidate.id).is_some_and(|&(fsz, fm)| fsz == size && fm == modified) {
+            unreadable_count += 1;
+        } else {
+            to_compute.push((candidate, size, modified));
+        }
     }
-    save_new(&conn, &fresh)?;
 
-    let mut report = Report { unreadable: unreadable.load(Ordering::Relaxed), unsupported: unsupported.load(Ordering::Relaxed), ..Report::default() };
+    let hash_total = to_compute.len();
+    let mut hash_done = 0usize;
+    let mut hash_busy = Duration::ZERO;
+    for chunk in to_compute.chunks(HASH_CHUNK_SIZE) {
+        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+            let frac = if hash_total > 0 { 0.8 * hash_done as f64 / hash_total as f64 } else { 0.8 };
+            progress(RichProgress {
+                percent: (frac * 100.0).round() as u32,
+                done: hash_done,
+                total: hash_total,
+                remaining_seconds: (hash_done > 0).then(|| (hash_busy.as_secs_f64() / hash_done as f64 * (hash_total - hash_done) as f64).round() as u64),
+                paused: true,
+                phase: Some("hashing"),
+            });
+        }) {
+            break;
+        }
+        let chunk_started = Instant::now();
+        let computed: Vec<(&crate::duplicates::Candidate, u64, i64, Result<Fingerprint, Failure>)> = workers.install(|| {
+            chunk
+                .par_iter()
+                .map(|&(candidate, size, modified)| {
+                    if cancel.load(Ordering::Relaxed) {
+                        return (candidate, size, modified, Err(Failure::Unreadable));
+                    }
+                    let res = panic::catch_unwind(AssertUnwindSafe(|| phash::fingerprint_file(Path::new(&candidate.path), thumbnails_dir)))
+                        .unwrap_or(Err(Failure::Unreadable));
+                    (candidate, size, modified, res)
+                })
+                .collect()
+        });
+        let mut fresh = Vec::new();
+        let mut chunk_failures = Vec::new();
+        for (candidate, size, modified, res) in computed {
+            match res {
+                Ok(fingerprint) => {
+                    fresh.push((candidate.id, size, modified, fingerprint));
+                    let ratio = (candidate.width > 0 && candidate.height > 0).then(|| candidate.width as f32 / candidate.height as f32);
+                    items.push(Item {
+                        id: candidate.id,
+                        path: candidate.path.clone(),
+                        in_scope: candidate.in_scope,
+                        fingerprint,
+                        ratio,
+                        time: parse_time(&candidate.date_taken),
+                        is_raw: crate::thumbnails::is_raw_path(Path::new(&candidate.path)),
+                    });
+                }
+                Err(Failure::Unsupported) => {
+                    unsupported_count += 1;
+                }
+                Err(Failure::Unreadable) => {
+                    unreadable_count += 1;
+                    if !cancel.load(Ordering::Relaxed) {
+                        let exists = Path::new(&candidate.path).exists();
+                        if exists {
+                            let reason = "unreadable or corrupt image".to_string();
+                            new_failures.push(HashFailure { path: candidate.path.clone(), error: reason.clone() });
+                            chunk_failures.push((candidate.id, size, modified, reason));
+                        }
+                    }
+                }
+            }
+        }
+        save_chunk(&conn, &fresh, &chunk_failures)?;
+        hash_busy += chunk_started.elapsed();
+        hash_done += chunk.len();
+        let frac = if hash_total > 0 { 0.8 * hash_done as f64 / hash_total as f64 } else { 0.8 };
+        progress(RichProgress {
+            percent: (frac * 100.0).round() as u32,
+            done: hash_done,
+            total: hash_total,
+            remaining_seconds: (hash_done > 0).then(|| (hash_busy.as_secs_f64() / hash_done as f64 * (hash_total - hash_done) as f64).round() as u64),
+            paused: false,
+            phase: Some("hashing"),
+        });
+    }
+
+    let mut report = Report { unreadable: unreadable_count, unsupported: unsupported_count, ..Report::default() };
     report.scanned = items.len();
     if cancel.load(Ordering::Relaxed) {
         report.cancelled = true;
+        report.failures_total = new_failures.len();
+        report.log_path = base_dir.and_then(|dir| write_failure_log(dir, "similarity-hashes", &new_failures));
+        new_failures.truncate(MAX_REPORTED_FAILURES);
+        report.failures = new_failures;
         report.elapsed_millis = started.elapsed().as_millis() as u64;
         return Ok(report);
     }
     // Flat pictures are left out of the comparison (they all look alike).
     items.retain(|item| !item.fingerprint.flat);
 
-    // Step 2: every photo of the scope against every other photo. Two photos of the scope are compared once.
+    // Step 2: every photo of the scope against every other photo, in chunks so cancellation and foreground pauses stay responsive.
     let scope_indices: Vec<usize> = (0..items.len()).filter(|&index| items[index].in_scope).collect();
     let subsec: Mutex<HashMap<i64, i64>> = Mutex::new(HashMap::new());
-    let compared = AtomicUsize::new(0);
-    let scope_total = scope_indices.len().max(1);
-    let edges: Vec<(usize, usize)> = workers.install(|| {
-        scope_indices
-            .par_iter()
-            .flat_map_iter(|&i| {
-                let mut found = Vec::new();
-                if !cancel.load(Ordering::Relaxed) {
-                    let a = &items[i];
-                    for (j, b) in items.iter().enumerate() {
-                        if j == i || (b.in_scope && j < i) {
-                            continue;
+    let scope_total = scope_indices.len();
+    let mut compared_done = 0usize;
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+    for chunk in scope_indices.chunks(256) {
+        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+            let frac = if scope_total > 0 { 0.8 + 0.2 * compared_done as f64 / scope_total as f64 } else { 1.0 };
+            progress(RichProgress {
+                percent: (frac * 100.0).round() as u32,
+                done: compared_done,
+                total: scope_total,
+                remaining_seconds: None,
+                paused: true,
+                phase: Some("comparing"),
+            });
+        }) {
+            break;
+        }
+        let chunk_edges: Vec<(usize, usize)> = workers.install(|| {
+            chunk
+                .par_iter()
+                .flat_map_iter(|&i| {
+                    let mut found = Vec::new();
+                    if !cancel.load(Ordering::Relaxed) {
+                        let a = &items[i];
+                        for (j, b) in items.iter().enumerate() {
+                            if j == i || (b.in_scope && j < i) {
+                                continue;
+                            }
+                            if a.is_raw != b.is_raw && !request.include_raw_pairs {
+                                continue;
+                            }
+                            if !proportions_compatible(a, b, request.rotations) {
+                                continue;
+                            }
+                            if closest(a, b, request.rotations) > request.max_distance {
+                                continue;
+                            }
+                            if request.ignore_bursts && is_burst(a, b, request.burst_ms as i64, &subsec) {
+                                continue;
+                            }
+                            found.push((i, j));
                         }
-                        if a.is_raw != b.is_raw && !request.include_raw_pairs {
-                            continue;
-                        }
-                        if !proportions_compatible(a, b, request.rotations) {
-                            continue;
-                        }
-                        if closest(a, b, request.rotations) > request.max_distance {
-                            continue;
-                        }
-                        if request.ignore_bursts && is_burst(a, b, request.burst_ms as i64, &subsec) {
-                            continue;
-                        }
-                        found.push((i, j));
                     }
-                }
-                let finished = compared.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished.is_multiple_of(64) {
-                    progress(0.8 + 0.2 * finished as f64 / scope_total as f64);
-                }
-                found
-            })
-            .collect()
-    });
+                    found
+                })
+                .collect()
+        });
+        edges.extend(chunk_edges);
+        compared_done += chunk.len();
+        let frac = if scope_total > 0 { 0.8 + 0.2 * compared_done as f64 / scope_total as f64 } else { 1.0 };
+        progress(RichProgress {
+            percent: (frac * 100.0).round() as u32,
+            done: compared_done,
+            total: scope_total,
+            remaining_seconds: None,
+            paused: false,
+            phase: Some("comparing"),
+        });
+    }
     if cancel.load(Ordering::Relaxed) {
         report.cancelled = true;
+        report.failures_total = new_failures.len();
+        report.log_path = base_dir.and_then(|dir| write_failure_log(dir, "similarity-hashes", &new_failures));
+        new_failures.truncate(MAX_REPORTED_FAILURES);
+        report.failures = new_failures;
         report.elapsed_millis = started.elapsed().as_millis() as u64;
         return Ok(report);
     }
@@ -340,7 +507,11 @@ pub fn run(pool: &DbPool, thumbnails_dir: &Path, request: &Request, cancel: &Ato
         report.groups.push(paths);
     }
     report.groups.sort();
-    progress(1.0);
+    report.failures_total = new_failures.len();
+    report.log_path = base_dir.and_then(|dir| write_failure_log(dir, "similarity-hashes", &new_failures));
+    new_failures.truncate(MAX_REPORTED_FAILURES);
+    report.failures = new_failures;
+    progress(RichProgress { percent: 100, done: scope_total, total: scope_total, remaining_seconds: Some(0), paused: false, phase: Some("comparing") });
     report.elapsed_millis = started.elapsed().as_millis() as u64;
     Ok(report)
 }

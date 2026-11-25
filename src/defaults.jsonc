@@ -165,6 +165,22 @@
   // Scans left unfinished (paused, or interrupted by quitting): they come back paused at the next launch. List of tasks, empty on a new installation.
   "pausedScanTasks": [],
 
+  // ---------------------------------------------------------------- Settings: Duplicates
+  // Worker threads for duplicate hashing: "auto" | "1" | "2" | "4".
+  "duplicateHashThreads": "auto",
+  // Compute similarity hashes during content analysis.
+  "duplicateHashOnSemantic": true,
+  // Compute hashes during integrity checks (similarity + exact; pre-pass only for RAW).
+  "duplicateHashOnIntegrity": true,
+  // Automatically compute hashes for new photos in the background after scan/sync.
+  "duplicateAutoHash": false,
+  // What auto-hash computes: "similarity" | "exact_prepass" | "exact_full" | "both_prepass" | "both_full".
+  "duplicateAutoHashMode": "both_prepass",
+  // Include RAW files in background auto-hashing.
+  "duplicateAutoHashRaw": false,
+  // Default exact hash mode in Settings > Search > Duplicates: "prepass" | "full".
+  "duplicatePrecomputeExactMode": "prepass",
+
   // ---------------------------------------------------------------- Settings: Slideshow, Find RAW
   // Delay between photos in seconds: integer 1 to 60.
   "slideshowDelay": 5,
@@ -202,7 +218,7 @@
   // Columns shown in the List panel (filename is always shown first).
   "listVisibleColumns": ["filename", "extension", "date_taken", "rating", "color_flag"],
   // Display order of the columns in the List panel (filename is always pinned first).
-  "listColumnOrder": ["filename", "extension", "file_size", "date_created", "date_modified", "resolution", "megapixels", "orientation", "ratio", "date_taken", "manufacturer", "camera", "lens", "author", "aperture", "shutter_speed", "iso", "focal_length", "flash", "rating", "color_flag", "pick_flag", "analysed", "faces_status", "geolocated", "phash"],
+  "listColumnOrder": ["filename", "extension", "file_size", "date_created", "date_modified", "resolution", "megapixels", "orientation", "ratio", "date_taken", "manufacturer", "camera", "lens", "author", "aperture", "shutter_speed", "iso", "focal_length", "flash", "rating", "color_flag", "pick_flag", "analysed", "faces_status", "geolocated", "phash", "exact_hash"],
   // Saved column widths in px (column id -> width).
   "listColumnWidths": {},
   // Active multi-column sort of the List panel: [{ col, dir }] (max 9 levels).

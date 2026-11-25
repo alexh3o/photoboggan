@@ -10,6 +10,8 @@ import { readBool, readChoice, isOffline, writeStored } from './settings-default
 import { confirmDialog } from './photo-actions.js';
 import { choiceDialog } from './metadata-writes.js';
 import { initExcludedKeywordsSetting } from './semantic-exclusions.js';
+import { notifyPhashChanged } from './duplicates-view.js';
+import { notifyExactHashChanged, refreshDuplicateHashStats } from './duplicates-settings.js';
 
 const ENABLED_STORAGE_KEY = 'semanticSearch';
 
@@ -344,7 +346,7 @@ export function analyseContent({ folder = null, recursive = false, photoIds = nu
     kind: 'semantic',
     path: folder,
     command: 'semantic_scan',
-    args: { folder, recursive, photoIds, threads: semanticScanThreads(), skipRaw: !scanRaw(), writeThumbnails: readBool('semanticWriteThumbnails') },
+    args: { folder, recursive, photoIds, threads: semanticScanThreads(), skipRaw: !scanRaw(), writeThumbnails: readBool('semanticWriteThumbnails'), computePhash: readBool('duplicateHashOnSemantic') },
     labelKey: folder ? 'Content analysis: {folder}' : photoIds ? 'Content analysis ({count} photos)' : 'Content analysis: whole library',
     labelParams: folder ? { folder: baseName } : photoIds ? { count: photoIds.length } : undefined,
     dedupeKey: scopeKey ? `semantic:${scopeKey}` : undefined,
@@ -355,6 +357,9 @@ export function analyseContent({ folder = null, recursive = false, photoIds = nu
 // End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
 async function reportAnalysis(report, stopped, error) {
   notifyAnalysisChanged(); // even stopped or failed: the photos analysed so far are stored
+  notifyPhashChanged();
+  notifyExactHashChanged();
+  refreshDuplicateHashStats();
   if (error) {
     host.showToast(t('Content analysis failed: {error}', { error: semanticErrorMessage(error) }));
     return;

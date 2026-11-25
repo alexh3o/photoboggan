@@ -1,5 +1,6 @@
 // Window "Find duplicates > More…": the kind of search (identical or similar images), the settings of each, and where to search. The choices are
 // applied to this search only, unless "Save these settings as default" is ticked: the quick menu entries then use them (see duplicates.js).
+import { invoke } from '@tauri-apps/api/core';
 import { t, onLanguageChange } from './i18n.js';
 import { compileNamePattern, extractNameKey } from './raw-settings.js';
 import { getIdenticalSettings, getSimilarSettings, saveIdenticalSettings, saveSimilarSettings, getKeepSettings, saveKeepSettings, KEEP_CRITERIA } from './duplicates.js';
@@ -9,6 +10,7 @@ const stemOf = fileName => fileName.replace(/\.[^./\\]*$/, '');
 
 let currentSpec = null; // { scope, label, compareWithLibrary } of the search being prepared
 let onRun = null;
+let coverageToken = 0;
 
 const kindButtons = () => [...document.querySelectorAll('#dup-kind .location-filter-option')];
 
@@ -50,13 +52,46 @@ function syncAvailability() {
   }
   byId('dup-ignore-metadata').disabled = !byId('dup-hash').checked;
   const nameOn = byId('dup-name').checked;
-  for (const id of ['dup-pattern', 'dup-pattern-test', 'dup-min-length', 'dup-name-date', 'dup-name-raw']) byId(id).disabled = !nameOn;
+  const identicalRawOn = byId('dup-identical-raw-files').checked;
+  for (const id of ['dup-pattern', 'dup-pattern-test', 'dup-min-length', 'dup-name-date']) byId(id).disabled = !nameOn;
+  byId('dup-name-raw').disabled = !nameOn || !identicalRawOn;
   byId('dup-pattern-result').hidden = !nameOn;
   byId('dup-burst-ms').disabled = !byId('dup-bursts').checked;
+  byId('dup-similar-raw').disabled = !byId('dup-similar-raw-files').checked;
   byId('dup-run').disabled = kind === 'identical' && !byId('dup-hash').checked && !nameOn; // at least one criterion
   byId('dup-run').title = byId('dup-run').disabled ? t('Tick at least one criterion') : '';
   // The saving only covers the settings of the kind shown, never the scope.
   byId('dup-save-label').textContent = t(kind === 'identical' ? 'Save these settings as default for identical searches' : 'Save these settings as default for similar searches');
+  refreshCoverage();
+}
+
+async function refreshCoverage() {
+  const el = byId('dup-coverage');
+  if (!el || !currentSpec || byId('duplicates-modal').classList.contains('hidden')) return;
+  const kind = selectedKind();
+  if (kind === 'identical' && !byId('dup-hash').checked) {
+    el.hidden = true;
+    return;
+  }
+  const token = ++coverageToken;
+  const scope = currentSpec.scope.kind === 'folder' ? { ...currentSpec.scope, recursive: byId('dup-subfolders').checked } : currentSpec.scope;
+  const compareWithLibrary = byId('dup-library').checked;
+  const ignoreMetadata = byId('dup-ignore-metadata').checked;
+  const includeRaw = kind === 'identical' ? byId('dup-identical-raw-files').checked : byId('dup-similar-raw-files').checked;
+  try {
+    const counts = await invoke('count_duplicate_work', { kind, scope, compareWithLibrary, ignoreMetadata, includeRaw, checkFast: false });
+    if (token !== coverageToken) return;
+    el.hidden = false;
+    el.textContent = counts.missing === 0
+      ? t('All {total} photos already have up-to-date hashes', { total: counts.total.toLocaleString() })
+      : t('{missing} of {total} photos without hashes yet', {
+        missing: counts.missing.toLocaleString(),
+        total: counts.total.toLocaleString(),
+      });
+  } catch (error) {
+    if (token === coverageToken) el.hidden = true;
+    console.debug('Duplicate coverage unavailable', error);
+  }
 }
 
 function applyLanguage() {
@@ -77,12 +112,14 @@ function fillFromSettings() {
   byId('dup-min-length').value = String(identical.minLength);
   byId('dup-name-date').checked = identical.sameDate;
   byId('dup-name-raw').checked = identical.includeRawPairs;
+  byId('dup-identical-raw-files').checked = identical.includeRaw;
   const similar = getSimilarSettings();
   byId('dup-sensitivity').value = similar.sensitivity;
   byId('dup-rotations').checked = similar.rotations;
   byId('dup-bursts').checked = similar.ignoreBursts;
   byId('dup-burst-ms').value = String(similar.burstMs);
   byId('dup-similar-raw').checked = similar.includeRawPairs;
+  byId('dup-similar-raw-files').checked = similar.includeRaw;
   byId('dup-save').checked = false;
 }
 
@@ -107,6 +144,7 @@ function run() {
       minLength: clampNumber(byId('dup-min-length').value, 3, 2, 50),
       sameDate: byId('dup-name-date').checked,
       includeRawPairs: byId('dup-name-raw').checked,
+      includeRaw: byId('dup-identical-raw-files').checked,
     };
     if (!settings.hash && !settings.name) return;
     if (byId('dup-save').checked) saveIdenticalSettings(settings);
@@ -117,6 +155,7 @@ function run() {
       ignoreBursts: byId('dup-bursts').checked,
       burstMs: clampNumber(byId('dup-burst-ms').value, 1000, 0, 60000),
       includeRawPairs: byId('dup-similar-raw').checked,
+      includeRaw: byId('dup-similar-raw-files').checked,
     };
     if (byId('dup-save').checked) saveSimilarSettings(settings);
   }
@@ -141,8 +180,8 @@ export function openDuplicatesModal(spec, callback) {
   byId('dup-subfolders').checked = isFolder ? spec.scope.recursive : true;
   byId('dup-library').checked = spec.compareWithLibrary;
   selectKind('identical');
-  applyLanguage();
   byId('duplicates-modal').classList.remove('hidden');
+  applyLanguage();
   byId('dup-run').focus();
 }
 

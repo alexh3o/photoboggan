@@ -225,7 +225,8 @@ export function initStats() {
     'stats-chart-note', 'stats-gear-section', 'stats-cameras-column', 'stats-cameras', 'stats-cameras-note', 'stats-lenses-column', 'stats-lenses',
     'stats-lenses-note', 'stats-extensions', 'stats-ratings', 'stats-colors-column', 'stats-colors', 'stats-picks-column', 'stats-picks', 'stats-keywords',
     'stats-keywords-note', 'stats-geo', 'stats-faces-section', 'stats-faces', 'stats-top-persons', 'stats-param', 'stats-shooting', 'stats-shooting-note',
-    'stats-analysis-section', 'stats-analysis'];
+    'stats-analysis-section', 'stats-analysis', 'stats-hashes-section', 'stats-exact-prepass', 'stats-exact-prepass-note',
+    'stats-exact-full', 'stats-exact-full-note', 'stats-similarity', 'stats-similarity-note'];
   const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
   if (!ids.every(id => el[id])) {
     console.error('Statistics: elements not found in index.html');
@@ -511,12 +512,60 @@ export function initStats() {
     el['stats-shooting-note'].textContent = coverageNote(distribution.known, stats.photos);
   }
 
-  // Content analysis (semantic search): analysed vs not, only while the feature is on.
+  // Coverage breakdown: up-to-date, optional expired (shown only when > 0), and pending.
+  function renderCoverage(list, noteElement, coverage, { doneLabel, expiredLabel, pendingLabel, excludedKey }) {
+    if (!coverage || coverage.eligible === 0) {
+      list.replaceChildren(emptyRow());
+    } else {
+      const pending = Math.max(0, coverage.eligible - coverage.upToDate - coverage.expired);
+      const rows = [[doneLabel, coverage.upToDate]];
+      if (coverage.expired > 0) rows.push([expiredLabel, coverage.expired]);
+      rows.push([pendingLabel, pending]);
+      list.replaceChildren(...rows.map(([name, count]) => listRow(
+        name,
+        `${photoCount(count)} (${formatPercent(count / coverage.eligible)})`,
+        (count / coverage.eligible) * 100,
+      )));
+    }
+    if (noteElement) {
+      noteElement.textContent = coverage?.excluded > 0
+        ? tp(excludedKey, coverage.excluded, { count: formatNumber(coverage.excluded) })
+        : '';
+    }
+  }
+
+  // Content analysis (semantic search): analysed vs expired vs not analysed, only while the feature is on.
   function renderAnalysis(stats) {
-    const enabled = isSemanticEnabled() && stats.analysedPhotos !== null;
+    const enabled = isSemanticEnabled() && stats.analysis !== null;
     el['stats-analysis-section'].hidden = !enabled;
     if (!enabled) return;
-    renderPair(el['stats-analysis'], [t('Analysed'), stats.analysedPhotos], [t('Not analysed'), stats.photos - stats.analysedPhotos], stats.photos);
+    renderCoverage(el['stats-analysis'], null, stats.analysis, {
+      doneLabel: t('Analysed'),
+      expiredLabel: t('Expired (to re-analyse)'),
+      pendingLabel: t('Not analysed'),
+      excludedKey: '',
+    });
+  }
+
+  function renderHashes(stats) {
+    renderCoverage(el['stats-exact-prepass'], el['stats-exact-prepass-note'], stats.exactPrepass, {
+      doneLabel: t('Up to date'),
+      expiredLabel: t('Expired (to re-analyse)'),
+      pendingLabel: t('Not computed'),
+      excludedKey: '{count} video excluded',
+    });
+    renderCoverage(el['stats-exact-full'], el['stats-exact-full-note'], stats.exactFull, {
+      doneLabel: t('Up to date'),
+      expiredLabel: t('Expired (to re-analyse)'),
+      pendingLabel: t('Not computed'),
+      excludedKey: '{count} video excluded',
+    });
+    renderCoverage(el['stats-similarity'], el['stats-similarity-note'], stats.similarity, {
+      doneLabel: t('Up to date'),
+      expiredLabel: t('Expired (to re-analyse)'),
+      pendingLabel: t('Not computed'),
+      excludedKey: '{count} unsupported file or video excluded',
+    });
   }
 
   function render(stats) {
@@ -537,6 +586,7 @@ export function initStats() {
     renderFaces(stats);
     renderShooting(stats);
     renderAnalysis(stats);
+    renderHashes(stats);
   }
 
   async function load() {

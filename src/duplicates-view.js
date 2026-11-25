@@ -12,6 +12,8 @@ import {
 } from './duplicates.js';
 import { openDuplicatesModal, toggleKeepPanel, closeKeepPanel } from './duplicates-modal.js';
 import { getSelectedAlbum, clearAlbumSelection, isSelectedAlbumDirty, confirmLeaveAlbum } from './albums-panel.js';
+import { choiceDialog, showFailureDetails } from './metadata-writes.js';
+import { duplicateHashThreads, notifyExactHashChanged, refreshDuplicateHashStats } from './duplicates-settings.js';
 
 let host = {};
 let initialized = false;
@@ -33,6 +35,12 @@ export const getDuplicateSearch = () => duplicateSearch;
 export function onPhashChanged(listener) {
   phashListeners.add(listener);
   return () => phashListeners.delete(listener);
+}
+
+export function notifyPhashChanged() {
+  for (const listener of phashListeners) {
+    try { listener(); } catch (error) { console.error('pHash listener failed', error); }
+  }
 }
 
 // File format shown and compared in the duplicate results: the extension in capitals (JPEG and JFIF count as JPG).
@@ -222,6 +230,7 @@ async function showDuplicateResults(result, titleKey, label, context) {
     result.wholeFileExtensions?.length ? t('Metadata could not be ignored for: {list}', { list: result.wholeFileExtensions.join(', ') }) : '',
     result.unsupported > 0 ? tp('{count} photo could not be compared (format not supported)', result.unsupported) : '',
     result.skippedGroups > 0 ? tp('{count} group was left out because it was too large: lower the sensitivity', result.skippedGroups) : '',
+    result.failuresTotal > 0 ? tp('{count} unreadable photo', result.failuresTotal) : '',
   ].filter(Boolean).join('\n');
   duplicateSearch = {
     titleKey, label, snapshot, note, groupPaths: result.groups, groupReasons: result.reasons ?? null, mixedFormats: context.mixedFormats,
@@ -249,16 +258,31 @@ export async function showReadyDuplicateResults(task) {
 // A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in the list
 // ('ready') and its toast announces the results: the view is never changed without the user's click.
 async function handleDuplicatesResult(result, stopped, error, titleKey, label, task, context) {
-  if (context?.kind === 'similar') {
-    for (const listener of phashListeners) listener();
-  }
+  if (context?.kind === 'similar') notifyPhashChanged();
+  else notifyExactHashChanged();
+  refreshDuplicateHashStats();
   if (error) {
     host.showToast(t('Duplicate search failed: {error}', { error }));
     return;
   }
   if (!result || result.cancelled || stopped) return; // runScanTask announces the stop
+  const failures = result.failures ?? [];
   if (result.groups.length === 0) {
-    host.showToast(tp('No duplicates found among {count} photo', result.scanned));
+    if (failures.length > 0) {
+      const totalFailures = result.failuresTotal || failures.length;
+      host.keepTaskReady(task, {
+        readyText: tp('{count} unreadable file', totalFailures),
+        showLabel: t('Show errors'),
+        onShow: () => showFailureDetails({
+          title: t('Unreadable files'),
+          failures,
+          logPath: result.logPath ?? null,
+        }),
+      });
+      host.showToast(`${tp('No duplicates found among {count} photo', result.scanned)} · ${tp('{count} unreadable photo', totalFailures)}`);
+    } else {
+      host.showToast(tp('No duplicates found among {count} photo', result.scanned));
+    }
     return;
   }
   // A newer result for the same search replaces the one still waiting.
@@ -285,7 +309,16 @@ async function runIdenticalSearch({ scope, compareWithLibrary }, settings, task,
     parts.push({ reason: 'name', groups: nameReport.groups });
   }
   if (settings.hash) {
-    hashReport = await invoke('find_duplicates', { request: { scope, compareWithLibrary, ignoreMetadata: settings.ignoreMetadata }, taskId: task.id });
+    hashReport = await invoke('find_duplicates', {
+      request: {
+        scope,
+        compareWithLibrary,
+        ignoreMetadata: settings.ignoreMetadata,
+        includeRaw: settings.includeRaw ?? true,
+        threads: duplicateHashThreads(),
+      },
+      taskId: task.id,
+    });
     if (hashReport.cancelled) return hashReport;
     parts.push({ reason: 'hash', groups: hashReport.groups });
   }
@@ -294,6 +327,9 @@ async function runIdenticalSearch({ scope, compareWithLibrary }, settings, task,
     unsupported: 0,
     skippedGroups: nameReport?.skippedGroups ?? 0,
     wholeFileExtensions: hashReport?.wholeFileExtensions ?? [],
+    failures: hashReport?.failures ?? [],
+    failuresTotal: hashReport?.failuresTotal ?? 0,
+    logPath: hashReport?.logPath ?? null,
     cancelled: false,
   };
   if (parts.length === 1) return { ...report, groups: parts[0].groups }; // one criterion: no reason to show
@@ -307,22 +343,90 @@ const DUPLICATE_KINDS = {
     settings: getIdenticalSettings,
     // Title of the results: the image data is the main criterion; the name alone has its own title.
     titleKey: settings => (settings.hash ? 'Identical images' : 'Same file name'),
-    labelKey: settings => (settings.hash ? 'Identical images: {scope}' : 'Same file name: {scope}'),
+    labelKey: settings => (settings.hash ? 'Identical duplicates: {scope}' : 'Same file name: {scope}'),
     runner: (spec, settings, task, setPercent) => runIdenticalSearch(spec, settings, task, setPercent),
   },
   similar: {
     settings: getSimilarSettings,
     titleKey: () => 'Similar images',
-    labelKey: () => 'Similar images: {scope}',
+    labelKey: () => 'Similar duplicates: {scope}',
     command: 'find_similar_images',
-    request: settings => similarRequestFields(settings),
+    request: settings => ({ ...similarRequestFields(settings), threads: duplicateHashThreads() }),
   },
 };
 
+const LONG_SCAN_THRESHOLD = { similar: 500, identical: 2000 };
+
+async function confirmLongDuplicateScan(kind, { scope, compareWithLibrary }, settings) {
+  if (kind === 'identical' && !settings.hash) return true;
+  const ignoreMetadata = Boolean(settings.ignoreMetadata);
+  const includeRaw = settings.includeRaw ?? true;
+  let counts;
+  try {
+    counts = await invoke('count_duplicate_work', {
+      kind,
+      scope,
+      compareWithLibrary,
+      ignoreMetadata,
+      includeRaw,
+      checkFast: false,
+    });
+  } catch (error) {
+    console.debug('Duplicate work count unavailable', error);
+    return true;
+  }
+  if (counts.missing < LONG_SCAN_THRESHOLD[kind]) return true;
+
+  if (kind === 'similar') {
+    try {
+      counts = await invoke('count_duplicate_work', {
+        kind,
+        scope,
+        compareWithLibrary,
+        ignoreMetadata,
+        includeRaw,
+        checkFast: true,
+      });
+    } catch { /* keep non-fast counts */ }
+  }
+
+  const lines = [];
+  const countLine = compareWithLibrary && scope.kind !== 'all'
+    ? t('{missing} of {total} photos without hashes (including the rest of the library) will be processed.', {
+      missing: counts.missing.toLocaleString(),
+      total: counts.total.toLocaleString(),
+    })
+    : t('{missing} of {total} photos without hashes will be processed.', {
+      missing: counts.missing.toLocaleString(),
+      total: counts.total.toLocaleString(),
+    });
+  lines.push(countLine);
+
+  if (kind === 'similar' && counts.fastCount > 0) {
+    const fastStr = counts.fastEstimated ? `~${counts.fastCount.toLocaleString()}` : counts.fastCount.toLocaleString();
+    lines.push(t('Of which {fast} fast (cached thumbnails).', { fast: fastStr }));
+  }
+  if (counts.missingRaw > 0) {
+    lines.push(tp('{count} RAW file included.', counts.missingRaw, { count: counts.missingRaw.toLocaleString() }));
+  }
+  lines.push(t('This computation runs once per photo as long as the image is not modified. It can be interrupted and resumed on the remaining photos.'));
+
+  const choice = await choiceDialog({
+    title: t(kind === 'similar' ? 'Similar duplicates' : 'Identical duplicates'),
+    message: lines.join('\n\n'),
+    buttons: [
+      { label: t('Cancel'), value: 'cancel', cancel: true },
+      { label: t('Start'), value: 'start', primary: true },
+    ],
+  });
+  return choice === 'start';
+}
+
 // `kind`: 'identical' | 'similar'.
-export function findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings) {
+export async function findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings) {
   const definition = DUPLICATE_KINDS[kind];
   settings = settings ?? definition.settings();
+  if (!(await confirmLongDuplicateScan(kind, { scope, compareWithLibrary }, settings))) return false;
   // Same kind of search on the same scope (same folder, same photos, whole library): refused while another one is running or waiting.
   const scopeKey = scope.kind === 'folder' ? `folder:${host.normalizeFilterPath(scope.path)}:${scope.recursive}`
     : scope.kind === 'paths' ? `paths:${[...scope.paths].sort().join('|')}` : 'all';

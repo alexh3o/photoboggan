@@ -139,12 +139,24 @@ fn write_one(conn: &rusqlite::Connection, cache_dirs: &crate::ImageCacheDirs, ph
     let mut effective_modified = 0i64;
     let stored = match std::fs::metadata(path) {
         Ok(file) => {
+            let previous: (i64, i64) = conn
+                .query_row(
+                    "SELECT COALESCE(file_size, 0), COALESCE(modified, 0) FROM photos WHERE id = ?1",
+                    params![photo_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap_or((0, 0));
+            let new_size = file.len() as i64;
             let image_modified = crate::library_sync::modified_millis(&file);
             effective_modified = crate::library_sync::effective_modified_millis(Path::new(path), image_modified);
-            conn.execute(
+            let res = conn.execute(
                 "UPDATE photos SET gps_lat = ?1, gps_lon = ?2, file_size = ?3, modified = ?4, effective_modified = ?5 WHERE id = ?6",
-                params![gps_lat, gps_lon, file.len() as i64, image_modified, effective_modified, photo_id],
-            )
+                params![gps_lat, gps_lon, new_size, image_modified, effective_modified, photo_id],
+            );
+            if res.is_ok() {
+                crate::restamp_photo_caches(conn, photo_id, previous.0, previous.1, new_size, image_modified);
+            }
+            res
         }
         Err(_) => conn.execute("UPDATE photos SET gps_lat = ?1, gps_lon = ?2 WHERE id = ?3", params![gps_lat, gps_lon, photo_id]),
     };

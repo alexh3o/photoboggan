@@ -14,11 +14,12 @@
 //! so a second run reads almost nothing. Nothing runs, and the table stays empty, until the user starts a search.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::fs::{self, File};
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufReader, Cursor, Read, Seek, SeekFrom, Write};
+use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::time::{Instant, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use rayon::prelude::*;
 use rusqlite::{params, Connection};
@@ -30,6 +31,10 @@ use crate::db::DbPool;
 /// Version of the rules that choose the hashed bytes: bump it when they change, so old cached values are ignored. The semantic scan stores it
 /// next to its own copy of the hash (`hash_version`), so a bump also makes it analyse those photos again.
 pub(crate) const LAYOUT_VERSION: i64 = 1;
+/// Number of files processed and committed per transaction in duplicate/hash scans.
+pub(crate) const HASH_CHUNK_SIZE: usize = 128;
+/// Maximum number of per-file failures returned over IPC (the full list is written to the log file).
+pub(crate) const MAX_REPORTED_FAILURES: usize = 200;
 /// Bytes hashed at each end of the image data in the partial stage.
 const PARTIAL_BYTES: u64 = 64 * 1024;
 const READ_CHUNK: usize = 256 * 1024;
@@ -55,6 +60,10 @@ pub enum Scope {
     Paths { paths: Vec<String> },
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Request {
@@ -63,6 +72,29 @@ pub struct Request {
     pub compare_with_library: bool,
     /// Ignore metadata (JPEG, PNG, WebP). Off: whole files are compared.
     pub ignore_metadata: bool,
+    /// Include RAW files in the search (default true).
+    #[serde(default = "default_true")]
+    pub include_raw: bool,
+    /// Worker threads setting (`"auto"`, `"1"`, `"2"`, `"4"`).
+    #[serde(default)]
+    pub threads: Option<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HashFailure {
+    pub path: String,
+    pub error: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct RichProgress {
+    pub percent: u32,
+    pub done: usize,
+    pub total: usize,
+    pub remaining_seconds: Option<u64>,
+    pub paused: bool,
+    pub phase: Option<&'static str>,
 }
 
 #[derive(Serialize, Default)]
@@ -82,6 +114,11 @@ pub struct Report {
     pub whole_file_extensions: Vec<String>,
     pub cancelled: bool,
     pub elapsed_millis: u64,
+    /// Sample of unreadable/corrupt files encountered during this run (up to MAX_REPORTED_FAILURES).
+    pub failures: Vec<HashFailure>,
+    pub failures_total: usize,
+    /// Log file path when failures were recorded.
+    pub log_path: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -90,7 +127,7 @@ pub struct Report {
 
 /// Cache of the hashes. `mode`: 0 = whole file, 1 = image data only. A row is valid while the file keeps its size and modification date.
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
-    conn.execute(
+    conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS photo_hashes (
             photo_id INTEGER NOT NULL,
             mode INTEGER NOT NULL,
@@ -102,10 +139,60 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             partial_hash BLOB,
             full_hash BLOB,
             PRIMARY KEY (photo_id, mode)
-        ) WITHOUT ROWID",
-        [],
+        ) WITHOUT ROWID;
+        CREATE TABLE IF NOT EXISTS photo_hash_failures (
+            photo_id INTEGER NOT NULL,
+            mode INTEGER NOT NULL,
+            version INTEGER NOT NULL,
+            size INTEGER NOT NULL,
+            modified INTEGER NOT NULL,
+            reason TEXT NOT NULL,
+            PRIMARY KEY (photo_id, mode)
+        ) WITHOUT ROWID;",
     )?;
     Ok(())
+}
+
+/// Writes `failures` to `<base_dir>/logs/photoboggan-<prefix>-YYYYMMDD-HHMMSS.log`, returning its path on success.
+pub(crate) fn write_failure_log(base_dir: &Path, prefix: &str, failures: &[HashFailure]) -> Option<String> {
+    if failures.is_empty() {
+        return None;
+    }
+    let logs_dir = base_dir.join("logs");
+    if let Err(error) = fs::create_dir_all(&logs_dir) {
+        eprintln!("Failure log directory not created: {error}");
+        return None;
+    }
+    let mut content = String::from("\u{feff}");
+    for failure in failures {
+        content.push_str(&format!("{}\t{}\r\n", failure.path, failure.error.replace(['\r', '\n'], " ")));
+    }
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    for attempt in 0u32.. {
+        let name = if attempt == 0 {
+            format!("photoboggan-{prefix}-{stamp}.log")
+        } else {
+            format!("photoboggan-{prefix}-{stamp} ({attempt}).log")
+        };
+        let target = logs_dir.join(name);
+        match OpenOptions::new().write(true).create_new(true).open(&target) {
+            Ok(mut file) => {
+                if let Err(error) = file.write_all(content.as_bytes()) {
+                    drop(file);
+                    let _ = fs::remove_file(&target);
+                    eprintln!("Failure log not written: {error}");
+                    return None;
+                }
+                return Some(target.to_string_lossy().into_owned());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                eprintln!("Failure log not created: {error}");
+                return None;
+            }
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -163,9 +250,9 @@ fn read_u8(reader: &mut impl Read) -> Option<u8> {
 }
 
 /// JPEG: the segments that are not metadata (everything but APPn and COM, except APP14 "Adobe" which sets the colour transform), then the scan up to EOI.
-fn jpeg_ranges(file: &mut File, size: u64) -> Option<Ranges> {
-    let (mut ranges, scan_start) = jpeg_header(file, size)?;
-    let end = jpeg_end(file, size)?;
+fn jpeg_ranges<R: Read + Seek>(reader: &mut R, size: u64) -> Option<Ranges> {
+    let (mut ranges, scan_start) = jpeg_header(reader, size)?;
+    let end = jpeg_end(reader, size)?;
     if end <= scan_start {
         return None;
     }
@@ -174,7 +261,7 @@ fn jpeg_ranges(file: &mut File, size: u64) -> Option<Ranges> {
 }
 
 /// Walks the segments before the scan (seeking over their content). Returns the kept segments and the offset of the SOS marker.
-fn jpeg_header(file: &mut File, size: u64) -> Option<(Ranges, u64)> {
+fn jpeg_header<R: Read + Seek>(file: &mut R, size: u64) -> Option<(Ranges, u64)> {
     file.seek(SeekFrom::Start(0)).ok()?;
     let mut reader = BufReader::with_capacity(16 * 1024, file);
     if read_u8(&mut reader)? != 0xFF || read_u8(&mut reader)? != 0xD8 {
@@ -220,7 +307,7 @@ fn jpeg_header(file: &mut File, size: u64) -> Option<(Ranges, u64)> {
 }
 
 /// End of the image: just after the last EOI marker of the file tail (data appended after it, like a trailing preview, is not image data).
-fn jpeg_end(file: &mut File, size: u64) -> Option<u64> {
+fn jpeg_end<R: Read + Seek>(file: &mut R, size: u64) -> Option<u64> {
     let tail = size.min(4096);
     file.seek(SeekFrom::Start(size - tail)).ok()?;
     let mut buffer = vec![0u8; tail as usize];
@@ -311,7 +398,7 @@ fn interrupted() -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::Interrupted, "cancelled")
 }
 
-fn feed(file: &mut File, start: u64, length: u64, hasher: &mut Sha256, buffer: &mut [u8], cancel: &AtomicBool) -> std::io::Result<()> {
+fn feed<R: Read + Seek>(file: &mut R, start: u64, length: u64, hasher: &mut Sha256, buffer: &mut [u8], cancel: &AtomicBool) -> std::io::Result<()> {
     file.seek(SeekFrom::Start(start))?;
     let mut left = length;
     while left > 0 {
@@ -326,7 +413,7 @@ fn feed(file: &mut File, start: u64, length: u64, hasher: &mut Sha256, buffer: &
     Ok(())
 }
 
-fn full_hash(file: &mut File, ranges: &[(u64, u64)], cancel: &AtomicBool) -> std::io::Result<Hash> {
+fn full_hash<R: Read + Seek>(file: &mut R, ranges: &[(u64, u64)], cancel: &AtomicBool) -> std::io::Result<Hash> {
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; READ_CHUNK];
     for &(start, length) in ranges {
@@ -336,7 +423,7 @@ fn full_hash(file: &mut File, ranges: &[(u64, u64)], cancel: &AtomicBool) -> std
 }
 
 /// Start and end of the largest range (the scan, in practice): enough to tell apart almost every pair of files of the same length.
-fn partial_hash(file: &mut File, ranges: &[(u64, u64)], cancel: &AtomicBool) -> std::io::Result<Hash> {
+fn partial_hash<R: Read + Seek>(file: &mut R, ranges: &[(u64, u64)], cancel: &AtomicBool) -> std::io::Result<Hash> {
     let &(start, length) = ranges.iter().max_by_key(|range| range.1).ok_or_else(|| std::io::Error::other("empty file"))?;
     let head = length.min(PARTIAL_BYTES);
     let tail = if length > PARTIAL_BYTES { PARTIAL_BYTES.min(length - PARTIAL_BYTES) } else { 0 };
@@ -396,6 +483,73 @@ pub(crate) fn image_data_hash(path: &Path, cancel: &AtomicBool) -> std::io::Resu
     Ok(DataHash { size, modified, data_len: layout.len(), tolerant: layout.tolerant, hash })
 }
 
+/// Computes the image-data hash (mode 1) from an already-loaded JPEG byte buffer in RAM (zero extra disk I/O).
+pub(crate) fn image_data_hash_from_jpeg_bytes(bytes: &[u8], size: u64, modified: i64) -> Option<DataHash> {
+    if size == 0 || bytes.len() as u64 != size {
+        return None;
+    }
+    let mut cursor = Cursor::new(bytes);
+    let (ranges, tolerant) = match jpeg_ranges(&mut cursor, size) {
+        Some(ranges) => (ranges, true),
+        None => (vec![(0, size)], false),
+    };
+    let data_len: u64 = ranges.iter().map(|range| range.1).sum();
+    let mut hasher = Sha256::new();
+    for (start, length) in ranges {
+        let start = start as usize;
+        let end = start.checked_add(length as usize)?;
+        hasher.update(bytes.get(start..end)?);
+    }
+    Some(DataHash { size, modified, data_len, tolerant, hash: finish(hasher) })
+}
+
+/// Reads only the file headers to compute the pre-pass layout `(size, modified, data_len, tolerant)`.
+pub(crate) fn prepass_layout(path: &Path, ignore_metadata: bool) -> std::io::Result<(u64, i64, u64, bool)> {
+    let (size, modified) = current_version(path)?;
+    if size == 0 {
+        return Err(std::io::Error::other("empty file"));
+    }
+    let layout = layout_of(path, size, ignore_metadata)?;
+    Ok((size, modified, layout.len(), layout.tolerant))
+}
+
+/// Stores a pre-pass (`data_len` only) in `photo_hashes`, keeping `partial_hash` and `full_hash` when the file version and `data_len` match.
+pub(crate) fn remember_prepass(
+    conn: &Connection,
+    photo_id: i64,
+    mode: i64,
+    size: u64,
+    modified: i64,
+    data_len: u64,
+    tolerant: bool,
+) -> rusqlite::Result<()> {
+    conn.prepare_cached(
+        "INSERT INTO photo_hashes (photo_id, mode, version, size, modified, data_len, tolerant, partial_hash, full_hash)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, NULL)
+         ON CONFLICT (photo_id, mode) DO UPDATE SET
+             partial_hash = CASE WHEN version = excluded.version AND size = excluded.size AND modified = excluded.modified
+                                  AND data_len = excluded.data_len THEN partial_hash END,
+             full_hash = CASE WHEN version = excluded.version AND size = excluded.size AND modified = excluded.modified
+                               AND data_len = excluded.data_len THEN full_hash END,
+             version = excluded.version, size = excluded.size, modified = excluded.modified, data_len = excluded.data_len,
+             tolerant = excluded.tolerant",
+    )?
+    .execute(params![photo_id, mode, LAYOUT_VERSION, size as i64, modified, data_len as i64, tolerant as i64])?;
+    conn.prepare_cached("DELETE FROM photo_hash_failures WHERE photo_id = ?1 AND mode = ?2")?
+        .execute(params![photo_id, mode])?;
+    Ok(())
+}
+
+/// Records an unreadable/corrupt file failure for `photo_hashes` so it is not retried until the file changes.
+pub(crate) fn save_hash_failure(conn: &Connection, photo_id: i64, mode: i64, size: u64, modified: i64, reason: &str) -> rusqlite::Result<()> {
+    conn.prepare_cached(
+        "INSERT OR REPLACE INTO photo_hash_failures (photo_id, mode, version, size, modified, reason)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )?
+    .execute(params![photo_id, mode, LAYOUT_VERSION, size as i64, modified, reason])?;
+    Ok(())
+}
+
 /// Full image-data hashes already in `photo_hashes` (mode 1, current layout version) for these photos. The caller compares their version
 /// with the file before trusting one.
 pub(crate) fn cached_data_hashes(conn: &Connection, photo_ids: &[i64]) -> Result<HashMap<i64, DataHash>, String> {
@@ -434,6 +588,8 @@ pub(crate) fn remember_data_hash(conn: &Connection, photo_id: i64, data: &DataHa
              tolerant = excluded.tolerant, full_hash = excluded.full_hash",
     )?
     .execute(params![photo_id, LAYOUT_VERSION, data.size as i64, data.modified, data.data_len as i64, data.tolerant as i64, data.hash.as_slice()])?;
+    conn.prepare_cached("DELETE FROM photo_hash_failures WHERE photo_id = ?1 AND mode = 1")?
+        .execute(params![photo_id])?;
     Ok(())
 }
 
@@ -490,7 +646,22 @@ fn load_cache(conn: &Connection, mode: i64) -> Result<HashMap<i64, Cached>, Stri
     rows.collect::<rusqlite::Result<HashMap<_, _>>>().map_err(|e| e.to_string())
 }
 
-fn save_dirty(conn: &Connection, mode: i64, entries: &mut [Entry]) -> Result<(), String> {
+fn load_failure_cache(conn: &Connection, mode: i64) -> Result<HashMap<i64, (u64, i64)>, String> {
+    let mut stmt = conn
+        .prepare("SELECT photo_id, size, modified FROM photo_hash_failures WHERE mode = ?1 AND version = ?2")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![mode, LAYOUT_VERSION], |row| Ok((row.get::<_, i64>(0)?, (row.get::<_, i64>(1)? as u64, row.get::<_, i64>(2)?))))
+        .map_err(|e| e.to_string())?;
+    rows.collect::<rusqlite::Result<HashMap<_, _>>>().map_err(|e| e.to_string())
+}
+
+fn save_dirty_and_failures(
+    conn: &Connection,
+    mode: i64,
+    entries: &mut [Entry],
+    failures: &[(i64, u64, i64, String)],
+) -> Result<(), String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     {
         let mut stmt = tx
@@ -498,6 +669,9 @@ fn save_dirty(conn: &Connection, mode: i64, entries: &mut [Entry]) -> Result<(),
                 "INSERT OR REPLACE INTO photo_hashes (photo_id, mode, version, size, modified, data_len, tolerant, partial_hash, full_hash)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             )
+            .map_err(|e| e.to_string())?;
+        let mut clear_fail = tx
+            .prepare_cached("DELETE FROM photo_hash_failures WHERE photo_id = ?1 AND mode = ?2")
             .map_err(|e| e.to_string())?;
         for entry in entries.iter_mut().filter(|entry| entry.dirty) {
             stmt.execute(params![
@@ -512,7 +686,11 @@ fn save_dirty(conn: &Connection, mode: i64, entries: &mut [Entry]) -> Result<(),
                 entry.full.as_ref().map(|hash| hash.as_slice()),
             ])
             .map_err(|e| e.to_string())?;
+            clear_fail.execute(params![entry.id, mode]).map_err(|e| e.to_string())?;
             entry.dirty = false;
+        }
+        for (photo_id, size, modified, reason) in failures {
+            save_hash_failure(&tx, *photo_id, mode, *size, *modified, reason).map_err(|e| e.to_string())?;
         }
     }
     tx.commit().map_err(|e| e.to_string())
@@ -587,6 +765,15 @@ pub(crate) fn load_candidates(conn: &Connection, scope: &Scope, compare_with_lib
     Ok(candidates)
 }
 
+/// Same as `load_candidates`, optionally excluding RAW files when `include_raw` is false.
+pub(crate) fn load_candidates_filtered(conn: &Connection, scope: &Scope, compare_with_library: bool, include_raw: bool) -> Result<Vec<Candidate>, String> {
+    let mut candidates = load_candidates(conn, scope, compare_with_library)?;
+    if !include_raw {
+        candidates.retain(|candidate| !crate::thumbnails::is_raw_path(Path::new(&candidate.path)));
+    }
+    Ok(candidates)
+}
+
 /// For the search by file name, which runs in the interface (the name pattern is a JavaScript regular expression): path, shooting date and
 /// "in the scope" flag of every photo concerned, as compact tuples (the library can hold hundreds of thousands of photos).
 pub fn name_candidates(pool: &DbPool, scope: &Scope, compare_with_library: bool) -> Result<Vec<(String, String, bool)>, String> {
@@ -614,120 +801,273 @@ fn regroup(entries: &[Entry], groups: Vec<Vec<usize>>, key: impl Fn(&Entry) -> O
     result
 }
 
-/// Computes the missing hashes of the files still in a group, in parallel.
+/// Computes the missing hashes of the files still in a group, in parallel chunks of `HASH_CHUNK_SIZE`, committing after each chunk.
 #[allow(clippy::too_many_arguments)]
 fn fill_hashes(
     pool: &rayon::ThreadPool,
+    conn: &Connection,
+    mode: i64,
     entries: &mut [Entry],
     groups: &[Vec<usize>],
     full: bool,
     ignore_metadata: bool,
     cancel: &AtomicBool,
-    progress: &(dyn Fn(f64) + Sync),
+    progress: &(dyn Fn(RichProgress) + Sync),
     range: (f64, f64),
-) {
+    failures: &mut Vec<HashFailure>,
+) -> Result<(), String> {
     let mut wanted: Vec<usize> = groups.iter().flatten().copied().filter(|&i| if full { entries[i].full.is_none() } else { entries[i].partial.is_none() }).collect();
     wanted.sort_unstable();
     wanted.dedup();
-    let done = AtomicUsize::new(0);
-    let total = wanted.len().max(1);
-    let results: Vec<(usize, Option<Hash>)> = pool.install(|| {
-        wanted
-            .par_iter()
-            .map(|&index| {
-                if cancel.load(Ordering::Relaxed) {
-                    return (index, None);
-                }
-                let entry = &entries[index];
-                let hash = (|| {
-                    let layout = layout_of(Path::new(&entry.path), entry.size, ignore_metadata).ok()?;
-                    if layout.len() != entry.data_len {
-                        return None; // the file changed since the length was read
-                    }
-                    let mut file = File::open(&entry.path).ok()?;
-                    if full { full_hash(&mut file, &layout.ranges, cancel).ok() } else { partial_hash(&mut file, &layout.ranges, cancel).ok() }
-                })();
-                let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished.is_multiple_of(32) {
-                    progress(range.0 + (range.1 - range.0) * finished as f64 / total as f64);
-                }
-                (index, hash)
-            })
-            .collect()
-    });
-    for (index, hash) in results {
-        if hash.is_some() {
-            if full { entries[index].full = hash } else { entries[index].partial = hash }
-            entries[index].dirty = true;
-        }
+    if wanted.is_empty() {
+        return Ok(());
     }
+    let total = wanted.len();
+    let mut done = 0usize;
+    let mut busy = Duration::ZERO;
+    for chunk in wanted.chunks(HASH_CHUNK_SIZE) {
+        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+            let frac = range.0 + (range.1 - range.0) * done as f64 / total as f64;
+            progress(RichProgress {
+                percent: (frac * 100.0).round() as u32,
+                done,
+                total,
+                remaining_seconds: (done > 0).then(|| (busy.as_secs_f64() / done as f64 * (total - done) as f64).round() as u64),
+                paused: true,
+                phase: Some("hashing"),
+            });
+        }) {
+            break;
+        }
+        let chunk_started = Instant::now();
+        let results: Vec<(usize, Result<Hash, Option<String>>)> = pool.install(|| {
+            chunk
+                .par_iter()
+                .map(|&index| {
+                    if cancel.load(Ordering::Relaxed) {
+                        return (index, Err(None));
+                    }
+                    let entry = &entries[index];
+                    let res = panic::catch_unwind(AssertUnwindSafe(|| -> Result<Hash, Option<String>> {
+                        let layout = layout_of(Path::new(&entry.path), entry.size, ignore_metadata).map_err(|e| {
+                            if e.kind() == std::io::ErrorKind::NotFound { None } else { Some(e.to_string()) }
+                        })?;
+                        if layout.len() != entry.data_len {
+                            return Err(None); // file changed since stage 0
+                        }
+                        let mut file = File::open(&entry.path).map_err(|e| {
+                            if e.kind() == std::io::ErrorKind::NotFound { None } else { Some(e.to_string()) }
+                        })?;
+                        if full {
+                            full_hash(&mut file, &layout.ranges, cancel)
+                        } else {
+                            partial_hash(&mut file, &layout.ranges, cancel)
+                        }
+                        .map_err(|e| if e.kind() == std::io::ErrorKind::Interrupted { None } else { Some(e.to_string()) })
+                    }))
+                    .unwrap_or_else(|_| Err(Some("internal error while reading the file".to_string())));
+                    (index, res)
+                })
+                .collect()
+        });
+        let mut chunk_failures = Vec::new();
+        for (index, res) in results {
+            match res {
+                Ok(hash) => {
+                    if full { entries[index].full = Some(hash) } else { entries[index].partial = Some(hash) }
+                    entries[index].dirty = true;
+                }
+                Err(Some(reason)) => {
+                    let entry = &entries[index];
+                    failures.push(HashFailure { path: entry.path.clone(), error: reason.clone() });
+                    chunk_failures.push((entry.id, entry.size, entry.modified, reason));
+                }
+                Err(None) => {}
+            }
+        }
+        save_dirty_and_failures(conn, mode, entries, &chunk_failures)?;
+        busy += chunk_started.elapsed();
+        done += chunk.len();
+        let frac = range.0 + (range.1 - range.0) * done as f64 / total as f64;
+        progress(RichProgress {
+            percent: (frac * 100.0).round() as u32,
+            done,
+            total,
+            remaining_seconds: (done > 0).then(|| (busy.as_secs_f64() / done as f64 * (total - done) as f64).round() as u64),
+            paused: false,
+            phase: Some("hashing"),
+        });
+    }
+    Ok(())
 }
 
-/// Finds groups of identical images. `progress` receives a fraction between 0 and 1. A cancelled run returns what it has found so far (no group,
-/// in practice: groups are only certain after the last stage), flagged `cancelled`.
+/// Finds groups of identical images (tests and simple callers).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn run(pool: &DbPool, request: &Request, cancel: &AtomicBool, progress: &(dyn Fn(f64) + Sync)) -> Result<Report, String> {
+    run_with_options(pool, None, request, cancel, &|rich| progress(rich.percent as f64 / 100.0))
+}
+
+/// Finds groups of identical images with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
+pub fn run_with_options(
+    pool: &DbPool,
+    base_dir: Option<&Path>,
+    request: &Request,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(RichProgress) + Sync),
+) -> Result<Report, String> {
     let started = Instant::now();
     let conn = pool.get().map_err(|e| e.to_string())?;
     let mode: i64 = if request.ignore_metadata { 1 } else { 0 };
     // Rows of photos removed from the catalog are useless (identifiers are never reused).
-    conn.execute("DELETE FROM photo_hashes WHERE photo_id NOT IN (SELECT id FROM photos)", []).map_err(|e| e.to_string())?;
-    let candidates = load_candidates(&conn, &request.scope, request.compare_with_library)?;
+    conn.execute_batch(
+        "DELETE FROM photo_hashes WHERE photo_id NOT IN (SELECT id FROM photos);
+         DELETE FROM photo_hash_failures WHERE photo_id NOT IN (SELECT id FROM photos);",
+    )
+    .map_err(|e| e.to_string())?;
+    let candidates = load_candidates_filtered(&conn, &request.scope, request.compare_with_library, request.include_raw)?;
     let cache = load_cache(&conn, mode)?;
+    let failure_cache = load_failure_cache(&conn, mode)?;
 
-    // Same sizing as the integrity check: leave room for the interface.
-    let cores = std::thread::available_parallelism().map(|count| count.get()).unwrap_or(4);
-    let threads = (cores / 2).clamp(2, 6);
-    let workers = rayon::ThreadPoolBuilder::new().num_threads(threads).build().map_err(|e| e.to_string())?;
+    let threads = crate::semantic::resolve_hash_threads(request.threads.as_deref(), true);
+    let workers = crate::semantic::build_low_priority_pool(threads)?;
 
-    // Stage 0: size, date and image data length of every file (cache first, headers otherwise).
-    let unreadable = AtomicUsize::new(0);
-    let done = AtomicUsize::new(0);
-    let total = candidates.len().max(1);
-    let scanned: Vec<Option<Entry>> = workers.install(|| {
-        candidates
-            .par_iter()
-            .map(|candidate| {
-                if cancel.load(Ordering::Relaxed) {
-                    return None;
-                }
-                let (id, path, in_scope) = (&candidate.id, &candidate.path, &candidate.in_scope);
-                let entry = (|| {
-                    let (size, modified) = file_version(&fs::metadata(path).ok()?)?;
-                    if size == 0 {
-                        return None;
+    // Stage 0: separate already-cached entries from uncached candidates so we only chunk and hash the missing ones.
+    let mut entries: Vec<Entry> = Vec::with_capacity(candidates.len());
+    let mut uncached: Vec<&Candidate> = Vec::new();
+    let mut unreadable_count = 0usize;
+    let mut new_failures: Vec<HashFailure> = Vec::new();
+
+    for candidate in &candidates {
+        if cancel.load(Ordering::Relaxed) {
+            break;
+        }
+        let Ok(meta) = fs::metadata(&candidate.path) else {
+            unreadable_count += 1;
+            continue;
+        };
+        let Some((size, modified)) = file_version(&meta) else {
+            unreadable_count += 1;
+            continue;
+        };
+        if size == 0 {
+            unreadable_count += 1;
+            continue;
+        }
+        if let Some(cached) = cache.get(&candidate.id).filter(|c| c.size == size && c.modified == modified) {
+            entries.push(Entry {
+                id: candidate.id,
+                path: candidate.path.clone(),
+                in_scope: candidate.in_scope,
+                size,
+                modified,
+                data_len: cached.data_len,
+                tolerant: cached.tolerant,
+                partial: cached.partial,
+                full: cached.full,
+                dirty: false,
+            });
+        } else if failure_cache.get(&candidate.id).is_some_and(|&(fsz, fm)| fsz == size && fm == modified) {
+            unreadable_count += 1;
+        } else {
+            uncached.push(candidate);
+        }
+    }
+
+    let stage0_total = uncached.len();
+    let mut stage0_done = 0usize;
+    let mut stage0_busy = Duration::ZERO;
+    for chunk in uncached.chunks(HASH_CHUNK_SIZE) {
+        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+            let frac = if stage0_total > 0 { 0.3 * stage0_done as f64 / stage0_total as f64 } else { 0.3 };
+            progress(RichProgress {
+                percent: (frac * 100.0).round() as u32,
+                done: stage0_done,
+                total: stage0_total,
+                remaining_seconds: (stage0_done > 0).then(|| (stage0_busy.as_secs_f64() / stage0_done as f64 * (stage0_total - stage0_done) as f64).round() as u64),
+                paused: true,
+                phase: Some("hashing"),
+            });
+        }) {
+            break;
+        }
+        let chunk_started = Instant::now();
+        let scanned: Vec<Result<Entry, Option<(i64, String, u64, i64, String)>>> = workers.install(|| {
+            chunk
+                .par_iter()
+                .map(|candidate| {
+                    if cancel.load(Ordering::Relaxed) {
+                        return Err(None);
                     }
-                    if let Some(cached) = cache.get(id).filter(|cached| cached.size == size && cached.modified == modified) {
-                        return Some(Entry {
-                            id: *id, path: path.clone(), in_scope: *in_scope, size, modified, data_len: cached.data_len, tolerant: cached.tolerant,
-                            partial: cached.partial, full: cached.full, dirty: false,
-                        });
+                    panic::catch_unwind(AssertUnwindSafe(|| {
+                        let meta = fs::metadata(&candidate.path).map_err(|e| {
+                            if e.kind() == std::io::ErrorKind::NotFound { None } else { Some((candidate.id, candidate.path.clone(), 0, 0, e.to_string())) }
+                        })?;
+                        let (size, modified) = file_version(&meta).ok_or_else(|| Some((candidate.id, candidate.path.clone(), meta.len(), 0, "no modification date".to_string())))?;
+                        if size == 0 {
+                            return Err(Some((candidate.id, candidate.path.clone(), 0, modified, "empty file".to_string())));
+                        }
+                        let layout = layout_of(Path::new(&candidate.path), size, request.ignore_metadata)
+                            .map_err(|e| Some((candidate.id, candidate.path.clone(), size, modified, e.to_string())))?;
+                        Ok(Entry {
+                            id: candidate.id,
+                            path: candidate.path.clone(),
+                            in_scope: candidate.in_scope,
+                            size,
+                            modified,
+                            data_len: layout.len(),
+                            tolerant: layout.tolerant,
+                            partial: None,
+                            full: None,
+                            dirty: true,
+                        })
+                    }))
+                    .unwrap_or_else(|_| Err(Some((candidate.id, candidate.path.clone(), 0, 0, "internal error while reading the file".to_string()))))
+                })
+                .collect()
+        });
+        let mut chunk_entries = Vec::with_capacity(scanned.len());
+        let mut chunk_failures = Vec::new();
+        for res in scanned {
+            match res {
+                Ok(entry) => chunk_entries.push(entry),
+                Err(Some((id, path, size, modified, reason))) => {
+                    unreadable_count += 1;
+                    new_failures.push(HashFailure { path, error: reason.clone() });
+                    if size > 0 {
+                        chunk_failures.push((id, size, modified, reason));
                     }
-                    let layout = layout_of(Path::new(path), size, request.ignore_metadata).ok()?;
-                    Some(Entry {
-                        id: *id, path: path.clone(), in_scope: *in_scope, size, modified, data_len: layout.len(), tolerant: layout.tolerant,
-                        partial: None, full: None, dirty: true,
-                    })
-                })();
-                if entry.is_none() {
-                    unreadable.fetch_add(1, Ordering::Relaxed);
                 }
-                let finished = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if finished.is_multiple_of(64) {
-                    progress(0.3 * finished as f64 / total as f64);
+                Err(None) => {
+                    unreadable_count += 1;
                 }
-                entry
-            })
-            .collect()
-    });
-    let mut entries: Vec<Entry> = scanned.into_iter().flatten().collect();
-    save_dirty(&conn, mode, &mut entries)?;
-    let mut report = Report { scanned: entries.len(), unreadable: unreadable.load(Ordering::Relaxed), ..Report::default() };
+            }
+        }
+        save_dirty_and_failures(&conn, mode, &mut chunk_entries, &chunk_failures)?;
+        entries.extend(chunk_entries);
+        stage0_busy += chunk_started.elapsed();
+        stage0_done += chunk.len();
+        let frac = if stage0_total > 0 { 0.3 * stage0_done as f64 / stage0_total as f64 } else { 0.3 };
+        progress(RichProgress {
+            percent: (frac * 100.0).round() as u32,
+            done: stage0_done,
+            total: stage0_total,
+            remaining_seconds: (stage0_done > 0).then(|| (stage0_busy.as_secs_f64() / stage0_done as f64 * (stage0_total - stage0_done) as f64).round() as u64),
+            paused: false,
+            phase: Some("hashing"),
+        });
+    }
+
+    let mut report = Report { scanned: entries.len(), unreadable: unreadable_count, ..Report::default() };
     if request.ignore_metadata {
         let extensions: BTreeSet<String> = entries.iter().filter(|entry| !entry.tolerant).map(|entry| extension_of(Path::new(&entry.path))).collect();
         report.whole_file_extensions = extensions.into_iter().collect();
     }
     if cancel.load(Ordering::Relaxed) {
         report.cancelled = true;
+        report.failures_total = new_failures.len();
+        report.log_path = base_dir.and_then(|dir| write_failure_log(dir, "exact-hashes", &new_failures));
+        new_failures.truncate(MAX_REPORTED_FAILURES);
+        report.failures = new_failures;
         report.elapsed_millis = started.elapsed().as_millis() as u64;
         return Ok(report);
     }
@@ -735,12 +1075,10 @@ pub fn run(pool: &DbPool, request: &Request, cancel: &AtomicBool, progress: &(dy
     // Stage 1: same image data length.
     let mut groups = regroup(&entries, vec![(0..entries.len()).collect()], |entry| Some((entry.data_len, NO_HASH)));
     // Stage 2: same start and end.
-    fill_hashes(&workers, &mut entries, &groups, false, request.ignore_metadata, cancel, progress, (0.3, 0.4));
-    save_dirty(&conn, mode, &mut entries)?;
+    fill_hashes(&workers, &conn, mode, &mut entries, &groups, false, request.ignore_metadata, cancel, progress, (0.3, 0.4), &mut new_failures)?;
     groups = regroup(&entries, groups, |entry| entry.partial.map(|hash| (entry.data_len, hash)));
     // Stage 3: same whole image data.
-    fill_hashes(&workers, &mut entries, &groups, true, request.ignore_metadata, cancel, progress, (0.4, 1.0));
-    save_dirty(&conn, mode, &mut entries)?;
+    fill_hashes(&workers, &conn, mode, &mut entries, &groups, true, request.ignore_metadata, cancel, progress, (0.4, 1.0), &mut new_failures)?;
     if cancel.load(Ordering::Relaxed) {
         report.cancelled = true;
     } else {
@@ -755,7 +1093,12 @@ pub fn run(pool: &DbPool, request: &Request, cancel: &AtomicBool, progress: &(dy
             .collect();
         report.groups.sort();
     }
-    progress(1.0);
+    report.unreadable += new_failures.len();
+    report.failures_total = new_failures.len();
+    report.log_path = base_dir.and_then(|dir| write_failure_log(dir, "exact-hashes", &new_failures));
+    new_failures.truncate(MAX_REPORTED_FAILURES);
+    report.failures = new_failures;
+    progress(RichProgress { percent: 100, done: report.scanned, total: report.scanned, remaining_seconds: Some(0), paused: false, phase: Some("comparing") });
     report.elapsed_millis = started.elapsed().as_millis() as u64;
     Ok(report)
 }

@@ -1,4 +1,4 @@
-<!-- verified: e511daa | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
+<!-- verified: b9ea942 | sources: AGENTS.md, src-tauri/src/exif.rs, src-tauri/src/exiftool.rs, src-tauri/src/db.rs, src-tauri/src/thumbnails.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src/main.js, src/task-queue.js -->
 
 # Business rules and invariants
 
@@ -48,7 +48,7 @@ Cross-cutting rules only: module-specific rules live in the "Invariants" section
 **3.1 Thumbnail / preview cache name** = FNV-1a hash of (source path, file size, modification time, `PREVIEW_VERSION`) (`thumbnail_cache_file`, main.rs), stored as `<first 2 hex chars>/<hash>.jpg`. Consequences:
 
 - Changing what a thumbnail or preview contains requires bumping `PREVIEW_VERSION`, otherwise old images stay in use.
-- A metadata write changes size and mtime: `keep_cached_images` renames the cached files to their new names instead of regenerating them. Any new write path must go through it.
+- A metadata write changes size and mtime: `keep_cached_images` renames the cached files to their new names instead of regenerating them, and `restamp_photo_caches` updates `(size, modified)` on up-to-date `photo_phash`, `photo_hashes` (`mode = 1 AND tolerant = 1`), and `photo_embeddings` rows (except pixel-changing `rotate_photo_with`). Any new write path must go through them.
 - Listing the cache must use `cache_files` (two levels); writing a cache file must create its parent directory (`write_cache_file` does). Test: `cache_files_are_spread_over_subfolders_and_listed_recursively`.
 - Orphans (old names) are removed by `purge_orphan_cache` (button in Settings, and end of a full rescan).
 - A rename or a move changes the path, which is part of the name: `carry_cache_file` (single rename, move, batch rename) carries the thumbnail and the RAW preview to their new names. Everything else keyed to a photo (albums, keywords, faces, hashes, embeddings) uses `photo_id`, size and mtime, which a rename keeps.

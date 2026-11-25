@@ -94,7 +94,7 @@
 ### I. Fonctions optionnelles et sensibles
 
 - **Mises à jour** (`modules/updates.md`) : source unique, les releases GitHub du dépôt ; l'interface ne fournit jamais d'adresse ni de chemin ; SHA-256 publié exigé, vérifié au téléchargement et avant le lancement. La release garde un `.msi` et un `.deb`.
-- **Doublons** (`modules/duplicates.md`) : changer les octets hachés impose `LAYOUT_VERSION` + 1 (idem `ALGO_VERSION` du pHash) ; jamais d'écriture dans le cache de miniatures ; zéro impact au repos ; la grille ne change jamais sans clic.
+- **Doublons** (`modules/duplicates.md`) : changer les octets hachés impose `LAYOUT_VERSION` + 1 (idem `ALGO_VERSION` du pHash) ; jamais d'écriture dans le cache de miniatures ; zéro impact au repos (hors pré-calcul ou synergies activées dans Paramètres) ; la grille ne change jamais sans clic.
 - **Recherche par contenu** (`modules/semantic.md`) : invisible et sans aucune IPC si désactivée ; données dérivées uniquement ; **accepter une suggestion = `addPendingKeyword`**, jamais d'écriture sans « Appliquer » ; tout appel asynchrone ignore une réponse périmée (compteur de requêtes) ; modèle et ONNX Runtime jamais dans l'installeur.
 - **Zones privées** (`modules/private-zones.md`) : une tuile qui touche une zone privée ne vient jamais du fournisseur.
 

@@ -76,6 +76,18 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
   PRIMARY KEY (photo_id, mode)
 ```
 
+### photo_hash_failures  `duplicates.rs`
+
+```sql
+  photo_id INTEGER NOT NULL
+  mode INTEGER NOT NULL
+  version INTEGER NOT NULL
+  size INTEGER NOT NULL
+  modified INTEGER NOT NULL
+  reason TEXT NOT NULL
+  PRIMARY KEY (photo_id, mode)
+```
+
 ### persons  `faces.rs`
 
 ```sql
@@ -256,6 +268,16 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
   algo INTEGER NOT NULL
   flat INTEGER NOT NULL
   hashes BLOB NOT NULL
+```
+
+### photo_phash_failures  `similar.rs`
+
+```sql
+  photo_id INTEGER PRIMARY KEY
+  size INTEGER NOT NULL
+  modified INTEGER NOT NULL
+  algo INTEGER NOT NULL
+  reason TEXT NOT NULL
 ```
 
 ## Indexes

@@ -1,4 +1,4 @@
-<!-- verified: f23d0b8 | sources: src-tauri/src/stats.rs, src/stats.js, src/stats.css -->
+<!-- verified: b9ea942 | sources: src-tauri/src/stats.rs, src/stats.js, src/stats.css -->
 # Collection statistics
 
 Spec: `dev_tools/Evolutions/feat stats.txt`.
@@ -29,7 +29,8 @@ Combined with AND; nothing chosen = no filter.
 6. Geolocated vs not (latitude and longitude both known, as in the geolocation filter).
 7. People and faces, only if `isFaceDetectionEnabled()`: distinct people, faces, and the 5 people with the most faces. A face counts unless its state is `ignored`, `not_face` or `filtered`; a person counts when at least one such face is attributed to them (`person_id`). Hidden people are left out of the top 5.
 8. Distribution by shooting setting (focal length, aperture, shutter speed, ISO) with a selector: fixed ranges (`FOCAL`, `APERTURE`, `SHUTTER`, `ISO` in `stats.rs`), values read like the shooting filters. All four are returned together; the selector only switches which one is drawn.
-9. Content analysis (analysed vs not), only if `isSemanticEnabled()`: photos with an embedding of the active model.
+9. Content analysis (`analysis`: `up_to_date`, `expired` — hidden when 0 — and not computed), only if `isSemanticEnabled()`: photos with an embedding of the active model.
+10. Duplicate hashes (`exact_prepass`, `exact_full`, `similarity`: `up_to_date`, `expired` — hidden when 0 — and not computed, plus excluded video/unsupported counts).
 
 A note under a list says how many of the photos counted have the information.
 

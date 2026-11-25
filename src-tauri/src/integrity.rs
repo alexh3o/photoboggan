@@ -29,9 +29,11 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use rayon::prelude::*;
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
+use crate::db::DbPool;
 use crate::{library_sync, thumbnails, video};
 
 /// Nombre maximal de décodages simultanés pour les formats lourds (PNG, WebP, HEIC).
@@ -317,25 +319,52 @@ pub(crate) fn check_jpeg_structure(data: &[u8]) -> Result<(), String> {
     Err(format!("Incomplete JPEG: only {scans} scan(s) found, image data is missing (truncated or damaged file)"))
 }
 
+#[derive(Default)]
+struct ComputedHashes {
+    phash: Option<(u64, i64, crate::phash::Fingerprint)>,
+    exact_full: Option<crate::duplicates::DataHash>,
+    exact_prepass: Option<(u64, i64, u64, bool)>,
+}
+
 /// Analyse un fichier. `Err` = fichier suspect (message affiché dans le rapport).
+#[cfg_attr(not(test), allow(dead_code))]
 fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc<Gate>, token: &Arc<SlotToken>) -> Result<Outcome, String> {
+    let cancel = AtomicBool::new(false);
+    check_file_with_hashes(source, thumbnails_dir, max_side, heavy, token, false, false, &cancel).map(|(outcome, _)| outcome)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn check_file_with_hashes(
+    source: &Path,
+    thumbnails_dir: &Path,
+    max_side: usize,
+    heavy: &Arc<Gate>,
+    token: &Arc<SlotToken>,
+    want_phash: bool,
+    want_exact: bool,
+    cancel: &AtomicBool,
+) -> Result<(Outcome, ComputedHashes), String> {
     let extension = source.extension().and_then(|value| value.to_str()).unwrap_or("").to_ascii_lowercase();
     if video::is_video_path(source) || matches!(extension.as_str(), "gif" | "bmp" | "avif") {
-        return Ok(Outcome::Unsupported);
+        return Ok((Outcome::Unsupported, ComputedHashes::default()));
     }
     // Même nom de cache que l'interface (chemin, taille et date du fichier). Un fichier dont les métadonnées sont illisibles est suspect.
     let destination = crate::thumbnail_cache_file(thumbnails_dir, &source.to_string_lossy()).map_err(|error| format!("Unreadable file: {error}"))?;
     let thumbnail_missing = !destination.is_file();
+    let need_pixels = thumbnail_missing || want_phash;
+    let is_raw = thumbnails::is_raw_path(source);
 
+    let mut hashes = ComputedHashes::default();
     let format = sniff(source);
+    let mut jpeg_bytes: Option<Vec<u8>> = None;
     let (rgb, width, height) = match format {
         Format::Png => {
             let _slot = Gate::enter(heavy, token);
-            decode_png(source, thumbnail_missing)?
+            decode_png(source, need_pixels)?
         }
         Format::WebP => {
             let _slot = Gate::enter(heavy, token);
-            decode_webp(source, thumbnail_missing)?
+            decode_webp(source, need_pixels)?
         }
         // HEIC / HEIF reconnu d'après son contenu (même avec une extension .jpg ou .png) : décodage complet (lourd).
         Format::Heif => {
@@ -352,7 +381,7 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc
             }
             // HEIC / HEIF : décodage complet (lourd) ; JPEG et RAW (vignette JPEG intégrée) : décodage à échelle réduite.
             let _slot = crate::heif::is_heif_path(source).then(|| Gate::enter(heavy, token));
-            if thumbnails::is_raw_path(source) || crate::heif::is_heif_path(source) {
+            if is_raw || crate::heif::is_heif_path(source) {
                 thumbnails::decode_scaled_rgb(source, max_side)?
             } else {
                 // Plain JPEG: the file is read once, decoded, then its marker structure is checked (the decoder alone
@@ -360,32 +389,160 @@ fn check_file(source: &Path, thumbnails_dir: &Path, max_side: usize, heavy: &Arc
                 let bytes = fs::read(source).map_err(|error| format!("Cannot read file: {error}"))?;
                 let decoded = thumbnails::decode_scaled_jpeg_reader(std::io::Cursor::new(&bytes), max_side)?;
                 check_jpeg_structure(&bytes)?;
+                if want_exact {
+                    jpeg_bytes = Some(bytes);
+                }
                 decoded
             }
         }
     };
-    if !thumbnail_missing { return Ok(Outcome::Healthy(Thumbnail::Existing)); }
 
-    // Le fichier est sain : la miniature manquante est produite à partir de l'image déjà décodée. Un échec d'écriture n'est pas une corruption.
-    let (rgb, width, height) = thumbnails::resize_to_fit(rgb, width, height, max_side);
+    if want_exact {
+        if let Ok((size, modified)) = crate::duplicates::current_version(source) {
+            if size > 0 {
+                if is_raw {
+                    // RAW files: pre-pass only (zero extra disk read).
+                    hashes.exact_prepass = Some((size, modified, size, false));
+                } else if let Some(bytes) = jpeg_bytes.as_deref() {
+                    // Plain JPEG: hash directly from the bytes already in memory.
+                    hashes.exact_full = crate::duplicates::image_data_hash_from_jpeg_bytes(bytes, size, modified);
+                } else if let Ok(data) = crate::duplicates::image_data_hash(source, cancel) {
+                    hashes.exact_full = Some(data);
+                }
+            }
+        }
+    }
+
+    if !need_pixels {
+        return Ok((Outcome::Healthy(Thumbnail::Existing), hashes));
+    }
+
+    // Apply orientation once for both thumbnail creation and similarity hashing.
+    let (rgb, width, height) = if thumbnail_missing {
+        thumbnails::resize_to_fit(rgb, width, height, max_side)
+    } else {
+        thumbnails::resize_to_fit(rgb, width, height, 512)
+    };
     let orientation = if matches!(format, Format::Heif) || crate::heif::is_heif_path(source) { 1 } else { thumbnails::read_orientation(source) };
     let (rgb, width, height) = thumbnails::apply_orientation(rgb, width, height, orientation);
-    Ok(Outcome::Healthy(match thumbnails::write_jpeg(&destination, &rgb, width, height) {
-        Ok(()) => Thumbnail::Created,
-        Err(error) => {
-            eprintln!("Thumbnail not written for {}: {error}", source.display());
-            Thumbnail::Failed
+
+    if want_phash && crate::similar::is_phash_supported(source) {
+        if let (Ok((size, modified)), Some(fp)) = (crate::duplicates::current_version(source), crate::phash::fingerprint_rgb(&rgb, width, height)) {
+            hashes.phash = Some((size, modified, fp));
         }
-    }))
+    }
+
+    if !thumbnail_missing {
+        return Ok((Outcome::Healthy(Thumbnail::Existing), hashes));
+    }
+
+    Ok((
+        Outcome::Healthy(match thumbnails::write_jpeg(&destination, &rgb, width, height) {
+            Ok(()) => Thumbnail::Created,
+            Err(error) => {
+                eprintln!("Thumbnail not written for {}: {error}", source.display());
+                Thumbnail::Failed
+            }
+        }),
+        hashes,
+    ))
+}
+
+fn normalize_path_key(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/").to_lowercase()
+}
+
+struct HashTargetInfo {
+    id: i64,
+    need_phash: bool,
+    need_exact: bool,
+}
+
+fn load_hash_targets(conn: &Connection, folder: &Path) -> HashMap<String, HashTargetInfo> {
+    let prefix = format!("{}/", folder.to_string_lossy().replace('\\', "/").trim_end_matches('/').to_lowercase());
+    let mut map = HashMap::new();
+    let Ok(mut stmt) = conn.prepare(
+        "SELECT p.id, p.path,
+                NOT EXISTS(SELECT 1 FROM photo_phash h WHERE h.photo_id = p.id AND h.algo = ?1 AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0)),
+                NOT EXISTS(SELECT 1 FROM photo_hashes e WHERE e.photo_id = p.id AND e.mode = 1 AND e.version = ?2 AND e.size = COALESCE(p.file_size, 0) AND e.modified = COALESCE(p.modified, 0) AND e.full_hash IS NOT NULL),
+                NOT EXISTS(SELECT 1 FROM photo_hashes e WHERE e.photo_id = p.id AND e.mode = 1 AND e.version = ?2 AND e.size = COALESCE(p.file_size, 0) AND e.modified = COALESCE(p.modified, 0))
+         FROM photos p WHERE p.path IS NOT NULL",
+    ) else {
+        return map;
+    };
+    let Ok(rows) = stmt.query_map(params![crate::phash::ALGO_VERSION, crate::duplicates::LAYOUT_VERSION], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, bool>(2)?,
+            row.get::<_, bool>(3)?,
+            row.get::<_, bool>(4)?,
+        ))
+    }) else {
+        return map;
+    };
+    for row in rows.flatten() {
+        let (id, path, need_phash, need_exact_full, need_exact_prepass) = row;
+        let norm = path.replace('\\', "/").to_lowercase();
+        if !norm.starts_with(&prefix) {
+            continue;
+        }
+        let is_raw = thumbnails::is_raw_path(Path::new(&path));
+        map.insert(
+            norm,
+            HashTargetInfo {
+                id,
+                need_phash,
+                need_exact: if is_raw { need_exact_prepass } else { need_exact_full },
+            },
+        );
+    }
+    map
+}
+
+fn flush_computed_hashes(pool: &DbPool, pending: &mut Vec<(i64, ComputedHashes)>) {
+    if pending.is_empty() {
+        return;
+    }
+    let batch = std::mem::take(pending);
+    let Ok(conn) = pool.get() else { return };
+    let Ok(tx) = conn.unchecked_transaction() else { return };
+    for (photo_id, hashes) in batch {
+        if let Some((size, modified, fp)) = hashes.phash {
+            let _ = crate::similar::save_phash_row(&tx, photo_id, size, modified, &fp);
+        }
+        if let Some(data) = hashes.exact_full {
+            let _ = crate::duplicates::remember_data_hash(&tx, photo_id, &data);
+        }
+        if let Some((size, modified, data_len, tolerant)) = hashes.exact_prepass {
+            let _ = crate::duplicates::remember_prepass(&tx, photo_id, 1, size, modified, data_len, tolerant);
+        }
+    }
+    let _ = tx.commit();
 }
 
 /// Parcourt le dossier (sous-dossiers compris) et renvoie le rapport. `progress` reçoit l'avancement de 0 à 1 (environ tous les 1 %) ;
 /// `on_folder` reçoit le dossier en cours d'analyse (chemin relatif commençant par le nom du dossier vérifié) à chaque changement de dossier ;
 /// `cancel` arrête l'analyse : le rapport couvre alors les fichiers déjà traités.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn run(
     folder: &Path,
     thumbnails_dir: &Path,
     max_side: usize,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(f64) + Sync),
+    on_folder: &(dyn Fn(&str) + Sync),
+) -> Result<IntegrityReport, String> {
+    run_with_hashes(folder, thumbnails_dir, max_side, None, false, cancel, progress, on_folder)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_hashes(
+    folder: &Path,
+    thumbnails_dir: &Path,
+    max_side: usize,
+    pool: Option<&DbPool>,
+    compute_hashes: bool,
     cancel: &AtomicBool,
     progress: &(dyn Fn(f64) + Sync),
     on_folder: &(dyn Fn(&str) + Sync),
@@ -412,6 +569,12 @@ pub fn run(
     let timings_by_extension: Mutex<HashMap<String, (usize, u64)>> = Mutex::new(HashMap::new());
     let unsupported_by_extension: Mutex<HashMap<String, usize>> = Mutex::new(HashMap::new());
     let heavy = Arc::new(Gate::new(HEAVY_DECODES));
+    let hash_targets = if compute_hashes {
+        pool.and_then(|p| p.get().ok()).map(|conn| load_hash_targets(&conn, folder)).unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
+    let hash_buffer: Mutex<Vec<(i64, ComputedHashes)>> = Mutex::new(Vec::new());
 
     // Dossier en cours : annoncé seulement quand il change (les fichiers sont parcourus dossier par dossier).
     let root_name = folder.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| folder.to_string_lossy().into_owned());
@@ -441,11 +604,16 @@ pub fn run(
             let file_started = Instant::now();
             // Analyse dans un fil dédié : un fichier qui ne répond plus est abandonné après FILE_TIMEOUT (et l'arrêt demandé est vu sans attendre).
             let token = Arc::new(SlotToken::default());
+            let target_info = hash_targets.get(&normalize_path_key(path));
+            let (photo_id, want_phash, want_exact) = target_info.map_or((None, false, false), |info| (Some(info.id), info.need_phash, info.need_exact));
             let work = {
                 let (path, thumbnails_dir, heavy, token) = (path.clone(), thumbnails_dir.to_path_buf(), heavy.clone(), token.clone());
+                let file_cancel = AtomicBool::new(false);
                 move || {
-                    panic::catch_unwind(AssertUnwindSafe(|| check_file(&path, &thumbnails_dir, max_side, &heavy, &token)))
-                        .unwrap_or_else(|_| Err("Decoder aborted: file probably corrupt".to_string()))
+                    panic::catch_unwind(AssertUnwindSafe(|| {
+                        check_file_with_hashes(&path, &thumbnails_dir, max_side, &heavy, &token, want_phash, want_exact, &file_cancel)
+                    }))
+                    .unwrap_or_else(|_| Err("Decoder aborted: file probably corrupt".to_string()))
                 }
             };
             let result = match run_bounded(work, FILE_TIMEOUT, cancel) {
@@ -459,17 +627,26 @@ pub fn run(
             let micros = file_started.elapsed().as_micros() as u64;
             let extension = extension_of(path);
             match result {
-                Ok(Outcome::Unsupported) => {
+                Ok((Outcome::Unsupported, _)) => {
                     unsupported.fetch_add(1, Ordering::Relaxed);
                     *unsupported_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).entry(extension).or_insert(0) += 1;
                 }
-                Ok(Outcome::Healthy(thumbnail)) => {
+                Ok((Outcome::Healthy(thumbnail), computed)) => {
                     checked.fetch_add(1, Ordering::Relaxed);
                     healthy.fetch_add(1, Ordering::Relaxed);
                     match thumbnail {
                         Thumbnail::Created => { created.fetch_add(1, Ordering::Relaxed); }
                         Thumbnail::Failed => { failed.fetch_add(1, Ordering::Relaxed); }
                         Thumbnail::Existing => {}
+                    }
+                    if let (Some(id), Some(db_pool)) = (photo_id, pool) {
+                        if computed.phash.is_some() || computed.exact_full.is_some() || computed.exact_prepass.is_some() {
+                            let mut buf = hash_buffer.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                            buf.push((id, computed));
+                            if buf.len() >= crate::duplicates::HASH_CHUNK_SIZE {
+                                flush_computed_hashes(db_pool, &mut buf);
+                            }
+                        }
                     }
                     let mut timings = timings_by_extension.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                     let entry = timings.entry(extension).or_insert((0, 0));
@@ -490,6 +667,11 @@ pub fn run(
             if done.is_multiple_of(step) || done == total { progress(done as f64 / total.max(1) as f64); }
         });
     });
+
+    if let Some(db_pool) = pool {
+        let mut buf = hash_buffer.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
+        flush_computed_hashes(db_pool, &mut buf);
+    }
 
     let mut suspects = suspects.into_inner().unwrap_or_else(|poisoned| poisoned.into_inner());
     suspects.sort_by_key(|a| a.path.to_lowercase());
