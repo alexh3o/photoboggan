@@ -58,10 +58,15 @@ fn prereleases_are_offered_on_request() {
 }
 
 #[test]
-fn beta_installation_gets_prereleases_without_asking() {
-    let info = pick_latest(BODY.as_bytes(), &installed("0.6.2-beta"), "0.6.2-beta", false).unwrap();
-    assert_eq!(info.latest, "0.7.0");
-    assert!(info.update_available);
+fn beta_installation_respects_include_prereleases_setting() {
+    let without_pre = pick_latest(BODY.as_bytes(), &installed("0.6.2-beta"), "0.6.2-beta", false).unwrap();
+    assert_eq!(without_pre.latest, "0.6.2");
+    assert!(!without_pre.update_available);
+
+    let with_pre = pick_latest(BODY.as_bytes(), &installed("0.6.2-beta"), "0.6.2-beta", true).unwrap();
+    assert_eq!(with_pre.latest, "0.7.0");
+    assert!(with_pre.update_available);
+    assert!(with_pre.prerelease);
 }
 
 #[test]

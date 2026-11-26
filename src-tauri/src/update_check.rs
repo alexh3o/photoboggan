@@ -5,7 +5,7 @@
 //!
 //! Which version is offered:
 //! * drafts are ignored, and so are releases whose tag is not `v<x>.<y>.<z>` (e.g. `face-models-1`, which does not hold the application);
-//! * pre-releases are offered only if the user asked for them, or if the installed version is itself a beta (suffix `-beta`, `-rc`…);
+//! * pre-releases are offered only if the user asked for them (`include_prereleases`);
 //! * comparison on the three numbers only: the `-beta` suffix of the Linux .deb is ignored, the matching Windows version has none.
 //!
 //! The version always comes from the tag, never from file names (release v0.4.2 holds files named 0.4.1).
@@ -44,6 +44,7 @@ const MAX_INSTALLER_BYTES: u64 = 500 * 1024 * 1024;
 #[derive(Debug, PartialEq)]
 struct Version {
     numbers: (u64, u64, u64),
+    #[cfg_attr(not(test), allow(dead_code))]
     pre: Option<String>,
 }
 
@@ -138,7 +139,7 @@ fn pick_asset(release: &serde_json::Value, platform: &str) -> Option<UpdateAsset
 /// Dernière release éligible dans la réponse JSON de GitHub (voir les règles en tête de fichier).
 fn pick_latest(body: &[u8], installed: &Version, installed_text: &str, include_prereleases: bool) -> Result<UpdateInfo, String> {
     let releases: Vec<serde_json::Value> = serde_json::from_slice(body).map_err(|error| format!("Réponse de GitHub illisible : {error}"))?;
-    let allow_prereleases = include_prereleases || installed.pre.is_some();
+    let allow_prereleases = include_prereleases;
     let text = |release: &serde_json::Value, key: &str| release.get(key).and_then(|value| value.as_str()).unwrap_or_default().to_string();
 
     let best = releases

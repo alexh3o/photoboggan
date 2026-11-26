@@ -63,6 +63,13 @@
   --row-bg: #181818;
   --toast-bg: #252525;
   --toast-text: #f4f4f4;
+  /* Persistent update toast uses an inverted light surface against the dark app so it cannot be missed */
+  --update-toast-bg: #f4f7fa;
+  --update-toast-text: #161b22;
+  --update-toast-border: #2b8bd0;
+  --update-toast-close: #4a5568;
+  --update-toast-close-hover: #111;
+  --update-toast-close-hover-bg: rgba(0, 0, 0, 0.08);
   --pending-color: #f59e0b; /* « pas encore écrit dans le fichier » (positions, mots-clés…) : même couleur partout */
   --pending-on: #000; /* texte posé sur --pending-color */
   /* Interface font: default stack ; main.js overrides it on <html> with the font chosen in Settings (app-fonts.js) */
@@ -102,6 +109,13 @@
   --row-bg: #f0f0f0;
   --toast-bg: #fff;
   --toast-text: #222;
+  /* Persistent update toast uses an inverted dark surface against the light app */
+  --update-toast-bg: #1c2229;
+  --update-toast-text: #f5f7fa;
+  --update-toast-border: #1e72ad;
+  --update-toast-close: #b8c2cc;
+  --update-toast-close-hover: #fff;
+  --update-toast-close-hover-bg: rgba(255, 255, 255, 0.14);
   --pending-color: #b45309; /* plus foncé sur fond clair (contraste ≥ 4,5:1) */
   --pending-on: #fff;
 }
@@ -412,7 +426,8 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .filtered-count.is-empty, .filtered-count.is-empty strong { color: var(--danger-text); }
 /* Loaded list cut at its limit (main.js, PHOTO_LOAD_LIMIT): amber mark, the explanation is in the tooltip. */
 .filtered-count .photo-cap-warning { margin-left: 0.3rem; color: #d6a900; font-weight: 700; cursor: help; }
-.write-toast { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 12000; padding: 0.75rem 1rem; max-width: min(28rem, calc(100vw - 2.5rem)); border: 1px solid var(--control-border); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; }
+.toast-dock { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 12000; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 0.5rem; max-width: calc(100vw - 2.5rem); pointer-events: none; }
+.write-toast { padding: 0.75rem 1rem; max-width: min(28rem, 100%); border: 1px solid var(--control-border); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; pointer-events: auto; }
 .write-toast.writing { border-color: #d6a900; }
 /* Toast action buttons (e.g. "Undo", "Details", "History"): grouped on the same baseline */
 .write-toast .toast-actions { display: inline-flex; align-items: center; gap: 0.45rem; margin-left: 0.65rem; vertical-align: baseline; }
@@ -423,9 +438,20 @@ button.filter-tag.tag-filename:hover { background: var(--tag-filename-hover); }
 .write-toast .toast-action.toast-link { padding: 0.1rem 0.25rem; border: 0; background: transparent; color: var(--text-muted); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
 .write-toast .toast-action.toast-link:hover { background: transparent; color: var(--accent-text); }
 .write-toast.hidden { display: none; }
+/* Dedicated persistent update toast (new version available / download complete): high-contrast inverted palette, logo, and close button */
+.update-toast { display: flex; align-items: center; gap: 0.65rem; max-width: min(30rem, 100%); padding: 0.7rem 0.65rem 0.7rem 0.85rem; border: 2px solid var(--update-toast-border); border-radius: 8px; color: var(--update-toast-text); background: var(--update-toast-bg); box-shadow: 0 8px 1.5rem rgba(0, 0, 0, 0.45); font-size: 0.85rem; font-weight: 500; pointer-events: auto; }
+.update-toast.hidden { display: none; }
+.update-toast-logo { width: 1.5rem; height: 1.5rem; flex: 0 0 auto; object-fit: contain; }
+.update-toast-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.update-toast-action { flex: 0 0 auto; padding: 0.28rem 0.75rem; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+.update-toast-action:hover { filter: brightness(1.12); }
+.update-toast-action[hidden] { display: none; }
+.update-toast-close { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--update-toast-close); font-size: 1.15rem; line-height: 1; cursor: pointer; }
+.update-toast-close:hover { background: var(--update-toast-close-hover-bg); color: var(--update-toast-close-hover); }
 /* Toasts de progression des tâches longues : un par tâche, empilés au-dessus du toast d'écriture. La tâche en cours est en bas, les suivantes (en attente) au-dessus d'elle.
    Au-dessus des modales (z-index 10000) car une tâche se lance depuis les Paramètres. */
-.task-toasts { position: fixed; right: 1.25rem; bottom: 4.75rem; z-index: 12000; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 0.5rem; max-width: min(22.5rem, calc(100vw - 2.5rem)); pointer-events: none; }
+.task-toasts { display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 0.5rem; max-width: min(22.5rem, 100%); pointer-events: none; }
+.task-toasts:empty { display: none; }
 .task-toast { display: flex; align-items: flex-start; gap: 0.6rem; max-width: 100%; padding: 0.75rem 0.5rem 0.75rem 1rem; border: 1px solid var(--accent); border-radius: 8px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 5px 1.25rem #0008; font-size: 0.8rem; font-variant-numeric: tabular-nums; pointer-events: auto; }
 .task-toast.waiting { border-color: var(--control-border); }
 .task-toast-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }

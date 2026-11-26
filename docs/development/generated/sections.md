@@ -467,9 +467,9 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L346–L554 | 209 | Cache: index, idle release |
 | L555–L813 | 259 | Scope and search |
 
-## src-tauri/src/update_check.rs (356 lines)
+## src-tauri/src/update_check.rs (357 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L195–L317 | 123 | Téléchargement |
-| L318–L352 | 35 | Installation |
+| L196–L318 | 123 | Téléchargement |
+| L319–L353 | 35 | Installation |

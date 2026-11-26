@@ -540,7 +540,7 @@ Tests de la vérification des mises à jour (update_check.rs) : lecture des vers
 - `stable_installation_ignores_prereleases_drafts_and_non_app_releases`
 - `up_to_date_installation_gets_no_update`
 - `prereleases_are_offered_on_request`
-- `beta_installation_gets_prereleases_without_asking`
+- `beta_installation_respects_include_prereleases_setting`
 - `beta_suffix_does_not_make_the_same_release_an_update`
 - `no_eligible_release_means_no_update_and_bad_json_is_an_error`
 - `windows_takes_the_english_msi_never_the_setup_exe_and_linux_takes_the_deb`

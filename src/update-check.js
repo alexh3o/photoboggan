@@ -42,16 +42,19 @@ let enqueueTask = () => false;
 let canQuit = async () => true;
 let downloadState = 'idle'; // 'idle' | 'downloading' | 'ready' (installeur téléchargé et vérifié)
 let downloadedVersion = '';
+let updateToastMode = null; // null | 'available' | 'downloaded'
+let updateToastVersion = '';
 
 let toggle, preToggle, statusLine, checkButton, showButton, modal, aboutLine;
+let updateToast, updateToastText, updateToastAction, updateToastClose;
 
-/** Active seulement si Internet est autorisé et la vérification demandée. */
+/** Automatic checks run only when Internet is allowed and the user enabled them. */
 const isActive = () => isEnabled() && !isOffline();
 
 // Ligne d'état sous les cases : versions installée et distante, ou état de la vérification.
 function statusText() {
   const installed = t('Installed version: {version}', { version: currentVersion });
-  if (!isActive()) return installed;
+  if (isOffline()) return installed;
   if (checking) return `${installed} · ${t('Checking…')}`;
   if (lastError) return `${installed} · ${t('Could not check for updates')}`;
   if (!info) return installed;
@@ -59,16 +62,49 @@ function statusText() {
   return info.update_available ? `${latest} — ${t('Update available')}` : `${latest} — ${t('Up to date')}`;
 }
 
+function renderUpdateToast() {
+  if (!updateToast) return;
+  if (!updateToastMode) {
+    updateToast.classList.add('hidden');
+    return;
+  }
+  if (updateToastMode === 'available') {
+    updateToastText.textContent = t('Version {latest} is available', { latest: updateToastVersion });
+    updateToastAction.hidden = false;
+    updateToastAction.textContent = t('Details');
+  } else {
+    updateToastText.textContent = t('Update downloaded');
+    const canInstall = downloadState === 'ready' && downloadedVersion === updateToastVersion && info?.asset;
+    updateToastAction.hidden = !canInstall;
+    if (canInstall) {
+      updateToastAction.textContent = t(info.asset.restarts ? 'Install and restart' : 'Show the downloaded file');
+    }
+  }
+  updateToast.classList.remove('hidden');
+}
+
+function showUpdateToast(mode, version) {
+  updateToastMode = mode;
+  updateToastVersion = version;
+  renderUpdateToast();
+}
+
+function hideUpdateToast() {
+  updateToastMode = null;
+  updateToastVersion = '';
+  renderUpdateToast();
+}
+
 function render() {
-  const active = isActive();
-  toggle.disabled = isOffline();
-  preToggle.disabled = !active;
-  checkButton.disabled = !active || checking;
-  showButton.hidden = !(active && info?.update_available);
+  const offline = isOffline();
+  toggle.disabled = offline;
+  preToggle.disabled = offline;
+  checkButton.disabled = offline || checking;
+  showButton.hidden = offline || !info?.update_available;
   statusLine.textContent = statusText();
 
   // Fenêtre À propos : dernière version connue, sans requête.
-  if (active && info) {
+  if (!offline && info) {
     aboutLine.hidden = false;
     aboutLine.textContent = info.update_available
       ? t('New version available: {latest}', { latest: info.latest })
@@ -76,10 +112,12 @@ function render() {
   } else {
     aboutLine.hidden = true;
   }
+  renderUpdateToast();
 }
 
 /** Appelé par main.js quand le mode hors ligne ou la langue change. */
 export function onUpdateAccessChanged() {
+  if (isOffline() && updateToastMode === 'available') hideUpdateToast();
   if (statusLine) render();
 }
 
@@ -178,33 +216,39 @@ function downloadUpdate() {
       } else {
         downloadState = 'ready';
         downloadedVersion = version;
-        showToast(t('Update downloaded'));
+        showUpdateToast('downloaded', version);
       }
       renderDownloadButton();
     },
   });
   if (!queued) return;
   downloadState = 'downloading';
+  if (updateToastMode === 'available') hideUpdateToast();
   renderDownloadButton();
 }
 
 async function installUpdate() {
   // Windows : l'installeur remplace l'application, qui se ferme : mêmes garde-fous qu'à la fermeture (mots-clés non écrits, album modifié).
-  if (info?.asset?.restarts && !(await canQuit())) return;
+  if (info?.asset?.restarts && !(await canQuit())) return false;
   try {
     const exits = await invoke('install_update');
     if (!exits) showToast(t('Download folder opened'));
+    return true;
   } catch (error) {
     console.error('Update install failed', error);
     if (String(error) === 'update_corrupted' || String(error) === 'update_not_downloaded') downloadState = 'idle';
     showToast(t('Could not install the update: {error}', { error: updateErrorMessage(error) }));
     renderDownloadButton();
+    return false;
   }
 }
 
-function onDownloadButton() {
-  if (downloadState === 'ready' && downloadedVersion === info?.latest) installUpdate();
-  else downloadUpdate();
+async function onDownloadButton() {
+  if (downloadState === 'ready' && downloadedVersion === info?.latest) {
+    if (await installUpdate() && updateToastMode === 'downloaded') hideUpdateToast();
+  } else {
+    downloadUpdate();
+  }
 }
 
 async function openReleasePage() {
@@ -221,7 +265,7 @@ async function openReleasePage() {
  * sans lui (activation de la case…) seule la ligne d'état est mise à jour.
  */
 async function runCheck({ announce = null } = {}) {
-  if (!isActive() || checking) return;
+  if (isOffline() || checking) return;
   checking = true;
   lastError = false;
   render();
@@ -240,7 +284,7 @@ async function runCheck({ announce = null } = {}) {
   if (announce === 'dialog') {
     openDialog();
   } else if (announce === 'toast' && readStored(KEY_IGNORED) !== info.latest) {
-    showToast(t('Version {latest} is available', { latest: info.latest }), { label: t('Details'), onClick: openDialog });
+    showUpdateToast('available', info.latest);
   }
 }
 
@@ -248,6 +292,7 @@ async function runCheck({ announce = null } = {}) {
 function forgetResult() {
   info = null;
   lastError = false;
+  if (updateToastMode === 'available') hideUpdateToast();
   remove(KEY_INFO);
   remove(KEY_LAST_CHECK);
 }
@@ -263,6 +308,10 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
   showButton = document.getElementById('btn-show-update');
   modal = document.getElementById('update-modal');
   aboutLine = document.getElementById('about-update');
+  updateToast = document.getElementById('update-toast');
+  updateToastText = document.getElementById('update-toast-text');
+  updateToastAction = document.getElementById('update-toast-action');
+  updateToastClose = document.getElementById('update-toast-close');
 
   try { currentVersion = await getVersion(); } catch (error) { console.error('Version unavailable', error); }
 
@@ -286,16 +335,26 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
   preToggle.addEventListener('change', () => {
     writeStored(KEY_PRERELEASES, preToggle.checked);
     forgetResult(); // le choix de la version proposée dépend de ce réglage
-    runCheck();
+    if (isActive()) runCheck();
     render();
   });
   checkButton.addEventListener('click', () => runCheck({ announce: 'dialog' }));
   showButton.addEventListener('click', openDialog);
+  updateToastClose.addEventListener('click', hideUpdateToast);
+  updateToastAction.addEventListener('click', async () => {
+    if (updateToastMode === 'available') {
+      hideUpdateToast();
+      openDialog();
+    } else if (updateToastMode === 'downloaded') {
+      if (await installUpdate()) hideUpdateToast();
+    }
+  });
 
   document.getElementById('btn-update-download').addEventListener('click', onDownloadButton);
   document.getElementById('btn-update-github').addEventListener('click', openReleasePage);
   document.getElementById('btn-update-ignore').addEventListener('click', () => {
     if (info) writeStored(KEY_IGNORED, info.latest);
+    if (updateToastMode === 'available') hideUpdateToast();
     closeDialog();
   });
   document.getElementById('btn-update-close').addEventListener('click', closeDialog);

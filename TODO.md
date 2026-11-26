@@ -17,7 +17,8 @@
 - [x] *fix* `semantic`: count analyzed photos that have been modified and expired
 - [x] *feat* `duplicates`: add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
 - [x] *refactor* `duplicates`: identical scan results always take a bit of time and only appear in a short toast that can be missed
-- [ ] *fix* `update`: available update is not visible (daily toast?)
+- [x] *style* `update`: make available update notification toast more visible and persistent
+- [x] *fix* `update`: respect option to not incldue beta even on beta version; allow check now when automatic update is off
 - [ ] *feat* `duplicates`: prefilter duplicates search targets to reduce scan/ search time
 - [ ] *fix* `semantic`: some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
 - [x] *fix* `duplicates`: list columns don't mention expired hashes

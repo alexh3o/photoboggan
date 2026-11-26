@@ -1370,7 +1370,7 @@
   "Check for updates": "Vérifier les mises à jour",
   "Check for updates help": "Au démarrage (au plus une fois par jour) et à la demande, demande à GitHub s'il existe une version plus récente. GitHub reçoit votre adresse IP et la version de l'application ; rien d'autre n'est envoyé. Sans effet en mode hors ligne.",
   "Include pre-releases (beta versions)": "Inclure les pré-versions (beta)",
-  "Include pre-releases help": "Propose aussi les versions de test (beta). Toujours le cas quand la version installée est elle-même une beta.",
+  "Include pre-releases help": "Propose aussi les versions de test (beta).",
   "Installed version: {version}": "Version installée : {version}",
   "Latest version: {latest}": "Dernière version : {latest}",
   "Checking…": "Vérification…",

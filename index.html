@@ -1403,8 +1403,16 @@
         </div>
       </div>
     </div>
-    <div id="write-toast" class="write-toast hidden" role="status" aria-live="polite"></div>
-    <div id="task-toasts" class="task-toasts" aria-live="polite"></div>
+    <div id="toast-dock" class="toast-dock">
+      <div id="update-toast" class="update-toast hidden" role="status" aria-live="polite">
+        <img src="/src-tauri/icons/32x32.png" class="update-toast-logo" alt="" aria-hidden="true" />
+        <span id="update-toast-text" class="update-toast-text"></span>
+        <button type="button" id="update-toast-action" class="update-toast-action" hidden></button>
+        <button type="button" id="update-toast-close" class="update-toast-close" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+      </div>
+      <div id="write-toast" class="write-toast hidden" role="status" aria-live="polite"></div>
+      <div id="task-toasts" class="task-toasts" aria-live="polite"></div>
+    </div>
     <div id="guide-modal" class="modal hidden">
       <div class="modal-card guide-card" role="dialog" aria-modal="true" aria-labelledby="guide-modal-title">
         <div class="modal-header">

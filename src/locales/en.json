@@ -1370,7 +1370,7 @@
   "Check for updates": "Check for updates",
   "Check for updates help": "At startup (at most once a day) and on request, asks GitHub whether a newer version exists. GitHub receives your IP address and the application version; nothing else is sent. No effect in offline mode.",
   "Include pre-releases (beta versions)": "Include pre-releases (beta versions)",
-  "Include pre-releases help": "Also offers test versions (beta). Always the case when the installed version is itself a beta.",
+  "Include pre-releases help": "Also offers test versions (beta).",
   "Installed version: {version}": "Installed version: {version}",
   "Latest version: {latest}": "Latest version: {latest}",
   "Checking…": "Checking…",

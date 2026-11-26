@@ -10,7 +10,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `AGENTS.md` | 120 |  |
 | `BUILDING.md` | 87 |  |
 | `CLAUDE.md` | 2 |  |
-| `index.html` | 1615 |  |
+| `index.html` | 1623 |  |
 | `package.json` | 29 |  |
 | `README.md` | 217 |  |
 | `TODO.md` | 82 |  |
@@ -192,13 +192,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.css` | 356 | Collection statistics window (stats.js): filters on top, then data blocks separated by horizontal lines. |
 | `stats.js` | 666 | Collection statistics (window opened from Settings). Spec: dev_tools/Evolutions/feat stats.txt. Filters on top (camera, root folder and file format: multiple choices; period; granularity of the time chart), data blocks … |
 | `sticky-folders.js` | 36 | Sticky folders of the folder tree: which rows stay pinned at the top while the tree is scrolled. Pure code: no state, no DOM. The layer that draws the pinned rows (copies of the real rows, see "STICKY FOLDERS" in main.j… |
-| `styles.css` | 1143 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
+| `styles.css` | 1169 | Fredoka Font (title, about) embedded : no connection to Google Fonts. latin & extended latin sets ; licence: SIL OFL 1.1 in assets/fonts/OFL.txt. |
 | `task-queue.js` | 686 | Frontend task queue: sequential main lane (scans, integrity checks, file moves/copies/resizes/renames, keyword batches, model downloads, duplicate searches, updates, private maps) plus a parallel background lane (`seman… |
 | `titlebar.js` | 132 | Window chrome: first display of the window, title bar buttons and immersive mode (F11). What needs the state of main.js stays there and is injected: the chain of confirmations before closing, and the toolbar menu entry … |
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `undo.css` | 25 | Undo history modal (Ctrl+U, undo.js): uses global modal shell and theme tokens |
 | `undo.js` | 502 | Session undo stacks ("common" for the main/fullscreen view and "faces" for the Faces management view), unified toast formatting, photo/video/file item-kind naming, and the Undo history modal (Ctrl+U). |
-| `update-check.js` | 316 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
+| `update-check.js` | 375 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
 
 ## src-tauri
@@ -276,7 +276,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `stats.rs` | 805 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
 | `thumbnails.rs` | 726 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
-| `update_check.rs` | 356 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
+| `update_check.rs` | 357 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
 | `video.rs` | 213 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
 ## src-tauri/src/tests
@@ -314,7 +314,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `similar.rs` | 249 | Tests of the similar-image search: grouping, rotations, bursts, flat pictures, cache and cancellation. Synthetic files in a temporary folder only. |
 | `stats.rs` | 67 | Tests for collection statistics coverage counts (content analysis and duplicate hashes). |
 | `thumbnails.rs` | 147 | Tests de non-régression de l'orientation et de l'EXIF des RAW (thumbnails.rs). Aucun vrai RAW : un CR3 minimal (boîtes CMT1 / CMT2) et des JPEG synthétiques sont fabriqués à la main. |
-| `update_check.rs` | 184 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
+| `update_check.rs` | 189 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
 
 ## src-tauri/src/tests/fixtures
 
