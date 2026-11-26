@@ -6,6 +6,7 @@ import { readBool, readChoice, writeStored } from './settings-defaults.js';
 import { confirmDialog } from './photo-actions.js';
 import { choiceDialog, showFailureDetails } from './metadata-writes.js';
 import { notifyPhashChanged } from './duplicates-view.js';
+import { isSemanticSettingOn, onSemanticChange } from './semantic-settings.js';
 
 const byId = id => document.getElementById(id);
 
@@ -254,6 +255,11 @@ function syncAutoHashAvailability() {
   if (raw) raw.disabled = !active;
 }
 
+function syncHashOnSemanticVisibility() {
+  const row = byId('dup-hash-on-semantic')?.closest('.settings-row');
+  if (row) row.hidden = !isSemanticSettingOn();
+}
+
 export function initDuplicatesSettings(hostApi) {
   host = hostApi;
   if (!byId('duplicates-settings')) return;
@@ -277,6 +283,8 @@ export function initDuplicatesSettings(hostApi) {
 
   byId('dup-auto-hash').addEventListener('change', syncAutoHashAvailability);
   syncAutoHashAvailability();
+  onSemanticChange(syncHashOnSemanticVisibility);
+  syncHashOnSemanticVisibility();
 
   byId('btn-dup-compute-exact').addEventListener('click', () => launchPrecompute(exactMode.value === 'full' ? 'exact_full' : 'exact_prepass'));
   byId('btn-dup-compute-similar').addEventListener('click', () => launchPrecompute('similarity'));

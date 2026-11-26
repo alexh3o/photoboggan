@@ -235,23 +235,24 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `initKeepPanel()` · L297
 - `export initDuplicatesModal()` · L330
 
-## src/duplicates-settings.js (15)
+## src/duplicates-settings.js (16)
 
-- `byId(id)` · L10
-- `export onExactHashChanged(listener)` · L19
-- `export notifyExactHashChanged()` · L24
-- `export duplicateHashThreads()` · L30
-- `export isHashOnSemanticEnabled()` · L34
-- `missingCountsFor(stats, kind)` · L46
-- `export refreshDuplicateHashStats()` · L62
-- `renderStats()` · L77
-- `handlePrecomputeResult(report, stopped, error, task, { silentIfEmpty = false } = {})` · L108
-- `launchPrecompute(kind)` · L137
-- `deleteDuplicateHashes()` · L194
-- `export scheduleAutoHash(scope)` · L215
-- `bindCheckbox(id, key)` · L242
-- `syncAutoHashAvailability()` · L249
-- `export initDuplicatesSettings(hostApi)` · L257
+- `byId(id)` · L11
+- `export onExactHashChanged(listener)` · L20
+- `export notifyExactHashChanged()` · L25
+- `export duplicateHashThreads()` · L31
+- `export isHashOnSemanticEnabled()` · L35
+- `missingCountsFor(stats, kind)` · L47
+- `export refreshDuplicateHashStats()` · L63
+- `renderStats()` · L78
+- `handlePrecomputeResult(report, stopped, error, task, { silentIfEmpty = false } = {})` · L109
+- `launchPrecompute(kind)` · L138
+- `deleteDuplicateHashes()` · L195
+- `export scheduleAutoHash(scope)` · L216
+- `bindCheckbox(id, key)` · L243
+- `syncAutoHashAvailability()` · L250
+- `syncHashOnSemanticVisibility()` · L258
+- `export initDuplicatesSettings(hostApi)` · L263
 
 ## src/duplicates-view.js (21)
 

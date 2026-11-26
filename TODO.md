@@ -2,27 +2,28 @@
 
 ## 🚀 Next in line / Done
 
-- [x] *feat*: `duplicates` inform user when launching a long search necessiting a hash scan
-- [x] *feat*: `duplicates` pass in same queue as semantic, low priority
-- [x] *perf*: `duplicates` save per chunks of 128 to protect progress from crashes
-- [x] *feat*: `duplicates` mark failing files for exclusion and report them in log + report
-- [x] *perf*: `duplicates` keep hashes valid when file is modified in photoboggan
-- [x] *perf*: `duplicates` option to calculate hashes during semantic
-- [x] *perf*: `duplicates` option to calculate hashes during integrity check
-- [x] *perf*: `duplicates` pause pro-active compute when a search is launched
-- [x] *feat*: `duplicates` option to include/exclude RAW on detail search
-- [x] *refactor*: `duplicates` better info in toasts and task modal
-- [x] *feat*: `duplicates` add duplicates scan info in statistics
-- [x] *feat*: `list` add duplicates exact hash column
-- [x] *fix*: `semantic` count analyzed photos that have been modified and expired
-- [x] *feat*: `duplicates` add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
-- [ ] *refactor*: `duplicates` identical scan results always take a bit of time and only appear in a short toast that can be missed
-- [ ] *fix*: `update` available update is not visible (daily toast?)
-- [ ] *feat*: `duplicates` prefilter duplicates search targets to reduce scan/ search time
-- [ ] *fix*: `semantic` some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
-- [ ] *fix*: `duplicates` list columns don't mention expired hashes
-- [ ] *fix*: `duplicates` text is malformed in pro-active scan launch (raw qty)
+- [x] *feat* `duplicates`: inform user when launching a long search necessiting a hash scan
+- [x] *feat* `duplicates`: pass in same queue as semantic, low priority
+- [x] *perf* `duplicates`: save per chunks of 128 to protect progress from crashes
+- [x] *feat* `duplicates`: mark failing files for exclusion and report them in log + report
+- [x] *perf* `duplicates`: keep hashes valid when file is modified in photoboggan
+- [x] *perf* `duplicates`: option to calculate hashes during semantic
+- [x] *perf* `duplicates`: option to calculate hashes during integrity check
+- [x] *perf* `duplicates`: pause pro-active compute when a search is launched
+- [x] *feat* `duplicates`: option to include/exclude RAW on detail search
+- [x] *refactor* `duplicates`: better info in toasts and task modal
+- [x] *feat* `duplicates`: add duplicates scan info in statistics
+- [x] *feat* `list`: add duplicates exact hash column
+- [x] *fix* `semantic`: count analyzed photos that have been modified and expired
+- [x] *feat* `duplicates`: add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
+- [x] *refactor* `duplicates`: identical scan results always take a bit of time and only appear in a short toast that can be missed
+- [ ] *fix* `update`: available update is not visible (daily toast?)
+- [ ] *feat* `duplicates`: prefilter duplicates search targets to reduce scan/ search time
+- [ ] *fix* `semantic`: some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
+- [x] *fix* `duplicates`: list columns don't mention expired hashes
+- [x] *fix* `duplicates`: text is malformed in pro-active scan launch (raw qty)
 - [x] *style* `font_size`: have a consistent text size through app (problem on some dialogs)
+- [x] *refactor* `dupplicates`: "compute similarity hashes during content analysis" option now only appears if content analysis is enabled
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -31,7 +32,6 @@
 - [ ] *feat*: `scripts` **user scripts/recipes** (launch integration with selected scans and actions, ex: integrity + thumbs + faces + phash + content analysis)
 - [ ] *feat*: `grid` option to hide RAW by default
 - [ ] *feat*: `applications` handle open with programs for selections with multiple photos (scripts...)
-- [ ] *fix*: `toasts` blurry toasts when a modal is on top
 - [ ] *fix*: `metadata` xmp sidecars are not synced as image embedded metadata when modified
 - [ ] *feat*: `metadata`allow writing to xmp sidecar
 - [ ] *chore*: `semantic` add content search score setting filter to recipes

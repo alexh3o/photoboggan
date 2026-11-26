@@ -61,7 +61,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `duplicate-names` | raw-settings | duplicates-view |
 | `duplicates` | i18n | duplicates-modal, duplicates-view, main, photo-actions |
 | `duplicates-modal` | duplicates, i18n, raw-settings | duplicates-view, main |
-| `duplicates-settings` | duplicates-view, i18n, metadata-writes, photo-actions, settings-defaults | duplicates-view, list-view, main, semantic-settings |
+| `duplicates-settings` | duplicates-view, i18n, metadata-writes, photo-actions, semantic-settings, settings-defaults | duplicates-view, list-view, main, semantic-settings |
 | `duplicates-view` | albums-panel, duplicate-names, duplicates, duplicates-modal, duplicates-settings, format-filters, i18n, metadata-writes, raw-settings | duplicates-settings, list-view, main, semantic-settings |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults, undo | main, semantic-results |
 | `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search, undo | faces-grid, fullscreen, list-view, main, persons-view, stats |
@@ -106,7 +106,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic-exclusions` | filter-suggest, i18n, settings-defaults | semantic-keywords, semantic-settings, semantic-tagging |
 | `semantic-keywords` | i18n, semantic-exclusions, semantic-settings, semantic-tagging, settings-defaults | main |
 | `semantic-results` | albums-panel, faces-grid, i18n, keywords-panel, photo-actions, semantic, semantic-settings, semantic-tagging, settings-defaults | main |
-| `semantic-settings` | duplicates-settings, duplicates-view, i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | keywords-panel, list-view, main, semantic, semantic-keywords, semantic-results, semantic-tagging, stats |
+| `semantic-settings` | duplicates-settings, duplicates-view, i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | duplicates-settings, keywords-panel, list-view, main, semantic, semantic-keywords, semantic-results, semantic-tagging, stats |
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, semantic-keywords, semantic-results |
 | `settings-defaults` | — | albums-panel, duplicates-settings, faces-grid, faces-panel, folder-tree, fullscreen, histogram, i18n, info-author, list-view, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, slideshow, task-queue, update-check |
 | `shooting-filters` | filter-suggest, filter-tags, i18n | find-raw, list-view, main |
