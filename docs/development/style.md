@@ -1,4 +1,4 @@
-<!-- verified: 274791c | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/list-view.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/author-filters.css, src/author-rights.css, src/raw-settings.css, src/shooting-filters.css, src/privacy.css, src/batch-rename.css, src/undo.css, index.html, src/app-fonts.js -->
+<!-- verified: 04695fe | sources: src/styles.css, src/keywords.css, src/faces.css, src/albums.css, src/duplicates.css, src/histogram.css, src/map-mode.css, src/list-view.css, src/semantic.css, src/find-raw.css, src/format-filters.css, src/author-filters.css, src/author-rights.css, src/raw-settings.css, src/shooting-filters.css, src/privacy.css, src/batch-rename.css, src/undo.css, index.html, src/app-fonts.js -->
 
 # Style and UI conventions
 
@@ -21,8 +21,9 @@ The tables (every CSS variable and where it is defined, the z-index stack, the c
 ## Units rule
 
 - **`rem` for everything typographic and spatial** (font sizes, paddings, margins, button and modal sizes, icons): the whole UI scales through one setting. `main.js` `applyTextSize()` sets `html { font-size }` to `textSize × 110 %` (`textSize` 80–140 in steps of 5, default 100, so 100 % = 17.6 px, stored as `textSize`).
+- **Centralised typography tokens** in `:root` of `styles.css`: `--text-size-title` (`1rem`, modal titles and major section blocks), `--text-size-subtitle` (`0.9rem`, normal-case sub-headings), `--text-size-base` (`0.80rem`, applied to `body` so unstyled paragraphs inherit it instead of `1rem`), `--text-size-control` (`0.77rem`, applied to `button, input, select, textarea` and `.settings-row`), and `--text-size-meta` (`0.75rem`).
 - **Scrollbars** are styled globally at the top of `styles.css` (slim, themed, no arrow buttons) with `::-webkit-scrollbar*` only: never add `scrollbar-color` / `scrollbar-width`, which disable these rules in Chromium and bring the arrows back.
-- **`px` only for**: hairline borders and fine shadows, and **all virtual-grid maths in `main.js`** (`clientWidth`, `scrollTop`, layout sizes), exact to the pixel to avoid gaps in the justified view. Example of each: `.settings-row { gap: 0.75rem; font-size: 0.8rem }` vs `border: 1px solid var(--control-border)` and `GRID_SIDE_MARGIN = 8`.
+- **`px` only for**: hairline borders and fine shadows, and **all virtual-grid maths in `main.js`** (`clientWidth`, `scrollTop`, layout sizes), exact to the pixel to avoid gaps in the justified view. Example of each: `.settings-row { gap: 0.75rem; font-size: var(--text-size-control) }` vs `border: 1px solid var(--control-border)` and `GRID_SIDE_MARGIN = 8`.
 - Inline SVG icons carry `width`/`height` attributes in px; `styles.css` has rules `svg[width="14"|"16"|"20"|"22"|"24"]` that convert those sizes to rem (except the title bar's 10 px icons and the 12 px thumbnail badges). **A new SVG size needs a new line there.**
 - Settings and other modals are sized in rem, so they resize with the text: this is why text size uses − / + buttons and not a slider (comment in `main.js`).
 - Sidebar width is the exception handled in JS (`--sidebar-width` / `style.width`, AGENTS.md §5.A): in `.sidebar-section.hidden` keep `width: 0 !important; min-width: 0 !important`. The right panel: `#exif-panel.hidden { width: 0 !important }` (`keywords.css`).
