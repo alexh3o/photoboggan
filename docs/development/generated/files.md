@@ -68,7 +68,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `module-deps.md` | 123 |  |
 | `sections.md` | 476 |  |
 | `symbols-js.md` | 1779 |  |
-| `symbols-rust.md` | 1558 |  |
+| `symbols-rust.md` | 1560 |  |
 | `tests.md` | 551 |  |
 
 ## docs/development/modules
