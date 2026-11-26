@@ -492,7 +492,16 @@ fn hash_tasks_precompute_stats_work_count_states_and_delete() {
     assert_eq!((rep2.computed, rep2.failures_total), (2, 0));
 
     let states2 = crate::hash_tasks::exact_hash_states(&pool.get().unwrap()).unwrap();
-    assert_eq!((states2.prepass.len(), states2.full.len()), (0, 2));
+    assert_eq!((states2.prepass.len(), states2.full.len(), states2.expired.len()), (0, 2, 0));
+
+    // Marking one photo's file_size stale moves it into `expired`.
+    {
+        let conn = pool.get().unwrap();
+        conn.execute("UPDATE photos SET file_size = file_size + 1 WHERE path = ?1", rusqlite::params![&raw]).unwrap();
+        let states_exp = crate::hash_tasks::exact_hash_states(&conn).unwrap();
+        assert_eq!((states_exp.prepass.len(), states_exp.full.len(), states_exp.expired.len()), (0, 1, 1));
+        conn.execute("UPDATE photos SET file_size = file_size - 1 WHERE path = ?1", rusqlite::params![&raw]).unwrap();
+    }
 
     // Similarity pass excluding RAW (a.jpg succeeds).
     let mode_sim = crate::hash_tasks::PrecomputeMode::parse("similarity").unwrap();

@@ -876,28 +876,33 @@ pub fn delete_duplicate_hashes(state: State<'_, AppState>) -> Result<(), String>
     delete_all_hashes(&conn).map_err(|e| e.to_string())
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExactHashStates {
     pub full: Vec<i64>,
     pub prepass: Vec<i64>,
+    pub expired: Vec<i64>,
 }
 
 pub(crate) fn exact_hash_states(conn: &Connection) -> Result<ExactHashStates, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT h.photo_id, h.full_hash IS NOT NULL
+            "SELECT h.photo_id,
+                    (h.version = ?1 AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0)) AS up_to_date,
+                    h.full_hash IS NOT NULL
              FROM photo_hashes h JOIN photos p ON p.id = h.photo_id
-             WHERE h.mode = 1 AND h.version = ?1 AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0)",
+             WHERE h.mode = 1",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(params![LAYOUT_VERSION], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))
+        .query_map(params![LAYOUT_VERSION], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?, row.get::<_, bool>(2)?)))
         .map_err(|e| e.to_string())?;
     let mut result = ExactHashStates::default();
     for row in rows {
-        let (id, has_full) = row.map_err(|e| e.to_string())?;
-        if has_full {
+        let (id, up_to_date, has_full) = row.map_err(|e| e.to_string())?;
+        if !up_to_date {
+            result.expired.push(id);
+        } else if has_full {
             result.full.push(id);
         } else {
             result.prepass.push(id);

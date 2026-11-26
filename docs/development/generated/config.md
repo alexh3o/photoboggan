@@ -117,7 +117,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (2081 keys), es (2081 keys), fr (2081 keys)
+- Languages: en (2085 keys), es (2085 keys), fr (2085 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

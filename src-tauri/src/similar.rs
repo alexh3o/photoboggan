@@ -517,6 +517,7 @@ pub fn run_with_options(
 }
 
 /// Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn phash_photo_ids(conn: &Connection) -> Result<Vec<i64>, String> {
     let mut stmt = conn
         .prepare(
@@ -529,11 +530,42 @@ pub fn phash_photo_ids(conn: &Connection) -> Result<Vec<i64>, String> {
     crate::keywords::collect_rows(rows)
 }
 
-/// Photo ids that have an up-to-date perceptual hash (List panel "Similarity hash" column).
+#[derive(serde::Serialize, Default, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PhashStates {
+    pub up_to_date: Vec<i64>,
+    pub expired: Vec<i64>,
+}
+
+/// Photo ids partitioned into up-to-date vs expired `photo_phash` rows (List panel "Similarity hash" column).
+pub(crate) fn phash_states(conn: &Connection) -> Result<PhashStates, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT h.photo_id,
+                    (h.algo = ?1 AND h.size = COALESCE(p.file_size, 0) AND h.modified = COALESCE(p.modified, 0)) AS up_to_date
+             FROM photo_phash h JOIN photos p ON p.id = h.photo_id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![ALGO_VERSION], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, bool>(1)?)))
+        .map_err(|e| e.to_string())?;
+    let mut result = PhashStates::default();
+    for row in rows {
+        let (id, up_to_date) = row.map_err(|e| e.to_string())?;
+        if up_to_date {
+            result.up_to_date.push(id);
+        } else {
+            result.expired.push(id);
+        }
+    }
+    Ok(result)
+}
+
+/// Photo ids that have an up-to-date or expired perceptual hash (List panel "Similarity hash" column).
 #[tauri::command(async)]
-pub fn get_phash_photo_ids(state: tauri::State<'_, crate::AppState>) -> Result<Vec<i64>, String> {
+pub fn get_phash_states(state: tauri::State<'_, crate::AppState>) -> Result<PhashStates, String> {
     let conn = state.pool().get().map_err(|e| e.to_string())?;
-    phash_photo_ids(&conn)
+    phash_states(&conn)
 }
 
 #[cfg(test)]

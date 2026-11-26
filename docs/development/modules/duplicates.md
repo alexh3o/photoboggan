@@ -1,4 +1,4 @@
-<!-- verified: 274791c | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: f77486f | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -8,7 +8,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 | File | Role |
 |---|---|
 | `duplicates.rs` | Identical search (`run`): hashed byte ranges per format, 3-stage narrowing, cache table `photo_hashes`; shared types `Scope`, `Report`, `load_candidates`, `name_candidates`; `DataHash` also used by the semantic scan. |
-| `similar.rs` | Similar search (`run`): fingerprints cache `photo_phash`, pairwise comparison, bursts, grouping, plus `phash_photo_ids` / `get_phash_photo_ids`. |
+| `similar.rs` | Similar search (`run`): fingerprints cache `photo_phash`, pairwise comparison, bursts, grouping, plus `phash_states` / `get_phash_states`. |
 | `phash.rs` | 64-bit perceptual hash (32×32 grey, DCT, 8×8 low frequencies), 8 rotation / mirror variants. |
 | `hash_tasks.rs` | Low-priority background precomputation (`precompute_hashes`), pre-flight work estimation (`count_duplicate_work`), settings stats (`get_duplicate_hash_stats`), `delete_duplicate_hashes`, and list-view `get_exact_hash_states`. |
 | `duplicates-settings.js` | Settings > Search > Duplicates UI: coverage stats, pre-pass/full-pass mode, background precomputation launcher, speed/synergy/auto-hash toggles, and cache deletion. |
@@ -36,10 +36,10 @@ Finds groups of photos that are the same picture: identical image data (metadata
 
 **By name** (no file read): `list_duplicate_candidates` returns `(path, dateTaken, inScope)`; `findNameGroups` (JS, since the pattern is a JS regex) builds keys (first capture group, or the name without extension), compares ignoring case with "contains" in both directions through an index of rare 3/4-letter pieces, never pair by pair; minimum key length and `MAX_NAME_GROUP` (500) stop permissive patterns. `runIdenticalSearch` can combine name + hash (`mergeGroups`, reasons "Same file name" / "Same image data").
 
-**Results mode** (`showDuplicateResults`): a snapshot of the view is saved, filters cleared, a banner offers group sorting (count / size / path, remembered in `duplicateGroupSort`), the keep-order panel (`duplicateKeepSettings`: ordered criteria pixels, size, rating, date, short name, path last; applied at once, no new search) and "Select all but the best" (`selectDuplicatesExceptBest`): it only selects, deletion is the normal Delete with trash and confirmation. A finished search stays `ready` in the task list until "Show" or "Ignore"; the grid never changes without a click. Navigating by hand ends the mode.
+**Results mode** (`showDuplicateResults`): a snapshot of the view is saved, filters cleared, a banner offers group sorting (count / size / path, remembered in `duplicateGroupSort`), the keep-order panel (`duplicateKeepSettings`: ordered criteria pixels, size, rating, date, short name, path last; applied at once, no new search) and "Select all but the best" (`selectDuplicatesExceptBest`): it only selects, deletion is the normal Delete with trash and confirmation. Finished searches stay `ready` in the task list until dismissed—even when 0 duplicates are found (`showLabel: null`, informational only)—so the grid never changes without a click. Navigating by hand ends the mode.
 
 ## Contracts
-- IPC commands: `find_duplicates`, `find_similar_images`, `get_phash_photo_ids`, `list_duplicate_candidates` (`generated/ipc-commands.md`).
+- IPC commands: `find_duplicates`, `find_similar_images`, `get_phash_states`, `list_duplicate_candidates` (`generated/ipc-commands.md`).
 - Events: `scan-progress` (fraction ×100).
 - Database: `photo_hashes` (photo_id, mode, version, size, modified, data_len, tolerant, partial_hash, full_hash), `photo_phash` (8 hashes blob + version); rows of removed photos are deleted at each run; see `generated/db-schema.md`.
 - Settings: `identicalSearchSettings`, `similarSearchSettings`, `duplicateGroupSort`, `duplicateKeepSettings`.

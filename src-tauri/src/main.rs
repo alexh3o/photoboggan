@@ -3249,7 +3249,7 @@ fn main() {
             integrity_scan,
             find_duplicates,
             find_similar_images,
-            similar::get_phash_photo_ids,
+            similar::get_phash_states,
             list_duplicate_candidates,
             hash_tasks::precompute_hashes,
             hash_tasks::count_duplicate_work,

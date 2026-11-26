@@ -45,7 +45,7 @@ let analysedIds = new Set();
 let analysedLoaded = false;
 let analysedToken = 0;
 
-let phashIds = new Set();
+let phashStates = new Map();
 let phashLoaded = false;
 let phashToken = 0;
 
@@ -460,26 +460,45 @@ const COLUMN_DEFS = [
   {
     id: 'phash',
     label: 'Similarity hash',
-    defaultWidth: 96,
+    defaultWidth: 108,
     sortType: 'number',
-    sortValue: photo => (phashIds.has(photo.id) ? 1 : 0),
-    render: (cell, photo) => renderBoolean(cell, phashIds.has(photo.id)),
+    sortValue: photo => (phashStates.get(photo.id) ?? 0),
+    render: (cell, photo) => {
+      const state = phashStates.get(photo.id) ?? 0;
+      if (state === 2) {
+        cell.textContent = t('Yes');
+        cell.classList.add('list-cell-yes');
+        cell.classList.remove('list-cell-muted');
+      } else if (state === 1) {
+        cell.textContent = t('No (expired)');
+        cell.classList.add('list-cell-muted');
+        cell.classList.remove('list-cell-yes');
+      } else {
+        cell.textContent = t('No');
+        cell.classList.add('list-cell-muted');
+        cell.classList.remove('list-cell-yes');
+      }
+    },
   },
   {
     id: 'exact_hash',
     label: 'Exact hash',
-    defaultWidth: 96,
+    defaultWidth: 108,
     sortType: 'number',
     sortValue: photo => (exactHashStates.get(photo.id) ?? 0),
     render: (cell, photo) => {
       const state = exactHashStates.get(photo.id) ?? 0;
-      if (state === 2) {
+      if (state === 3) {
         cell.textContent = t('Complete');
         cell.classList.add('list-cell-yes');
         cell.classList.remove('list-cell-muted');
-      } else if (state === 1) {
+      } else if (state === 2) {
         cell.textContent = t('Pre-pass');
         cell.classList.remove('list-cell-yes', 'list-cell-muted');
+      } else if (state === 1) {
+        cell.textContent = t('No (expired)');
+        cell.classList.add('list-cell-muted');
+        cell.classList.remove('list-cell-yes');
       } else {
         cell.textContent = t('No');
         cell.classList.add('list-cell-muted');
@@ -720,13 +739,18 @@ export function formatListGridScrollPosition(photo) {
   if (col.id === 'shutter_speed') return host.formatShutterSpeed(photo.shutter_speed);
   if (col.id === 'iso') return photo.iso > 0 ? `ISO ${photo.iso}` : '-';
   if (col.id === 'faces_status') return `${t(col.label)}: ${facesStatusInfo(photo).text}`;
-  if (col.id === 'flash' || col.id === 'analysed' || col.id === 'geolocated' || col.id === 'phash') {
+  if (col.id === 'flash' || col.id === 'analysed' || col.id === 'geolocated') {
     const val = col.sortValue(photo);
     return `${t(col.label)}: ${val === null ? '-' : t(val ? 'Yes' : 'No')}`;
   }
+  if (col.id === 'phash') {
+    const state = phashStates.get(photo.id) ?? 0;
+    const text = state === 2 ? t('Yes') : state === 1 ? t('No (expired)') : t('No');
+    return `${t(col.label)}: ${text}`;
+  }
   if (col.id === 'exact_hash') {
     const state = exactHashStates.get(photo.id) ?? 0;
-    const text = state === 2 ? t('Complete') : state === 1 ? t('Pre-pass') : t('No');
+    const text = state === 3 ? t('Complete') : state === 2 ? t('Pre-pass') : state === 1 ? t('No (expired)') : t('No');
     return `${t(col.label)}: ${text}`;
   }
   return String(col.sortValue(photo) || '-');
@@ -775,13 +799,16 @@ async function ensureAuxiliaryData() {
   if (activeIds.has('phash') && !phashLoaded) {
     const token = ++phashToken;
     try {
-      const ids = await invoke('get_phash_photo_ids');
+      const states = await invoke('get_phash_states');
       if (token !== phashToken) return;
-      phashIds = new Set(ids);
+      const next = new Map();
+      for (const id of states.expired ?? []) next.set(id, 1);
+      for (const id of states.upToDate ?? []) next.set(id, 2);
+      phashStates = next;
       phashLoaded = true;
       if (open) onAuxiliaryDataUpdated('phash');
     } catch (error) {
-      console.debug('List view: phash ids unavailable', error);
+      console.debug('List view: phash states unavailable', error);
     }
   }
 
@@ -791,8 +818,9 @@ async function ensureAuxiliaryData() {
       const states = await invoke('get_exact_hash_states');
       if (token !== exactHashToken) return;
       const next = new Map();
-      for (const id of states.prepass ?? []) next.set(id, 1);
-      for (const id of states.full ?? []) next.set(id, 2);
+      for (const id of states.expired ?? []) next.set(id, 1);
+      for (const id of states.prepass ?? []) next.set(id, 2);
+      for (const id of states.full ?? []) next.set(id, 3);
       exactHashStates = next;
       exactHashLoaded = true;
       if (open) onAuxiliaryDataUpdated('exact_hash');

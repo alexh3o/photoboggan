@@ -2064,7 +2064,10 @@
   "Include RAW ({count})": "RAW inclus ({count})",
   "Compute ({count})": "Calculer ({count})",
   "Compute duplicate hashes": "Calculer les empreintes de doublons",
-  "Duplicate precompute dialog message": "{count} photos sans empreinte à jour vont être traitées.{raw} Ce calcul n'a lieu qu'une fois tant que l'image n'est pas modifiée, et peut être interrompu puis repris.",
+  "Duplicate precompute dialog message": "{count} photo sans empreinte à jour va être traitée. Ce calcul n'a lieu qu'une fois tant que l'image n'est pas modifiée, et peut être interrompu puis repris.",
+  "Duplicate precompute dialog message|other": "{count} photos sans empreinte à jour vont être traitées. Ce calcul n'a lieu qu'une fois tant que l'image n'est pas modifiée, et peut être interrompu puis repris.",
+  "Duplicate precompute dialog message with raw": "{count} photo (dont {raw} RAW) sans empreinte à jour va être traitée. Ce calcul n'a lieu qu'une fois tant que l'image n'est pas modifiée, et peut être interrompu puis repris.",
+  "Duplicate precompute dialog message with raw|other": "{count} photos (dont {raw} RAW) sans empreinte à jour vont être traitées. Ce calcul n'a lieu qu'une fois tant que l'image n'est pas modifiée, et peut être interrompu puis repris.",
   "Delete all cached duplicate hashes (exact and similarity)? Photos and their metadata are not touched. They will be recomputed on the next search.": "Supprimer toutes les empreintes de doublons en cache (exactes et de similarité) ? Les photos et leurs métadonnées ne sont pas modifiées. Elles seront recalculées lors de la prochaine recherche.",
   "Duplicate hashes deleted": "Empreintes supprimées",
   "Auto-computing hashes: {folder}": "Calcul auto des empreintes : {folder}",
@@ -2081,5 +2084,6 @@
   "This computation runs once per photo as long as the image is not modified. It can be interrupted and resumed on the remaining photos.": "Ce calcul n'a lieu qu'une fois tant que l'image n'est pas modifiée. Il peut être interrompu et repris sur les photos non calculées.",
   "Exact hash": "Empreinte exacte",
   "Complete": "Complète",
-  "Pre-pass": "Pré-passe"
+  "Pre-pass": "Pré-passe",
+  "No (expired)": "Non (expirée)"
 }

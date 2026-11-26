@@ -196,7 +196,7 @@ function syncTaskUI() {
     const textElement = toast.querySelector('.task-toast-text');
     textElement.textContent = `${taskName(task)} · ${taskStatusText(task)}`;
     const showButton = toast.querySelector('.task-toast-show');
-    showButton.hidden = task.status !== 'ready';
+    showButton.hidden = task.status !== 'ready' || task.showLabel === null;
     showButton.textContent = task.showLabel ?? t('Show');
     // Current folder being checked (integrity scan), shown on a second line.
     if (task.detail && task.status === 'running') {
@@ -241,6 +241,7 @@ function syncTaskUI() {
     bar.querySelector('span').style.width = `${task.status === 'waiting' ? 0 : taskPercent(task)}%`;
     row.classList.toggle('ready', task.status === 'ready');
     const action = row.querySelector('.task-item-action');
+    action.hidden = task.status === 'ready' && task.showLabel === null;
     action.textContent = task.status === 'ready' ? task.showLabel ?? t('Show') : task.status === 'waiting' || task.status === 'paused' ? t('Remove from queue') : t('Stop');
     action.disabled = task.stopRequested;
     const pause = row.querySelector('.task-item-pause');
@@ -312,7 +313,8 @@ export function closeTasksModal() {
 // Returns true when quitting is allowed; "Show tasks" and "Cancel" keep the app open ("Show tasks" opens the tasks modal).
 export async function confirmCloseWithRunningTasks() {
   // Paused scans are remembered and come back at the next launch: nothing to warn about.
-  const pending = scanTasks.filter(task => task.status !== 'paused');
+  // Purely informational ready entries (`showLabel === null`, e.g. "0 duplicates found") have no action to lose.
+  const pending = scanTasks.filter(task => task.status !== 'paused' && !(task.status === 'ready' && task.showLabel === null));
   if (pending.length === 0) return true;
   const active = activeTaskCount();
   // Interrupted scans are remembered too (saveResumableTasks): they come back paused.

@@ -158,12 +158,18 @@ async function launchPrecompute(kind) {
     primary: true,
   });
 
+  const message = rawCount > 0
+    ? tp('Duplicate precompute dialog message with raw', missing.total, {
+        count: missing.total.toLocaleString(),
+        raw: rawCount.toLocaleString(),
+      })
+    : tp('Duplicate precompute dialog message', missing.total, {
+        count: missing.total.toLocaleString(),
+      });
+
   const choice = await choiceDialog({
     title: t('Compute duplicate hashes'),
-    message: t('Duplicate precompute dialog message', {
-      count: missing.total.toLocaleString(),
-      raw: rawCount.toLocaleString(),
-    }),
+    message,
     buttons,
   });
   if (choice === 'cancel') return;

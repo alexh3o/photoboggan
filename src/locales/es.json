@@ -2064,7 +2064,10 @@
   "Include RAW ({count})": "Con RAW ({count})",
   "Compute ({count})": "Calcular ({count})",
   "Compute duplicate hashes": "Calcular huellas de duplicados",
-  "Duplicate precompute dialog message": "Se procesarán {count} fotos sin huellas al día.{raw} Este cálculo se ejecuta una sola vez mientras no se modifique la imagen y se puede interrumpir y reanudar.",
+  "Duplicate precompute dialog message": "Se procesará {count} foto sin huellas al día. Este cálculo se ejecuta una sola vez mientras no se modifique la imagen y se puede interrumpir y reanudar.",
+  "Duplicate precompute dialog message|other": "Se procesarán {count} fotos sin huellas al día. Este cálculo se ejecuta una sola vez mientras no se modifique la imagen y se puede interrumpir y reanudar.",
+  "Duplicate precompute dialog message with raw": "Se procesará {count} foto (incluido {raw} RAW) sin huellas al día. Este cálculo se ejecuta una sola vez mientras no se modifique la imagen y se puede interrumpir y reanudar.",
+  "Duplicate precompute dialog message with raw|other": "Se procesarán {count} fotos (incluidos {raw} RAW) sin huellas al día. Este cálculo se ejecuta una sola vez mientras no se modifique la imagen y se puede interrumpir y reanudar.",
   "Delete all cached duplicate hashes (exact and similarity)? Photos and their metadata are not touched. They will be recomputed on the next search.": "¿Eliminar todas las huellas de duplicados en caché (exactas y de similitud)? Las fotos y sus metadatos no se tocan. Se volverán a calcular en la próxima búsqueda.",
   "Duplicate hashes deleted": "Huellas eliminadas",
   "Auto-computing hashes: {folder}": "Cálculo automático de huellas: {folder}",
@@ -2081,5 +2084,6 @@
   "This computation runs once per photo as long as the image is not modified. It can be interrupted and resumed on the remaining photos.": "Este cálculo se realiza una sola vez mientras no se modifique la imagen. Puede interrumpirse y reanudarse con las fotos restantes.",
   "Exact hash": "Huella exacta",
   "Complete": "Completa",
-  "Pre-pass": "Pre-pasada"
+  "Pre-pass": "Pre-pasada",
+  "No (expired)": "No (caducada)"
 }

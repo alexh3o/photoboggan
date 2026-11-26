@@ -191,7 +191,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `get_semantic_stats` | `semantic.rs` | `folder: Option<String>, recursive: bool, photo_ids: Option<Vec<i64>>, skip_raw: Option<bool>` | `Stats` | async pool | semantic-settings.js |
 | `get_analysed_photo_ids` | `semantic.rs` | — | `Vec<i64>` | async pool | list-view.js, main.js ×2 |
 | `delete_semantic_data` | `semantic.rs` | — | `()` | async pool | semantic-settings.js ×2 |
-| `get_phash_photo_ids` | `similar.rs` | — | `Vec<i64>` | async pool | list-view.js |
+| `get_phash_states` | `similar.rs` | — | `PhashStates` | async pool | list-view.js |
 | `get_collection_stats` | `stats.rs` | `filter: StatsFilter` | `CollectionStats` | async pool | stats.js |
 | `get_stats_filter_options` | `stats.rs` | — | `FilterOptions` | async pool | stats.js |
 | `check_for_update` | `update_check.rs` | `include_prereleases: bool` | `UpdateInfo` | async pool | update-check.js |

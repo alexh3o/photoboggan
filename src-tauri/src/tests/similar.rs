@@ -187,10 +187,15 @@ fn phash_photo_ids_returns_only_up_to_date_entries() {
     ids.sort();
     assert_eq!(found, ids);
 
-    // Stale file size on photo 1 and stale algo version on photo 2 must exclude both.
+    // Stale file size on photo 1 and stale algo version on photo 2 must exclude both from up_to_date and put both in expired.
     conn.execute("UPDATE photos SET file_size = file_size + 1 WHERE id = ?1", params![ids[0]]).unwrap();
     conn.execute("UPDATE photo_phash SET algo = 0 WHERE photo_id = ?1", params![ids[1]]).unwrap();
     assert!(phash_photo_ids(&conn).unwrap().is_empty());
+    let states = phash_states(&conn).unwrap();
+    let mut expired = states.expired;
+    expired.sort();
+    assert!(states.up_to_date.is_empty());
+    assert_eq!(expired, ids);
 }
 
 #[test]

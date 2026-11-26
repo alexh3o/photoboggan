@@ -2064,7 +2064,10 @@
   "Include RAW ({count})": "Include RAW ({count})",
   "Compute ({count})": "Compute ({count})",
   "Compute duplicate hashes": "Compute duplicate hashes",
-  "Duplicate precompute dialog message": "{count} photos without up-to-date hashes will be processed.{raw} This computation runs once per photo as long as the image is not modified, and can be interrupted and resumed later.",
+  "Duplicate precompute dialog message": "{count} photo without up-to-date hashes will be processed. This computation runs once per photo as long as the image is not modified, and can be interrupted and resumed later.",
+  "Duplicate precompute dialog message|other": "{count} photos without up-to-date hashes will be processed. This computation runs once per photo as long as the image is not modified, and can be interrupted and resumed later.",
+  "Duplicate precompute dialog message with raw": "{count} photo (including {raw} RAW) without up-to-date hashes will be processed. This computation runs once per photo as long as the image is not modified, and can be interrupted and resumed later.",
+  "Duplicate precompute dialog message with raw|other": "{count} photos (including {raw} RAW) without up-to-date hashes will be processed. This computation runs once per photo as long as the image is not modified, and can be interrupted and resumed later.",
   "Delete all cached duplicate hashes (exact and similarity)? Photos and their metadata are not touched. They will be recomputed on the next search.": "Delete all cached duplicate hashes (exact and similarity)? Photos and their metadata are not touched. They will be recomputed on the next search.",
   "Duplicate hashes deleted": "Duplicate hashes deleted",
   "Auto-computing hashes: {folder}": "Auto-computing hashes: {folder}",
@@ -2081,5 +2084,6 @@
   "This computation runs once per photo as long as the image is not modified. It can be interrupted and resumed on the remaining photos.": "This computation runs once per photo as long as the image is not modified. It can be interrupted and resumed on the remaining photos.",
   "Exact hash": "Exact hash",
   "Complete": "Complete",
-  "Pre-pass": "Pre-pass"
+  "Pre-pass": "Pre-pass",
+  "No (expired)": "No (expired)"
 }

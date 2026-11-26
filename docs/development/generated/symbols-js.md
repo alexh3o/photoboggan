@@ -247,11 +247,11 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `renderStats()` · L77
 - `handlePrecomputeResult(report, stopped, error, task, { silentIfEmpty = false } = {})` · L108
 - `launchPrecompute(kind)` · L137
-- `deleteDuplicateHashes()` · L188
-- `export scheduleAutoHash(scope)` · L209
-- `bindCheckbox(id, key)` · L236
-- `syncAutoHashAvailability()` · L243
-- `export initDuplicatesSettings(hostApi)` · L251
+- `deleteDuplicateHashes()` · L194
+- `export scheduleAutoHash(scope)` · L215
+- `bindCheckbox(id, key)` · L242
+- `syncAutoHashAvailability()` · L249
+- `export initDuplicatesSettings(hostApi)` · L257
 
 ## src/duplicates-view.js (21)
 
@@ -271,11 +271,11 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `showDuplicateResults(result, titleKey, label, context)` · L217 — Returns false when the user declined to leave a modified smart album (nothing shown).
 - `export showReadyDuplicateResults(task)` · L246 — "Show" (toast or tasks window): opens the results of a finished search, then the task leaves the list.
 - `handleDuplicatesResult(result, stopped, error, titleKey, label, task, context)` · L260 — A task ended (onResult of the queue): `stopped` = the user stopped it, `error` = the backend failed. With groups found, the task stays in t…
-- `runIdenticalSearch({ scope, compareWithLibrary }, settings, task, setPercent)` · L297 — Hash of the image data and/or file name, as one task. The name search runs here (its pattern is a JavaScript regular expression, the backen…
-- `confirmLongDuplicateScan(kind, { scope, compareWithLibrary }, settings)` · L360
-- `export findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings)` · L426 — `kind`: 'identical' | 'similar'.
-- `export openDuplicatesDialog(spec)` · L449 — "More…" window (duplicates-modal.js): the user picks the kind and the settings, then the search starts with them.
-- `export initDuplicatesView(deps)` · L458 — Wires duplicate results banner controls and host dependencies.
+- `runIdenticalSearch({ scope, compareWithLibrary }, settings, task, setPercent)` · L299 — Hash of the image data and/or file name, as one task. The name search runs here (its pattern is a JavaScript regular expression, the backen…
+- `confirmLongDuplicateScan(kind, { scope, compareWithLibrary }, settings)` · L362
+- `export findDuplicateImages(kind, { scope, label, compareWithLibrary }, settings)` · L428 — `kind`: 'identical' | 'similar'.
+- `export openDuplicatesDialog(spec)` · L451 — "More…" window (duplicates-modal.js): the user picks the kind and the settings, then the search starts with them.
+- `export initDuplicatesView(deps)` · L460 — Wires duplicate results banner controls and host dependencies.
 
 ## src/duplicates.js (21)
 
@@ -742,66 +742,66 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `photoOrientationInfo(photo)` · L132
 - `photoRatioInfo(photo)` · L139
 - `facesStatusInfo(photo)` · L152
-- `renderPlainText(cell, value)` · L507
-- `renderBoolean(cell, value)` · L514
-- `readJsonStored(key, fallback)` · L525
-- `loadVisibleColumns()` · L535
-- `loadColumnOrder()` · L543
-- `loadColumnWidths()` · L564
-- `loadSortState()` · L577
-- `loadSyncGridSort()` · L592
-- `saveVisibleColumns()` · L605
-- `saveColumnOrder()` · L608
-- `saveColumnWidths()` · L611
-- `saveSortState()` · L614
-- `saveSyncGridSort()` · L617
-- `isColumnAvailable(col)` · L621
-- `getActiveColumns()` · L625
-- `getColumnWidth(col)` · L631
-- `getEffectiveSort(activeCols = getActiveColumns()` · L635
-- `isGridSyncBlockedByPagination()` · L640
-- `export isListGridSortActive()` · L644
-- `buildListComparator(effectiveSort)` · L652
-- `export getListGridComparator()` · L677
-- `formatShortDate(ms)` · L683
-- `export formatListGridScrollPosition(photo)` · L691
-- `export clearListSortForGridSort()` · L735
-- `notifyGridSortChanged()` · L745
-- `ensureAuxiliaryData()` · L758
-- `onAuxiliaryDataUpdated(colId)` · L805
-- `rebuildSortOrder()` · L817
-- `toggleColumnSort(colId, additive)` · L841
-- `clearAllSort()` · L869
-- `toggleSyncGridSort()` · L881
-- `applyColumnWidthVars(activeCols)` · L895
-- `renderHeader()` · L906
-- `startColumnResize(resizer, event)` · L959
-- `clearHeaderDropMarkers()` · L989
-- `handleHeaderPointerDown(event)` · L995
-- `buildRowCells(rowEl, activeCols)` · L1099
-- `updateRowContent(rowEl, photo, activeCols)` · L1116
-- `releaseAllRows()` · L1130
-- `renderVisibleRows({ forceRefresh = false } = {})` · L1138
-- `scheduleScrollRender()` · L1220
-- `scrollPhotoIntoList(gridIndex)` · L1228
-- `handleRowClick(event)` · L1248
-- `handleRowDoubleClick(event)` · L1299
-- `closeColumnsMenu()` · L1310
-- `availableChildren(entry)` · L1322
-- `applyColumnsChanged()` · L1329
-- `toggleColumnVisibility(colId)` · L1343
-- `toggleGroupVisibility(entry)` · L1361
-- `updateMenuIndicators(menu)` · L1380
-- `createMenuCheckboxItem(label, { colId = null, disabled = false } = {})` · L1418
-- `positionSubmenu(wrapper)` · L1438
-- `openColumnsMenu(positionOrAnchor)` · L1449
-- `export isListViewOpen()` · L1584
-- `export openListView()` · L1586
-- `export closeListView()` · L1605
-- `export refreshListView({ dataChanged = false, selectionOnly = false } = {})` · L1619
-- `export onFacesDataChanged()` · L1640
-- `handleFeatureToggleChanged()` · L1651
-- `export initListView(hostApi)` · L1663
+- `renderPlainText(cell, value)` · L526
+- `renderBoolean(cell, value)` · L533
+- `readJsonStored(key, fallback)` · L544
+- `loadVisibleColumns()` · L554
+- `loadColumnOrder()` · L562
+- `loadColumnWidths()` · L583
+- `loadSortState()` · L596
+- `loadSyncGridSort()` · L611
+- `saveVisibleColumns()` · L624
+- `saveColumnOrder()` · L627
+- `saveColumnWidths()` · L630
+- `saveSortState()` · L633
+- `saveSyncGridSort()` · L636
+- `isColumnAvailable(col)` · L640
+- `getActiveColumns()` · L644
+- `getColumnWidth(col)` · L650
+- `getEffectiveSort(activeCols = getActiveColumns()` · L654
+- `isGridSyncBlockedByPagination()` · L659
+- `export isListGridSortActive()` · L663
+- `buildListComparator(effectiveSort)` · L671
+- `export getListGridComparator()` · L696
+- `formatShortDate(ms)` · L702
+- `export formatListGridScrollPosition(photo)` · L710
+- `export clearListSortForGridSort()` · L759
+- `notifyGridSortChanged()` · L769
+- `ensureAuxiliaryData()` · L782
+- `onAuxiliaryDataUpdated(colId)` · L833
+- `rebuildSortOrder()` · L845
+- `toggleColumnSort(colId, additive)` · L869
+- `clearAllSort()` · L897
+- `toggleSyncGridSort()` · L909
+- `applyColumnWidthVars(activeCols)` · L923
+- `renderHeader()` · L934
+- `startColumnResize(resizer, event)` · L987
+- `clearHeaderDropMarkers()` · L1017
+- `handleHeaderPointerDown(event)` · L1023
+- `buildRowCells(rowEl, activeCols)` · L1127
+- `updateRowContent(rowEl, photo, activeCols)` · L1144
+- `releaseAllRows()` · L1158
+- `renderVisibleRows({ forceRefresh = false } = {})` · L1166
+- `scheduleScrollRender()` · L1248
+- `scrollPhotoIntoList(gridIndex)` · L1256
+- `handleRowClick(event)` · L1276
+- `handleRowDoubleClick(event)` · L1327
+- `closeColumnsMenu()` · L1338
+- `availableChildren(entry)` · L1350
+- `applyColumnsChanged()` · L1357
+- `toggleColumnVisibility(colId)` · L1371
+- `toggleGroupVisibility(entry)` · L1389
+- `updateMenuIndicators(menu)` · L1408
+- `createMenuCheckboxItem(label, { colId = null, disabled = false } = {})` · L1446
+- `positionSubmenu(wrapper)` · L1466
+- `openColumnsMenu(positionOrAnchor)` · L1477
+- `export isListViewOpen()` · L1612
+- `export openListView()` · L1614
+- `export closeListView()` · L1633
+- `export refreshListView({ dataChanged = false, selectionOnly = false } = {})` · L1647
+- `export onFacesDataChanged()` · L1668
+- `handleFeatureToggleChanged()` · L1679
+- `export initListView(hostApi)` · L1691
 
 ## src/location-panel.js (15)
 
@@ -1685,31 +1685,31 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `buildTaskToast(task)` · L121
 - `buildTaskRow(task)` · L145
 - `syncTaskUI()` · L186 — Reconciles the task toasts, the tasks modal rows, and the toolbar hourglass button/badge with `scanTasks`.
-- `export showTaskToast(name, percent)` · L279 — Toast for a short non-queue operation (moving data/cache, clearing thumbnail cache): single toast at a time with its percentage.
-- `export hideTaskToast()` · L289
-- `openTasksModal()` · L294
-- `export closeTasksModal()` · L304
-- `export confirmCloseWithRunningTasks()` · L313 — Close guard: if queue tasks are running, waiting, or have unshown results, warn before interrupting or discarding them.
-- `showReadyTask(task)` · L338 — "Show" action of a finished task kept in the list: delegates to the task's own `onShow` (e.g. batch-rename failures) or the host's default …
-- `export keepTaskReady(task, properties, { replaceSameKey = false } = {})` · L345 — A finished task that has something to show (`readyText`, `showLabel`, `onShow`) stays in the list ('ready') until dismissed:
-- `export removeReadyTask(task)` · L361
-- `removeOrStopTask(task)` · L369 — Removes a waiting or paused task from the queue, or requests cancellation of a running task (photos read so far remain in the catalogue).
-- `export dropScanTasksForFolder(path)` · L389 — When a tracked root folder is removed, drop its queued tasks and stop any active task covering it.
-- `familyOf(taskKind)` · L398 — Maps task kinds to concurrency/deduplication families:
-- `export enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResul…)` · L415 — Enqueues a task and starts it immediately if its lane is idle.
-- `pumpScanQueue()` · L453 — Runs main-lane tasks strictly sequentially in arrival order. Background tasks ('semantic', 'hash-precompute') use `pumpBackgroundQueue` ins…
-- `pumpBackgroundQueue()` · L470 — Dedicated lane for background tasks (content analysis & hash precomputation): one task at a time,
-- `export stopSemanticTasks()` · L484 — Stops all queued or running content analyses (called when content search is disabled).
-- `export stopHashPrecomputeTasks()` · L489 — Stops all queued or running hash precomputations (called before deleting duplicate hashes).
-- `runScanTask(task)` · L493
-- `pauseTask(task)` · L540 — Pauses a resumable scan: a waiting one leaves the queue at once, a running one stops (runScanTask then keeps it as 'paused').
-- `resumeTask(task)` · L555 — Resumes a paused scan: it goes first among the waiting tasks, so it starts as soon as the running task has finished.
-- `export pausedScanFolders()` · L569 — Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
-- `saveResumableTasks()` · L572 — Remembers the unfinished resumable scans (running, waiting or paused): after a restart they come back paused (restorePausedTasks).
-- `export restorePausedTasks()` · L582 — At startup: the scans left unfinished last time come back paused (only those whose folder is still tracked), with a toast to tell so.
-- `export checkFolderIntegrity(path)` · L605 — Integrity check of a folder in the tree (subfolders included), launched from its context menu: decodes every file and generates missing cac…
-- `export rescanFolder(path)` · L610 — Rescan of a folder in the tree (subfolders included), launched from its context menu.
-- `export initTaskQueue(deps)` · L615 — Wires DOM controls, keyboard guards (modal Escape and F5/Ctrl+R block while tasks run), and backend progress/detail events.
+- `export showTaskToast(name, percent)` · L280 — Toast for a short non-queue operation (moving data/cache, clearing thumbnail cache): single toast at a time with its percentage.
+- `export hideTaskToast()` · L290
+- `openTasksModal()` · L295
+- `export closeTasksModal()` · L305
+- `export confirmCloseWithRunningTasks()` · L314 — Close guard: if queue tasks are running, waiting, or have unshown results, warn before interrupting or discarding them.
+- `showReadyTask(task)` · L340 — "Show" action of a finished task kept in the list: delegates to the task's own `onShow` (e.g. batch-rename failures) or the host's default …
+- `export keepTaskReady(task, properties, { replaceSameKey = false } = {})` · L347 — A finished task that has something to show (`readyText`, `showLabel`, `onShow`) stays in the list ('ready') until dismissed:
+- `export removeReadyTask(task)` · L363
+- `removeOrStopTask(task)` · L371 — Removes a waiting or paused task from the queue, or requests cancellation of a running task (photos read so far remain in the catalogue).
+- `export dropScanTasksForFolder(path)` · L391 — When a tracked root folder is removed, drop its queued tasks and stop any active task covering it.
+- `familyOf(taskKind)` · L400 — Maps task kinds to concurrency/deduplication families:
+- `export enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResul…)` · L417 — Enqueues a task and starts it immediately if its lane is idle.
+- `pumpScanQueue()` · L455 — Runs main-lane tasks strictly sequentially in arrival order. Background tasks ('semantic', 'hash-precompute') use `pumpBackgroundQueue` ins…
+- `pumpBackgroundQueue()` · L472 — Dedicated lane for background tasks (content analysis & hash precomputation): one task at a time,
+- `export stopSemanticTasks()` · L486 — Stops all queued or running content analyses (called when content search is disabled).
+- `export stopHashPrecomputeTasks()` · L491 — Stops all queued or running hash precomputations (called before deleting duplicate hashes).
+- `runScanTask(task)` · L495
+- `pauseTask(task)` · L542 — Pauses a resumable scan: a waiting one leaves the queue at once, a running one stops (runScanTask then keeps it as 'paused').
+- `resumeTask(task)` · L557 — Resumes a paused scan: it goes first among the waiting tasks, so it starts as soon as the running task has finished.
+- `export pausedScanFolders()` · L571 — Folders of paused folder discoveries: the library synchronisation leaves them alone (otherwise it would read the rest of a whole root
+- `saveResumableTasks()` · L574 — Remembers the unfinished resumable scans (running, waiting or paused): after a restart they come back paused (restorePausedTasks).
+- `export restorePausedTasks()` · L584 — At startup: the scans left unfinished last time come back paused (only those whose folder is still tracked), with a toast to tell so.
+- `export checkFolderIntegrity(path)` · L607 — Integrity check of a folder in the tree (subfolders included), launched from its context menu: decodes every file and generates missing cac…
+- `export rescanFolder(path)` · L612 — Rescan of a folder in the tree (subfolders included), launched from its context menu.
+- `export initTaskQueue(deps)` · L617 — Wires DOM controls, keyboard guards (modal Escape and F5/Ctrl+R block while tasks run), and backend progress/detail events.
 
 ## src/titlebar.js (1)
 

@@ -271,17 +271,19 @@ async function handleDuplicatesResult(result, stopped, error, titleKey, label, t
     if (failures.length > 0) {
       const totalFailures = result.failuresTotal || failures.length;
       host.keepTaskReady(task, {
-        readyText: tp('{count} unreadable file', totalFailures),
+        readyText: `${tp('No duplicates found among {count} photo', result.scanned)} · ${tp('{count} unreadable file', totalFailures)}`,
         showLabel: t('Show errors'),
         onShow: () => showFailureDetails({
           title: t('Unreadable files'),
           failures,
           logPath: result.logPath ?? null,
         }),
-      });
-      host.showToast(`${tp('No duplicates found among {count} photo', result.scanned)} · ${tp('{count} unreadable photo', totalFailures)}`);
+      }, { replaceSameKey: true });
     } else {
-      host.showToast(tp('No duplicates found among {count} photo', result.scanned));
+      host.keepTaskReady(task, {
+        readyText: tp('No duplicates found among {count} photo', result.scanned),
+        showLabel: null,
+      }, { replaceSameKey: true });
     }
     return;
   }

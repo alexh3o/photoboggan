@@ -55,12 +55,12 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 |---|---:|---|
 | L188–L349 | 162 | "Best copy" panel of the results: which copy of a group is the one to keep. A floating panel under the banner, it stays… |
 
-## src/duplicates-view.js (475 lines)
+## src/duplicates-view.js (477 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L21–L452 | 432 | DUPLICATES |
-| L453–L475 | 23 | INITIALIZATION |
+| L21–L454 | 434 | DUPLICATES |
+| L455–L477 | 23 | INITIALIZATION |
 
 ## src/faces-grid.js (1121 lines)
 
@@ -139,18 +139,18 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1141–L1178 | 38 | Suppression d'un mot-clé |
 | L1179–L1274 | 96 | Initialisation |
 
-## src/list-view.js (1751 lines)
+## src/list-view.js (1779 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L78–L753 | 676 | Column definitions & persistence |
-| L754–L812 | 59 | Lazy auxiliary datasets (analysed & phash) |
-| L813–L890 | 78 | Multi-column sorting |
-| L891–L1094 | 204 | Table dimensions, header rendering, resize & column drag-and-drop |
-| L1095–L1243 | 149 | Virtualized body rendering |
-| L1244–L1305 | 62 | Selection & double-click in rows |
-| L1306–L1579 | 274 | Columns picker menu (stays open until Esc or outside click) |
-| L1580–L1751 | 172 | Open, close, and refresh API |
+| L78–L777 | 700 | Column definitions & persistence |
+| L778–L840 | 63 | Lazy auxiliary datasets (analysed & phash) |
+| L841–L918 | 78 | Multi-column sorting |
+| L919–L1122 | 204 | Table dimensions, header rendering, resize & column drag-and-drop |
+| L1123–L1271 | 149 | Virtualized body rendering |
+| L1272–L1333 | 62 | Selection & double-click in rows |
+| L1334–L1607 | 274 | Columns picker menu (stays open until Esc or outside click) |
+| L1608–L1779 | 172 | Open, close, and refresh API |
 
 ## src/main.js (6406 lines)
 
@@ -373,14 +373,14 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1767–L1938 | 172 | Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5) |
 | L1939–L2074 | 136 | Zones dessinées à la main en plein écran (lot 5c, spec §9.4) |
 
-## src-tauri/src/hash_tasks.rs (914 lines)
+## src-tauri/src/hash_tasks.rs (919 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L27–L113 | 87 | Single-slot precompute guard & chunk coordination with interactive search |
 | L114–L588 | 475 | Precomputation kinds & progress/report payloads |
 | L589–L718 | 130 | Pre-flight work count (warning dialog & modal coverage indicator) |
-| L719–L914 | 196 | Settings stats, deletion, and list-view states |
+| L719–L919 | 201 | Settings stats, deletion, and list-view states |
 
 ## src-tauri/src/heif.rs (286 lines)
 

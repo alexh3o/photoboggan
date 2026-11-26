@@ -647,8 +647,8 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub delete_all_hashes` · L861
 - `pub delete_duplicate_hashes` · L873
 - *struct* `pub ExactHashStates` · L881
-- `pub exact_hash_states` · L886
-- `pub get_exact_hash_states` · L910
+- `pub exact_hash_states` · L887
+- `pub get_exact_hash_states` · L915
 
 ## heif.rs (26)
 
@@ -1393,7 +1393,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub keyword_photo_ids` · L770 — Photos of `scope` that carry a keyword named `query` (whole name, case ignored, at any level of the tree), by increasing id. The toolbar
 - `pub semantic_keyword_photos` · L804 — Photos of `scope` carrying the keyword typed in the toolbar box (see `keyword_photo_ids`). Needs no model: it only reads the keyword tables.
 
-## similar.rs (23)
+## similar.rs (25)
 
 - `default_true` · L38
 - `pub is_phash_supported` · L43 — Whether `phash` can decode and fingerprint this file's format.
@@ -1416,8 +1416,10 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `find` · L243
 - `pub run` · L253 — Finds groups of similar photos (tests and simple callers).
 - `pub run_with_options` · L258 — Finds groups of similar photos with chunked commits, low-priority workers, foreground pauses, rich progress, and failure logging.
-- `pub phash_photo_ids` · L520 — Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
-- `pub get_phash_photo_ids` · L534 — Photo ids that have an up-to-date perceptual hash (List panel "Similarity hash" column).
+- `pub phash_photo_ids` · L521 — Ids of photos with an up-to-date perceptual hash in `photo_phash` (matching current `ALGO_VERSION`, size, and mtime).
+- *struct* `pub PhashStates` · L535
+- `pub phash_states` · L541 — Photo ids partitioned into up-to-date vs expired `photo_phash` rows (List panel "Similarity hash" column).
+- `pub get_phash_states` · L566 — Photo ids that have an up-to-date or expired perceptual hash (List panel "Similarity hash" column).
 
 ## stats.rs (48)
 
