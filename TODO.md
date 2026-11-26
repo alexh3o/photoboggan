@@ -2,25 +2,27 @@
 
 ## 🚀 Next in line / Done
 
-- [ ] *feat*: `duplicates` inform user when launching a long search necessiting a hash scan
-- [ ] *feat*: `duplicates` pass in same queue as semantic, low priority
-- [ ] *perf*: `duplicates` save per chunks of 128 to protect progress from crashes
-- [ ] *feat*: `duplicates` mark failing files for exclusion and report them in log + report
-- [ ] *perf*: `duplicates` keep hashes valid when file is modified in photoboggan
-- [ ] *perf*: `duplicates` option to calculate hashes during semantic
-- [ ] *perf*: `duplicates` option to calculate hashes during integrity check
-- [ ] *perf*: `duplicates` pause pro-active compute when a search is launched
-- [ ] *feat*: `duplicates` option to include/exclude RAW on detail search
-- [ ] *refactor*: `duplicates` better info in toasts and task modal
-- [ ] *feat*: `duplicates` add duplicates scan info in statistics
-- [ ] *feat*: `list` add duplicates exact hash column
+- [x] *feat*: `duplicates` inform user when launching a long search necessiting a hash scan
+- [x] *feat*: `duplicates` pass in same queue as semantic, low priority
+- [x] *perf*: `duplicates` save per chunks of 128 to protect progress from crashes
+- [x] *feat*: `duplicates` mark failing files for exclusion and report them in log + report
+- [x] *perf*: `duplicates` keep hashes valid when file is modified in photoboggan
+- [x] *perf*: `duplicates` option to calculate hashes during semantic
+- [x] *perf*: `duplicates` option to calculate hashes during integrity check
+- [x] *perf*: `duplicates` pause pro-active compute when a search is launched
+- [x] *feat*: `duplicates` option to include/exclude RAW on detail search
+- [x] *refactor*: `duplicates` better info in toasts and task modal
+- [x] *feat*: `duplicates` add duplicates scan info in statistics
+- [x] *feat*: `list` add duplicates exact hash column
 - [ ] *fix*: `semantic` count analyzed photos that have been modified and expired
-- [ ] *feat*: `duplicates` add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
-- [ ] *feat*: `duplicates` add control to start calculations prior to scans
+- [x] *feat*: `duplicates` add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
 - [ ] *refactor*: `duplicates` identical scan results always take a bit of time and only appear in a short toast that can be missed
 - [ ] *fix*: `update` available update is not visible (daily toast?)
 - [ ] *feat*: `duplicates` prefilter duplicates search targets to reduce scan/ search time
 - [ ] *fix*: `semantic` some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
+- [ ] *fix*: `duplicates` list columns don't mention expired hashes
+- [ ] *fix*: `duplicates` text is too big in long scan start dialog
+- [ ] *fix*: `duplicates` text is malformed in pro-active scan launch (raw qty)
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

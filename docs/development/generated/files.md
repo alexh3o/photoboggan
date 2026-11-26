@@ -13,7 +13,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `index.html` | 1615 |  |
 | `package.json` | 29 |  |
 | `README.md` | 217 |  |
-| `TODO.md` | 80 |  |
+| `TODO.md` | 82 |  |
 | `vite.config.js` | 15 |  |
 
 ## .github/workflows
