@@ -14,15 +14,15 @@
 - [x] *refactor*: `duplicates` better info in toasts and task modal
 - [x] *feat*: `duplicates` add duplicates scan info in statistics
 - [x] *feat*: `list` add duplicates exact hash column
-- [ ] *fix*: `semantic` count analyzed photos that have been modified and expired
+- [x] *fix*: `semantic` count analyzed photos that have been modified and expired
 - [x] *feat*: `duplicates` add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
 - [ ] *refactor*: `duplicates` identical scan results always take a bit of time and only appear in a short toast that can be missed
 - [ ] *fix*: `update` available update is not visible (daily toast?)
 - [ ] *feat*: `duplicates` prefilter duplicates search targets to reduce scan/ search time
 - [ ] *fix*: `semantic` some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
 - [ ] *fix*: `duplicates` list columns don't mention expired hashes
-- [ ] *fix*: `duplicates` text is too big in long scan start dialog
 - [ ] *fix*: `duplicates` text is malformed in pro-active scan launch (raw qty)
+- [x] *style* `font_size`: have a consistent text size through app (problem on some dialogs)
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 

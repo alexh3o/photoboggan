@@ -20,7 +20,7 @@
 #privacy-settings .privacy-intro { margin: 0 0 0.75rem; }
 
 /* Sous-titres « Ensembles » et « Critères » : un niveau sous le titre du cadre (même style que les sous-titres de Recherche par contenu). */
-#privacy-editor h4 { margin: 1.1rem 0 0.5rem; padding: 0; border: 0; font-size: 0.8rem; text-transform: none; letter-spacing: 0; color: var(--text-strong); }
+#privacy-editor h4 { margin: 1.1rem 0 0.5rem; padding: 0; border: 0; font-size: var(--text-size-subtitle); text-transform: none; letter-spacing: 0; color: var(--text-strong); }
 #privacy-editor > h4:first-child { margin-top: 0.8rem; }
 
 /* Fiche de l'ensemble choisi : la liste en est l'en-tête ; le nom, la case « actif » et les critères en dessous en dépendent. */

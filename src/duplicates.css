@@ -14,7 +14,7 @@
 .duplicates-panels > section.inactive { visibility: hidden; pointer-events: none; }
 .duplicates-kind-row { justify-content: flex-start; margin-bottom: 0.9rem; }
 .duplicates-kind-row .location-filter { flex: 0 0 auto; }
-.duplicates-scope { margin: 0 0 0.75rem; color: var(--text-strong); font-size: 0.85rem; overflow-wrap: anywhere; }
+.duplicates-scope { margin: 0 0 0.75rem; color: var(--text-strong); font-size: var(--text-size-base); overflow-wrap: anywhere; }
 .duplicates-scope-label { color: var(--text-muted); }
 .duplicates-scope-label::after { content: ' :'; }
 .duplicates-hint { margin-top: -0.4rem; }
@@ -44,7 +44,7 @@
 .duplicates-keep-panel { position: fixed; z-index: 7; width: min(24rem, calc(100vw - 1rem)); max-height: calc(100vh - 9rem); overflow-y: auto; box-sizing: border-box; padding: 0.7rem 0.9rem 0.8rem; background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--control-border); border-radius: 8px; box-shadow: 0 8px 24px #0009; font-size: 0.8rem; }
 .duplicates-keep-panel[hidden] { display: none; }
 .duplicates-keep-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; }
-.duplicates-keep-header h3 { margin: 0; color: var(--text-strong); font-size: 0.95rem; }
+.duplicates-keep-header h3 { margin: 0; color: var(--text-strong); font-size: var(--text-size-title); }
 .duplicates-keep-help { margin: 0 0 0.6rem; }
 .duplicates-keep-list { margin: 0; padding: 0; list-style: none; }
 .duplicates-keep-item { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.35rem; }
