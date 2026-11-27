@@ -18,13 +18,12 @@
 - [x] *feat* `duplicates`: add section in settings (progress, pro-active launch, deletion, compute hash on new photos)
 - [x] *refactor* `duplicates`: identical scan results always take a bit of time and only appear in a short toast that can be missed
 - [x] *style* `update`: make available update notification toast more visible and persistent
-- [x] *fix* `update`: respect option to not incldue beta even on beta version; allow check now when automatic update is off
-- [ ] *feat* `duplicates`: prefilter duplicates search targets to reduce scan/ search time
-- [ ] *fix* `semantic`: some field are mentionned as non content analyzed but skipped during analyze (videos without thumbas)
+- [x] *fix* `update`: respect option to not include beta even on beta version; allow check now when automatic update is off
 - [x] *fix* `duplicates`: list columns don't mention expired hashes
 - [x] *fix* `duplicates`: text is malformed in pro-active scan launch (raw qty)
 - [x] *style* `font_size`: have a consistent text size through app (problem on some dialogs)
 - [x] *refactor* `dupplicates`: "compute similarity hashes during content analysis" option now only appears if content analysis is enabled
+- [x] *feat*: `help` setup wizard
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -36,10 +35,10 @@
 - [ ] *fix*: `metadata` xmp sidecars are not synced as image embedded metadata when modified
 - [ ] *feat*: `metadata`allow writing to xmp sidecar
 - [ ] *chore*: `semantic` add content search score setting filter to recipes
+- [ ] *fix* `semantic`: some field are mentionned as non content analyzed but skipped during analyze (videos without thumbs)
 
 ## ⚖️ Undecided
 
-- [ ] *feat*: `help` app tour
 - [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `files` prevent deletion of photos with stars
@@ -47,6 +46,7 @@
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *refactor*: `semantic` allow larger scores
 - [ ] *feat*: `collection` database data dashboard (hash, phash, face scanned, content analyzed, thumbnails)
+- [ ] *feat* `duplicates`: prefilter duplicates search targets to reduce scan/ search time
 
 ## ❄️ Cold storage
 
@@ -79,4 +79,3 @@
 
 - [ ] `linux` Test Linux Release
 - [ ] `backup` restoring data from data folder
-- [ ] `thumbnails` Some thumbnails don't load, but passing mouse over them instantly displays them: dev only ?
