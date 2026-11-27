@@ -225,7 +225,7 @@ async function addProgramFromDialog() {
 // les touches ne remontent pas à main.js (pas de navigation ou de notation involontaire derrière la fenêtre).
 // `focusSelector` : éléments parcourus par Tab (les boutons seulement par défaut ; les formulaires y ajoutent champs et listes).
 // `canClose()` : faux tant que la fenêtre ne doit pas se fermer (ex. opération en cours : la fermer ferait croire à une annulation).
-export function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])', canClose = () => true }) {
+export function createModal({ title, cardClass = '', onClose = null, focusSelector = 'button:not([disabled])', canClose = () => true, closeOnBackdrop = true }) {
   const overlay = document.createElement('div');
   overlay.className = 'modal';
   overlay.tabIndex = -1;
@@ -259,7 +259,7 @@ export function createModal({ title, cardClass = '', onClose = null, focusSelect
   closeButton.addEventListener('click', close);
   let pressedOnBackdrop = false;
   overlay.addEventListener('pointerdown', event => { pressedOnBackdrop = event.target === overlay; });
-  overlay.addEventListener('click', event => { if (pressedOnBackdrop && event.target === overlay) close(); });
+  overlay.addEventListener('click', event => { if (closeOnBackdrop && pressedOnBackdrop && event.target === overlay) close(); });
   overlay.addEventListener('keydown', event => {
     event.stopPropagation();
     // Une touche maintenue (ex. Entrée qui a ouvert la fenêtre) ne doit pas activer un bouton par répétition.
@@ -277,7 +277,7 @@ export function createModal({ title, cardClass = '', onClose = null, focusSelect
     }
   });
   overlay.focus();
-  return { overlay, card, body, close };
+  return { overlay, card, header, heading, body, close };
 }
 
 // Flèches dans une fenêtre : le focus passe d'un bouton de `buttons` à son voisin (gauche / haut = précédent, droite / bas = suivant).

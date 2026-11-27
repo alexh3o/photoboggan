@@ -26,6 +26,7 @@ import {
 import { initMarkingSettings, isColorEnabled, isPickEnabled, onMarkingSettingsChange } from './marking-settings.js';
 import { initMetadataWrites, confirmCloseWithPendingEdits, hasSelectionEdits, resolvePendingSelection, runLocked, isWriteLocked, photosMoved, photosRemoved, keepFocusInModal, failureDetailsAction, formatFailureError } from './metadata-writes.js';
 import { initGuide } from './guide.js';
+import { initSetupWizard, openSetupWizard, maybeOpenSetupWizard, notifyWizardFoldersChanged } from './setup-wizard.js';
 import { initBatchRename, openBatchRename } from './batch-rename.js';
 import { splitFileName } from './batch-rename-engine.js';
 import { initUndo, pushUndo, runUndo, hasUndo, undoToastActions, historyToastAction, formatUndoToast, itemKindForPaths, baseName } from './undo.js';
@@ -3821,16 +3822,19 @@ function renderSettingsFolderList() {
       moveButton('↓', t('Move down'), index === folders.length - 1, () => move(index, 1)),
       remove,
     );
-    remove.addEventListener('click', async () => {
-      dropScanTasksForFolder(f.path); // un dossier retiré ne doit plus être scanné
-      folders = applyFolderOrder(await invoke('remove_folder', { id: f.id, path: f.path }));
-      if (currentFolderFilter === f.path) { currentFolderFilter = null; currentPhotoPage = 0; rememberCurrentFolder(); }
-      renderFolderTree();
-      renderSettingsFolderList();
-      loadPhotos();
-    });
+    remove.addEventListener('click', () => removeWatchedFolder(f));
     settingsFolderList.appendChild(li);
   }
+}
+
+async function removeWatchedFolder(f) {
+  dropScanTasksForFolder(f.path); // un dossier retiré ne doit plus être scanné
+  folders = applyFolderOrder(await invoke('remove_folder', { id: f.id, path: f.path }));
+  if (currentFolderFilter === f.path) { currentFolderFilter = null; currentPhotoPage = 0; rememberCurrentFolder(); }
+  renderFolderTree();
+  renderSettingsFolderList();
+  notifyWizardFoldersChanged();
+  loadPhotos();
 }
 
 // Dragging the handle: the row changes place as soon as the pointer passes the middle of a neighbour; the order is saved on release
@@ -3960,7 +3964,7 @@ window.addEventListener('keydown', event => {
 });
 
 
-document.getElementById('btn-add-folder').addEventListener('click', async () => {
+async function addWatchedFolder() {
   const dir = await open({ directory: true });
   if (dir) {
 
@@ -3969,6 +3973,7 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
       folders = applyFolderOrder(await invoke('add_folder', { path: dir }));
       renderFolderTree();
       renderSettingsFolderList();
+      notifyWizardFoldersChanged();
     } catch (error) {
       console.error('Adding folder failed', error);
       showWriteToast(t('Unable to read metadata: {error}', { error }));
@@ -3976,6 +3981,11 @@ document.getElementById('btn-add-folder').addEventListener('click', async () => 
     }
     enqueueScanTask({ kind: 'add', path: dir, command: 'scan_folder', args: { path: dir }, labelKey: 'Scanning folder {folder}…', labelParams: { folder: folderBaseName(dir) } });
   }
+}
+document.getElementById('btn-add-folder').addEventListener('click', addWatchedFolder);
+document.getElementById('btn-open-setup-wizard')?.addEventListener('click', () => {
+  settingsModal.classList.add('hidden');
+  openSetupWizard();
 });
 
 // ==========================================
@@ -4593,6 +4603,7 @@ languageSelect.addEventListener('change', event => setLanguage(event.target.valu
 applyTranslations();
 // Textes construits en JavaScript : régénérés quand la langue change (les éléments data-i18n le sont par applyTranslations).
 onLanguageChange(() => {
+  languageSelect.value = getLanguage();
   renderFolderTree();
   renderSettingsFolderList();
   renderKeywordFilters();
@@ -5684,7 +5695,7 @@ onPrivacyChange(async () => {
   refreshAlbums();
 });
 initRawSettings(); // Settings > Search > RAW search: criteria of "Find the RAW"
-initLocationPanel({ showToast: message => showWriteToast(message) });
+initLocationPanel({ showToast: message => showWriteToast(message), onShowMapChange: onMapModeAccessChanged });
 // Albums virtuels : arbre du panneau de gauche (le contenu des albums s'affichera aux étapes suivantes).
 initAlbumsPanel({
   showToast: (message, action) => showWriteToast(message, false, action),
@@ -6093,7 +6104,6 @@ initListView({
   colorFlagLabels,
   pickFlags: PICK_FLAGS,
 });
-document.getElementById('show-map-toggle').addEventListener('change', onMapModeAccessChanged);
 initMapsSettings({ showToast: message => showWriteToast(message) }); // Paramètres > Cartes : style de la carte
 initUpdateCheck({
   showToast: (message, action) => showWriteToast(message, false, action, 15000),
@@ -6101,6 +6111,12 @@ initUpdateCheck({
   // Avant de quitter pour installer : mêmes questions qu'à la fermeture de la fenêtre.
   canQuit: async () => (await confirmCloseWithRunningTasks()) && !(isSelectedAlbumDirty() && !(await confirmLeaveAlbum())) && (await confirmCloseWithPendingEdits()),
 }); // Paramètres > Général > Internet : mises à jour
+initSetupWizard({
+  setOfflineMode: offline => setOfflineMode(offline),
+  getFolders: () => folders,
+  addFolder: addWatchedFolder,
+  removeFolder: removeWatchedFolder,
+});
 
 initFacesGrid({
   getDisplayedPhotoIds: () => photos.map(photo => photo.id),
@@ -6301,7 +6317,10 @@ refreshStorageLocationUI();
 onLanguageChange(refreshStorageLocationUI); // « Par défaut » suit la langue (un chemin personnalisé reste tel quel)
 restoreStartupFolder()
   .catch(error => console.error('Startup folder restore failed', error))
-  .then(() => restorePausedTasks())
+  .then(() => {
+    maybeOpenSetupWizard();
+    restorePausedTasks();
+  })
   .then(() => loadPhotos())
   .then(() => setTimeout(syncLibraryWithDisk, 2000)); // délai : laisse d'abord se charger les premières miniatures
 
@@ -6321,9 +6340,9 @@ offlineModeToggle.checked = readBool('offlineMode');
 function sendInternetAllowed() {
   invoke('set_internet_allowed', { allowed: !offlineModeToggle.checked }).catch(error => console.error('Offline mode setting rejected', error));
 }
-sendInternetAllowed();
-offlineModeToggle.addEventListener('change', () => {
-  localStorage.setItem('offlineMode', String(offlineModeToggle.checked));
+function setOfflineMode(offline) {
+  offlineModeToggle.checked = offline;
+  localStorage.setItem('offlineMode', String(offline));
   sendInternetAllowed();
   onOfflineModeChanged();
   onSemanticOfflineChanged(); // content search model: Download greyed in offline mode
@@ -6331,7 +6350,9 @@ offlineModeToggle.addEventListener('change', () => {
   onMapAccessChanged();
   onMapModeAccessChanged();
   reloadAllMaps(); // tuiles déjà demandées (vides ou en filigrane) redemandées maintenant que l'accès change
-});
+}
+sendInternetAllowed();
+offlineModeToggle.addEventListener('change', () => setOfflineMode(offlineModeToggle.checked));
 
 // Vérification des déplacements entre disques (Paramètres > Stockage) : activée par défaut, choix mémorisé et transmis au backend.
 const verifyMovesToggle = document.getElementById('verify-moves-toggle');

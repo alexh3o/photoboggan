@@ -11,7 +11,7 @@
   // Preview panel.
   "previewVisible": true,
   // Right panel (Info / Keywords).
-  "exifVisible": true,
+  "exifVisible": false,
   // Toolbar hidden until the mouse reaches the top of the window.
   "toolbarAutoHide": false,
   // Text labels under the toolbar icons.

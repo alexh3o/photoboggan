@@ -1,4 +1,4 @@
-<!-- verified: 68fd0b8 | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
+<!-- verified: 7c5b2f2 | sources: src-tauri/src/main.rs, src/i18n.js, src/settings-defaults.js, src/app-fonts.js, src/guide.js, src/setup-wizard.js, src/defaults.jsonc, src-tauri/tauri.conf.json, src-tauri/capabilities/default.json -->
 # Application shell: AppState, IPC registry, windows, settings, i18n, startup
 
 ## Purpose
@@ -16,6 +16,7 @@ The shell is everything that exists before and around the features: where the da
 | `src/locales/<code>.json` | Messages keyed by the English text; `en.json` is the source, the other files may be partial |
 | `src/app-fonts.js` | `APP_FONTS` registry, `fontStack` |
 | `src/guide.js` | Keyboard-shortcut guide modal (`initGuide`), rendered from the `GROUPS` list with a search box |
+| `src/setup-wizard.js` | First-launch 4-step setup wizard (`initSetupWizard`, `openSetupWizard`, `maybeOpenSetupWizard`), also relaunchable from Settings > General |
 
 ## How it works
 **Backend start** (`fn main` → `.setup`, order matters):

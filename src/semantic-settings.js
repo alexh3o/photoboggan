@@ -18,7 +18,24 @@ const ENABLED_STORAGE_KEY = 'semanticSearch';
 let host = null; // functions provided by main.js (see initSemanticSettings)
 let enabled = readBool(ENABLED_STORAGE_KEY); // the setting
 let modelStatus = null; // last get_semantic_model_status (null: not read yet, or the feature is off)
+let modelDownloading = false;
 const changeListeners = new Set();
+const modelStatusListeners = new Set();
+
+function notifyModelStatus() {
+  for (const listener of modelStatusListeners) {
+    try { listener(); } catch (error) { console.error('Semantic model status listener failed', error); }
+  }
+}
+
+export function onSemanticModelStatusChange(listener) {
+  modelStatusListeners.add(listener);
+  return () => modelStatusListeners.delete(listener);
+}
+
+export function getSemanticModelState() {
+  return { enabled, status: modelStatus, downloading: modelDownloading };
+}
 
 /** The single source of truth: the setting is on AND the model is installed. Every semantic entry, menu item and shortcut checks this. */
 export function isSemanticEnabled() {
@@ -146,6 +163,7 @@ function renderModelStatus() {
   const hasData = modelStatus.installed;
   byId('btn-semantic-delete-model').disabled = !modelFilesInstalled();
   byId('btn-semantic-scan-all').disabled = !hasData;
+  notifyModelStatus();
 }
 
 /** Model files (not counting the ONNX Runtime library shared with the faces) present on disk. */
@@ -216,7 +234,8 @@ async function importModel() {
   }
 }
 
-function downloadModel() {
+export function downloadSemanticModel() {
+  if (modelDownloading) return;
   const queued = host.enqueueTask({
     kind: 'semantic-models',
     path: null,
@@ -224,15 +243,22 @@ function downloadModel() {
     args: {},
     labelKey: 'Content search model download',
     onResult: async (_result, stopped, error) => {
+      modelDownloading = false;
       if (error) host.showToast(t('Content search model download failed: {error}', { error: semanticErrorMessage(error) }));
       await refreshModelStatus();
       renderSection();
+      notifyModelStatus();
       if (!error && !stopped && modelStatus?.installed) host.showToast(t('Content search model installed'));
     },
   });
-  // Immediate feedback: the progress toast of the task is not always seen behind the Settings window.
-  if (queued) host.showToast(t('Downloading the content search model ({size})…', { size: formatMegabytes(modelStatus?.missingSize ?? 0) }));
+  if (queued) {
+    modelDownloading = true;
+    notifyModelStatus();
+    // Immediate feedback: the progress toast of the task is not always seen behind the Settings window.
+    host.showToast(t('Downloading the content search model ({size})…', { size: formatMegabytes(modelStatus?.missingSize ?? 0) }));
+  }
 }
+const downloadModel = downloadSemanticModel;
 
 async function deleteAnalysisData() {
   const confirmed = await confirmDialog({
@@ -282,7 +308,7 @@ async function hasStoredData() {
   return modelFilesInstalled() || Boolean(stats && (stats.analysed > 0 || stats.failed > 0 || stats.bytes > 0));
 }
 
-async function setEnabled(wanted) {
+export async function setSemanticEnabled(wanted) {
   if (wanted === enabled) return;
   if (!wanted) {
     // Data on disk: ask. The delete commands refuse once the feature is disabled, so they run BEFORE set_semantic_enabled(false).
@@ -401,7 +427,7 @@ let initialised = false;
 export async function initSemanticSettings(hostApi) {
   host = hostApi;
   applyGate();
-  byId('semantic-toggle').addEventListener('change', event => setEnabled(event.target.checked));
+  byId('semantic-toggle').addEventListener('change', event => setSemanticEnabled(event.target.checked));
   bindCheckbox('semantic-in-keyword-search', 'semanticInKeywordSearch');
   bindCheckbox('semantic-keywords-in-search', 'semanticKeywordsInSearch');
   bindCheckbox('semantic-show-score', 'semanticShowScore');

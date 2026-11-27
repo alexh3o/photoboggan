@@ -22,6 +22,19 @@ function isMapEnabled() {
   return readBool(SHOW_MAP_STORAGE_KEY);
 }
 
+export function isShowMapEnabled() {
+  return isMapEnabled();
+}
+
+export function setShowMapEnabled(enabled, { offerWelcome = true } = {}) {
+  const toggle = document.getElementById('show-map-toggle');
+  if (toggle) toggle.checked = enabled;
+  writeStored(SHOW_MAP_STORAGE_KEY, enabled);
+  onMapAccessChanged();
+  host.onShowMapChange?.();
+  if (enabled && offerWelcome) offerPrivateZonesWelcome();
+}
+
 // Widget carte du panneau Info (Options d'affichage > Interface, affiché par défaut) : sans effet sur le mode Carte, qui ne dépend que de
 // l'option « Afficher une carte du lieu de la photo » des Paramètres.
 const WIDGET_STORAGE_KEY = 'showInfoMapWidget';
@@ -228,9 +241,7 @@ export function initLocationPanel(options = {}) {
   const toggle = document.getElementById('show-map-toggle');
   toggle.checked = isMapEnabled();
   toggle.addEventListener('change', () => {
-    writeStored(SHOW_MAP_STORAGE_KEY, toggle.checked);
-    onMapAccessChanged();
-    if (toggle.checked) offerPrivateZonesWelcome();
+    setShowMapEnabled(toggle.checked, { offerWelcome: true });
   });
 
   // Zones ajoutées, supprimées ou téléchargées : style et tuiles redemandés (les zones changent la règle par tuile et apportent le style local)

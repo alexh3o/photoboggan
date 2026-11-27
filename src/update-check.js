@@ -29,6 +29,20 @@ const remove = key => { try { localStorage.removeItem(key); } catch { /* rien à
 const isEnabled = () => readBool(KEY_ENABLED);
 const includesPrereleases = () => readBool(KEY_PRERELEASES);
 
+export function isCheckUpdatesEnabled() {
+  return isEnabled();
+}
+
+export function setCheckUpdatesEnabled(enabled) {
+  if (toggle) toggle.checked = enabled;
+  writeStored(KEY_ENABLED, enabled);
+  if (enabled && !isOffline()) {
+    forgetResult();
+    runCheck();
+  }
+  if (statusLine) render();
+}
+
 function savedInfo() {
   try { return JSON.parse(readStored(KEY_INFO)); } catch { return null; }
 }
@@ -325,12 +339,7 @@ export async function initUpdateCheck({ showToast: toast, enqueueTask: enqueue, 
   onLanguageChange(render); // textes construits en JavaScript : refaits dans la nouvelle langue
 
   toggle.addEventListener('change', () => {
-    writeStored(KEY_ENABLED, toggle.checked);
-    if (toggle.checked) {
-      forgetResult();
-      runCheck();
-    }
-    render();
+    setCheckUpdatesEnabled(toggle.checked);
   });
   preToggle.addEventListener('change', () => {
     writeStored(KEY_PRERELEASES, preToggle.checked);

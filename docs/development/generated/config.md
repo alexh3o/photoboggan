@@ -26,7 +26,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `duplicateHashThreads` | `"auto"` | duplicates-settings.js |
 | `duplicatePrecomputeExactMode` | `"prepass"` | duplicates-settings.js |
 | `exifPanelWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
-| `exifVisible` | `true` | main.js |
+| `exifVisible` | `false` | main.js |
 | `faceDetection` | `false` | faces-panel.js |
 | `facePersonRoot` | `""` | faces-panel.js |
 | `faceReading` | `true` | faces-panel.js |
@@ -117,7 +117,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (2085 keys), es (2085 keys), fr (2085 keys)
+- Languages: en (2132 keys), es (2132 keys), fr (2132 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

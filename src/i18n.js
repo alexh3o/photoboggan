@@ -17,8 +17,20 @@ export const DEFAULT_LANGUAGE = DEFAULTS.appLanguage;
 const STORAGE_KEY = 'appLanguage';
 
 const isSupported = language => Object.prototype.hasOwnProperty.call(LANGUAGES, language);
+
+// Detects the OS/browser language on first launch when no language has been saved yet.
+function detectOsLanguage() {
+  if (typeof navigator === 'undefined') return DEFAULT_LANGUAGE;
+  const candidates = [...(navigator.languages || []), navigator.language].filter(Boolean);
+  for (const lang of candidates) {
+    const base = String(lang).toLowerCase().split(/[-_]/)[0];
+    if (isSupported(base)) return base;
+  }
+  return DEFAULT_LANGUAGE;
+}
+
 const storedLanguage = localStorage.getItem(STORAGE_KEY);
-let currentLanguage = isSupported(storedLanguage) ? storedLanguage : DEFAULT_LANGUAGE;
+let currentLanguage = isSupported(storedLanguage) ? storedLanguage : detectOsLanguage();
 const listeners = new Set();
 
 export function getLanguage() {

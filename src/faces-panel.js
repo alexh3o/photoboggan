@@ -1499,7 +1499,25 @@ export function onOfflineModeChanged() {
   renderModelStatus();
 }
 
-async function refreshModelStatus() {
+let modelDownloading = false;
+const modelStatusListeners = new Set();
+
+function notifyFaceModelStatus() {
+  for (const listener of modelStatusListeners) {
+    try { listener(); } catch (error) { console.error('Face model status listener failed', error); }
+  }
+}
+
+export function onFaceModelStatusChange(listener) {
+  modelStatusListeners.add(listener);
+  return () => modelStatusListeners.delete(listener);
+}
+
+export function getFaceModelState() {
+  return { enabled: detectionEnabled, status: modelStatus, downloading: modelDownloading };
+}
+
+export async function refreshFaceModelStatus() {
   try {
     modelStatus = await invoke('get_face_model_status');
   } catch (error) {
@@ -1509,6 +1527,7 @@ async function refreshModelStatus() {
   renderModelStatus();
   return modelStatus;
 }
+const refreshModelStatus = refreshFaceModelStatus;
 
 // État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
 function renderModelStatus() {
@@ -1546,22 +1565,31 @@ function renderModelStatus() {
     item.append(name, url, sha);
     return item;
   }));
+  notifyFaceModelStatus();
 }
 
-function downloadModels() {
-  host.enqueueTask({
+export function downloadFaceModels() {
+  if (modelDownloading) return;
+  const queued = host.enqueueTask({
     kind: 'face-models',
     path: null,
     command: 'download_face_models',
     args: {},
     labelKey: 'Face model download',
     onResult: async (_result, stopped, error) => {
+      modelDownloading = false;
       if (error) host.showToast(t('Face model download failed: {error}', { error: faceErrorMessage(error) }));
       await refreshModelStatus();
+      notifyFaceModelStatus();
       if (!error && !stopped && modelStatus?.installed) host.showToast(t('Face model installed'));
     },
   });
+  if (queued) {
+    modelDownloading = true;
+    notifyFaceModelStatus();
+  }
 }
+const downloadModels = downloadFaceModels;
 
 async function importModels() {
   const directory = await open({ directory: true, multiple: false, title: t('Folder containing the face model files') });
@@ -1665,6 +1693,15 @@ function setDetectionEnabled(enabled) {
   writeStored(DETECTION_STORAGE_KEY, String(enabled));
   document.getElementById('face-detection-toggle').checked = enabled;
   applyDetectionEnabled();
+}
+
+export function setFaceDetectionEnabled(wanted) {
+  setDetectionEnabled(wanted);
+  const readingToggle = document.getElementById('face-reading-toggle');
+  if (detectionEnabled && readingToggle && !readingToggle.checked) {
+    readingToggle.checked = true;
+    readingToggle.dispatchEvent(new Event('change'));
+  }
 }
 
 function checkbox(label, checked) {
@@ -1833,12 +1870,7 @@ export function initFacesPanel(hostApi) {
   if (detectionEnabled && !readingEnabled) detectionEnabled = false;
   detectionToggle.checked = detectionEnabled;
   detectionToggle.addEventListener('change', () => {
-    setDetectionEnabled(detectionToggle.checked);
-    const readingToggle = document.getElementById('face-reading-toggle');
-    if (detectionEnabled && !readingToggle.checked) {
-      readingToggle.checked = true;
-      readingToggle.dispatchEvent(new Event('change'));
-    }
+    setFaceDetectionEnabled(detectionToggle.checked);
   });
   initDetectionSettings();
   initFaceCountFilter();

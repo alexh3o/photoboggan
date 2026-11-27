@@ -7,15 +7,15 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 
 | Variable | Defined in (file · selector · value) | Used | Set at runtime by |
 |---|---|---:|---|
-| `--accent` | styles.css · `:root` · `#1e72ad` | 52 | — |
-| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 16 | — |
+| `--accent` | styles.css · `:root` · `#1e72ad` | 53 | — |
+| `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 17 | — |
 | `--active-button` | styles.css · `:root` · `#1e72ad` | 35 | main.js |
 | `--active-button-text` | styles.css · `:root` · `#fff` | 6 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 1 | — |
-| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 20 | — |
-| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 25 | — |
+| `--bg-panel` | styles.css · `:root` · `#1e1e1e`<br>styles.css · (light) `:root[data-theme="light"]` · `#fafafa` | 21 | — |
+| `--border` | styles.css · `:root` · `#333`<br>styles.css · (light) `:root[data-theme="light"]` · `#d0d0d0` | 30 | — |
 | `--btn-text` | styles.css · `:root` · `#fff`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 12 | — |
 | `--card-bg` | styles.css · `:root` · `#222`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 13 | — |
 | `--clipping-bw-blur` | histogram.css · `:root` · `20px` | 1 | — |
@@ -29,7 +29,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--col-w` | — | 4 | list-view.js |
 | `--col-w-` | — | 2 | list-view.js |
 | `--control-bg` | styles.css · `:root` · `#2a2a2a`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 56 | — |
-| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 69 | — |
+| `--control-border` | styles.css · `:root` · `#444`<br>styles.css · (light) `:root[data-theme="light"]` · `#c4c4c4` | 72 | — |
 | `--control-hover` | styles.css · `:root` · `#3a3a3a`<br>styles.css · (light) `:root[data-theme="light"]` · `#e8e8e8` | 13 | — |
 | `--danger-text` | styles.css · `:root` · `#ff6b5b`<br>styles.css · (light) `:root[data-theme="light"]` · `#c0392b` | 26 | — |
 | `--dim-unselected-brightness` | — | 1 | main.js |
@@ -93,7 +93,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--histogram-width` | histogram.css · `:root` · `13rem` | 1 | — |
 | `--item-size` | styles.css · `:root` · `160px` | 2 | — |
 | `--list-table-width` | — | 1 | list-view.js |
-| `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 11 | — |
+| `--pending-color` | styles.css · `:root` · `#f59e0b`<br>styles.css · (light) `:root[data-theme="light"]` · `#b45309` | 13 | — |
 | `--pending-on` | styles.css · `:root` · `#000`<br>styles.css · (light) `:root[data-theme="light"]` · `#fff` | 1 | — |
 | `--pick-color` | styles.css · `.filter-summary .pick-indicator.pick-none` · `#f5f5f5`<br>styles.css · `.pick-picked` · `#2ecc71`<br>styles.css · `.pick-rejected` · `#e74c3c`<br>styles.css · `.pick-pending` · `#f1c40f`<br>styles.css · `.pick-none` · `#95a5a6`<br>styles.css · `.marking-pick .pick-square, #pick-filter-bar .pic…` · `var(--pick-state-color)` | 9 | — |
 | `--pick-state-color` | styles.css · `.marking-pick .pick-none, #pick-filter-bar .pick-…` · `#f5f5f5`<br>styles.css · `.marking-pick .pick-pending, #pick-filter-bar .pi…` · `#f1c40f`<br>styles.css · `.marking-pick .pick-picked, #pick-filter-bar .pic…` · `#2ecc71`<br>styles.css · `.marking-pick .pick-rejected, #pick-filter-bar .p…` · `#e74c3c` | 1 | — |
@@ -103,7 +103,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--raw-badge-radius` | styles.css · `:root` · `3px` | 1 | — |
 | `--raw-badge-size` | styles.css · `:root` · `18px` | 3 | — |
 | `--resizer-bg` | styles.css · `:root` · `#292929`<br>styles.css · (light) `:root[data-theme="light"]` · `#cfcfcf` | 3 | — |
-| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 19 | — |
+| `--row-bg` | styles.css · `:root` · `#181818`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 23 | — |
 | `--selected-border` | styles.css · `:root` · `#15932a` | 11 | main.js |
 | `--selected-contrast` | — | 1 | main.js |
 | `--separator` | styles.css · `:root` · `#383838`<br>styles.css · (light) `:root[data-theme="light"]` · `#dcdcdc` | 36 | — |
@@ -154,16 +154,16 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--tag-shot-bg` | shooting-filters.css · `:root` · `#865130` | 1 | — |
 | `--tag-shot-border` | shooting-filters.css · `:root` · `#bb7a52` | 1 | — |
 | `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 30 | — |
-| `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 40 | — |
+| `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 42 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 4 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 76 | — |
-| `--text-size-base` | styles.css · `:root` · `0.80rem` | 7 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 83 | — |
+| `--text-size-base` | styles.css · `:root` · `0.80rem` | 11 | — |
 | `--text-size-control` | styles.css · `:root` · `0.77rem` | 4 | — |
-| `--text-size-meta` | styles.css · `:root` · `0.75rem` | 0 | — |
-| `--text-size-subtitle` | styles.css · `:root` · `0.9rem` | 4 | — |
+| `--text-size-meta` | styles.css · `:root` · `0.75rem` | 8 | — |
+| `--text-size-subtitle` | styles.css · `:root` · `0.9rem` | 5 | — |
 | `--text-size-title` | styles.css · `:root` · `1rem` | 7 | — |
 | `--text-soft` | styles.css · `:root` · `#999`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 6 | — |
-| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 89 | — |
+| `--text-strong` | styles.css · `:root` · `#eee`<br>styles.css · (light) `:root[data-theme="light"]` · `#111` | 96 | — |
 | `--thumb-badge-bg` | styles.css · `:root` · `rgba(145, 145, 145, 0.7)` | 2 | — |
 | `--thumb-badge-color` | styles.css · `:root` · `#fff` | 2 | — |
 | `--thumb-badge-gap` | styles.css · `:root` · `4px` | 1 | — |
@@ -465,6 +465,18 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L53 Keyword -> photos results: the row of actions under the banner (main.js, renderSemanticKeywordActions)
 - L57 "Suggestions" block of the Keywords tab (semantic-tagging.js): rem for sizes, thin borders in px
 - L69 Settings > Content search: keywords never suggested (semantic-exclusions.js). Field with its list opened below, chips under it.
+
+### src/setup-wizard.css (62 lines)
+
+- L1 First-launch setup wizard modal (setup-wizard.js): sized in rem and themed with global tokens.
+- L5 Step counter pill placed in the modal header before the close button.
+- L8 Body copy and bulleted lists: readable line height and clear hierarchy.
+- L14 Step 1: Internet access block with explanation list and indented updates toggle.
+- L21 Step 2: optional feature rows with checkbox + description on the left, model/zone action on the right.
+- L33 Step 2 footnotes and conditional info / privacy callouts.
+- L42 Step 3: watched folders actions and scrollable list reusing settings-folder-item look.
+- L49 Step 4: getting-started tips and inline toolbar icons.
+- L55 Fixed footer bar with step dots and navigation buttons.
 
 ### src/shooting-filters.css (22 lines)
 

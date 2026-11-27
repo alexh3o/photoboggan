@@ -1,0 +1,61 @@
+/* First-launch setup wizard modal (setup-wizard.js): sized in rem and themed with global tokens. */
+.wizard-card { width: min(44rem, calc(100vw - 2.5rem)); max-height: 86vh; display: flex; flex-direction: column; }
+.wizard-card .modal-body { flex: 1 1 auto; min-height: 0; max-height: none; display: flex; flex-direction: column; gap: 0.9rem; overflow-y: auto; }
+
+/* Step counter pill placed in the modal header before the close button. */
+.wizard-step-badge { margin-left: auto; margin-right: 0.5rem; padding: 0.15rem 0.55rem; border: 1px solid var(--control-border); border-radius: 1rem; background: var(--row-bg); color: var(--text-muted); font-size: var(--text-size-meta); font-variant-numeric: tabular-nums; }
+
+/* Body copy and bulleted lists: readable line height and clear hierarchy. */
+.wizard-intro { color: var(--text-strong); font-size: var(--text-size-base); line-height: 1.45; }
+.wizard-subtitle { margin-top: 0.25rem; color: var(--text-strong); font-size: var(--text-size-subtitle); font-weight: 600; }
+.wizard-list { margin: 0 0 0 1.25rem; display: flex; flex-direction: column; gap: 0.35rem; color: var(--text-muted); font-size: var(--text-size-base); line-height: 1.4; }
+.wizard-list-compact { font-size: var(--text-size-meta); color: var(--text-faint); }
+
+/* Step 1: Internet access block with explanation list and indented updates toggle. */
+.wizard-internet-box { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--row-bg); }
+.wizard-internet-box .settings-check { margin: 0; font-weight: 600; color: var(--text-strong); }
+.wizard-internet-box .settings-sub { margin-top: 0.2rem; font-weight: 400; color: var(--text-muted); }
+.wizard-internet-help { margin-left: 1.6rem; color: var(--text-muted); font-size: var(--text-size-meta); line-height: 1.4; }
+.wizard-internet-box .wizard-list { margin-left: 2.75rem; font-size: var(--text-size-meta); }
+
+/* Step 2: optional feature rows with checkbox + description on the left, model/zone action on the right. */
+.wizard-features { display: flex; flex-direction: column; gap: 0.65rem; }
+.wizard-feature-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.65rem 1rem; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--row-bg); }
+.wizard-feature-main { flex: 1 1 18rem; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.wizard-feature-main .settings-check { margin: 0; font-weight: 600; color: var(--text-strong); }
+.wizard-feature-desc { margin-left: 1.6rem; color: var(--text-muted); font-size: var(--text-size-meta); line-height: 1.35; }
+.wizard-feature-action { flex: 0 1 15rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.45rem; font-size: var(--text-size-meta); color: var(--text-muted); text-align: right; }
+.wizard-feature-action button:disabled { opacity: 0.45; cursor: default; }
+.wizard-feature-row.inactive .wizard-feature-action { opacity: 0.55; }
+.wizard-status-ok { color: #3cb371; font-weight: 600; }
+:root[data-theme="light"] .wizard-status-ok { color: #1e7e45; }
+
+/* Step 2 footnotes and conditional info / privacy callouts. */
+.wizard-notes { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.15rem; }
+.wizard-callout { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.55rem 0.75rem; border-radius: 0.4rem; border: 1px solid var(--border); background: var(--row-bg); font-size: var(--text-size-meta); font-weight: 600; line-height: 1.4; color: var(--text-strong); }
+.wizard-callout[hidden] { display: none; }
+.wizard-callout svg { flex: 0 0 auto; margin-top: 0.1rem; }
+.wizard-callout-info svg { color: var(--accent-text); }
+.wizard-callout-warn { border-color: color-mix(in srgb, var(--pending-color) 55%, var(--border)); }
+.wizard-callout-warn svg { color: var(--pending-color); }
+
+/* Step 3: watched folders actions and scrollable list reusing settings-folder-item look. */
+.wizard-folders-actions { display: flex; align-items: center; gap: 0.65rem; }
+.wizard-folders-actions .btn-highlight { margin-bottom: 0; }
+.wizard-folders-list { max-height: 12rem; overflow-y: auto; list-style: none; display: flex; flex-direction: column; gap: 0.35rem; }
+.wizard-folders-list .settings-folder-item { margin-bottom: 0; }
+.wizard-folders-empty { padding: 0.75rem 0.9rem; border: 1px dashed var(--control-border); border-radius: 0.4rem; color: var(--text-faint); font-size: var(--text-size-meta); line-height: 1.4; }
+
+/* Step 4: getting-started tips and inline toolbar icons. */
+.wizard-tips { margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.55rem; color: var(--text-strong); font-size: var(--text-size-base); line-height: 1.45; }
+.wizard-toolbar-list { margin: 0.4rem 0 0 0.25rem; list-style: none; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; color: var(--text-muted); font-size: var(--text-size-base); }
+.wizard-toolbar-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+.wizard-inline-icon { flex: none; color: var(--text-strong); }
+
+/* Fixed footer bar with step dots and navigation buttons. */
+.wizard-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.75rem 1.125rem; border-top: 1px solid var(--border); background: var(--bg-panel); }
+.wizard-footer-left { display: flex; align-items: center; gap: 0.75rem; }
+.wizard-footer-right { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.wizard-dots { display: flex; align-items: center; gap: 0.35rem; }
+.wizard-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--control-border); }
+.wizard-dot.active { background: var(--accent); transform: scale(1.2); }
