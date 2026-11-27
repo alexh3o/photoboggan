@@ -18,8 +18,8 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `remove_photos_from_album` | `albums.rs` | `album_id: i64, photo_ids: Vec<i64>` | `usize` | async pool | albums-panel.js |
 | `replace_album_photos` | `albums.rs` | `album_id: i64, photo_ids: Vec<i64>` | `usize` | async pool | albums-panel.js |
 | `preview_rename_batch` | `batch_rename.rs` | `items: Vec<RenameItem>` | `Vec<PreviewStatus>` | async pool | batch-rename.js |
-| `rename_photos` | `batch_rename.rs` | `items: Vec<RenameItem>, task_id: Option<String>` | `RenameBatchResult` | async pool | import-view.js, batch-rename.js ×2 |
-| `list_rename_presets` | `batch_rename.rs` | — | `Vec<RenamePreset>` | main thread | import-view.js ×2, batch-rename.js |
+| `rename_photos` | `batch_rename.rs` | `items: Vec<RenameItem>, task_id: Option<String>` | `RenameBatchResult` | async pool | batch-rename.js ×2, import-view.js |
+| `list_rename_presets` | `batch_rename.rs` | — | `Vec<RenamePreset>` | main thread | batch-rename.js, import-view.js ×2 |
 | `save_rename_preset` | `batch_rename.rs` | `name: String, steps: String` | `Vec<RenamePreset>` | main thread | batch-rename.js |
 | `delete_rename_preset` | `batch_rename.rs` | `id: i64` | `Vec<RenamePreset>` | main thread | batch-rename.js |
 | `set_metadata_writer` | `exiftool.rs` | `custom_path: Option<String>` | `()` | main thread | metadata-settings.js |
@@ -28,7 +28,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `set_face_settings` | `face_detect.rs` | `settings: FaceSettings` | `()` | main thread | faces-panel.js |
 | `apply_face_thresholds` | `face_detect.rs` | — | `usize` | async pool | faces-panel.js |
 | `count_face_scan_targets` | `face_detect.rs` | `photo_ids: Option<Vec<i64>>, folder: Option<String>, recursive: bool` | `ScanTargetCount` | async pool | faces-panel.js |
-| `detect_faces` | `face_detect.rs` | `photo_ids: Option<Vec<i64>>, folder: Option<String>, recursive: bool, only_unscanned: bool, task_id: String` | `DetectionReport` | async pool | import-view.js, faces-panel.js |
+| `detect_faces` | `face_detect.rs` | `photo_ids: Option<Vec<i64>>, folder: Option<String>, recursive: bool, only_unscanned: bool, task_id: String` | `DetectionReport` | async pool | faces-panel.js, import-view.js |
 | `set_internet_allowed` | `face_models.rs` | `allowed: bool` | `()` | main thread | main.js |
 | `get_face_model_status` | `face_models.rs` | — | `ModelStatus` | async pool | faces-panel.js |
 | `download_face_models` | `face_models.rs` | `task_id: String` | `()` | async pool | faces-panel.js |
@@ -76,7 +76,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `get_erased_location_ids` | `geolocation.rs` | — | `Vec<i64>` | async pool | geo-tools.js |
 | `erase_geolocation` | `geolocation.rs` | `photo_ids: Vec<i64>, task_id: Option<String>` | `GeoWriteResult` | async pool | geo-tools.js |
 | `restore_geolocation` | `geolocation.rs` | `photo_ids: Vec<i64>, task_id: Option<String>` | `GeoWriteResult` | async pool | geo-tools.js |
-| `precompute_hashes` | `hash_tasks.rs` | `task_id: String, kind: String, include_raw: bool, scope: Option<Scope>, threads: Option<String>` | `PrecomputeReport` | async pool | import-view.js, duplicates-settings.js ×2 |
+| `precompute_hashes` | `hash_tasks.rs` | `task_id: String, kind: String, include_raw: bool, scope: Option<Scope>, threads: Option<String>` | `PrecomputeReport` | async pool | duplicates-settings.js ×2, import-view.js |
 | `count_duplicate_work` | `hash_tasks.rs` | `kind: String, scope: Scope, compare_with_library: bool, ignore_metadata: bool, include_raw: bool, check_fast: bool` | `WorkCount` | async pool | duplicates-modal.js, duplicates-view.js ×2 |
 | `get_duplicate_hash_stats` | `hash_tasks.rs` | — | `DuplicateHashStats` | async pool | duplicates-settings.js |
 | `delete_duplicate_hashes` | `hash_tasks.rs` | — | `()` | async pool | duplicates-settings.js |
