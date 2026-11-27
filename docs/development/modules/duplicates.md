@@ -1,4 +1,4 @@
-<!-- verified: 6ae57bf | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: 22834e1 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -46,7 +46,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 
 ## Dependencies
 - Uses: `db.rs` pool, `thumbnails` / `integrity` decoders (via `phash.rs`), `raw-settings.js` (name pattern), task queue (`task-queue.js`), `semantic::PriorityGuard`.
-- Used by: `semantic.rs` (`duplicates::DataHash`, `LAYOUT_VERSION`, `is_video`) for the image key.
+- Used by: `semantic.rs` (`duplicates::DataHash`, `LAYOUT_VERSION`, `is_video`) for the image key, `import.rs` (`duplicates::quick_partial_hash`) for ambiguous duplicate disambiguation without changing `LAYOUT_VERSION`.
 
 ## Invariants and sensitive areas
 - ⚠ sensitive: **`LAYOUT_VERSION`** (duplicates.rs) must be incremented whenever the set of hashed bytes changes (`layout_of`, `jpeg_ranges`, `png_ranges`, `webp_ranges`, partial size, hash truncation). Otherwise `photo_hashes` returns false matches. The semantic scan stores it as `hash_version` next to its own copy of the hash: a bump makes every embedding row be re-analysed once (see `semantic.md`). Do not bump it for no reason.

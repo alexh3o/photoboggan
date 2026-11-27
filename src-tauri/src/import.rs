@@ -1,0 +1,2227 @@
+//! SD card and external folder photo import: OS media detection, two-pass source scan,
+//! RAM-only thumbnail/preview streaming, chronological durable copy reusing existing
+//! file primitives, incremental import memory, and targeted catalogue indexing.
+
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::time::Duration;
+
+use rayon::prelude::*;
+use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
+use tauri::{Emitter, Manager, State};
+use walkdir::WalkDir;
+
+use crate::db::{self, DbPool, Photo};
+use crate::{
+    copy_atomically_to_reserved, copy_replacing, copy_sidecar, files_have_same_hash,
+    find_copy_conflicts, is_inside_folder, library_sync, log_sidecar_renames, privacy,
+    release_scan_cancel_flag, reserve_destination, resolve_tracked_folder, scan_cancel_flag,
+    semantic, thumbnails, validate_new_name, video, AppState, CopyConflict, FileFailure,
+    ScanProgress, SidecarRename,
+};
+
+// ---------------------------------------------------------------------------
+// Configuration statics (pushed from frontend at startup and on change)
+// ---------------------------------------------------------------------------
+
+static MARKERS: OnceLock<RwLock<Vec<String>>> = OnceLock::new();
+static LIST_MODE: OnceLock<RwLock<String>> = OnceLock::new();
+static RETENTION_30D: AtomicBool = AtomicBool::new(false);
+
+fn markers_lock() -> &'static RwLock<Vec<String>> {
+    MARKERS.get_or_init(|| {
+        RwLock::new(vec![
+            "DCIM".into(),
+            "PRIVATE/M4ROOT".into(),
+            "MP_ROOT".into(),
+            "AVCHD".into(),
+        ])
+    })
+}
+
+fn list_mode_lock() -> &'static RwLock<String> {
+    LIST_MODE.get_or_init(|| RwLock::new("blacklist".into()))
+}
+
+fn current_markers() -> Vec<String> {
+    markers_lock()
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
+}
+
+fn current_list_mode() -> String {
+    list_mode_lock()
+        .read()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
+}
+
+// ---------------------------------------------------------------------------
+// SQLite schema
+// ---------------------------------------------------------------------------
+
+pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS import_devices (
+            media_id TEXT PRIMARY KEY,
+            last_label TEXT NOT NULL DEFAULT '',
+            last_root_path TEXT NOT NULL DEFAULT '',
+            policy TEXT NOT NULL DEFAULT 'normal',
+            last_seen_at INTEGER NOT NULL DEFAULT 0,
+            last_import_at INTEGER NOT NULL DEFAULT 0,
+            last_imported_file_dt TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS import_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            media_id TEXT NOT NULL,
+            root_folder TEXT NOT NULL,
+            relative_path TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            file_mtime INTEGER NOT NULL,
+            date_taken TEXT NOT NULL DEFAULT '',
+            partial_hash BLOB,
+            dest_path TEXT NOT NULL,
+            imported_at INTEGER NOT NULL,
+            UNIQUE(media_id, relative_path, file_size, file_mtime)
+        );
+        CREATE INDEX IF NOT EXISTS idx_import_history_media ON import_history(media_id);
+        CREATE INDEX IF NOT EXISTS idx_import_history_imported_at ON import_history(imported_at);
+        CREATE TABLE IF NOT EXISTS import_presets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            name_key TEXT NOT NULL UNIQUE,
+            config TEXT NOT NULL DEFAULT '{}'
+        );",
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Data types
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DetectedMedia {
+    pub media_id: String,
+    pub label: String,
+    pub root_path: String,
+    pub has_marker: bool,
+    pub policy: String,
+    pub eligible: bool,
+    pub last_import_at: i64,
+    pub last_imported_file_dt: String,
+    pub ejectable: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaChangedPayload {
+    pub devices: Vec<DetectedMedia>,
+    pub arrived: Option<DetectedMedia>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DestinationInfo {
+    pub valid: bool,
+    pub resolved_path: String,
+    pub free_bytes: u64,
+    pub is_private: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceInfo {
+    pub media_id: String,
+    pub label: String,
+    pub root_path: String,
+    pub ejectable: bool,
+    pub storage_kind: String,
+    pub last_import_at: i64,
+    pub last_imported_file_dt: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFolderEntry {
+    pub path: String,
+    pub relative_path: String,
+    pub name: String,
+    pub raw_count: usize,
+    pub raster_count: usize,
+    pub video_count: usize,
+    pub total_count: usize,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSourceFile {
+    pub path: String,
+    pub relative_path: String,
+    pub folder_path: String,
+    pub filename: String,
+    pub extension: String,
+    pub kind: String,
+    pub size: u64,
+    pub mtime: i64,
+    pub date_taken: String,
+    pub orientation: u32,
+    pub status: String,
+    pub existing_path: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportScanResult {
+    pub folders: Vec<ImportFolderEntry>,
+    pub files: Vec<ImportSourceFile>,
+    pub total_size: u64,
+    pub last_import_at: i64,
+    pub last_imported_file_dt: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportExifEntry {
+    pub path: String,
+    pub date_taken: String,
+    pub orientation: u32,
+    pub status: Option<String>,
+    pub existing_path: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ImportExifProgress {
+    task_id: String,
+    entries: Vec<ImportExifEntry>,
+    done: usize,
+    total: usize,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportCopyItem {
+    pub source_path: String,
+    pub relative_path: String,
+    pub filename: String,
+    pub kind: String,
+    pub size: u64,
+    pub mtime: i64,
+    pub date_taken: String,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSubfolderOptions {
+    pub base_destination: String,
+    pub subfolder_mode: String,
+    pub custom_subfolder: String,
+    pub split_by_type: bool,
+    pub subfolder_raw: String,
+    pub subfolder_raster: String,
+    pub subfolder_video: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportConflict {
+    #[serde(flatten)]
+    pub conflict: CopyConflict,
+    pub target_dir: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportCopyRequest {
+    pub media_id: String,
+    pub root_folder: String,
+    pub items: Vec<ImportCopyItem>,
+    pub options: ImportSubfolderOptions,
+    pub collision_policy: String,
+    pub resolutions: HashMap<String, String>,
+    pub verify_videos: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CopiedImportFile {
+    pub source_path: String,
+    pub dest_path: String,
+    pub filename: String,
+    pub kind: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFileNote {
+    pub path: String,
+    pub reason: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportCopyResult {
+    pub copied: Vec<CopiedImportFile>,
+    pub skipped: Vec<ImportFileNote>,
+    pub failed: Vec<FileFailure>,
+    pub cancelled: bool,
+    pub renamed_for_sidecar: Vec<SidecarRename>,
+    pub log_path: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportDeviceRecord {
+    pub media_id: String,
+    pub last_label: String,
+    pub last_root_path: String,
+    pub policy: String,
+    pub last_seen_at: i64,
+    pub last_import_at: i64,
+    pub last_imported_file_dt: String,
+    pub history_count: i64,
+}
+
+// ---------------------------------------------------------------------------
+// Path & format helpers
+// ---------------------------------------------------------------------------
+
+pub(crate) fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+fn file_kind(path: &Path) -> &'static str {
+    if video::is_video_path(path) {
+        "video"
+    } else if thumbnails::is_raw_path(path) {
+        "raw"
+    } else {
+        "raster"
+    }
+}
+
+fn has_photo_marker(root: &Path, markers: &[String]) -> bool {
+    for raw_marker in markers {
+        let trimmed = raw_marker.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let mut candidate = root.to_path_buf();
+        for seg in trimmed.split(['/', '\\']).filter(|s| !s.is_empty()) {
+            candidate.push(seg);
+        }
+        if candidate.exists() {
+            return true;
+        }
+        // Case-insensitive check on top-level entries for Linux mounts on FAT32/exFAT.
+        if !trimmed.contains(['/', '\\']) {
+            if let Ok(entries) = fs::read_dir(root) {
+                if entries
+                    .filter_map(|e| e.ok())
+                    .any(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(trimmed))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn format_dt_14_from_exif_or_mtime(date_taken: &str, mtime_ms: i64) -> String {
+    let digits: String = date_taken.chars().filter(|c| c.is_ascii_digit()).take(14).collect();
+    if digits.len() >= 8 && !digits.starts_with("0000") {
+        return format!("{digits:0<14}");
+    }
+    if mtime_ms > 0 {
+        if let Some(dt) = chrono::DateTime::from_timestamp_millis(mtime_ms) {
+            let local: chrono::DateTime<chrono::Local> = dt.into();
+            return local.format("%Y%m%d%H%M%S").to_string();
+        }
+    }
+    String::new()
+}
+
+// ---------------------------------------------------------------------------
+// Platform-specific removable drive enumeration, free space & ejection
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+struct RawRemovableVolume {
+    media_id: String,
+    label: String,
+    root_path: String,
+}
+
+#[cfg(windows)]
+fn enumerate_removable_volumes() -> Vec<RawRemovableVolume> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW};
+
+    const DRIVE_REMOVABLE: u32 = 2;
+    let mask = unsafe { GetLogicalDrives() };
+    let mut out = Vec::new();
+    for bit in 0..26u32 {
+        if (mask & (1 << bit)) == 0 {
+            continue;
+        }
+        let letter = (b'A' + bit as u8) as char;
+        let root_str = format!("{letter}:\\");
+        let wide: Vec<u16> = OsString::from(&root_str).encode_wide().chain(Some(0)).collect();
+        let dtype = unsafe { GetDriveTypeW(PCWSTR(wide.as_ptr())) };
+        if dtype != DRIVE_REMOVABLE {
+            continue;
+        }
+        let mut vol_name = [0u16; 261];
+        let mut serial: u32 = 0;
+        let ok = unsafe {
+            GetVolumeInformationW(
+                PCWSTR(wide.as_ptr()),
+                Some(&mut vol_name),
+                Some(&mut serial),
+                None,
+                None,
+                None,
+            )
+        };
+        if ok.is_err() {
+            continue;
+        }
+        let name_len = vol_name.iter().position(|&c| c == 0).unwrap_or(vol_name.len());
+        let label = OsString::from_wide(&vol_name[..name_len])
+            .to_string_lossy()
+            .trim()
+            .to_string();
+        let media_id = if serial != 0 {
+            format!("{:04X}-{:04X}", (serial >> 16) & 0xFFFF, serial & 0xFFFF)
+        } else {
+            format!("drive:{letter}")
+        };
+        out.push(RawRemovableVolume {
+            media_id,
+            label: if label.is_empty() {
+                format!("{letter}:")
+            } else {
+                label
+            },
+            root_path: root_str,
+        });
+    }
+    out
+}
+
+#[cfg(not(windows))]
+fn enumerate_removable_volumes() -> Vec<RawRemovableVolume> {
+    let Ok(mounts) = fs::read_to_string("/proc/mounts") else {
+        return Vec::new();
+    };
+    let uuid_map = read_linux_disk_links("/dev/disk/by-uuid");
+    let label_map = read_linux_disk_links("/dev/disk/by-label");
+    let mut out = Vec::new();
+    let mut seen_roots = HashSet::new();
+    for line in mounts.lines() {
+        let mut parts = line.split_whitespace();
+        let (Some(dev), Some(mount_raw)) = (parts.next(), parts.next()) else {
+            continue;
+        };
+        if !dev.starts_with("/dev/") {
+            continue;
+        }
+        let mount_point = mount_raw.replace("\\040", " ");
+        if !seen_roots.insert(mount_point.clone()) {
+            continue;
+        }
+        let is_user_media = mount_point.starts_with("/media/") || mount_point.starts_with("/run/media/");
+        let is_removable_sys = linux_dev_is_removable(dev);
+        if !is_user_media && !is_removable_sys {
+            continue;
+        }
+        let canon_dev = fs::canonicalize(dev).unwrap_or_else(|_| PathBuf::from(dev));
+        let media_id = uuid_map
+            .get(&canon_dev)
+            .cloned()
+            .unwrap_or_else(|| format!("dev:{}", canon_dev.to_string_lossy()));
+        let label = label_map
+            .get(&canon_dev)
+            .cloned()
+            .or_else(|| {
+                Path::new(&mount_point)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+            })
+            .unwrap_or_else(|| mount_point.clone());
+        out.push(RawRemovableVolume {
+            media_id,
+            label,
+            root_path: mount_point,
+        });
+    }
+    out
+}
+
+#[cfg(not(windows))]
+fn read_linux_disk_links(dir: &str) -> HashMap<PathBuf, String> {
+    let mut map = HashMap::new();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return map;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        if let Ok(target) = fs::canonicalize(entry.path()) {
+            map.insert(target, entry.file_name().to_string_lossy().into_owned());
+        }
+    }
+    map
+}
+
+#[cfg(not(windows))]
+fn linux_dev_is_removable(dev: &str) -> bool {
+    let name = Path::new(dev)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let base = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let base = base.strip_suffix('p').filter(|b| b.starts_with("mmcblk") || b.starts_with("nvme")).unwrap_or(base);
+    let sys_path = format!("/sys/block/{base}/removable");
+    fs::read_to_string(sys_path)
+        .map(|s| s.trim() == "1")
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn disk_free_space(path: &Path) -> Result<u64, String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
+    let mut free_available: u64 = 0;
+    unsafe { GetDiskFreeSpaceExW(PCWSTR(wide.as_ptr()), Some(&mut free_available), None, None) }
+        .map_err(|e| format!("Cannot read free disk space: {e}"))?;
+    Ok(free_available)
+}
+
+#[cfg(not(windows))]
+fn disk_free_space(path: &Path) -> Result<u64, String> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = CString::new(path.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let rc = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    if rc != 0 {
+        return Err("Cannot read free disk space".into());
+    }
+    Ok(stat.f_bavail as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(windows)]
+fn eject_removable_volume(root_path: &str) -> Result<(), String> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE};
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+    use windows::Win32::System::Ioctl::{
+        FSCTL_DISMOUNT_VOLUME, FSCTL_LOCK_VOLUME, IOCTL_STORAGE_EJECT_MEDIA,
+        IOCTL_STORAGE_MEDIA_REMOVAL,
+    };
+    use windows::Win32::System::IO::DeviceIoControl;
+
+    let letter = root_path
+        .chars()
+        .next()
+        .filter(|c| c.is_ascii_alphabetic())
+        .ok_or_else(|| "Lecteur amovible invalide".to_string())?;
+    let device_path = format!("\\\\.\\{letter}:");
+    let wide: Vec<u16> = OsString::from(&device_path).encode_wide().chain(Some(0)).collect();
+    let handle = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            Default::default(),
+            None,
+        )
+    }
+    .map_err(|e| format!("Impossible d'ouvrir le volume pour éjection : {e}"))?;
+
+    let result = (|| -> Result<(), String> {
+        let mut bytes = 0u32;
+        unsafe {
+            DeviceIoControl(handle, FSCTL_LOCK_VOLUME, None, 0, None, 0, Some(&mut bytes), None)
+                .map_err(|_| "Le support est utilisé par un autre programme : fermez les fenêtres ouvertes dessus et réessayez".to_string())?;
+            let _ = DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, None, 0, None, 0, Some(&mut bytes), None);
+            let prevent: [u8; 1] = [0];
+            let _ = DeviceIoControl(
+                handle,
+                IOCTL_STORAGE_MEDIA_REMOVAL,
+                Some(prevent.as_ptr().cast()),
+                1,
+                None,
+                0,
+                Some(&mut bytes),
+                None,
+            );
+            DeviceIoControl(handle, IOCTL_STORAGE_EJECT_MEDIA, None, 0, None, 0, Some(&mut bytes), None)
+                .map_err(|e| format!("Éjection refusée par le système : {e}"))?;
+        }
+        Ok(())
+    })();
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    result
+}
+
+#[cfg(not(windows))]
+fn eject_removable_volume(root_path: &str) -> Result<(), String> {
+    let mounts = fs::read_to_string("/proc/mounts").map_err(|e| e.to_string())?;
+    let norm_target = normalize_path(root_path);
+    let dev = mounts
+        .lines()
+        .find_map(|line| {
+            let mut parts = line.split_whitespace();
+            let dev = parts.next()?;
+            let mount = parts.next()?.replace("\\040", " ");
+            (normalize_path(&mount) == norm_target).then(|| dev.to_string())
+        })
+        .ok_or_else(|| "Point de montage introuvable".to_string())?;
+    let unmount = std::process::Command::new("udisksctl")
+        .args(["unmount", "-b", &dev])
+        .output()
+        .map_err(|e| format!("udisksctl indisponible : {e}"))?;
+    if !unmount.status.success() {
+        return Err(String::from_utf8_lossy(&unmount.stderr).trim().to_string());
+    }
+    let _ = std::process::Command::new("udisksctl")
+        .args(["power-off", "-b", &dev])
+        .output();
+    Ok(())
+}
+
+/// Classifies a source path as `"removable"`, `"network"`, or `"internal"`.
+pub(crate) fn detect_storage_kind(path: &Path) -> &'static str {
+    let raw = path.to_string_lossy();
+    #[cfg(windows)]
+    {
+        if raw.starts_with("\\\\") {
+            return "network";
+        }
+        use std::ffi::OsString;
+        use std::os::windows::ffi::OsStrExt;
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::Storage::FileSystem::{
+            CreateFileW, GetDriveTypeW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        };
+        use windows::Win32::System::IO::DeviceIoControl;
+
+        const DRIVE_REMOVABLE: u32 = 2;
+        const DRIVE_FIXED: u32 = 3;
+        const DRIVE_REMOTE: u32 = 4;
+        const IOCTL_STORAGE_QUERY_PROPERTY: u32 = 0x002D1400;
+
+        let mut chars = raw.chars();
+        let Some(letter) = chars.next().filter(|c| c.is_ascii_alphabetic()) else {
+            return "internal";
+        };
+        if chars.next() != Some(':') {
+            return "internal";
+        }
+        let root_str = format!("{letter}:\\");
+        let wide_root: Vec<u16> = OsString::from(&root_str).encode_wide().chain(Some(0)).collect();
+        let dtype = unsafe { GetDriveTypeW(PCWSTR(wide_root.as_ptr())) };
+        if dtype == DRIVE_REMOVABLE {
+            return "removable";
+        }
+        if dtype == DRIVE_REMOTE {
+            return "network";
+        }
+        if dtype == DRIVE_FIXED {
+            #[repr(C)]
+            struct StoragePropertyQuery {
+                property_id: u32,
+                query_type: u32,
+                additional_parameters: [u8; 4],
+            }
+            let dev_path = format!("\\\\.\\{letter}:");
+            let wide_dev: Vec<u16> = OsString::from(&dev_path).encode_wide().chain(Some(0)).collect();
+            if let Ok(handle) = unsafe {
+                CreateFileW(
+                    PCWSTR(wide_dev.as_ptr()),
+                    0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    None,
+                    OPEN_EXISTING,
+                    Default::default(),
+                    None,
+                )
+            } {
+                let query = StoragePropertyQuery {
+                    property_id: 0, // StorageDeviceProperty
+                    query_type: 0,  // PropertyStandardQuery
+                    additional_parameters: [0; 4],
+                };
+                let mut desc = [0u8; 256];
+                let mut returned = 0u32;
+                let ok = unsafe {
+                    DeviceIoControl(
+                        handle,
+                        IOCTL_STORAGE_QUERY_PROPERTY,
+                        Some((&query as *const StoragePropertyQuery).cast()),
+                        std::mem::size_of::<StoragePropertyQuery>() as u32,
+                        Some(desc.as_mut_ptr().cast()),
+                        desc.len() as u32,
+                        Some(&mut returned),
+                        None,
+                    )
+                };
+                unsafe {
+                    let _ = CloseHandle(handle);
+                }
+                if ok.is_ok() && returned >= 32 {
+                    // STORAGE_DEVICE_DESCRIPTOR.BusType is at offset 28 (7=USB, 12=SD, 13=MMC).
+                    let bus_type = desc[28];
+                    if matches!(bus_type, 7 | 12 | 13) {
+                        return "removable";
+                    }
+                }
+            }
+        }
+        "internal"
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = raw;
+        let canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let canon_norm = normalize_path(&canon.to_string_lossy());
+        let Ok(mounts) = fs::read_to_string("/proc/mounts") else {
+            return "internal";
+        };
+        let mut best: Option<(usize, String, String, String)> = None;
+        for line in mounts.lines() {
+            let mut parts = line.split_whitespace();
+            let (Some(dev), Some(mount_raw), Some(fstype)) = (parts.next(), parts.next(), parts.next()) else {
+                continue;
+            };
+            let mount = normalize_path(&mount_raw.replace("\\040", " "));
+            let matches = if mount.is_empty() {
+                true
+            } else {
+                canon_norm == mount || canon_norm.starts_with(&format!("{mount}/"))
+            };
+            if matches && best.as_ref().is_none_or(|b| mount.len() > b.0) {
+                best = Some((mount.len(), dev.to_string(), mount, fstype.to_string()));
+            }
+        }
+        if let Some((_, dev, mount, fstype)) = best {
+            if matches!(fstype.as_str(), "cifs" | "smb3" | "nfs" | "nfs4" | "fuse.sshfs" | "sshfs" | "davfs") {
+                return "network";
+            }
+            if mount.starts_with("/media/")
+                || mount.starts_with("/run/media/")
+                || dev.starts_with("/dev/mmcblk")
+                || linux_dev_is_removable(&dev)
+            {
+                return "removable";
+            }
+        }
+        "internal"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Media enumeration + policy
+// ---------------------------------------------------------------------------
+
+fn collect_detected_media(pool: &DbPool) -> Vec<DetectedMedia> {
+    let tracked_folders = db::get_folders(pool);
+    let markers = current_markers();
+    let mode = current_list_mode();
+    let volumes = enumerate_removable_volumes();
+    let now = library_sync::now_millis();
+    let conn = match pool.get() {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut out = Vec::new();
+    for vol in volumes {
+        // Never propose a drive that contains or is inside a tracked library folder.
+        let overlaps_library = tracked_folders.iter().any(|tf| {
+            let norm_tf = normalize_path(&tf.path);
+            let norm_root = normalize_path(&vol.root_path);
+            norm_tf.eq_ignore_ascii_case(&norm_root)
+                || is_inside_folder(&vol.root_path, &tf.path)
+                || is_inside_folder(&tf.path, &vol.root_path)
+        });
+        if overlaps_library {
+            continue;
+        }
+        let has_marker = has_photo_marker(Path::new(&vol.root_path), &markers);
+        let _ = conn.execute(
+            "INSERT INTO import_devices (media_id, last_label, last_root_path, last_seen_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(media_id) DO UPDATE SET
+               last_label = excluded.last_label,
+               last_root_path = excluded.last_root_path,
+               last_seen_at = excluded.last_seen_at",
+            params![vol.media_id, vol.label, vol.root_path, now],
+        );
+        let (policy, last_import_at, last_imported_file_dt): (String, i64, String) = conn
+            .query_row(
+                "SELECT policy, last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
+                params![vol.media_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap_or_else(|_| ("normal".into(), 0, String::new()));
+
+        let eligible = has_marker
+            && if mode == "whitelist" {
+                policy == "whitelist"
+            } else {
+                policy != "blacklist"
+            };
+
+        out.push(DetectedMedia {
+            media_id: vol.media_id,
+            label: vol.label,
+            root_path: vol.root_path,
+            has_marker,
+            policy,
+            eligible,
+            last_import_at,
+            last_imported_file_dt,
+            ejectable: true,
+        });
+    }
+    out
+}
+
+#[tauri::command(async)]
+pub fn list_detected_media(state: State<'_, AppState>) -> Vec<DetectedMedia> {
+    collect_detected_media(&state.pool())
+}
+
+// ---------------------------------------------------------------------------
+// OS event-driven device watcher (zero polling at rest)
+// ---------------------------------------------------------------------------
+
+struct WatcherState {
+    stop: Arc<AtomicBool>,
+    #[cfg(windows)]
+    hwnd_raw: usize,
+    #[cfg(not(windows))]
+    wake_write_fd: std::os::unix::io::RawFd,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+
+static WATCHER: OnceLock<Mutex<Option<WatcherState>>> = OnceLock::new();
+
+fn watcher_lock() -> &'static Mutex<Option<WatcherState>> {
+    WATCHER.get_or_init(|| Mutex::new(None))
+}
+
+pub fn stop_device_watcher() {
+    let mut guard = watcher_lock().lock().unwrap_or_else(|p| p.into_inner());
+    if let Some(mut state) = guard.take() {
+        state.stop.store(true, Ordering::SeqCst);
+        #[cfg(windows)]
+        if state.hwnd_raw != 0 {
+            use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
+            use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CLOSE};
+            unsafe {
+                let _ = PostMessageW(Some(HWND(state.hwnd_raw as *mut _)), WM_CLOSE, WPARAM(0), LPARAM(0));
+            }
+        }
+        #[cfg(not(windows))]
+        if state.wake_write_fd >= 0 {
+            unsafe {
+                let byte: u8 = 1;
+                let _ = libc::write(state.wake_write_fd, &byte as *const u8 as *const libc::c_void, 1);
+                let _ = libc::close(state.wake_write_fd);
+            }
+        }
+        if let Some(handle) = state.join.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+type MediaSnapshot = Vec<(String, String, bool)>;
+
+fn media_snapshot(devices: &[DetectedMedia]) -> MediaSnapshot {
+    devices
+        .iter()
+        .map(|d| (d.media_id.clone(), d.root_path.clone(), d.eligible))
+        .collect()
+}
+
+fn emit_media_change(app: &tauri::AppHandle, prev_snapshot: &mut MediaSnapshot) {
+    let Some(app_state) = app.try_state::<AppState>() else {
+        return;
+    };
+    let devices = collect_detected_media(&app_state.pool());
+    let next_snapshot = media_snapshot(&devices);
+    if next_snapshot == *prev_snapshot {
+        return;
+    }
+    let prev_ids: HashSet<&str> = prev_snapshot.iter().map(|(id, _, _)| id.as_str()).collect();
+    let arrived = devices
+        .iter()
+        .find(|d| d.eligible && !prev_ids.contains(d.media_id.as_str()))
+        .cloned();
+    *prev_snapshot = next_snapshot;
+    let _ = app.emit("import-media-changed", MediaChangedPayload { devices, arrived });
+}
+
+#[cfg(windows)]
+fn start_device_watcher(app: tauri::AppHandle) {
+    use std::cell::RefCell;
+    use windows::core::w;
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+        PostQuitMessage, RegisterClassW, TranslateMessage, MSG, WINDOW_EX_STYLE,
+        WINDOW_STYLE, WM_CLOSE, WM_DESTROY, WM_DEVICECHANGE, WNDCLASSW,
+    };
+
+    const DBT_DEVNODES_CHANGED: usize = 0x0007;
+    const DBT_DEVICEARRIVAL: usize = 0x8000;
+    const DBT_DEVICEREMOVECOMPLETE: usize = 0x8004;
+
+    thread_local! {
+        static HANDLER: RefCell<Option<Box<dyn FnMut()>>> = RefCell::new(None);
+    }
+
+    unsafe extern "system" fn wnd_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        match msg {
+            WM_DEVICECHANGE => {
+                if matches!(wparam.0, DBT_DEVICEARRIVAL | DBT_DEVICEREMOVECOMPLETE | DBT_DEVNODES_CHANGED) {
+                    HANDLER.with(|cell| {
+                        if let Some(cb) = cell.borrow_mut().as_mut() {
+                            cb();
+                        }
+                    });
+                }
+                LRESULT(1)
+            }
+            WM_CLOSE => {
+                let _ = DestroyWindow(hwnd);
+                LRESULT(0)
+            }
+            WM_DESTROY => {
+                PostQuitMessage(0);
+                LRESULT(0)
+            }
+            _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+        }
+    }
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_thread = stop.clone();
+    let (tx, rx) = std::sync::mpsc::channel::<usize>();
+
+    let join = std::thread::spawn(move || {
+        let mut prev_snapshot: MediaSnapshot = app
+            .try_state::<AppState>()
+            .map(|s| media_snapshot(&collect_detected_media(&s.pool())))
+            .unwrap_or_default();
+
+        let app_cb = app.clone();
+        let stop_cb = stop_thread.clone();
+        HANDLER.with(|cell| {
+            *cell.borrow_mut() = Some(Box::new(move || {
+                if stop_cb.load(Ordering::Relaxed) {
+                    return;
+                }
+                // Wait briefly for Windows mount assignment to settle.
+                std::thread::sleep(Duration::from_millis(600));
+                if !stop_cb.load(Ordering::Relaxed) {
+                    emit_media_change(&app_cb, &mut prev_snapshot);
+                }
+            }));
+        });
+
+        let class_name = w!("PhotobogganMediaWatcher");
+        let hinstance = unsafe { GetModuleHandleW(None) }.unwrap_or_default();
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(wnd_proc),
+            hInstance: hinstance.into(),
+            lpszClassName: class_name,
+            ..Default::default()
+        };
+        unsafe {
+            let _ = RegisterClassW(&wc);
+        }
+        // Must be a top-level (never-shown) window; HWND_MESSAGE windows do not receive WM_DEVICECHANGE broadcasts.
+        let hwnd = unsafe {
+            CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                class_name,
+                w!(""),
+                WINDOW_STYLE(0),
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                Some(hinstance.into()),
+                None,
+            )
+        };
+        let hwnd_val = hwnd.as_ref().map(|h| h.0 as usize).unwrap_or(0);
+        let _ = tx.send(hwnd_val);
+        if hwnd_val == 0 {
+            HANDLER.with(|cell| {
+                *cell.borrow_mut() = None;
+            });
+            return;
+        }
+        let mut msg = MSG::default();
+        unsafe {
+            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        HANDLER.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
+    });
+
+    let hwnd_raw = rx.recv().unwrap_or(0);
+    let mut guard = watcher_lock().lock().unwrap_or_else(|p| p.into_inner());
+    *guard = Some(WatcherState {
+        stop,
+        hwnd_raw,
+        join: Some(join),
+    });
+}
+
+#[cfg(not(windows))]
+fn start_device_watcher(app: tauri::AppHandle) {
+    use std::ffi::CString;
+    let mut pipe_fds = [-1i32; 2];
+    if unsafe { libc::pipe(pipe_fds.as_mut_ptr()) } != 0 {
+        return;
+    }
+    let read_fd = pipe_fds[0];
+    let write_fd = pipe_fds[1];
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_thread = stop.clone();
+
+    let join = std::thread::spawn(move || {
+        let mut prev_snapshot: MediaSnapshot = app
+            .try_state::<AppState>()
+            .map(|s| media_snapshot(&collect_detected_media(&s.pool())))
+            .unwrap_or_default();
+
+        let inotify_fd = unsafe { libc::inotify_init1(libc::IN_NONBLOCK | libc::IN_CLOEXEC) };
+        if inotify_fd >= 0 {
+            let user = std::env::var("USER").unwrap_or_default();
+            let mut dirs = vec!["/media".to_string(), "/run/media".to_string()];
+            if !user.is_empty() {
+                dirs.push(format!("/media/{user}"));
+                dirs.push(format!("/run/media/{user}"));
+            }
+            for dir in dirs {
+                if Path::new(&dir).is_dir() {
+                    if let Ok(c_dir) = CString::new(dir) {
+                        unsafe {
+                            libc::inotify_add_watch(
+                                inotify_fd,
+                                c_dir.as_ptr(),
+                                libc::IN_CREATE | libc::IN_DELETE | libc::IN_MOVED_TO | libc::IN_MOVED_FROM,
+                            );
+                        }
+                    }
+                }
+            }
+            let mut fds = [
+                libc::pollfd { fd: inotify_fd, events: libc::POLLIN, revents: 0 },
+                libc::pollfd { fd: read_fd, events: libc::POLLIN, revents: 0 },
+            ];
+            let mut buf = [0u8; 4096];
+            while !stop_thread.load(Ordering::Relaxed) {
+                let rc = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
+                if rc <= 0 || stop_thread.load(Ordering::Relaxed) || (fds[1].revents & libc::POLLIN) != 0 {
+                    break;
+                }
+                if (fds[0].revents & libc::POLLIN) != 0 {
+                    while unsafe { libc::read(inotify_fd, buf.as_mut_ptr().cast(), buf.len()) } > 0 {}
+                    std::thread::sleep(Duration::from_millis(600));
+                    if !stop_thread.load(Ordering::Relaxed) {
+                        emit_media_change(&app, &mut prev_snapshot);
+                    }
+                }
+            }
+            unsafe {
+                let _ = libc::close(inotify_fd);
+            }
+        }
+        unsafe {
+            let _ = libc::close(read_fd);
+        }
+    });
+
+    let mut guard = watcher_lock().lock().unwrap_or_else(|p| p.into_inner());
+    *guard = Some(WatcherState {
+        stop,
+        wake_write_fd: write_fd,
+        join: Some(join),
+    });
+}
+
+#[tauri::command(async)]
+pub fn set_import_watcher_config(
+    app: tauri::AppHandle,
+    enabled: bool,
+    markers: Vec<String>,
+    list_mode: String,
+    retention_30d: bool,
+) {
+    *markers_lock().write().unwrap_or_else(|p| p.into_inner()) = markers
+        .into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    *list_mode_lock().write().unwrap_or_else(|p| p.into_inner()) = if list_mode == "whitelist" {
+        "whitelist".into()
+    } else {
+        "blacklist".into()
+    };
+    RETENTION_30D.store(retention_30d, Ordering::Relaxed);
+
+    stop_device_watcher();
+    if enabled {
+        start_device_watcher(app);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Destination validation & ejection
+// ---------------------------------------------------------------------------
+
+#[tauri::command(async)]
+pub fn check_destination_info(state: State<'_, AppState>, path: String) -> Result<DestinationInfo, String> {
+    let pool = state.pool();
+    let Some(resolved) = resolve_tracked_folder(&pool, &path) else {
+        return Ok(DestinationInfo {
+            valid: false,
+            resolved_path: path,
+            free_bytes: 0,
+            is_private: false,
+        });
+    };
+    let resolved_str = resolved.to_string_lossy().into_owned();
+    let free_bytes = disk_free_space(&resolved).unwrap_or(0);
+    let is_private = privacy::is_private_folder(&resolved_str);
+    Ok(DestinationInfo {
+        valid: resolved.is_dir(),
+        resolved_path: resolved_str,
+        free_bytes,
+        is_private,
+    })
+}
+
+#[tauri::command(async)]
+pub fn eject_media(root_path: String) -> Result<(), String> {
+    let volumes = enumerate_removable_volumes();
+    let norm = normalize_path(&root_path);
+    let matched = volumes
+        .into_iter()
+        .find(|v| normalize_path(&v.root_path).eq_ignore_ascii_case(&norm))
+        .ok_or_else(|| "Ce support n'est pas un lecteur amovible éjectable".to_string())?;
+    eject_removable_volume(&matched.root_path)
+}
+
+// ---------------------------------------------------------------------------
+// Source identification & two-pass scan
+// ---------------------------------------------------------------------------
+
+#[tauri::command(async)]
+pub fn identify_source(state: State<'_, AppState>, path: String) -> Result<SourceInfo, String> {
+    let target = Path::new(&path);
+    if !target.is_dir() {
+        return Err(format!("Source introuvable : {path}"));
+    }
+    let norm = normalize_path(&path);
+    let removable = enumerate_removable_volumes().into_iter().find(|v| {
+        let v_norm = normalize_path(&v.root_path);
+        norm.eq_ignore_ascii_case(&v_norm) || is_inside_folder(&v.root_path, &path)
+    });
+    let (media_id, label, ejectable) = match removable {
+        Some(vol) => (vol.media_id, vol.label, true),
+        None => {
+            let label = target
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| path.clone());
+            (format!("folder:{}", norm.to_lowercase()), label, false)
+        }
+    };
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let (last_import_at, last_imported_file_dt): (i64, String) = conn
+        .query_row(
+            "SELECT last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
+            params![media_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap_or((0, String::new()));
+
+    let storage_kind = detect_storage_kind(target).to_string();
+    Ok(SourceInfo {
+        media_id,
+        label,
+        root_path: path,
+        ejectable,
+        storage_kind,
+        last_import_at,
+        last_imported_file_dt,
+    })
+}
+
+pub(crate) fn scan_source_fast_with_conn(
+    conn: &Connection,
+    root_path: &str,
+    media_id: &str,
+    cancel: &AtomicBool,
+) -> Result<ImportScanResult, String> {
+    let root = Path::new(root_path);
+    if !root.is_dir() {
+        return Err(format!("Source introuvable : {root_path}"));
+    }
+
+    // Load import memory for this media_id once: (relative_path, file_size, file_mtime) -> dest_path
+    let mut memory_set: HashMap<(String, i64, i64), String> = HashMap::new();
+    {
+        let mut stmt = conn
+            .prepare("SELECT relative_path, file_size, file_mtime, dest_path FROM import_history WHERE media_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map(params![media_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        for row in rows.flatten() {
+            memory_set.insert((row.0.to_lowercase(), row.1, row.2), row.3);
+        }
+    }
+
+    // Load (lowercase filename, file_size) -> existing path from catalogue photos.
+    let mut library_index: HashMap<(String, i64), String> = HashMap::new();
+    {
+        let mut stmt = conn
+            .prepare("SELECT filename, file_size, path FROM photos WHERE filename IS NOT NULL AND file_size > 0")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        for row in rows.flatten() {
+            library_index.entry((row.0.to_lowercase(), row.1)).or_insert(row.2);
+        }
+    }
+
+    let (last_import_at, last_imported_file_dt): (i64, String) = conn
+        .query_row(
+            "SELECT last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
+            params![media_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap_or((0, String::new()));
+
+    let mut folder_map: HashMap<String, ImportFolderEntry> = HashMap::new();
+    let mut files = Vec::new();
+    let mut total_size = 0u64;
+
+    for entry in WalkDir::new(root).into_iter().filter_map(|e| e.ok()) {
+        if cancel.load(Ordering::Relaxed) {
+            break;
+        }
+        let path = entry.path();
+        let rel = path
+            .strip_prefix(root)
+            .map(|r| normalize_path(&r.to_string_lossy()))
+            .unwrap_or_default();
+
+        if entry.file_type().is_dir() {
+            let folder_key = normalize_path(&path.to_string_lossy());
+            let name = if rel.is_empty() {
+                root.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| root_path.to_string())
+            } else {
+                path.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            };
+            folder_map.entry(folder_key.clone()).or_insert(ImportFolderEntry {
+                path: folder_key,
+                relative_path: rel,
+                name,
+                raw_count: 0,
+                raster_count: 0,
+                video_count: 0,
+                total_count: 0,
+            });
+            continue;
+        }
+
+        if !library_sync::is_photo_file(path) {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        let size = meta.len();
+        let mtime = library_sync::modified_millis(&meta);
+        total_size += size;
+
+        let kind = file_kind(path);
+        let parent_key = path
+            .parent()
+            .map(|p| normalize_path(&p.to_string_lossy()))
+            .unwrap_or_else(|| normalize_path(root_path));
+        if let Some(folder) = folder_map.get_mut(&parent_key) {
+            match kind {
+                "raw" => folder.raw_count += 1,
+                "video" => folder.video_count += 1,
+                _ => folder.raster_count += 1,
+            }
+            folder.total_count += 1;
+        }
+
+        let filename = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let extension = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+
+        let (status, existing_path) = if let Some(dest) =
+            memory_set.get(&(rel.to_lowercase(), size as i64, mtime))
+        {
+            ("imported_memory".to_string(), Some(dest.clone()))
+        } else if let Some(lib_path) = library_index.get(&(filename.to_lowercase(), size as i64)) {
+            ("in_library".to_string(), Some(lib_path.clone()))
+        } else {
+            ("new".to_string(), None)
+        };
+
+        files.push(ImportSourceFile {
+            path: path.to_string_lossy().into_owned(),
+            relative_path: rel,
+            folder_path: parent_key,
+            filename,
+            extension,
+            kind: kind.to_string(),
+            size,
+            mtime,
+            date_taken: String::new(),
+            orientation: 1,
+            status,
+            existing_path,
+        });
+    }
+
+    let mut folders: Vec<ImportFolderEntry> = folder_map.into_values().collect();
+    folders.sort_by(|a, b| a.relative_path.to_lowercase().cmp(&b.relative_path.to_lowercase()));
+
+    Ok(ImportScanResult {
+        folders,
+        files,
+        total_size,
+        last_import_at,
+        last_imported_file_dt,
+    })
+}
+
+#[tauri::command]
+pub async fn scan_import_source_fast(
+    state: State<'_, AppState>,
+    root_path: String,
+    media_id: String,
+    task_id: String,
+) -> Result<ImportScanResult, String> {
+    let pool = state.pool();
+    let cancel = scan_cancel_flag(&task_id);
+    let outcome = tokio::task::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        scan_source_fast_with_conn(&conn, &root_path, &media_id, &cancel)
+    })
+    .await;
+    release_scan_cancel_flag(&task_id);
+    outcome.map_err(|e| e.to_string())?
+}
+
+/// Pass 2: lightweight EXIF reading on up to 2 threads + optional partial-hash disambiguation
+/// for ambiguous `new` files whose `date_taken` matches an existing library photo.
+pub(crate) fn read_source_exif_with_pool(
+    pool: &DbPool,
+    paths: &[String],
+    check_ambiguous: bool,
+    cancel: &AtomicBool,
+    on_batch: impl Fn(Vec<ImportExifEntry>, usize, usize) + Sync,
+) -> Result<Vec<ImportExifEntry>, String> {
+    // Load existing library photos indexed by date_taken for ambiguous-candidate lookup.
+    let mut by_date: HashMap<String, Vec<(i64, String, Option<Vec<u8>>)>> = HashMap::new();
+    if check_ambiguous {
+        if let Ok(conn) = pool.get() {
+            if let Ok(mut stmt) = conn.prepare(
+                "SELECT p.id, p.path, p.date_taken, h.partial_hash
+                 FROM photos p
+                 LEFT JOIN photo_hashes h ON h.photo_id = p.id AND h.mode = 1
+                 WHERE p.date_taken IS NOT NULL AND p.date_taken >= '1000'",
+            ) {
+                if let Ok(rows) = stmt.query_map([], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<Vec<u8>>>(3)?,
+                    ))
+                }) {
+                    for row in rows.flatten() {
+                        by_date.entry(row.2).or_default().push((row.0, row.1, row.3));
+                    }
+                }
+            }
+        }
+    }
+
+    let total = paths.len();
+    let done = std::sync::atomic::AtomicUsize::new(0);
+    let thread_pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let entries: Vec<ImportExifEntry> = thread_pool.install(|| {
+        let mut all = Vec::with_capacity(total);
+        for chunk in paths.chunks(40) {
+            if cancel.load(Ordering::Relaxed) {
+                break;
+            }
+            let batch: Vec<ImportExifEntry> = chunk
+                .par_iter()
+                .filter_map(|path_str| {
+                    if cancel.load(Ordering::Relaxed) {
+                        return None;
+                    }
+                    let path = Path::new(path_str);
+                    if video::is_video_path(path) {
+                        return None;
+                    }
+                    // Yield briefly while interactive thumbnail requests are reading from the SD card.
+                    for _ in 0..40 {
+                        if cancel.load(Ordering::Relaxed) || ACTIVE_IMPORT_THUMBS.load(Ordering::Relaxed) == 0 {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(25));
+                    }
+                    let (date_taken, orientation) = read_lightweight_exif(path);
+                    let mut status = None;
+                    let mut existing_path = None;
+                    if check_ambiguous && !date_taken.is_empty() {
+                        if let Some(candidates) = by_date.get(&date_taken) {
+                            if let Ok((_, src_partial)) = crate::duplicates::quick_partial_hash(path) {
+                                for (_id, lib_path, cached_partial) in candidates {
+                                    let lib_hash = if let Some(bytes) = cached_partial {
+                                        bytes.as_slice().try_into().ok()
+                                    } else {
+                                        crate::duplicates::quick_partial_hash(Path::new(lib_path))
+                                            .ok()
+                                            .map(|(_, h)| h)
+                                    };
+                                    if lib_hash == Some(src_partial) {
+                                        status = Some("in_library".to_string());
+                                        existing_path = Some(lib_path.clone());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Some(ImportExifEntry {
+                        path: path_str.clone(),
+                        date_taken,
+                        orientation,
+                        status,
+                        existing_path,
+                    })
+                })
+                .collect();
+            let current = done.fetch_add(chunk.len(), Ordering::Relaxed) + chunk.len();
+            if !batch.is_empty() {
+                on_batch(batch.clone(), current.min(total), total);
+                all.extend(batch);
+            }
+        }
+        all
+    });
+    Ok(entries)
+}
+
+fn read_lightweight_exif(path: &Path) -> (String, u32) {
+    thumbnails::read_fast_exif_fields(path)
+}
+
+#[tauri::command]
+pub async fn read_import_source_exif(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    check_ambiguous: bool,
+    task_id: String,
+) -> Result<Vec<ImportExifEntry>, String> {
+    let pool = state.pool();
+    let cancel = scan_cancel_flag(&task_id);
+    let worker_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        read_source_exif_with_pool(&pool, &paths, check_ambiguous, &cancel, |entries, done, total| {
+            let _ = app.emit(
+                "import-exif-progress",
+                ImportExifProgress {
+                    task_id: worker_id.clone(),
+                    entries,
+                    done,
+                    total,
+                },
+            );
+        })
+    })
+    .await;
+    release_scan_cancel_flag(&task_id);
+    outcome.map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// RAM-only thumbnails & previews (never touches disk cache or WebView file locks)
+// ---------------------------------------------------------------------------
+
+static IMPORT_THUMB_GATE: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
+static ACTIVE_IMPORT_THUMBS: AtomicUsize = AtomicUsize::new(0);
+
+struct ThumbActiveGuard;
+
+impl ThumbActiveGuard {
+    fn new() -> Self {
+        ACTIVE_IMPORT_THUMBS.fetch_add(1, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for ThumbActiveGuard {
+    fn drop(&mut self) {
+        ACTIVE_IMPORT_THUMBS.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+fn import_thumb_gate() -> &'static tokio::sync::Semaphore {
+    IMPORT_THUMB_GATE.get_or_init(|| tokio::sync::Semaphore::new(4))
+}
+
+#[tauri::command]
+pub async fn get_import_thumbnail(
+    source_path: String,
+    max_side: Option<u32>,
+) -> Result<tauri::ipc::Response, String> {
+    let _active = ThumbActiveGuard::new();
+    let _permit = import_thumb_gate()
+        .acquire()
+        .await
+        .map_err(|e| e.to_string())?;
+    let side = max_side.unwrap_or(270).clamp(128, 512) as usize;
+    let bytes = tokio::task::spawn_blocking(move || {
+        thumbnails::render_fast_import_thumbnail_bytes(Path::new(&source_path), side, 75)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn get_import_preview(source_path: String) -> Result<tauri::ipc::Response, String> {
+    let bytes = tokio::task::spawn_blocking(move || {
+        thumbnails::render_preview_jpeg_bytes(Path::new(&source_path))
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+// ---------------------------------------------------------------------------
+// Destination subfolder computation, conflict detection & chronological copy
+// ---------------------------------------------------------------------------
+
+pub(crate) fn compute_target_dir(
+    base_dir: &Path,
+    item: &ImportCopyItem,
+    options: &ImportSubfolderOptions,
+) -> Result<PathBuf, String> {
+    let mut dir = base_dir.to_path_buf();
+    let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
+    let y = dt.get(0..4).unwrap_or("0000");
+    let m = dt.get(4..6).unwrap_or("00");
+    let d = dt.get(6..8).unwrap_or("00");
+
+    let push_validated = |target: &mut PathBuf, segment: &str| -> Result<(), String> {
+        let valid = validate_new_name(segment)?;
+        target.push(valid);
+        Ok(())
+    };
+
+    match options.subfolder_mode.as_str() {
+        "custom" => {
+            if !options.custom_subfolder.trim().is_empty() {
+                push_validated(&mut dir, &options.custom_subfolder)?;
+            }
+        }
+        "yyyy_mm_dd" => push_validated(&mut dir, &format!("{y}-{m}-{d}"))?,
+        "yyyy/yyyy_mm_dd" => {
+            push_validated(&mut dir, y)?;
+            push_validated(&mut dir, &format!("{y}-{m}-{d}"))?;
+        }
+        "yyyy/mm" => {
+            push_validated(&mut dir, y)?;
+            push_validated(&mut dir, m)?;
+        }
+        "yyyy_mm_dd_custom" => {
+            let suffix = options.custom_subfolder.trim();
+            let folder_name = if suffix.is_empty() {
+                format!("{y}-{m}-{d}")
+            } else {
+                format!("{y}-{m}-{d}_{suffix}")
+            };
+            push_validated(&mut dir, &folder_name)?;
+        }
+        _ => {}
+    }
+
+    if options.split_by_type {
+        let type_name = match item.kind.as_str() {
+            "raw" => options.subfolder_raw.trim(),
+            "video" => options.subfolder_video.trim(),
+            _ => options.subfolder_raster.trim(),
+        };
+        if !type_name.is_empty() {
+            push_validated(&mut dir, type_name)?;
+        }
+    }
+    Ok(dir)
+}
+
+#[tauri::command(async)]
+pub fn check_import_conflicts(
+    state: State<'_, AppState>,
+    items: Vec<ImportCopyItem>,
+    options: ImportSubfolderOptions,
+) -> Result<Vec<ImportConflict>, String> {
+    let pool = state.pool();
+    let base_dir = resolve_tracked_folder(&pool, &options.base_destination)
+        .ok_or_else(|| format!("Dossier non suivi : {}", options.base_destination))?;
+    let mut by_dir: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    for item in &items {
+        let target_dir = compute_target_dir(&base_dir, item, &options)?;
+        by_dir
+            .entry(target_dir)
+            .or_default()
+            .push(item.source_path.clone());
+    }
+    let mut conflicts = Vec::new();
+    for (dir, paths) in by_dir {
+        if !dir.is_dir() {
+            continue;
+        }
+        let dir_str = dir.to_string_lossy().into_owned();
+        for c in find_copy_conflicts(&paths, &dir) {
+            conflicts.push(ImportConflict {
+                conflict: c,
+                target_dir: dir_str.clone(),
+            });
+        }
+    }
+    Ok(conflicts)
+}
+
+pub(crate) fn run_import_copy_with(
+    pool: &DbPool,
+    base_dir: &Path,
+    request: ImportCopyRequest,
+    cancel: &AtomicBool,
+    on_progress: impl Fn(u32),
+) -> Result<ImportCopyResult, String> {
+    let _priority = semantic::PriorityGuard::new();
+    let dest_root = resolve_tracked_folder(pool, &request.options.base_destination)
+        .ok_or_else(|| format!("Dossier non suivi : {}", request.options.base_destination))?;
+    if !dest_root.is_dir() {
+        return Err(format!(
+            "Dossier de destination introuvable : {}",
+            dest_root.display()
+        ));
+    }
+
+    // Sort items chronologically ascending so pause/stop and resume stay consistent.
+    let mut items = request.items;
+    items.sort_by(|a, b| {
+        let ka = format_dt_14_from_exif_or_mtime(&a.date_taken, a.mtime);
+        let kb = format_dt_14_from_exif_or_mtime(&b.date_taken, b.mtime);
+        ka.cmp(&kb).then_with(|| a.source_path.cmp(&b.source_path))
+    });
+
+    let total_bytes: u64 = items.iter().map(|i| i.size.max(1)).sum::<u64>().max(1);
+    let mut done_bytes = 0u64;
+
+    let mut copied = Vec::new();
+    let mut skipped = Vec::new();
+    let mut failed = Vec::new();
+    let mut renamed_for_sidecar = Vec::new();
+    let mut pending_history: Vec<(ImportCopyItem, String, i64)> = Vec::new();
+    let mut latest_dt = String::new();
+    let mut cancelled = false;
+    let norm_root = normalize_path(&request.root_folder);
+
+    let flush_history = |batch: &mut Vec<(ImportCopyItem, String, i64)>, latest: &str| {
+        if batch.is_empty() {
+            return;
+        }
+        let Ok(conn) = pool.get() else {
+            batch.clear();
+            return;
+        };
+        let now = library_sync::now_millis();
+        if let Ok(tx) = conn.unchecked_transaction() {
+            for (item, dest_path, imported_at) in batch.drain(..) {
+                let _ = tx.execute(
+                    "INSERT OR REPLACE INTO import_history
+                     (media_id, root_folder, relative_path, filename, file_size, file_mtime, date_taken, dest_path, imported_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    params![
+                        request.media_id,
+                        norm_root,
+                        item.relative_path,
+                        item.filename,
+                        item.size as i64,
+                        item.mtime,
+                        item.date_taken,
+                        dest_path,
+                        imported_at
+                    ],
+                );
+            }
+            if !latest.is_empty() {
+                let _ = tx.execute(
+                    "INSERT INTO import_devices (media_id, last_import_at, last_imported_file_dt)
+                     VALUES (?1, ?2, ?3)
+                     ON CONFLICT(media_id) DO UPDATE SET
+                       last_import_at = excluded.last_import_at,
+                       last_imported_file_dt = CASE
+                         WHEN excluded.last_imported_file_dt > import_devices.last_imported_file_dt
+                         THEN excluded.last_imported_file_dt
+                         ELSE import_devices.last_imported_file_dt
+                       END",
+                    params![request.media_id, now, latest],
+                );
+            }
+            if RETENTION_30D.load(Ordering::Relaxed) {
+                let cutoff = now - 30 * 86_400_000;
+                let _ = tx.execute(
+                    "DELETE FROM import_history WHERE media_id = ?1 AND imported_at < ?2",
+                    params![request.media_id, cutoff],
+                );
+            }
+            let _ = tx.commit();
+        };
+    };
+
+    for item in items {
+        if cancel.load(Ordering::Relaxed) {
+            cancelled = true;
+            break;
+        }
+        let item_size = item.size.max(1);
+        let source = Path::new(&item.source_path);
+        let target_dir = match compute_target_dir(&dest_root, &item, &request.options) {
+            Ok(d) => d,
+            Err(error) => {
+                failed.push(FileFailure {
+                    path: item.source_path.clone(),
+                    error,
+                });
+                done_bytes += item.size.max(1);
+                on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
+                continue;
+            }
+        };
+        if let Err(error) = fs::create_dir_all(&target_dir) {
+            failed.push(FileFailure {
+                path: item.source_path.clone(),
+                error: format!("Impossible de créer le dossier cible : {error}"),
+            });
+            done_bytes += item.size.max(1);
+            on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
+            continue;
+        }
+        let Some(file_name) = source.file_name() else {
+            failed.push(FileFailure {
+                path: item.source_path.clone(),
+                error: "Nom de fichier invalide".into(),
+            });
+            done_bytes += item.size.max(1);
+            on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
+            continue;
+        };
+
+        let exact = target_dir.join(file_name);
+        let policy = if exact.is_file() {
+            request
+                .resolutions
+                .get(&item.source_path)
+                .map(String::as_str)
+                .unwrap_or_else(|| request.collision_policy.as_str())
+        } else {
+            "rename"
+        };
+
+        if policy == "skip" {
+            skipped.push(ImportFileNote {
+                path: item.source_path.clone(),
+                reason: "already_exists".into(),
+            });
+        } else if policy == "replace" {
+            match copy_replacing(source, &exact) {
+                Ok(()) => {
+                    if request.verify_videos && video::is_video_path(source) {
+                        if !files_have_same_hash(source, &exact).unwrap_or(false) {
+                            let _ = fs::remove_file(&exact);
+                            failed.push(FileFailure {
+                                path: item.source_path.clone(),
+                                error: "Vérification SHA-256 échouée après copie vidéo".into(),
+                            });
+                            done_bytes += item.size.max(1);
+                            on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
+                            continue;
+                        }
+                    }
+                    if let Err(error) = copy_sidecar(source, &exact, true) {
+                        failed.push(FileFailure {
+                            path: item.source_path.clone(),
+                            error: format!("Sidecar XMP non copié : {error}"),
+                        });
+                    }
+                    let dest_str = exact.to_string_lossy().into_owned();
+                    let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
+                    if dt > latest_dt {
+                        latest_dt = dt;
+                    }
+                    copied.push(CopiedImportFile {
+                        source_path: item.source_path.clone(),
+                        dest_path: dest_str.clone(),
+                        filename: item.filename.clone(),
+                        kind: item.kind.clone(),
+                    });
+                    pending_history.push((item, dest_str, library_sync::now_millis()));
+                }
+                Err(error) => failed.push(FileFailure {
+                    path: item.source_path.clone(),
+                    error: error.to_string(),
+                }),
+            }
+        } else {
+            match reserve_destination(&target_dir, file_name) {
+                Err(error) => failed.push(FileFailure {
+                    path: item.source_path.clone(),
+                    error: format!("Destination impossible à créer : {error}"),
+                }),
+                Ok(reserved) => match copy_atomically_to_reserved(source, &reserved.path) {
+                    Ok(()) => {
+                        if request.verify_videos && video::is_video_path(source) {
+                            if !files_have_same_hash(source, &reserved.path).unwrap_or(false) {
+                                let _ = fs::remove_file(&reserved.path);
+                                failed.push(FileFailure {
+                                    path: item.source_path.clone(),
+                                    error: "Vérification SHA-256 échouée après copie vidéo".into(),
+                                });
+                                done_bytes += item.size.max(1);
+                                on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
+                                continue;
+                            }
+                        }
+                        if let Err(error) = copy_sidecar(source, &reserved.path, false) {
+                            failed.push(FileFailure {
+                                path: item.source_path.clone(),
+                                error: format!("Sidecar XMP non copié : {error}"),
+                            });
+                        }
+                        if let Some(sr) = reserved.sidecar_rename(&item.source_path) {
+                            renamed_for_sidecar.push(sr);
+                        }
+                        let dest_str = reserved.path.to_string_lossy().into_owned();
+                        let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
+                        if dt > latest_dt {
+                            latest_dt = dt;
+                        }
+                        copied.push(CopiedImportFile {
+                            source_path: item.source_path.clone(),
+                            dest_path: dest_str.clone(),
+                            filename: item.filename.clone(),
+                            kind: item.kind.clone(),
+                        });
+                        pending_history.push((item, dest_str, library_sync::now_millis()));
+                    }
+                    Err(error) => failed.push(FileFailure {
+                        path: item.source_path.clone(),
+                        error: error.to_string(),
+                    }),
+                },
+            }
+        }
+
+        if pending_history.len() >= 10 {
+            flush_history(&mut pending_history, &latest_dt);
+        }
+        done_bytes += item_size;
+        on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
+    }
+
+    flush_history(&mut pending_history, &latest_dt);
+    let log_path = log_sidecar_renames(base_dir, "import", &renamed_for_sidecar);
+    Ok(ImportCopyResult {
+        copied,
+        skipped,
+        failed,
+        cancelled,
+        renamed_for_sidecar,
+        log_path,
+    })
+}
+
+#[tauri::command]
+pub async fn run_import_copy(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request: ImportCopyRequest,
+    task_id: String,
+) -> Result<ImportCopyResult, String> {
+    let pool = state.pool();
+    let base_dir = state.base_dir();
+    let cancel = scan_cancel_flag(&task_id);
+    let worker_id = task_id.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        run_import_copy_with(&pool, &base_dir, request, &cancel, |percent| {
+            let _ = app.emit(
+                "scan-progress",
+                ScanProgress {
+                    task_id: worker_id.clone(),
+                    percent,
+                },
+            );
+        })
+    })
+    .await;
+    release_scan_cancel_flag(&task_id);
+    outcome.map_err(|e| e.to_string())?
+}
+
+/// Indexes only the newly imported destination files using `library_sync::read_photo` and `store_read_batch`,
+/// returning the resulting `Photo` rows (with SQLite IDs) for immediate post-import tasks.
+pub(crate) fn index_paths_with_pool(pool: &DbPool, paths: &[String]) -> Result<Vec<Photo>, String> {
+    let _priority = semantic::PriorityGuard::new();
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let thread_pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(2)
+        .build()
+        .map_err(|e| e.to_string())?;
+    let read_results: Vec<(Photo, i64, Vec<Vec<String>>, crate::faces::PhotoFaces)> = thread_pool.install(|| {
+        paths
+            .par_iter()
+            .filter_map(|p| {
+                let meta = fs::metadata(p).ok()?;
+                let size = meta.len() as i64;
+                let modified = library_sync::modified_millis(&meta);
+                let (photo, keywords, faces) = library_sync::read_photo(p, size, modified).ok()?;
+                Some((photo, modified, keywords, faces))
+            })
+            .collect()
+    });
+
+    if !read_results.is_empty() {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let mut iter = read_results.into_iter();
+        loop {
+            let mut photos_batch = Vec::new();
+            let mut modified_batch = Vec::new();
+            let mut keyword_batch = Vec::new();
+            let mut face_batch = Vec::new();
+            for (photo, modified, keywords, faces) in iter.by_ref().take(500) {
+                modified_batch.push((photo.path.clone(), modified));
+                keyword_batch.push((photo.path.clone(), keywords));
+                face_batch.push((photo.path.clone(), faces));
+                photos_batch.push(photo);
+            }
+            if photos_batch.is_empty() {
+                break;
+            }
+            library_sync::store_read_batch(&conn, &photos_batch, &modified_batch, &keyword_batch, &face_batch)?;
+        }
+    }
+
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for chunk in paths.chunks(500) {
+        let placeholders: String = (1..=chunk.len())
+            .map(|i| format!("?{i}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!("SELECT {} FROM photos WHERE path IN ({placeholders})", db::PHOTO_COLUMNS);
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+        let params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
+        let rows = stmt
+            .query_map(params.as_slice(), db::photo_from_row)
+            .map_err(|e| e.to_string())?;
+        for row in rows.flatten() {
+            out.push(row);
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn index_imported_photos(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<Vec<Photo>, String> {
+    let pool = state.pool();
+    tokio::task::spawn_blocking(move || index_paths_with_pool(&pool, &paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
+// Device & history management (Settings)
+// ---------------------------------------------------------------------------
+
+#[tauri::command(async)]
+pub fn list_import_devices(state: State<'_, AppState>) -> Result<Vec<ImportDeviceRecord>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT d.media_id, d.last_label, d.last_root_path, d.policy, d.last_seen_at,
+                    d.last_import_at, d.last_imported_file_dt, COUNT(h.id)
+             FROM import_devices d
+             LEFT JOIN import_history h ON h.media_id = d.media_id
+             GROUP BY d.media_id
+             ORDER BY d.last_seen_at DESC, d.last_label ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(ImportDeviceRecord {
+                media_id: row.get(0)?,
+                last_label: row.get(1)?,
+                last_root_path: row.get(2)?,
+                policy: row.get(3)?,
+                last_seen_at: row.get(4)?,
+                last_import_at: row.get(5)?,
+                last_imported_file_dt: row.get(6)?,
+                history_count: row.get(7)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub fn set_import_device_policy(
+    state: State<'_, AppState>,
+    media_id: String,
+    policy: String,
+) -> Result<(), String> {
+    let clean_policy = match policy.as_str() {
+        "whitelist" | "blacklist" | "normal" => policy,
+        _ => return Err("Politique invalide".into()),
+    };
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO import_devices (media_id, policy) VALUES (?1, ?2)
+         ON CONFLICT(media_id) DO UPDATE SET policy = excluded.policy",
+        params![media_id, clean_policy],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command(async)]
+pub fn delete_import_device(state: State<'_, AppState>, media_id: String) -> Result<(), String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM import_history WHERE media_id = ?1", params![media_id])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM import_devices WHERE media_id = ?1", params![media_id])
+        .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
+pub fn purge_import_history(
+    state: State<'_, AppState>,
+    media_id: Option<String>,
+    older_than_days: Option<u32>,
+) -> Result<usize, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let deleted = match (media_id, older_than_days) {
+        (Some(id), Some(days)) => {
+            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
+            conn.execute(
+                "DELETE FROM import_history WHERE media_id = ?1 AND imported_at < ?2",
+                params![id, cutoff],
+            )
+            .map_err(|e| e.to_string())?
+        }
+        (Some(id), None) => conn
+            .execute("DELETE FROM import_history WHERE media_id = ?1", params![id])
+            .map_err(|e| e.to_string())?,
+        (None, Some(days)) => {
+            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
+            conn.execute("DELETE FROM import_history WHERE imported_at < ?1", params![cutoff])
+                .map_err(|e| e.to_string())?
+        }
+        (None, None) => conn
+            .execute("DELETE FROM import_history", [])
+            .map_err(|e| e.to_string())?,
+    };
+    Ok(deleted)
+}
+
+// ---------------------------------------------------------------------------
+// Saved import recipes (Subfolders + After copy)
+// ---------------------------------------------------------------------------
+
+const MAX_IMPORT_PRESET_NAME: usize = 100;
+const MAX_IMPORT_PRESET_CONFIG: usize = 64_000;
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPreset {
+    pub id: i64,
+    pub name: String,
+    pub config: String,
+}
+
+pub(crate) fn list_presets_with_conn(conn: &Connection) -> Result<Vec<ImportPreset>, String> {
+    let mut stmt = conn
+        .prepare("SELECT id, name, config FROM import_presets ORDER BY name_key")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(ImportPreset {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                config: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+pub(crate) fn save_preset_with_conn(
+    conn: &Connection,
+    name: &str,
+    config: &str,
+) -> Result<Vec<ImportPreset>, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("empty_name".into());
+    }
+    if trimmed.chars().count() > MAX_IMPORT_PRESET_NAME {
+        return Err("name_too_long".into());
+    }
+    if config.len() > MAX_IMPORT_PRESET_CONFIG || !config.trim_start().starts_with('{') {
+        return Err("invalid_config".into());
+    }
+    conn.execute(
+        "INSERT INTO import_presets (name, name_key, config) VALUES (?1, ?2, ?3)
+         ON CONFLICT(name_key) DO UPDATE SET name = excluded.name, config = excluded.config",
+        params![trimmed, trimmed.to_lowercase(), config],
+    )
+    .map_err(|e| e.to_string())?;
+    list_presets_with_conn(conn)
+}
+
+pub(crate) fn delete_preset_with_conn(conn: &Connection, id: i64) -> Result<Vec<ImportPreset>, String> {
+    conn.execute("DELETE FROM import_presets WHERE id = ?1", params![id])
+        .map_err(|e| e.to_string())?;
+    list_presets_with_conn(conn)
+}
+
+#[tauri::command(async)]
+pub fn list_import_presets(state: State<'_, AppState>) -> Result<Vec<ImportPreset>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    list_presets_with_conn(&conn)
+}
+
+#[tauri::command(async)]
+pub fn save_import_preset(
+    state: State<'_, AppState>,
+    name: String,
+    config: String,
+) -> Result<Vec<ImportPreset>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    save_preset_with_conn(&conn, &name, &config)
+}
+
+#[tauri::command(async)]
+pub fn delete_import_preset(state: State<'_, AppState>, id: i64) -> Result<Vec<ImportPreset>, String> {
+    let pool = state.pool();
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    delete_preset_with_conn(&conn, id)
+}
+
+#[cfg(test)]
+#[path = "tests/import.rs"]
+mod tests;

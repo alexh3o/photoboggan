@@ -66,6 +66,8 @@ import { initSlideshow, startSlideshow, stopSlideshow, toggleSlideshowPause, isS
 import { initToolbarAria } from './toolbar-a11y.js';
 import { initPrivacy, onPrivacyChange, isHiddenKeyword, hasActivePrivacy } from './privacy.js';
 import { initTitleBar } from './titlebar.js';
+import { initImportView, openImportView, closeImportView, isImportViewOpen } from './import-view.js';
+import { initImportSettings } from './import-settings.js';
 import { orientationMatrix, swapsSides } from './orientation.js';
 import {
   initFolderTree, renderFolderTree, updateActiveFolderRows, scheduleFolderCounts, refreshDiskFoldersIfShown,
@@ -3446,6 +3448,7 @@ function refreshRotatedPhotos(turned, quarterTurns, reordered = false) {
 // filter field of the sidebar. Alt+K / Alt+D also work from another field (Alt+letter types nothing); Shift+K types a "K" there, so it only
 // applies outside text fields. Handled before the photo shortcuts below, where K alone (with or without Shift) switches the Keywords tab.
 window.addEventListener('keydown', e => {
+  if (isImportViewOpen()) return;
   if (e.ctrlKey || e.metaKey || isFullscreenOpen() || document.querySelector('.modal:not(.hidden)')) return;
   const key = e.code === 'KeyK' ? 'k' : e.code === 'KeyD' ? 'd' : e.key.toLowerCase();
   const typing = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
@@ -3461,6 +3464,7 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('keydown', e => {
+  if (isImportViewOpen()) return;
   if (!e.altKey || e.ctrlKey || e.metaKey || !(e.key.toLowerCase() === 'v' || e.code === 'KeyV')) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   if (document.querySelector('.modal:not(.hidden)')) return;
@@ -3469,6 +3473,7 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (isImportViewOpen()) return;
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
   // Vue Visages ouverte (hors plein écran) : les raccourcis des photos (suppression, note, copie…) ne s'appliquent pas à la grille masquée ;
   // seul le guide (G) reste disponible, et seulement sans visage sélectionné (une lettre tapée commence alors un nom). Les touches de la vue
@@ -5612,7 +5617,11 @@ initBatchRename({
 
 initPhotoActions({
   // "Collapse all" / "Expand to the selected photo" entries, shared by the Folders title menu and the "All photos" menu (photo-actions.js).
-  foldersMenuItems,
+  foldersMenuItems: () => [
+    ...foldersMenuItems(),
+    { label: t('Import photos…'), title: t('Import photos from a memory card or folder'), onSelect: () => openImportView() },
+  ],
+  openImport: options => openImportView(options),
   // "Turn" submenu (lossless rotation, see rotatePhotos): only the HEIC / HEIF and videos of the targets are left out.
   isRotatablePath,
   rotatePhotos: (targets, quarterTurns) => rotatePhotos(quarterTurns, targets),
@@ -5894,10 +5903,10 @@ initSlideshow({
 });
 initHistogram({
   // Éléments dont un redimensionnement ou un changement de classe / d'attribut hidden déplace ou masque l'histogramme.
-  watch: [mainContent, gridContainer, previewStage, mapPanelElement, listPanelElement, personsViewElement, facesViewElement, document.getElementById('fullscreen-view'), document.getElementById('exif-panel')],
+  watch: [mainContent, gridContainer, previewStage, mapPanelElement, listPanelElement, personsViewElement, facesViewElement, document.getElementById('import-view'), document.getElementById('fullscreen-view'), document.getElementById('exif-panel')],
   getView: () => {
     const photo = selectedIndices.size > 0 ? photos[lastSelectedIndex] ?? null : null;
-    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden;
+    const otherViewOpen = gridContainer.hidden || !mapPanelElement.hidden || !personsViewElement.hidden || !facesViewElement.hidden || isImportViewOpen();
     const previewShown = !mainContent.classList.contains('preview-hidden');
     const fullscreen = isFullscreenOpen();
     const fullscreenSlot = getFullscreenSlot();
@@ -6161,6 +6170,39 @@ initUndo({
   colorFlagLabels,
   pickFlags: PICK_FLAGS,
 });
+
+initImportView({
+  showToast: (message, action, duration) => showWriteToast(message, false, action, duration),
+  enqueueTask: task => enqueueScanTask(task),
+  keepTaskReady: (task, props, opts) => keepTaskReady(task, props, opts),
+  isFaceDetectionEnabled: () => isFaceDetectionEnabled(),
+  isSemanticEnabled: () => isSemanticEnabled(),
+  prepareOpenImport: async () => {
+    if (isFullscreenOpen()) closeFullscreen();
+    if (isMapModeOpen() && !(await requestCloseMapMode())) return false;
+    if (isFacesViewOpen() && !(await requestCloseFacesView())) return false;
+    closePersonsView();
+    closeFacesView();
+    closeListView();
+    return true;
+  },
+  onImportIndexed: () => reloadPhotosAfterRescan(),
+  onImportClosed: () => { requestAnimationFrame(updateVirtualScroller); },
+});
+
+initImportSettings({
+  showToast: (message, action, duration) => showWriteToast(message, false, action, duration),
+  openImport: options => openImportView(options),
+  closeImport: () => closeImportView(),
+  isImportOpen: () => isImportViewOpen(),
+  isBusyViewOpen: () => isFullscreenOpen() || isImportViewOpen() || Boolean(document.querySelector('.modal:not(.hidden)')),
+});
+
+for (const id of ['btn-toggle-faces', 'btn-toggle-map', 'btn-toggle-list', 'btn-toggle-compare']) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    if (isImportViewOpen()) closeImportView();
+  }, true);
+}
 
 // ==========================================
 // SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions)

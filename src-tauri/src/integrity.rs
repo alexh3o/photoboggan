@@ -547,14 +547,36 @@ pub fn run_with_hashes(
     progress: &(dyn Fn(f64) + Sync),
     on_folder: &(dyn Fn(&str) + Sync),
 ) -> Result<IntegrityReport, String> {
+    run_with_options(folder, None, thumbnails_dir, max_side, pool, compute_hashes, cancel, progress, on_folder)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_with_options(
+    folder: &Path,
+    paths: Option<&[PathBuf]>,
+    thumbnails_dir: &Path,
+    max_side: usize,
+    pool: Option<&DbPool>,
+    compute_hashes: bool,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(f64) + Sync),
+    on_folder: &(dyn Fn(&str) + Sync),
+) -> Result<IntegrityReport, String> {
     let started = Instant::now();
-    let entries: Vec<PathBuf> = WalkDir::new(folder)
-        .into_iter()
-        .take_while(|_| !cancel.load(Ordering::Relaxed))
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| !entry.file_type().is_dir() && library_sync::is_photo_file(entry.path()))
-        .map(|entry| entry.into_path())
-        .collect();
+    let entries: Vec<PathBuf> = match paths {
+        Some(list) => list
+            .iter()
+            .filter(|path| path.is_file() && library_sync::is_photo_file(path))
+            .cloned()
+            .collect(),
+        None => WalkDir::new(folder)
+            .into_iter()
+            .take_while(|_| !cancel.load(Ordering::Relaxed))
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| !entry.file_type().is_dir() && library_sync::is_photo_file(entry.path()))
+            .map(|entry| entry.into_path())
+            .collect(),
+    };
 
     let total = entries.len();
     let step = (total / 100).max(1);

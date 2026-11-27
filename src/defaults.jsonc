@@ -224,5 +224,67 @@
   // Active multi-column sort of the List panel: [{ col, dir }] (max 9 levels).
   "listSort": [],
   // Re-sort the thumbnail grid to match the List panel sort while the List panel is open (disabled on paged views > 50,000 photos).
-  "listSyncGridSort": true
+  "listSyncGridSort": true,
+
+  // ---------------------------------------------------------------- Settings: Import
+  // Automatically detect connected removable photo media (OS device events, zero polling at rest).
+  "importAutoDetect": true,
+  // Automatically open the import view when an eligible photo media is connected.
+  "importAutoOpen": false,
+  // Comma-separated folder/file markers identifying a removable drive as a photo media.
+  "importMediaMarkers": "DCIM, PRIVATE/M4ROOT, MP_ROOT, AVCHD",
+  // Device filter mode: "blacklist" (all except blacklisted) | "whitelist" (only whitelisted).
+  "importDeviceListMode": "blacklist",
+  // Retain import history per media for 30 days only.
+  "importHistoryRetention30d": false,
+  // Last used import destination path inside the tracked library.
+  "importLastDestination": "",
+  // Last 5 import destinations.
+  "importRecentDestinations": [],
+  // Up to 10 favorite import destinations (stored alphabetically).
+  "importFavoriteDestinations": [],
+  // Import view file display mode: "list" | "thumbnails".
+  "importViewMode": "list",
+  // Import thumbnails layout: "square" | "framed".
+  "importThumbnailLayout": "square",
+  // Import thumbnails size in px: 100 to 320.
+  "importThumbnailSize": 180,
+  // Saved widths in px of the resizable import panels (null = CSS default).
+  "importSidebarWidth": null,
+  "importDestWidth": null,
+  "importPreviewWidth": null,
+  // Show preview pane in the import view.
+  "importShowPreview": true,
+  // Include subfolders when browsing a folder in the import source tree.
+  "importIncludeSubfolders": true,
+  // Hide folders without any media files in the import source tree.
+  "importHideEmptyFolders": false,
+  // Automatically select new (not yet imported) files when opening a source.
+  "importAutoSelectNew": true,
+  // Import list sort key: "date" | "name".
+  "importSortKey": "date",
+  // Import list sort order: "asc" | "desc".
+  "importSortOrder": "desc",
+  // Multi-column sort of the Import List view: [{ col, dir }] (max 9 levels).
+  "importListSort": [],
+  // Import list grouping: "none" | "day" | "month" | "folder".
+  "importGroupBy": "none",
+  // Collision policy at destination: "skip" | "rename" | "ask".
+  "importCollisionPolicy": "skip",
+  // Destination subfolder organization: "none" | "custom" | "yyyy_mm_dd" | "yyyy/yyyy_mm_dd" | "yyyy/mm" | "yyyy_mm_dd_custom".
+  "importSubfolderMode": "none",
+  // Custom subfolder name or suffix.
+  "importCustomSubfolder": "",
+  // Split imported files into subfolders by filetype (RAW / Raster / Video).
+  "importSplitByType": false,
+  "importSubfolderRaw": "RAW",
+  "importSubfolderRaster": "JPEG",
+  "importSubfolderVideo": "Video",
+  // Optional post-import tasks (fixed order).
+  "importPostRename": false,
+  "importPostRenamePreset": "",
+  "importPostIntegrity": false,
+  "importPostFaces": false,
+  "importPostHashes": false,
+  "importPostSemantic": false
 }

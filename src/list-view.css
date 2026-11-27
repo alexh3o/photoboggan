@@ -43,11 +43,11 @@
 .list-cell-muted { color: var(--text-dim); }
 .list-cell-yes { color: var(--text-strong); }
 
-/* Extension pill: green for photos, red for videos, grey for RAW */
+/* Extension pill: green for photos, red for videos, blue for RAW */
 .list-ext-pill { display: inline-block; vertical-align: middle; padding: 1px 0.4rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; line-height: 1.3; }
-.list-ext-pill.ext-photo { background: #266b3a; color: #fff; }
-.list-ext-pill.ext-video { background: #a82c2c; color: #fff; }
-.list-ext-pill.ext-raw { background: #5a5d62; color: #fff; }
+.list-ext-pill.ext-photo { background: var(--kind-raster, #266b3a); color: #fff; }
+.list-ext-pill.ext-video { background: var(--kind-video, #a82c2c); color: #fff; }
+.list-ext-pill.ext-raw { background: var(--kind-raw, #2563a8); color: #fff; }
 
 .list-stars { color: #ffd43b; letter-spacing: 1px; font-size: 0.8rem; line-height: 1; vertical-align: middle; }
 .list-cell .flag-indicator { display: inline-block; vertical-align: middle; width: 0.72rem; height: 0.72rem; }

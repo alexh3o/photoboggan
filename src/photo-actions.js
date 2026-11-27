@@ -625,6 +625,22 @@ function copyConflictDialog(conflict) {
 // pour chacun, l'un après l'autre. « Appliquer mon choix aux fichiers suivants » vaut pour les conflits restants de cette copie seulement.
 // Renvoie { chemin du fichier à copier: 'rename' | 'skip' | 'replace' } à passer à la commande de copie ; un fichier absent de la table est renommé.
 // Renvoie null si l'utilisateur annule la copie : rien ne doit être copié.
+export async function askImportConflictResolutions(conflicts) {
+  const resolutions = {};
+  let applied = null;
+  for (const conflict of conflicts) {
+    if (applied) {
+      resolutions[conflict.path] = applied;
+      continue;
+    }
+    const choice = await copyConflictDialog(conflict);
+    if (choice.action === 'cancel') return null;
+    resolutions[conflict.path] = choice.action;
+    if (choice.applyAll) applied = choice.action;
+  }
+  return resolutions;
+}
+
 export async function askCopyResolutions(command, paths, destination) {
   let conflicts = [];
   try {
@@ -1905,6 +1921,7 @@ function openFolderMenu(event, folderItem) {
   menu.append(
     menuHeader(count === undefined ? baseName(path) : `${baseName(path)} · ${tp('{count} photo', count)}`, path),
     menuButton(t('Open folder in file explorer'), () => openFolderInFileManager(path), { title: t('Show this folder in the file explorer') }),
+    menuButton(t('Import photos here…'), () => api.openImport?.({ destination: path }), { title: t('Import photos from a memory card or folder into this folder') }),
     menuButton(t('New subfolder…'), () => createSubfolder(path), { title: t('Create a folder inside this one') }),
     menuButton(t('Rename folder…'), () => renameFolder(path), {
       disabled: isRoot,
@@ -2135,6 +2152,8 @@ function onContextMenu(event) {
   if (target?.closest('#map-panel')) return;
   // List panel: rows open the standard photo context menu; toolbar and headers have their own menu.
   if (target?.closest('#list-panel') && !target?.closest('.list-row')) return;
+  // Import view folder tree and list headers open their own context menu (import-view.js).
+  if (target?.closest('#import-folders-head, #import-folder-tree, #import-list-header')) return;
 
   // Arborescence des dossiers : menu propre aux dossiers (« Toutes les photos » n'en a pas, le menu du navigateur reste simplement masqué).
   const folderItem = target?.closest('#folder-tree .folder-tree-item');

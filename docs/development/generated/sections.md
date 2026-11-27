@@ -139,51 +139,51 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1141–L1178 | 38 | Suppression d'un mot-clé |
 | L1179–L1274 | 96 | Initialisation |
 
-## src/list-view.js (1779 lines)
+## src/list-view.js (1792 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L78–L777 | 700 | Column definitions & persistence |
-| L778–L840 | 63 | Lazy auxiliary datasets (analysed & phash) |
-| L841–L918 | 78 | Multi-column sorting |
-| L919–L1122 | 204 | Table dimensions, header rendering, resize & column drag-and-drop |
-| L1123–L1271 | 149 | Virtualized body rendering |
-| L1272–L1333 | 62 | Selection & double-click in rows |
-| L1334–L1607 | 274 | Columns picker menu (stays open until Esc or outside click) |
-| L1608–L1779 | 172 | Open, close, and refresh API |
+| L78–L807 | 730 | Column definitions & persistence |
+| L808–L870 | 63 | Lazy auxiliary datasets (analysed & phash) |
+| L871–L932 | 62 | Multi-column sorting |
+| L933–L1135 | 203 | Table dimensions, header rendering, resize & column drag-and-drop |
+| L1136–L1284 | 149 | Virtualized body rendering |
+| L1285–L1346 | 62 | Selection & double-click in rows |
+| L1347–L1620 | 274 | Columns picker menu (stays open until Esc or outside click) |
+| L1621–L1792 | 172 | Open, close, and refresh API |
 
-## src/main.js (6429 lines)
+## src/main.js (6471 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L673–L708 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
-| L709–L888 | 180 | CHARGEMENT PHOTOS & DOSSIERS |
-| L889–L1326 | 438 | PAGINATION DE LA GRILLE |
-| L1327–L2250 | 924 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
-| L2251–L2354 | 104 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
-| L2355–L2732 | 378 | VIRTUAL SCROLLING |
-| L2733–L2798 | 66 | NAVIGATION (GRID & FULLSCREEN) |
-| L2799–L3286 | 488 | SELECTION MULTIPLE |
-| L3287–L3407 | 121 | LOSSLESS ROTATION (orientation.rs) |
-| L3408–L3748 | 341 | Keyboard shortcuts Memo |
-| L3749–L3768 | 20 | MODALE PARAMÈTRES |
-| L3769–L3879 | 111 | MODALE PARAMÈTRES (Gestion des dossiers) |
-| L3880–L3936 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
-| L3937–L3990 | 54 | MODALE Guide (ouverte depuis les Paramètres) |
-| L3991–L4110 | 120 | BOUTONS VUES & SIDEBAR |
-| L4111–L4222 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
-| L4223–L4953 | 731 | TRI DES MINIATURES |
-| L4954–L5309 | 356 | MARQUAGE (note et couleur de la sélection) |
-| L5310–L5462 | 153 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
-| L5463–L5482 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
-| L5483–L5526 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
-| L5527–L5532 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
-| L5533–L5980 | 448 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
-| L5981–L6007 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
-| L6008–L6033 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L6034–L6164 | 131 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L6165–L6370 | 206 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L6371–L6429 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L675–L710 | 36 | SYNCHRONISATION « PARESSEUSE » AVEC LE DISQUE |
+| L711–L890 | 180 | CHARGEMENT PHOTOS & DOSSIERS |
+| L891–L1328 | 438 | PAGINATION DE LA GRILLE |
+| L1329–L2252 | 924 | ALBUMS INTELLIGENTS : ÉTAT DES FILTRES ENREGISTRÉ (voir albums-panel.js) |
+| L2253–L2356 | 104 | VIEW SNAPSHOTS & RESULTS NAVIGATION |
+| L2357–L2734 | 378 | VIRTUAL SCROLLING |
+| L2735–L2800 | 66 | NAVIGATION (GRID & FULLSCREEN) |
+| L2801–L3288 | 488 | SELECTION MULTIPLE |
+| L3289–L3409 | 121 | LOSSLESS ROTATION (orientation.rs) |
+| L3410–L3753 | 344 | Keyboard shortcuts Memo |
+| L3754–L3773 | 20 | MODALE PARAMÈTRES |
+| L3774–L3884 | 111 | MODALE PARAMÈTRES (Gestion des dossiers) |
+| L3885–L3941 | 57 | MODALE À PROPOS (ouverte depuis les Paramètres) |
+| L3942–L3995 | 54 | MODALE Guide (ouverte depuis les Paramètres) |
+| L3996–L4115 | 120 | BOUTONS VUES & SIDEBAR |
+| L4116–L4227 | 112 | REDIMENSIONNEMENT DU PANNEAU LATÉRAL GAUCHE |
+| L4228–L4958 | 731 | TRI DES MINIATURES |
+| L4959–L5314 | 356 | MARQUAGE (note et couleur de la sélection) |
+| L5315–L5467 | 153 | FILE AND FOLDER OPERATIONS (delete, rename, path updates) |
+| L5468–L5487 | 20 | FILTRE LIEU : toutes les photos, seulement les géolocalisées, ou seulement les autres |
+| L5488–L5531 | 44 | CONTENT ANALYSIS FILTER: photos analysed by the content search, or not yet (never saved in smart albums) |
+| L5532–L5537 | 6 | FILTRE DE DATE (date de prise de vue EXIF) |
+| L5538–L5989 | 452 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
+| L5990–L6016 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
+| L6017–L6042 | 26 | FIND THE RAW (find-raw-mode.js) |
+| L6043–L6206 | 164 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L6207–L6412 | 206 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L6413–L6471 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (516 lines)
 
@@ -204,18 +204,18 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L193–L628 | 436 | Écriture dans les fichiers |
 | L629–L798 | 170 | Changement de sélection et fermeture de l'application |
 
-## src/photo-actions.js (2177 lines)
+## src/photo-actions.js (2196 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L26–L220 | 195 | PROGRAMMES « OUVRIR AVEC » (liste dans les Paramètres, mémorisée localement) |
 | L221–L476 | 256 | FENÊTRES (informations, confirmation) |
 | L477–L528 | 52 | INFOS (EXIF / XMP / IPTC) |
-| L529–L709 | 181 | SUPPRIMER, COPIER VERS, OUVRIR AVEC |
-| L710–L1203 | 494 | REDIMENSIONNER PAR LOT |
-| L1204–L1338 | 135 | VÉRIFICATION D'INTÉGRITÉ (rapport final) |
-| L1339–L2040 | 702 | MENUS CONTEXTUELS (miniatures, aperçu, plein écran et arborescence des dossiers) |
-| L2041–L2177 | 137 | MENU DES CHAMPS DE SAISIE |
+| L529–L725 | 197 | SUPPRIMER, COPIER VERS, OUVRIR AVEC |
+| L726–L1219 | 494 | REDIMENSIONNER PAR LOT |
+| L1220–L1354 | 135 | VÉRIFICATION D'INTÉGRITÉ (rapport final) |
+| L1355–L2057 | 703 | MENUS CONTEXTUELS (miniatures, aperçu, plein écran et arborescence des dossiers) |
+| L2058–L2196 | 139 | MENU DES CHAMPS DE SAISIE |
 
 ## src/preview-zoom.js (724 lines)
 
@@ -316,7 +316,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L728–L792 | 65 | Commands |
 | L793–L869 | 77 | Saved recipes |
 
-## src-tauri/src/duplicates.rs (1109 lines)
+## src-tauri/src/duplicates.rs (1121 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -324,9 +324,9 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L124–L197 | 74 | Catalog table |
 | L198–L385 | 188 | Which bytes describe the image |
 | L386–L438 | 53 | Hashing |
-| L439–L595 | 157 | Image-data hash of one file (shared with the semantic scan, semantic.rs) |
-| L596–L784 | 189 | Candidates and cache |
-| L785–L1105 | 321 | Search |
+| L439–L607 | 169 | Image-data hash of one file (shared with the semantic scan, semantic.rs) |
+| L608–L796 | 189 | Candidates and cache |
+| L797–L1117 | 321 | Search |
 
 ## src-tauri/src/exif.rs (2400 lines)
 
@@ -389,6 +389,24 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L51–L111 | 61 | Lecture des pixels |
 | L112–L282 | 171 | Analyse du conteneur (positions des champs, nécessaires pour modifier le fichier sur place) |
 
+## src-tauri/src/import.rs (2228 lines)
+
+| Lines | Size | Section |
+|---|---:|---|
+| L27–L63 | 37 | Configuration statics (pushed from frontend at startup and on change) |
+| L64–L103 | 40 | SQLite schema |
+| L104–L291 | 188 | Data types |
+| L292–L351 | 60 | Path & format helpers |
+| L352–L745 | 394 | Platform-specific removable drive enumeration, free space & ejection |
+| L746–L818 | 73 | Media enumeration + policy |
+| L819–L1121 | 303 | OS event-driven device watcher (zero polling at rest) |
+| L1122–L1158 | 37 | Destination validation & ejection |
+| L1159–L1534 | 376 | Source identification & two-pass scan |
+| L1535–L1589 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
+| L1590–L2038 | 449 | Destination subfolder computation, conflict detection & chronological copy |
+| L2039–L2138 | 100 | Device & history management (Settings) |
+| L2139–L2224 | 86 | Saved import recipes (Subfolders + After copy) |
+
 ## src-tauri/src/keywords.rs (985 lines)
 
 | Lines | Size | Section |
@@ -396,11 +414,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L249–L692 | 444 | Écriture des mots-clés dans les fichiers |
 | L693–L981 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (3644 lines)
+## src-tauri/src/main.rs (3700 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L2889–L3640 | 752 | Programs allowed for "Open with" |
+| L2925–L3696 | 772 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 

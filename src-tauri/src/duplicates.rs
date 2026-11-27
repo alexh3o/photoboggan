@@ -468,6 +468,18 @@ pub(crate) fn current_version(path: &Path) -> std::io::Result<(u64, i64)> {
     file_version(&fs::metadata(path)?).ok_or_else(|| std::io::Error::other("no modification date"))
 }
 
+/// Reads only the header layout and partial hash (head + tail 64 KB) for import candidate disambiguation.
+pub(crate) fn quick_partial_hash(path: &Path) -> std::io::Result<(u64, Hash)> {
+    let (size, _) = current_version(path)?;
+    if size == 0 {
+        return Err(std::io::Error::other("empty file"));
+    }
+    let layout = layout_of(path, size, true)?;
+    let cancel = AtomicBool::new(false);
+    let hash = partial_hash(&mut File::open(path)?, &layout.ranges, &cancel)?;
+    Ok((layout.len(), hash))
+}
+
 /// Reads one file and computes its image-data hash: layout (headers only), then every image byte. Fails when the file changed while it was
 /// read (its version is checked again at the end), so a hash never mixes two versions of a file.
 pub(crate) fn image_data_hash(path: &Path, cancel: &AtomicBool) -> std::io::Result<DataHash> {

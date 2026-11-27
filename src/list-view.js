@@ -28,7 +28,7 @@ const ROW_HEIGHT = 26; // px — matches CSS .list-row height for pixel-exact vi
 const OVERSCAN_ROWS = 15;
 const MIN_COL_WIDTH = 48;
 const MAX_COL_WIDTH = 800;
-const MAX_SORT_LEVELS = 9;
+export const MAX_SORT_LEVELS = 9;
 const HEADER_DRAG_THRESHOLD = 5;
 const HEADER_MENU_BTN_WIDTH = 28;
 
@@ -668,16 +668,42 @@ export function isListGridSortActive() {
     && getEffectiveSort().length > 0;
 }
 
-function buildListComparator(effectiveSort) {
+export function formatSortBadge(dir, level, showLevel) {
+  const arrow = dir === 'asc' ? '▲' : '▼';
+  return showLevel ? `${arrow}${level}` : arrow;
+}
+
+export function cycleMultiColumnSort(currentSpec, colId, additive, maxLevels = MAX_SORT_LEVELS) {
+  const next = currentSpec.map(entry => ({ ...entry }));
+  const existingIndex = next.findIndex(entry => entry.col === colId);
+  if (!additive) {
+    if (next.length === 1 && next[0].col === colId) {
+      return next[0].dir === 'asc' ? [{ col: colId, dir: 'desc' }] : [];
+    }
+    return [{ col: colId, dir: 'asc' }];
+  }
+  if (existingIndex >= 0) {
+    if (next[existingIndex].dir === 'asc') {
+      next[existingIndex] = { col: colId, dir: 'desc' };
+    } else {
+      next.splice(existingIndex, 1);
+    }
+  } else if (next.length < maxLevels) {
+    next.push({ col: colId, dir: 'asc' });
+  }
+  return next;
+}
+
+export function buildMultiColumnComparator(effectiveSort, columnsById, collator = nameCollator) {
   if (effectiveSort.length === 0) return null;
-  const comparators = effectiveSort.map(entry => ({
-    col: COLUMNS_BY_ID.get(entry.col),
-    desc: entry.dir === 'desc',
-  }));
-  return (photoA, photoB) => {
+  const comparators = effectiveSort
+    .map(entry => ({ col: columnsById.get(entry.col), desc: entry.dir === 'desc' }))
+    .filter(entry => entry.col);
+  if (comparators.length === 0) return null;
+  return (itemA, itemB) => {
     for (const { col, desc } of comparators) {
-      const valA = col.sortValue(photoA);
-      const valB = col.sortValue(photoB);
+      const valA = col.sortValue(itemA);
+      const valB = col.sortValue(itemB);
       const missA = valA === null || valA === undefined || valA === '';
       const missB = valB === null || valB === undefined || valB === '';
       if (missA && missB) continue;
@@ -685,12 +711,16 @@ function buildListComparator(effectiveSort) {
       if (missA) return 1;
       if (missB) return -1;
       const cmp = col.sortType === 'string'
-        ? nameCollator.compare(valA, valB)
+        ? collator.compare(valA, valB)
         : (valA < valB ? -1 : valA > valB ? 1 : 0);
       if (cmp !== 0) return desc ? -cmp : cmp;
     }
     return 0;
   };
+}
+
+function buildListComparator(effectiveSort) {
+  return buildMultiColumnComparator(effectiveSort, COLUMNS_BY_ID, nameCollator);
 }
 
 export function getListGridComparator() {
@@ -868,23 +898,7 @@ function rebuildSortOrder() {
 
 function toggleColumnSort(colId, additive) {
   const effective = getEffectiveSort();
-  const existingIndex = sortSpec.findIndex(entry => entry.col === colId);
-  if (!additive) {
-    if (effective.length === 1 && effective[0].col === colId) {
-      sortSpec = effective[0].dir === 'asc' ? [{ col: colId, dir: 'desc' }] : [];
-    } else {
-      sortSpec = [{ col: colId, dir: 'asc' }];
-    }
-  } else if (existingIndex >= 0) {
-    if (sortSpec[existingIndex].dir === 'asc') {
-      sortSpec[existingIndex] = { col: colId, dir: 'desc' };
-    } else {
-      sortSpec.splice(existingIndex, 1);
-    }
-  } else {
-    if (effective.length >= MAX_SORT_LEVELS) return;
-    sortSpec.push({ col: colId, dir: 'asc' });
-  }
+  sortSpec = cycleMultiColumnSort(effective, colId, additive, MAX_SORT_LEVELS);
   saveSortState();
   renderHeader();
   if (columnsMenu) updateMenuIndicators(columnsMenu);
@@ -960,8 +974,7 @@ function renderHeader() {
       cell.setAttribute('aria-sort', sortInfo.dir === 'asc' ? 'ascending' : 'descending');
       const badge = document.createElement('span');
       badge.className = 'list-sort-badge';
-      const arrow = sortInfo.dir === 'asc' ? '▲' : '▼';
-      badge.textContent = showLevelNumber ? `${arrow}${sortInfo.level}` : arrow;
+      badge.textContent = formatSortBadge(sortInfo.dir, sortInfo.level, showLevelNumber);
       cell.append(badge);
     } else {
       cell.setAttribute('aria-sort', 'none');

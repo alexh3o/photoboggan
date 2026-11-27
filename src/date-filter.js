@@ -225,6 +225,170 @@ function pickDate(key) {
   closeDatePicker();
 }
 
+// Reusable date filter control (text input YYYYMMDD / YYYYMMDD-YYYYMMDD, calendar pop-up, clear button).
+// Used by the main Filters sidebar (`initDateFilter`) and by the Import view (`import-view.js`).
+const datePickerInstances = new Set();
+
+export function createDateFilterControl({ input, calendarBtn, clearBtn, errorEl, getReferenceDateKey, onChange }) {
+  let currentFilter = null;
+  const picker = document.createElement('div');
+  picker.className = 'date-picker';
+  picker.setAttribute('role', 'dialog');
+  picker.style.display = 'none';
+  picker.setAttribute('aria-label', t('Choose a date or a range'));
+  document.body.appendChild(picker);
+
+  let pYear = 0;
+  let pMonth = 0;
+  let pStart = null;
+  let pEnd = null;
+  let pAwaitingEnd = false;
+
+  const isOpen = () => picker.style.display !== 'none';
+  const close = () => { picker.style.display = 'none'; };
+
+  const updateUI = (error = '') => {
+    clearBtn.classList.toggle('has-value', input.value.trim() !== '');
+    input.classList.toggle('invalid', Boolean(error));
+    input.setAttribute('aria-invalid', error ? 'true' : 'false');
+    errorEl.textContent = error;
+  };
+
+  const applyFromInput = () => {
+    const result = parseDateFilter(input.value);
+    updateUI(result.error);
+    if (result.error) return;
+    const next = result.filter;
+    const unchanged = next === currentFilter || (next && currentFilter && next.from === currentFilter.from && next.to === currentFilter.to);
+    if (unchanged) return;
+    currentFilter = next;
+    onChange?.(currentFilter);
+  };
+
+  const position = () => {
+    const rect = calendarBtn.getBoundingClientRect();
+    const width = picker.offsetWidth;
+    const height = picker.offsetHeight;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    let top = rect.bottom + 6;
+    if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 6);
+    picker.style.left = `${left}px`;
+    picker.style.top = `${top}px`;
+  };
+
+  const render = () => {
+    const first = new Date(pYear, pMonth, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const daysInMonth = new Date(pYear, pMonth + 1, 0).getDate();
+    const today = todayDateKey();
+    const low = pStart === null ? null : Math.min(pStart, pEnd ?? pStart);
+    const high = pStart === null ? null : Math.max(pStart, pEnd ?? pStart);
+    let cells = weekdayLabels().map(label => `<span class="date-picker-weekday">${label}</span>`).join('');
+    for (let i = 0; i < offset; i++) cells += '<span></span>';
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = pYear * 10000 + (pMonth + 1) * 100 + day;
+      const classes = ['date-picker-day'];
+      if (key === today) classes.push('today');
+      if (low !== null && key > low && key < high) classes.push('in-range');
+      if (key === low || key === high) classes.push('selected');
+      cells += `<button type="button" class="${classes.join(' ')}" data-key="${key}">${day}</button>`;
+    }
+    picker.innerHTML = `
+      <div class="date-picker-header">
+        <button type="button" data-nav="-12" title="${t('Previous year')}" aria-label="${t('Previous year')}">«</button>
+        <button type="button" data-nav="-1" title="${t('Previous month')}" aria-label="${t('Previous month')}">‹</button>
+        <span class="date-picker-title">${pickerMonthFormatter().format(first)}</span>
+        <button type="button" data-nav="1" title="${t('Next month')}" aria-label="${t('Next month')}">›</button>
+        <button type="button" data-nav="12" title="${t('Next year')}" aria-label="${t('Next year')}">»</button>
+      </div>
+      <div class="date-picker-grid">${cells}</div>
+      <div class="date-picker-hint">${t('Click a day, then a second one for a range.')}</div>`;
+  };
+
+  const open = () => {
+    const fromDay = currentFilter ? Math.floor(currentFilter.from / 1000000) : null;
+    const toDay = currentFilter ? Math.floor(currentFilter.to / 1000000) : null;
+    const key = fromDay ?? getReferenceDateKey?.() ?? todayDateKey();
+    pYear = Math.floor(key / 10000);
+    pMonth = (Math.floor(key / 100) % 100) - 1;
+    pStart = fromDay;
+    pEnd = fromDay !== null && toDay !== fromDay ? toDay : null;
+    pAwaitingEnd = false;
+    picker.style.display = 'block';
+    render();
+    position();
+  };
+
+  const pickDay = key => {
+    if (!pAwaitingEnd) {
+      pStart = key;
+      pEnd = null;
+      pAwaitingEnd = true;
+      const low = Math.min(pStart, pEnd ?? pStart);
+      const high = Math.max(pStart, pEnd ?? pStart);
+      input.value = low === high ? String(low) : `${low}-${high}`;
+      applyFromInput();
+      render();
+      return;
+    }
+    pAwaitingEnd = false;
+    if (key !== pStart) {
+      pEnd = key;
+      const low = Math.min(pStart, pEnd ?? pStart);
+      const high = Math.max(pStart, pEnd ?? pStart);
+      input.value = low === high ? String(low) : `${low}-${high}`;
+      applyFromInput();
+    }
+    close();
+  };
+
+  input.addEventListener('input', () => { close(); applyFromInput(); });
+  clearBtn.addEventListener('click', () => { input.value = ''; close(); applyFromInput(); });
+  picker.addEventListener('click', event => {
+    const button = event.target instanceof Element ? event.target.closest('button') : null;
+    if (!button) return;
+    if (button.dataset.nav) {
+      const shifted = new Date(pYear, pMonth + Number(button.dataset.nav), 1);
+      pYear = shifted.getFullYear();
+      pMonth = shifted.getMonth();
+      render();
+      position();
+    } else if (button.dataset.key) {
+      pickDay(Number(button.dataset.key));
+    }
+  });
+  calendarBtn.addEventListener('click', () => { if (isOpen()) close(); else open(); });
+  document.addEventListener('pointerdown', event => {
+    if (!isOpen()) return;
+    const target = event.target;
+    if (target instanceof Node && (picker.contains(target) || calendarBtn.contains(target))) return;
+    close();
+  }, true);
+  window.addEventListener('keydown', event => { if (event.key === 'Escape' && isOpen()) close(); });
+  window.addEventListener('resize', close);
+
+  const instance = {
+    getFilter: () => currentFilter,
+    setValue(text) {
+      input.value = text;
+      close();
+      applyFromInput();
+    },
+    clear() {
+      input.value = '';
+      close();
+      applyFromInput();
+    },
+    refreshLanguage() {
+      picker.setAttribute('aria-label', t('Choose a date or a range'));
+      if (isOpen()) { render(); position(); }
+    },
+    close,
+  };
+  datePickerInstances.add(instance);
+  return instance;
+}
+
 // The language changed: the label of the pop-up follows, and an open calendar is drawn again (names of the days and of the month).
 export function refreshDatePickerLanguage() {
   datePicker.setAttribute('aria-label', t('Choose a date or a range'));
@@ -232,6 +396,7 @@ export function refreshDatePickerLanguage() {
     renderDatePicker();
     positionDatePicker();
   }
+  for (const inst of datePickerInstances) inst.refreshLanguage();
 }
 
 // `api`: { applyPhotoFilters, getPhotos }. Called by main.js at the place where this code used to be, so that the listeners keep their order

@@ -24,6 +24,9 @@
 - [x] *style* `font_size`: have a consistent text size through app (problem on some dialogs)
 - [x] *refactor* `dupplicates`: "compute similarity hashes during content analysis" option now only appears if content analysis is enabled
 - [x] *feat*: `help` setup wizard
+- [x] *feat*: `files` **sd card** import
+- [ ] *feat*: `files` unrecognized filetypes (ex: unsupported raw) should be opened by OS
+- [ ] *style* `update`: Update available donwload button not as high as other buttons in the update info modal
 
 ## 💡 Ideas / Longer term / On hold / Secondary
 
@@ -36,13 +39,13 @@
 - [ ] *feat*: `metadata`allow writing to xmp sidecar
 - [ ] *chore*: `semantic` add content search score setting filter to recipes
 - [ ] *fix* `semantic`: some field are mentionned as non content analyzed but skipped during analyze (videos without thumbs)
+- [ ] *feat*: `files` show additionnal filetypes (whitelist) that are opened with default OS app
 
 ## ⚖️ Undecided
 
 - [ ] *feat*: `collection` add "scan for new items" to accelerate discovery of new elements
 - [ ] *feat*: `UI` conditional clickable path line (breadcrumb) on top when left panel is closed
 - [ ] *feat*: `files` prevent deletion of photos with stars
-- [ ] *feat*: `files` **sd card** import
 - [ ] *feat*: `UI` specific info panel display when multiple photos are selected
 - [ ] *refactor*: `semantic` allow larger scores
 - [ ] *feat*: `collection` database data dashboard (hash, phash, face scanned, content analyzed, thumbnails)

@@ -49,8 +49,8 @@ export const foregroundTaskCount = () => scanTasks.filter(task => task.status !=
 const RESUMABLE_TASK_KINDS = ['add', 'rescan-all', 'rescan-folder'];
 const isResumableTask = task => RESUMABLE_TASK_KINDS.includes(task.kind);
 
-// File tasks (move, copy, resize, batch rename): 'files' family, queued sequentially without ever being refused as duplicates.
-const FILE_TASK_KINDS = ['move', 'copy', 'resize', 'rename'];
+// File tasks (move, copy, resize, batch rename, import): 'files' family, queued sequentially without ever being refused as duplicates.
+const FILE_TASK_KINDS = ['move', 'copy', 'resize', 'rename', 'import'];
 export const hasFileTask = () => scanTasks.some(task => FILE_TASK_KINDS.includes(task.kind) && task.status !== 'ready'); // a finished task kept in the list only shows its errors
 // Photos that a move or a batch rename of the queue is going to change the path of: metadata is not written to them meanwhile (see writeMarking).
 export const queuedPathsBeingChanged = () => new Set(scanTasks.filter(task => task.status !== 'ready').flatMap(task => (task.kind === 'move' ? task.args?.paths ?? [] : task.kind === 'rename' ? (task.args?.items ?? []).map(item => item.path) : [])));
@@ -414,7 +414,8 @@ function familyOf(taskKind) {
 // Enqueues a task and starts it immediately if its lane is idle.
 // Refused (returns false with a toast) when `dedupeKey` matches a non-stopped, non-ready task, or when an active/waiting/paused task of the same family already covers `path`.
 // Optional `runner(task, setPercent)` runs UI-driven work instead of a backend command; it must poll `task.stopRequested` and report progress via `setPercent`.
-export function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey }) {
+// Optional `blocked` keeps a waiting placeholder (e.g. post-import task) from starting until `updateWaitingTask` unblocks it.
+export function enqueueScanTask({ kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey, blocked = false, importGroupId = null }) {
   const sameKey = dedupeKey && scanTasks.find(task => task.dedupeKey === dedupeKey && !task.stopRequested && task.status !== 'ready');
   if (sameKey) {
     const key = kind === 'semantic'
@@ -439,23 +440,59 @@ export function enqueueScanTask({ kind, path, command, args, labelKey, labelPara
     return false;
   }
   scanTaskCounter += 1;
-  scanTasks.push({
+  const task = {
     id: `scan-${Date.now()}-${scanTaskCounter}`,
     kind, path, command, args, labelKey, labelParams, onResult, runner, dedupeKey,
+    blocked: Boolean(blocked), importGroupId,
     status: 'waiting', percent: 0, stopRequested: false, toastHidden: false,
-  });
+  };
+  scanTasks.push(task);
   if (isResumableTask({ kind })) saveResumableTasks();
   syncTaskUI();
-  if (isBackgroundLaneTask({ kind })) pumpBackgroundQueue();
-  else pumpScanQueue();
+  if (!task.blocked) {
+    if (isBackgroundLaneTask({ kind })) pumpBackgroundQueue();
+    else pumpScanQueue();
+  }
+  return task.id;
+}
+
+export function updateWaitingTask(taskId, patch) {
+  const task = scanTasks.find(item => item.id === taskId && item.status === 'waiting');
+  if (!task) return false;
+  Object.assign(task, patch);
+  syncTaskUI();
   return true;
+}
+
+export function removeWaitingTask(taskId) {
+  const index = scanTasks.findIndex(item => item.id === taskId && item.status === 'waiting');
+  if (index < 0) return false;
+  scanTasks.splice(index, 1);
+  syncTaskUI();
+  return true;
+}
+
+export function cancelTasksByGroup(groupId) {
+  if (!groupId) return;
+  for (const task of [...scanTasks]) {
+    if (task.importGroupId === groupId && task.status === 'waiting') {
+      const idx = scanTasks.indexOf(task);
+      if (idx >= 0) scanTasks.splice(idx, 1);
+    }
+  }
+  syncTaskUI();
+}
+
+export function triggerTaskPumps() {
+  pumpScanQueue();
+  pumpBackgroundQueue();
 }
 
 // Runs main-lane tasks strictly sequentially in arrival order. Background tasks ('semantic', 'hash-precompute') use `pumpBackgroundQueue` instead so long analyses do not block other tasks.
 async function pumpScanQueue() {
   if (scanPumpActive) return;
   scanPumpActive = true;
-  const nextWaiting = () => scanTasks.find(item => item.status === 'waiting' && !isBackgroundLaneTask(item));
+  const nextWaiting = () => scanTasks.find(item => item.status === 'waiting' && !item.blocked && !isBackgroundLaneTask(item));
   try {
     for (let task = nextWaiting(); task; task = nextWaiting()) {
       await runScanTask(task);
@@ -473,8 +510,8 @@ async function pumpBackgroundQueue() {
   if (backgroundPumpActive) return;
   backgroundPumpActive = true;
   try {
-    for (let task = scanTasks.find(item => item.status === 'waiting' && isBackgroundLaneTask(item)); task;
-      task = scanTasks.find(item => item.status === 'waiting' && isBackgroundLaneTask(item))) {
+    for (let task = scanTasks.find(item => item.status === 'waiting' && !item.blocked && isBackgroundLaneTask(item)); task;
+      task = scanTasks.find(item => item.status === 'waiting' && !item.blocked && isBackgroundLaneTask(item))) {
       await runScanTask(task);
     }
   } finally {

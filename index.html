@@ -29,6 +29,8 @@
           <button id="btn-toggle-map" type="button" data-i18n-title="Map view: where the photos are, and set the location of the selection"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon" aria-hidden="true"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg> <span data-i18n="Map"></span></button>
           <!-- List panel (list-view.js): virtualized, multi-column sortable table of the displayed photos -->
           <button id="btn-toggle-list" type="button" data-i18n-title="List view: photos in a sortable table"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon" aria-hidden="true"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg> <span data-i18n="List"></span></button>
+          <!-- Import view (import-view.js): visible when a photo media is detected or while the view is open -->
+          <button id="btn-open-import" type="button" class="import-detected-btn" hidden data-i18n-title="Import view: import photos from a memory card or folder" data-i18n-aria-label="Import photos"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="preview-icon" aria-hidden="true"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg> <span data-i18n="Import"></span><span id="import-detected-badge" class="import-detected-badge" hidden></span></button>
         </div>
       </div>
       <div class="actions">
@@ -620,6 +622,206 @@
           </div>
         </div>
       </aside>
+
+      <!-- Import view (import-view.js): dedicated full-content mode isolated from the main library grid -->
+      <section id="import-view" class="import-view" hidden aria-labelledby="import-view-title">
+        <header class="import-header">
+          <div class="import-header-left">
+            <h2 id="import-view-title" class="import-title" data-i18n="Import"></h2>
+            <span id="import-media-status" class="import-media-status"></span>
+            <span id="import-storage-badge" class="import-storage-badge" hidden></span>
+          </div>
+          <div class="import-header-center">
+            <span id="import-selection-summary" class="import-selection-summary"></span>
+            <span id="import-dest-space" class="import-dest-space"></span>
+          </div>
+          <div class="import-header-actions">
+            <span id="import-exif-status" class="import-exif-status" hidden></span>
+            <button type="button" id="btn-import-eject" class="btn-secondary" hidden data-i18n="Eject"></button>
+            <button type="button" id="btn-import-close" class="close-x import-close-btn" data-i18n-title="Close" data-i18n-aria-label="Close">&times;</button>
+          </div>
+        </header>
+
+        <div class="import-body">
+          <!-- Left column: Source selection, folder tree, filters -->
+          <aside class="import-sidebar">
+            <div class="import-block">
+              <div class="import-block-title" data-i18n="Source"></div>
+              <div class="import-source-row">
+                <select id="import-source-select" data-i18n-aria-label="Detected media"></select>
+                <button type="button" id="btn-import-browse-source" class="icon-button" data-i18n-title="Choose import source folder" data-i18n-aria-label="Choose import source folder"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg></button>
+                <button type="button" id="btn-import-refresh-source" class="icon-button" data-i18n-title="Refresh" data-i18n-aria-label="Refresh"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></button>
+              </div>
+              <p id="import-last-import-info" class="import-note"></p>
+            </div>
+
+            <div class="import-block import-tree-block">
+              <div id="import-folders-head" class="import-block-head">
+                <span class="import-block-title" data-i18n="Folders"></span>
+                <div class="import-tree-tools">
+                  <button type="button" id="btn-import-hide-empty" class="import-tree-tool" aria-pressed="false" data-i18n-title="Hide empty folders" data-i18n-aria-label="Hide empty folders"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg></button>
+                  <label class="import-inline-check"><input type="checkbox" id="import-include-subfolders" /><span data-i18n="Subfolders"></span></label>
+                </div>
+              </div>
+              <ul id="import-folder-tree" class="import-folder-tree"></ul>
+            </div>
+
+            <div class="import-block">
+              <div class="import-block-title" data-i18n="Filters"></div>
+              <div class="import-type-chips" role="group" data-i18n-aria-label="File types">
+                <button type="button" class="import-type-chip active" data-kind="raw" aria-pressed="true">RAW</button>
+                <button type="button" class="import-type-chip active" data-kind="raster" aria-pressed="true" data-i18n="Raster"></button>
+                <button type="button" class="import-type-chip active" data-kind="video" aria-pressed="true" data-i18n="Videos"></button>
+              </div>
+              <div class="date-filter import-date-filter">
+                <input id="import-date-input" type="text" data-i18n-placeholder="YYYYMMDD" data-i18n-aria-label="Date taken" maxlength="29" autocomplete="off" spellcheck="false" />
+                <button id="import-date-calendar" type="button" class="icon-button" data-i18n-title="Pick in calendar" data-i18n-aria-label="Open calendar">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calendar-days preview-icon"><path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M8 13h.01"/><path d="M12 13h.01"/><path d="M16 13h.01"/><path d="M8 17h.01"/><path d="M12 17h.01"/><path d="M16 17h.01"/></svg>
+                </button>
+                <button id="import-date-clear" type="button" class="icon-button" data-i18n-title="Clear date filter" data-i18n-aria-label="Clear date filter">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x preview-icon"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+              <div id="import-date-error" class="date-filter-error" role="alert"></div>
+              <button type="button" id="btn-import-recall-date" class="import-recall-btn" hidden data-i18n="Since last import"></button>
+              <label class="import-inline-check import-autoselect-row"><input type="checkbox" id="import-autoselect-new" /><span data-i18n="Auto-select new files"></span></label>
+            </div>
+          </aside>
+          <div id="import-sidebar-resizer" class="import-resizer" role="separator" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="Resize source panel"></div>
+
+          <!-- Center column: Toolbar, virtualized list/grid, preview -->
+          <div class="import-center">
+            <div class="import-toolbar">
+              <div class="import-sel-group">
+                <span class="import-group-label" data-i18n="Select"></span>
+                <div class="import-segmented" role="group" data-i18n-aria-label="Select">
+                  <button type="button" id="btn-import-select-all" data-i18n="All" aria-pressed="false"></button>
+                  <button type="button" id="btn-import-select-new" data-i18n="New" aria-pressed="false"></button>
+                  <button type="button" id="btn-import-select-recent" data-i18n="Recent selection" data-i18n-title="Select files taken since the last import from this media (same dates as “Since last import”)" aria-pressed="false" disabled></button>
+                  <button type="button" id="btn-import-select-none" data-i18n="None masculine" aria-pressed="false"></button>
+                </div>
+              </div>
+              <div class="import-view-controls">
+                <input id="import-thumb-size" type="range" min="100" max="300" step="10" hidden data-i18n-aria-label="Thumbnail size" />
+                <select id="import-layout-select" hidden data-i18n-aria-label="Layout">
+                  <option value="square" data-i18n="Square"></option>
+                  <option value="framed" data-i18n="Framed"></option>
+                </select>
+                <div class="import-view-switch" role="group" data-i18n-aria-label="View">
+                  <button type="button" id="btn-import-view-list" class="active" data-i18n-title="List" data-i18n-aria-label="List"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg></button>
+                  <button type="button" id="btn-import-view-grid" data-i18n-title="Thumbnails" data-i18n-aria-label="Thumbnails"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg></button>
+                </div>
+                <button id="btn-import-sort" type="button" class="faces-sort import-sort-btn" aria-haspopup="menu" data-i18n-aria-label="Sort"></button>
+                <select id="import-group-select" data-i18n-aria-label="Group by">
+                  <option value="none" data-i18n="No grouping"></option>
+                  <option value="day" data-i18n="By day"></option>
+                  <option value="month" data-i18n="By month"></option>
+                  <option value="folder" data-i18n="By folder"></option>
+                </select>
+                <button type="button" id="btn-import-preview-toggle" class="active" data-i18n-title="Preview" data-i18n-aria-label="Preview"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></button>
+              </div>
+            </div>
+
+            <div class="import-stage">
+              <div id="import-files-scroll" class="import-files-scroll">
+                <div id="import-list-header" class="import-list-header" role="row" hidden></div>
+                <div id="import-files-canvas" class="import-files-canvas"></div>
+                <p id="import-files-empty" class="import-files-empty" hidden data-i18n="No matching files"></p>
+              </div>
+              <div id="import-preview-resizer" class="import-resizer" role="separator" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="Resize preview panel"></div>
+              <div id="import-preview-pane" class="import-preview-pane">
+                <img id="import-preview-img" class="import-preview-img" alt="" hidden />
+                <div id="import-preview-meta" class="import-preview-meta"></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="import-dest-resizer" class="import-resizer" role="separator" aria-orientation="vertical" tabindex="0" data-i18n-aria-label="Resize destination panel"></div>
+          <!-- Right column: Destination, recipes (subfolders, collision, post-tasks), launch -->
+          <aside class="import-dest-panel">
+            <div class="import-block">
+              <div class="import-block-head">
+                <span class="import-block-title" data-i18n="Destination"></span>
+                <div class="import-dest-shortcuts">
+                  <button type="button" id="btn-import-recent" class="icon-button" data-i18n-title="Recent" data-i18n-aria-label="Recent"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></button>
+                  <button type="button" id="btn-import-favorites" class="icon-button" data-i18n-title="Favorites" data-i18n-aria-label="Favorites"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+                  <button type="button" id="btn-import-add-fav" class="icon-button" data-i18n-title="Add to favorites" data-i18n-aria-label="Add to favorites"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="10.5 3.5 12.8 8.3 18 9 14.2 12.7 15.1 17.9 10.5 15.4 5.9 17.9 6.8 12.7 3 9 8.2 8.3 10.5 3.5"/><path d="M19 3v6"/><path d="M16 6h6"/></svg></button>
+                </div>
+              </div>
+              <div id="import-dest-path" class="import-dest-path" data-i18n="Choose a folder in the library…"></div>
+              <div class="import-dest-actions">
+                <button type="button" id="btn-import-pick-dest"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg><span data-i18n="Choose…"></span></button>
+                <button type="button" id="btn-import-new-subfolder" class="icon-button" data-i18n-title="New subfolder…" data-i18n-aria-label="New subfolder…"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg></button>
+              </div>
+              <p id="import-privacy-warning" class="import-privacy-warning" hidden data-i18n="Destination covered by a privacy set: imported photos will be hidden until it is turned off."></p>
+            </div>
+
+            <div class="import-recipes-section">
+              <div class="import-block">
+                <div class="import-block-head">
+                  <span class="import-block-title" data-i18n="Recipes"></span>
+                </div>
+                <div class="rights-preset-line import-preset-line">
+                  <div class="keyword-input-wrap rights-preset-field">
+                    <input type="text" id="import-preset-input" class="keyword-input import-preset-input" autocomplete="off" spellcheck="false" data-i18n-placeholder="Recipe…" data-i18n-aria-label="Recipes" />
+                    <ul id="import-preset-suggestions" class="keyword-suggestions below" role="listbox" hidden></ul>
+                  </div>
+                  <button type="button" id="btn-import-presets-manage" class="icon-button rights-preset-button" data-i18n-title="Manage import recipes" data-i18n-aria-label="Manage import recipes"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/></svg></button>
+                  <button type="button" id="btn-import-preset-save" class="icon-button rights-preset-button" data-i18n-title="Save current settings in the recipe" data-i18n-aria-label="Save current settings in the recipe"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg></button>
+                </div>
+              </div>
+
+              <details class="import-collapsible" id="import-subfolders-details">
+                <summary><span data-i18n="Subfolders"></span><span id="import-subfolders-summary" class="import-summary-tag"></span></summary>
+                <div class="import-collapsible-body">
+                  <label class="import-field-label" for="import-subfolder-mode" data-i18n="Organization"></label>
+                  <select id="import-subfolder-mode">
+                    <option value="none" data-i18n="None (directly in destination)"></option>
+                    <option value="custom" data-i18n="Custom subfolder"></option>
+                    <option value="yyyy_mm_dd">YYYY-MM-DD</option>
+                    <option value="yyyy/yyyy_mm_dd">YYYY / YYYY-MM-DD</option>
+                    <option value="yyyy/mm">YYYY / MM</option>
+                    <option value="yyyy_mm_dd_custom" data-i18n="YYYY-MM-DD_Name"></option>
+                  </select>
+                  <input type="text" id="import-custom-subfolder" class="import-text-input" data-i18n-placeholder="Subfolder name…" autocomplete="off" spellcheck="false" hidden />
+                  <label class="import-inline-check"><input type="checkbox" id="import-split-by-type" /><span data-i18n="Split by file type"></span></label>
+                  <div id="import-split-type-fields" class="import-split-fields" hidden>
+                    <label><span>RAW</span><input type="text" id="import-subfolder-raw" autocomplete="off" spellcheck="false" /></label>
+                    <label><span data-i18n="Raster"></span><input type="text" id="import-subfolder-raster" autocomplete="off" spellcheck="false" /></label>
+                    <label><span data-i18n="Videos"></span><input type="text" id="import-subfolder-video" autocomplete="off" spellcheck="false" /></label>
+                  </div>
+                  <p id="import-target-preview" class="import-note"></p>
+                </div>
+              </details>
+
+              <div class="import-block">
+                <label class="import-field-label" for="import-collision-policy" data-i18n="If file already exists"></label>
+                <select id="import-collision-policy">
+                  <option value="skip" data-i18n="Skip"></option>
+                  <option value="rename" data-i18n="Rename automatically"></option>
+                  <option value="ask" data-i18n="Ask"></option>
+                </select>
+              </div>
+
+              <details class="import-collapsible" id="import-post-tasks-details">
+                <summary><span data-i18n="After copy"></span><span id="import-post-tasks-summary" class="import-summary-tag"></span></summary>
+                <div class="import-collapsible-body">
+                  <label class="import-inline-check"><input type="checkbox" id="import-post-rename" /><span data-i18n="Batch rename"></span></label>
+                  <select id="import-post-rename-preset" hidden></select>
+                  <label class="import-inline-check" data-i18n-title="Import integrity help"><input type="checkbox" id="import-post-integrity" /><span data-i18n="Integrity check (generates thumbnails)"></span></label>
+                  <label class="import-inline-check" id="import-post-faces-row"><input type="checkbox" id="import-post-faces" /><span data-i18n="Face detection & recognition"></span></label>
+                  <label class="import-inline-check"><input type="checkbox" id="import-post-hashes" /><span data-i18n="Compute duplicate hashes"></span></label>
+                  <label class="import-inline-check semantic-only" id="import-post-semantic-row"><input type="checkbox" id="import-post-semantic" /><span data-i18n="Content analysis"></span></label>
+                </div>
+              </details>
+            </div>
+
+            <div class="import-launch-bar">
+              <button type="button" id="btn-import-start" class="btn-primary import-start-btn" disabled data-i18n="Import"></button>
+            </div>
+          </aside>
+        </div>
+      </section>
     </main>
 
     <!-- Full screen view -->
@@ -767,6 +969,26 @@
               <label class="settings-row settings-check" data-i18n-title="Use thumbnails as fast fullscreen preload help"><input id="fullscreen-thumbnail-preload-toggle" type="checkbox" /><span data-i18n="Use thumbnails as fast fullscreen preload"></span></label>
               <div class="settings-row">
                 <button id="btn-purge-orphan-thumbnails" type="button" data-i18n="Remove orphan thumbnails" data-i18n-title="Remove orphan thumbnails help"></button>
+              </div>
+            </section>
+            <section class="settings-section" id="import-settings-section">
+              <h4 data-i18n="Import"></h4>
+              <label class="settings-row settings-check" data-i18n-title="Auto-detect photo media help"><input id="import-auto-detect-toggle" type="checkbox" /><span data-i18n="Automatically detect connected photo media"></span></label>
+              <label class="settings-row settings-check settings-sub"><input id="import-auto-open-toggle" type="checkbox" /><span data-i18n="Open import view automatically on detection"></span></label>
+              <label class="settings-row" for="import-media-markers-input" data-i18n-title="Photo media markers help">
+                <span data-i18n="Photo media markers"></span>
+                <input id="import-media-markers-input" type="text" autocomplete="off" spellcheck="false" />
+              </label>
+              <label class="settings-row" for="import-device-list-mode">
+                <span data-i18n="Device filtering mode"></span>
+                <select id="import-device-list-mode">
+                  <option value="blacklist" data-i18n="All except excluded (blacklist)"></option>
+                  <option value="whitelist" data-i18n="Only allowed (whitelist)"></option>
+                </select>
+              </label>
+              <label class="settings-row settings-check"><input id="import-retention-30d-toggle" type="checkbox" /><span data-i18n="Keep import history for 30 days only"></span></label>
+              <div class="settings-row">
+                <button id="btn-import-manage-devices" type="button" data-i18n="Manage devices & history…"></button>
               </div>
             </section>
                       </div>

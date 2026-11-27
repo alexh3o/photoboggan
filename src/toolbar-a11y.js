@@ -3,7 +3,7 @@
 // observer here avoids touching each of them.
 const TOGGLE_IDS = [
   'btn-toggle-sidebar', 'btn-toggle-faces', 'btn-toggle-map', 'btn-toggle-list',
-  'btn-toggle-compare', 'btn-toggle-preview', 'btn-toggle-exif',
+  'btn-open-import', 'btn-toggle-compare', 'btn-toggle-preview', 'btn-toggle-exif',
 ];
 
 export function initToolbarAria() {

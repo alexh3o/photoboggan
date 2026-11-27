@@ -185,6 +185,44 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
   erased_at INTEGER NOT NULL
 ```
 
+### import_devices  `import.rs`
+
+```sql
+  media_id TEXT PRIMARY KEY
+  last_label TEXT NOT NULL DEFAULT ''
+  last_root_path TEXT NOT NULL DEFAULT ''
+  policy TEXT NOT NULL DEFAULT 'normal'
+  last_seen_at INTEGER NOT NULL DEFAULT 0
+  last_import_at INTEGER NOT NULL DEFAULT 0
+  last_imported_file_dt TEXT NOT NULL DEFAULT ''
+```
+
+### import_history  `import.rs`
+
+```sql
+  id INTEGER PRIMARY KEY AUTOINCREMENT
+  media_id TEXT NOT NULL
+  root_folder TEXT NOT NULL
+  relative_path TEXT NOT NULL
+  filename TEXT NOT NULL
+  file_size INTEGER NOT NULL
+  file_mtime INTEGER NOT NULL
+  date_taken TEXT NOT NULL DEFAULT ''
+  partial_hash BLOB
+  dest_path TEXT NOT NULL
+  imported_at INTEGER NOT NULL
+  UNIQUE(media_id, relative_path, file_size, file_mtime)
+```
+
+### import_presets  `import.rs`
+
+```sql
+  id INTEGER PRIMARY KEY AUTOINCREMENT
+  name TEXT NOT NULL
+  name_key TEXT NOT NULL UNIQUE
+  config TEXT NOT NULL DEFAULT '{}'
+```
+
 ### keyword_nodes  `keywords.rs`
 
 ```sql
@@ -290,6 +328,8 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
 - `idx_path_norm` on `photos(replace(path, char(92)` · db.rs
 - `idx_faces_photo` on `faces(photo_id)` · faces.rs
 - `idx_faces_person` on `faces(person_id)` · faces.rs
+- `idx_import_history_media` on `import_history(media_id)` · import.rs
+- `idx_import_history_imported_at` on `import_history(imported_at)` · import.rs
 - `idx_photo_keywords_keyword` on `photo_keywords(keyword_id)` · keywords.rs
 - `idx_photos_author` on `photos(author)` · rights.rs
 - `idx_photo_embeddings_model` on `photo_embeddings(model_id)` · semantic.rs

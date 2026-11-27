@@ -72,6 +72,12 @@
   --update-toast-close-hover-bg: rgba(0, 0, 0, 0.08);
   --pending-color: #f59e0b; /* « pas encore écrit dans le fichier » (positions, mots-clés…) : même couleur partout */
   --pending-on: #000; /* texte posé sur --pending-color */
+  /* File type badge & import folder icon colors (shared by list-view.css and import-view.css) */
+  --kind-raster: #266b3a;
+  --kind-video: #a82c2c;
+  --kind-raw: #2563a8;
+  --kind-mixed: #c98a12;
+  --kind-empty: #6c7077;
   /* Interface font: default stack ; main.js overrides it on <html> with the font chosen in Settings (app-fonts.js) */
   --app-font: Tahoma, 'Segoe UI', Geneva, Verdana, sans-serif;
   /* Typography scale (rem, scales with html font-size set by applyTextSize in main.js) */
@@ -157,7 +163,7 @@ svg[width="24"]:not(.titlebar svg) { width: 1.5rem; height: 1.5rem; }
 .toolbar-label { display: none; }
 .top-bar.show-labels .toolbar-label { display: inline; }
 /* Narrow window (fitToolbar in main.js): icons only. `.measuring` freezes the shrinkable parts at their natural width while the fit is measured. */
-.top-bar.compact button > span:not(.tasks-count-badge), .top-bar.compact .toolbar-label, .top-bar.compact .compare-option > span { display: none; }
+.top-bar.compact button > span:not(.tasks-count-badge):not(.import-detected-badge), .top-bar.compact .toolbar-label, .top-bar.compact .compare-option > span { display: none; }
 .top-bar.measuring * { flex-shrink: 0 !important; }
 .mode-group > button { border-radius: 0; }
 .mode-group > button:not([hidden]) { border-top-left-radius: 4px; border-bottom-left-radius: 4px; }

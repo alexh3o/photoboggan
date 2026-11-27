@@ -237,3 +237,27 @@ fn run_with_hashes_populates_exact_and_similarity_hashes() {
     assert_eq!(full_count, 2);
     assert_eq!(phash_count, 2);
 }
+
+#[test]
+fn integrity_scan_with_explicit_paths_checks_only_listed_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let thumbnails = tempfile::tempdir().unwrap();
+    let ok_path = write(dir.path(), "ok.jpg", &jpeg_bytes(32, 32));
+    write(dir.path(), "bad_ignored.png", b"corrupt");
+    let cancel = AtomicBool::new(false);
+    let report = run_with_options(
+        dir.path(),
+        Some(&[ok_path]),
+        thumbnails.path(),
+        256,
+        None,
+        false,
+        &cancel,
+        &|_| {},
+        &|_| {},
+    )
+    .unwrap();
+    assert_eq!(report.total, 1);
+    assert_eq!(report.healthy, 1);
+    assert!(report.suspects.is_empty());
+}

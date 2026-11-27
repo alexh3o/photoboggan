@@ -197,6 +197,8 @@ pub fn init_db(db_path: &str) -> DbPool {
     // Zones privées de la carte : voir private_maps.rs (chargées en mémoire dès l'ouverture, pour la règle par tuile).
     crate::private_maps::init_schema(&conn).expect("Private zone table could not be created");
     if let Err(error) = crate::private_maps::reload_zones(&conn) { eprintln!("Private zones unavailable: {error}"); }
+    // Import history & removable media policies: see import.rs.
+    crate::import::init_schema(&conn).expect("Import tables could not be created");
 
     pool
 }

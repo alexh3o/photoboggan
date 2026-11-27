@@ -21,10 +21,10 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `duplicateAutoHash` | `false` | duplicates-settings.js |
 | `duplicateAutoHashMode` | `"both_prepass"` | duplicates-settings.js |
 | `duplicateAutoHashRaw` | `false` | duplicates-settings.js |
-| `duplicateHashOnIntegrity` | `true` | duplicates-settings.js, task-queue.js |
+| `duplicateHashOnIntegrity` | `true` | duplicates-settings.js, import-view.js, task-queue.js |
 | `duplicateHashOnSemantic` | `true` | duplicates-settings.js, semantic-settings.js |
-| `duplicateHashThreads` | `"auto"` | duplicates-settings.js |
-| `duplicatePrecomputeExactMode` | `"prepass"` | duplicates-settings.js |
+| `duplicateHashThreads` | `"auto"` | duplicates-settings.js, import-view.js |
+| `duplicatePrecomputeExactMode` | `"prepass"` | duplicates-settings.js, import-view.js |
 | `exifPanelWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
 | `exifVisible` | `false` | main.js |
 | `faceDetection` | `false` | faces-panel.js |
@@ -40,6 +40,41 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `fullscreenThumbnailPreload` | `false` | fullscreen.js |
 | `histogramRgb` | `false` | histogram.js |
 | `ignoreBursts` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
+| `importAutoDetect` | `true` | import-settings.js |
+| `importAutoOpen` | `false` | import-settings.js |
+| `importAutoSelectNew` | `true` | import-view.js |
+| `importCollisionPolicy` | `"skip"` | import-view.js |
+| `importCustomSubfolder` | `""` | import-view.js |
+| `importDestWidth` | `null` | import-view.js |
+| `importDeviceListMode` | `"blacklist"` | import-settings.js |
+| `importFavoriteDestinations` | `[]` | import-view.js |
+| `importGroupBy` | `"none"` | import-view.js |
+| `importHideEmptyFolders` | `false` | import-view.js |
+| `importHistoryRetention30d` | `false` | import-settings.js |
+| `importIncludeSubfolders` | `true` | import-view.js |
+| `importLastDestination` | `""` | import-view.js |
+| `importListSort` | `[]` | import-view.js |
+| `importMediaMarkers` | `"DCIM, PRIVATE/M4ROOT, MP_ROOT, AVCHD"` | import-settings.js |
+| `importPostFaces` | `false` | import-view.js |
+| `importPostHashes` | `false` | import-view.js |
+| `importPostIntegrity` | `false` | import-view.js |
+| `importPostRename` | `false` | import-view.js |
+| `importPostRenamePreset` | `""` | import-view.js |
+| `importPostSemantic` | `false` | import-view.js |
+| `importPreviewWidth` | `null` | import-view.js |
+| `importRecentDestinations` | `[]` | import-view.js |
+| `importShowPreview` | `true` | import-view.js |
+| `importSidebarWidth` | `null` | import-view.js |
+| `importSortKey` | `"date"` | import-view.js |
+| `importSortOrder` | `"desc"` | import-view.js |
+| `importSplitByType` | `false` | import-view.js |
+| `importSubfolderMode` | `"none"` | import-view.js |
+| `importSubfolderRaster` | `"JPEG"` | import-view.js |
+| `importSubfolderRaw` | `"RAW"` | import-view.js |
+| `importSubfolderVideo` | `"Video"` | import-view.js |
+| `importThumbnailLayout` | `"square"` | import-view.js |
+| `importThumbnailSize` | `180` | import-view.js |
+| `importViewMode` | `"list"` | import-view.js |
 | `includePrereleases` | `false` | update-check.js |
 | `includeRaw` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `includeRawPairs` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
@@ -117,7 +152,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 
 ## Translations
 
-- Languages: en (2135 keys), es (2135 keys), fr (2135 keys)
+- Languages: en (2284 keys), es (2284 keys), fr (2284 keys)
 - es.json: 0 key(s) of en.json missing (shown in English): none
 - es.json: keys unknown to en.json (typo or obsolete): none
 - fr.json: 0 key(s) of en.json missing (shown in English): none

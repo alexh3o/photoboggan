@@ -25,6 +25,7 @@ mod hash_tasks;
 mod face_recognize;
 mod faces;
 mod heif;
+mod import;
 mod integrity;
 mod keywords;
 mod library_sync;
@@ -738,9 +739,9 @@ enum ScanMode {
 // (identifiant qu'elle a donné à la commande), ce qui évite de confondre les noms et les pourcentages de deux tâches.
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ScanProgress {
-    task_id: String,
-    percent: u32,
+pub(crate) struct ScanProgress {
+    pub task_id: String,
+    pub percent: u32,
 }
 
 // Drapeaux d'annulation des scans, par identifiant de tâche. Le drapeau est créé par le premier qui le demande (le scan ou la demande d'arrêt),
@@ -755,7 +756,7 @@ fn scan_cancel_flags() -> &'static Mutex<HashMap<String, CancelEntry>> {
     FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn scan_cancel_flag(task_id: &str) -> Arc<AtomicBool> {
+pub(crate) fn scan_cancel_flag(task_id: &str) -> Arc<AtomicBool> {
     let mut flags = scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     // Entrées orphelines (arrêt demandé alors que la tâche était déjà terminée : personne ne les retire) : supprimées après 10 minutes.
     flags.retain(|_, entry| Arc::strong_count(&entry.flag) > 1 || entry.created.elapsed() < Duration::from_secs(600));
@@ -768,7 +769,7 @@ fn running_tasks() -> usize {
     scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).values().filter(|entry| Arc::strong_count(&entry.flag) > 1).count()
 }
 
-fn release_scan_cancel_flag(task_id: &str) {
+pub(crate) fn release_scan_cancel_flag(task_id: &str) {
     scan_cancel_flags().lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(task_id);
 }
 
@@ -939,7 +940,7 @@ fn path_segments(path: &str) -> Vec<&str> {
 // Chemin réel d'un dossier de l'arborescence : le dossier suivi qui le contient, tel qu'il est enregistré, suivi des segments relatifs.
 // L'arborescence de l'interface assemble ses chemins avec des « / » : les relire tels quels enregistrerait les photos sous un autre texte de chemin
 // (« D:\Photos/2024\a.jpg » au lieu de « D:\Photos\2024\a.jpg ») et créerait des doublons en base. Renvoie None si le dossier n'est pas suivi.
-fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
+pub(crate) fn resolve_tracked_folder(pool: &DbPool, requested: &str) -> Option<PathBuf> {
     let requested_segments = path_segments(requested);
     if requested_segments.iter().any(|segment| matches!(*segment, "." | "..")) {
         return None;
@@ -981,10 +982,35 @@ struct ScanDetail {
 // seulement si elle est absente du cache. Renvoie le rapport (fichiers suspects compris). La progression est publiée par « scan-progress » comme les autres tâches de la file ;
 // l'arrêt (cancel_scan) rend un rapport partiel. Le catalogue n'est pas modifié.
 #[tauri::command]
-async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path: String, task_id: String, compute_hashes: Option<bool>) -> Result<integrity::IntegrityReport, String> {
+async fn integrity_scan(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+    task_id: String,
+    compute_hashes: Option<bool>,
+    paths: Option<Vec<String>>,
+) -> Result<integrity::IntegrityReport, String> {
     let pool = state.pool();
     let folder = resolve_tracked_folder(&pool, &path).ok_or_else(|| format!("Dossier non suivi : {path}"))?;
     if !folder.is_dir() { return Err(format!("Dossier introuvable : {path}")); }
+    let resolved_paths: Option<Vec<PathBuf>> = match paths {
+        Some(list) => {
+            let mut out = Vec::with_capacity(list.len());
+            for item in list {
+                let candidate = PathBuf::from(&item);
+                let Some(parent) = candidate.parent() else {
+                    return Err(format!("Dossier non suivi : {item}"));
+                };
+                let resolved_parent = resolve_tracked_folder(&pool, &parent.to_string_lossy())
+                    .ok_or_else(|| format!("Dossier non suivi : {item}"))?;
+                if let Some(name) = candidate.file_name() {
+                    out.push(resolved_parent.join(name));
+                }
+            }
+            Some(out)
+        }
+        None => None,
+    };
     let thumbnails_dir = state.thumbnails_dir();
     let max_side = state.thumbnail_cache_size();
     let cancel = scan_cancel_flag(&task_id);
@@ -998,7 +1024,17 @@ async fn integrity_scan(app: tauri::AppHandle, state: State<'_, AppState>, path:
             let _ = app.emit("scan-detail", ScanDetail { task_id: worker_task_id.clone(), detail: folder_label.to_string() });
         };
         let _priority = semantic::PriorityGuard::new();
-        integrity::run_with_hashes(&folder, &thumbnails_dir, max_side, Some(&pool), do_hashes, &cancel, &publish, &publish_folder)
+        integrity::run_with_options(
+            &folder,
+            resolved_paths.as_deref(),
+            &thumbnails_dir,
+            max_side,
+            Some(&pool),
+            do_hashes,
+            &cancel,
+            &publish,
+            &publish_folder,
+        )
     }).await;
     release_scan_cancel_flag(&task_id);
     outcome.map_err(|error| error.to_string())?
@@ -1549,9 +1585,9 @@ fn rotate_photo(pool: &DbPool, dirs: &ImageCacheDirs, id: i64, path: &str, quart
 }
 
 #[derive(serde::Serialize)]
-struct FileFailure {
-    path: String,
-    error: String,
+pub(crate) struct FileFailure {
+    pub path: String,
+    pub error: String,
 }
 
 #[derive(serde::Serialize)]
@@ -1573,19 +1609,19 @@ struct CopyResult {
 
 // Fichier à copier dont le nom existe déjà dans le dossier de destination : de quoi poser la question à l'utilisateur (tailles, dates en millisecondes).
 #[derive(serde::Serialize)]
-struct CopyConflict {
-    path: String,
-    name: String,
-    source_size: u64,
-    source_modified: i64,
-    target_size: u64,
-    target_modified: i64,
+pub(crate) struct CopyConflict {
+    pub path: String,
+    pub name: String,
+    pub source_size: u64,
+    pub source_modified: i64,
+    pub target_size: u64,
+    pub target_modified: i64,
 }
 
 #[derive(serde::Serialize)]
-struct MovedFile {
-    from: String,
-    to: String,
+pub(crate) struct MovedFile {
+    pub from: String,
+    pub to: String,
 }
 
 #[derive(serde::Serialize)]
@@ -1654,7 +1690,7 @@ use exif::has_same_stem_sibling;
 
 // Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous Linux et
 // macOS), ni point ou espace final, ni nom réservé de Windows (« CON », « NUL »…, avec ou sans extension).
-fn validate_new_name(name: &str) -> Result<&str, String> {
+pub(crate) fn validate_new_name(name: &str) -> Result<&str, String> {
     let name = name.trim();
     if name.is_empty() { return Err("Le nom ne peut pas être vide".into()); }
     if name.chars().any(|c| c.is_control() || "\\/:*?\"<>|".contains(c)) {
@@ -2103,7 +2139,7 @@ fn tracked_root_is_reachable(root: &str) -> bool {
     root.is_dir() || root.parent().is_some_and(|parent| parent.is_dir())
 }
 
-fn is_inside_folder(folder: &str, path: &str) -> bool {
+pub(crate) fn is_inside_folder(folder: &str, path: &str) -> bool {
     let normalize = |value: &str| value.replace('\\', "/").trim_end_matches('/').to_lowercase();
     normalize(path).starts_with(&format!("{}/", normalize(folder)))
 }
@@ -2203,13 +2239,13 @@ fn sidecar_already_taken(candidate: &Path) -> Option<PathBuf> {
 }
 
 /// Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
-struct Reserved {
-    path: PathBuf,
-    skipped_sidecar: Option<PathBuf>,
+pub(crate) struct Reserved {
+    pub path: PathBuf,
+    pub skipped_sidecar: Option<PathBuf>,
 }
 
 impl Reserved {
-    fn sidecar_rename(&self, source: &str) -> Option<SidecarRename> {
+    pub(crate) fn sidecar_rename(&self, source: &str) -> Option<SidecarRename> {
         self.skipped_sidecar.as_ref().map(|sidecar| SidecarRename {
             path: source.to_string(),
             to: self.path.to_string_lossy().into_owned(),
@@ -2218,7 +2254,7 @@ impl Reserved {
     }
 }
 
-fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr) -> std::io::Result<Reserved> {
+pub(crate) fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr) -> std::io::Result<Reserved> {
     let name = Path::new(file_name);
     let stem = name.file_stem().map(|value| value.to_string_lossy().into_owned()).unwrap_or_default();
     let extension = name.extension().map(|value| format!(".{}", value.to_string_lossy())).unwrap_or_default();
@@ -2270,7 +2306,7 @@ fn copy_sidecar_with(
     }
 }
 
-fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Result<()> {
+pub(crate) fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std::io::Result<()> {
     copy_sidecar_with(source, target, overwrite, copy_replacing)
 }
 
@@ -2388,7 +2424,7 @@ fn file_sha256(path: &Path) -> std::io::Result<[u8; 32]> {
     Ok(hasher.finalize().into())
 }
 
-fn files_have_same_hash(first: &Path, second: &Path) -> std::io::Result<bool> {
+pub(crate) fn files_have_same_hash(first: &Path, second: &Path) -> std::io::Result<bool> {
     Ok(file_sha256(first)? == file_sha256(second)?)
 }
 
@@ -2722,7 +2758,7 @@ fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<Str
 
 // Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question posée à
 // l'utilisateur). Une photo copiée dans son propre dossier n'est pas un conflit : la copie y est toujours renommée (« photo (1).jpg »), jamais écrasée.
-fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<CopyConflict> {
+pub(crate) fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<CopyConflict> {
     let destination_segments = lowercase_segments(destination);
     paths.iter().filter_map(|path| {
         let source = Path::new(path);
@@ -2764,7 +2800,7 @@ fn copy_replacing_with(
     Ok(())
 }
 
-fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
+pub(crate) fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
     if target.exists() && !has_trash(&target.to_string_lossy()) {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
@@ -2980,14 +3016,14 @@ pub(crate) fn write_timestamped_log(logs_dir: &Path, prefix: &str, text: &str, n
 
 /// Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
 #[derive(serde::Serialize)]
-struct SidecarRename {
-    path: String,
-    to: String,
-    sidecar: String,
+pub(crate) struct SidecarRename {
+    pub path: String,
+    pub to: String,
+    pub sidecar: String,
 }
 
 /// Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
-fn log_sidecar_renames(base_dir: &Path, operation: &str, renames: &[SidecarRename]) -> Option<String> {
+pub(crate) fn log_sidecar_renames(base_dir: &Path, operation: &str, renames: &[SidecarRename]) -> Option<String> {
     if renames.is_empty() { return None; }
     let now = chrono::Local::now();
     let mut text = format!(
@@ -3399,7 +3435,26 @@ fn main() {
             pick_program,
             register_existing_programs,
             exiftool::get_exiftool_status,
-            exiftool::exiftool_prewarm
+            exiftool::exiftool_prewarm,
+            import::list_detected_media,
+            import::set_import_watcher_config,
+            import::check_destination_info,
+            import::eject_media,
+            import::identify_source,
+            import::scan_import_source_fast,
+            import::read_import_source_exif,
+            import::get_import_thumbnail,
+            import::get_import_preview,
+            import::check_import_conflicts,
+            import::run_import_copy,
+            import::index_imported_photos,
+            import::list_import_devices,
+            import::set_import_device_policy,
+            import::delete_import_device,
+            import::purge_import_history,
+            import::list_import_presets,
+            import::save_import_preset,
+            import::delete_import_preset
         ])
         .build(tauri::generate_context!())
         .expect("Erreur de lancement")
@@ -3435,6 +3490,7 @@ fn main() {
                     }
                 }
                 tauri::RunEvent::Exit => {
+                    import::stop_device_watcher();
                     exiftool::shutdown();
                     // Recoveries the interface had no time to report (write at closing time) still get their log file.
                     if let Some(state) = app.try_state::<AppState>() { log_write_recoveries(&state.base_dir()); }

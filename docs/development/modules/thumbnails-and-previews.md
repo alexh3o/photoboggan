@@ -1,4 +1,4 @@
-<!-- verified: 68fd0b8 | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
+<!-- verified: 22834e1 | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
 
 # Thumbnails, RAW/HEIC/video previews, orientation
 
@@ -41,7 +41,7 @@ The file name is the 64-bit FNV-1a hash of **source path + file size + modificat
 - **HEIC / HEIF**: `heif::decode` (full decode, the decoder already applies the container rotation, so the EXIF tag is **not** applied again: orientation forced to 1).
 - **JPEG and others**: `decode_scaled_rgb`; `jpeg-decoder` DCT scaling decodes at 1/2, 1/4 or 1/8 so a 24 Mpx file is never decoded at full size (target side = 1.5 × `max_side`). Then `resize_to_fit` (area averaging) and `apply_orientation` on the small image.
 - **PNG**: not rendered here (`decode_png` exists for the integrity check and other callers); the webview fallback handles the thumbnail. `MAX_DECODED_PIXELS` (250 M) rejects hostile headers before allocation.
-- Writing: `write_jpeg` with the quality setting (`normal` = 60, `high` = 84, `set_thumbnail_quality`; applies to new thumbnails only), optimized Huffman tables, temp file then rename. Video and RAW/HEIC full-screen previews are always written at quality 84.
+- Writing: `write_jpeg` with the quality setting (`normal` = 60, `high` = 84, `set_thumbnail_quality`; applies to new thumbnails only), optimized Huffman tables, temp file then rename. Video and RAW/HEIC full-screen previews are always written at quality 84. `render_thumbnail_jpeg_bytes`, `render_fast_import_thumbnail_bytes` (header-seek embedded JPEG extraction + single-pass encoding), and `render_preview_jpeg_bytes` encode in memory (`Vec<u8>`) for RAM-only import previews (`import.md`) without touching disk caches.
 
 ### RAW previews (`extract_raw_preview`)
 
