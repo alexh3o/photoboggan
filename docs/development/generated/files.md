@@ -61,15 +61,15 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `config.md` | 209 |  |
 | `css.md` | 685 |  |
-| `db-schema.md` | 341 |  |
+| `db-schema.md` | 340 |  |
 | `events.md` | 13 |  |
 | `files.md` | 354 |  |
 | `ipc-commands.md` | 225 |  |
 | `module-deps.md` | 127 |  |
 | `sections.md` | 494 |  |
-| `symbols-js.md` | 1892 |  |
-| `symbols-rust.md` | 1659 |  |
-| `tests.md` | 566 |  |
+| `symbols-js.md` | 1888 |  |
+| `symbols-rust.md` | 1676 |  |
+| `tests.md` | 568 |  |
 
 ## docs/development/modules
 
@@ -120,7 +120,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `batch-rename-engine.js` | 379 | Recipe engine of the batch rename (see batch-rename.js for the dialog, batch_rename.rs for what runs on the disk). Pure code: no DOM, no Tauri, so it can be tried with plain Node. It computes the new name (without exten… |
 | `batch-rename.css` | 46 | BATCH RENAME DIALOG (batch-rename.js): saved recipes, steps, paginated before -> after preview. |
 | `batch-rename.js` | 656 |  |
-| `date-filter.js` | 450 | Date filter of the Filters block (date taken, from the EXIF date): text field (YYYYMMDD or YYYYMMDD-YYYYMMDD), calendar pop-up (single day or range) and clear button, plus the helpers that turn the date of a photo into … |
+| `date-filter.js` | 317 | Date filter of the Filters block (date taken, from the EXIF date): text field (YYYYMMDD or YYYYMMDD-YYYYMMDD), calendar pop-up (single day or range) and clear button, plus the helpers that turn the date of a photo into … |
 | `defaults.jsonc` | 291 |  |
 | `description-panel.js` | 410 | Onglet Description du panneau de droite (touche D) : titre et description des photos sélectionnées. Comme pour les mots-clés, la saisie reste « en attente » jusqu'à « Appliquer », Ctrl+Entrée, le changement de sélection… |
 | `drag-drop.js` | 423 | Grid drag-scroll (with exponential inertia and click suppression) and photo drag-and-drop from the thumbnail grid onto the folder tree (including sticky pinned rows), manual albums, and the map, plus the queued folder m… |
@@ -149,9 +149,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `histogram.css` | 76 | Histogramme (histogram.js) : réglages d'apparence et de l'écrêtage, tous modifiables ici. |
 | `histogram.js` | 406 | Histogramme de la photo courante (canvas 2D) et surcouche d'écrêtage des ombres / hautes lumières. Calcul : sur la MINIATURE de la photo (cache de la grille), décodée par le webview puis lue dans un canvas : pas de lect… |
 | `i18n.js` | 135 | Internationalisation : chaque texte d'interface est identifié par son libellé anglais (la clé), traduit via src/locales/<langue>.json. Pour ajouter un texte : ajouter la clé anglaise dans en.json (les autres langues ret… |
-| `import-settings.js` | 277 | Settings > Storage > Import & OS media arrival detection (event-driven, zero polling at rest). |
-| `import-view.css` | 950 | Dedicated full-content Import view & toolbar indicator |
-| `import-view.js` | 2269 | Dedicated full-content Import view (import-view.js): completely isolated from main.js `loadedPhotos`. Handles source selection, 2-pass scan, RAM-only thumbnails/previews, destination & subfolder rules, chronological cop… |
+| `import-settings.js` | 273 | Settings > Storage > Import & OS media arrival detection (event-driven, zero polling at rest). |
+| `import-view.css` | 926 | Dedicated full-content Import view & toolbar indicator |
+| `import-view.js` | 2327 | Dedicated full-content Import view (import-view.js): completely isolated from main.js `loadedPhotos`. Handles source selection, 2-pass scan, RAM-only thumbnails/previews, destination & subfolder rules, chronological cop… |
 | `info-author.js` | 153 | "Author and rights" section of the Info tab: the author of the active photo and, when unfolded, its copyright notice, credit, usage terms and the author's e-mail (see rights.rs and exif::Rights). - The section title (sa… |
 | `keywords-panel.js` | 1274 | Panneau latéral droit à onglets (Info / Mots-clés / Description) et onglet Mots-clés : arborescence hiérarchique éditable. Les mots-clés ne sont pas écrits dans les fichiers à chaque clic : les cases modifient un état «… |
 | `keywords.css` | 156 | PANNEAU DE DROITE À ONGLETS (Info / Mots-clés / Description), REDIMENSIONNABLE, ET ONGLETS MOTS-CLÉS ET DESCRIPTION : voir keywords-panel.js. Les couleurs viennent des variables de styles.css, pour suivre le thème clair… |
@@ -171,7 +171,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `order-list.js` | 135 | Tableau ordonnable des Paramètres (onglet Métadonnées) : priorité de lecture des formats d'un type de métadonnée (mots-clés, titre, description, note, couleur). Plusieurs tableaux peuvent partager le même élément : seul… |
 | `orientation.js` | 23 | Orientation helpers of the lossless rotation (orientation.rs). Pure code: no state, no DOM. The webview turns an original it shows by its EXIF tag only. When the orientation that wins is an XMP one (internal writer, sid… |
 | `persons-view.js` | 211 | Vue Personnes (lot 5a) : une grosse vignette par personne, à la place de la grille des photos (bouton « Visages » de la barre du haut). - Vignette : le visage représentatif recadré depuis la photo d'origine, à la résolu… |
-| `photo-actions.js` | 2196 |  |
+| `photo-actions.js` | 2184 |  |
 | `place-search.js` | 68 | Recherche d'un lieu par son nom dans la barre du mode Carte (commande search_places, voir place_search.rs). Disponible seulement avec Internet (mode hors ligne désactivé) : en mode hors ligne le champ est absent. Lancée… |
 | `preview-zoom.js` | 724 | Preview panel (zoom, pan, compare mode up to 4 photos, sub-selection) and instant zoom (hold Z), plus the shared slot layout and zoom primitives reused by fullscreen. `main.js` wires host callbacks via `initPreviewZoom(… |
 | `privacy.css` | 58 | Photos privées (privacy.js) : bouclier du panneau Filtres, liste des ensembles et zone de réglage de Paramètres > Divers. |
@@ -261,11 +261,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 265 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `hash_tasks.rs` | 919 | Background duplicate hash precomputation, pre-flight work counting, settings stats, deletion, and list-view exact hash states. Runs in the shared low-priority background lane (`semantic::background_busy`), commits in ch… |
 | `heif.rs` | 286 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
-| `import.rs` | 2228 | SD card and external folder photo import: OS media detection, two-pass source scan, RAM-only thumbnail/preview streaming, chronological durable copy reusing existing file primitives, incremental import memory, and targe… |
+| `import.rs` | 2660 | SD card and external folder photo import: OS media detection, two-pass source scan, RAM-only thumbnail/preview streaming, chronological durable copy reusing existing file primitives, incremental import memory, and targe… |
 | `integrity.rs` | 782 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 985 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
 | `library_sync.rs` | 430 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 3700 |  |
+| `main.rs` | 3770 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -282,7 +282,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `similar.rs` | 574 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `stats.rs` | 805 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
-| `thumbnails.rs` | 1571 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
+| `thumbnails.rs` | 1409 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
 | `update_check.rs` | 357 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
 | `video.rs` | 213 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
@@ -304,11 +304,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `faces.rs` | 54 | Tests of faces.rs: reading face regions from XMP packets (MWG written by ExifTool or Exiv2, Microsoft, priority, unnamed faces). Database side: tests/faces_db.rs. |
 | `geolocation.rs` | 79 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 103 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
-| `import.rs` | 468 |  |
+| `import.rs` | 1052 |  |
 | `integrity.rs` | 264 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
 | `keywords.rs` | 507 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
 | `library_sync.rs` | 241 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
-| `main.rs` | 593 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
+| `main.rs` | 638 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
 | `orientation.rs` | 98 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs. |
 | `phash.rs` | 62 | Tests of the perceptual hash: stability under resizing and recompression, difference between pictures, rotations, mirrors and flat pictures. |
 | `place_search.rs` | 25 | Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |

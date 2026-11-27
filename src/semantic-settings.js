@@ -61,7 +61,7 @@ export function onAnalysisChanged(listener) {
   return () => analysisListeners.delete(listener);
 }
 
-function notifyAnalysisChanged() {
+export function notifyAnalysisChanged() {
   for (const listener of analysisListeners) {
     try { listener(); } catch (error) { console.error('Analysis listener failed', error); }
   }

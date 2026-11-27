@@ -54,10 +54,10 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub RenameFailure` · L38 — Photo not renamed. `code`: invalid_name, not_found, not_tracked, duplicate, too_long, collision, exists, sidecar_exists, sidecar_taken, io,…
 - *struct* `pub RenameBatchResult` · L45
 - *struct* `pub PreviewStatus` · L54
-- `text_units` · L69 — Length as the file system counts it: UTF-16 units on Windows, bytes elsewhere.
-- `max_path_units` · L74 — Windows: 259 characters for the whole path (MAX_PATH minus the terminator), without assuming that long paths are enabled.
-- `exceeds_limits` · L78
-- `too_long` · L82
+- `pub text_units` · L69 — Length as the file system counts it: UTF-16 units on Windows, bytes elsewhere.
+- `pub max_path_units` · L74 — Windows: 259 characters for the whole path (MAX_PATH minus the terminator), without assuming that long paths are enabled.
+- `pub exceeds_limits` · L78
+- `pub too_long` · L82
 - `norm` · L93 — Path comparable ignoring case and separator style.
 - `dir_key` · L97
 - `split_name` · L102 — (name without extension, extension): a leading dot does not start an extension (as in `Path::file_stem`).
@@ -680,13 +680,13 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `xmp_text` · L270
 - `pub read_xmp` · L276 — Paquet XMP intégré au fichier, s'il y en a un.
 
-## import.rs (77)
+## import.rs (94)
 
-- `markers_lock` · L35
-- `list_mode_lock` · L46
-- `current_markers` · L50
-- `current_list_mode` · L57
-- `pub init_schema` · L68
+- `markers_lock` · L36
+- `list_mode_lock` · L47
+- `current_markers` · L51
+- `current_list_mode` · L58
+- `pub init_schema` · L69
 - *struct* `pub DetectedMedia` · L110
 - *struct* `pub MediaChangedPayload` · L124
 - *struct* `pub DestinationInfo` · L131
@@ -708,57 +708,74 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `file_kind` · L300
 - `has_photo_marker` · L310
 - `format_dt_14_from_exif_or_mtime` · L338
-- *struct* `RawRemovableVolume` · L357
+- *struct* `pub RawRemovableVolume` · L357
 - `enumerate_removable_volumes` · L364
-- `enumerate_removable_volumes` · L423
-- `read_linux_disk_links` · L472
-- `linux_dev_is_removable` · L486
-- `disk_free_space` · L500
-- `disk_free_space` · L514
-- `eject_removable_volume` · L527
-- `eject_removable_volume` · L590
-- `pub detect_storage_kind` · L616 — Classifies a source path as `"removable"`, `"network"`, or `"internal"`.
-- `collect_detected_media` · L750
-- `pub list_detected_media` · L815
-- *struct* `WatcherState` · L823
-- `watcher_lock` · L834
-- `pub stop_device_watcher` · L838
-- `media_snapshot` · L866
-- `emit_media_change` · L873
-- `start_device_watcher` · L892
-- `start_device_watcher` · L1023
-- `pub set_import_watcher_config` · L1097
-- `pub check_destination_info` · L1127
-- `pub eject_media` · L1149
-- `pub identify_source` · L1164
-- `pub scan_source_fast_with_conn` · L1207
-- `pub scan_import_source_fast` · L1377
-- `pub read_source_exif_with_pool` · L1396 — Pass 2: lightweight EXIF reading on up to 2 threads + optional partial-hash disambiguation
-- `read_lightweight_exif` · L1502
-- `pub read_import_source_exif` · L1507
-- *struct* `ThumbActiveGuard` · L1542
-- `ThumbActiveGuard::new` · L1545
-- `ThumbActiveGuard::drop` · L1552
-- `import_thumb_gate` · L1557
-- `pub get_import_thumbnail` · L1562
-- `pub get_import_preview` · L1581
-- `pub compute_target_dir` · L1594
-- `pub check_import_conflicts` · L1652
-- `pub run_import_copy_with` · L1684
-- `pub run_import_copy` · L1937
-- `pub index_paths_with_pool` · L1965 — Indexes only the newly imported destination files using `library_sync::read_photo` and `store_read_batch`,
-- `pub index_imported_photos` · L2029
-- `pub list_import_devices` · L2044
-- `pub set_import_device_policy` · L2075
-- `pub delete_import_device` · L2096
-- `pub purge_import_history` · L2108
-- *struct* `pub ImportPreset` · L2148
-- `pub list_presets_with_conn` · L2154
-- `pub save_preset_with_conn` · L2170
-- `pub delete_preset_with_conn` · L2194
-- `pub list_import_presets` · L2201
-- `pub save_import_preset` · L2208
-- `pub delete_import_preset` · L2219
+- *struct* `ProcMount` · L423
+- `unescape_mount_field` · L430
+- `read_proc_mounts` · L438
+- `enumerate_removable_volumes` · L453
+- `read_linux_disk_links` · L497
+- `linux_dev_is_removable` · L511
+- `disk_free_space` · L525
+- `disk_free_space` · L539
+- `eject_removable_volume` · L552
+- `eject_removable_volume` · L625
+- `pub detect_storage_kind` · L655 — Classifies a source path as `"removable"`, `"network"`, or `"internal"`.
+- `read_device_import_state` · L785
+- `collect_detected_media` · L794
+- `pub list_detected_media` · L853
+- *struct* `WatcherState` · L861
+- `watcher_lock` · L872
+- `pub stop_device_watcher` · L876
+- `media_snapshot` · L904
+- `emit_media_change` · L911
+- `start_device_watcher` · L930
+- `start_device_watcher` · L1061
+- `pub set_import_watcher_config` · L1141
+- `pub check_destination_info` · L1176
+- `active_import_sources_lock` · L1199
+- *struct* `ActiveImportSourceGuard` · L1203
+- `ActiveImportSourceGuard::new` · L1208
+- `ActiveImportSourceGuard::drop` · L1217
+- `paths_overlap` · L1226
+- `pub validate_eject_target` · L1237
+- `pub eject_media` · L1282
+- `pub identify_source` · L1299
+- `pub scan_source_fast_with_conn` · L1337
+- `pub scan_source_fast_with_root` · L1346
+- `pub scan_import_source_fast` · L1523
+- `normalize_exif_date` · L1546 — Normalizes `YYYY:MM:DD HH:MM:SS` and `YYYY-MM-DD HH:MM:SS` to `YYYY-MM-DD...` so EXIF dates
+- `pub read_source_exif_with_pool` · L1564 — Pass 2: lightweight EXIF reading on up to 2 threads + optional partial-hash disambiguation
+- `pub read_import_source_exif` · L1682
+- *struct* `ThumbActiveGuard` · L1717
+- `ThumbActiveGuard::new` · L1720
+- `ThumbActiveGuard::drop` · L1727
+- `import_thumb_gate` · L1732
+- `pub get_import_thumbnail` · L1737
+- `pub get_import_preview` · L1756
+- `pub compute_target_dir` · L1769
+- `check_target_path_limits` · L1867
+- `ensure_target_dir` · L1897 — Lazily creates `target_dir` and returns the shallowest ancestor directory that was newly created
+- `cleanup_created_empty_dirs` · L1919 — Removes empty directories created for a failed copy from `target_dir` up to `stop_at` (inclusive).
+- `pub check_import_conflicts_with` · L1938
+- `pub check_import_conflicts` · L1982
+- `pub run_import_copy_with` · L1991
+- `pub run_import_copy_with_ops` · L2011
+- `pub run_import_copy` · L2314
+- `pub index_paths_with_pool` · L2342 — Indexes only the newly imported destination files using `library_sync::read_photo` and `store_read_batch`,
+- `pub index_imported_photos` · L2401
+- `pub list_import_devices` · L2416
+- `pub set_import_device_policy` · L2447
+- `pub delete_import_device` · L2468
+- `pub purge_import_history_with_conn` · L2479
+- `pub purge_import_history` · L2561
+- *struct* `pub ImportPreset` · L2580
+- `pub list_presets_with_conn` · L2586
+- `pub save_preset_with_conn` · L2602
+- `pub delete_preset_with_conn` · L2626
+- `pub list_import_presets` · L2633
+- `pub save_import_preset` · L2640
+- `pub delete_import_preset` · L2651
 
 ## integrity.rs (34)
 
@@ -867,7 +884,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `is_excluded` · L256 — The path is one of the `excluded` folders or lies inside one.
 - `pub sync_library` · L272 — Compare les dossiers suivis au catalogue :
 
-## main.rs (192)
+## main.rs (195)
 
 - *struct* `pub AppDataPaths` · L58
 - `pub AppDataPaths::from_base` · L67
@@ -973,7 +990,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `get_file_dates` · L1667
 - `sidecar_to_trash` · L1681 — Sidecar XMP à supprimer avec une photo. « photo.jpg.xmp » (extension complète + .xmp) appartient à ce seul fichier. « photo.xmp » (nom comp…
 - `pub validate_new_name` · L1693 — Nom de fichier ou de dossier saisi par l'utilisateur : un seul niveau, sans caractère interdit par Windows (le même nom reste valide sous L…
-- `same_existing_file` · L1708 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
+- `pub same_existing_file` · L1708 — True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
 - `reserve_new_file` · L1714 — Creates `path` empty, only if nothing is there (atomic): the name is ours until a rename or copy replaces this placeholder. A file that
 - `rename_photo` · L1722 — Renomme une photo dans son dossier (l'extension est conservée : « IMG.2024.cr2 » + « vacances » -> « vacances.cr2 »). Son sidecar suit : « …
 - `rename_folder` · L1824 — Renomme un dossier de l'arborescence (sous-dossier d'un dossier suivi) sur place. Les photos qu'il contient (sous-dossiers compris) gardent…
@@ -997,70 +1014,73 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - *struct* `pub Reserved` · L2242 — Name reserved by reserve_destination, and the sidecar that made the first choices unusable (to report: the photo gets another name).
 - `pub Reserved::sidecar_rename` · L2248
 - `pub reserve_destination` · L2257
-- `copy_sidecar_with` · L2282 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
-- `pub copy_sidecar` · L2309
-- `lowercase_segments` · L2313
-- `set_verify_cross_drive_moves` · L2321
-- `pub flush_to_disk` · L2326 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
-- `pub sync_parent_dir` · L2357 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
-- `source_snapshot` · L2366
-- `copy_durably_with` · L2373 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
-- `copy_durably` · L2408 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
-- `file_sha256` · L2413 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
-- `pub files_have_same_hash` · L2427
-- `remove_copied_target` · L2438 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
-- `temp_sibling_path` · L2451
-- `pub copy_atomically_to_reserved` · L2463 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-- `pub replace_file_via_backup` · L2477 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
-- `pub replace_file_via_trash_with` · L2523
-- `pub replace_file_via_trash` · L2538 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
-- `move_file_via_copy` · L2544
-- `move_file` · L2582
-- `move_sidecar` · L2593 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
-- *struct* `FileTaskProgress` · L2612 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
-- `FileTaskProgress::new` · L2621
-- `FileTaskProgress::cancelled` · L2628
-- `FileTaskProgress::advance` · L2633 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
-- `FileTaskProgress::drop` · L2643
-- `carry_cache_file` · L2650 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
-- `move_photos` · L2665 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
-- `pub find_copy_conflicts` · L2761 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
-- `copy_replacing_with` · L2782 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
-- `pub copy_replacing` · L2803
-- `copy_photos_with_progress` · L2817 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
-- `copy_conflicts` · L2879 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
-- `copy_photos` · L2884
-- `tracked_copy_conflicts` · L2893 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
-- `copy_photos_to_tracked_folder` · L2903 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
-- `resize_photo` · L2916 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
-- `same_program` · L2935
-- `is_allowed_program` · L2939
-- `allow_programs` · L2943
-- `pick_program` · L2956 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
-- `register_existing_programs` · L2970 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
-- `open_with` · L2976 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
-- `reveal_in_file_manager` · L2990 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
-- `pub write_timestamped_log` · L2997 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
-- *struct* `pub SidecarRename` · L3019 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
-- `pub log_sidecar_renames` · L3026 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
-- *struct* `WriteRecoveryReport` · L3047 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
-- `log_write_recoveries` · L3054 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
-- `take_write_recoveries` · L3069 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
-- `open_video_externally` · L3076 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
-- `copy_files_to_clipboard` · L3097
-- `read_clipboard_text` · L3122 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
-- `write_clipboard_text` · L3133 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
-- `clipboard_entry` · L3145 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
-- `clipboard_entry` · L3150
-- `file_uri` · L3156 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
-- `main` · L3170
-- `move_file_or_copy` · L3505 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3526 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3544 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3561 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L3589
-- `get_storage_location` · L3596
-- `change_storage_location` · L3606
+- `pub copy_sidecar_with` · L2295 — Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
+- `pub copy_sidecar` · L2332
+- `pub lowercase_segments` · L2336
+- `set_verify_cross_drive_moves` · L2344
+- `pub flush_to_disk` · L2349 — Asks the system to write `path` physically to its disk (data and size), not just to its write cache.
+- `pub sync_parent_dir` · L2380 — Linux / macOS: a new or renamed file is durable only once its directory entry is, so the folder is flushed too (best effort: some file
+- `source_snapshot` · L2389
+- `copy_durably_with` · L2396 — Copies `source` to `target` (which must be a disposable temporary path), verifies that `source` kept the same
+- `copy_durably` · L2431 — `fs::copy`, then verifies source stability and flushes the copy to disk: once this returns, the copy is coherent and survives a power cut.
+- `file_sha256` · L2436 — Somme SHA-256 d'un fichier, lue par blocs (jamais le fichier entier en mémoire).
+- `pub files_have_same_hash` · L2450
+- `pub remove_copied_target` · L2461 — Déplace un fichier : renommage, ou copie puis suppression de l'original quand le renommage est impossible (autre disque, par exemple).
+- `temp_sibling_path` · L2474
+- `pub copy_atomically_to_reserved_verified` · L2486 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `pub copy_atomically_to_reserved` · L2507 — Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+- `pub replace_file_via_backup` · L2513 — Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
+- `pub replace_file_via_trash_with` · L2559
+- `pub replace_file_via_trash` · L2574 — Replaces an existing `target` with `temp` by sending the previous file to the OS trash.
+- `move_file_via_copy` · L2580
+- `move_file` · L2618
+- `move_sidecar` · L2629 — XMP sidecar of a moved photo: `photo.jpg.xmp` is always moved with it. A compatible `photo.xmp` is moved when no sibling
+- *struct* `FileTaskProgress` · L2648 — Suivi d'une tâche de fichiers (déplacement, copie) lancée depuis la file de l'interface : publie l'avancement dans « scan-progress » (pondé…
+- `FileTaskProgress::new` · L2657
+- `FileTaskProgress::cancelled` · L2664
+- `FileTaskProgress::advance` · L2669 — À appeler après chaque fichier traité (réussi ou non) avec sa taille.
+- `FileTaskProgress::drop` · L2679
+- `carry_cache_file` · L2686 — Reporte un fichier du cache (miniature, aperçu RAW) sous son nouveau nom après un déplacement de la photo. Sans nouveau nom, ou si le renom…
+- `move_photos` · L2701 — Déplace des photos du catalogue vers un dossier de l'arborescence (suivi ou sous-dossier d'un dossier suivi), par glisser-déposer.
+- `pub find_copy_conflicts` · L2797 — Fichiers à copier dont le nom existe déjà dans `destination` (le fichier de la destination et celui à copier sont décrits pour la question …
+- `pub copy_replacing_verified_with` · L2824 — Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk,
+- `pub copy_replacing_verified` · L2856
+- `copy_replacing_with` · L2871
+- `pub copy_replacing` · L2879
+- `copy_photos_with_progress` · L2887 — Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :
+- `copy_conflicts` · L2949 — Question « le fichier existe déjà » avant une copie vers un dossier choisi dans la boîte de dialogue de l'OS : liste des fichiers en confli…
+- `copy_photos` · L2954
+- `tracked_copy_conflicts` · L2963 — Même question pour une copie par glisser-déposer (dossier suivi ou sous-dossier).
+- `copy_photos_to_tracked_folder` · L2973 — Copie par glisser-déposer (Ctrl) vers un dossier de l'arborescence : même copie que « Copier vers… » (écrasement seulement sur choix de l'u…
+- `resize_photo` · L2986 — Redimensionne une photo selon les options de la fenêtre « Redimensionner… » (voir resize.rs) : un appel par photo, l'interface pilote le lot
+- `same_program` · L3005
+- `is_allowed_program` · L3009
+- `allow_programs` · L3013
+- `pick_program` · L3026 — OS dialog to choose a program, opened by the backend: the chosen program is allowed for open_with. None if the user cancels.
+- `register_existing_programs` · L3040 — Programs already in the Settings before this check existed: allowed once, at the first start that has no list yet; ignored afterwards.
+- `open_with` · L3046 — Ouvre les fichiers avec un programme externe (liste des Paramètres ou programme choisi dans la boîte de dialogue de l'OS).
+- `reveal_in_file_manager` · L3060 — Affiche le fichier dans le gestionnaire de fichiers par défaut de l'OS : dossier ouvert avec le fichier sélectionné
+- `pub write_timestamped_log` · L3067 — Writes `text` to a new file of `logs_dir` (created if needed) named `<prefix>_<date>_<time>.log` after `now`; `-2`, `-3`... are added if the
+- *struct* `pub SidecarRename` · L3089 — Photo moved or copied under another name because a sidecar not its own was already at the destination (see reserve_destination).
+- `pub log_sidecar_renames` · L3096 — Log of the renames of one move or copy, in `<storage>/logs`. Returns its path (None if nothing to log, or with the error traced).
+- *struct* `WriteRecoveryReport` · L3117 — Recoveries after failed ExifTool writes (see exiftool::recover_after_failure), reported once a write operation is over.
+- `log_write_recoveries` · L3124 — Writes every recovery not yet reported to one timestamped file of `<storage folder>/logs`. None when there was nothing to report.
+- `take_write_recoveries` · L3139 — Called by the interface after each metadata write operation: all recoveries since the last call, in a single log file and a single dialog.
+- `open_video_externally` · L3146 — Ouvre une vidéo du catalogue dans le lecteur multimédia par défaut de l'OS (plugin opener déjà intégré) : l'application n'embarque aucun le…
+- `copy_files_to_clipboard` · L3167
+- `read_clipboard_text` · L3192 — Texte du presse-papiers, pour « Coller » dans le menu des champs de saisie (le navigateur intégré demanderait une autorisation pour le lire…
+- `write_clipboard_text` · L3203 — Copie un texte dans le presse-papiers (coordonnées du groupe Lieu) : l'écriture par le navigateur intégré peut être refusée.
+- `clipboard_entry` · L3215 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
+- `clipboard_entry` · L3220
+- `file_uri` · L3226 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
+- `main` · L3240
+- `move_file_or_copy` · L3575 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3596 — `durable`: each copy is flushed to the disk (see copy_durably), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3614 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3631 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L3659
+- `get_storage_location` · L3666
+- `change_storage_location` · L3676
 
 ## model_files.rs (11)
 
@@ -1572,7 +1592,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `pub semantic_model_dir` · L138 — Folder of the SigLIP 2 model files (vision.onnx, text.onnx, tokenizer.json), from SEMANTIC_MODEL_DIR (parity tests).
 - `pub onnx_runtime_library` · L145 — ONNX Runtime library (parity tests): ORT_DYLIB_PATH, otherwise the `models/` folder of an installed application (release, then development …
 
-## thumbnails.rs (55)
+## thumbnails.rs (67)
 
 - `pub set_high_quality_thumbnails` · L31
 - `thumbnail_quality` · L35
@@ -1604,31 +1624,43 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `cr3_box` · L493 — Contenu d'une boîte du conteneur ISO BMFF d'un CR3 (nom de 4 octets) : ici un bloc TIFF autonome.
 - `tiff_as_exif_ifd` · L508 — Bloc TIFF de la boîte CMT2 d'un CR3 : son IFD0 est directement l'IFD Exif, que kamadak-exif classerait alors comme IFD TIFF (ISO, ouverture,
 - `pub read_exif_sources` · L532 — EXIF d'un fichier, une ou plusieurs sources à lire dans l'ordre (la dernière l'emporte pour une même valeur) :
-- `pub raw_orientation` · L564 — Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
-- `pub preview_with_orientation` · L580 — Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme l…
-- `pub resize_to_fit` · L609
-- `axis_weights` · L619 — Pour chaque pixel de destination : premier pixel source concerné et poids normalisés (recouvrement exact).
-- `pub resize_area` · L636 — Réduction par moyenne des aires (séparable : horizontal puis vertical).
-- `pub apply_orientation` · L673 — Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
-- `pub encode_jpeg_bytes` · L697 — Encodes an RGB buffer as JPEG bytes in memory with optimized Huffman tables (zero disk writes).
-- `encode_jpeg_bytes_fast` · L708 — Fast single-pass RAM JPEG encoding (skips 2-pass Huffman optimization for transient import thumbnails).
-- `jpeg_sof_dimensions` · L719 — Reads (width, height) from the first SOF marker of an in-memory JPEG without decoding pixels.
-- `extract_raf_preview_fast` · L762
-- `extract_cr3_preview_fast` · L777
-- `extract_tiff_raw_preview_fast` · L843
-- `extract_fast_raw_thumbnail` · L981
-- `clean_exif_date` · L1008
-- `parse_tiff_slice_exif_fields` · L1018
-- `parse_jpeg_slice_exif_fields` · L1089
-- `read_tiff_file_exif_fields` · L1127
-- `read_cr3_moov_exif_fields` · L1235
-- `pub read_fast_exif_fields` · L1289 — Pure-seek lightweight EXIF reader (`date_taken`, `orientation`): reads only ~4-64 KB per file
-- `extract_jpeg_exif_thumbnail` · L1346 — Extracts the embedded EXIF IFD1 thumbnail from the first 64 KB of a JPEG if its longest side >= `min_side`.
-- `pub render_fast_import_thumbnail_bytes` · L1452 — Fast RAM-only JPEG thumbnail for the Import view: uses header-seek embedded JPEG extraction
-- `pub render_thumbnail_jpeg_bytes` · L1518 — Renders a RAM-only JPEG thumbnail for `source` without touching any disk cache.
-- `pub render_preview_jpeg_bytes` · L1524 — Renders a RAM-only JPEG preview (up to 1600 px) for `source` without touching any disk cache.
-- `pub write_jpeg` · L1542 — Writes a cache thumbnail at the quality chosen in the settings.
-- `pub write_jpeg_with_quality` · L1547 — Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
+- `resolve_raw_preview_orientation` · L560
+- `pub raw_orientation` · L574 — Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
+- `pub preview_with_orientation` · L584 — Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme l…
+- `pub resize_to_fit` · L613
+- `axis_weights` · L623 — Pour chaque pixel de destination : premier pixel source concerné et poids normalisés (recouvrement exact).
+- `pub resize_area` · L640 — Réduction par moyenne des aires (séparable : horizontal puis vertical).
+- `pub apply_orientation` · L677 — Applique l'orientation EXIF (2 = miroir horizontal, 3 = 180°, 4 = miroir vertical, 5 = transposition,
+- `pub encode_jpeg_bytes` · L701 — Encodes an RGB buffer as JPEG bytes in memory with optimized Huffman tables (zero disk writes).
+- `encode_jpeg_bytes_fast` · L712 — Fast single-pass RAM JPEG encoding (skips 2-pass Huffman optimization for transient import thumbnails).
+- `jpeg_sof_dimensions` · L723 — Reads (width, height) from the first SOF marker of an in-memory JPEG without decoding pixels.
+- `jpeg_exif_tiff_slice` · L736
+- *struct* `TiffEndian` · L743
+- `TiffEndian::parse_header` · L746
+- `TiffEndian::u16` · L759
+- `TiffEndian::u32` · L763
+- `TiffEndian::entry` · L768 — Returns `(tag, kind, count, scalar_or_offset_u32)`.
+- `tiff_slice_ifd` · L781
+- `tiff_file_ifd` · L792
+- `extract_raf_preview_fast` · L813
+- `extract_cr3_preview_fast` · L828
+- `extract_tiff_raw_preview_fast` · L894
+- `extract_fast_raw_thumbnail` · L996
+- `clean_exif_date` · L1023
+- *enum* `TiffSource` · L1033
+- `TiffSource::read_ifd` · L1039
+- `TiffSource::read_bytes` · L1048
+- `read_tiff_exif_fields_with` · L1068
+- `parse_tiff_slice_exif_fields` · L1113
+- `parse_jpeg_slice_exif_fields` · L1120
+- `read_tiff_file_exif_fields` · L1124
+- `read_cr3_moov_exif_fields` · L1142
+- `pub read_fast_exif_fields` · L1196 — Pure-seek lightweight EXIF reader (`date_taken`, `orientation`): reads only ~4-64 KB per file
+- `extract_jpeg_exif_thumbnail` · L1260 — Extracts the embedded EXIF IFD1 thumbnail from the first 64 KB of a JPEG if its longest side >= `min_side`.
+- `pub render_fast_import_thumbnail_bytes` · L1302 — Fast RAM-only JPEG thumbnail for the Import view: uses header-seek embedded JPEG extraction
+- `pub render_preview_jpeg_bytes` · L1361 — Renders a RAM-only JPEG preview (up to 1600 px) for `source` without touching any disk cache.
+- `pub write_jpeg` · L1380 — Writes a cache thumbnail at the quality chosen in the settings.
+- `pub write_jpeg_with_quality` · L1385 — Atomic write (temporary file, then rename) of an RGB image as a JPEG with optimized Huffman tables.
 
 ## update_check.rs (15)
 

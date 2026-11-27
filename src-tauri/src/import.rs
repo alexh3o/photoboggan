@@ -17,11 +17,12 @@ use walkdir::WalkDir;
 
 use crate::db::{self, DbPool, Photo};
 use crate::{
-    copy_atomically_to_reserved, copy_replacing, copy_sidecar, files_have_same_hash,
-    find_copy_conflicts, is_inside_folder, library_sync, log_sidecar_renames, privacy,
-    release_scan_cancel_flag, reserve_destination, resolve_tracked_folder, scan_cancel_flag,
-    semantic, thumbnails, validate_new_name, video, AppState, CopyConflict, FileFailure,
-    ScanProgress, SidecarRename,
+    batch_rename, copy_atomically_to_reserved_verified, copy_replacing_verified, copy_sidecar,
+    exif, files_have_same_hash, find_copy_conflicts, is_inside_folder, library_sync,
+    log_sidecar_renames, lowercase_segments, privacy, release_scan_cancel_flag,
+    remove_copied_target, reserve_destination, resolve_tracked_folder, same_existing_file,
+    scan_cancel_flag, semantic, thumbnails, validate_new_name, video, AppState, CopyConflict,
+    FileFailure, ScanProgress, SidecarRename,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,6 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             file_size INTEGER NOT NULL,
             file_mtime INTEGER NOT NULL,
             date_taken TEXT NOT NULL DEFAULT '',
-            partial_hash BLOB,
             dest_path TEXT NOT NULL,
             imported_at INTEGER NOT NULL,
             UNIQUE(media_id, relative_path, file_size, file_mtime)
@@ -354,10 +354,10 @@ fn format_dt_14_from_exif_or_mtime(date_taken: &str, mtime_ms: i64) -> String {
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
-struct RawRemovableVolume {
-    media_id: String,
-    label: String,
-    root_path: String,
+pub(crate) struct RawRemovableVolume {
+    pub(crate) media_id: String,
+    pub(crate) label: String,
+    pub(crate) root_path: String,
 }
 
 #[cfg(windows)]
@@ -420,32 +420,57 @@ fn enumerate_removable_volumes() -> Vec<RawRemovableVolume> {
 }
 
 #[cfg(not(windows))]
+struct ProcMount {
+    dev: String,
+    mount_point: String,
+    fstype: String,
+}
+
+#[cfg(not(windows))]
+fn unescape_mount_field(raw: &str) -> String {
+    raw.replace("\\040", " ")
+        .replace("\\011", "\t")
+        .replace("\\012", "\n")
+        .replace("\\134", "\\")
+}
+
+#[cfg(not(windows))]
+fn read_proc_mounts() -> Result<Vec<ProcMount>, String> {
+    let mounts = fs::read_to_string("/proc/mounts").map_err(|e| e.to_string())?;
+    Ok(mounts
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let dev = unescape_mount_field(parts.next()?);
+            let mount_point = unescape_mount_field(parts.next()?);
+            let fstype = parts.next()?.to_string();
+            Some(ProcMount { dev, mount_point, fstype })
+        })
+        .collect())
+}
+
+#[cfg(not(windows))]
 fn enumerate_removable_volumes() -> Vec<RawRemovableVolume> {
-    let Ok(mounts) = fs::read_to_string("/proc/mounts") else {
+    let Ok(mounts) = read_proc_mounts() else {
         return Vec::new();
     };
     let uuid_map = read_linux_disk_links("/dev/disk/by-uuid");
     let label_map = read_linux_disk_links("/dev/disk/by-label");
     let mut out = Vec::new();
     let mut seen_roots = HashSet::new();
-    for line in mounts.lines() {
-        let mut parts = line.split_whitespace();
-        let (Some(dev), Some(mount_raw)) = (parts.next(), parts.next()) else {
-            continue;
-        };
-        if !dev.starts_with("/dev/") {
+    for m in mounts {
+        if !m.dev.starts_with("/dev/") {
             continue;
         }
-        let mount_point = mount_raw.replace("\\040", " ");
-        if !seen_roots.insert(mount_point.clone()) {
+        if !seen_roots.insert(m.mount_point.clone()) {
             continue;
         }
-        let is_user_media = mount_point.starts_with("/media/") || mount_point.starts_with("/run/media/");
-        let is_removable_sys = linux_dev_is_removable(dev);
+        let is_user_media = m.mount_point.starts_with("/media/") || m.mount_point.starts_with("/run/media/");
+        let is_removable_sys = linux_dev_is_removable(&m.dev);
         if !is_user_media && !is_removable_sys {
             continue;
         }
-        let canon_dev = fs::canonicalize(dev).unwrap_or_else(|_| PathBuf::from(dev));
+        let canon_dev = fs::canonicalize(&m.dev).unwrap_or_else(|_| PathBuf::from(&m.dev));
         let media_id = uuid_map
             .get(&canon_dev)
             .cloned()
@@ -454,15 +479,15 @@ fn enumerate_removable_volumes() -> Vec<RawRemovableVolume> {
             .get(&canon_dev)
             .cloned()
             .or_else(|| {
-                Path::new(&mount_point)
+                Path::new(&m.mount_point)
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
             })
-            .unwrap_or_else(|| mount_point.clone());
+            .unwrap_or_else(|| m.mount_point.clone());
         out.push(RawRemovableVolume {
             media_id,
             label,
-            root_path: mount_point,
+            root_path: m.mount_point,
         });
     }
     out
@@ -530,7 +555,7 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
     use windows::core::PCWSTR;
     use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE};
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        CreateFileW, GetDriveTypeW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
     use windows::Win32::System::Ioctl::{
         FSCTL_DISMOUNT_VOLUME, FSCTL_LOCK_VOLUME, IOCTL_STORAGE_EJECT_MEDIA,
@@ -538,11 +563,20 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
     };
     use windows::Win32::System::IO::DeviceIoControl;
 
-    let letter = root_path
-        .chars()
+    const DRIVE_REMOVABLE: u32 = 2;
+    let mut chars = root_path.chars();
+    let letter = chars
         .next()
         .filter(|c| c.is_ascii_alphabetic())
         .ok_or_else(|| "Lecteur amovible invalide".to_string())?;
+    if chars.next() != Some(':') {
+        return Err("Lecteur amovible invalide".to_string());
+    }
+    let root_drive = format!("{letter}:\\");
+    let wide_drive: Vec<u16> = OsString::from(&root_drive).encode_wide().chain(Some(0)).collect();
+    if unsafe { GetDriveTypeW(PCWSTR(wide_drive.as_ptr())) } != DRIVE_REMOVABLE {
+        return Err("Ce support n'est pas un lecteur amovible éjectable".to_string());
+    }
     let device_path = format!("\\\\.\\{letter}:");
     let wide: Vec<u16> = OsString::from(&device_path).encode_wide().chain(Some(0)).collect();
     let handle = unsafe {
@@ -563,7 +597,8 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
         unsafe {
             DeviceIoControl(handle, FSCTL_LOCK_VOLUME, None, 0, None, 0, Some(&mut bytes), None)
                 .map_err(|_| "Le support est utilisé par un autre programme : fermez les fenêtres ouvertes dessus et réessayez".to_string())?;
-            let _ = DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, None, 0, None, 0, Some(&mut bytes), None);
+            DeviceIoControl(handle, FSCTL_DISMOUNT_VOLUME, None, 0, None, 0, Some(&mut bytes), None)
+                .map_err(|e| format!("Démontage du volume refusé par le système : {e}"))?;
             let prevent: [u8; 1] = [0];
             let _ = DeviceIoControl(
                 handle,
@@ -588,17 +623,21 @@ fn eject_removable_volume(root_path: &str) -> Result<(), String> {
 
 #[cfg(not(windows))]
 fn eject_removable_volume(root_path: &str) -> Result<(), String> {
-    let mounts = fs::read_to_string("/proc/mounts").map_err(|e| e.to_string())?;
+    let mounts = read_proc_mounts()?;
     let norm_target = normalize_path(root_path);
-    let dev = mounts
-        .lines()
-        .find_map(|line| {
-            let mut parts = line.split_whitespace();
-            let dev = parts.next()?;
-            let mount = parts.next()?.replace("\\040", " ");
-            (normalize_path(&mount) == norm_target).then(|| dev.to_string())
+    let (dev, mount) = mounts
+        .into_iter()
+        .find_map(|m| {
+            (normalize_path(&m.mount_point) == norm_target).then_some((m.dev, m.mount_point))
         })
         .ok_or_else(|| "Point de montage introuvable".to_string())?;
+    let is_removable = dev.starts_with("/dev/")
+        && (mount.starts_with("/media/")
+            || mount.starts_with("/run/media/")
+            || linux_dev_is_removable(&dev));
+    if !is_removable {
+        return Err("Ce support n'est pas un lecteur amovible éjectable".to_string());
+    }
     let unmount = std::process::Command::new("udisksctl")
         .args(["unmount", "-b", &dev])
         .output()
@@ -708,23 +747,19 @@ pub(crate) fn detect_storage_kind(path: &Path) -> &'static str {
         let _ = raw;
         let canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
         let canon_norm = normalize_path(&canon.to_string_lossy());
-        let Ok(mounts) = fs::read_to_string("/proc/mounts") else {
+        let Ok(mounts) = read_proc_mounts() else {
             return "internal";
         };
         let mut best: Option<(usize, String, String, String)> = None;
-        for line in mounts.lines() {
-            let mut parts = line.split_whitespace();
-            let (Some(dev), Some(mount_raw), Some(fstype)) = (parts.next(), parts.next(), parts.next()) else {
-                continue;
-            };
-            let mount = normalize_path(&mount_raw.replace("\\040", " "));
+        for m in mounts {
+            let mount = normalize_path(&m.mount_point);
             let matches = if mount.is_empty() {
                 true
             } else {
                 canon_norm == mount || canon_norm.starts_with(&format!("{mount}/"))
             };
             if matches && best.as_ref().is_none_or(|b| mount.len() > b.0) {
-                best = Some((mount.len(), dev.to_string(), mount, fstype.to_string()));
+                best = Some((mount.len(), m.dev, mount, m.fstype));
             }
         }
         if let Some((_, dev, mount, fstype)) = best {
@@ -746,6 +781,15 @@ pub(crate) fn detect_storage_kind(path: &Path) -> &'static str {
 // ---------------------------------------------------------------------------
 // Media enumeration + policy
 // ---------------------------------------------------------------------------
+
+fn read_device_import_state(conn: &Connection, media_id: &str) -> (String, i64, String) {
+    conn.query_row(
+        "SELECT policy, last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
+        params![media_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )
+    .unwrap_or_else(|_| ("normal".into(), 0, String::new()))
+}
 
 fn collect_detected_media(pool: &DbPool) -> Vec<DetectedMedia> {
     let tracked_folders = db::get_folders(pool);
@@ -781,13 +825,7 @@ fn collect_detected_media(pool: &DbPool) -> Vec<DetectedMedia> {
                last_seen_at = excluded.last_seen_at",
             params![vol.media_id, vol.label, vol.root_path, now],
         );
-        let (policy, last_import_at, last_imported_file_dt): (String, i64, String) = conn
-            .query_row(
-                "SELECT policy, last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
-                params![vol.media_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .unwrap_or_else(|_| ("normal".into(), 0, String::new()));
+        let (policy, last_import_at, last_imported_file_dt) = read_device_import_state(&conn, &vol.media_id);
 
         let eligible = has_marker
             && if mode == "whitelist" {
@@ -1065,7 +1103,13 @@ fn start_device_watcher(app: tauri::AppHandle) {
             let mut buf = [0u8; 4096];
             while !stop_thread.load(Ordering::Relaxed) {
                 let rc = unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) };
-                if rc <= 0 || stop_thread.load(Ordering::Relaxed) || (fds[1].revents & libc::POLLIN) != 0 {
+                if rc < 0 {
+                    if std::io::Error::last_os_error().raw_os_error() == Some(libc::EINTR) {
+                        continue;
+                    }
+                    break;
+                }
+                if rc == 0 || stop_thread.load(Ordering::Relaxed) || (fds[1].revents & libc::POLLIN) != 0 {
                     break;
                 }
                 if (fds[0].revents & libc::POLLIN) != 0 {
@@ -1113,9 +1157,14 @@ pub fn set_import_watcher_config(
     };
     RETENTION_30D.store(retention_30d, Ordering::Relaxed);
 
-    stop_device_watcher();
-    if enabled {
+    let is_running = watcher_lock()
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .is_some();
+    if enabled && !is_running {
         start_device_watcher(app);
+    } else if !enabled && is_running {
+        stop_device_watcher();
     }
 }
 
@@ -1145,14 +1194,100 @@ pub fn check_destination_info(state: State<'_, AppState>, path: String) -> Resul
     })
 }
 
-#[tauri::command(async)]
-pub fn eject_media(root_path: String) -> Result<(), String> {
-    let volumes = enumerate_removable_volumes();
-    let norm = normalize_path(&root_path);
+static ACTIVE_IMPORT_SOURCES: OnceLock<Mutex<Vec<PathBuf>>> = OnceLock::new();
+
+fn active_import_sources_lock() -> &'static Mutex<Vec<PathBuf>> {
+    ACTIVE_IMPORT_SOURCES.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+struct ActiveImportSourceGuard {
+    path: PathBuf,
+}
+
+impl ActiveImportSourceGuard {
+    fn new(path: PathBuf) -> Self {
+        if let Ok(mut list) = active_import_sources_lock().lock() {
+            list.push(path.clone());
+        }
+        Self { path }
+    }
+}
+
+impl Drop for ActiveImportSourceGuard {
+    fn drop(&mut self) {
+        if let Ok(mut list) = active_import_sources_lock().lock() {
+            if let Some(pos) = list.iter().position(|p| p == &self.path) {
+                list.remove(pos);
+            }
+        }
+    }
+}
+
+fn paths_overlap(a: &str, b: &str) -> bool {
+    let norm_a = normalize_path(a);
+    let norm_b = normalize_path(b);
+    if norm_a.is_empty() || norm_b.is_empty() {
+        return false;
+    }
+    norm_a.eq_ignore_ascii_case(&norm_b)
+        || is_inside_folder(&norm_a, &norm_b)
+        || is_inside_folder(&norm_b, &norm_a)
+}
+
+pub(crate) fn validate_eject_target(
+    root_path: &str,
+    volumes: &[RawRemovableVolume],
+    tracked_folders: &[db::TrackedFolder],
+    app_data_dir: &Path,
+    active_import_sources: &[PathBuf],
+) -> Result<RawRemovableVolume, String> {
+    let trimmed = root_path.trim();
+    if trimmed.is_empty()
+        || trimmed
+            .split(['\\', '/'])
+            .any(|seg| matches!(seg, "." | ".."))
+    {
+        return Err("Chemin de support invalide".into());
+    }
+    let norm = normalize_path(trimmed);
     let matched = volumes
-        .into_iter()
-        .find(|v| normalize_path(&v.root_path).eq_ignore_ascii_case(&norm))
+        .iter()
+        .find(|v| {
+            let v_norm = normalize_path(&v.root_path);
+            !v_norm.is_empty()
+                && (v_norm.eq_ignore_ascii_case(&norm) || is_inside_folder(&v.root_path, trimmed))
+        })
+        .cloned()
         .ok_or_else(|| "Ce support n'est pas un lecteur amovible éjectable".to_string())?;
+
+    if tracked_folders
+        .iter()
+        .any(|tf| paths_overlap(&matched.root_path, &tf.path))
+    {
+        return Err("Éjection refusée : ce support contient un dossier suivi".into());
+    }
+    if paths_overlap(&matched.root_path, &app_data_dir.to_string_lossy()) {
+        return Err("Éjection refusée : ce support contient les données de l'application".into());
+    }
+    if active_import_sources
+        .iter()
+        .any(|src| paths_overlap(&matched.root_path, &src.to_string_lossy()))
+    {
+        return Err("Éjection refusée : un import est en cours depuis ce support".into());
+    }
+    Ok(matched)
+}
+
+#[tauri::command(async)]
+pub fn eject_media(state: State<'_, AppState>, root_path: String) -> Result<(), String> {
+    let volumes = enumerate_removable_volumes();
+    let tracked = db::get_folders(&state.pool());
+    let app_data = state.base_dir();
+    let active = active_import_sources_lock()
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_default();
+    let matched = validate_eject_target(&root_path, &volumes, &tracked, &app_data, &active)?;
     eject_removable_volume(&matched.root_path)
 }
 
@@ -1184,13 +1319,7 @@ pub fn identify_source(state: State<'_, AppState>, path: String) -> Result<Sourc
     };
     let pool = state.pool();
     let conn = pool.get().map_err(|e| e.to_string())?;
-    let (last_import_at, last_imported_file_dt): (i64, String) = conn
-        .query_row(
-            "SELECT last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
-            params![media_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .unwrap_or((0, String::new()));
+    let (_, last_import_at, last_imported_file_dt) = read_device_import_state(&conn, &media_id);
 
     let storage_kind = detect_storage_kind(target).to_string();
     Ok(SourceInfo {
@@ -1204,9 +1333,20 @@ pub fn identify_source(state: State<'_, AppState>, path: String) -> Result<Sourc
     })
 }
 
+#[cfg(test)]
 pub(crate) fn scan_source_fast_with_conn(
     conn: &Connection,
     root_path: &str,
+    media_id: &str,
+    cancel: &AtomicBool,
+) -> Result<ImportScanResult, String> {
+    scan_source_fast_with_root(conn, root_path, None, media_id, cancel)
+}
+
+pub(crate) fn scan_source_fast_with_root(
+    conn: &Connection,
+    root_path: &str,
+    history_root: Option<&str>,
     media_id: &str,
     cancel: &AtomicBool,
 ) -> Result<ImportScanResult, String> {
@@ -1214,6 +1354,7 @@ pub(crate) fn scan_source_fast_with_conn(
     if !root.is_dir() {
         return Err(format!("Source introuvable : {root_path}"));
     }
+    let history_base = history_root.map(Path::new).filter(|p| is_inside_folder(&p.to_string_lossy(), root_path));
 
     // Load import memory for this media_id once: (relative_path, file_size, file_mtime) -> dest_path
     let mut memory_set: HashMap<(String, i64, i64), String> = HashMap::new();
@@ -1236,11 +1377,15 @@ pub(crate) fn scan_source_fast_with_conn(
         }
     }
 
-    // Load (lowercase filename, file_size) -> existing path from catalogue photos.
+    // Load (lowercase filename, file_size) -> existing path from visible catalogue photos.
     let mut library_index: HashMap<(String, i64), String> = HashMap::new();
     {
+        let visible = privacy::visible_condition("");
+        let sql = format!(
+            "SELECT filename, file_size, path FROM photos WHERE filename IS NOT NULL AND file_size > 0 AND ({visible})"
+        );
         let mut stmt = conn
-            .prepare("SELECT filename, file_size, path FROM photos WHERE filename IS NOT NULL AND file_size > 0")
+            .prepare(&sql)
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |row| {
@@ -1256,13 +1401,7 @@ pub(crate) fn scan_source_fast_with_conn(
         }
     }
 
-    let (last_import_at, last_imported_file_dt): (i64, String) = conn
-        .query_row(
-            "SELECT last_import_at, last_imported_file_dt FROM import_devices WHERE media_id = ?1",
-            params![media_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .unwrap_or((0, String::new()));
+    let (_, last_import_at, last_imported_file_dt) = read_device_import_state(&conn, &media_id);
 
     let mut folder_map: HashMap<String, ImportFolderEntry> = HashMap::new();
     let mut files = Vec::new();
@@ -1335,8 +1474,15 @@ pub(crate) fn scan_source_fast_with_conn(
             .map(|e| e.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
 
+        // When scanning a subfolder of a removable volume, compute the file's relative path
+        // from the volume root so import_history stays consistent with root-level scans.
+        let history_rel = history_base
+            .and_then(|base| path.strip_prefix(base).ok())
+            .map(|r| normalize_path(&r.to_string_lossy()))
+            .unwrap_or_else(|| rel.clone());
+
         let (status, existing_path) = if let Some(dest) =
-            memory_set.get(&(rel.to_lowercase(), size as i64, mtime))
+            memory_set.get(&(history_rel.to_lowercase(), size as i64, mtime))
         {
             ("imported_memory".to_string(), Some(dest.clone()))
         } else if let Some(lib_path) = library_index.get(&(filename.to_lowercase(), size as i64)) {
@@ -1347,7 +1493,7 @@ pub(crate) fn scan_source_fast_with_conn(
 
         files.push(ImportSourceFile {
             path: path.to_string_lossy().into_owned(),
-            relative_path: rel,
+            relative_path: history_rel,
             folder_path: parent_key,
             filename,
             extension,
@@ -1383,12 +1529,34 @@ pub async fn scan_import_source_fast(
     let pool = state.pool();
     let cancel = scan_cancel_flag(&task_id);
     let outcome = tokio::task::spawn_blocking(move || {
+        let history_root = enumerate_removable_volumes()
+            .into_iter()
+            .find(|v| v.media_id == media_id && is_inside_folder(&v.root_path, &root_path))
+            .map(|v| v.root_path);
         let conn = pool.get().map_err(|e| e.to_string())?;
-        scan_source_fast_with_conn(&conn, &root_path, &media_id, &cancel)
+        scan_source_fast_with_root(&conn, &root_path, history_root.as_deref(), &media_id, &cancel)
     })
     .await;
     release_scan_cancel_flag(&task_id);
     outcome.map_err(|e| e.to_string())?
+}
+
+/// Normalizes `YYYY:MM:DD HH:MM:SS` and `YYYY-MM-DD HH:MM:SS` to `YYYY-MM-DD...` so EXIF dates
+/// from `read_fast_exif_fields` match `photos.date_taken` stored in SQLite.
+fn normalize_exif_date(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let bytes = trimmed.as_bytes();
+    if bytes.len() >= 10 && bytes[4] == b':' && bytes[7] == b':' {
+        let mut s = trimmed.to_string();
+        // Safe because indices 4 and 7 are ASCII ':'.
+        unsafe {
+            let b = s.as_bytes_mut();
+            b[4] = b'-';
+            b[7] = b'-';
+        }
+        return s;
+    }
+    trimmed.to_string()
 }
 
 /// Pass 2: lightweight EXIF reading on up to 2 threads + optional partial-hash disambiguation
@@ -1400,17 +1568,24 @@ pub(crate) fn read_source_exif_with_pool(
     cancel: &AtomicBool,
     on_batch: impl Fn(Vec<ImportExifEntry>, usize, usize) + Sync,
 ) -> Result<Vec<ImportExifEntry>, String> {
-    // Load existing library photos indexed by date_taken for ambiguous-candidate lookup.
+    // Load visible library photos indexed by normalized date_taken for ambiguous-candidate lookup.
     let mut by_date: HashMap<String, Vec<(i64, String, Option<Vec<u8>>)>> = HashMap::new();
     if check_ambiguous {
         if let Ok(conn) = pool.get() {
-            if let Ok(mut stmt) = conn.prepare(
+            let visible = privacy::visible_condition("p.");
+            let sql = format!(
                 "SELECT p.id, p.path, p.date_taken, h.partial_hash
                  FROM photos p
-                 LEFT JOIN photo_hashes h ON h.photo_id = p.id AND h.mode = 1
-                 WHERE p.date_taken IS NOT NULL AND p.date_taken >= '1000'",
-            ) {
-                if let Ok(rows) = stmt.query_map([], |row| {
+                 LEFT JOIN photo_hashes h
+                   ON h.photo_id = p.id
+                  AND h.mode = 1
+                  AND h.version = ?1
+                  AND h.size = COALESCE(p.file_size, 0)
+                  AND h.modified = COALESCE(p.modified, 0)
+                 WHERE p.date_taken IS NOT NULL AND p.date_taken >= '1000' AND ({visible})"
+            );
+            if let Ok(mut stmt) = conn.prepare(&sql) {
+                if let Ok(rows) = stmt.query_map(params![crate::duplicates::LAYOUT_VERSION], |row| {
                     Ok((
                         row.get::<_, i64>(0)?,
                         row.get::<_, String>(1)?,
@@ -1419,7 +1594,10 @@ pub(crate) fn read_source_exif_with_pool(
                     ))
                 }) {
                     for row in rows.flatten() {
-                        by_date.entry(row.2).or_default().push((row.0, row.1, row.3));
+                        let norm_dt = normalize_exif_date(&row.2);
+                        if !norm_dt.is_empty() {
+                            by_date.entry(norm_dt).or_default().push((row.0, row.1, row.3));
+                        }
                     }
                 }
             }
@@ -1456,11 +1634,12 @@ pub(crate) fn read_source_exif_with_pool(
                         }
                         std::thread::sleep(Duration::from_millis(25));
                     }
-                    let (date_taken, orientation) = read_lightweight_exif(path);
+                    let (date_taken, orientation) = thumbnails::read_fast_exif_fields(path);
                     let mut status = None;
                     let mut existing_path = None;
                     if check_ambiguous && !date_taken.is_empty() {
-                        if let Some(candidates) = by_date.get(&date_taken) {
+                        let norm_dt = normalize_exif_date(&date_taken);
+                        if let Some(candidates) = by_date.get(&norm_dt) {
                             if let Ok((_, src_partial)) = crate::duplicates::quick_partial_hash(path) {
                                 for (_id, lib_path, cached_partial) in candidates {
                                     let lib_hash = if let Some(bytes) = cached_partial {
@@ -1488,19 +1667,15 @@ pub(crate) fn read_source_exif_with_pool(
                     })
                 })
                 .collect();
-            let current = done.fetch_add(chunk.len(), Ordering::Relaxed) + chunk.len();
-            if !batch.is_empty() {
-                on_batch(batch.clone(), current.min(total), total);
+            let current = (done.fetch_add(chunk.len(), Ordering::Relaxed) + chunk.len()).min(total);
+            if !batch.is_empty() || (current >= total && !cancel.load(Ordering::Relaxed)) {
+                on_batch(batch.clone(), current, total);
                 all.extend(batch);
             }
         }
         all
     });
     Ok(entries)
-}
-
-fn read_lightweight_exif(path: &Path) -> (String, u32) {
-    thumbnails::read_fast_exif_fields(path)
 }
 
 #[tauri::command]
@@ -1604,6 +1779,16 @@ pub(crate) fn compute_target_dir(
 
     let push_validated = |target: &mut PathBuf, segment: &str| -> Result<(), String> {
         let valid = validate_new_name(segment)?;
+        if batch_rename::text_units(valid) > batch_rename::MAX_NAME_UNITS {
+            return Err("Nom de sous-dossier trop long".into());
+        }
+        let mut comps = Path::new(valid).components();
+        if !matches!(
+            (comps.next(), comps.next()),
+            (Some(std::path::Component::Normal(_)), None)
+        ) {
+            return Err("Segment de sous-dossier invalide".into());
+        }
         target.push(valid);
         Ok(())
     };
@@ -1645,21 +1830,127 @@ pub(crate) fn compute_target_dir(
             push_validated(&mut dir, type_name)?;
         }
     }
+
+    // Lexical containment: ensure every relative component is Normal inside `base_dir`.
+    let rel = dir
+        .strip_prefix(base_dir)
+        .map_err(|_| "Le dossier cible sort du dossier de destination suivi".to_string())?;
+    if !rel
+        .components()
+        .all(|c| matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err("Le dossier cible sort du dossier de destination suivi".into());
+    }
+
+    // Canonical containment when `base_dir` exists on disk (blocks symlink/junction escapes).
+    if let Ok(canon_base) = fs::canonicalize(base_dir) {
+        let mut probe = dir.as_path();
+        while !probe.exists() {
+            let Some(parent) = probe.parent() else {
+                break;
+            };
+            probe = parent;
+        }
+        if let Ok(canon_existing) = fs::canonicalize(probe) {
+            if !canon_existing.starts_with(&canon_base) {
+                return Err("Le dossier cible sort du dossier de destination suivi".into());
+            }
+        }
+    }
+
+    if batch_rename::text_units(&dir.to_string_lossy()) > batch_rename::max_path_units() {
+        return Err("Chemin cible trop long".into());
+    }
     Ok(dir)
 }
 
-#[tauri::command(async)]
-pub fn check_import_conflicts(
-    state: State<'_, AppState>,
-    items: Vec<ImportCopyItem>,
-    options: ImportSubfolderOptions,
+fn check_target_path_limits(
+    target_dir: &Path,
+    file_name: &str,
+    source: &Path,
+) -> Result<(), String> {
+    if batch_rename::too_long(target_dir, file_name) {
+        return Err(format!("Chemin cible trop long : {file_name}"));
+    }
+    let [src_appended, src_compat] = exif::sidecar_candidates(source);
+    let sidecar_name = if src_appended.is_file() {
+        Some(format!("{file_name}.xmp"))
+    } else if src_compat.is_file() {
+        let stem = Path::new(file_name)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| file_name.to_string());
+        Some(format!("{stem}.xmp"))
+    } else {
+        None
+    };
+    if let Some(name) = sidecar_name {
+        if batch_rename::too_long(target_dir, &name) {
+            return Err(format!("Chemin du sidecar XMP trop long : {name}"));
+        }
+    }
+    Ok(())
+}
+
+/// Lazily creates `target_dir` and returns the shallowest ancestor directory that was newly created
+/// strictly inside `dest_root` (None if `target_dir` already existed).
+fn ensure_target_dir(dest_root: &Path, target_dir: &Path) -> std::io::Result<Option<PathBuf>> {
+    if target_dir.is_dir() {
+        return Ok(None);
+    }
+    let mut missing_top: Option<PathBuf> = None;
+    let mut cur = target_dir;
+    while cur != dest_root && cur.starts_with(dest_root) {
+        if !cur.exists() {
+            missing_top = Some(cur.to_path_buf());
+        } else {
+            break;
+        }
+        let Some(parent) = cur.parent() else {
+            break;
+        };
+        cur = parent;
+    }
+    fs::create_dir_all(target_dir)?;
+    Ok(missing_top)
+}
+
+/// Removes empty directories created for a failed copy from `target_dir` up to `stop_at` (inclusive).
+fn cleanup_created_empty_dirs(target_dir: &Path, stop_at: Option<&Path>) {
+    let Some(stop) = stop_at else {
+        return;
+    };
+    let mut cur = Some(target_dir);
+    while let Some(dir) = cur {
+        if !dir.starts_with(stop) {
+            break;
+        }
+        if fs::remove_dir(dir).is_err() {
+            break;
+        }
+        if dir == stop {
+            break;
+        }
+        cur = dir.parent();
+    }
+}
+
+pub(crate) fn check_import_conflicts_with(
+    pool: &DbPool,
+    items: &[ImportCopyItem],
+    options: &ImportSubfolderOptions,
 ) -> Result<Vec<ImportConflict>, String> {
-    let pool = state.pool();
-    let base_dir = resolve_tracked_folder(&pool, &options.base_destination)
+    let base_dir = resolve_tracked_folder(pool, &options.base_destination)
         .ok_or_else(|| format!("Dossier non suivi : {}", options.base_destination))?;
+    if !base_dir.is_dir() {
+        return Err(format!(
+            "Dossier de destination introuvable : {}",
+            base_dir.display()
+        ));
+    }
     let mut by_dir: HashMap<PathBuf, Vec<String>> = HashMap::new();
-    for item in &items {
-        let target_dir = compute_target_dir(&base_dir, item, &options)?;
+    for item in items {
+        let target_dir = compute_target_dir(&base_dir, item, options)?;
         by_dir
             .entry(target_dir)
             .or_default()
@@ -1678,7 +1969,23 @@ pub fn check_import_conflicts(
             });
         }
     }
+    conflicts.sort_by(|a, b| {
+        a.target_dir
+            .cmp(&b.target_dir)
+            .then_with(|| a.conflict.name.cmp(&b.conflict.name))
+            .then_with(|| a.conflict.path.cmp(&b.conflict.path))
+    });
     Ok(conflicts)
+}
+
+#[tauri::command(async)]
+pub fn check_import_conflicts(
+    state: State<'_, AppState>,
+    items: Vec<ImportCopyItem>,
+    options: ImportSubfolderOptions,
+) -> Result<Vec<ImportConflict>, String> {
+    let pool = state.pool();
+    check_import_conflicts_with(&pool, &items, &options)
 }
 
 pub(crate) fn run_import_copy_with(
@@ -1687,6 +1994,29 @@ pub(crate) fn run_import_copy_with(
     request: ImportCopyRequest,
     cancel: &AtomicBool,
     on_progress: impl Fn(u32),
+) -> Result<ImportCopyResult, String> {
+    run_import_copy_with_ops(
+        pool,
+        base_dir,
+        request,
+        cancel,
+        on_progress,
+        files_have_same_hash,
+        |src, dst, verify| copy_replacing_verified(src, dst, verify),
+        copy_sidecar,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_import_copy_with_ops(
+    pool: &DbPool,
+    base_dir: &Path,
+    request: ImportCopyRequest,
+    cancel: &AtomicBool,
+    on_progress: impl Fn(u32),
+    verify_hash: impl Fn(&Path, &Path) -> std::io::Result<bool>,
+    replace_existing: impl Fn(&Path, &Path, &dyn Fn(&Path, &Path) -> std::io::Result<()>) -> std::io::Result<()>,
+    copy_sidecar_op: impl Fn(&Path, &Path, bool) -> std::io::Result<()>,
 ) -> Result<ImportCopyResult, String> {
     let _priority = semantic::PriorityGuard::new();
     let dest_root = resolve_tracked_folder(pool, &request.options.base_destination)
@@ -1698,8 +2028,19 @@ pub(crate) fn run_import_copy_with(
         ));
     }
 
-    // Sort items chronologically ascending so pause/stop and resume stay consistent.
-    let mut items = request.items;
+    let _active_source = ActiveImportSourceGuard::new(PathBuf::from(&request.root_folder));
+
+    // Deduplicate by normalized source path, then sort chronologically ascending so pause/stop and resume stay consistent.
+    let mut seen_sources = HashSet::new();
+    let mut items: Vec<ImportCopyItem> = request
+        .items
+        .into_iter()
+        .filter(|item| {
+            let norm = normalize_path(&item.source_path);
+            let key = if cfg!(windows) { norm.to_lowercase() } else { norm };
+            seen_sources.insert(key)
+        })
+        .collect();
     items.sort_by(|a, b| {
         let ka = format_dt_14_from_exif_or_mtime(&a.date_taken, a.mtime);
         let kb = format_dt_14_from_exif_or_mtime(&b.date_taken, b.mtime);
@@ -1722,14 +2063,24 @@ pub(crate) fn run_import_copy_with(
         if batch.is_empty() {
             return;
         }
-        let Ok(conn) = pool.get() else {
-            batch.clear();
-            return;
+        let conn = match pool.get() {
+            Ok(c) => c,
+            Err(error) => {
+                eprintln!("Import history flush skipped (pool error): {error}");
+                return;
+            }
         };
         let now = library_sync::now_millis();
-        if let Ok(tx) = conn.unchecked_transaction() {
-            for (item, dest_path, imported_at) in batch.drain(..) {
-                let _ = tx.execute(
+        let tx = match conn.unchecked_transaction() {
+            Ok(tx) => tx,
+            Err(error) => {
+                eprintln!("Import history transaction failed: {error}");
+                return;
+            }
+        };
+        let write_result = (|| -> rusqlite::Result<()> {
+            for (item, dest_path, imported_at) in batch.iter() {
+                tx.execute(
                     "INSERT OR REPLACE INTO import_history
                      (media_id, root_folder, relative_path, filename, file_size, file_mtime, date_taken, dest_path, imported_at)
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -1744,31 +2095,33 @@ pub(crate) fn run_import_copy_with(
                         dest_path,
                         imported_at
                     ],
-                );
+                )?;
             }
-            if !latest.is_empty() {
-                let _ = tx.execute(
-                    "INSERT INTO import_devices (media_id, last_import_at, last_imported_file_dt)
-                     VALUES (?1, ?2, ?3)
-                     ON CONFLICT(media_id) DO UPDATE SET
-                       last_import_at = excluded.last_import_at,
-                       last_imported_file_dt = CASE
-                         WHEN excluded.last_imported_file_dt > import_devices.last_imported_file_dt
-                         THEN excluded.last_imported_file_dt
-                         ELSE import_devices.last_imported_file_dt
-                       END",
-                    params![request.media_id, now, latest],
-                );
-            }
+            tx.execute(
+                "INSERT INTO import_devices (media_id, last_import_at, last_imported_file_dt)
+                 VALUES (?1, ?2, ?3)
+                 ON CONFLICT(media_id) DO UPDATE SET
+                   last_import_at = excluded.last_import_at,
+                   last_imported_file_dt = CASE
+                     WHEN excluded.last_imported_file_dt > import_devices.last_imported_file_dt
+                     THEN excluded.last_imported_file_dt
+                     ELSE import_devices.last_imported_file_dt
+                   END",
+                params![request.media_id, now, latest],
+            )?;
             if RETENTION_30D.load(Ordering::Relaxed) {
                 let cutoff = now - 30 * 86_400_000;
-                let _ = tx.execute(
+                tx.execute(
                     "DELETE FROM import_history WHERE media_id = ?1 AND imported_at < ?2",
                     params![request.media_id, cutoff],
-                );
+                )?;
             }
-            let _ = tx.commit();
-        };
+            tx.commit()
+        })();
+        match write_result {
+            Ok(()) => batch.clear(),
+            Err(error) => eprintln!("Import history commit failed: {error}"),
+        }
     };
 
     for item in items {
@@ -1777,141 +2130,165 @@ pub(crate) fn run_import_copy_with(
             break;
         }
         let item_size = item.size.max(1);
-        let source = Path::new(&item.source_path);
-        let target_dir = match compute_target_dir(&dest_root, &item, &request.options) {
-            Ok(d) => d,
-            Err(error) => {
+        'item: {
+            let source = Path::new(&item.source_path);
+            if !source.is_file() {
+                failed.push(FileFailure {
+                    path: item.source_path.clone(),
+                    error: "Fichier source introuvable".into(),
+                });
+                break 'item;
+            }
+            let Some(file_name) = source.file_name() else {
+                failed.push(FileFailure {
+                    path: item.source_path.clone(),
+                    error: "Nom de fichier invalide".into(),
+                });
+                break 'item;
+            };
+            let target_dir = match compute_target_dir(&dest_root, &item, &request.options) {
+                Ok(d) => d,
+                Err(error) => {
+                    failed.push(FileFailure {
+                        path: item.source_path.clone(),
+                        error,
+                    });
+                    break 'item;
+                }
+            };
+
+            let exact = target_dir.join(file_name);
+            let target_segments = lowercase_segments(&target_dir);
+            let same_dir = source.parent().is_some_and(|parent| {
+                lowercase_segments(parent) == target_segments || same_existing_file(parent, &target_dir)
+            });
+            if same_dir || same_existing_file(source, &exact) {
+                skipped.push(ImportFileNote {
+                    path: item.source_path.clone(),
+                    reason: "same_file".into(),
+                });
+                break 'item;
+            }
+
+            let res_choice = request.resolutions.get(&item.source_path).map(String::as_str);
+            if res_choice == Some("skip") {
+                skipped.push(ImportFileNote {
+                    path: item.source_path.clone(),
+                    reason: "already_exists".into(),
+                });
+                break 'item;
+            }
+            let policy = if exact.is_file() {
+                res_choice.unwrap_or_else(|| request.collision_policy.as_str())
+            } else {
+                "rename"
+            };
+            if policy == "skip" {
+                skipped.push(ImportFileNote {
+                    path: item.source_path.clone(),
+                    reason: "already_exists".into(),
+                });
+                break 'item;
+            }
+
+            let file_name_str = file_name.to_string_lossy();
+            if let Err(error) = check_target_path_limits(&target_dir, &file_name_str, source) {
                 failed.push(FileFailure {
                     path: item.source_path.clone(),
                     error,
                 });
-                done_bytes += item.size.max(1);
-                on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
-                continue;
+                break 'item;
             }
-        };
-        if let Err(error) = fs::create_dir_all(&target_dir) {
-            failed.push(FileFailure {
-                path: item.source_path.clone(),
-                error: format!("Impossible de créer le dossier cible : {error}"),
-            });
-            done_bytes += item.size.max(1);
-            on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
-            continue;
-        }
-        let Some(file_name) = source.file_name() else {
-            failed.push(FileFailure {
-                path: item.source_path.clone(),
-                error: "Nom de fichier invalide".into(),
-            });
-            done_bytes += item.size.max(1);
-            on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
-            continue;
-        };
 
-        let exact = target_dir.join(file_name);
-        let policy = if exact.is_file() {
-            request
-                .resolutions
-                .get(&item.source_path)
-                .map(String::as_str)
-                .unwrap_or_else(|| request.collision_policy.as_str())
-        } else {
-            "rename"
-        };
-
-        if policy == "skip" {
-            skipped.push(ImportFileNote {
-                path: item.source_path.clone(),
-                reason: "already_exists".into(),
-            });
-        } else if policy == "replace" {
-            match copy_replacing(source, &exact) {
-                Ok(()) => {
-                    if request.verify_videos && video::is_video_path(source) {
-                        if !files_have_same_hash(source, &exact).unwrap_or(false) {
-                            let _ = fs::remove_file(&exact);
-                            failed.push(FileFailure {
-                                path: item.source_path.clone(),
-                                error: "Vérification SHA-256 échouée après copie vidéo".into(),
-                            });
-                            done_bytes += item.size.max(1);
-                            on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
-                            continue;
-                        }
-                    }
-                    if let Err(error) = copy_sidecar(source, &exact, true) {
-                        failed.push(FileFailure {
-                            path: item.source_path.clone(),
-                            error: format!("Sidecar XMP non copié : {error}"),
-                        });
-                    }
-                    let dest_str = exact.to_string_lossy().into_owned();
-                    let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
-                    if dt > latest_dt {
-                        latest_dt = dt;
-                    }
-                    copied.push(CopiedImportFile {
-                        source_path: item.source_path.clone(),
-                        dest_path: dest_str.clone(),
-                        filename: item.filename.clone(),
-                        kind: item.kind.clone(),
-                    });
-                    pending_history.push((item, dest_str, library_sync::now_millis()));
-                }
-                Err(error) => failed.push(FileFailure {
-                    path: item.source_path.clone(),
-                    error: error.to_string(),
-                }),
-            }
-        } else {
-            match reserve_destination(&target_dir, file_name) {
-                Err(error) => failed.push(FileFailure {
-                    path: item.source_path.clone(),
-                    error: format!("Destination impossible à créer : {error}"),
-                }),
-                Ok(reserved) => match copy_atomically_to_reserved(source, &reserved.path) {
-                    Ok(()) => {
-                        if request.verify_videos && video::is_video_path(source) {
-                            if !files_have_same_hash(source, &reserved.path).unwrap_or(false) {
-                                let _ = fs::remove_file(&reserved.path);
-                                failed.push(FileFailure {
-                                    path: item.source_path.clone(),
-                                    error: "Vérification SHA-256 échouée après copie vidéo".into(),
-                                });
-                                done_bytes += item.size.max(1);
-                                on_progress(((done_bytes.min(total_bytes) * 100) / total_bytes) as u32);
-                                continue;
-                            }
-                        }
-                        if let Err(error) = copy_sidecar(source, &reserved.path, false) {
-                            failed.push(FileFailure {
-                                path: item.source_path.clone(),
-                                error: format!("Sidecar XMP non copié : {error}"),
-                            });
-                        }
-                        if let Some(sr) = reserved.sidecar_rename(&item.source_path) {
-                            renamed_for_sidecar.push(sr);
-                        }
-                        let dest_str = reserved.path.to_string_lossy().into_owned();
-                        let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
-                        if dt > latest_dt {
-                            latest_dt = dt;
-                        }
-                        copied.push(CopiedImportFile {
-                            source_path: item.source_path.clone(),
-                            dest_path: dest_str.clone(),
-                            filename: item.filename.clone(),
-                            kind: item.kind.clone(),
-                        });
-                        pending_history.push((item, dest_str, library_sync::now_millis()));
-                    }
-                    Err(error) => failed.push(FileFailure {
+            let created_top = match ensure_target_dir(&dest_root, &target_dir) {
+                Ok(top) => top,
+                Err(error) => {
+                    failed.push(FileFailure {
                         path: item.source_path.clone(),
-                        error: error.to_string(),
-                    }),
-                },
+                        error: format!("Impossible de créer le dossier cible : {error}"),
+                    });
+                    break 'item;
+                }
+            };
+
+            let verify_copy = |src: &Path, temp: &Path| -> std::io::Result<()> {
+                if request.verify_videos && video::is_video_path(src) {
+                    let matched = verify_hash(src, temp).unwrap_or(false);
+                    if !matched {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "Vérification SHA-256 échouée avant finalisation de la copie vidéo",
+                        ));
+                    }
+                }
+                Ok(())
+            };
+
+            let is_replace = policy == "replace";
+            let copy_outcome: Result<(PathBuf, Option<SidecarRename>), String> = if is_replace {
+                replace_existing(source, &exact, &verify_copy)
+                    .map(|()| (exact, None))
+                    .map_err(|error| error.to_string())
+            } else {
+                match reserve_destination(&target_dir, file_name) {
+                    Err(error) => Err(format!("Destination impossible à créer : {error}")),
+                    Ok(reserved) => {
+                        let reserved_name = reserved
+                            .path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_default();
+                        if batch_rename::too_long(&target_dir, &reserved_name) {
+                            remove_copied_target(&reserved.path);
+                            Err(format!("Chemin cible trop long : {reserved_name}"))
+                        } else {
+                            copy_atomically_to_reserved_verified(source, &reserved.path, verify_copy)
+                                .map(|()| {
+                                    let sr = reserved.sidecar_rename(&item.source_path);
+                                    (reserved.path, sr)
+                                })
+                                .map_err(|error| error.to_string())
+                        }
+                    }
+                }
+            };
+
+            let (dest_path, sidecar_rename) = match copy_outcome {
+                Ok(outcome) => outcome,
+                Err(error) => {
+                    cleanup_created_empty_dirs(&target_dir, created_top.as_deref());
+                    failed.push(FileFailure {
+                        path: item.source_path.clone(),
+                        error,
+                    });
+                    break 'item;
+                }
+            };
+
+            if let Err(error) = copy_sidecar_op(source, &dest_path, is_replace) {
+                failed.push(FileFailure {
+                    path: item.source_path.clone(),
+                    error: format!("Sidecar XMP non copié : {error}"),
+                });
             }
+            renamed_for_sidecar.extend(sidecar_rename);
+
+            let dest_str = dest_path.to_string_lossy().into_owned();
+            let dest_filename = dest_path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| item.filename.clone());
+            let dt = format_dt_14_from_exif_or_mtime(&item.date_taken, item.mtime);
+            if dt > latest_dt {
+                latest_dt = dt;
+            }
+            copied.push(CopiedImportFile {
+                source_path: item.source_path.clone(),
+                dest_path: dest_str.clone(),
+                filename: dest_filename,
+                kind: item.kind.clone(),
+            });
+            pending_history.push((item, dest_str, library_sync::now_millis()));
         }
 
         if pending_history.len() >= 10 {
@@ -2005,23 +2382,18 @@ pub(crate) fn index_paths_with_pool(pool: &DbPool, paths: &[String]) -> Result<V
         }
     }
 
-    let conn = pool.get().map_err(|e| e.to_string())?;
-    let mut out = Vec::new();
-    for chunk in paths.chunks(500) {
-        let placeholders: String = (1..=chunk.len())
-            .map(|i| format!("?{i}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let sql = format!("SELECT {} FROM photos WHERE path IN ({placeholders})", db::PHOTO_COLUMNS);
-        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-        let params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-        let rows = stmt
-            .query_map(params.as_slice(), db::photo_from_row)
-            .map_err(|e| e.to_string())?;
-        for row in rows.flatten() {
-            out.push(row);
-        }
-    }
+    let mut out = db::get_photos_by_paths(pool, paths)?;
+    let order: HashMap<String, usize> = paths
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (normalize_path(p), i))
+        .collect();
+    out.sort_by_key(|p| {
+        order
+            .get(&normalize_path(&p.path))
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
     Ok(out)
 }
 
@@ -2104,6 +2476,87 @@ pub fn delete_import_device(state: State<'_, AppState>, media_id: String) -> Res
     tx.commit().map_err(|e| e.to_string())
 }
 
+pub(crate) fn purge_import_history_with_conn(
+    conn: &Connection,
+    media_id: Option<&str>,
+    older_than_days: Option<u32>,
+) -> Result<usize, String> {
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let deleted = match (media_id, older_than_days) {
+        (Some(id), Some(days)) => {
+            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
+            tx.execute(
+                "DELETE FROM import_history WHERE media_id = ?1 AND imported_at < ?2",
+                params![id, cutoff],
+            )
+            .map_err(|e| e.to_string())?
+        }
+        (Some(id), None) => tx
+            .execute("DELETE FROM import_history WHERE media_id = ?1", params![id])
+            .map_err(|e| e.to_string())?,
+        (None, Some(days)) => {
+            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
+            tx.execute("DELETE FROM import_history WHERE imported_at < ?1", params![cutoff])
+                .map_err(|e| e.to_string())?
+        }
+        (None, None) => tx
+            .execute("DELETE FROM import_history", [])
+            .map_err(|e| e.to_string())?,
+    };
+
+    // Recompute last_import_at and last_imported_file_dt for affected devices from remaining history.
+    let target_ids: Vec<String> = match media_id {
+        Some(id) => vec![id.to_string()],
+        None => {
+            let mut stmt = tx
+                .prepare("SELECT media_id FROM import_devices")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        }
+    };
+
+    for id in target_ids {
+        let mut max_imported_at = 0i64;
+        let mut max_dt = String::new();
+        {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT imported_at, date_taken, file_mtime FROM import_history WHERE media_id = ?1",
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map(params![id], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                })
+                .map_err(|e| e.to_string())?;
+            for (imp_at, dt, mtime) in rows.flatten() {
+                if imp_at > max_imported_at {
+                    max_imported_at = imp_at;
+                }
+                let dt14 = format_dt_14_from_exif_or_mtime(&dt, mtime);
+                if dt14 > max_dt {
+                    max_dt = dt14;
+                }
+            }
+        }
+        tx.execute(
+            "UPDATE import_devices SET last_import_at = ?2, last_imported_file_dt = ?3 WHERE media_id = ?1",
+            params![id, max_imported_at, max_dt],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(deleted)
+}
+
 #[tauri::command(async)]
 pub fn purge_import_history(
     state: State<'_, AppState>,
@@ -2112,28 +2565,7 @@ pub fn purge_import_history(
 ) -> Result<usize, String> {
     let pool = state.pool();
     let conn = pool.get().map_err(|e| e.to_string())?;
-    let deleted = match (media_id, older_than_days) {
-        (Some(id), Some(days)) => {
-            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
-            conn.execute(
-                "DELETE FROM import_history WHERE media_id = ?1 AND imported_at < ?2",
-                params![id, cutoff],
-            )
-            .map_err(|e| e.to_string())?
-        }
-        (Some(id), None) => conn
-            .execute("DELETE FROM import_history WHERE media_id = ?1", params![id])
-            .map_err(|e| e.to_string())?,
-        (None, Some(days)) => {
-            let cutoff = library_sync::now_millis() - (days as i64) * 86_400_000;
-            conn.execute("DELETE FROM import_history WHERE imported_at < ?1", params![cutoff])
-                .map_err(|e| e.to_string())?
-        }
-        (None, None) => conn
-            .execute("DELETE FROM import_history", [])
-            .map_err(|e| e.to_string())?,
-    };
-    Ok(deleted)
+    purge_import_history_with_conn(&conn, media_id.as_deref(), older_than_days)
 }
 
 // ---------------------------------------------------------------------------

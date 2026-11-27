@@ -1,7 +1,7 @@
 // Settings > Storage > Import & OS media arrival detection (event-driven, zero polling at rest).
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { readBool, readChoice, readStored, writeStored } from './settings-defaults.js';
+import { DEFAULTS, readBool, readChoice, readStored, writeStored } from './settings-defaults.js';
 import { t, tp } from './i18n.js';
 import { createModal, confirmDialog } from './photo-actions.js';
 
@@ -22,7 +22,7 @@ export function getDetectedMedia() {
 export async function refreshDetectedMedia() {
   try {
     detectedMedia = await invoke('list_detected_media');
-    updateToolbarButton();
+    syncImportToolbarButton();
   } catch (error) {
     console.debug('Media detection unavailable:', error);
   }
@@ -53,13 +53,9 @@ export function syncImportToolbarButton() {
   }
 }
 
-function updateToolbarButton() {
-  syncImportToolbarButton();
-}
-
 export async function syncImportWatcherToBackend() {
   const enabled = readBool('importAutoDetect');
-  const markers = parseMarkers(readStored('importMediaMarkers') ?? 'DCIM, PRIVATE/M4ROOT, MP_ROOT, AVCHD');
+  const markers = parseMarkers(readStored('importMediaMarkers') ?? DEFAULTS.importMediaMarkers);
   const listMode = readChoice('importDeviceListMode', ['blacklist', 'whitelist']);
   const retention30d = readBool('importHistoryRetention30d');
   try {
@@ -70,7 +66,7 @@ export async function syncImportWatcherToBackend() {
   if (enabled) await refreshDetectedMedia();
   else {
     detectedMedia = [];
-    updateToolbarButton();
+    syncImportToolbarButton();
   }
 }
 
@@ -233,7 +229,7 @@ export function initImportSettings(deps) {
     autoOpenEl.addEventListener('change', () => writeStored('importAutoOpen', autoOpenEl.checked));
   }
   if (markersEl) {
-    markersEl.value = readStored('importMediaMarkers') ?? 'DCIM, PRIVATE/M4ROOT, MP_ROOT, AVCHD';
+    markersEl.value = readStored('importMediaMarkers') ?? DEFAULTS.importMediaMarkers;
     markersEl.addEventListener('change', () => {
       writeStored('importMediaMarkers', markersEl.value.trim());
       syncImportWatcherToBackend();
@@ -267,7 +263,7 @@ export function initImportSettings(deps) {
     const payload = event.payload || {};
     if (Array.isArray(payload.devices)) {
       detectedMedia = payload.devices;
-      updateToolbarButton();
+      syncImportToolbarButton();
     }
     if (payload.arrived) handleMediaArrival(payload.arrived);
   }).catch(error => console.debug('Media event listener failed:', error));

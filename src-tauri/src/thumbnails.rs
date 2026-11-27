@@ -557,6 +557,16 @@ pub(crate) fn read_exif_sources(source: &Path) -> Vec<exif::Exif> {
     lenient_exif(reader.read_from_container(&mut BufReader::new(file))).into_iter().collect()
 }
 
+fn resolve_raw_preview_orientation(own: Option<u32>, container: u32, portrait_preview: bool) -> u32 {
+    match own {
+        Some(v) if v >= 2 => v,
+        Some(_) if container >= 5 && !portrait_preview => container,
+        Some(v) => v,
+        None if container >= 5 && portrait_preview => 1,
+        None => container,
+    }
+}
+
 /// Orientation à appliquer à l'aperçu JPEG `jpeg` extrait du RAW `source`, identique pour la miniature et pour l'aperçu affiché par le webview.
 /// Selon le constructeur, l'aperçu est tel que sorti du capteur (l'orientation du RAW s'applique), déjà pivoté (rien à appliquer) ou porte son propre
 /// tag EXIF (le webview l'applique seul). Ordre : tag explicite de l'aperçu, sauf aperçu paysage pour une prise de vue en portrait ; sinon orientation du RAW,
@@ -566,13 +576,7 @@ pub(crate) fn raw_orientation(source: &Path, jpeg: &[u8]) -> u32 {
     let container = container_orientation(source).unwrap_or(1);
     let mut decoder = Decoder::new(Cursor::new(jpeg));
     let portrait_preview = decoder.read_info().ok().and_then(|_| decoder.info()).is_some_and(|info| info.height > info.width);
-    match own {
-        Some(value) if value >= 2 => value,
-        Some(_) if container >= 5 && !portrait_preview => container,
-        Some(value) => value,
-        None if container >= 5 && portrait_preview => 1,
-        None => container,
-    }
+    resolve_raw_preview_orientation(own, container, portrait_preview)
 }
 
 /// Aperçu JPEG dont l'orientation EXIF est celle de `raw_orientation` : le webview l'applique seul (plein écran, aperçu, comparaison), comme la miniature.
@@ -717,46 +721,93 @@ fn encode_jpeg_bytes_fast(rgb: &[u8], width: usize, height: usize, quality: u8) 
 
 /// Reads (width, height) from the first SOF marker of an in-memory JPEG without decoding pixels.
 fn jpeg_sof_dimensions(data: &[u8]) -> Option<(usize, usize)> {
-    if data.len() < 4 || data[0] != 0xff || data[1] != 0xd8 {
+    let sof = crate::exif::jpeg_segments(data).find(|s| {
+        matches!(s.marker, 0xc0..=0xc3 | 0xc5..=0xc7 | 0xc9..=0xcb | 0xcd..=0xcf)
+    })?;
+    let content = sof.content(data);
+    if content.len() < 5 {
         return None;
     }
-    let mut i = 2usize;
-    while i < data.len() {
-        while i < data.len() && data[i] != 0xff {
-            i += 1;
-        }
-        while i < data.len() && data[i] == 0xff {
-            i += 1;
-        }
-        if i >= data.len() {
-            break;
-        }
-        let marker = data[i];
-        i += 1;
-        if marker == 0xd9 || marker == 0xda {
-            break;
-        }
-        if marker == 0x00 || marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
-            continue;
-        }
-        if i + 2 > data.len() {
-            break;
-        }
-        let seg_len = u16::from_be_bytes([data[i], data[i + 1]]) as usize;
-        if seg_len < 2 || i + seg_len > data.len() {
-            break;
-        }
-        if matches!(marker, 0xc0..=0xc3 | 0xc5..=0xc7 | 0xc9..=0xcb | 0xcd..=0xcf) && seg_len >= 7 {
-            let h = u16::from_be_bytes([data[i + 3], data[i + 4]]) as usize;
-            let w = u16::from_be_bytes([data[i + 5], data[i + 6]]) as usize;
-            if w > 0 && h > 0 {
-                return Some((w, h));
-            }
+    let h = u16::from_be_bytes([content[1], content[2]]) as usize;
+    let w = u16::from_be_bytes([content[3], content[4]]) as usize;
+    (w > 0 && h > 0).then_some((w, h))
+}
+
+fn jpeg_exif_tiff_slice(data: &[u8]) -> Option<&[u8]> {
+    crate::exif::jpeg_segments(data)
+        .find(|s| s.marker == 0xe1 && s.content(data).starts_with(b"Exif\0\0"))
+        .map(|s| &s.content(data)[6..])
+}
+
+#[derive(Copy, Clone)]
+struct TiffEndian(bool);
+
+impl TiffEndian {
+    fn parse_header(hdr: &[u8]) -> Option<(Self, u32)> {
+        if hdr.len() < 8 {
             return None;
         }
-        i += seg_len;
+        let little = match &hdr[..4] {
+            b"II*\0" => true,
+            b"MM\0*" => false,
+            _ => return None,
+        };
+        let e = Self(little);
+        Some((e, e.u32(&hdr[4..8])))
     }
-    None
+
+    fn u16(self, b: &[u8]) -> u16 {
+        if self.0 { u16::from_le_bytes([b[0], b[1]]) } else { u16::from_be_bytes([b[0], b[1]]) }
+    }
+
+    fn u32(self, b: &[u8]) -> u32 {
+        if self.0 { u32::from_le_bytes([b[0], b[1], b[2], b[3]]) } else { u32::from_be_bytes([b[0], b[1], b[2], b[3]]) }
+    }
+
+    /// Returns `(tag, kind, count, scalar_or_offset_u32)`.
+    fn entry(self, raw: &[u8]) -> (u16, u16, usize, u32) {
+        let tag = self.u16(&raw[0..2]);
+        let kind = self.u16(&raw[2..4]);
+        let count = self.u32(&raw[4..8]) as usize;
+        let val = if kind == 3 && count == 1 {
+            self.u16(&raw[8..10]) as u32
+        } else {
+            self.u32(&raw[8..12])
+        };
+        (tag, kind, count, val)
+    }
+}
+
+fn tiff_slice_ifd(tiff: &[u8], off: usize, e: TiffEndian) -> Option<(&[u8], usize)> {
+    if off.checked_add(2)? > tiff.len() {
+        return None;
+    }
+    let count = (e.u16(&tiff[off..off + 2]) as usize).min(512);
+    let end = off + 2 + count * 12;
+    let entries = tiff.get(off + 2..end)?;
+    let next = tiff.get(end..end + 4).map_or(0, |b| e.u32(b) as usize);
+    Some((entries, next))
+}
+
+fn tiff_file_ifd(file: &mut File, file_len: u64, base: u64, rel: u64, e: TiffEndian) -> Option<(Vec<u8>, u64)> {
+    let abs = base.checked_add(rel)?;
+    if abs + 2 > file_len {
+        return None;
+    }
+    file.seek(SeekFrom::Start(abs)).ok()?;
+    let mut cbuf = [0u8; 2];
+    file.read_exact(&mut cbuf).ok()?;
+    let count = (e.u16(&cbuf) as usize).min(512);
+    if count == 0 || abs + 2 + (count * 12) as u64 > file_len {
+        return None;
+    }
+    let mut buf = vec![0u8; count * 12 + 4];
+    let has_next = abs + 2 + (count * 12 + 4) as u64 <= file_len;
+    let slice = if has_next { &mut buf[..] } else { &mut buf[..count * 12] };
+    file.read_exact(slice).ok()?;
+    let next = if has_next { e.u32(&buf[count * 12..]) as u64 } else { 0 };
+    buf.truncate(count * 12);
+    Some((buf, next))
 }
 
 fn extract_raf_preview_fast(file: &mut File, file_len: u64) -> Option<Vec<u8>> {
@@ -847,15 +898,8 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
     file.seek(SeekFrom::Start(tiff_base)).ok()?;
     let mut header = [0u8; 8];
     file.read_exact(&mut header).ok()?;
-    let little = match &header[..4] {
-        b"II*\0" => true,
-        b"MM\0*" => false,
-        _ => return None,
-    };
-    let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
-    let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
-
-    let ifd0_rel = long([header[4], header[5], header[6], header[7]]) as u64;
+    let (e, ifd0_u32) = TiffEndian::parse_header(&header)?;
+    let ifd0_rel = ifd0_u32 as u64;
     let mut queue = vec![ifd0_rel];
     let mut visited = std::collections::HashSet::new();
     let mut candidates: Vec<(u64, usize)> = Vec::new();
@@ -868,28 +912,12 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
         let Some(abs_ifd) = tiff_base.checked_add(rel_ifd) else {
             continue;
         };
-        if rel_ifd == 0 || !visited.insert(abs_ifd) || abs_ifd + 2 > file_len {
+        if rel_ifd == 0 || !visited.insert(abs_ifd) {
             continue;
         }
-        file.seek(SeekFrom::Start(abs_ifd)).ok()?;
-        let mut count_buf = [0u8; 2];
-        file.read_exact(&mut count_buf).ok()?;
-        let count = short(count_buf) as usize;
-        if count == 0 || count > 512 {
+        let Some((entries, next_ifd)) = tiff_file_ifd(file, file_len, tiff_base, rel_ifd, e) else {
             continue;
-        }
-        let table_bytes = count * 12 + 4;
-        if abs_ifd + 2 + table_bytes as u64 > file_len {
-            continue;
-        }
-        let mut table = vec![0u8; table_bytes];
-        file.read_exact(&mut table).ok()?;
-        let next_ifd = long([
-            table[count * 12],
-            table[count * 12 + 1],
-            table[count * 12 + 2],
-            table[count * 12 + 3],
-        ]) as u64;
+        };
         if next_ifd != 0 {
             queue.push(next_ifd);
         }
@@ -901,22 +929,15 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
         let mut strip_off: Option<u64> = None;
         let mut strip_len: Option<usize> = None;
 
-        for e in table[..count * 12].chunks_exact(12) {
-            let tag = short([e[0], e[1]]);
-            let kind = short([e[2], e[3]]);
-            let n = long([e[4], e[5], e[6], e[7]]) as usize;
-            let val = long([e[8], e[9], e[10], e[11]]) as u64;
+        for raw in entries.chunks_exact(12) {
+            let (tag, kind, n, val32) = e.entry(raw);
+            let val = val32 as u64;
             match tag {
-                0x0112 if is_ifd0 && n == 1 => {
-                    let v = if kind == 3 { short([e[8], e[9]]) as u32 } else { val as u32 };
-                    if (1..=8).contains(&v) {
-                        ifd0_orientation = v;
-                    }
-                }
-                0x014A => {
-                    if (kind == 4 || kind == 13) && n == 1 {
+                0x0112 if is_ifd0 && n == 1 && (1..=8).contains(&val32) => ifd0_orientation = val32,
+                0x014A if kind == 4 || kind == 13 => {
+                    if n == 1 {
                         queue.push(val);
-                    } else if (kind == 4 || kind == 13) && n > 1 && n <= 16 {
+                    } else if n > 1 && n <= 16 {
                         if let Some(sub_abs) = tiff_base.checked_add(val) {
                             if sub_abs + (n * 4) as u64 <= file_len
                                 && file.seek(SeekFrom::Start(sub_abs)).is_ok()
@@ -924,7 +945,7 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
                                 let mut sub_buf = vec![0u8; n * 4];
                                 if file.read_exact(&mut sub_buf).is_ok() {
                                     for c in sub_buf.chunks_exact(4) {
-                                        queue.push(long([c[0], c[1], c[2], c[3]]) as u64);
+                                        queue.push(e.u32(c) as u64);
                                     }
                                 }
                             }
@@ -933,13 +954,7 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
                 }
                 0x0201 if n == 1 => jpeg_off = tiff_base.checked_add(val),
                 0x0202 if n == 1 => jpeg_len = Some(val as usize),
-                0x0103 if n == 1 => {
-                    compression = Some(if kind == 3 {
-                        short([e[8], e[9]]) as u32
-                    } else {
-                        val as u32
-                    });
-                }
+                0x0103 if n == 1 => compression = Some(val32),
                 0x0111 if n == 1 => strip_off = tiff_base.checked_add(val),
                 0x0117 if n == 1 => strip_len = Some(val as usize),
                 0x002E if (2048..=16_000_000).contains(&n) => {
@@ -962,7 +977,7 @@ fn extract_tiff_raw_preview_fast(file: &mut File, file_len: u64, tiff_base: u64)
 
     let valid: Vec<(u64, usize)> = candidates
         .into_iter()
-        .filter(|&(o, l)| (2048..=16_000_000).contains(&l) && o.checked_add(l as u64).is_some_and(|e| e <= file_len))
+        .filter(|&(o, l)| (2048..=16_000_000).contains(&l) && o.checked_add(l as u64).is_some_and(|end| end <= file_len))
         .collect();
     // Prefer the smallest preview >= 24 KB (avoids tiny 160x120 thumbs and multi-MB full-res previews).
     let chosen = valid
@@ -1015,68 +1030,77 @@ fn clean_exif_date(raw: &[u8]) -> Option<String> {
     }
 }
 
-fn parse_tiff_slice_exif_fields(tiff: &[u8]) -> (String, u32) {
-    if tiff.len() < 8 {
-        return (String::new(), 1);
-    }
-    let little = match &tiff[..4] {
-        b"II*\0" => true,
-        b"MM\0*" => false,
-        _ => return (String::new(), 1),
-    };
-    let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
-    let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
+enum TiffSource<'a> {
+    Slice(&'a [u8]),
+    File { file: &'a mut File, file_len: u64, base: u64 },
+}
 
-    let read_ascii = |entry: &[u8]| -> Option<String> {
-        let kind = short([entry[2], entry[3]]);
-        let n = long([entry[4], entry[5], entry[6], entry[7]]) as usize;
+impl<'a> TiffSource<'a> {
+    fn read_ifd(&mut self, rel: u64, e: TiffEndian) -> Option<std::borrow::Cow<'_, [u8]>> {
+        match self {
+            Self::Slice(tiff) => tiff_slice_ifd(tiff, rel as usize, e).map(|(entries, _)| std::borrow::Cow::Borrowed(entries)),
+            Self::File { file, file_len, base } => {
+                tiff_file_ifd(file, *file_len, *base, rel, e).map(|(entries, _)| std::borrow::Cow::Owned(entries))
+            }
+        }
+    }
+
+    fn read_bytes(&mut self, rel: u64, len: usize) -> Option<std::borrow::Cow<'_, [u8]>> {
+        match self {
+            Self::Slice(tiff) => {
+                let start = rel as usize;
+                tiff.get(start..start.checked_add(len)?).map(std::borrow::Cow::Borrowed)
+            }
+            Self::File { file, file_len, base } => {
+                let abs = base.checked_add(rel)?;
+                if abs.checked_add(len as u64)? > *file_len {
+                    return None;
+                }
+                file.seek(SeekFrom::Start(abs)).ok()?;
+                let mut buf = vec![0u8; len];
+                file.read_exact(&mut buf).ok()?;
+                Some(std::borrow::Cow::Owned(buf))
+            }
+        }
+    }
+}
+
+fn read_tiff_exif_fields_with(e: TiffEndian, ifd0_rel: u64, mut src: TiffSource<'_>) -> (String, u32) {
+    let read_ascii = |src: &mut TiffSource<'_>, raw: &[u8]| -> Option<String> {
+        let (_, kind, n, val) = e.entry(raw);
         if kind != 2 || !(10..=64).contains(&n) {
             return None;
         }
-        let off = long([entry[8], entry[9], entry[10], entry[11]]) as usize;
-        let slice = tiff.get(off..off.checked_add(n)?)?;
-        clean_exif_date(slice)
+        let bytes = src.read_bytes(val as u64, n)?;
+        clean_exif_date(&bytes)
     };
 
-    let ifd0_off = long([tiff[4], tiff[5], tiff[6], tiff[7]]) as usize;
-    if ifd0_off + 2 > tiff.len() {
-        return (String::new(), 1);
-    }
-    let count0 = (short([tiff[ifd0_off], tiff[ifd0_off + 1]]) as usize).min(512);
-    let Some(entries0) = tiff.get(ifd0_off + 2..ifd0_off + 2 + count0 * 12) else {
+    let Some(entries0) = src.read_ifd(ifd0_rel, e).map(|c| c.into_owned()) else {
         return (String::new(), 1);
     };
 
     let mut orientation = 1u32;
     let mut ifd0_date: Option<String> = None;
-    let mut exif_ifd_off: Option<usize> = None;
+    let mut exif_ifd_rel: Option<u64> = None;
 
-    for e in entries0.chunks_exact(12) {
-        let tag = short([e[0], e[1]]);
-        let kind = short([e[2], e[3]]);
-        let n = long([e[4], e[5], e[6], e[7]]) as usize;
+    for raw in entries0.chunks_exact(12) {
+        let (tag, _, n, val) = e.entry(raw);
         match tag {
-            0x0112 if n == 1 => {
-                let v = if kind == 3 { short([e[8], e[9]]) as u32 } else { long([e[8], e[9], e[10], e[11]]) };
-                if (1..=8).contains(&v) {
-                    orientation = v;
-                }
-            }
-            0x0132 if ifd0_date.is_none() => ifd0_date = read_ascii(e),
-            0x8769 if n == 1 => exif_ifd_off = Some(long([e[8], e[9], e[10], e[11]]) as usize),
+            0x0112 if n == 1 && (1..=8).contains(&val) => orientation = val,
+            0x0132 if ifd0_date.is_none() => ifd0_date = read_ascii(&mut src, raw),
+            0x8769 if n == 1 => exif_ifd_rel = Some(val as u64),
             _ => {}
         }
     }
 
     let mut orig_date: Option<String> = None;
     let mut dig_date: Option<String> = None;
-    if let Some(ex_off) = exif_ifd_off.filter(|&o| o + 2 <= tiff.len()) {
-        let count_ex = (short([tiff[ex_off], tiff[ex_off + 1]]) as usize).min(512);
-        if let Some(entries_ex) = tiff.get(ex_off + 2..ex_off + 2 + count_ex * 12) {
-            for e in entries_ex.chunks_exact(12) {
-                match short([e[0], e[1]]) {
-                    0x9003 if orig_date.is_none() => orig_date = read_ascii(e),
-                    0x9004 if dig_date.is_none() => dig_date = read_ascii(e),
+    if let Some(ex_rel) = exif_ifd_rel {
+        if let Some(entries_ex) = src.read_ifd(ex_rel, e).map(|c| c.into_owned()) {
+            for raw in entries_ex.chunks_exact(12) {
+                match e.u16(&raw[0..2]) {
+                    0x9003 if orig_date.is_none() => orig_date = read_ascii(&mut src, raw),
+                    0x9004 if dig_date.is_none() => dig_date = read_ascii(&mut src, raw),
                     _ => {}
                 }
             }
@@ -1086,42 +1110,15 @@ fn parse_tiff_slice_exif_fields(tiff: &[u8]) -> (String, u32) {
     (orig_date.or(dig_date).or(ifd0_date).unwrap_or_default(), orientation)
 }
 
+fn parse_tiff_slice_exif_fields(tiff: &[u8]) -> (String, u32) {
+    let Some((e, ifd0_off)) = TiffEndian::parse_header(tiff) else {
+        return (String::new(), 1);
+    };
+    read_tiff_exif_fields_with(e, ifd0_off as u64, TiffSource::Slice(tiff))
+}
+
 fn parse_jpeg_slice_exif_fields(head: &[u8]) -> Option<(String, u32)> {
-    if head.len() < 4 || head[0] != 0xff || head[1] != 0xd8 {
-        return None;
-    }
-    let mut i = 2usize;
-    while i + 3 < head.len() {
-        while i < head.len() && head[i] != 0xff {
-            i += 1;
-        }
-        while i < head.len() && head[i] == 0xff {
-            i += 1;
-        }
-        if i >= head.len() {
-            break;
-        }
-        let marker = head[i];
-        i += 1;
-        if marker == 0xda || marker == 0xd9 {
-            break;
-        }
-        if marker == 0x00 || marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
-            continue;
-        }
-        if i + 2 > head.len() {
-            break;
-        }
-        let seg_len = u16::from_be_bytes([head[i], head[i + 1]]) as usize;
-        if seg_len < 2 || i + seg_len > head.len() {
-            break;
-        }
-        if marker == 0xe1 && seg_len >= 16 && &head[i + 2..i + 8] == b"Exif\0\0" {
-            return Some(parse_tiff_slice_exif_fields(&head[i + 8..i + seg_len]));
-        }
-        i += seg_len;
-    }
-    None
+    jpeg_exif_tiff_slice(head).map(parse_tiff_slice_exif_fields)
 }
 
 fn read_tiff_file_exif_fields(file: &mut File, file_len: u64, tiff_base: u64) -> (String, u32) {
@@ -1132,104 +1129,14 @@ fn read_tiff_file_exif_fields(file: &mut File, file_len: u64, tiff_base: u64) ->
     if file.read_exact(&mut header).is_err() {
         return (String::new(), 1);
     }
-    let little = match &header[..4] {
-        b"II*\0" => true,
-        b"MM\0*" => false,
-        _ => return (String::new(), 1),
-    };
-    let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
-    let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
-
-    fn read_ifd_entries(
-        file: &mut File,
-        file_len: u64,
-        tiff_base: u64,
-        rel_off: u64,
-        little: bool,
-    ) -> Option<Vec<u8>> {
-        let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
-        let abs = tiff_base.checked_add(rel_off)?;
-        if abs + 2 > file_len {
-            return None;
-        }
-        file.seek(SeekFrom::Start(abs)).ok()?;
-        let mut cbuf = [0u8; 2];
-        file.read_exact(&mut cbuf).ok()?;
-        let count = (short(cbuf) as usize).min(512);
-        if count == 0 || abs + 2 + (count * 12) as u64 > file_len {
-            return None;
-        }
-        let mut buf = vec![0u8; count * 12];
-        file.read_exact(&mut buf).ok()?;
-        Some(buf)
-    }
-
-    fn read_ascii_at(
-        file: &mut File,
-        file_len: u64,
-        tiff_base: u64,
-        entry: &[u8],
-        little: bool,
-    ) -> Option<String> {
-        let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
-        let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
-        let kind = short([entry[2], entry[3]]);
-        let n = long([entry[4], entry[5], entry[6], entry[7]]) as usize;
-        if kind != 2 || !(10..=64).contains(&n) {
-            return None;
-        }
-        let rel = long([entry[8], entry[9], entry[10], entry[11]]) as u64;
-        let abs = tiff_base.checked_add(rel)?;
-        if abs.checked_add(n as u64)? > file_len {
-            return None;
-        }
-        file.seek(SeekFrom::Start(abs)).ok()?;
-        let mut buf = vec![0u8; n];
-        file.read_exact(&mut buf).ok()?;
-        clean_exif_date(&buf)
-    }
-
-    let ifd0_rel = long([header[4], header[5], header[6], header[7]]) as u64;
-    let Some(entries0) = read_ifd_entries(file, file_len, tiff_base, ifd0_rel, little) else {
+    let Some((e, ifd0_rel)) = TiffEndian::parse_header(&header) else {
         return (String::new(), 1);
     };
-
-    let mut orientation = 1u32;
-    let mut ifd0_date: Option<String> = None;
-    let mut exif_ifd_rel: Option<u64> = None;
-
-    for e in entries0.chunks_exact(12) {
-        let tag = short([e[0], e[1]]);
-        let kind = short([e[2], e[3]]);
-        let n = long([e[4], e[5], e[6], e[7]]) as usize;
-        match tag {
-            0x0112 if n == 1 => {
-                let v = if kind == 3 { short([e[8], e[9]]) as u32 } else { long([e[8], e[9], e[10], e[11]]) };
-                if (1..=8).contains(&v) {
-                    orientation = v;
-                }
-            }
-            0x0132 if ifd0_date.is_none() => ifd0_date = read_ascii_at(file, file_len, tiff_base, e, little),
-            0x8769 if n == 1 => exif_ifd_rel = Some(long([e[8], e[9], e[10], e[11]]) as u64),
-            _ => {}
-        }
-    }
-
-    let mut orig_date: Option<String> = None;
-    let mut dig_date: Option<String> = None;
-    if let Some(ex_rel) = exif_ifd_rel {
-        if let Some(entries_ex) = read_ifd_entries(file, file_len, tiff_base, ex_rel, little) {
-            for e in entries_ex.chunks_exact(12) {
-                match short([e[0], e[1]]) {
-                    0x9003 if orig_date.is_none() => orig_date = read_ascii_at(file, file_len, tiff_base, e, little),
-                    0x9004 if dig_date.is_none() => dig_date = read_ascii_at(file, file_len, tiff_base, e, little),
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    (orig_date.or(dig_date).or(ifd0_date).unwrap_or_default(), orientation)
+    read_tiff_exif_fields_with(
+        e,
+        ifd0_rel as u64,
+        TiffSource::File { file, file_len, base: tiff_base },
+    )
 }
 
 fn read_cr3_moov_exif_fields(file: &mut File, file_len: u64) -> (String, u32) {
@@ -1326,12 +1233,19 @@ pub(crate) fn read_fast_exif_fields(source: &Path) -> (String, u32) {
         return (String::new(), 1);
     }
 
-    if (n >= 8 && &header[4..8] == b"ftyp")
-        || source
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("cr3"))
-    {
+    if crate::heif::is_heif_path(source) {
+        let date = crate::heif::exif_app1_payload(source)
+            .and_then(|p| p.get(6..).map(|tiff| parse_tiff_slice_exif_fields(tiff).0))
+            .unwrap_or_default();
+        return (date, 1);
+    }
+
+    let is_cr3 = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("cr3"))
+        || (n >= 12 && &header[4..8] == b"ftyp" && &header[8..12] == b"crx ");
+    if is_cr3 {
         return read_cr3_moov_exif_fields(&mut file, file_len);
     }
 
@@ -1347,87 +1261,27 @@ fn extract_jpeg_exif_thumbnail(source: &Path, min_side: usize) -> Option<(Vec<u8
     let mut file = File::open(source).ok()?;
     let mut head = Vec::with_capacity(65_536);
     file.by_ref().take(65_536).read_to_end(&mut head).ok()?;
-    if head.len() < 4 || head[0] != 0xff || head[1] != 0xd8 {
-        return None;
-    }
-    let mut i = 2usize;
-    let mut tiff_slice: Option<&[u8]> = None;
-    while i + 3 < head.len() {
-        while i < head.len() && head[i] != 0xff {
-            i += 1;
-        }
-        while i < head.len() && head[i] == 0xff {
-            i += 1;
-        }
-        if i >= head.len() {
-            break;
-        }
-        let marker = head[i];
-        i += 1;
-        if marker == 0xda || marker == 0xd9 {
-            break;
-        }
-        if marker == 0x00 || marker == 0x01 || (0xd0..=0xd7).contains(&marker) {
-            continue;
-        }
-        if i + 2 > head.len() {
-            break;
-        }
-        let seg_len = u16::from_be_bytes([head[i], head[i + 1]]) as usize;
-        if seg_len < 2 || i + seg_len > head.len() {
-            break;
-        }
-        if marker == 0xe1 && seg_len >= 16 && &head[i + 2..i + 8] == b"Exif\0\0" {
-            tiff_slice = Some(&head[i + 8..i + seg_len]);
-            break;
-        }
-        i += seg_len;
-    }
-    let tiff = tiff_slice?;
-    if tiff.len() < 8 {
-        return None;
-    }
-    let little = match &tiff[..4] {
-        b"II*\0" => true,
-        b"MM\0*" => false,
-        _ => return None,
-    };
-    let short = |b: [u8; 2]| if little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) };
-    let long = |b: [u8; 4]| if little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) };
-
-    let ifd0_off = long([tiff[4], tiff[5], tiff[6], tiff[7]]) as usize;
-    if ifd0_off + 2 > tiff.len() {
-        return None;
-    }
-    let count0 = short([tiff[ifd0_off], tiff[ifd0_off + 1]]) as usize;
-    let ifd0_end = ifd0_off + 2 + count0 * 12;
-    if ifd0_end + 4 > tiff.len() {
-        return None;
-    }
+    let tiff = jpeg_exif_tiff_slice(&head)?;
+    let (e, ifd0_off) = TiffEndian::parse_header(tiff)?;
+    let (entries0, ifd1_off) = tiff_slice_ifd(tiff, ifd0_off as usize, e)?;
     let mut orientation = 1u32;
-    for e in tiff[ifd0_off + 2..ifd0_end].chunks_exact(12) {
-        if short([e[0], e[1]]) == 0x0112 {
-            let v = short([e[8], e[9]]) as u32;
-            if (1..=8).contains(&v) {
-                orientation = v;
-            }
+    for raw in entries0.chunks_exact(12) {
+        let (tag, _, n, val) = e.entry(raw);
+        if tag == 0x0112 && n == 1 && (1..=8).contains(&val) {
+            orientation = val;
         }
     }
-    let ifd1_off = long([tiff[ifd0_end], tiff[ifd0_end + 1], tiff[ifd0_end + 2], tiff[ifd0_end + 3]]) as usize;
-    if ifd1_off == 0 || ifd1_off + 2 > tiff.len() {
+    if ifd1_off == 0 {
         return None;
     }
-    let count1 = short([tiff[ifd1_off], tiff[ifd1_off + 1]]) as usize;
-    let ifd1_end = ifd1_off + 2 + count1 * 12;
-    if ifd1_end > tiff.len() {
-        return None;
-    }
+    let (entries1, _) = tiff_slice_ifd(tiff, ifd1_off, e)?;
     let mut thumb_off = None;
     let mut thumb_len = None;
-    for e in tiff[ifd1_off + 2..ifd1_end].chunks_exact(12) {
-        match short([e[0], e[1]]) {
-            0x0201 => thumb_off = Some(long([e[8], e[9], e[10], e[11]]) as usize),
-            0x0202 => thumb_len = Some(long([e[8], e[9], e[10], e[11]]) as usize),
+    for raw in entries1.chunks_exact(12) {
+        let (tag, _, _, val) = e.entry(raw);
+        match tag {
+            0x0201 => thumb_off = Some(val as usize),
+            0x0202 => thumb_len = Some(val as usize),
             _ => {}
         }
     }
@@ -1440,11 +1294,7 @@ fn extract_jpeg_exif_thumbnail(source: &Path, min_side: usize) -> Option<(Vec<u8
         return None;
     }
     let (w, h) = jpeg_sof_dimensions(thumb)?;
-    if w.max(h) >= min_side {
-        Some((thumb.to_vec(), orientation))
-    } else {
-        None
-    }
+    (w.max(h) >= min_side).then(|| (thumb.to_vec(), orientation))
 }
 
 /// Fast RAM-only JPEG thumbnail for the Import view: uses header-seek embedded JPEG extraction
@@ -1462,7 +1312,6 @@ pub(crate) fn render_fast_import_thumbnail_bytes(
     if crate::heif::is_heif_path(source) {
         let decoded = crate::heif::decode(source)?;
         let (rgb, width, height) = resize_to_fit(decoded.rgb, decoded.width, decoded.height, max_side);
-        let (rgb, width, height) = apply_orientation(rgb, width, height, read_orientation(source));
         return encode_jpeg_bytes_fast(&rgb, width, height, quality);
     }
     if is_raw_path(source) {
@@ -1471,13 +1320,7 @@ pub(crate) fn render_fast_import_thumbnail_bytes(
         let container = fast_container_ori.unwrap_or_else(|| read_fast_exif_fields(source).1);
         let dims = jpeg_sof_dimensions(&jpeg);
         let portrait_preview = dims.is_some_and(|(w, h)| h > w);
-        let preview_ori = match own {
-            Some(v) if v >= 2 => v,
-            Some(_) if container >= 5 && !portrait_preview => container,
-            Some(v) => v,
-            None if container >= 5 && portrait_preview => 1,
-            None => container,
-        };
+        let preview_ori = resolve_raw_preview_orientation(own, container, portrait_preview);
         let display_ori = crate::orientation::raw_preview_orientation(
             preview_ori,
             container,
@@ -1514,12 +1357,6 @@ pub(crate) fn render_fast_import_thumbnail_bytes(
     encode_jpeg_bytes_fast(&rgb, width, height, quality)
 }
 
-/// Renders a RAM-only JPEG thumbnail for `source` without touching any disk cache.
-pub(crate) fn render_thumbnail_jpeg_bytes(source: &Path, max_side: usize, quality: u8) -> Result<Vec<u8>, String> {
-    let (rgb, width, height) = render_thumbnail(source, max_side)?;
-    encode_jpeg_bytes(&rgb, width, height, quality)
-}
-
 /// Renders a RAM-only JPEG preview (up to 1600 px) for `source` without touching any disk cache.
 pub(crate) fn render_preview_jpeg_bytes(source: &Path) -> Result<Vec<u8>, String> {
     const PREVIEW_MAX_SIDE: usize = 1600;
@@ -1535,7 +1372,8 @@ pub(crate) fn render_preview_jpeg_bytes(source: &Path) -> Result<Vec<u8>, String
         let jpeg = extract_raw_preview(source)?;
         return Ok(preview_with_orientation(source, jpeg));
     }
-    render_thumbnail_jpeg_bytes(source, PREVIEW_MAX_SIDE, THUMBNAIL_QUALITY_HIGH)
+    let (rgb, width, height) = render_thumbnail(source, PREVIEW_MAX_SIDE)?;
+    encode_jpeg_bytes(&rgb, width, height, THUMBNAIL_QUALITY_HIGH)
 }
 
 /// Writes a cache thumbnail at the quality chosen in the settings.

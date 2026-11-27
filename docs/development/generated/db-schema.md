@@ -208,7 +208,6 @@ Extracted from the `CREATE TABLE` / `CREATE INDEX` / `ALTER TABLE … ADD COLUMN
   file_size INTEGER NOT NULL
   file_mtime INTEGER NOT NULL
   date_taken TEXT NOT NULL DEFAULT ''
-  partial_hash BLOB
   dest_path TEXT NOT NULL
   imported_at INTEGER NOT NULL
   UNIQUE(media_id, relative_path, file_size, file_mtime)

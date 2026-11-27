@@ -9,8 +9,8 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 |---|---|---:|---|
 | `--accent` | styles.css · `:root` · `#1e72ad` | 57 | — |
 | `--accent-text` | styles.css · `:root` · `#4aa3df`<br>styles.css · (light) `:root[data-theme="light"]` · `#1a6aa3` | 20 | — |
-| `--active-button` | styles.css · `:root` · `#1e72ad` | 52 | main.js |
-| `--active-button-text` | styles.css · `:root` · `#fff` | 11 | main.js |
+| `--active-button` | styles.css · `:root` · `#1e72ad` | 46 | main.js |
+| `--active-button-text` | styles.css · `:root` · `#fff` | 8 | main.js |
 | `--app-font` | styles.css · `:root` · `Tahoma, 'Segoe UI', Geneva, Verdana, sa…` | 1 | main.js |
 | `--bar-width` | — | 2 | stats.js |
 | `--bg-dark` | styles.css · `:root` · `#121212`<br>styles.css · (light) `:root[data-theme="light"]` · `#f0f0f0` | 6 | — |
@@ -174,7 +174,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 6 | — |
 | `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 97 | — |
 | `--text-size-base` | styles.css · `:root` · `0.80rem` | 11 | — |
-| `--text-size-control` | styles.css · `:root` · `0.77rem` | 9 | — |
+| `--text-size-control` | styles.css · `:root` · `0.77rem` | 8 | — |
 | `--text-size-meta` | styles.css · `:root` · `0.75rem` | 8 | — |
 | `--text-size-subtitle` | styles.css · `:root` · `0.9rem` | 5 | — |
 | `--text-size-title` | styles.css · `:root` · `1rem` | 8 | — |
@@ -407,13 +407,13 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L61 Mode noir / blanc : bords adoucis (flou) et pulsation entre une opacité minimale et une opacité maximale < 1 (reste translucide).
 - L71 Options d'affichage > Histogramme : deux réglages par ligne.
 
-### src/import-view.css (950 lines)
+### src/import-view.css (926 lines)
 
 - L1 Dedicated full-content Import view & toolbar indicator
-- L48 Hide main workspace panes when import-mode is active
-- L568 Virtualized list rows (28px exact height)
-- L638 Group headers (px exact height 26px)
-- L654 Virtualized thumbnail cards
+- L51 Hide main workspace panes when import-mode is active
+- L555 Virtualized list rows (28px exact height)
+- L625 Group headers (px exact height 26px)
+- L641 Virtualized thumbnail cards
 
 ### src/keywords.css (156 lines)
 

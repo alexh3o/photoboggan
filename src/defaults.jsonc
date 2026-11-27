@@ -247,7 +247,7 @@
   "importViewMode": "list",
   // Import thumbnails layout: "square" | "framed".
   "importThumbnailLayout": "square",
-  // Import thumbnails size in px: 100 to 320.
+  // Import thumbnails size in px: 100 to 300.
   "importThumbnailSize": 180,
   // Saved widths in px of the resizable import panels (null = CSS default).
   "importSidebarWidth": null,

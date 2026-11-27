@@ -204,18 +204,18 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L193–L628 | 436 | Écriture dans les fichiers |
 | L629–L798 | 170 | Changement de sélection et fermeture de l'application |
 
-## src/photo-actions.js (2196 lines)
+## src/photo-actions.js (2184 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L26–L220 | 195 | PROGRAMMES « OUVRIR AVEC » (liste dans les Paramètres, mémorisée localement) |
 | L221–L476 | 256 | FENÊTRES (informations, confirmation) |
 | L477–L528 | 52 | INFOS (EXIF / XMP / IPTC) |
-| L529–L725 | 197 | SUPPRIMER, COPIER VERS, OUVRIR AVEC |
-| L726–L1219 | 494 | REDIMENSIONNER PAR LOT |
-| L1220–L1354 | 135 | VÉRIFICATION D'INTÉGRITÉ (rapport final) |
-| L1355–L2057 | 703 | MENUS CONTEXTUELS (miniatures, aperçu, plein écran et arborescence des dossiers) |
-| L2058–L2196 | 139 | MENU DES CHAMPS DE SAISIE |
+| L529–L713 | 185 | SUPPRIMER, COPIER VERS, OUVRIR AVEC |
+| L714–L1207 | 494 | REDIMENSIONNER PAR LOT |
+| L1208–L1342 | 135 | VÉRIFICATION D'INTÉGRITÉ (rapport final) |
+| L1343–L2045 | 703 | MENUS CONTEXTUELS (miniatures, aperçu, plein écran et arborescence des dossiers) |
+| L2046–L2184 | 139 | MENU DES CHAMPS DE SAISIE |
 
 ## src/preview-zoom.js (724 lines)
 
@@ -389,23 +389,23 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L51–L111 | 61 | Lecture des pixels |
 | L112–L282 | 171 | Analyse du conteneur (positions des champs, nécessaires pour modifier le fichier sur place) |
 
-## src-tauri/src/import.rs (2228 lines)
+## src-tauri/src/import.rs (2660 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L27–L63 | 37 | Configuration statics (pushed from frontend at startup and on change) |
-| L64–L103 | 40 | SQLite schema |
+| L28–L64 | 37 | Configuration statics (pushed from frontend at startup and on change) |
+| L65–L103 | 39 | SQLite schema |
 | L104–L291 | 188 | Data types |
 | L292–L351 | 60 | Path & format helpers |
-| L352–L745 | 394 | Platform-specific removable drive enumeration, free space & ejection |
-| L746–L818 | 73 | Media enumeration + policy |
-| L819–L1121 | 303 | OS event-driven device watcher (zero polling at rest) |
-| L1122–L1158 | 37 | Destination validation & ejection |
-| L1159–L1534 | 376 | Source identification & two-pass scan |
-| L1535–L1589 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
-| L1590–L2038 | 449 | Destination subfolder computation, conflict detection & chronological copy |
-| L2039–L2138 | 100 | Device & history management (Settings) |
-| L2139–L2224 | 86 | Saved import recipes (Subfolders + After copy) |
+| L352–L780 | 429 | Platform-specific removable drive enumeration, free space & ejection |
+| L781–L856 | 76 | Media enumeration + policy |
+| L857–L1170 | 314 | OS event-driven device watcher (zero polling at rest) |
+| L1171–L1293 | 123 | Destination validation & ejection |
+| L1294–L1709 | 416 | Source identification & two-pass scan |
+| L1710–L1764 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
+| L1765–L2410 | 646 | Destination subfolder computation, conflict detection & chronological copy |
+| L2411–L2570 | 160 | Device & history management (Settings) |
+| L2571–L2656 | 86 | Saved import recipes (Subfolders + After copy) |
 
 ## src-tauri/src/keywords.rs (985 lines)
 
@@ -414,11 +414,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L249–L692 | 444 | Écriture des mots-clés dans les fichiers |
 | L693–L981 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (3700 lines)
+## src-tauri/src/main.rs (3770 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L2925–L3696 | 772 | Programs allowed for "Open with" |
+| L2995–L3766 | 772 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 

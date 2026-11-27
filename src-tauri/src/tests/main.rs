@@ -590,3 +590,48 @@ fn copy_durably_rejects_copied_byte_count_mismatch() {
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
     assert!(!dst.exists(), "temporary target must be removed on byte count mismatch");
 }
+
+#[test]
+fn copy_replacing_rejects_same_file_and_sidecar_overwrite_protects_shared_xmp() {
+    let dir = tempfile::tempdir().unwrap();
+    let (src_dir, dst_dir) = (dir.path().join("src"), dir.path().join("dst"));
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::create_dir_all(&dst_dir).unwrap();
+
+    let self_file = src_dir.join("same.jpg");
+    put(&self_file, b"keep-me");
+    let err = copy_replacing_verified_with(
+        &self_file,
+        &self_file,
+        |_, _| Ok(()),
+        |_, _| Ok(()),
+    )
+    .unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    assert_eq!(fs::read(&self_file).unwrap(), b"keep-me");
+
+    // Replacing a JPEG at destination must not overwrite a compatible `photo.xmp` shared with `photo.cr2`.
+    let src_jpg = src_dir.join("photo.jpg");
+    let src_xmp = src_dir.join("photo.xmp");
+    put(&src_jpg, b"new-jpg");
+    put(&src_xmp, b"jpg-xmp");
+
+    let dst_jpg = dst_dir.join("photo.jpg");
+    let dst_raw = dst_dir.join("photo.cr2");
+    let dst_shared_xmp = dst_dir.join("photo.xmp");
+    put(&dst_jpg, b"old-jpg");
+    put(&dst_raw, b"raw-file");
+    put(&dst_shared_xmp, b"shared-raw-xmp");
+
+    copy_sidecar_with(&src_jpg, &dst_jpg, true, |s, d| {
+        copy_replacing_verified_with(s, d, |_, _| Ok(()), |temp, target| {
+            replace_file_via_trash_with(temp, target, true, |backup| {
+                fs::remove_file(backup).map_err(|e| e.to_string())
+            })
+        })
+    })
+    .unwrap();
+
+    assert_eq!(fs::read(&dst_shared_xmp).unwrap(), b"shared-raw-xmp");
+    assert_eq!(fs::read(dst_dir.join("photo.jpg.xmp")).unwrap(), b"jpg-xmp");
+}

@@ -15,11 +15,12 @@ const dateFilterError = document.getElementById('date-filter-error');
 
 export function setDateFilter(next) {
   dateFilter = next;
+  mainControl?.setFilter(next);
 }
 
 // Extracts the date and time from an EXIF text whatever the separator (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
 // Returns a number YYYYMMDDHHmmss (time at 00:00:00 when missing), or null.
-function extractTimeKey(text) {
+export function extractTimeKey(text) {
   const match = /(\d{4})\D?(\d{2})\D?(\d{2})(?:\D+(\d{2})\D?(\d{2})(?:\D?(\d{2}))?)?/.exec(String(text || ''));
   if (!match) return null;
   if (Number(match[1] + match[2] + match[3]) < 10000101) return null; // ignores empty dates such as 0000:00:00
@@ -90,46 +91,29 @@ export function parseDateFilter(text) {
   return { filter: { from: begin.start, to: finish.end } };
 }
 
-export function updateDateFilterUI(error = '') {
-  dateFilterClear.classList.toggle('has-value', dateFilterInput.value.trim() !== '');
-  dateFilterInput.classList.toggle('invalid', Boolean(error));
-  dateFilterInput.setAttribute('aria-invalid', error ? 'true' : 'false');
-  dateFilterError.textContent = error;
+function updateDateFilterFields(input, clearBtn, errorEl, error = '') {
+  clearBtn.classList.toggle('has-value', input.value.trim() !== '');
+  input.classList.toggle('invalid', Boolean(error));
+  input.setAttribute('aria-invalid', error ? 'true' : 'false');
+  errorEl.textContent = error;
 }
 
-// Applies the content of the field: empty = no filter; incomplete or invalid input = previous filter kept.
-function setDateFilterFromInput() {
-  const result = parseDateFilter(dateFilterInput.value);
-  updateDateFilterUI(result.error);
-  if (result.error) return;
-  const next = result.filter;
-  const unchanged = next === dateFilter || (next && dateFilter && next.from === dateFilter.from && next.to === dateFilter.to);
-  if (unchanged) return;
-  dateFilter = next;
-  host.applyPhotoFilters();
+export function updateDateFilterUI(error = '') {
+  updateDateFilterFields(dateFilterInput, dateFilterClear, dateFilterError, error);
 }
 
 // --- Calendar (single date or range) ---
-// The element is created here; its label and its place in the page come with initDateFilter (same moment as before the move).
-const datePicker = document.createElement('div');
-datePicker.className = 'date-picker';
-datePicker.setAttribute('role', 'dialog');
-datePicker.style.display = 'none';
 // Initials of the days (week starting on Monday) and months, in the current language: 1 January 2024 is a Monday.
 const weekdayLabels = () => Array.from({ length: 7 }, (_, day) => new Intl.DateTimeFormat(getLanguage(), { weekday: 'narrow' }).format(new Date(2024, 0, 1 + day)));
 const pickerMonthFormatter = () => new Intl.DateTimeFormat(getLanguage(), { month: 'long', year: 'numeric' });
-let pickerYear = 0;
-let pickerMonth = 0; // 0-11
-let pickStart = null;
-let pickEnd = null;
-let pickAwaitingEnd = false;
+let mainControl = null;
 
 export function isDatePickerOpen() {
-  return datePicker.style.display !== 'none';
+  return mainControl?.isOpen() ?? false;
 }
 
 export function closeDatePicker() {
-  datePicker.style.display = 'none';
+  mainControl?.close();
 }
 
 function todayDateKey() {
@@ -144,85 +128,6 @@ function latestPhotoDateKey() {
     if (key !== null && (latest === null || key > latest)) latest = key;
   }
   return latest;
-}
-
-function positionDatePicker() {
-  const rect = dateFilterCalendar.getBoundingClientRect();
-  const width = datePicker.offsetWidth;
-  const height = datePicker.offsetHeight;
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
-  let top = rect.bottom + 6;
-  if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 6);
-  datePicker.style.left = `${left}px`;
-  datePicker.style.top = `${top}px`;
-}
-
-function renderDatePicker() {
-  const first = new Date(pickerYear, pickerMonth, 1);
-  const offset = (first.getDay() + 6) % 7; // the week starts on Monday
-  const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
-  const today = todayDateKey();
-  const low = pickStart === null ? null : Math.min(pickStart, pickEnd ?? pickStart);
-  const high = pickStart === null ? null : Math.max(pickStart, pickEnd ?? pickStart);
-  let cells = weekdayLabels().map(label => `<span class="date-picker-weekday">${label}</span>`).join('');
-  for (let i = 0; i < offset; i++) cells += '<span></span>';
-  for (let day = 1; day <= daysInMonth; day++) {
-    const key = pickerYear * 10000 + (pickerMonth + 1) * 100 + day;
-    const classes = ['date-picker-day'];
-    if (key === today) classes.push('today');
-    if (low !== null && key > low && key < high) classes.push('in-range');
-    if (key === low || key === high) classes.push('selected');
-    cells += `<button type="button" class="${classes.join(' ')}" data-key="${key}">${day}</button>`;
-  }
-  datePicker.innerHTML = `
-    <div class="date-picker-header">
-      <button type="button" data-nav="-12" title="${t('Previous year')}" aria-label="${t('Previous year')}">«</button>
-      <button type="button" data-nav="-1" title="${t('Previous month')}" aria-label="${t('Previous month')}">‹</button>
-      <span class="date-picker-title">${pickerMonthFormatter().format(first)}</span>
-      <button type="button" data-nav="1" title="${t('Next month')}" aria-label="${t('Next month')}">›</button>
-      <button type="button" data-nav="12" title="${t('Next year')}" aria-label="${t('Next year')}">»</button>
-    </div>
-    <div class="date-picker-grid">${cells}</div>
-    <div class="date-picker-hint">${t('Click a day, then a second one for a range.')}</div>`;
-}
-
-function openDatePicker() {
-  const fromDay = dateFilter ? Math.floor(dateFilter.from / 1000000) : null;
-  const toDay = dateFilter ? Math.floor(dateFilter.to / 1000000) : null;
-  const key = fromDay ?? latestPhotoDateKey() ?? todayDateKey();
-  pickerYear = Math.floor(key / 10000);
-  pickerMonth = (Math.floor(key / 100) % 100) - 1;
-  pickStart = fromDay;
-  pickEnd = fromDay !== null && toDay !== fromDay ? toDay : null;
-  pickAwaitingEnd = false;
-  datePicker.style.display = 'block';
-  renderDatePicker();
-  positionDatePicker();
-}
-
-function applyPickerSelection() {
-  const low = Math.min(pickStart, pickEnd ?? pickStart);
-  const high = Math.max(pickStart, pickEnd ?? pickStart);
-  dateFilterInput.value = low === high ? String(low) : `${low}-${high}`;
-  setDateFilterFromInput();
-}
-
-// 1st click: single day (filter applied at once). 2nd click: range, or the same day to confirm the single day.
-function pickDate(key) {
-  if (!pickAwaitingEnd) {
-    pickStart = key;
-    pickEnd = null;
-    pickAwaitingEnd = true;
-    applyPickerSelection();
-    renderDatePicker();
-    return;
-  }
-  pickAwaitingEnd = false;
-  if (key !== pickStart) {
-    pickEnd = key;
-    applyPickerSelection();
-  }
-  closeDatePicker();
 }
 
 // Reusable date filter control (text input YYYYMMDD / YYYYMMDD-YYYYMMDD, calendar pop-up, clear button).
@@ -247,12 +152,7 @@ export function createDateFilterControl({ input, calendarBtn, clearBtn, errorEl,
   const isOpen = () => picker.style.display !== 'none';
   const close = () => { picker.style.display = 'none'; };
 
-  const updateUI = (error = '') => {
-    clearBtn.classList.toggle('has-value', input.value.trim() !== '');
-    input.classList.toggle('invalid', Boolean(error));
-    input.setAttribute('aria-invalid', error ? 'true' : 'false');
-    errorEl.textContent = error;
-  };
+  const updateUI = (error = '') => updateDateFilterFields(input, clearBtn, errorEl, error);
 
   const applyFromInput = () => {
     const result = parseDateFilter(input.value);
@@ -369,6 +269,10 @@ export function createDateFilterControl({ input, calendarBtn, clearBtn, errorEl,
 
   const instance = {
     getFilter: () => currentFilter,
+    setFilter(next) {
+      currentFilter = next;
+    },
+    isOpen,
     setValue(text) {
       input.value = text;
       close();
@@ -391,11 +295,6 @@ export function createDateFilterControl({ input, calendarBtn, clearBtn, errorEl,
 
 // The language changed: the label of the pop-up follows, and an open calendar is drawn again (names of the days and of the month).
 export function refreshDatePickerLanguage() {
-  datePicker.setAttribute('aria-label', t('Choose a date or a range'));
-  if (isDatePickerOpen()) {
-    renderDatePicker();
-    positionDatePicker();
-  }
   for (const inst of datePickerInstances) inst.refreshLanguage();
 }
 
@@ -403,47 +302,15 @@ export function refreshDatePickerLanguage() {
 // among the others (Escape, pointerdown, resize) and the calendar keeps its place at the end of the body.
 export function initDateFilter(api) {
   host = api;
-  datePicker.setAttribute('aria-label', t('Choose a date or a range'));
-  document.body.appendChild(datePicker);
-
-  dateFilterInput.addEventListener('input', () => {
-    closeDatePicker();
-    setDateFilterFromInput();
+  mainControl = createDateFilterControl({
+    input: dateFilterInput,
+    calendarBtn: dateFilterCalendar,
+    clearBtn: dateFilterClear,
+    errorEl: dateFilterError,
+    getReferenceDateKey: latestPhotoDateKey,
+    onChange: next => {
+      dateFilter = next;
+      host.applyPhotoFilters();
+    },
   });
-
-  dateFilterClear.addEventListener('click', () => {
-    dateFilterInput.value = '';
-    closeDatePicker();
-    setDateFilterFromInput();
-  });
-
-  datePicker.addEventListener('click', event => {
-    const button = event.target instanceof Element ? event.target.closest('button') : null;
-    if (!button) return;
-    if (button.dataset.nav) {
-      const shifted = new Date(pickerYear, pickerMonth + Number(button.dataset.nav), 1);
-      pickerYear = shifted.getFullYear();
-      pickerMonth = shifted.getMonth();
-      renderDatePicker();
-      positionDatePicker();
-    } else if (button.dataset.key) {
-      pickDate(Number(button.dataset.key));
-    }
-  });
-
-  dateFilterCalendar.addEventListener('click', () => {
-    if (isDatePickerOpen()) closeDatePicker();
-    else openDatePicker();
-  });
-
-  document.addEventListener('pointerdown', event => {
-    if (!isDatePickerOpen()) return;
-    const target = event.target;
-    if (target instanceof Node && (datePicker.contains(target) || dateFilterCalendar.contains(target))) return;
-    closeDatePicker();
-  }, true);
-  window.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && isDatePickerOpen()) closeDatePicker();
-  });
-  window.addEventListener('resize', closeDatePicker);
 }

@@ -22,7 +22,7 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `duplicateAutoHashMode` | `"both_prepass"` | duplicates-settings.js |
 | `duplicateAutoHashRaw` | `false` | duplicates-settings.js |
 | `duplicateHashOnIntegrity` | `true` | duplicates-settings.js, import-view.js, task-queue.js |
-| `duplicateHashOnSemantic` | `true` | duplicates-settings.js, semantic-settings.js |
+| `duplicateHashOnSemantic` | `true` | duplicates-settings.js, import-view.js, semantic-settings.js |
 | `duplicateHashThreads` | `"auto"` | duplicates-settings.js, import-view.js |
 | `duplicatePrecomputeExactMode` | `"prepass"` | duplicates-settings.js, import-view.js |
 | `exifPanelWidth` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | main.js |
@@ -117,12 +117,12 @@ Settings remembered in `localStorage` and their defaults (`src/defaults.jsonc`),
 | `semanticKeywordSort` | `"grid"` | semantic-results.js |
 | `semanticKeywordsInSearch` | `true` | semantic-results.js, semantic-settings.js |
 | `semanticRelevance` | `0.03` | semantic-results.js |
-| `semanticScanRaw` | `true` | main.js, semantic-settings.js, semantic.js |
+| `semanticScanRaw` | `true` | import-view.js, main.js, semantic-settings.js, semantic.js |
 | `semanticScanThreads` | `1` | semantic-settings.js |
 | `semanticScope` | `"view"` | semantic.js |
 | `semanticSearch` | `false` | semantic-results.js, semantic-settings.js |
 | `semanticShowScore` | `false` | main.js, semantic-settings.js |
-| `semanticWriteThumbnails` | `false` | semantic-settings.js |
+| `semanticWriteThumbnails` | `false` | import-view.js, semantic-settings.js |
 | `sensitivity` | **none** (AGENTS.md §5.G: every remembered setting needs a default) | duplicates.js |
 | `showClippings` | `false` | histogram.js |
 | `showEmptyFolders` | `true` | folder-tree.js |

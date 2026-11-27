@@ -122,32 +122,27 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `undoBatch(renamed, meta)` · L187 — Ctrl+Z: the same batch the other way round (each photo takes back the name it had). Not stacked again.
 - `export openBatchRename(targets)` · L213 — ==========================================
 
-## src/date-filter.js (24)
+## src/date-filter.js (19)
 
 - `export setDateFilter(next)` · L16
-- `extractTimeKey(text)` · L22 — Extracts the date and time from an EXIF text whatever the separator (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
-- `export photoTimeKey(photo)` · L29
-- `export photoDateKey(photo)` · L35 — Day the photo was taken as YYYYMMDD, or null.
-- `export matchesDateFilter(photo)` · L41 — The filter covers the first to the last instant of the typed period, bounds included.
-- `export isValidDateKey(key)` · L47
-- `parseDateToken(token)` · L57 — A token YYYY, YYYYMM, YYYYMMDD, YYYYMMDDHH, YYYYMMDDHHmm or YYYYMMDDHHmmss: returns the first and the last instant
-- `export parseDateFilter(text)` · L78
-- `export updateDateFilterUI(error = '')` · L93
-- `setDateFilterFromInput()` · L101 — Applies the content of the field: empty = no filter; incomplete or invalid input = previous filter kept.
-- `weekdayLabels()` · L119 — Initials of the days (week starting on Monday) and months, in the current language: 1 January 2024 is a Monday.
-- `pickerMonthFormatter()` · L120
-- `export isDatePickerOpen()` · L127
-- `export closeDatePicker()` · L131
-- `todayDateKey()` · L135
-- `latestPhotoDateKey()` · L140
-- `positionDatePicker()` · L149
-- `renderDatePicker()` · L160
-- `openDatePicker()` · L189
-- `applyPickerSelection()` · L203
-- `pickDate(key)` · L211 — 1st click: single day (filter applied at once). 2nd click: range, or the same day to confirm the single day.
-- `export createDateFilterControl({ input, calendarBtn, clearBtn, errorEl, getReferenceDateKe…)` · L232
-- `export refreshDatePickerLanguage()` · L393 — The language changed: the label of the pop-up follows, and an open calendar is drawn again (names of the days and of the month).
-- `export initDateFilter(api)` · L404 — `api`: { applyPhotoFilters, getPhotos }. Called by main.js at the place where this code used to be, so that the listeners keep their order
+- `export extractTimeKey(text)` · L23 — Extracts the date and time from an EXIF text whatever the separator (« 2026:08:12 14:30:00 », « 2026-08-12 14:30:00 »…).
+- `export photoTimeKey(photo)` · L30
+- `export photoDateKey(photo)` · L36 — Day the photo was taken as YYYYMMDD, or null.
+- `export matchesDateFilter(photo)` · L42 — The filter covers the first to the last instant of the typed period, bounds included.
+- `export isValidDateKey(key)` · L48
+- `parseDateToken(token)` · L58 — A token YYYY, YYYYMM, YYYYMMDD, YYYYMMDDHH, YYYYMMDDHHmm or YYYYMMDDHHmmss: returns the first and the last instant
+- `export parseDateFilter(text)` · L79
+- `updateDateFilterFields(input, clearBtn, errorEl, error = '')` · L94
+- `export updateDateFilterUI(error = '')` · L101
+- `weekdayLabels()` · L107 — --- Calendar (single date or range) ---
+- `pickerMonthFormatter()` · L108
+- `export isDatePickerOpen()` · L111
+- `export closeDatePicker()` · L115
+- `todayDateKey()` · L119
+- `latestPhotoDateKey()` · L124
+- `export createDateFilterControl({ input, calendarBtn, clearBtn, errorEl, getReferenceDateKe…)` · L137
+- `export refreshDatePickerLanguage()` · L297 — The language changed: the label of the pop-up follows, and an open calendar is drawn again (names of the days and of the month).
+- `export initDateFilter(api)` · L303 — `api`: { applyPhotoFilters, getPhotos }. Called by main.js at the place where this code used to be, so that the listeners keep their order
 
 ## src/description-panel.js (27)
 
@@ -655,77 +650,78 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export onLanguageChange(listener)` · L116 — Pour re-générer les textes construits en JavaScript quand la langue change.
 - `export setLanguage(language)` · L121
 
-## src/import-settings.js (9)
+## src/import-settings.js (8)
 
 - `parseMarkers(raw)` · L11
 - `export getDetectedMedia()` · L18
 - `export refreshDetectedMedia()` · L22
 - `export syncImportToolbarButton()` · L32
-- `updateToolbarButton()` · L56
-- `export syncImportWatcherToBackend()` · L60
-- `handleMediaArrival(arrived)` · L77
-- `openManageDevicesModal()` · L108
-- `export initImportSettings(deps)` · L211
+- `export syncImportWatcherToBackend()` · L56
+- `handleMediaArrival(arrived)` · L73
+- `openManageDevicesModal()` · L104
+- `export initImportSettings(deps)` · L207
 
-## src/import-view.js (57)
+## src/import-view.js (59)
 
-- `revokeAllBlobs()` · L61
-- `clearRenderedViewport()` · L72
-- `setThumbCached(path, url)` · L79
-- `fetchImportBlob(command, args)` · L91
-- `currentImportThumbMaxSide()` · L97
-- `enqueueImportThumbnail(file, centerY, imgEl)` · L103
-- `pumpThumbQueue()` · L114
-- `updatePreviewPane(file)` · L153
-- `export isImportViewOpen()` · L203
-- `formatImportBytes(bytes)` · L207
-- `loadImportListSort()` · L233
-- `saveImportListSort()` · L239
-- `readJsonList(key)` · L243
-- `writeJsonList(key, list)` · L252
-- `fileTimeKey(file)` · L256
-- `formatFileDate(file)` · L270
-- `folderKindClass(folder)` · L276
-- `folderTooltip(folder)` · L287
-- `computeFolderTreeMeta()` · L295
-- `openFolderTreeContextMenu(event)` · L325
-- `renderFolderTree()` · L356
-- `applyImportFilters()` · L417
-- `groupKeyForFile(file, groupBy)` · L457
-- `rebuildLayout()` · L467
-- `statusBadgeText(status)` · L534
-- `renderVisibleViewport()` · L540
-- `syncSelectionAndActiveClasses()` · L715
-- `previewOnlyFile(file)` · L725
-- `togglePathSelection(path, checked)` · L731
-- `handleFileClick(file, index, event)` · L741
-- `recentImportRange()` · L762 — Same date range as the "Since last import" filter button (#btn-import-recall-date).
-- `updateSummaryFooter()` · L768
-- `populateSourceSelect(selectedPath)` · L831
-- `loadSource(sourcePath)` · L851
-- `setDestination(path)` · L954
-- `updateDestinationUI()` · L970
-- `updateTargetPreview()` · L988
-- `pushRecentDestination(path)` · L1014
-- `addFavoriteDestination()` · L1021
-- `askFavoriteToReplace(favs)` · L1043
-- `makeEl(tag, className, text)` · L1076
-- `showImportReportModal(report)` · L1083
-- `startImport()` · L1114
-- `export openImportView({ sourcePath = null, destination = null } = {})` · L1381
-- `export closeImportView()` · L1403
-- `collectImportRecipeConfig()` · L1419
-- `applyImportRecipeConfig(cfg)` · L1437
-- `isImportRecipeModified()` · L1488
-- `syncImportRecipeUi()` · L1502
-- `selectImportPreset(preset, { apply = true } = {})` · L1514
-- `renderImportSortButton()` · L1538
-- `renderImportListHeader()` · L1566
-- `refreshImportPresetsDropdown()` · L1606
-- `openImportRecipesModal()` · L1614
-- `refreshRenamePresetsDropdown()` · L1730
-- `updatePostTasksVisibility()` · L1746
-- `export initImportView(deps)` · L1764
+- `revokeAllBlobs()` · L70
+- `clearRenderedViewport()` · L81
+- `setThumbCached(path, url)` · L88
+- `fetchImportBlob(command, args)` · L100
+- `currentImportThumbMaxSide()` · L106
+- `enqueueImportThumbnail(file, centerY, imgEl)` · L112
+- `pumpThumbQueue()` · L123
+- `updatePreviewPane(file)` · L162
+- `export isImportViewOpen()` · L212
+- `formatImportBytes(bytes)` · L216
+- `loadImportListSort()` · L242
+- `saveImportListSort()` · L248
+- `readJsonList(key)` · L252
+- `writeJsonList(key, list)` · L261
+- `fileTimeKey(file)` · L265
+- `formatFileDate(file)` · L276
+- `folderKindClass(folder)` · L282
+- `folderTooltip(folder)` · L293
+- `computeFolderTreeMeta()` · L301
+- `openFolderTreeContextMenu(event)` · L331
+- `renderFolderTree()` · L362
+- `applyImportFilters()` · L423
+- `groupKeyForFile(file, groupBy)` · L463
+- `rebuildLayout()` · L473
+- `statusBadgeText(status)` · L540
+- `syncItemNodeState(node, file = filesByPath.get(node.path)` · L546
+- `renderVisibleViewport()` · L560
+- `syncSelectionAndActiveClasses()` · L714
+- `previewOnlyFile(file)` · L721
+- `togglePathSelection(path, checked)` · L727
+- `handleFileClick(file, index, event)` · L737
+- `recentImportRange()` · L755 — Same date range as the "Since last import" filter button (#btn-import-recall-date).
+- `updateSummaryFooter()` · L761
+- `populateSourceSelect(selectedPath)` · L824
+- `resetSourceState()` · L844
+- `loadSource(sourcePath)` · L883
+- `setDestination(path)` · L971
+- `updateDestinationUI()` · L987
+- `updateTargetPreview()` · L1005
+- `pushRecentDestination(path)` · L1031
+- `addFavoriteDestination()` · L1038
+- `askFavoriteToReplace(favs)` · L1060
+- `makeEl(tag, className, text)` · L1093
+- `showImportReportModal(report)` · L1100
+- `startImport()` · L1131
+- `export openImportView({ sourcePath = null, destination = null } = {})` · L1457
+- `export closeImportView()` · L1480
+- `collectImportRecipeConfig()` · L1496
+- `applyImportRecipeConfig(cfg)` · L1514
+- `isImportRecipeModified()` · L1565
+- `syncImportRecipeUi()` · L1579
+- `selectImportPreset(preset, { apply = true } = {})` · L1591
+- `renderImportSortButton()` · L1615
+- `renderImportListHeader()` · L1643
+- `refreshImportPresetsDropdown()` · L1683
+- `openImportRecipesModal()` · L1691
+- `refreshRenamePresetsDropdown()` · L1776
+- `updatePostTasksVisibility()` · L1797
+- `export initImportView(deps)` · L1815
 
 ## src/info-author.js (5)
 
@@ -1345,62 +1341,62 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `copyConflictDialog(conflict)` · L587 — Question posée pour un fichier à copier dont le nom existe déjà à destination : montre taille et date de modification des deux fichiers.
 - `export askImportConflictResolutions(conflicts)` · L628 — Avant une copie : cherche les fichiers dont le nom existe déjà à destination (`command` : copy_conflicts ou tracked_copy_conflicts) et pose…
 - `export askCopyResolutions(command, paths, destination)` · L644
-- `export copyPhotosTo(targets)` · L667 — Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
-- `export sidecarRenameNotice(result)` · L703 — Move or copy result: photos given another name because a sidecar that is not theirs was already at the destination (left untouched,
-- `export copyPhotosToClipboard(targets)` · L716 — Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite
-- `trackedRootForPath(path)` · L738
-- `makeElement(tag, className = '', text = '')` · L748
-- `makeInput(type, properties = {})` · L754
-- `optionRow(...children)` · L755
-- `labelled(input, text)` · L760
-- `loadResizeSettings()` · L767 — Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le chemin de destination reste une action explicite, initialement le dossie…
-- `resizeOptionsDialog(count, firstPhotoPath)` · L794 — Fenêtre d'options. Renvoie les options à envoyer au backend (sans la politique de conflit) ou null si l'utilisateur annule.
-- `resizeConflictDialog(output)` · L997 — Question posée quand le fichier de destination existe déjà. Renvoie { action: 'replace' | 'increment' | 'skip', applyAll }.
-- `runResizeBatch(targets, options, task, setPercent)` · L1027 — Traitement du lot, exécuté par la file des tâches (`task` : sa tâche, `setPercent` : avancement en %). Un arrêt demandé (`task.stopRequeste…
-- `showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped)` · L1085 — Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
-- `export resizePhotos(targets)` · L1098 — Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
-- `invokeOpen(command, args)` · L1130 — Lance une commande d'ouverture (programme externe, gestionnaire de fichiers) ; un échec est signalé par un message.
-- `openWith(program, targets, name = defaultProgramName(program)` · L1139 — `name` : nom du programme affiché dans le message « Ouverture avec … » (5 secondes).
-- `export openWithFirstProgram(targets)` · L1145 — Raccourci O : ouvre les photos avec le premier programme de la section de la première photo ; message si cette section est vide.
-- `chooseProgramAndOpen(targets)` · L1155
-- `export revealInFileManager(photo)` · L1162 — Affiche la photo dans le gestionnaire de fichiers de l'OS, avec le fichier sélectionné. Une seule photo est montrée :
-- `createSubfolder(parentPath)` · L1167 — Crée un sous-dossier dans un dossier de l'arborescence (nom demandé dans une fenêtre ; le backend vérifie le nom et refuse d'écraser).
-- `renameFolder(path)` · L1187 — Renomme un dossier de l'arborescence : la saisie reprend le nom actuel ; le backend vérifie le nom et refuse d'écraser (message affiché dan…
-- `export renamePhoto(photo)` · L1202 — Renomme une photo ou une vidéo : seul le nom sans extension est modifiable, l'extension (dernier point du nom) est conservée par le backend.
-- `formatDuration(milliseconds)` · L1227
-- `buildIntegrityReportPreamble(report, version, hasSuspects)` · L1238 — Première partie du rapport exporté (texte) : titre, version, date, dossier, extensions vérifiées / non vérifiées, chiffres, durée et durée …
-- `exportIntegrityReport(report)` · L1272
-- `export showIntegrityReport(report, stopped = false)` · L1292 — `report` : résultat de `integrity_scan` ; `stopped` : la tâche a été arrêtée avant la fin (le rapport ne couvre alors que les fichiers déjà…
-- `export openFolderInFileManager(path)` · L1351 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
-- `closeContextMenu()` · L1360
-- `onOutsidePointerDown(event)` · L1374
-- `menuButton(label, onSelect, { danger = false, shortcut = null, title =…)` · L1380 — `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
-- `setSubmenuExpanded(wrapper, expanded)` · L1415
-- `menuSeparator()` · L1429
-- `menuHeader(text, title = '')` · L1437 — Ligne d'en-tête (non cliquable) : ce que le menu vise (nom du fichier, ou nombre de photos).
-- `submenuEntry(item)` · L1448 — Entrée de sous-menu décorée : `swatch` (classes d'une pastille de couleur), `glyph` + `glyphClass` (symbole coloré), `labelClass`, `ariaLab…
-- `buildSubmenuItem(label, items)` · L1491 — Sous-menu : `items` = [{ label, onSelect, … }] (voir submenuEntry) ou { separator: true }.
-- `buildSlideshowItem()` · L1511 — Sous-menu « Diaporama » (plein écran) : lancer / arrêter, boucle, ordre aléatoire et durée entre les photos. Les mêmes réglages sont dans
-- `buildMarkingItem(targets)` · L1532 — Sous-menu « Marquage » : note, couleur et fanion pick (ces deux derniers seulement s'ils sont activés dans les Paramètres) de `targets`,
-- `duplicateEntries(spec, short)` · L1577 — Entries of the duplicate search, `spec` = { scope, label, compareWithLibrary } handed to main.js (section DUPLICATES). The quick entries us…
-- `buildDuplicatesItem(spec)` · L1591 — Without a RAW to look for (folder, "All photos", selection, a RAW or a video): the duplicates are the only way to find, so no "Find" level.
-- `buildFacesItem(scope, { source } = {})` · L1598 — Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (f…
-- `buildOpenWithItem(targets, section)` · L1628 — « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
-- `onMenuKeydown(event)` · L1654
-- `openThumbnailMenu(event, index, source = 'grid')` · L1689
-- `confirmUnrecognizedFilesDialog(folderName, files)` · L1849 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
-- `confirmAndDeleteFolder(path)` · L1873 — Supprime un dossier de l'arborescence : première confirmation habituelle,
-- `openFolderMenu(event, folderItem)` · L1909 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
-- `openAllPhotosMenu(event, item)` · L1964 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
-- `export openContextMenuAt(event, items)` · L1987 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
-- `showContextMenu(menu, event)` · L2003 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
-- `findTargetPhoto(target)` · L2026 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
-- `isTextField(field)` · L2062
-- `fieldExtraItems(field)` · L2065 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
-- `pasteIntoField(field)` · L2088 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
-- `openTextFieldMenu(event, field)` · L2101 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
-- `onContextMenu(event)` · L2130 — Remplace le menu contextuel du navigateur
-- `export initPhotoActions(options)` · L2177 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
+- `export copyPhotosTo(targets)` · L655 — Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.
+- `export sidecarRenameNotice(result)` · L691 — Move or copy result: photos given another name because a sidecar that is not theirs was already at the destination (left untouched,
+- `export copyPhotosToClipboard(targets)` · L704 — Place les fichiers originaux dans le presse-papiers de l'OS, comme « Copier » dans l'Explorateur : ils se collent ensuite
+- `trackedRootForPath(path)` · L726
+- `makeElement(tag, className = '', text = '')` · L736
+- `makeInput(type, properties = {})` · L742
+- `optionRow(...children)` · L743
+- `labelled(input, text)` · L748
+- `loadResizeSettings()` · L755 — Dernières valeurs choisies (valeurs par défaut de la fenêtre) ; le chemin de destination reste une action explicite, initialement le dossie…
+- `resizeOptionsDialog(count, firstPhotoPath)` · L782 — Fenêtre d'options. Renvoie les options à envoyer au backend (sans la politique de conflit) ou null si l'utilisateur annule.
+- `resizeConflictDialog(output)` · L985 — Question posée quand le fichier de destination existe déjà. Renvoie { action: 'replace' | 'increment' | 'skip', applyAll }.
+- `runResizeBatch(targets, options, task, setPercent)` · L1015 — Traitement du lot, exécuté par la file des tâches (`task` : sa tâche, `setPercent` : avancement en %). Un arrêt demandé (`task.stopRequeste…
+- `showResizeSummary({ written, skipped, failures }, ignoredVideosCount, stopped)` · L1073 — Message de fin du lot, puis intégration des nouveaux fichiers au catalogue (s'ils sont dans un dossier suivi).
+- `export resizePhotos(targets)` · L1086 — Redimensionne les photos données (menu contextuel « Redimensionner… » et touche S, sur la sélection).
+- `invokeOpen(command, args)` · L1118 — Lance une commande d'ouverture (programme externe, gestionnaire de fichiers) ; un échec est signalé par un message.
+- `openWith(program, targets, name = defaultProgramName(program)` · L1127 — `name` : nom du programme affiché dans le message « Ouverture avec … » (5 secondes).
+- `export openWithFirstProgram(targets)` · L1133 — Raccourci O : ouvre les photos avec le premier programme de la section de la première photo ; message si cette section est vide.
+- `chooseProgramAndOpen(targets)` · L1143
+- `export revealInFileManager(photo)` · L1150 — Affiche la photo dans le gestionnaire de fichiers de l'OS, avec le fichier sélectionné. Une seule photo est montrée :
+- `createSubfolder(parentPath)` · L1155 — Crée un sous-dossier dans un dossier de l'arborescence (nom demandé dans une fenêtre ; le backend vérifie le nom et refuse d'écraser).
+- `renameFolder(path)` · L1175 — Renomme un dossier de l'arborescence : la saisie reprend le nom actuel ; le backend vérifie le nom et refuse d'écraser (message affiché dan…
+- `export renamePhoto(photo)` · L1190 — Renomme une photo ou une vidéo : seul le nom sans extension est modifiable, l'extension (dernier point du nom) est conservée par le backend.
+- `formatDuration(milliseconds)` · L1215
+- `buildIntegrityReportPreamble(report, version, hasSuspects)` · L1226 — Première partie du rapport exporté (texte) : titre, version, date, dossier, extensions vérifiées / non vérifiées, chiffres, durée et durée …
+- `exportIntegrityReport(report)` · L1260
+- `export showIntegrityReport(report, stopped = false)` · L1280 — `report` : résultat de `integrity_scan` ; `stopped` : la tâche a été arrêtée avant la fin (le rapport ne couvre alors que les fichiers déjà…
+- `export openFolderInFileManager(path)` · L1339 — Ouvre un dossier de l'arborescence dans le gestionnaire de fichiers de l'OS.
+- `closeContextMenu()` · L1348
+- `onOutsidePointerDown(event)` · L1362
+- `menuButton(label, onSelect, { danger = false, shortcut = null, title =…)` · L1368 — `shortcut` : touche(s) du raccourci clavier équivalent, affichée en grisé à droite.
+- `setSubmenuExpanded(wrapper, expanded)` · L1403
+- `menuSeparator()` · L1417
+- `menuHeader(text, title = '')` · L1425 — Ligne d'en-tête (non cliquable) : ce que le menu vise (nom du fichier, ou nombre de photos).
+- `submenuEntry(item)` · L1436 — Entrée de sous-menu décorée : `swatch` (classes d'une pastille de couleur), `glyph` + `glyphClass` (symbole coloré), `labelClass`, `ariaLab…
+- `buildSubmenuItem(label, items)` · L1479 — Sous-menu : `items` = [{ label, onSelect, … }] (voir submenuEntry) ou { separator: true }.
+- `buildSlideshowItem()` · L1499 — Sous-menu « Diaporama » (plein écran) : lancer / arrêter, boucle, ordre aléatoire et durée entre les photos. Les mêmes réglages sont dans
+- `buildMarkingItem(targets)` · L1520 — Sous-menu « Marquage » : note, couleur et fanion pick (ces deux derniers seulement s'ils sont activés dans les Paramètres) de `targets`,
+- `duplicateEntries(spec, short)` · L1565 — Entries of the duplicate search, `spec` = { scope, label, compareWithLibrary } handed to main.js (section DUPLICATES). The quick entries us…
+- `buildDuplicatesItem(spec)` · L1579 — Without a RAW to look for (folder, "All photos", selection, a RAW or a video): the duplicates are the only way to find, so no "Find" level.
+- `buildFacesItem(scope, { source } = {})` · L1586 — Sous-menu « Visages » (détection activée dans les Paramètres) : `scope` = { folder } ou { photoIds }, transmis à la fenêtre de lancement (f…
+- `buildOpenWithItem(targets, section)` · L1616 — « Ouvrir avec » : programmes de la section du fichier (Paramètres), dans leur ordre, puis toujours « Choisir… » en fin de liste.
+- `onMenuKeydown(event)` · L1642
+- `openThumbnailMenu(event, index, source = 'grid')` · L1677
+- `confirmUnrecognizedFilesDialog(folderName, files)` · L1837 — Seconde alerte à la suppression d'un dossier : liste des fichiers non catalogués qu'il contient. Focus sur « Annuler », par sécurité.
+- `confirmAndDeleteFolder(path)` · L1861 — Supprime un dossier de l'arborescence : première confirmation habituelle,
+- `openFolderMenu(event, folderItem)` · L1897 — Menu de l'arborescence des dossiers (clic droit sur un dossier suivi ou l'un de ses sous-dossiers).
+- `openAllPhotosMenu(event, item)` · L1952 — Menu de « Toutes les photos » (tête de l'arborescence) : la recherche de doublons sur toute la photothèque.
+- `export openContextMenuAt(event, items)` · L1975 — Menu contextuel pour les autres modules (ex. section Personnes, faces-panel.js) : `items` = [{ label, onSelect, danger, title, disabled, sh…
+- `showContextMenu(menu, event)` · L1991 — Affiche le menu au curseur (sans sortir de la fenêtre) et installe les écouteurs qui le ferment.
+- `findTargetPhoto(target)` · L2014 — Détermine l'index et l'origine du clic (grille ou vue directe aperçu/plein écran).
+- `isTextField(field)` · L2050
+- `fieldExtraItems(field)` · L2053 — Lignes propres à certains champs (le menu de base est le même partout) : appel d'un bouton voisin, ou champ vidé.
+- `pasteIntoField(field)` · L2076 — Coller : le texte vient du presse-papiers de l'OS (commande Rust), puis est inséré comme une frappe (annulable avec Annuler).
+- `openTextFieldMenu(event, field)` · L2089 — Menu d'un champ de saisie texte. Le menu prend le focus : chaque action le rend au champ et rétablit la sélection d'avant l'ouverture.
+- `onContextMenu(event)` · L2118 — Remplace le menu contextuel du navigateur
+- `export initPhotoActions(options)` · L2165 — options : getPhotos(), getSelectedIndices(), selectOnly(index), removePhotos(paths), showToast(message, isWriting), rescanFolder(path), che…
 
 ## src/place-search.js (5)
 
@@ -1612,7 +1608,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export isSemanticSettingOn()` · L46 — The setting alone (Settings section: the model may still have to be installed).
 - `export onSemanticChange(listener)` · L51 — `listener()` is called each time `isSemanticEnabled()` may have changed. Returns the function that removes it.
 - `export onAnalysisChanged(listener)` · L59 — `listener()` is called when the analysis data changed (an analysis ended or was stopped, the data was deleted). Returns the function that r…
-- `notifyAnalysisChanged()` · L64
+- `export notifyAnalysisChanged()` · L64
 - `applyGate()` · L71 — `no-semantic` on <body> hides every `.semantic-only` element (semantic.css).
 - `export semanticErrorMessage(error)` · L79 — Backend error keys (semantic*.rs) translated; other messages are shown as they are.
 - `export refreshModelStatus()` · L95 — Reads the model status (only when the setting is on: the backend refuses otherwise) and updates the gating.

@@ -648,19 +648,7 @@ export async function askCopyResolutions(command, paths, destination) {
   } catch (error) {
     console.debug('Copy conflicts unavailable', error); // sans la liste, la copie renomme comme avant : aucun fichier n'est écrasé
   }
-  const resolutions = {};
-  let applied = null;
-  for (const conflict of conflicts) {
-    if (applied) {
-      resolutions[conflict.path] = applied;
-      continue;
-    }
-    const choice = await copyConflictDialog(conflict);
-    if (choice.action === 'cancel') return null;
-    resolutions[conflict.path] = choice.action;
-    if (choice.applyAll) applied = choice.action;
-  }
-  return resolutions;
+  return askImportConflictResolutions(conflicts);
 }
 
 // Copie des fichiers originaux (pas des miniatures) vers un dossier choisi dans la boîte de dialogue de l'OS.

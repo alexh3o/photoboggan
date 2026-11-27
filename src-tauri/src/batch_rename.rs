@@ -63,23 +63,23 @@ pub struct PreviewStatus {
 // Length limits
 // ---------------------------------------------------------------------------
 
-const MAX_NAME_UNITS: usize = 255;
+pub(crate) const MAX_NAME_UNITS: usize = 255;
 
 /// Length as the file system counts it: UTF-16 units on Windows, bytes elsewhere.
-fn text_units(text: &str) -> usize {
+pub(crate) fn text_units(text: &str) -> usize {
     if cfg!(windows) { text.encode_utf16().count() } else { text.len() }
 }
 
 /// Windows: 259 characters for the whole path (MAX_PATH minus the terminator), without assuming that long paths are enabled.
-fn max_path_units() -> usize {
+pub(crate) fn max_path_units() -> usize {
     if cfg!(windows) { 259 } else { 4095 }
 }
 
-fn exceeds_limits(dir: &Path, name: &str, max_name: usize, max_path: usize) -> bool {
+pub(crate) fn exceeds_limits(dir: &Path, name: &str, max_name: usize, max_path: usize) -> bool {
     text_units(name) > max_name || text_units(&dir.to_string_lossy()) + 1 + text_units(name) > max_path
 }
 
-fn too_long(dir: &Path, name: &str) -> bool {
+pub(crate) fn too_long(dir: &Path, name: &str) -> bool {
     exceeds_limits(dir, name, MAX_NAME_UNITS, max_path_units())
 }
 

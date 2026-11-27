@@ -1705,7 +1705,7 @@ pub(crate) fn validate_new_name(name: &str) -> Result<&str, String> {
 
 /// True if both paths exist and are the very same file or folder: a case-only rename on Windows or macOS (`img.jpg` -> `IMG.jpg`), which is
 /// valid. Compared by the paths the system resolves, not by the names: on Linux, `IMG.jpg` next to `img.jpg` is another file, never replaced.
-fn same_existing_file(first: &Path, second: &Path) -> bool {
+pub(crate) fn same_existing_file(first: &Path, second: &Path) -> bool {
     matches!((fs::canonicalize(first), fs::canonicalize(second)), (Ok(a), Ok(b)) if a == b)
 }
 
@@ -2266,12 +2266,25 @@ pub(crate) fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr)
         // and its own sidecar would not be carried (never overwritten).
         if let Some(sidecar) = sidecar_already_taken(&candidate) {
             skipped_sidecar.get_or_insert(sidecar);
-            index += 1;
+            index = index.checked_add(1).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::AlreadyExists, "trop de fichiers du même nom")
+            })?;
+            continue;
+        }
+        // On Windows, create_new on an existing directory can fail with PermissionDenied instead of AlreadyExists.
+        if candidate.is_dir() {
+            index = index.checked_add(1).ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::AlreadyExists, "trop de fichiers du même nom")
+            })?;
             continue;
         }
         match fs::OpenOptions::new().write(true).create_new(true).open(&candidate) {
             Ok(_) => return Ok(Reserved { path: candidate, skipped_sidecar }),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => index += 1,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                index = index.checked_add(1).ok_or_else(|| {
+                    std::io::Error::new(std::io::ErrorKind::AlreadyExists, "trop de fichiers du même nom")
+                })?;
+            }
             Err(error) => return Err(error),
         }
     }
@@ -2279,7 +2292,7 @@ pub(crate) fn reserve_destination(directory: &Path, file_name: &std::ffi::OsStr)
 
 // Copie aussi le sidecar XMP (`photo.jpg.xmp` ou `photo.xmp`) : note, couleur et mots-clés des formats autres que JPEG y sont stockés.
 // Un sidecar déjà présent à destination n'est écrasé qu'avec `overwrite` (copie qui remplace un fichier existant, choisie par l'utilisateur).
-fn copy_sidecar_with(
+pub(crate) fn copy_sidecar_with(
     source: &Path,
     target: &Path,
     overwrite: bool,
@@ -2290,10 +2303,20 @@ fn copy_sidecar_with(
     let (from, to) = if src_appended.is_file() {
         (src_appended, dst_appended)
     } else if src_compat.is_file() {
-        (src_compat, dst_compat)
+        // Never overwrite a compatible `photo.xmp` shared with another sibling at the destination;
+        // redirect to `photo.ext.xmp` so the sibling keeps its own sidecar (invariants.md §2.2).
+        let dest = if overwrite && dst_compat.exists() && has_same_stem_sibling(target).unwrap_or(true) {
+            dst_appended
+        } else {
+            dst_compat
+        };
+        (src_compat, dest)
     } else {
         return Ok(());
     };
+    if same_existing_file(&from, &to) {
+        return Ok(());
+    }
     // Replacing an existing sidecar goes through copy_replacing: a direct copy would first truncate it.
     if overwrite && to.exists() {
         return replace(&from, &to);
@@ -2310,7 +2333,7 @@ pub(crate) fn copy_sidecar(source: &Path, target: &Path, overwrite: bool) -> std
     copy_sidecar_with(source, target, overwrite, copy_replacing)
 }
 
-fn lowercase_segments(path: &Path) -> Vec<String> {
+pub(crate) fn lowercase_segments(path: &Path) -> Vec<String> {
     path_segments(&path.to_string_lossy()).into_iter().map(|segment| segment.to_lowercase()).collect()
 }
 
@@ -2435,7 +2458,7 @@ pub(crate) fn files_have_same_hash(first: &Path, second: &Path) -> std::io::Resu
 // The copy is flushed to the disk (copy_durably) before the hash check and before the original is deleted: without it, the copy may still sit
 // in the system write cache when the original is gone (power cut, crash, USB drive unplugged), and the hash check would only read that cache.
 /// Removes a copied target file during rollback; on Windows, clears any copied read-only attribute first so `fs::remove_file` can succeed.
-fn remove_copied_target(path: &Path) {
+pub(crate) fn remove_copied_target(path: &Path) {
     #[cfg(windows)]
     if let Ok(metadata) = fs::metadata(path) {
         let mut permissions = metadata.permissions();
@@ -2458,11 +2481,17 @@ fn temp_sibling_path(target: &Path) -> PathBuf {
 }
 
 /// Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
-/// then atomically renames it over `reserved_target` (an empty placeholder created by
-/// `reserve_new_file` / `reserve_destination`). Cleans up both files on failure.
-pub(crate) fn copy_atomically_to_reserved(source: &Path, reserved_target: &Path) -> std::io::Result<()> {
+/// runs `verify(source, temp)` before the final rename, then atomically renames it over `reserved_target`
+/// (an empty placeholder created by `reserve_new_file` / `reserve_destination`). Cleans up both files on failure.
+pub(crate) fn copy_atomically_to_reserved_verified(
+    source: &Path,
+    reserved_target: &Path,
+    verify: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
     let temp = temp_sibling_path(reserved_target);
-    let result = copy_durably(source, &temp).and_then(|_| fs::rename(&temp, reserved_target));
+    let result = copy_durably(source, &temp)
+        .and_then(|_| verify(source, &temp))
+        .and_then(|_| fs::rename(&temp, reserved_target));
     if result.is_err() {
         remove_copied_target(&temp);
         remove_copied_target(reserved_target);
@@ -2470,6 +2499,13 @@ pub(crate) fn copy_atomically_to_reserved(source: &Path, reserved_target: &Path)
         sync_parent_dir(reserved_target);
     }
     result
+}
+
+/// Copies `source` to a unique temporary file in `reserved_target`'s folder, flushes it to disk,
+/// then atomically renames it over `reserved_target` (an empty placeholder created by
+/// `reserve_new_file` / `reserve_destination`). Cleans up both files on failure.
+pub(crate) fn copy_atomically_to_reserved(source: &Path, reserved_target: &Path) -> std::io::Result<()> {
+    copy_atomically_to_reserved_verified(source, reserved_target, |_, _| Ok(()))
 }
 
 /// Replaces an existing `target` with `temp` in three reversible steps so the original is never lost on failure
@@ -2763,8 +2799,13 @@ pub(crate) fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<C
     paths.iter().filter_map(|path| {
         let source = Path::new(path);
         let file_name = source.file_name()?;
-        if source.parent().is_some_and(|parent| lowercase_segments(parent) == destination_segments) { return None; }
+        if source.parent().is_some_and(|parent| lowercase_segments(parent) == destination_segments || same_existing_file(parent, destination)) {
+            return None;
+        }
         let target = destination.join(file_name);
+        if same_existing_file(source, &target) {
+            return None;
+        }
         let (source_meta, target_meta) = (fs::metadata(source).ok()?, fs::metadata(&target).ok().filter(|meta| meta.is_file())?);
         Some(CopyConflict {
             path: path.clone(),
@@ -2777,16 +2818,28 @@ pub(crate) fn find_copy_conflicts(paths: &[String], destination: &Path) -> Vec<C
     }).collect()
 }
 
-// Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk, then
-// swapped in via the OS trash so the previous file remains recoverable. Refuses replacement if no trash is available.
-fn copy_replacing_with(
+// Copy that replaces an existing file: written under a temporary name in the destination folder, flushed to the disk,
+// optionally verified before the swap, then swapped in via the OS trash so the previous file remains recoverable.
+// Refuses replacement if source and target are the same file or if no trash is available.
+pub(crate) fn copy_replacing_verified_with(
     source: &Path,
     target: &Path,
+    verify: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
     replace: impl FnOnce(&Path, &Path) -> Result<(), String>,
 ) -> std::io::Result<()> {
+    if same_existing_file(source, target) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "La source et la destination désignent le même fichier",
+        ));
+    }
     let _write_guard = exiftool::path_lock(target);
     let temp = temp_sibling_path(target);
     if let Err(error) = copy_durably(source, &temp) {
+        remove_copied_target(&temp);
+        return Err(error);
+    }
+    if let Err(error) = verify(source, &temp) {
         remove_copied_target(&temp);
         return Err(error);
     }
@@ -2800,14 +2853,31 @@ fn copy_replacing_with(
     Ok(())
 }
 
-pub(crate) fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
+pub(crate) fn copy_replacing_verified(
+    source: &Path,
+    target: &Path,
+    verify: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> std::io::Result<()> {
     if target.exists() && !has_trash(&target.to_string_lossy()) {
         return Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
             format!("Aucune corbeille disponible pour « {} », remplacement refusé", target.display()),
         ));
     }
-    copy_replacing_with(source, target, replace_file_via_trash)
+    copy_replacing_verified_with(source, target, verify, replace_file_via_trash)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn copy_replacing_with(
+    source: &Path,
+    target: &Path,
+    replace: impl FnOnce(&Path, &Path) -> Result<(), String>,
+) -> std::io::Result<()> {
+    copy_replacing_verified_with(source, target, |_, _| Ok(()), replace)
+}
+
+pub(crate) fn copy_replacing(source: &Path, target: &Path) -> std::io::Result<()> {
+    copy_replacing_verified(source, target, |_, _| Ok(()))
 }
 
 // Copie des fichiers originaux (pas des miniatures) dans un dossier. Un fichier déjà présent n'est écrasé que si l'utilisateur l'a demandé :

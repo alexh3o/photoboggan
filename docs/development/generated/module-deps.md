@@ -62,10 +62,10 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `duplicate-names` | raw-settings | duplicates-view |
 | `duplicates` | i18n | duplicates-modal, duplicates-view, main, photo-actions |
 | `duplicates-modal` | duplicates, i18n, raw-settings | duplicates-view, main |
-| `duplicates-settings` | duplicates-view, i18n, metadata-writes, photo-actions, semantic-settings, settings-defaults | duplicates-view, list-view, main, semantic-settings |
-| `duplicates-view` | albums-panel, duplicate-names, duplicates, duplicates-modal, duplicates-settings, format-filters, i18n, metadata-writes, raw-settings | duplicates-settings, list-view, main, semantic-settings |
+| `duplicates-settings` | duplicates-view, i18n, metadata-writes, photo-actions, semantic-settings, settings-defaults | duplicates-view, import-view, list-view, main, semantic-settings |
+| `duplicates-view` | albums-panel, duplicate-names, duplicates, duplicates-modal, duplicates-settings, format-filters, i18n, metadata-writes, raw-settings | duplicates-settings, import-view, list-view, main, semantic-settings |
 | `faces-grid` | faces-panel, i18n, metadata-writes, settings-defaults, undo | main, semantic-results |
-| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search, undo | faces-grid, fullscreen, list-view, main, persons-view, setup-wizard, stats |
+| `faces-panel` | filter-suggest, filter-tags, i18n, metadata-writes, photo-actions, settings-defaults, sidebar-search, undo | faces-grid, fullscreen, import-view, list-view, main, persons-view, setup-wizard, stats |
 | `file-dates` | i18n | main |
 | `file-kinds` | format-filters | fullscreen, list-view, main, photo-actions, preview-zoom, undo |
 | `filter-suggest` | i18n | author-filters, faces-panel, format-filters, import-view, keywords-panel, main, privacy, rights-presets, semantic-exclusions, shooting-filters, stats |
@@ -80,7 +80,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `histogram` | i18n, settings-defaults | fullscreen, main |
 | `i18n` | settings-defaults | albums-panel, author-filters, batch-rename, date-filter, description-panel, drag-drop, duplicates, duplicates-modal, duplicates-settings, duplicates-view, faces-grid, faces-panel, file-dates, filter-suggest, filter-tags, find-raw-mode, folder-tree, format-filters, fullscreen, geo-tools, guide, histogram, import-settings, import-view, info-author, keywords-panel, list-view, location-panel, main, map-mode, map-view, maps-settings, metadata-settings, metadata-writes, order-list, persons-view, photo-actions, place-search, preview-zoom, privacy, private-zones-modal, raw-settings, rights-presets, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, setup-wizard, shooting-filters, sidebar-search, slideshow, stats, task-queue, titlebar, undo, update-check |
 | `import-settings` | i18n, photo-actions, settings-defaults | import-view, main |
-| `import-view` | batch-rename-engine, date-filter, filter-suggest, i18n, import-settings, list-view, metadata-writes, photo-actions, settings-defaults, task-queue | main |
+| `import-view` | batch-rename-engine, date-filter, duplicates-settings, duplicates-view, faces-panel, filter-suggest, i18n, import-settings, list-view, photo-actions, semantic-settings, settings-defaults, task-queue | main |
 | `info-author` | i18n, settings-defaults | main |
 | `keywords-panel` | filter-suggest, i18n, metadata-writes, photo-actions, semantic-settings, semantic-tagging | main, semantic-results |
 | `list-view` | date-filter, duplicates-settings, duplicates-view, faces-panel, file-kinds, format-filters, i18n, marking-settings, orientation, semantic-settings, settings-defaults, shooting-filters | import-view, main |
@@ -93,7 +93,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `maps-settings` | i18n, map-view, settings-defaults | location-panel, main, map-mode, private-zones-modal |
 | `marking-settings` | settings-defaults | list-view, main, stats |
 | `metadata-settings` | i18n, order-list | main |
-| `metadata-writes` | i18n, settings-defaults | albums-panel, batch-rename, description-panel, drag-drop, duplicates-settings, duplicates-view, faces-grid, faces-panel, folder-tree, geo-tools, import-view, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
+| `metadata-writes` | i18n, settings-defaults | albums-panel, batch-rename, description-panel, drag-drop, duplicates-settings, duplicates-view, faces-grid, faces-panel, folder-tree, geo-tools, keywords-panel, main, map-mode, photo-actions, rights-presets, semantic-settings, task-queue |
 | `order-list` | i18n | metadata-settings |
 | `orientation` | — | list-view, main, preview-zoom |
 | `persons-view` | faces-panel, i18n | main |
@@ -109,7 +109,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `semantic-exclusions` | filter-suggest, i18n, settings-defaults | semantic-keywords, semantic-settings, semantic-tagging |
 | `semantic-keywords` | i18n, semantic-exclusions, semantic-settings, semantic-tagging, settings-defaults | main |
 | `semantic-results` | albums-panel, faces-grid, i18n, keywords-panel, photo-actions, semantic, semantic-settings, semantic-tagging, settings-defaults | main |
-| `semantic-settings` | duplicates-settings, duplicates-view, i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | duplicates-settings, keywords-panel, list-view, main, semantic, semantic-keywords, semantic-results, semantic-tagging, setup-wizard, stats |
+| `semantic-settings` | duplicates-settings, duplicates-view, i18n, metadata-writes, photo-actions, semantic-exclusions, settings-defaults | duplicates-settings, import-view, keywords-panel, list-view, main, semantic, semantic-keywords, semantic-results, semantic-tagging, setup-wizard, stats |
 | `semantic-tagging` | i18n, semantic, semantic-exclusions, semantic-settings, settings-defaults | keywords-panel, semantic-keywords, semantic-results |
 | `settings-defaults` | — | albums-panel, duplicates-settings, faces-grid, faces-panel, folder-tree, fullscreen, histogram, i18n, import-settings, import-view, info-author, list-view, location-panel, main, map-config, map-mode, map-tile-protocol, maps-settings, marking-settings, metadata-writes, place-search, privacy, private-zones-modal, raw-settings, semantic, semantic-exclusions, semantic-keywords, semantic-results, semantic-settings, semantic-tagging, setup-wizard, slideshow, task-queue, update-check |
 | `setup-wizard` | faces-panel, i18n, location-panel, photo-actions, private-zones-modal, semantic-settings, settings-defaults, update-check | main |

@@ -1,4 +1,4 @@
-<!-- verified: 173c95e | sources: src-tauri/src/import.rs, src/import-view.js, src/import-settings.js, src/import-view.css -->
+<!-- verified: 5daf187 | sources: src-tauri/src/import.rs, src/import-view.js, src/import-settings.js, src/import-view.css -->
 # SD Card and Folder Import
 
 ## Purpose
@@ -23,7 +23,7 @@ Imports photos and videos from removable media (SD cards, USB drives) or externa
 3. **RAM-only thumbnails & previews**: `get_import_thumbnail` (4-permit semaphore, prioritized 4-slot frontend queue, retained DOM nodes) calls `thumbnails::render_fast_import_thumbnail_bytes` (header-seek embedded JPEG extraction for TIFF/CR3/RAF RAWs and JPEG EXIF IFD1 thumbnails, zero 12 MB linear scan when header tags exist, single-pass JPEG encoding, plus `ACTIVE_IMPORT_THUMBS` yielding in Pass 2 EXIF so thumbnails never contend with background EXIF reads). `get_import_preview` returns up to 1600 px JPEG bytes via `tauri::ipc::Response` -> `Blob` URLs (`LRU` max 300, revoked on eviction/close). SD files are never passed to `convertFileSrc` or written to disk caches.
 4. **Copy & post-import pipeline**:
    - `startImport` sorts selected files chronologically, optionally runs `check_import_conflicts` + `askImportConflictResolutions`, enqueues `kind: 'import'` (`run_import_copy`) plus `blocked: true` placeholders in `task-queue.js` (`cancelTasksByGroup` / `updateWaitingTask` / `triggerTaskPumps`).
-   - `run_import_copy` reuses `resolve_tracked_folder`, `reserve_destination`, `copy_atomically_to_reserved`, `copy_replacing`, `copy_sidecar`, `files_have_same_hash` (for videos when Integrity is enabled), and `log_sidecar_renames`, recording `import_history` incrementally every 10 files.
+   - `run_import_copy` (`run_import_copy_with` / `run_import_copy_with_ops`) reuses `resolve_tracked_folder`, `reserve_destination`, `copy_atomically_to_reserved_verified`, `copy_replacing_verified`, `copy_sidecar`, `files_have_same_hash` (for videos when Integrity is enabled — verified on the flushed temp file *before* `replace_file_via_trash` or final rename), and `log_sidecar_renames`, deduplicating source paths, skipping `same_file`/`same_folder` targets, validating path lengths & canonical containment inside `dest_root`, lazily creating target subfolders (pruned if empty on copy failure), and committing `import_history` + `import_devices` incrementally every 10 files.
    - On copy completion: offers card ejection (`eject_media`), indexes only copied files (`index_imported_photos`), and unblocks enabled post-import tasks in fixed order: Batch Rename (`rename_photos`) -> Integrity (`integrity_scan` with `paths`) -> Faces (`detect_faces`) -> Duplicate Hashes (`precompute_hashes`) -> Content Analysis (`semantic_scan`, hidden when `!isSemanticEnabled()`). Skipped/failed/suspect items surface via `keepTaskReady` ("Import report").
 
 ## Contracts
@@ -42,12 +42,13 @@ Imports photos and videos from removable media (SD cards, USB drives) or externa
 
 - ⚠ sensitive: Never write, rename, or delete files on the source media, and never pass source paths to `convertFileSrc` (WebView file locks block ejection on Windows).
 - ⚠ sensitive: `#import-view` must stay isolated from `loadedPhotos`/`photos` and main-window keyboard shortcuts.
-- ⚠ sensitive: `run_import_copy` must only write inside `resolve_tracked_folder` and reuse existing atomic copy/replace primitives.
+- ⚠ sensitive: `run_import_copy` must only write inside `resolve_tracked_folder` (verified lexically, canonically, and within OS path-length limits), never overwrite `same_file` / `same_folder` sources, verify video SHA-256 on the temp file before replacing or finalizing, and reuse existing atomic copy/replace primitives.
+- ⚠ sensitive: `eject_media` (`validate_eject_target`) must refuse volumes that overlap any tracked library folder, the app data directory, or an active import source.
 - ⚠ sensitive: Content analysis post-import option must stay hidden and trigger zero IPC when `!isSemanticEnabled()` (AGENTS.md §5.I).
 
 ## Tests
 
-`src-tauri/src/tests/import.rs` (11 tests: schema/device policy, history retention purge, fast scan counts & memory/library matching, ambiguous partial-hash match, subfolder target computation, chronological copy with collision/incremental history, video SHA-256 verification, targeted indexing, import presets CRUD/upsert, fast TIFF RAW & JPEG EXIF thumbnail extraction, pure-seek EXIF reader & storage kind detection) + `integrity_scan_with_explicit_paths_checks_only_listed_files` in `tests/integrity.rs`. Gap: OS device watcher events and ejection (`eject_media`) are not unit-tested.
+`src-tauri/src/tests/import.rs` (19 tests: schema/device policy, history retention purge, purge device timestamp reset, fast scan counts & memory/library matching, subfolder volume-root history matching, ambiguous partial-hash match, subfolder target computation, chronological copy with collision/incremental history, video SHA-256 verification on valid copy, SHA-256 failure in replace mode preserving original with no temp, SHA-256 failure in rename mode cleaning up empty subfolder/temp, same source/destination protection, skip policy creating no empty dated subfolders, mid-batch cancellation preserving partial history, target path length/containment & `validate_eject_target` guardrails, targeted indexing, import presets CRUD/upsert, fast TIFF RAW & JPEG EXIF thumbnail extraction, pure-seek EXIF reader & storage kind detection) + `integrity_scan_with_explicit_paths_checks_only_listed_files` in `tests/integrity.rs`. Gap: OS device watcher events and OS-level `eject_removable_volume` ioctl/udisksctl calls are not unit-tested.
 
 ## How to extend
 

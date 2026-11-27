@@ -5,12 +5,11 @@ import './import-view.css';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
-import { readBool, readChoice, readNumber, readStored, writeStored } from './settings-defaults.js';
+import { DEFAULTS, readBool, readChoice, readNumber, readStored, writeStored } from './settings-defaults.js';
 import { t, tp, labelWithColon, normalizeSearch, onLanguageChange } from './i18n.js';
-import { createDateFilterControl, parseDateFilter } from './date-filter.js';
+import { createDateFilterControl, extractTimeKey, parseDateFilter } from './date-filter.js';
 import { evaluate, splitFileName } from './batch-rename-engine.js';
 import { createFilterSuggest } from './filter-suggest.js';
-import { keepFocusInModal } from './metadata-writes.js';
 import { buildMultiColumnComparator, cycleMultiColumnSort, formatSortBadge } from './list-view.js';
 import { getDetectedMedia, refreshDetectedMedia, syncImportToolbarButton } from './import-settings.js';
 import {
@@ -19,7 +18,12 @@ import {
   createModal,
   openContextMenuAt,
   promptDialog,
+  sidecarRenameNotice,
 } from './photo-actions.js';
+import { refreshFaces } from './faces-panel.js';
+import { notifyPhashChanged } from './duplicates-view.js';
+import { notifyExactHashChanged, refreshDuplicateHashStats } from './duplicates-settings.js';
+import { notifyAnalysisChanged, semanticScanThreads } from './semantic-settings.js';
 import {
   cancelTasksByGroup,
   removeWaitingTask,
@@ -27,12 +31,17 @@ import {
   updateWaitingTask,
 } from './task-queue.js';
 
+const IMPORT_THUMB_MIN = 100;
+const IMPORT_THUMB_MAX = 300;
+const IMPORT_SUBFOLDER_MODES = ['none', 'custom', 'yyyy_mm_dd', 'yyyy/yyyy_mm_dd', 'yyyy/mm', 'yyyy_mm_dd_custom'];
+
 let host = {};
 let openState = false;
 let currentSource = null; // { mediaId, label, rootPath, ejectable, lastImportAt, lastImportedFileDt }
 let currentExifTaskId = null;
 let allFolders = [];
 let allFiles = [];
+let filesByPath = new Map();
 let filteredFiles = [];
 let layoutEntries = []; // { type: 'group'|'row'|'card', ... }
 let totalLayoutHeight = 0;
@@ -95,7 +104,7 @@ async function fetchImportBlob(command, args) {
 }
 
 function currentImportThumbMaxSide() {
-  const size = readNumber('importThumbnailSize', 100, 300);
+  const size = readNumber('importThumbnailSize', IMPORT_THUMB_MIN, IMPORT_THUMB_MAX);
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   return Math.min(360, Math.max(160, Math.round(size * dpr)));
 }
@@ -254,11 +263,8 @@ function writeJsonList(key, list) {
 }
 
 function fileTimeKey(file) {
-  const raw = file.dateTaken || '';
-  const m = /(\d{4})\D?(\d{2})\D?(\d{2})(?:\D+(\d{2})\D?(\d{2})(?:\D?(\d{2}))?)?/.exec(raw);
-  if (m && Number(m[1] + m[2] + m[3]) >= 10000101) {
-    return Number(`${m[1]}${m[2]}${m[3]}${m[4] || '00'}${m[5] || '00'}${m[6] || '00'}`);
-  }
+  const parsed = extractTimeKey(file.dateTaken);
+  if (parsed !== null) return parsed;
   if (file.mtime > 0) {
     const d = new Date(file.mtime);
     const pad = n => String(n).padStart(2, '0');
@@ -490,7 +496,7 @@ function rebuildLayout() {
       y += ROW_H;
     }
   } else {
-    const size = readNumber('importThumbnailSize', 100, 300);
+    const size = readNumber('importThumbnailSize', IMPORT_THUMB_MIN, IMPORT_THUMB_MAX);
     const gap = 8;
     const cols = Math.max(1, Math.floor((width + gap) / (size + gap)));
     const cellW = Math.floor((width - gap * (cols - 1)) / cols);
@@ -537,6 +543,20 @@ function statusBadgeText(status) {
   return t('New');
 }
 
+function syncItemNodeState(node, file = filesByPath.get(node.path)) {
+  const selected = selectedPaths.has(node.path);
+  node.el.classList.toggle('selected', selected);
+  node.el.classList.toggle('active', activePath === node.path);
+  if (node.cb) node.cb.checked = selected;
+  if (!file) return;
+  if (node.badge) {
+    node.badge.className = `import-status-badge ${file.status}`;
+    node.badge.textContent = statusBadgeText(file.status);
+    node.badge.title = file.existingPath || '';
+  }
+  if (node.dateEl) node.dateEl.textContent = formatFileDate(file);
+}
+
 function renderVisibleViewport() {
   const scroll = document.getElementById('import-files-scroll');
   const canvas = document.getElementById('import-files-canvas');
@@ -564,27 +584,17 @@ function renderVisibleViewport() {
       if (entry.type === 'group') {
         existing.el.style.top = `${entry.y}px`;
       } else if (entry.type === 'row') {
-        const f = entry.file;
         existing.el.style.top = `${entry.y}px`;
-        existing.el.classList.toggle('selected', selectedPaths.has(f.path));
-        existing.el.classList.toggle('active', activePath === f.path);
-        existing.cb.checked = selectedPaths.has(f.path);
-        existing.badge.className = `import-status-badge ${f.status}`;
-        existing.badge.textContent = statusBadgeText(f.status);
-        existing.dateEl.textContent = formatFileDate(f);
         existing.index = entry.index;
+        syncItemNodeState(existing, entry.file);
       } else {
         const f = entry.file;
         existing.el.className = `import-thumb-card layout-${layoutMode}`;
-        if (selectedPaths.has(f.path)) existing.el.classList.add('selected');
-        if (activePath === f.path) existing.el.classList.add('active');
         existing.el.style.transform = `translate3d(${entry.x}px, ${entry.y}px, 0)`;
         existing.el.style.width = `${entry.w}px`;
         existing.el.style.height = `${entry.h}px`;
-        existing.cb.checked = selectedPaths.has(f.path);
-        existing.badge.className = `import-status-badge ${f.status}`;
-        existing.badge.textContent = statusBadgeText(f.status);
         existing.index = entry.index;
+        syncItemNodeState(existing, f);
         enqueueImportThumbnail(f, entry.y + entry.h / 2, existing.img);
       }
       continue;
@@ -601,15 +611,12 @@ function renderVisibleViewport() {
       const f = entry.file;
       const row = document.createElement('div');
       row.className = 'import-list-row';
-      if (selectedPaths.has(f.path)) row.classList.add('selected');
-      if (activePath === f.path) row.classList.add('active');
       row.style.top = `${entry.y}px`;
 
       const selCell = document.createElement('span');
       selCell.className = 'import-list-cell-sel';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = selectedPaths.has(f.path);
       cb.addEventListener('click', e => {
         e.stopPropagation();
         togglePathSelection(f.path, cb.checked);
@@ -635,14 +642,10 @@ function renderVisibleViewport() {
       const statusCell = document.createElement('span');
       statusCell.className = 'import-list-cell-status';
       const badge = document.createElement('span');
-      badge.className = `import-status-badge ${f.status}`;
-      badge.textContent = statusBadgeText(f.status);
-      if (f.existingPath) badge.title = f.existingPath;
       statusCell.append(badge);
 
       const dateEl = document.createElement('span');
       dateEl.className = 'import-list-date';
-      dateEl.textContent = formatFileDate(f);
 
       const sizeEl = document.createElement('span');
       sizeEl.className = 'import-list-size';
@@ -651,6 +654,7 @@ function renderVisibleViewport() {
       right.append(statusCell, dateEl, sizeEl);
       row.append(selCell, extCell, name, right);
       const nodeRec = { el: row, type: 'row', path: f.path, cb, badge, dateEl, index: entry.index };
+      syncItemNodeState(nodeRec, f);
       row.addEventListener('click', e => {
         if (e.target.closest('.import-list-right')) {
           previewOnlyFile(f);
@@ -664,8 +668,6 @@ function renderVisibleViewport() {
       const f = entry.file;
       const card = document.createElement('div');
       card.className = `import-thumb-card layout-${layoutMode}`;
-      if (selectedPaths.has(f.path)) card.classList.add('selected');
-      if (activePath === f.path) card.classList.add('active');
       card.style.transform = `translate3d(${entry.x}px, ${entry.y}px, 0)`;
       card.style.width = `${entry.w}px`;
       card.style.height = `${entry.h}px`;
@@ -673,7 +675,6 @@ function renderVisibleViewport() {
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.className = 'import-thumb-check';
-      cb.checked = selectedPaths.has(f.path);
       cb.addEventListener('click', e => {
         e.stopPropagation();
         togglePathSelection(f.path, cb.checked);
@@ -684,9 +685,6 @@ function renderVisibleViewport() {
       img.dataset.path = f.path;
 
       const badge = document.createElement('span');
-      badge.className = `import-status-badge ${f.status}`;
-      badge.textContent = statusBadgeText(f.status);
-      if (f.existingPath) badge.title = f.existingPath;
 
       const label = document.createElement('span');
       label.className = 'import-thumb-label';
@@ -694,6 +692,7 @@ function renderVisibleViewport() {
 
       card.append(cb, img, badge, label);
       const nodeRec = { el: card, type: 'card', path: f.path, cb, img, badge, index: entry.index };
+      syncItemNodeState(nodeRec, f);
       card.addEventListener('click', e => handleFileClick(f, nodeRec.index, e));
       renderedNodes.set(key, nodeRec);
       frag.append(card);
@@ -715,10 +714,7 @@ function renderVisibleViewport() {
 function syncSelectionAndActiveClasses() {
   for (const node of renderedNodes.values()) {
     if (node.type === 'group') continue;
-    const selected = selectedPaths.has(node.path);
-    node.el.classList.toggle('selected', selected);
-    node.el.classList.toggle('active', activePath === node.path);
-    if (node.cb) node.cb.checked = selected;
+    syncItemNodeState(node, null);
   }
 }
 
@@ -745,9 +741,6 @@ function handleFileClick(file, index, event) {
       const [lo, hi] = prevIdx < index ? [prevIdx, index] : [index, prevIdx];
       for (let i = lo; i <= hi; i++) selectedPaths.add(filteredFiles[i].path);
     }
-  } else if (event.ctrlKey || event.metaKey) {
-    if (selectedPaths.has(file.path)) selectedPaths.delete(file.path);
-    else selectedPaths.add(file.path);
   } else {
     if (selectedPaths.has(file.path)) selectedPaths.delete(file.path);
     else selectedPaths.add(file.path);
@@ -848,8 +841,7 @@ function populateSourceSelect(selectedPath) {
   if (selectedPath) select.value = selectedPath;
 }
 
-async function loadSource(sourcePath) {
-  if (!sourcePath) return;
+function resetSourceState() {
   if (currentExifTaskId) {
     invoke('cancel_scan', { taskId: currentExifTaskId }).catch(() => {});
     currentExifTaskId = null;
@@ -858,16 +850,39 @@ async function loadSource(sourcePath) {
   clearRenderedViewport();
   const storageBadge = document.getElementById('import-storage-badge');
   if (storageBadge) storageBadge.hidden = true;
+  const exifStatus = document.getElementById('import-exif-status');
+  if (exifStatus) exifStatus.hidden = true;
+  const ejectBtn = document.getElementById('btn-import-eject');
+  if (ejectBtn) ejectBtn.hidden = true;
+  const statusEl = document.getElementById('import-media-status');
+  if (statusEl) statusEl.textContent = '';
+  const lastInfoEl = document.getElementById('import-last-import-info');
+  if (lastInfoEl) lastInfoEl.textContent = '';
+  const recallBtn = document.getElementById('btn-import-recall-date');
+  if (recallBtn) recallBtn.hidden = true;
+  const recentSelBtn = document.getElementById('btn-import-select-recent');
+  if (recentSelBtn) recentSelBtn.disabled = true;
+
+  currentSource = null;
   selectedPaths.clear();
   collapsedFolders.clear();
   activePath = null;
   selectedFolderPath = null;
   allFolders = [];
   allFiles = [];
+  filesByPath.clear();
   filteredFiles = [];
+  dateControl?.clear?.();
   renderFolderTree();
   rebuildLayout();
   renderVisibleViewport();
+  updateSummaryFooter();
+  updatePreviewPane(null);
+}
+
+async function loadSource(sourcePath) {
+  if (!sourcePath) return;
+  resetSourceState();
 
   try {
     currentSource = await invoke('identify_source', { path: sourcePath });
@@ -883,6 +898,7 @@ async function loadSource(sourcePath) {
   const statusEl = document.getElementById('import-media-status');
   if (statusEl) statusEl.textContent = `${currentSource.label} (${currentSource.rootPath})`;
 
+  const storageBadge = document.getElementById('import-storage-badge');
   if (storageBadge) {
     const kind = currentSource.storageKind || 'internal';
     const labelKey = kind === 'removable'
@@ -915,6 +931,7 @@ async function loadSource(sourcePath) {
   if (!openState) return;
   allFolders = scan.folders;
   allFiles = scan.files;
+  filesByPath = new Map(allFiles.map(f => [f.path, f]));
   if (readBool('importAutoSelectNew')) {
     for (const f of allFiles) {
       if (f.status === 'new') selectedPaths.add(f.path);
@@ -988,10 +1005,10 @@ function updateDestinationUI() {
 function updateTargetPreview() {
   const preview = document.getElementById('import-target-preview');
   const summary = document.getElementById('import-subfolders-summary');
-  const mode = readChoice('importSubfolderMode', ['none', 'custom', 'yyyy_mm_dd', 'yyyy/yyyy_mm_dd', 'yyyy/mm', 'yyyy_mm_dd_custom']);
+  const mode = readChoice('importSubfolderMode', IMPORT_SUBFOLDER_MODES);
   const custom = (readStored('importCustomSubfolder') ?? '').trim();
   const split = readBool('importSplitByType');
-  const rawName = (readStored('importSubfolderRaw') ?? 'RAW').trim();
+  const rawName = (readStored('importSubfolderRaw') ?? DEFAULTS.importSubfolderRaw).trim();
 
   const customInput = document.getElementById('import-custom-subfolder');
   if (customInput) customInput.hidden = mode !== 'custom' && mode !== 'yyyy_mm_dd_custom';
@@ -1124,12 +1141,12 @@ async function startImport() {
 
   const options = {
     baseDestination: destInfo.resolvedPath,
-    subfolderMode: readChoice('importSubfolderMode', ['none', 'custom', 'yyyy_mm_dd', 'yyyy/yyyy_mm_dd', 'yyyy/mm', 'yyyy_mm_dd_custom']),
+    subfolderMode: readChoice('importSubfolderMode', IMPORT_SUBFOLDER_MODES),
     customSubfolder: readStored('importCustomSubfolder') ?? '',
     splitByType: readBool('importSplitByType'),
-    subfolderRaw: readStored('importSubfolderRaw') ?? 'RAW',
-    subfolderRaster: readStored('importSubfolderRaster') ?? 'JPEG',
-    subfolderVideo: readStored('importSubfolderVideo') ?? 'Video',
+    subfolderRaw: readStored('importSubfolderRaw') ?? DEFAULTS.importSubfolderRaw,
+    subfolderRaster: readStored('importSubfolderRaster') ?? DEFAULTS.importSubfolderRaster,
+    subfolderVideo: readStored('importSubfolderVideo') ?? DEFAULTS.importSubfolderVideo,
   };
   const items = selected.map(f => ({
     sourcePath: f.path,
@@ -1153,11 +1170,13 @@ async function startImport() {
   }
 
   const postRename = readBool('importPostRename');
-  const postRenamePresetName = readStored('importPostRenamePreset') ?? '';
+  const presetSel = document.getElementById('import-post-rename-preset');
+  const postRenamePresetName = readStored('importPostRenamePreset') || presetSel?.value || '';
   const postIntegrity = readBool('importPostIntegrity');
   const postFaces = readBool('importPostFaces') && host.isFaceDetectionEnabled?.();
   const postHashes = readBool('importPostHashes');
   const postSemantic = readBool('importPostSemantic') && host.isSemanticEnabled?.();
+  const computeIntegrityHashes = !postHashes && readBool('duplicateHashOnIntegrity');
 
   let renameSteps = null;
   if (postRename && postRenamePresetName) {
@@ -1191,7 +1210,7 @@ async function startImport() {
       kind: 'integrity',
       path: destInfo.resolvedPath,
       command: 'integrity_scan',
-      args: { path: destInfo.resolvedPath, computeHashes: postHashes || readBool('duplicateHashOnIntegrity'), paths: [] },
+      args: { path: destInfo.resolvedPath, computeHashes: computeIntegrityHashes, paths: [] },
       labelKey: 'Import · Integrity check',
       blocked: true,
       importGroupId,
@@ -1277,29 +1296,37 @@ async function startImport() {
       report.skipped.push(...result.skipped);
       report.failed.push(...result.failed);
 
-      // Offer card ejection right after copy finishes
+      // Offer card ejection right after copy finishes + surface any sidecar collision renames
+      const renamed = sidecarRenameNotice({
+        renamed_for_sidecar: result.renamedForSidecar,
+        log_path: result.logPath,
+      });
+      const toastText = [tp('{count} file imported', result.copied.length), renamed.text]
+        .filter(Boolean)
+        .join(' · ');
+      const toastActions = [];
       if (sourceSnapshot.ejectable) {
-        host.showToast?.(
-          tp('{count} file imported', result.copied.length),
-          [{
-            label: t('Eject media'),
-            onClick: async () => {
-              try {
-                await invoke('eject_media', { rootPath: sourceSnapshot.rootPath });
-                host.showToast?.(t('Media ejected safely'));
-                await refreshDetectedMedia();
-              } catch (err) {
-                host.showToast?.(t('Eject failed: {error}', { error: err }));
-              }
-            },
-          }],
-          12000,
-        );
-      } else {
-        host.showToast?.(tp('{count} file imported', result.copied.length));
+        toastActions.push({
+          label: t('Eject media'),
+          onClick: async () => {
+            try {
+              await invoke('eject_media', { rootPath: sourceSnapshot.rootPath });
+              host.showToast?.(t('Media ejected safely'));
+              await refreshDetectedMedia();
+            } catch (err) {
+              host.showToast?.(t('Eject failed: {error}', { error: err }));
+            }
+          },
+        });
       }
+      if (renamed.action) toastActions.push(renamed.action);
+      host.showToast?.(
+        toastText,
+        toastActions.length ? toastActions : undefined,
+        toastActions.length ? 12000 : undefined,
+      );
 
-      // Targeted indexing of ONLY copied paths
+      // Targeted indexing of ONLY copied paths, preserving chronological copy order for {counter}
       const copiedPaths = result.copied.map(c => c.destPath);
       let indexedPhotos = [];
       try {
@@ -1307,6 +1334,11 @@ async function startImport() {
       } catch (err) {
         console.error('Targeted indexing failed:', err);
       }
+      const normPath = p => p.replace(/\\/g, '/').toLowerCase();
+      const pathOrder = new Map(copiedPaths.map((p, idx) => [normPath(p), idx]));
+      indexedPhotos.sort(
+        (a, b) => (pathOrder.get(normPath(a.path)) ?? Infinity) - (pathOrder.get(normPath(b.path)) ?? Infinity),
+      );
       await host.onImportIndexed?.();
 
       let currentPaths = [...copiedPaths];
@@ -1314,6 +1346,77 @@ async function startImport() {
 
       const hashKind = readChoice('duplicatePrecomputeExactMode', ['prepass', 'full']) === 'full' ? 'both_full' : 'both_prepass';
       const hashThreads = readChoice('duplicateHashThreads', ['auto', '1', '2', '4']);
+
+      const unblockPostRenameTasks = paths => {
+        if (placeholders.integrity) {
+          updateWaitingTask(placeholders.integrity, {
+            blocked: false,
+            args: { path: options.baseDestination, computeHashes: computeIntegrityHashes, paths },
+            onResult: (intRes) => {
+              if (intRes?.suspects?.length) report.integrityIssues.push(...intRes.suspects);
+              finalizeReportIfNeeded();
+            },
+          });
+        } else {
+          finalizeReportIfNeeded();
+        }
+
+        if (placeholders.faces) {
+          if (importedIds.length > 0) {
+            updateWaitingTask(placeholders.faces, {
+              blocked: false,
+              args: { photoIds: importedIds, folder: null, recursive: false, onlyUnscanned: true },
+              onResult: async (_res, _stopped, err) => {
+                if (err) host.showToast?.(t('Face detection failed: {error}', { error: String(err) }));
+                await refreshFaces();
+              },
+            });
+          } else {
+            removeWaitingTask(placeholders.faces);
+          }
+        }
+
+        if (placeholders.hashes) {
+          updateWaitingTask(placeholders.hashes, {
+            blocked: false,
+            args: { kind: hashKind, includeRaw: true, scope: { kind: 'paths', paths }, threads: hashThreads },
+            onResult: (_res, _stopped, err) => {
+              notifyPhashChanged();
+              notifyExactHashChanged();
+              refreshDuplicateHashStats();
+              if (err) host.showToast?.(t('Hash computation failed: {error}', { error: String(err) }));
+            },
+          });
+        }
+
+        if (placeholders.semantic) {
+          if (importedIds.length > 0) {
+            updateWaitingTask(placeholders.semantic, {
+              blocked: false,
+              args: {
+                photoIds: importedIds,
+                folder: null,
+                recursive: false,
+                threads: semanticScanThreads(),
+                skipRaw: !readBool('semanticScanRaw'),
+                writeThumbnails: readBool('semanticWriteThumbnails'),
+                computePhash: readBool('duplicateHashOnSemantic'),
+              },
+              onResult: (_res, _stopped, err) => {
+                notifyAnalysisChanged();
+                notifyPhashChanged();
+                notifyExactHashChanged();
+                refreshDuplicateHashStats();
+                if (err) host.showToast?.(t('Content analysis failed: {error}', { error: String(err) }));
+              },
+            });
+          } else {
+            removeWaitingTask(placeholders.semantic);
+          }
+        }
+
+        triggerTaskPumps();
+      };
 
       if (placeholders.rename) {
         const renameItems = [];
@@ -1330,48 +1433,21 @@ async function startImport() {
               if (renRes?.renamed?.length) {
                 const map = new Map(renRes.renamed.map(r => [r.from, r.to]));
                 currentPaths = currentPaths.map(p => map.get(p) ?? p);
-                if (placeholders.integrity) updateWaitingTask(placeholders.integrity, { args: { path: options.baseDestination, computeHashes: postHashes || readBool('duplicateHashOnIntegrity'), paths: currentPaths } });
-                if (placeholders.hashes) updateWaitingTask(placeholders.hashes, { args: { kind: hashKind, includeRaw: true, scope: { kind: 'paths', paths: currentPaths }, threads: hashThreads } });
                 host.onImportIndexed?.();
               }
+              if (renRes?.failed?.length) {
+                report.failed.push(...renRes.failed.map(f => ({ path: f.path, error: f.detail || f.code })));
+              }
+              unblockPostRenameTasks(currentPaths);
             },
           });
-        } else {
-          removeWaitingTask(placeholders.rename);
+          triggerTaskPumps();
+          return;
         }
+        removeWaitingTask(placeholders.rename);
       }
 
-      if (placeholders.integrity) {
-        updateWaitingTask(placeholders.integrity, {
-          blocked: false,
-          args: { path: options.baseDestination, computeHashes: postHashes || readBool('duplicateHashOnIntegrity'), paths: currentPaths },
-          onResult: (intRes) => {
-            if (intRes?.suspects?.length) report.integrityIssues.push(...intRes.suspects);
-            finalizeReportIfNeeded();
-          },
-        });
-      } else {
-        finalizeReportIfNeeded();
-      }
-
-      if (placeholders.faces) {
-        if (importedIds.length > 0) {
-          updateWaitingTask(placeholders.faces, { blocked: false, args: { photoIds: importedIds, folder: null, recursive: false, onlyUnscanned: true } });
-        } else removeWaitingTask(placeholders.faces);
-      }
-      if (placeholders.hashes) {
-        updateWaitingTask(placeholders.hashes, {
-          blocked: false,
-          args: { kind: hashKind, includeRaw: true, scope: { kind: 'paths', paths: currentPaths }, threads: hashThreads },
-        });
-      }
-      if (placeholders.semantic) {
-        if (importedIds.length > 0) {
-          updateWaitingTask(placeholders.semantic, { blocked: false, args: { photoIds: importedIds, folder: null, recursive: false } });
-        } else removeWaitingTask(placeholders.semantic);
-      }
-
-      triggerTaskPumps();
+      unblockPostRenameTasks(currentPaths);
     },
   });
 
@@ -1390,6 +1466,7 @@ export async function openImportView({ sourcePath = null, destination = null } =
 
   await refreshDetectedMedia();
   const initialSource = sourcePath || getDetectedMedia().find(d => d.eligible)?.rootPath || '';
+  resetSourceState();
   populateSourceSelect(initialSource);
   await setDestination(destination || readStored('importLastDestination') || '');
   await refreshRenamePresetsDropdown();
@@ -1418,12 +1495,12 @@ export function closeImportView() {
 
 function collectImportRecipeConfig() {
   return {
-    subfolderMode: readChoice('importSubfolderMode', ['none', 'custom', 'yyyy_mm_dd', 'yyyy/yyyy_mm_dd', 'yyyy/mm', 'yyyy_mm_dd_custom']),
+    subfolderMode: readChoice('importSubfolderMode', IMPORT_SUBFOLDER_MODES),
     customSubfolder: readStored('importCustomSubfolder') ?? '',
     splitByType: readBool('importSplitByType'),
-    subfolderRaw: readStored('importSubfolderRaw') ?? 'RAW',
-    subfolderRaster: readStored('importSubfolderRaster') ?? 'JPEG',
-    subfolderVideo: readStored('importSubfolderVideo') ?? 'Video',
+    subfolderRaw: readStored('importSubfolderRaw') ?? DEFAULTS.importSubfolderRaw,
+    subfolderRaster: readStored('importSubfolderRaster') ?? DEFAULTS.importSubfolderRaster,
+    subfolderVideo: readStored('importSubfolderVideo') ?? DEFAULTS.importSubfolderVideo,
     collisionPolicy: readChoice('importCollisionPolicy', ['skip', 'rename', 'ask']),
     postRename: readBool('importPostRename'),
     postRenamePreset: readStored('importPostRenamePreset') ?? '',
@@ -1612,26 +1689,11 @@ async function refreshImportPresetsDropdown() {
 }
 
 function openImportRecipesModal() {
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  const card = document.createElement('div');
-  card.className = 'modal-card rights-presets-card';
-  card.setAttribute('role', 'dialog');
-  card.setAttribute('aria-modal', 'true');
-  const header = document.createElement('div');
-  header.className = 'modal-header';
-  const title = document.createElement('h3');
-  title.textContent = t('Import recipes');
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'close-x';
-  closeBtn.textContent = '×';
-  closeBtn.title = t('Close');
-  closeBtn.setAttribute('aria-label', t('Close'));
-  header.append(title, closeBtn);
-
-  const body = document.createElement('div');
-  body.className = 'modal-body';
+  const modal = createModal({
+    title: t('Import recipes'),
+    cardClass: 'rights-presets-card',
+    focusSelector: 'button:not([disabled]), input:not([disabled])',
+  });
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
   nameInput.className = 'keyword-input';
@@ -1648,20 +1710,7 @@ function openImportRecipesModal() {
   const emptyLine = document.createElement('p');
   emptyLine.className = 'sort-note';
   emptyLine.textContent = t('No saved recipe');
-  body.append(nameInput, errorLine, listEl, emptyLine);
-  card.append(header, body);
-  modal.append(card);
-
-  const close = () => {
-    document.removeEventListener('keydown', onKeyDown, true);
-    modal.remove();
-  };
-  const onKeyDown = event => {
-    if (keepFocusInModal(modal, event) || event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-  };
+  modal.body.append(nameInput, errorLine, listEl, emptyLine);
 
   function renderList() {
     emptyLine.hidden = importPresets.length > 0;
@@ -1673,7 +1722,7 @@ function openImportRecipesModal() {
       choose.className = 'rights-preset-name';
       choose.textContent = preset.name;
       choose.title = preset.name;
-      choose.addEventListener('click', () => { close(); selectImportPreset(preset); });
+      choose.addEventListener('click', () => { modal.close(); selectImportPreset(preset); });
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'btn-danger';
@@ -1710,7 +1759,7 @@ function openImportRecipesModal() {
         config: JSON.stringify(collectImportRecipeConfig()),
       });
       const saved = importPresets.find(p => p.name.toLowerCase() === name.toLowerCase()) ?? null;
-      close();
+      modal.close();
       await selectImportPreset(saved, { apply: false });
       host.showToast?.(t('Recipe “{name}” saved', { name: saved?.name ?? name }));
     } catch (error) {
@@ -1720,9 +1769,6 @@ function openImportRecipesModal() {
       else errorLine.textContent = t('The recipe could not be saved');
     }
   });
-  closeBtn.addEventListener('click', close);
-  document.addEventListener('keydown', onKeyDown, true);
-  (document.getElementById('app') || document.body).append(modal);
   renderList();
   nameInput.focus();
 }
@@ -1739,7 +1785,12 @@ async function refreshRenamePresetsDropdown() {
     select.append(opt);
   }
   const saved = readStored('importPostRenamePreset') ?? '';
-  if (saved && presets.some(p => p.name === saved)) select.value = saved;
+  if (saved && presets.some(p => p.name === saved)) {
+    select.value = saved;
+  } else if (presets.length > 0) {
+    select.value = presets[0].name;
+    writeStored('importPostRenamePreset', presets[0].name);
+  }
   select.hidden = !readBool('importPostRename') || presets.length === 0;
 }
 
@@ -1949,7 +2000,7 @@ export function initImportView(deps) {
   }
   const sizeSlider = document.getElementById('import-thumb-size');
   if (sizeSlider) {
-    sizeSlider.value = String(readNumber('importThumbnailSize', 100, 300));
+    sizeSlider.value = String(readNumber('importThumbnailSize', IMPORT_THUMB_MIN, IMPORT_THUMB_MAX));
     sizeSlider.addEventListener('input', () => { writeStored('importThumbnailSize', sizeSlider.value); rebuildLayout(); renderVisibleViewport(); });
   }
 
@@ -1980,15 +2031,25 @@ export function initImportView(deps) {
   });
   document.getElementById('btn-import-new-subfolder')?.addEventListener('click', async () => {
     if (!destInfo.valid) return;
-    const name = await promptDialog({ title: t('New subfolder'), label: t('Folder name'), confirmLabel: t('Create'), cancelLabel: t('Cancel') });
-    if (!name) return;
-    try {
-      await invoke('create_subfolder', { parent: destInfo.resolvedPath, name });
-      const sep = destInfo.resolvedPath.includes('\\') ? '\\' : '/';
-      await setDestination(`${destInfo.resolvedPath}${sep}${name.trim()}`);
-    } catch (err) {
-      host.showToast?.(String(err));
-    }
+    const parentPath = destInfo.resolvedPath;
+    const folderLabel = parentPath.split(/[\\/]/).filter(Boolean).pop() || parentPath;
+    await promptDialog({
+      title: t('New subfolder'),
+      message: t('Name of the new subfolder in {folder}', { folder: folderLabel }),
+      inputLabel: t('Subfolder name'),
+      confirmLabel: t('Create'),
+      cancelLabel: t('Cancel'),
+      onSubmit: async name => {
+        try {
+          await invoke('create_subfolder', { parent: parentPath, name });
+        } catch (err) {
+          return String(err);
+        }
+        const sep = parentPath.includes('\\') ? '\\' : '/';
+        await setDestination(`${parentPath}${sep}${name.trim()}`);
+        return null;
+      },
+    });
   });
 
   document.getElementById('btn-import-recent')?.addEventListener('click', e => {
@@ -2005,7 +2066,7 @@ export function initImportView(deps) {
 
   const subModeSel = document.getElementById('import-subfolder-mode');
   if (subModeSel) {
-    subModeSel.value = readChoice('importSubfolderMode', ['none', 'custom', 'yyyy_mm_dd', 'yyyy/yyyy_mm_dd', 'yyyy/mm', 'yyyy_mm_dd_custom']);
+    subModeSel.value = readChoice('importSubfolderMode', IMPORT_SUBFOLDER_MODES);
     subModeSel.addEventListener('change', () => { writeStored('importSubfolderMode', subModeSel.value); updateTargetPreview(); syncImportRecipeUi(); });
   }
   const customSub = document.getElementById('import-custom-subfolder');
@@ -2025,7 +2086,7 @@ export function initImportView(deps) {
   ]) {
     const el = document.getElementById(id);
     if (el) {
-      el.value = readStored(key) ?? '';
+      el.value = readStored(key) ?? DEFAULTS[key];
       el.addEventListener('input', () => { writeStored(key, el.value); updateTargetPreview(); syncImportRecipeUi(); });
     }
   }
@@ -2140,14 +2201,14 @@ export function initImportView(deps) {
   listen('import-exif-progress', event => {
     const payload = event.payload || {};
     if (!openState || payload.taskId !== currentExifTaskId) return;
-    const byPath = new Map(allFiles.map(f => [f.path, f]));
     let selectionChanged = false;
     for (const entry of payload.entries || []) {
-      const f = byPath.get(entry.path);
+      const f = filesByPath.get(entry.path);
       if (!f) continue;
       if (entry.dateTaken) f.dateTaken = entry.dateTaken;
       if (entry.orientation) f.orientation = entry.orientation;
-      if (entry.status) {
+      const statusUpdated = Boolean(entry.status) && f.status !== 'imported_memory';
+      if (statusUpdated) {
         f.status = entry.status;
         f.existingPath = entry.existingPath;
         if (readBool('importAutoSelectNew') && entry.status !== 'new' && selectedPaths.delete(f.path)) {
@@ -2155,14 +2216,7 @@ export function initImportView(deps) {
         }
       }
       const node = renderedNodes.get(f.path);
-      if (node) {
-        if (node.dateEl) node.dateEl.textContent = formatFileDate(f);
-        if (node.badge && entry.status) {
-          node.badge.className = `import-status-badge ${f.status}`;
-          node.badge.textContent = statusBadgeText(f.status);
-          if (f.existingPath) node.badge.title = f.existingPath;
-        }
-      }
+      if (node) syncItemNodeState(node, f);
     }
     if (selectionChanged) {
       syncSelectionAndActiveClasses();
@@ -2259,10 +2313,14 @@ export function initImportView(deps) {
   });
 
   window.addEventListener('keydown', event => {
-    if (!openState) return;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      closeImportView();
+    if (!openState || event.key !== 'Escape') return;
+    if (
+      document.querySelector('.modal:not(.hidden), .context-menu')
+      || [...document.querySelectorAll('.date-picker')].some(el => el.style.display !== 'none')
+    ) {
+      return;
     }
-  });
+    event.preventDefault();
+    closeImportView();
+  }, true);
 }
