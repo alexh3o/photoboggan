@@ -1,9 +1,13 @@
 /* First-launch setup wizard modal (setup-wizard.js): sized in rem and themed with global tokens. */
-.wizard-card { width: min(44rem, calc(100vw - 2.5rem)); max-height: 86vh; display: flex; flex-direction: column; }
+.wizard-card { width: min(44rem, calc(100vw - 2.5rem)); height: min(39rem, 86vh); display: flex; flex-direction: column; }
 .wizard-card .modal-body { flex: 1 1 auto; min-height: 0; max-height: none; display: flex; flex-direction: column; gap: 0.9rem; overflow-y: auto; }
 
 /* Step counter pill placed in the modal header before the close button. */
 .wizard-step-badge { margin-left: auto; margin-right: 0.5rem; padding: 0.15rem 0.55rem; border: 1px solid var(--control-border); border-radius: 1rem; background: var(--row-bg); color: var(--text-muted); font-size: var(--text-size-meta); font-variant-numeric: tabular-nums; }
+
+/* Step 1 welcome header: logo on the left aligned with the intro paragraph. */
+.wizard-welcome-row { display: flex; align-items: center; gap: 1rem; }
+.wizard-logo { flex: none; width: 4.5rem; height: 4.5rem; object-fit: contain; }
 
 /* Body copy and bulleted lists: readable line height and clear hierarchy. */
 .wizard-intro { color: var(--text-strong); font-size: var(--text-size-base); line-height: 1.45; }
@@ -13,8 +17,8 @@
 
 /* Step 1: Internet access block with explanation list and indented updates toggle. */
 .wizard-internet-box { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--row-bg); }
-.wizard-internet-box .settings-check { margin: 0; font-weight: 600; color: var(--text-strong); }
-.wizard-internet-box .settings-sub { margin-top: 0.2rem; font-weight: 400; color: var(--text-muted); }
+.wizard-internet-box .settings-check { margin: 0; color: var(--text-strong); }
+.wizard-internet-box .settings-sub { margin-top: 0.2rem; font-weight: 600; }
 .wizard-internet-help { margin-left: 1.6rem; color: var(--text-muted); font-size: var(--text-size-meta); line-height: 1.4; }
 .wizard-internet-box .wizard-list { margin-left: 2.75rem; font-size: var(--text-size-meta); }
 

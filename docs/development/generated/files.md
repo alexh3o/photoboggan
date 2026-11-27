@@ -60,7 +60,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `config.md` | 174 |  |
-| `css.md` | 656 |  |
+| `css.md` | 657 |  |
 | `db-schema.md` | 301 |  |
 | `events.md` | 11 |  |
 | `files.md` | 348 |  |
@@ -154,7 +154,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `list-view.css` | 64 | List panel (list-view.js): sortable virtual table sharing the preview panel height with the preview stage. |
 | `list-view.js` | 1779 | List panel (toolbar "List" button / L key): virtualized, multi-column sortable, customizable table of the displayed photos. Shares `photos`, `selectedIndices`, `lastSelectedIndex`, and context menus with the grid. Zero … |
 | `location-panel.js` | 256 | Panneau Info, groupe « Lieu » : coordonnées GPS de la sélection (lues en base, jamais modifiées ; un clic les copie) et petite carte. Le cadenas après le titre indique un lieu privé (fermé) et ouvre la fenêtre des zones… |
-| `main.js` | 6427 |  |
+| `main.js` | 6429 |  |
 | `map-config.js` | 58 | Configuration des cartes (panneau Info, zones privées, future vue carte) : fournisseur de tuiles, styles, adresses et limites de zoom, réunis ici pour pouvoir changer de fournisseur sans toucher au reste. Le même hôte f… |
 | `map-mode.css` | 60 | Mode Carte (map-mode.js) : carte à côté de l'aperçu, qui partage avec lui la hauteur du panneau. |
 | `map-mode.js` | 516 | Mode Carte (bouton « Carte » de la barre du haut) : une carte à la place de l'aperçu (ou sous lui, les deux se partagent la hauteur) qui montre où sont les photos affichées et permet de géolocaliser la sélection. - Cart… |
@@ -185,8 +185,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic.css` | 73 | Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. |
 | `semantic.js` | 112 | Content search, search side (SigLIP 2): the toolbar field, its scope toggle and the requests to the backend. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7, §9, §18). Everything here stays idle while the … |
 | `settings-defaults.js` | 43 | Default settings of a new installation, read from defaults.jsonc (the single place to edit them), and helpers that return the value saved in localStorage when it is valid, the default otherwise. |
-| `setup-wizard.css` | 62 | First-launch setup wizard modal (setup-wizard.js): sized in rem and themed with global tokens. |
-| `setup-wizard.js` | 503 | First-launch setup wizard: guides new users through language, Internet access, optional features, and watched folders. Reuses existing settings handlers, model downloads, private zones modal, and folder management injec… |
+| `setup-wizard.css` | 66 | First-launch setup wizard modal (setup-wizard.js): sized in rem and themed with global tokens. |
+| `setup-wizard.js` | 566 | First-launch setup wizard: guides new users through language, Internet access, optional features, and watched folders. Reuses existing settings handlers, model downloads, private zones modal, and folder management injec… |
 | `shooting-filters.css` | 22 | Filtres Matériel et Prise de vue (shooting-filters.js). Étiquettes : fond foncé et texte clair dans les deux thèmes, comme les autres. |
 | `shooting-filters.js` | 474 | Filtres « Matériel » (appareil photo, objectif) et « Prise de vue » (focale, vitesse, ouverture, ISO, flash) du panneau de filtres. Les valeurs viennent des champs déjà chargés avec chaque photo (manufacturer, camera_mo… |
 | `sidebar-search.js` | 56 | Quick search field in the title row of a sidebar block (Folders, Albums). A magnifier button (shown when the title row is hovered, like the "+" of the Albums block) opens a text field that grows to the left of the butto… |
@@ -336,9 +336,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 2137 |  |
-| `es.json` | 2136 |  |
-| `fr.json` | 2137 |  |
+| `en.json` | 2140 |  |
+| `es.json` | 2139 |  |
+| `fr.json` | 2140 |  |
 
 ## webpage
 

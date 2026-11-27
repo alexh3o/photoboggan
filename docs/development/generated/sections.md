@@ -152,7 +152,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L1334–L1607 | 274 | Columns picker menu (stays open until Esc or outside click) |
 | L1608–L1779 | 172 | Open, close, and refresh API |
 
-## src/main.js (6427 lines)
+## src/main.js (6429 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -181,9 +181,9 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L5533–L5980 | 448 | MENU CONTEXTUEL DES MINIATURES (voir photo-actions.js) |
 | L5981–L6007 | 27 | CONTENT SEARCH RESULTS (semantic-results.js) |
 | L6008–L6033 | 26 | FIND THE RAW (find-raw-mode.js) |
-| L6034–L6162 | 129 | FEATURE VIEWS & MODULE INITIALIZATION |
-| L6163–L6368 | 206 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
-| L6369–L6427 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
+| L6034–L6164 | 131 | FEATURE VIEWS & MODULE INITIALIZATION |
+| L6165–L6370 | 206 | SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES (ajouts, éditions, métadonnées, suppressions) |
+| L6371–L6429 | 59 | EMPLACEMENT DES DONNÉES ET DU CACHE |
 
 ## src/map-mode.js (516 lines)
 

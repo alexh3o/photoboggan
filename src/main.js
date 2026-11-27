@@ -6116,6 +6116,8 @@ initSetupWizard({
   getFolders: () => folders,
   addFolder: addWatchedFolder,
   removeFolder: removeWatchedFolder,
+  getTextSize: () => ({ value: textSize, min: TEXT_SIZE_MIN, max: TEXT_SIZE_MAX, step: TEXT_SIZE_STEP }),
+  stepTextSize: delta => stepTextSize(delta),
 });
 
 initFacesGrid({

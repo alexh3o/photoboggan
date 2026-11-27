@@ -1053,17 +1053,17 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `getSelectedPhotos()` · L5856
 - `setPhotoGridVisible(visible)` · L5920 — Grille des photos masquée pendant que la vue Personnes ou la vue de gestion des visages l'occupe.
 - `thumbnailUrlFor(sourcePath, isWanted = ()` · L5930 — URL d'affichage de la miniature d'une photo (vignettes des personnes et des visages) : cache d'abord, sinon génération côté Rust ;
-- `notifyTempLeftovers(changes)` · L6174
-- `syncLibraryWithDisk()` · L6191
-- `requestLibrarySync()` · L6213
-- `runRequestedSync()` · L6218
-- `refreshLibraryAfterSync(changes)` · L6225 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
-- `restorePanelsVisibility()` · L6269
-- `restoreStartupFolder()` · L6299 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
-- `sendInternetAllowed()` · L6340
-- `setOfflineMode(offline)` · L6343
-- `sendVerifyMoves()` · L6360
-- `refreshStorageLocationUI()` · L6372 — ==========================================
+- `notifyTempLeftovers(changes)` · L6176
+- `syncLibraryWithDisk()` · L6193
+- `requestLibrarySync()` · L6215
+- `runRequestedSync()` · L6220
+- `refreshLibraryAfterSync(changes)` · L6227 — Recharge la liste depuis la base sans remonter la grille ni perdre la sélection (retrouvée par chemin).
+- `restorePanelsVisibility()` · L6271
+- `restoreStartupFolder()` · L6301 — Ouverture sur le dernier dossier de l'arbre (Paramètres > Général). Le dossier n'est repris que s'il figure encore dans l'arbre
+- `sendInternetAllowed()` · L6342
+- `setOfflineMode(offline)` · L6345
+- `sendVerifyMoves()` · L6362
+- `refreshStorageLocationUI()` · L6374 — ==========================================
 
 ## src/map-config.js (5)
 
@@ -1596,16 +1596,16 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 
 ## src/setup-wizard.js (10)
 
-- `el(tag, className, text)` · L29
-- `createSvgIcon(paths)` · L36
-- `createInfoIcon()` · L51
-- `createWarningIcon()` · L52
-- `cloneToolbarIcon(buttonId)` · L54
-- `markWizardDone()` · L66
-- `export initSetupWizard(hostApi)` · L71 — Wires host services from main.js.
-- `export maybeOpenSetupWizard()` · L76 — Opens the wizard on first launch when no watched folder exists and the wizard has not been completed/skipped yet.
-- `export notifyWizardFoldersChanged()` · L87 — Refreshes the open wizard when watched folders change (Step 3 list or Step 4 intro).
-- `export openSetupWizard()` · L92 — Opens the 4-step setup wizard modal.
+- `el(tag, className, text)` · L32
+- `createSvgIcon(paths)` · L39
+- `createInfoIcon()` · L54
+- `createWarningIcon()` · L55
+- `cloneToolbarIcon(buttonId)` · L57
+- `markWizardDone()` · L69
+- `export initSetupWizard(hostApi)` · L74 — Wires host services from main.js.
+- `export maybeOpenSetupWizard()` · L79 — Opens the wizard on first launch when no watched folder exists and the wizard has not been completed/skipped yet.
+- `export notifyWizardFoldersChanged()` · L90 — Refreshes the open wizard when watched folders change (Step 3 list or Step 4 intro).
+- `export openSetupWizard()` · L95 — Opens the 4-step setup wizard modal.
 
 ## src/shooting-filters.js (20)
 

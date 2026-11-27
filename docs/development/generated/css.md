@@ -156,7 +156,7 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 | `--text-dim` | styles.css · `:root` · `#8a8a8a`<br>styles.css · (light) `:root[data-theme="light"]` · `#666` | 30 | — |
 | `--text-faint` | styles.css · `:root` · `#929292`<br>styles.css · (light) `:root[data-theme="light"]` · `#6a6a6a` | 42 | — |
 | `--text-light` | styles.css · `:root` · `#e0e0e0`<br>styles.css · (light) `:root[data-theme="light"]` · `#222` | 4 | — |
-| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 83 | — |
+| `--text-muted` | styles.css · `:root` · `#bbb`<br>styles.css · (light) `:root[data-theme="light"]` · `#555` | 82 | — |
 | `--text-size-base` | styles.css · `:root` · `0.80rem` | 11 | — |
 | `--text-size-control` | styles.css · `:root` · `0.77rem` | 4 | — |
 | `--text-size-meta` | styles.css · `:root` · `0.75rem` | 8 | — |
@@ -466,17 +466,18 @@ Custom properties (`--x`) with every place they are defined (theme overrides mar
 - L57 "Suggestions" block of the Keywords tab (semantic-tagging.js): rem for sizes, thin borders in px
 - L69 Settings > Content search: keywords never suggested (semantic-exclusions.js). Field with its list opened below, chips under it.
 
-### src/setup-wizard.css (62 lines)
+### src/setup-wizard.css (66 lines)
 
 - L1 First-launch setup wizard modal (setup-wizard.js): sized in rem and themed with global tokens.
 - L5 Step counter pill placed in the modal header before the close button.
-- L8 Body copy and bulleted lists: readable line height and clear hierarchy.
-- L14 Step 1: Internet access block with explanation list and indented updates toggle.
-- L21 Step 2: optional feature rows with checkbox + description on the left, model/zone action on the right.
-- L33 Step 2 footnotes and conditional info / privacy callouts.
-- L42 Step 3: watched folders actions and scrollable list reusing settings-folder-item look.
-- L49 Step 4: getting-started tips and inline toolbar icons.
-- L55 Fixed footer bar with step dots and navigation buttons.
+- L8 Step 1 welcome header: logo on the left aligned with the intro paragraph.
+- L12 Body copy and bulleted lists: readable line height and clear hierarchy.
+- L18 Step 1: Internet access block with explanation list and indented updates toggle.
+- L25 Step 2: optional feature rows with checkbox + description on the left, model/zone action on the right.
+- L37 Step 2 footnotes and conditional info / privacy callouts.
+- L46 Step 3: watched folders actions and scrollable list reusing settings-folder-item look.
+- L53 Step 4: getting-started tips and inline toolbar icons.
+- L59 Fixed footer bar with step dots and navigation buttons.
 
 ### src/shooting-filters.css (22 lines)
 

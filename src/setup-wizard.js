@@ -2,6 +2,7 @@
 // Reuses existing settings handlers, model downloads, private zones modal, and folder management injected by main.js.
 
 import './setup-wizard.css';
+import appLogoUrl from '../src-tauri/icons/128x128@2x.png';
 import { createModal } from './photo-actions.js';
 import { LANGUAGES, getLanguage, setLanguage, onLanguageChange, t, formatMegabytes } from './i18n.js';
 import { readStored, writeStored, isOffline } from './settings-defaults.js';
@@ -23,6 +24,8 @@ let host = {
   getFolders: () => [],
   addFolder: async () => {},
   removeFolder: async () => {},
+  getTextSize: () => ({ value: 100, min: 80, max: 140, step: 5 }),
+  stepTextSize: () => {},
 };
 let activeWizard = null;
 
@@ -108,6 +111,9 @@ export function openSetupWizard() {
       activeWizard = null;
     },
   });
+  modal.heading.id = 'setup-wizard-title';
+  modal.card.removeAttribute('aria-label');
+  modal.card.setAttribute('aria-labelledby', 'setup-wizard-title');
 
   const stepBadge = el('span', 'wizard-step-badge');
   modal.header.insertBefore(stepBadge, modal.header.lastElementChild);
@@ -139,7 +145,7 @@ export function openSetupWizard() {
       prev.type = 'button';
       prev.addEventListener('click', () => {
         step -= 1;
-        renderStep();
+        renderStep({ moveFocus: true });
       });
       footerRight.append(prev);
     }
@@ -149,7 +155,7 @@ export function openSetupWizard() {
       next.type = 'button';
       next.addEventListener('click', () => {
         step += 1;
-        renderStep();
+        renderStep({ moveFocus: true });
       });
       footerRight.append(next);
     } else {
@@ -162,11 +168,17 @@ export function openSetupWizard() {
 
   function renderStep1() {
     modal.heading.textContent = t('Welcome to photoboggan');
+    const welcomeRow = el('div', 'wizard-welcome-row');
+    const logo = document.createElement('img');
+    logo.className = 'wizard-logo';
+    logo.src = appLogoUrl;
+    logo.alt = t('photoboggan logo');
     const intro = el(
       'p',
       'wizard-intro',
       t('photoboggan organizes and finds your photos right where they are on disk. It reads your folders and keeps a local index without copying or moving your files. Let us review the essential settings.'),
     );
+    welcomeRow.append(logo, intro);
 
     const langRow = el('label', 'settings-row');
     langRow.setAttribute('for', 'wizard-language-select');
@@ -180,12 +192,51 @@ export function openSetupWizard() {
     });
     langRow.append(langSelect);
 
+    const sizeRow = el('div', 'settings-row');
+    sizeRow.title = t('Interface size help');
+    sizeRow.append(el('span', '', t('Interface size')));
+    const sizeControl = el('span', 'text-size-control');
+    sizeControl.setAttribute('role', 'group');
+    sizeControl.setAttribute('aria-label', t('Interface size'));
+    const sizeDown = el('button', '', '−');
+    sizeDown.type = 'button';
+    sizeDown.id = 'wizard-text-size-down';
+    sizeDown.title = t('Decrease');
+    sizeDown.setAttribute('aria-label', t('Decrease'));
+    const sizeValue = document.createElement('output');
+    sizeValue.id = 'wizard-text-size-value';
+    sizeValue.htmlFor = 'wizard-text-size-down wizard-text-size-up';
+    const sizeUp = el('button', '', '+');
+    sizeUp.type = 'button';
+    sizeUp.id = 'wizard-text-size-up';
+    sizeUp.title = t('Increase');
+    sizeUp.setAttribute('aria-label', t('Increase'));
+    const syncTextSize = () => {
+      const { value, min, max } = host.getTextSize();
+      sizeValue.textContent = `${value} %`;
+      sizeDown.disabled = value <= min;
+      sizeUp.disabled = value >= max;
+    };
+    sizeDown.addEventListener('click', () => {
+      host.stepTextSize(-host.getTextSize().step);
+      syncTextSize();
+    });
+    sizeUp.addEventListener('click', () => {
+      host.stepTextSize(host.getTextSize().step);
+      syncTextSize();
+    });
+    syncTextSize();
+    sizeControl.append(sizeDown, sizeValue, sizeUp);
+    sizeRow.append(sizeControl);
+
     const internetBox = el('div', 'wizard-internet-box');
     const internetLabel = el('label', 'settings-row settings-check');
     const internetCheck = document.createElement('input');
     internetCheck.type = 'checkbox';
     internetCheck.checked = !isOffline();
-    internetLabel.append(internetCheck, el('span', '', t('Internet access')));
+    const internetText = document.createElement('span');
+    internetText.append(el('strong', '', t('Internet access')), document.createTextNode(` - ${t('Recommended')}`));
+    internetLabel.append(internetCheck, internetText);
 
     const internetHelp = el(
       'p',
@@ -209,7 +260,7 @@ export function openSetupWizard() {
     updatesCheck.addEventListener('change', () => {
       setCheckUpdatesEnabled(updatesCheck.checked);
     });
-    updatesLabel.append(updatesCheck, el('span', '', t('Update checks (GitHub)')));
+    updatesLabel.append(updatesCheck, el('span', '', t('Check for updates (GitHub)')));
 
     internetCheck.addEventListener('change', () => {
       host.setOfflineMode(!internetCheck.checked);
@@ -217,7 +268,7 @@ export function openSetupWizard() {
     });
 
     internetBox.append(internetLabel, internetHelp, internetList, updatesLabel);
-    modal.body.replaceChildren(intro, langRow, internetBox);
+    modal.body.replaceChildren(welcomeRow, langRow, sizeRow, internetBox);
   }
 
   function renderModelActionCell(actionCell, { enabled, status, downloading, offlineHintKey, onDownload, sizeField }) {
@@ -232,6 +283,13 @@ export function openSetupWizard() {
     }
     if (enabled && status?.installed) {
       actionCell.append(el('span', 'wizard-status-ok', `✓ ${t('Installed')}`));
+      return;
+    }
+    if (enabled && !status && !downloading) {
+      const checkingBtn = el('button', '', t('Checking…'));
+      checkingBtn.type = 'button';
+      checkingBtn.disabled = true;
+      actionCell.append(checkingBtn);
       return;
     }
     const label = downloading
@@ -280,6 +338,9 @@ export function openSetupWizard() {
     step2Controls.zonesButton.disabled = !mapEnabled;
 
     step2Controls.aiCallout.hidden = !(semantic.enabled || faces.enabled);
+    step2Controls.aiCalloutText.textContent = semantic.enabled
+      ? t('Photos or folders must be scanned from the context menus (right-click a folder or photos), or for the whole library from Settings > Search > Content search.')
+      : t('Photos or folders must be scanned from the context menus (right-click a folder or photos).');
     step2Controls.mapCallout.hidden = !mapEnabled;
   }
 
@@ -352,10 +413,8 @@ export function openSetupWizard() {
     );
 
     const aiCallout = el('div', 'wizard-callout wizard-callout-info');
-    aiCallout.append(
-      createInfoIcon(),
-      el('span', '', t('Photos or folders must be scanned from the context menus (right-click a folder or photos), or for the whole library from Settings > Search > Content search.')),
-    );
+    const aiCalloutText = el('span', '', '');
+    aiCallout.append(createInfoIcon(), aiCalloutText);
 
     const mapCallout = el('div', 'wizard-callout wizard-callout-warn');
     mapCallout.append(
@@ -376,6 +435,7 @@ export function openSetupWizard() {
       mapCheck: map.check,
       zonesButton,
       aiCallout,
+      aiCalloutText,
       mapCallout,
     };
 
@@ -441,13 +501,15 @@ export function openSetupWizard() {
     const subtitle = el('h4', 'wizard-subtitle', t('To get started:'));
     const tips = el('ul', 'wizard-tips');
 
-    const tipH = el('li');
-    const kbdH = el('kbd', '', 'H');
-    tipH.append(kbdH, document.createTextNode(` : ${t('shortcuts guide')}`));
+    const colon = LANGUAGES[getLanguage()].colon;
+
+    const tipG = el('li');
+    const kbdG = el('kbd', '', 'G');
+    tipG.append(kbdG, document.createTextNode(`${colon} ${t('shortcuts guide')}`));
 
     const tipT = el('li');
     const kbdT = el('kbd', '', 'T');
-    tipT.append(kbdT, document.createTextNode(` : ${t('hide/show the toolbar')}`));
+    tipT.append(kbdT, document.createTextNode(`${colon} ${t('hide/show the toolbar')}`));
 
     const tipContext = el('li', '', t('Right-click a photo or folder: all actions'));
 
@@ -467,17 +529,18 @@ export function openSetupWizard() {
     }
     tipToolbar.append(toolbarList);
 
-    tips.append(tipH, tipT, tipContext, tipToolbar);
+    tips.append(tipG, tipT, tipContext, tipToolbar);
     modal.body.replaceChildren(intro, subtitle, tips);
   }
 
-  function renderStep() {
+  function renderStep({ moveFocus = false } = {}) {
     step2Controls = null;
     updateHeaderAndFooter();
     if (step === 0) renderStep1();
     else if (step === 1) renderStep2();
     else if (step === 2) renderStep3();
     else renderStep4();
+    if (moveFocus) modal.overlay.focus();
   }
 
   const unsubLanguage = onLanguageChange(() => {
