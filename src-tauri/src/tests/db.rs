@@ -18,14 +18,14 @@ fn catalog_uses_wal_and_reopens_without_losing_data() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("catalog.db").to_string_lossy().to_string();
     {
-        let pool = init_db(&file).expect("init db");
+        let pool = crate::init_catalog(&file).expect("init db");
         let conn = pool.get().unwrap();
         let mode: String = conn.query_row("PRAGMA journal_mode", [], |row| row.get(0)).unwrap();
         assert_eq!(mode.to_lowercase(), "wal");
         insert_photo(&conn, "C:/Photos/a.jpg");
     }
     // Reopening replays idempotent ALTER TABLE ... ADD COLUMN migrations without panicking or losing data.
-    let pool = init_db(&file).expect("reopen db");
+    let pool = crate::init_catalog(&file).expect("reopen db");
     let conn = pool.get().unwrap();
     assert_eq!(count(&conn, "SELECT COUNT(*) FROM photos"), 1);
 }
@@ -45,7 +45,7 @@ fn old_catalog_without_recent_columns_is_upgraded() {
         )
         .unwrap();
     }
-    let pool = init_db(&file.to_string_lossy()).expect("upgrade old db");
+    let pool = crate::init_catalog(&file.to_string_lossy()).expect("upgrade old db");
     let photos = get_photos(&pool, 0, 10, None, true).unwrap();
     assert_eq!(photos.len(), 1);
     assert_eq!((photos[0].rating, photos[0].pick_flag.as_str(), photos[0].keywords.as_str()), (4, "none", ""));
@@ -514,11 +514,11 @@ fn init_db_and_add_column_return_errors_without_panicking() {
     // Non-SQLite file must return Err instead of panicking.
     let corrupt = dir.path().join("not_a_db.db");
     std::fs::write(&corrupt, b"this is definitely not a sqlite database").unwrap();
-    assert!(init_db(&corrupt.to_string_lossy()).is_err());
+    assert!(crate::init_catalog(&corrupt.to_string_lossy()).is_err());
 
     // Invalid path (non-existent parent directory) must return Err instead of panicking.
     let missing_parent = dir.path().join("no_such_dir").join("catalog.db");
-    assert!(init_db(&missing_parent.to_string_lossy()).is_err());
+    assert!(crate::init_catalog(&missing_parent.to_string_lossy()).is_err());
 
     // add_column returns Err on a non-existent table and Ok(()) when the column already exists.
     let (_cat_dir, pool) = temp_catalog();

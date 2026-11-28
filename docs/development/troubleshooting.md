@@ -60,7 +60,7 @@ Only problems visible in the code. Each entry: symptom → likely cause (named) 
 
 **App starts with default settings and a lost custom data folder.** Cause: `config.json` was invalid; it is set aside as `config.json.invalid-<seconds>` (never deleted) and defaults are used (`load_config_at_startup`). Fix: repair the copy and put it back, or re-set the storage location. Later writes refuse to start from an invalid file.
 
-**Database: "database is locked" / failures after moving the data folder.** The catalogue is SQLite in WAL mode, accessed only through the r2d2 pool (`AppState.db_pool`, swapped by `change_storage_location`). Cause candidates: a second process on the same file, or code opening its own connection (an anti-pattern, AGENTS.md §7). The connection initializer of `init_db` sets WAL, `synchronous=NORMAL` and cache pragmas but no `busy_timeout` (rusqlite's default of 5 s applies).
+**Database: "database is locked" / failures after moving the data folder.** The catalogue is SQLite in WAL mode, accessed only through the r2d2 pool (`AppState.db_pool`, swapped by `change_storage_location`). Cause candidates: a second process on the same file, or code opening its own connection (an anti-pattern, AGENTS.md §7). The connection initializer of `db::init_core` sets WAL, `synchronous=NORMAL` and cache pragmas but no `busy_timeout` (rusqlite's default of 5 s applies).
 
 ## Reproducing with a clean state, without touching photos
 

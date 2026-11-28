@@ -277,7 +277,7 @@ fn thumbnail_cache_size_default_is_shared_with_the_frontend() {
 fn storage_copy_carries_the_logs_and_cleanup_removes_them() {
     let from = tempfile::tempdir().unwrap();
     let to = tempfile::tempdir().unwrap();
-    let pool = crate::db::init_db(&from.path().join("photos_library.db").to_string_lossy()).expect("init db");
+    let pool = crate::init_catalog(&from.path().join("photos_library.db").to_string_lossy()).expect("init db");
     put(&from.path().join("logs").join("write-recovery_2026-01-01_10-00-00.log"), b"recovered");
     put(&from.path().join("models").join("model.onnx"), b"model");
 

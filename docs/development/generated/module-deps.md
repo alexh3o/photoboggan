@@ -9,42 +9,42 @@ Static dependency graph, to evaluate the consequences of a change before making 
 
 | Module | Uses | Used by |
 |---|---|---|
-| `albums` | db, main, privacy | db |
+| `albums` | db, main, privacy | — |
 | `app_log` | — | db |
-| `batch_rename` | exiftool, main, runtime | db |
-| `db` | albums, app_log, batch_rename, duplicates, faces, geolocation, import, keywords, main, privacy, private_maps, rights, semantic, similar | albums, duplicates, faces, geolocation, hash_tasks, import, integrity, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
-| `duplicates` | db, privacy, runtime, semantic, thumbnails, video | db, hash_tasks, import, integrity, semantic, similar, stats |
+| `batch_rename` | exiftool, main, runtime | — |
+| `db` | app_log, keywords, main, privacy | albums, duplicates, faces, geolocation, hash_tasks, import, integrity, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
+| `duplicates` | db, privacy, runtime, semantic, thumbnails, video | hash_tasks, import, integrity, semantic, similar, stats |
 | `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, keywords, library_sync, orientation, place_search, resize, rights, thumbnails |
 | `exiftool` | exif, faces, heif, main | batch_rename, exif, geolocation, orientation |
 | `face_detect` | face_models, face_recognize, faces, heif, keywords, main, onnx_runtime, runtime, thumbnails, video | exif, faces |
 | `face_models` | main, model_files, runtime | face_detect, semantic, semantic_keywords, semantic_models, semantic_search |
 | `face_recognize` | faces, keywords | face_detect, faces |
-| `faces` | db, exif, face_detect, face_recognize, keywords, main, privacy, thumbnails | db, exif, exiftool, face_detect, face_recognize, import, keywords, library_sync |
-| `geolocation` | db, exif, exiftool, keywords, library_sync, main | db, keywords |
+| `faces` | db, exif, face_detect, face_recognize, keywords, main, privacy, thumbnails | exif, exiftool, face_detect, face_recognize, import, keywords, library_sync |
+| `geolocation` | db, exif, exiftool, keywords, library_sync, main | keywords |
 | `hash_tasks` | db, duplicates, library_sync, main, phash, runtime, semantic, similar, thumbnails | — |
 | `heif` | — | exif, exiftool, face_detect, integrity, orientation, resize, thumbnails |
-| `import` | db, duplicates, faces | db |
+| `import` | db, duplicates, faces | — |
 | `integrity` | db, duplicates, heif, main, phash, similar | semantic |
 | `keywords` | db, exif, faces, geolocation, library_sync, main, privacy, runtime, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search, similar |
 | `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, hash_tasks, keywords |
-| `main` | — | albums, batch_rename, db, exiftool, face_detect, face_models, faces, geolocation, hash_tasks, integrity, keywords, library_sync, phash, privacy, private_maps, resize, rights, semantic, semantic_keywords, semantic_models, semantic_search, similar, stats, update_check |
+| `main` | — | albums, batch_rename, db, exiftool, face_detect, face_models, faces, geolocation, hash_tasks, integrity, keywords, library_sync, phash, privacy, private_maps, resize, rights, semantic, semantic_keywords, semantic_models, semantic_search, similar, stats, test_support, update_check |
 | `model_files` | — | face_models, semantic_models, update_check |
 | `onnx_runtime` | — | face_detect, semantic, semantic_search |
 | `orientation` | exif, exiftool, heif, thumbnails, video | exif, thumbnails |
 | `phash` | main | hash_tasks, integrity, semantic, similar, stats |
 | `place_search` | exif, runtime | — |
 | `privacy` | keywords, main | albums, db, duplicates, faces, keywords, rights |
-| `private_maps` | db, main, runtime | db |
+| `private_maps` | db, main, runtime | — |
 | `resize` | exif, heif, main, thumbnails | — |
-| `rights` | exif, main, privacy | db |
+| `rights` | exif, main, privacy | — |
 | `runtime` | — | batch_rename, duplicates, face_detect, face_models, hash_tasks, keywords, place_search, private_maps, semantic, semantic_models, similar, update_check |
-| `semantic` | db, duplicates, face_models, integrity, keywords, main, onnx_runtime, phash, runtime, semantic_models, semantic_search, similar, thumbnails | db, duplicates, hash_tasks, semantic_models, semantic_search, similar |
+| `semantic` | db, duplicates, face_models, integrity, keywords, main, onnx_runtime, phash, runtime, semantic_models, semantic_search, similar, thumbnails | duplicates, hash_tasks, semantic_models, semantic_search, similar |
 | `semantic_keywords` | face_models, keywords, main, semantic_models, semantic_search | keywords, semantic_search |
 | `semantic_models` | face_models, main, model_files, runtime, semantic, semantic_search | semantic, semantic_keywords, semantic_search, stats |
 | `semantic_search` | face_models, keywords, main, onnx_runtime, semantic, semantic_keywords, semantic_models, thumbnails | semantic, semantic_keywords, semantic_models |
-| `similar` | db, duplicates, keywords, main, phash, runtime, semantic, thumbnails | db, hash_tasks, integrity, semantic, stats |
+| `similar` | db, duplicates, keywords, main, phash, runtime, semantic, thumbnails | hash_tasks, integrity, semantic, stats |
 | `stats` | db, duplicates, main, phash, semantic_models, similar, video | — |
-| `test_support` | db | — |
+| `test_support` | db, main | — |
 | `thumbnails` | exif, heif, orientation, video | duplicates, exif, face_detect, faces, hash_tasks, library_sync, orientation, resize, semantic, semantic_search, similar |
 | `update_check` | main, model_files, runtime | — |
 | `video` | — | duplicates, exif, face_detect, library_sync, orientation, stats, thumbnails |

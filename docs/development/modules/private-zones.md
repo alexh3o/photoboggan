@@ -61,4 +61,4 @@ A request outside `z ≤ 22` / valid range gets `1` (empty). Zones are loaded in
 3. New provider: see `maps-and-geolocation.md` how to extend; here change `PROVIDER`, `TILEJSON_URL`, `STYLES`.
 
 ## Open questions
-none. Zones are first loaded by `db::init_db` (`reload_zones` after the schema is created), then after every zone change.
+none. Zones are first loaded by `main::init_catalog` (`reload_zones` after the schema is created), then after every zone change.

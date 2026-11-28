@@ -60,8 +60,8 @@ Lists to update (search the extension `"cr2"` to find them all, there is no sing
 
 Example: column `flash` of `photos`.
 
-1. Column: `add_column(&conn, "photos", "flash INTEGER")` at the end of the list in `init_db` (db.rs), with a comment. Never `ALTER` another way, never drop or rename.
-2. Table: `CREATE TABLE IF NOT EXISTS` in the owning module's `init_schema`, called from `init_db` (see `crate::duplicates::init_schema`). Empty until the feature is used (AGENTS.md "zero cost at rest").
+1. Column: `add_column(&conn, "photos", "flash INTEGER")` at the end of the list in `db::init_core` (db.rs), with a comment. Never `ALTER` another way, never drop or rename.
+2. Table: `CREATE TABLE IF NOT EXISTS` in the owning module's `init_schema`, called from `init_catalog` in `main.rs` (see `duplicates::init_schema`). Empty until the feature is used (AGENTS.md "zero cost at rest").
 3. `Photo` struct (db.rs, `#[serde(default)]` if optional), `PHOTO_COLUMNS` and `photo_from_row` (same order!), the insert / upsert `insert_batch` (main.rs, called by `library_sync::store_read_batch`), the read `library_sync::read_photo`.
 4. Filterable? `PhotoPrefilter` and its SQL in db.rs (see `filter.flash`), plus the JS side (recipe 6).
 5. Existing photos need a rescan to fill it: say so in the release notes / UI.

@@ -111,32 +111,32 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `one` · L75
 - *struct* `pub TrackedFolder` · L78
 - `pub add_column` · L85 — Adds a column to an existing table (upgrading an older catalogue without losing data).
-- `pub init_db` · L100
-- `pub get_folders` · L216
-- `pub add_folder` · L235
-- `pub remove_folder` · L244 — Removes a tracked folder and the photos it contained in a single transaction. A photo still covered by another tracked folder
-- `pub photo_from_row` · L287 — Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
-- `pub get_photos` · L334 — Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
-- `folder_prefix` · L341
-- `folder_upper_bound` · L348 — Strict upper bound for prefix range queries on normalised paths ending with `/` (ASCII 0x2F):
-- `push_folder_condition` · L355 — Builds the SQL folder predicate and appends its bound parameters (0 when unfiltered, 2 when filtered).
-- *struct* `pub PhotoPrefilter` · L382 — Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
-- *struct* `pub ValueRange` · L433 — Inclusive bounds; a missing bound is open.
-- *struct* `pub FolderCriterion` · L439
-- *struct* `pub MapZone` · L445
-- `prefilter_condition` · L461 — SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
-- `pub get_photos_sorted` · L600 — Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
-- *struct* `FolderQueryParts` · L604
-- `build_folder_query_parts` · L612
-- `list_query_sql` · L623
-- `count_query_sql` · L633
-- `pub get_photos_filtered` · L642 — `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
-- `count_matching` · L689 — Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
-- `pub count_photos` · L701 — Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
-- `pub explain_folder_query` · L708
-- `pub get_photos_by_paths` · L749 — Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
-- `pub get_photos_by_ids` · L764 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
-- `pub get_folder_counts` · L781 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
+- `pub init_core` · L100
+- `pub get_folders` · L192
+- `pub add_folder` · L211
+- `pub remove_folder` · L220 — Removes a tracked folder and the photos it contained in a single transaction. A photo still covered by another tracked folder
+- `pub photo_from_row` · L263 — Photo d'une ligne du catalogue. Les colonnes qui acceptent NULL (catalogues anciens) prennent une valeur par défaut : une photo n'est
+- `pub get_photos` · L310 — Page de photos, de la plus récente à la plus ancienne (à date égale, par identifiant : l'ordre reste stable d'une page à l'autre).
+- `folder_prefix` · L317
+- `folder_upper_bound` · L324 — Strict upper bound for prefix range queries on normalised paths ending with `/` (ASCII 0x2F):
+- `push_folder_condition` · L331 — Builds the SQL folder predicate and appends its bound parameters (0 when unfiltered, 2 when filtered).
+- *struct* `pub PhotoPrefilter` · L358 — Filters the backend applies BEFORE the list is cut at its limit, so a capped list holds the photos the user is looking for.
+- *struct* `pub ValueRange` · L409 — Inclusive bounds; a missing bound is open.
+- *struct* `pub FolderCriterion` · L415
+- *struct* `pub MapZone` · L421
+- `prefilter_condition` · L437 — SQL condition of a prefilter (`1` when it filters nothing). Its parameters are appended to `values`; placeholders are numbered after
+- `pub get_photos_sorted` · L576 — Page of photos in the interface sort order (`taken`, `modified` or `name`; unknown keys sort by date taken), optionally limited to a
+- *struct* `FolderQueryParts` · L580
+- `build_folder_query_parts` · L588
+- `list_query_sql` · L599
+- `count_query_sql` · L609
+- `pub get_photos_filtered` · L618 — `get_photos_sorted` restricted by a prefilter (see `PhotoPrefilter`).
+- `count_matching` · L665 — Photos matching the folder, an extra condition and a prefilter condition (with its values), counted with the same statement shape.
+- `pub count_photos` · L677 — Number of photos the same query would return without a limit: the interface tells the user when its list is capped.
+- `pub explain_folder_query` · L684
+- `pub get_photos_by_paths` · L725 — Photos of the given paths (duplicate search results), in chunks to stay under the SQLite variable limit. Unknown paths are skipped.
+- `pub get_photos_by_ids` · L740 — Catalog records of a list of photo ids (results of the content search); unknown ids are left out. Order is unspecified.
+- `pub get_folder_counts` · L757 — Nombre de photos et vidéos par dossier (niveau direct, sans les sous-dossiers), sur tout le catalogue et sans filtre.
 
 ## duplicates.rs (51)
 
@@ -888,7 +888,7 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `is_excluded` · L255 — The path is one of the `excluded` folders or lies inside one.
 - `pub sync_library` · L271 — Compare les dossiers suivis au catalogue :
 
-## main.rs (207)
+## main.rs (208)
 
 - *struct* `pub AppDataPaths` · L60
 - `pub AppDataPaths::from_base` · L69
@@ -1089,14 +1089,15 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `clipboard_entry` · L3551 — Format attendu par clipboard-rs pour set_files : sous Windows, les chemins tels quels (la crate construit elle-même la liste CF_HDROP ;
 - `clipboard_entry` · L3556
 - `file_uri` · L3562 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
-- `main` · L3576
-- `move_file_or_copy` · L3935 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3956 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3974 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3991 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L4019
-- `get_storage_location` · L4026
-- `change_storage_location` · L4036
+- `pub init_catalog` · L3577 — Opens the core SQLite pool (`db::init_core`) and initializes every feature module's schema.
+- `main` · L3607
+- `move_file_or_copy` · L3966 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3987 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L4005 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L4022 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L4050
+- `get_storage_location` · L4057
+- `change_storage_location` · L4067
 
 ## model_files.rs (11)
 

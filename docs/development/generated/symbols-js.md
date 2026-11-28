@@ -461,20 +461,20 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export getFaceModelState()` · L1516
 - `export refreshFaceModelStatus()` · L1520
 - `renderModelStatus()` · L1533 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
-- `export downloadFaceModels()` · L1571
-- `importModels()` · L1600
-- `sendFaceSettings()` · L1613
-- `scheduleReclassify()` · L1618 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
-- `initDetectionSettings()` · L1632
-- `applyDetectionEnabled()` · L1683 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
-- `setDetectionEnabled(enabled)` · L1697
-- `export setFaceDetectionEnabled(wanted)` · L1704
-- `checkbox(label, checked)` · L1713
-- `dialogButton(label, className, onClick)` · L1725
-- `enqueueFaceScan(scope, recursive)` · L1736 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
-- `export openFaceScanDialog(scope)` · L1769 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
-- `applyReadingEnabled()` · L1848 — ==========================================
-- `export initFacesPanel(hostApi)` · L1868 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
+- `export downloadFaceModels()` · L1572
+- `importModels()` · L1601
+- `sendFaceSettings()` · L1614
+- `scheduleReclassify()` · L1619 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
+- `initDetectionSettings()` · L1633
+- `applyDetectionEnabled()` · L1684 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
+- `setDetectionEnabled(enabled)` · L1698
+- `export setFaceDetectionEnabled(wanted)` · L1705
+- `checkbox(label, checked)` · L1714
+- `dialogButton(label, className, onClick)` · L1726
+- `enqueueFaceScan(scope, recursive)` · L1737 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
+- `export openFaceScanDialog(scope)` · L1770 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
+- `applyReadingEnabled()` · L1849 — ==========================================
+- `export initFacesPanel(hostApi)` · L1869 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
 
 ## src/file-dates.js (3)
 

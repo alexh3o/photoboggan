@@ -97,7 +97,7 @@ const CONNECTION_INIT_SQL: &str =
      PRAGMA cache_size=-64000;
      PRAGMA mmap_size=30000000000;";
 
-pub fn init_db(db_path: &str) -> Result<DbPool, String> {
+pub fn init_core(db_path: &str) -> Result<DbPool, String> {
     // Fail fast on invalid paths or non-SQLite files instead of waiting for r2d2's 30s pool timeout.
     {
         let probe = rusqlite::Connection::open(db_path)
@@ -185,30 +185,6 @@ pub fn init_db(db_path: &str) -> Result<DbPool, String> {
     conn.execute("CREATE INDEX IF NOT EXISTS idx_path ON photos(path)", []).map_err(|e| format!("Database index could not be created: {e}"))?;
     // Expression index matching `NORM_PATH` / `push_folder_condition` so folder prefix queries do an index range scan instead of a full table scan.
     conn.execute("CREATE INDEX IF NOT EXISTS idx_path_norm ON photos(replace(path, char(92), '/'))", []).map_err(|e| format!("Database index could not be created: {e}"))?;
-
-    // Hierarchical keywords (tree and photo <-> keyword link): see keywords.rs.
-    crate::keywords::init_schema(&conn).map_err(|e| format!("Keyword tables could not be created: {e}"))?;
-    // Author presets (rights.rs).
-    crate::rights::init_schema(&conn).map_err(|e| format!("Author preset table could not be created: {e}"))?;
-    // Saved batch rename presets: see batch_rename.rs.
-    crate::batch_rename::init_schema(&conn).map_err(|e| format!("Rename preset table could not be created: {e}"))?;
-    // Virtual albums (folders, manual and smart albums): see albums.rs.
-    crate::albums::init_schema(&conn).map_err(|e| format!("Album tables could not be created: {e}"))?;
-    // Faces and persons: see faces.rs.
-    crate::faces::init_schema(&conn).map_err(|e| format!("Face tables could not be created: {e}"))?;
-    // Erased GPS coordinates (backup for "Restore geolocation"): see geolocation.rs.
-    crate::geolocation::init_schema(&conn).map_err(|e| format!("Erased locations table could not be created: {e}"))?;
-    // Cache of the file hashes used by the duplicate search: see duplicates.rs (empty until a search is started).
-    crate::duplicates::init_schema(&conn).map_err(|e| format!("Duplicate hash table could not be created: {e}"))?;
-    // Cache of the perceptual hashes used by the similar-image search: see similar.rs (empty until a search is started).
-    crate::similar::init_schema(&conn).map_err(|e| format!("Perceptual hash table could not be created: {e}"))?;
-    // Embeddings of the semantic search (semantic.rs): empty until the user enables the feature and starts an analysis.
-    crate::semantic::init_schema(&conn).map_err(|e| format!("Semantic search tables could not be created: {e}"))?;
-    // Map private zones: see private_maps.rs (loaded in memory on open for the per-tile rule).
-    crate::private_maps::init_schema(&conn).map_err(|e| format!("Private zone table could not be created: {e}"))?;
-    if let Err(error) = crate::private_maps::reload_zones(&conn) { crate::app_log::log_error("Private zones unavailable", error); }
-    // Import history & removable media policies: see import.rs.
-    crate::import::init_schema(&conn).map_err(|e| format!("Import tables could not be created: {e}"))?;
 
     Ok(pool)
 }

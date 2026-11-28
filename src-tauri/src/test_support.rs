@@ -66,7 +66,7 @@ pub fn paths(list: &[&[&str]]) -> Vec<Vec<String>> {
 /// Catalogue SQLite temporaire (même schéma et mêmes réglages que l'application). Le dossier est supprimé avec la valeur renvoyée.
 pub fn temp_catalog() -> (tempfile::TempDir, crate::db::DbPool) {
     let dir = tempfile::tempdir().expect("temp dir");
-    let pool = crate::db::init_db(&dir.path().join("catalog.db").to_string_lossy()).expect("temp catalog");
+    let pool = crate::init_catalog(&dir.path().join("catalog.db").to_string_lossy()).expect("temp catalog");
     (dir, pool)
 }
 

@@ -40,7 +40,7 @@ Then `auto_link_person` links each touched person to the keyword node of the sam
 ## Contracts
 - IPC commands: all above, in `generated/ipc-commands.md` (search `faces.rs`). Error codes returned as strings: `invalid_name`, `unknown_person`, `unknown_keyword`, `person_name_taken`, `person_linked`, `keyword_taken`, `invalid_region`, `unknown_photo`.
 - Events: none (progress of scans comes from `face_detect.rs`).
-- Database: `persons`, `faces`, `photo_face_scans`, `face_keywords`, `photo_face_writes`, `person_merges`, `person_merge_faces` (created in `faces::init_schema`, called by `db::init_db`), reads `keyword_nodes`, `photo_keywords`, `photos`; see `generated/db-schema.md`.
+- Database: `persons`, `faces`, `photo_face_scans`, `face_keywords`, `photo_face_writes`, `person_merges`, `person_merge_faces` (created in `faces::init_schema`, called by `init_catalog` in `main.rs`), reads `keyword_nodes`, `photo_keywords`, `photos`; see `generated/db-schema.md`.
 - Settings: `faceReading`, `faceDetection`, `faceSettings`, `facePersonRoot`, `faceScanFilter`, `fullscreenFacesVisible`, `faceIgnoredShown`, `faceNotFaceShown`, `personsSort`, `personsTileSize`, `facesViewStatuses`; see `generated/config.md`.
 
 ## Dependencies

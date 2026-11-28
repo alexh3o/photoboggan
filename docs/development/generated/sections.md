@@ -71,7 +71,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L765–L1015 | 251 | BARRE D'OUTILS : FILTRE PAR STATUT, ACTIONS |
 | L1016–L1121 | 106 | INITIALISATION |
 
-## src/faces-panel.js (1949 lines)
+## src/faces-panel.js (1950 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -81,8 +81,8 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L439–L983 | 545 | SECTION PERSONNES (barre latérale) |
 | L984–L1009 | 26 | SECTIONS REPLIABLES (Dossiers, Personnes, Filtres) |
 | L1010–L1480 | 471 | ZONES DE VISAGE EN PLEIN ÉCRAN (touche V) |
-| L1481–L1843 | 363 | DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT |
-| L1844–L1949 | 106 | RÉGLAGE ET INITIALISATION |
+| L1481–L1844 | 364 | DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT |
+| L1845–L1950 | 106 | RÉGLAGE ET INITIALISATION |
 
 ## src/find-raw-mode.js (127 lines)
 
@@ -414,11 +414,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L249–L686 | 438 | Écriture des mots-clés dans les fichiers |
 | L687–L972 | 286 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (4135 lines)
+## src-tauri/src/main.rs (4166 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L3331–L4131 | 801 | Programs allowed for "Open with" |
+| L3331–L4162 | 832 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 

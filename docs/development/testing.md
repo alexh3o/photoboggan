@@ -27,7 +27,7 @@ cd src-tauri && cargo test exiftool:: -- --ignored --test-threads=1   # ExifTool
 - A test that fails after being ignored documents a known gap: report it, never weaken the assertion to "fix" it (AGENTS.md §5.H).
 
 ### Helpers (`test_support.rs`)
-`jpeg_bytes(w, h)` and `png_bytes(w, h)` (synthetic gradients, never a real photo), `scan_data` (the bytes after the JPEG SOS marker: must be identical before and after a metadata write), `with_segment` (insert an APPn segment), `decoded_pixels`, `contains`, `paths` (keyword paths), `temp_catalog()` (a real catalogue through `db::init_db` in a `tempfile` folder: same schema and pragmas as the app, deleted when dropped) and `insert_photo`. Further helpers in the same file build synthetic pictures for the similarity and semantic tests. Tests create files only in a `tempfile` folder; no network, no face or semantic model in the fast set.
+`jpeg_bytes(w, h)` and `png_bytes(w, h)` (synthetic gradients, never a real photo), `scan_data` (the bytes after the JPEG SOS marker: must be identical before and after a metadata write), `with_segment` (insert an APPn segment), `decoded_pixels`, `contains`, `paths` (keyword paths), `temp_catalog()` (a real catalogue through `crate::init_catalog` in a `tempfile` folder: same schema and pragmas as the app, deleted when dropped) and `insert_photo`. Further helpers in the same file build synthetic pictures for the similarity and semantic tests. Tests create files only in a `tempfile` folder; no network, no face or semantic model in the fast set.
 
 ### What each group protects
 | Risk | Test file (key tests) |

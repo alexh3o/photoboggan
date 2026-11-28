@@ -62,7 +62,7 @@ Title and description come from the catalogue columns `title` and `caption` (alr
 
 - IPC: `get_keyword_tree`, `get_keyword_filter_tree`, `get_keyword_descendant_photos`, `get_photo_keyword_ids`, `get_keyword_usage`, `apply_metadata_changes`, `create_keyword`, `get_keyword_delete_info`, `delete_keyword`, `rename_keyword`, `set_metadata_read_order`, `exiftool_prewarm`: `../generated/ipc-commands.md`. Error codes: `invalid_name`, `unknown_parent`, `unknown_keyword`, `duplicate`.
 - Events: `scan-progress` (per task id) during writes.
-- Database: `keyword_nodes`, `photo_keywords` (created by `init_schema`, called from `db::init_db`; orphan links of removed photos are deleted at each start); touches `photos` (`keywords`, `title`, `caption`, `author`, `copyright`, `credit`, `usage_terms`, `author_email`, `file_size`, `modified`, `effective_modified`, GPS), `persons.keyword_node_id`, `faces.dirty`, `keyword_suggestion_rejections`.
+- Database: `keyword_nodes`, `photo_keywords` (created by `init_schema`, called from `init_catalog` in `main.rs`; orphan links of removed photos are deleted at each start); touches `photos` (`keywords`, `title`, `caption`, `author`, `copyright`, `credit`, `usage_terms`, `author_email`, `file_size`, `modified`, `effective_modified`, GPS), `persons.keyword_node_id`, `faces.dirty`, `keyword_suggestion_rejections`.
 - Settings: `keywordsAutoApply`, `keywordsAutoApplyAsked`, `keywordFilterMode`, `sidePanelTab`, `keywordSuggestionsOpen` (`../generated/config.md`).
 
 ## Dependencies

@@ -68,7 +68,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `module-deps.md` | 129 |  |
 | `sections.md` | 500 |  |
 | `symbols-js.md` | 1888 |  |
-| `symbols-rust.md` | 1712 |  |
+| `symbols-rust.md` | 1713 |  |
 | `tests.md` | 587 |  |
 
 ## docs/development/modules
@@ -131,7 +131,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.css` | 61 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
 | `duplicates.js` | 262 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1121 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
-| `faces-panel.js` | 1949 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
+| `faces-panel.js` | 1950 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `file-dates.js` | 44 | Tooltip of the "Date taken" row of the Info tab: the creation and modification dates of the active photo's file. The dates are read from the disk (get_file_dates in main.rs) only when the row is hovered, so nothing is r… |
 | `file-kinds.js` | 16 | File kinds from the extension: RAW and video. Pure code: no state, no DOM. The extension lists themselves live in format-filters.js. Leaf module (imports nothing from main.js), so that modules such as photo-actions.js d… |
@@ -251,7 +251,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
 | `app_log.rs` | 46 | Minimal persistent error log (`<data_dir>/logs/app.log`) for critical backend failures. Release Windows builds use `windows_subsystem = "windows"` (no stderr), so errors written here stay diagnosable. |
 | `batch_rename.rs` | 870 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
-| `db.rs` | 805 |  |
+| `db.rs` | 781 |  |
 | `duplicates.rs` | 1121 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
 | `exif.rs` | 2396 |  |
 | `exiftool.rs` | 1384 | Metadata writing via `ExifTool` (<https://exiftool.org>). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PA… |
@@ -266,7 +266,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `integrity.rs` | 778 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 976 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (`parent_id` = 0 … |
 | `library_sync.rs` | 429 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 4135 |  |
+| `main.rs` | 4166 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |

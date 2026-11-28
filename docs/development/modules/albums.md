@@ -39,7 +39,7 @@ Albums organise photos **without touching the files**: virtual folders to group 
 - Settings: `albumsExpanded`, `albumsCollapsed`, `albumOverwriteWarning` (localStorage). The text of the quick search is not remembered.
 
 ## Dependencies
-- Uses: `db.rs` (`PHOTO_COLUMNS`, `photo_from_row`, `init_db` calls `albums::init_schema`), `photo-actions.js` dialogs (`promptDialog`, `confirmDialog`, `createModal`, `openContextMenuAt`), `sidebar-search.js` and `i18n.js` `normalizeSearch` (quick search), the filter modules through `main.js`.
+- Uses: `db.rs` (`PHOTO_COLUMNS`, `photo_from_row`), `main.rs` (`init_catalog` calls `albums::init_schema`), `photo-actions.js` dialogs (`promptDialog`, `confirmDialog`, `createModal`, `openContextMenuAt`), `sidebar-search.js` and `i18n.js` `normalizeSearch` (quick search), the filter modules through `main.js`.
 - Used by: `main.js` (loading, filters, counts), `drag-drop.js` (photo drops onto manual albums via `getSelectedAlbum` / `addPhotosToAlbum` / `movePhotosToAlbum`), `photo-actions.js` (add to album, remove from album menu entries via `addPhotosToAlbum` / `removePhotosFromSelectedAlbum`).
 
 ## Invariants and sensitive areas

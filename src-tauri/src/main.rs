@@ -3573,6 +3573,37 @@ fn file_uri(path: &str) -> String {
     uri
 }
 
+/// Opens the core SQLite pool (`db::init_core`) and initializes every feature module's schema.
+pub(crate) fn init_catalog(db_path: &str) -> Result<DbPool, String> {
+    let pool = db::init_core(db_path)?;
+    let conn = pool.get().map_err(|e| format!("Database connection unavailable: {e}"))?;
+    // Hierarchical keywords (tree and photo <-> keyword link): see keywords.rs.
+    keywords::init_schema(&conn).map_err(|e| format!("Keyword tables could not be created: {e}"))?;
+    // Author presets (rights.rs).
+    rights::init_schema(&conn).map_err(|e| format!("Author preset table could not be created: {e}"))?;
+    // Saved batch rename presets: see batch_rename.rs.
+    batch_rename::init_schema(&conn).map_err(|e| format!("Rename preset table could not be created: {e}"))?;
+    // Virtual albums (folders, manual and smart albums): see albums.rs.
+    albums::init_schema(&conn).map_err(|e| format!("Album tables could not be created: {e}"))?;
+    // Faces and persons: see faces.rs.
+    faces::init_schema(&conn).map_err(|e| format!("Face tables could not be created: {e}"))?;
+    // Erased GPS coordinates (backup for "Restore geolocation"): see geolocation.rs.
+    geolocation::init_schema(&conn).map_err(|e| format!("Erased locations table could not be created: {e}"))?;
+    // Cache of the file hashes used by the duplicate search: see duplicates.rs (empty until a search is started).
+    duplicates::init_schema(&conn).map_err(|e| format!("Duplicate hash table could not be created: {e}"))?;
+    // Cache of the perceptual hashes used by the similar-image search: see similar.rs (empty until a search is started).
+    similar::init_schema(&conn).map_err(|e| format!("Perceptual hash table could not be created: {e}"))?;
+    // Embeddings of the semantic search (semantic.rs): empty until the user enables the feature and starts an analysis.
+    semantic::init_schema(&conn).map_err(|e| format!("Semantic search tables could not be created: {e}"))?;
+    // Map private zones: see private_maps.rs (loaded in memory on open for the per-tile rule).
+    private_maps::init_schema(&conn).map_err(|e| format!("Private zone table could not be created: {e}"))?;
+    if let Err(error) = private_maps::reload_zones(&conn) { app_log::log_error("Private zones unavailable", error); }
+    // Import history & removable media policies: see import.rs.
+    import::init_schema(&conn).map_err(|e| format!("Import tables could not be created: {e}"))?;
+    drop(conn);
+    Ok(pool)
+}
+
 fn main() {
     let app = match tauri::Builder::default()
         // Registered first, so a second instance exits before opening the database or starting anything. It brings the open window back.
@@ -3605,7 +3636,7 @@ fn main() {
                 fail_startup(&format!("Impossible d'initialiser les chemins de l'application :\n{error}"))
             });
             app_log::set_logs_dir(paths.base_dir.join("logs"));
-            let db_pool = db::init_db(&paths.db_path.to_string_lossy()).unwrap_or_else(|error| {
+            let db_pool = init_catalog(&paths.db_path.to_string_lossy()).unwrap_or_else(|error| {
                 fail_startup(&format!("Impossible d'ouvrir le catalogue ({}) :\n{error}", paths.db_path.display()))
             });
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
@@ -4083,7 +4114,7 @@ fn change_storage_location(
 
     // 2. Ouverture de la base copiée, avant de toucher à l'état de l'application.
     let new_db_path = target_dir.join("photos_library.db");
-    let new_pool = match db::init_db(&new_db_path.to_string_lossy()) {
+    let new_pool = match init_catalog(&new_db_path.to_string_lossy()) {
         Ok(pool) => pool,
         Err(_) => {
             remove_storage(&target_dir);
