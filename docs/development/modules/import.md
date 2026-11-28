@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/import.rs, src/import-view.js, src/import-settings.js, src/import-view.css -->
+<!-- verified: f35fbde | sources: src-tauri/src/import.rs, src-tauri/src/import_platform.rs, src/import-view.js, src/import-settings.js, src/import-view.css -->
 # SD Card and Folder Import
 
 ## Purpose
@@ -9,14 +9,15 @@ Imports photos and videos from removable media (SD cards, USB drives) or externa
 
 | File | Role |
 |---|---|
-| `src-tauri/src/import.rs` | Schema (`import_devices`, `import_history`, `import_presets`), OS device watcher (`WM_DEVICECHANGE` / `inotify`), two-pass source scan, RAM-only thumbnail/preview streaming, saved recipe CRUD, chronological copy reusing `main.rs` primitives, targeted indexing (`index_imported_photos`), disk space & ejection |
+| `src-tauri/src/import.rs` | Schema (`import_devices`, `import_history`, `import_presets`), media policy/snapshot filtering, two-pass source scan, RAM-only thumbnail/preview streaming, saved recipe CRUD, chronological copy reusing `main.rs` primitives, targeted indexing (`index_imported_photos`), and eject validation |
+| `src-tauri/src/import_platform.rs` | Leaf OS layer: removable volume enumeration, free disk space, safe ejection (`DeviceIoControl` / `udisksctl`), storage-kind classification (`detect_storage_kind`), and OS device watcher (`WM_DEVICECHANGE` / `inotify`) |
 | `src/import-view.js` | Dedicated `#import-view` full-content mode (isolated from `loadedPhotos`), retained-node virtualized list/grid with prioritized thumbnail queue, right-column preview click, LRU Blob URL cache, saved recipes UI, destination/subfolder/collision UI, and post-import task chaining |
 | `src/import-settings.js` | Settings > Storage > Import controls, backend watcher sync (`set_import_watcher_config`), `.mode-group` toolbar toggle/badge (`syncImportToolbarButton`), arrival toast, and device/history management modal |
 | `src/import-view.css` | Layout and theme styles for `#import-view`, `--kind-*` folder icons, and report/device modals |
 
 ## How it works
 
-1. **OS device detection (zero polling at rest)**: `set_import_watcher_config` starts/stops a dedicated OS watcher thread (hidden top-level window for `WM_DEVICECHANGE` on Windows — never `HWND_MESSAGE` which misses broadcasts; `inotify` + `poll` on Linux) when `importAutoDetect` is enabled. Drives overlapping any tracked library folder are excluded. Photo media are recognized in O(1) via user-editable marker paths (`DCIM`, `PRIVATE/M4ROOT`, `MP_ROOT`, `AVCHD`) and filtered by `importDeviceListMode` (`blacklist` / `whitelist`). Arrival/removal diffs the `(media_id, root_path, eligible)` snapshot before emitting `import-media-changed`. `identify_source` also classifies the source via `detect_storage_kind` (`"removable"`, `"internal"`, `"network"`).
+1. **OS device detection (zero polling at rest)**: `set_import_watcher_config` (`import.rs`) starts/stops a dedicated OS watcher thread in `import_platform.rs` (hidden top-level window for `WM_DEVICECHANGE` on Windows — never `HWND_MESSAGE` which misses broadcasts; `inotify` + `poll` on Linux) when `importAutoDetect` is enabled, passing an `on_change` callback. Drives overlapping any tracked library folder are excluded. Photo media are recognized in O(1) via user-editable marker paths (`DCIM`, `PRIVATE/M4ROOT`, `MP_ROOT`, `AVCHD`) and filtered by `importDeviceListMode` (`blacklist` / `whitelist`). Arrival/removal diffs the `(media_id, root_path, eligible)` snapshot before emitting `import-media-changed`. `identify_source` also classifies the source via `import_platform::detect_storage_kind` (`"removable"`, `"internal"`, `"network"`).
 2. **Two-pass source scan**:
    - **Pass 1 (`scan_import_source_fast`)**: `WalkDir` metadata-only scan builds folder counts/kinds and checks already-imported status against `import_history` (`(relative_path, file_size, file_mtime)`) and `photos` (`(filename, file_size)`) with zero SD content reads.
    - **Pass 2 (`read_import_source_exif`)**: runs on at most 2 rayon threads, reading `date_taken` & `orientation` via pure-seek `thumbnails::read_fast_exif_fields` (~4–64 KB per file instead of loading full 40+ MB RAWs) and streaming `import-exif-progress`. The UI updates mounted rows in place and re-sorts once on completion. Ambiguous `new` candidates matching a library `date_taken` are disambiguated via `duplicates::quick_partial_hash`.
@@ -35,7 +36,7 @@ Imports photos and videos from removable media (SD cards, USB drives) or externa
 
 ## Dependencies
 
-- Uses: `main.rs` durable copy/conflict/sidecar/cancel primitives, `thumbnails.rs` RAM JPEG encoding, `duplicates::quick_partial_hash`, `library_sync::read_photo` & `store_read_batch`, `privacy::is_private_folder`, `date-filter.js` (`createDateFilterControl`), `batch-rename-engine.js`, `task-queue.js`, `photo-actions.js`.
+- Uses: `import_platform.rs` (OS removable drives, free space, ejection, storage-kind, device watcher), `main.rs` durable copy/conflict/sidecar/cancel primitives, `thumbnails.rs` RAM JPEG encoding, `duplicates::quick_partial_hash`, `library_sync::read_photo` & `store_read_batch`, `privacy::is_private_folder`, `date-filter.js` (`createDateFilterControl`), `batch-rename-engine.js`, `task-queue.js`, `photo-actions.js`.
 - Used by: `main.js` (view mode & menus), `photo-actions.js` ("Import photos here…").
 
 ## Invariants and sensitive areas

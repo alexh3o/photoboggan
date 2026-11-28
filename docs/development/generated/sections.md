@@ -389,23 +389,29 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L51–L111 | 61 | Lecture des pixels |
 | L112–L282 | 171 | Analyse du conteneur (positions des champs, nécessaires pour modifier le fichier sur place) |
 
-## src-tauri/src/import.rs (2645 lines)
+## src-tauri/src/import.rs (1969 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L28–L64 | 37 | Configuration statics (pushed from frontend at startup and on change) |
-| L65–L103 | 39 | SQLite schema |
-| L104–L291 | 188 | Data types |
-| L292–L351 | 60 | Path & format helpers |
-| L352–L780 | 429 | Platform-specific removable drive enumeration, free space & ejection |
-| L781–L855 | 75 | Media enumeration + policy |
-| L856–L1169 | 314 | OS event-driven device watcher (zero polling at rest) |
-| L1170–L1292 | 123 | Destination validation & ejection |
-| L1293–L1701 | 409 | Source identification & two-pass scan |
-| L1702–L1756 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
-| L1757–L2398 | 642 | Destination subfolder computation, conflict detection & chronological copy |
-| L2399–L2555 | 157 | Device & history management (Settings) |
-| L2556–L2641 | 86 | Saved import recipes (Subfolders + After copy) |
+| L30–L66 | 37 | Configuration statics (pushed from frontend at startup and on change) |
+| L67–L105 | 39 | SQLite schema |
+| L106–L293 | 188 | Data types |
+| L294–L353 | 60 | Path & format helpers |
+| L354–L428 | 75 | Media enumeration + policy |
+| L429–L493 | 65 | Device watcher snapshot & config |
+| L494–L616 | 123 | Destination validation & ejection |
+| L617–L1025 | 409 | Source identification & two-pass scan |
+| L1026–L1080 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
+| L1081–L1722 | 642 | Destination subfolder computation, conflict detection & chronological copy |
+| L1723–L1879 | 157 | Device & history management (Settings) |
+| L1880–L1965 | 86 | Saved import recipes (Subfolders + After copy) |
+
+## src-tauri/src/import_platform.rs (701 lines)
+
+| Lines | Size | Section |
+|---|---:|---|
+| L21–L449 | 429 | Platform-specific removable drive enumeration, free space & ejection |
+| L450–L701 | 252 | OS event-driven device watcher (zero polling at rest) |
 
 ## src-tauri/src/keywords.rs (976 lines)
 
@@ -414,11 +420,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L249–L686 | 438 | Écriture des mots-clés dans les fichiers |
 | L687–L972 | 286 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (4166 lines)
+## src-tauri/src/main.rs (4167 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L3331–L4162 | 832 | Programs allowed for "Open with" |
+| L3332–L4163 | 832 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 

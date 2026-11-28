@@ -23,7 +23,8 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `geolocation` | db, exif, exiftool, keywords, library_sync, main | keywords |
 | `hash_tasks` | db, duplicates, library_sync, main, phash, runtime, semantic, similar, thumbnails | — |
 | `heif` | — | exif, exiftool, face_detect, integrity, orientation, resize, thumbnails |
-| `import` | db, duplicates, faces | — |
+| `import` | db, duplicates, faces, import_platform | — |
+| `import_platform` | — | import |
 | `integrity` | db, duplicates, heif, main, phash, similar | semantic |
 | `keywords` | db, exif, faces, geolocation, library_sync, main, privacy, runtime, semantic_keywords | db, face_detect, face_recognize, faces, geolocation, library_sync, privacy, semantic, semantic_keywords, semantic_search, similar |
 | `library_sync` | db, exif, faces, keywords, main, thumbnails, video | exif, geolocation, hash_tasks, keywords |

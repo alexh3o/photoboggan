@@ -1,4 +1,4 @@
-<!-- verified: 2a84306 | sources: src-tauri/src/update_check.rs, src/update-check.js -->
+<!-- verified: f35fbde | sources: src-tauri/src/update_check.rs, src/update-check.js -->
 # Update check and installer
 
 ## Purpose

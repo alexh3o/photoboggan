@@ -27,6 +27,7 @@ mod face_recognize;
 mod faces;
 mod heif;
 mod import;
+mod import_platform;
 mod integrity;
 mod keywords;
 mod library_sync;

@@ -1,4 +1,4 @@
-<!-- verified: 2a84306 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: f35fbde | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose

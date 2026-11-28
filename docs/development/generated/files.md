@@ -82,7 +82,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `faces.md` | 69 |  |
 | `filters-and-search.md` | 108 |  |
 | `grid-and-viewer.md` | 122 |  |
-| `import.md` | 62 |  |
+| `import.md` | 63 |  |
 | `keywords.md` | 94 |  |
 | `library-and-database.md` | 83 |  |
 | `main-window.md` | 91 |  |
@@ -262,11 +262,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `geolocation.rs` | 262 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `hash_tasks.rs` | 919 | Background duplicate hash precomputation, pre-flight work counting, settings stats, deletion, and list-view exact hash states. Runs in the shared low-priority background lane (`semantic::background_busy`), commits in ch… |
 | `heif.rs` | 286 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
-| `import.rs` | 2645 | SD card and external folder photo import: OS media detection, two-pass source scan, RAM-only thumbnail/preview streaming, chronological durable copy reusing existing file primitives, incremental import memory, and targe… |
+| `import_platform.rs` | 701 | Platform-specific OS layer for SD card and external folder import: removable volume enumeration, free disk space, safe ejection, storage-kind classification, and event-driven OS device watching (Windows & Linux/Unix). |
+| `import.rs` | 1969 | SD card and external folder photo import: OS media detection, two-pass source scan, RAM-only thumbnail/preview streaming, chronological durable copy reusing existing file primitives, incremental import memory, and targe… |
 | `integrity.rs` | 778 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 976 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (`parent_id` = 0 … |
 | `library_sync.rs` | 429 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 4166 |  |
+| `main.rs` | 4167 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
