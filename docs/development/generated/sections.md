@@ -305,16 +305,16 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 |---|---:|---|
 | L314–L400 | 87 | COMMANDES IPC |
 
-## src-tauri/src/batch_rename.rs (873 lines)
+## src-tauri/src/batch_rename.rs (870 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L62–L85 | 24 | Length limits |
 | L86–L125 | 40 | Helpers |
 | L126–L450 | 325 | Planning |
-| L451–L727 | 277 | Execution |
-| L728–L792 | 65 | Commands |
-| L793–L869 | 77 | Saved recipes |
+| L451–L724 | 274 | Execution |
+| L725–L789 | 65 | Commands |
+| L790–L866 | 77 | Saved recipes |
 
 ## src-tauri/src/duplicates.rs (1121 lines)
 
@@ -328,25 +328,25 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L608–L796 | 189 | Candidates and cache |
 | L797–L1117 | 321 | Search |
 
-## src-tauri/src/exif.rs (2400 lines)
+## src-tauri/src/exif.rs (2396 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L373–L383 | 11 | Coordonnées GPS : lues dans l'EXIF et dans le XMP (exif:GPSLatitude / exif:GPSLongitude), la première source valide dan… |
 | L384–L443 | 60 | Flash : tag EXIF Flash (0x9209), entier 16 bits dont le bit 0 indique que le flash s'est déclenché (les autres bits déc… |
 | L444–L479 | 36 | Titre et description : plusieurs sources par fichier, la première non vide dans l'ordre de priorité réglé (Paramètres, … |
-| L480–L1761 | 1282 | Auteur et droits : cinq champs (auteur, mention de copyright, crédit, conditions d'utilisation, e-mail de l'auteur), ch… |
-| L1762–L2127 | 366 | Zones de visage (lot 4) : MWG Regions et Microsoft Photo RegionInfo, mêmes champs que l'écriture par ExifTool (exiftool… |
-| L2128–L2392 | 265 | Détail complet des métadonnées (fenêtre « Infos ») : EXIF, XMP et IPTC tels qu'ils sont dans le fichier. |
+| L480–L1757 | 1278 | Auteur et droits : cinq champs (auteur, mention de copyright, crédit, conditions d'utilisation, e-mail de l'auteur), ch… |
+| L1758–L2123 | 366 | Zones de visage (lot 4) : MWG Regions et Microsoft Photo RegionInfo, mêmes champs que l'écriture par ExifTool (exiftool… |
+| L2124–L2388 | 265 | Détail complet des métadonnées (fenêtre « Infos ») : EXIF, XMP et IPTC tels qu'ils sont dans le fichier. |
 
-## src-tauri/src/exiftool.rs (1383 lines)
+## src-tauri/src/exiftool.rs (1384 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L34–L113 | 80 | Réglages (envoyés par l'interface au démarrage et à chaque changement) |
 | L114–L308 | 195 | Détection de l'exécutable |
 | L309–L582 | 274 | Processus persistants |
-| L583–L1375 | 793 | Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus l'EXIF des JPEG) |
+| L583–L1376 | 794 | Écritures (mêmes cibles que l'écriture interne d'exif.rs, plus l'EXIF des JPEG) |
 
 ## src-tauri/src/face_detect.rs (803 lines)
 
@@ -358,20 +358,20 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L325–L413 | 89 | Photos à scanner |
 | L414–L799 | 386 | Scan et enregistrement |
 
-## src-tauri/src/faces.rs (2082 lines)
+## src-tauri/src/faces.rs (2079 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
 | L44–L63 | 20 | Réglages : lecture activée, ordre de priorité des formats |
 | L64–L326 | 263 | Lecture des zones dans un paquet XMP |
-| L327–L621 | 295 | Base de données |
-| L622–L848 | 227 | Commandes de l'interface |
-| L849–L1404 | 556 | Vue Visages (lot 3) : liste des visages, statut de scan, révision |
-| L1405–L1622 | 218 | Écriture dans les fichiers (lot 4) : zones de visage et mots-clés des personnes (spec §6.2 à §6.4) |
-| L1623–L1653 | 31 | Regroupement des visages inconnus (lot 5b, spec §5.3) |
-| L1654–L1766 | 113 | Gestion des personnes (lot 5a) : renommer, masquer, visage représentatif, supprimer, vignette de la vue Personnes |
-| L1767–L1938 | 172 | Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5) |
-| L1939–L2074 | 136 | Zones dessinées à la main en plein écran (lot 5c, spec §9.4) |
+| L327–L618 | 292 | Base de données |
+| L619–L845 | 227 | Commandes de l'interface |
+| L846–L1401 | 556 | Vue Visages (lot 3) : liste des visages, statut de scan, révision |
+| L1402–L1619 | 218 | Écriture dans les fichiers (lot 4) : zones de visage et mots-clés des personnes (spec §6.2 à §6.4) |
+| L1620–L1650 | 31 | Regroupement des visages inconnus (lot 5b, spec §5.3) |
+| L1651–L1763 | 113 | Gestion des personnes (lot 5a) : renommer, masquer, visage représentatif, supprimer, vignette de la vue Personnes |
+| L1764–L1935 | 172 | Fusion de personnes et nettoyage (lot 5c, spec §8 et §9.5) |
+| L1936–L2071 | 136 | Zones dessinées à la main en plein écran (lot 5c, spec §9.4) |
 
 ## src-tauri/src/hash_tasks.rs (919 lines)
 
@@ -389,7 +389,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L51–L111 | 61 | Lecture des pixels |
 | L112–L282 | 171 | Analyse du conteneur (positions des champs, nécessaires pour modifier le fichier sur place) |
 
-## src-tauri/src/import.rs (2660 lines)
+## src-tauri/src/import.rs (2645 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -398,27 +398,27 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L104–L291 | 188 | Data types |
 | L292–L351 | 60 | Path & format helpers |
 | L352–L780 | 429 | Platform-specific removable drive enumeration, free space & ejection |
-| L781–L856 | 76 | Media enumeration + policy |
-| L857–L1170 | 314 | OS event-driven device watcher (zero polling at rest) |
-| L1171–L1293 | 123 | Destination validation & ejection |
-| L1294–L1709 | 416 | Source identification & two-pass scan |
-| L1710–L1764 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
-| L1765–L2410 | 646 | Destination subfolder computation, conflict detection & chronological copy |
-| L2411–L2570 | 160 | Device & history management (Settings) |
-| L2571–L2656 | 86 | Saved import recipes (Subfolders + After copy) |
+| L781–L855 | 75 | Media enumeration + policy |
+| L856–L1169 | 314 | OS event-driven device watcher (zero polling at rest) |
+| L1170–L1292 | 123 | Destination validation & ejection |
+| L1293–L1701 | 409 | Source identification & two-pass scan |
+| L1702–L1756 | 55 | RAM-only thumbnails & previews (never touches disk cache or WebView file locks) |
+| L1757–L2398 | 642 | Destination subfolder computation, conflict detection & chronological copy |
+| L2399–L2555 | 157 | Device & history management (Settings) |
+| L2556–L2641 | 86 | Saved import recipes (Subfolders + After copy) |
 
-## src-tauri/src/keywords.rs (985 lines)
-
-| Lines | Size | Section |
-|---|---:|---|
-| L249–L692 | 444 | Écriture des mots-clés dans les fichiers |
-| L693–L981 | 289 | Gestion de l'arborescence : création et suppression de mots-clés |
-
-## src-tauri/src/main.rs (4110 lines)
+## src-tauri/src/keywords.rs (976 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L3335–L4106 | 772 | Programs allowed for "Open with" |
+| L249–L686 | 438 | Écriture des mots-clés dans les fichiers |
+| L687–L972 | 286 | Gestion de l'arborescence : création et suppression de mots-clés |
+
+## src-tauri/src/main.rs (4136 lines)
+
+| Lines | Size | Section |
+|---|---:|---|
+| L3329–L4132 | 804 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 
@@ -426,15 +426,15 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 |---|---:|---|
 | L139–L197 | 59 | Getting the pixels |
 
-## src-tauri/src/private_maps.rs (1156 lines)
+## src-tauri/src/private_maps.rs (1152 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L51–L358 | 308 | Géométrie : coordonnées Web Mercator normalisées (x et y de 0 à 1, y vers le sud), celles du découpage en tuiles. |
-| L359–L559 | 201 | Zones en base et en mémoire |
-| L560–L636 | 77 | Fichiers MBTiles : table `tiles` (rangées TMS, y inversé) et table `metadata`. |
-| L637–L794 | 158 | Téléchargement depuis le fournisseur |
-| L795–L1152 | 358 | Commandes |
+| L51–L357 | 307 | Géométrie : coordonnées Web Mercator normalisées (x et y de 0 à 1, y vers le sud), celles du découpage en tuiles. |
+| L358–L558 | 201 | Zones en base et en mémoire |
+| L559–L635 | 77 | Fichiers MBTiles : table `tiles` (rangées TMS, y inversé) et table `metadata`. |
+| L636–L793 | 158 | Téléchargement depuis le fournisseur |
+| L794–L1148 | 355 | Commandes |
 
 ## src-tauri/src/resize.rs (571 lines)
 
@@ -443,7 +443,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L243–L433 | 191 | Décodage, redimensionnement, encodage |
 | L434–L567 | 134 | Métadonnées JPEG : lecture des segments APPn de la source et mise à jour pour l'image redimensionnée |
 
-## src-tauri/src/semantic.rs (1343 lines)
+## src-tauri/src/semantic.rs (1340 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -453,11 +453,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L246–L319 | 74 | Encoders |
 | L320–L414 | 95 | Priority: the scan gives way to every foreground task (§6.2) |
 | L415–L465 | 51 | Tables (§5.1) |
-| L466–L599 | 134 | Photos of a scan |
-| L600–L703 | 104 | Pixels of a photo |
-| L704–L783 | 80 | Storage |
-| L784–L1246 | 463 | Scan task (§6) |
-| L1247–L1339 | 93 | Statistics and deletion |
+| L466–L596 | 131 | Photos of a scan |
+| L597–L700 | 104 | Pixels of a photo |
+| L701–L780 | 80 | Storage |
+| L781–L1243 | 463 | Scan task (§6) |
+| L1244–L1336 | 93 | Statistics and deletion |
 
 ## src-tauri/src/semantic_keywords.rs (408 lines)
 
@@ -477,13 +477,13 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L134–L210 | 77 | Paths and status |
 | L211–L335 | 125 | Installation |
 
-## src-tauri/src/semantic_search.rs (817 lines)
+## src-tauri/src/semantic_search.rs (814 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L60–L345 | 286 | Index |
-| L346–L554 | 209 | Cache: index, idle release |
-| L555–L813 | 259 | Scope and search |
+| L60–L342 | 283 | Index |
+| L343–L551 | 209 | Cache: index, idle release |
+| L552–L810 | 259 | Scope and search |
 
 ## src-tauri/src/update_check.rs (357 lines)
 

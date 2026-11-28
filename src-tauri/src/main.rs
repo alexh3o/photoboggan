@@ -3572,7 +3572,7 @@ fn file_uri(path: &str) -> String {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = match tauri::Builder::default()
         // Registered first, so a second instance exits before opening the database or starting anything. It brings the open window back.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
@@ -3587,8 +3587,31 @@ fn main() {
             let handle = app.handle();
             exiftool::init(handle.path().resource_dir().ok());
             private_maps::init_bundled_style(handle.path().resource_dir().ok());
-            let paths = resolve_app_paths(handle).map_err(|e| format!("Erreur d'initialisation des chemins : {e}"))?;
-            let db_pool = db::init_db(&paths.db_path.to_string_lossy());
+            let show_startup_error = |message: &str| {
+                use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+                handle
+                    .dialog()
+                    .message(message)
+                    .title("photoboggan")
+                    .kind(MessageDialogKind::Error)
+                    .blocking_show();
+            };
+            let paths = match resolve_app_paths(handle) {
+                Ok(paths) => paths,
+                Err(error) => {
+                    let msg = format!("Impossible d'initialiser les chemins de l'application :\n{error}");
+                    show_startup_error(&msg);
+                    return Err(msg.into());
+                }
+            };
+            let db_pool = match db::init_db(&paths.db_path.to_string_lossy()) {
+                Ok(pool) => pool,
+                Err(error) => {
+                    let msg = format!("Impossible d'ouvrir le catalogue ({}) :\n{error}", paths.db_path.display());
+                    show_startup_error(&msg);
+                    return Err(msg.into());
+                }
+            };
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
             let config = load_config_at_startup(handle);
             let cache_size = startup_thumbnail_cache_size(config.thumbnail_cache_size);
@@ -3861,9 +3884,16 @@ fn main() {
             import::delete_import_preset
         ])
         .build(tauri::generate_context!())
-        .expect("Erreur de lancement")
-        // App shutdown: drain active ExifTool writes (up to 10s), stop open ExifTool processes, and log any write recoveries.
-        .run(|app, event| {
+    {
+        Ok(app) => app,
+        Err(error) => {
+            #[cfg(debug_assertions)]
+            eprintln!("Startup failed: {error}");
+            std::process::exit(1);
+        }
+    };
+    // App shutdown: drain active ExifTool writes (up to 10s), stop open ExifTool processes, and log any write recoveries.
+    app.run(|app, event| {
             static EXIT_DRAIN_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
             match event {
                 tauri::RunEvent::ExitRequested { api, code, .. } => {
@@ -4055,10 +4085,12 @@ fn change_storage_location(
 
     // 2. Ouverture de la base copiée, avant de toucher à l'état de l'application.
     let new_db_path = target_dir.join("photos_library.db");
-    let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| db::init_db(&new_db_path.to_string_lossy())));
-    let Ok(new_pool) = opened else {
-        remove_storage(&target_dir);
-        return Err("La copie de la base n'a pas pu être ouverte : l'emplacement n'a pas changé".into());
+    let new_pool = match db::init_db(&new_db_path.to_string_lossy()) {
+        Ok(pool) => pool,
+        Err(_) => {
+            remove_storage(&target_dir);
+            return Err("La copie de la base n'a pas pu être ouverte : l'emplacement n'a pas changé".into());
+        }
     };
 
     // 3. Bascule de l'état de l'application.

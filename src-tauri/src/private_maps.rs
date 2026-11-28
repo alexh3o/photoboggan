@@ -397,8 +397,8 @@ pub fn init_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
             status TEXT NOT NULL DEFAULT 'pending'
         )",
     )?;
-    // Zone privée ou simple carte hors ligne : les zones créées avant ce réglage restent privées.
-    crate::db::add_column(conn, "private_zones", "private INTEGER NOT NULL DEFAULT 1");
+    // Private zone vs. plain offline map: zones created before this setting stay private.
+    crate::db::add_column(conn, "private_zones", "private INTEGER NOT NULL DEFAULT 1")?;
     Ok(())
 }
 

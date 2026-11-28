@@ -18,14 +18,14 @@ fn catalog_uses_wal_and_reopens_without_losing_data() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("catalog.db").to_string_lossy().to_string();
     {
-        let pool = init_db(&file);
+        let pool = init_db(&file).expect("init db");
         let conn = pool.get().unwrap();
         let mode: String = conn.query_row("PRAGMA journal_mode", [], |row| row.get(0)).unwrap();
         assert_eq!(mode.to_lowercase(), "wal");
         insert_photo(&conn, "C:/Photos/a.jpg");
     }
-    // Deuxième ouverture : les migrations (ALTER TABLE ... ADD COLUMN) rejouées ne font ni paniquer ni perdre de données.
-    let pool = init_db(&file);
+    // Reopening replays idempotent ALTER TABLE ... ADD COLUMN migrations without panicking or losing data.
+    let pool = init_db(&file).expect("reopen db");
     let conn = pool.get().unwrap();
     assert_eq!(count(&conn, "SELECT COUNT(*) FROM photos"), 1);
 }
@@ -45,7 +45,7 @@ fn old_catalog_without_recent_columns_is_upgraded() {
         )
         .unwrap();
     }
-    let pool = init_db(&file.to_string_lossy());
+    let pool = init_db(&file.to_string_lossy()).expect("upgrade old db");
     let photos = get_photos(&pool, 0, 10, None, true).unwrap();
     assert_eq!(photos.len(), 1);
     assert_eq!((photos[0].rating, photos[0].pick_flag.as_str(), photos[0].keywords.as_str()), (4, "none", ""));
@@ -482,4 +482,24 @@ fn photo_from_row_exposes_orientation() {
     let photos = get_photos_sorted(&pool, 0, 10, Some("C:/P".into()), true, "name", true).unwrap();
     assert_eq!(photos.iter().find(|p| p.filename == "rotated.jpg").unwrap().orientation, 6);
     assert_eq!(photos.iter().find(|p| p.filename == "bad.jpg").unwrap().orientation, 1);
+}
+
+#[test]
+fn init_db_and_add_column_return_errors_without_panicking() {
+    let dir = tempfile::tempdir().unwrap();
+
+    // Non-SQLite file must return Err instead of panicking.
+    let corrupt = dir.path().join("not_a_db.db");
+    std::fs::write(&corrupt, b"this is definitely not a sqlite database").unwrap();
+    assert!(init_db(&corrupt.to_string_lossy()).is_err());
+
+    // Invalid path (non-existent parent directory) must return Err instead of panicking.
+    let missing_parent = dir.path().join("no_such_dir").join("catalog.db");
+    assert!(init_db(&missing_parent.to_string_lossy()).is_err());
+
+    // add_column returns Err on a non-existent table and Ok(()) when the column already exists.
+    let (_cat_dir, pool) = temp_catalog();
+    let conn = pool.get().unwrap();
+    assert!(add_column(&conn, "nonexistent_table", "col TEXT").is_err());
+    assert!(add_column(&conn, "photos", "keywords TEXT NOT NULL DEFAULT ''").is_ok());
 }

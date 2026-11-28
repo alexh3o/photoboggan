@@ -80,28 +80,39 @@ pub struct TrackedFolder {
     pub path: String,
 }
 
-/// Ajoute une colonne à une table existante (mise à niveau d'un catalogue sans le perdre). « Colonne déjà présente » est le cas normal ;
-/// toute autre erreur arrête le démarrage avec un message clair, plutôt que de laisser des requêtes échouer plus tard.
-pub(crate) fn add_column(conn: &rusqlite::Connection, table: &str, definition: &str) {
-    if let Err(error) = conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {definition}"), []) {
-        assert!(error.to_string().contains("duplicate column name"), "Database migration failed ({table}: {definition}): {error}");
+/// Adds a column to an existing table (upgrading an older catalogue without losing data).
+/// "duplicate column name" is the normal idempotent case; any other error is propagated so startup stops cleanly.
+pub(crate) fn add_column(conn: &rusqlite::Connection, table: &str, definition: &str) -> rusqlite::Result<()> {
+    match conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {definition}"), []) {
+        Ok(_) => Ok(()),
+        Err(error) if error.to_string().contains("duplicate column name") => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
-pub fn init_db(db_path: &str) -> DbPool {
+const CONNECTION_INIT_SQL: &str =
+    "PRAGMA journal_mode=WAL;
+     PRAGMA synchronous=NORMAL;
+     PRAGMA temp_store=MEMORY;
+     PRAGMA cache_size=-64000;
+     PRAGMA mmap_size=30000000000;";
+
+pub fn init_db(db_path: &str) -> Result<DbPool, String> {
+    // Fail fast on invalid paths or non-SQLite files instead of waiting for r2d2's 30s pool timeout.
+    {
+        let probe = rusqlite::Connection::open(db_path)
+            .map_err(|e| format!("Database could not be opened: {e}"))?;
+        probe.execute_batch(CONNECTION_INIT_SQL)
+            .map_err(|e| format!("Database could not be initialized: {e}"))?;
+    }
+
     let manager = SqliteConnectionManager::file(db_path).with_init(|c| {
-        c.execute_batch(
-            "PRAGMA journal_mode=WAL;
-             PRAGMA synchronous=NORMAL;
-             PRAGMA temp_store=MEMORY;
-             PRAGMA cache_size=-64000;
-             PRAGMA mmap_size=30000000000;"
-        )?;
+        c.execute_batch(CONNECTION_INIT_SQL)?;
         Ok(())
     });
 
-    let pool = Pool::new(manager).expect("Database pool could not be created");
-    let conn = pool.get().expect("Database connection unavailable");
+    let pool = Pool::new(manager).map_err(|e| format!("Database pool could not be created: {e}"))?;
+    let conn = pool.get().map_err(|e| format!("Database connection unavailable: {e}"))?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS folders (
@@ -109,7 +120,7 @@ pub fn init_db(db_path: &str) -> DbPool {
             path TEXT UNIQUE NOT NULL
         )",
         [],
-    ).unwrap();
+    ).map_err(|e| format!("Folders table could not be created: {e}"))?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS photos (
@@ -130,75 +141,76 @@ pub fn init_db(db_path: &str) -> DbPool {
             color_flag TEXT DEFAULT 'none'
         )",
         [],
-    ).unwrap();
+    ).map_err(|e| format!("Photos table could not be created: {e}"))?;
 
-    // Mise à niveau des catalogues existants, sans perdre les données.
-    add_column(&conn, "photos", "keywords TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "caption TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "lens_model TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "title TEXT NOT NULL DEFAULT ''");
-    // Date de modification du fichier (ms depuis 1970) au moment de la dernière lecture : sert à détecter les modifications faites hors de l'application.
-    add_column(&conn, "photos", "modified INTEGER NOT NULL DEFAULT 0");
+    // Upgrade existing catalogues without losing data.
+    let add_photo_col = |def: &str| add_column(&conn, "photos", def).map_err(|e| format!("Database migration failed (photos: {def}): {e}"));
+    add_photo_col("keywords TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("caption TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("lens_model TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("title TEXT NOT NULL DEFAULT ''")?;
+    // File modification time (ms since 1970) at the last read: detects external changes.
+    add_photo_col("modified INTEGER NOT NULL DEFAULT 0")?;
     // Later of the image's and its active sidecar's modification dates (ms since 1970, 0 = unknown, then `modified` applies): sort key of the
     // modification date. Kept apart from `modified`, which must stay the image file's own mtime for the incremental sync. Filled when files are read
     // and after each metadata write (library_sync::store_dates, and the UPDATE of each write command).
-    add_column(&conn, "photos", "effective_modified INTEGER NOT NULL DEFAULT 0");
-    // Date de création du fichier (ms depuis 1970, 0 = inconnue) : remplie à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
-    // Sert aux plages de dates des ensembles de confidentialité pour une photo sans date de prise de vue (privacy.rs : repli sur `modified` si 0).
-    add_column(&conn, "photos", "created INTEGER NOT NULL DEFAULT 0");
+    add_photo_col("effective_modified INTEGER NOT NULL DEFAULT 0")?;
+    // File creation time (ms since 1970, 0 = unknown): filled when reading files (rescan for already catalogued photos).
+    // Used for privacy-set date ranges on photos without a shooting date (privacy.rs: falls back to `modified` when 0).
+    add_photo_col("created INTEGER NOT NULL DEFAULT 0")?;
     // When the file's metadata was last read (ms since 1970, 0 = unknown): a paused scan resumes by skipping the files read since it first started.
-    add_column(&conn, "photos", "scanned_at INTEGER NOT NULL DEFAULT 0");
-    // Orientation EXIF (1 à 8) : les zones de visage sont dans le repère de l'image stockée et l'interface l'applique pour les afficher (faces.rs).
-    add_column(&conn, "photos", "orientation INTEGER NOT NULL DEFAULT 1");
+    add_photo_col("scanned_at INTEGER NOT NULL DEFAULT 0")?;
+    // EXIF orientation (1 to 8): face boxes are in the stored image frame and the interface applies it on display (faces.rs).
+    add_photo_col("orientation INTEGER NOT NULL DEFAULT 1")?;
     // Orientation the interface applies on top of the webview's, which only knows the EXIF tag of the file (see orientation.rs): differs from 1
     // only after a lossless rotation written in XMP (internal writer, sidecar of a PNG…). Filled with `orientation`.
-    add_column(&conn, "photos", "view_fix INTEGER NOT NULL DEFAULT 1");
-    // Fanion « pick » (none, pending, picked, rejected) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
-    add_column(&conn, "photos", "pick_flag TEXT NOT NULL DEFAULT 'none'");
-    // Coordonnées GPS (NULL : pas de position) : remplies à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
-    add_column(&conn, "photos", "gps_lat REAL");
-    add_column(&conn, "photos", "gps_lon REAL");
-    // Flash (1 déclenché, 0 non déclenché, NULL inconnu) : rempli à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
-    add_column(&conn, "photos", "flash INTEGER");
-    // Auteur et droits (voir exif::Rights) : remplis à la lecture des fichiers (relire la collection pour les photos déjà cataloguées).
-    add_column(&conn, "photos", "author TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "copyright TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "credit TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "usage_terms TEXT NOT NULL DEFAULT ''");
-    add_column(&conn, "photos", "author_email TEXT NOT NULL DEFAULT ''");
+    add_photo_col("view_fix INTEGER NOT NULL DEFAULT 1")?;
+    // Pick flag (none, pending, picked, rejected): filled when reading files (rescan for already catalogued photos).
+    add_photo_col("pick_flag TEXT NOT NULL DEFAULT 'none'")?;
+    // GPS coordinates (NULL = no position): filled when reading files (rescan for already catalogued photos).
+    add_photo_col("gps_lat REAL")?;
+    add_photo_col("gps_lon REAL")?;
+    // Flash (1 fired, 0 did not fire, NULL unknown): filled when reading files (rescan for already catalogued photos).
+    add_photo_col("flash INTEGER")?;
+    // Author and rights (see exif::Rights): filled when reading files (rescan for already catalogued photos).
+    add_photo_col("author TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("copyright TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("credit TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("usage_terms TEXT NOT NULL DEFAULT ''")?;
+    add_photo_col("author_email TEXT NOT NULL DEFAULT ''")?;
 
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).unwrap();
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).unwrap();
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_flag ON photos(color_flag)", []).unwrap();
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_path ON photos(path)", []).unwrap();
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_date ON photos(date_taken)", []).map_err(|e| format!("Database index could not be created: {e}"))?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_rating ON photos(rating)", []).map_err(|e| format!("Database index could not be created: {e}"))?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_flag ON photos(color_flag)", []).map_err(|e| format!("Database index could not be created: {e}"))?;
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_path ON photos(path)", []).map_err(|e| format!("Database index could not be created: {e}"))?;
     // Expression index matching `NORM_PATH` / `push_folder_condition` so folder prefix queries do an index range scan instead of a full table scan.
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_path_norm ON photos(replace(path, char(92), '/'))", []).unwrap();
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_path_norm ON photos(replace(path, char(92), '/'))", []).map_err(|e| format!("Database index could not be created: {e}"))?;
 
-    // Mots-clés hiérarchiques (arborescence et association photo ↔ mot-clé) : voir keywords.rs.
-    crate::keywords::init_schema(&conn).expect("Keyword tables could not be created");
-    // Auteurs par photo (rights.rs).
-    crate::rights::init_schema(&conn).expect("Author preset table could not be created");
-    // Recettes de renommage en lot enregistrées : voir batch_rename.rs.
-    crate::batch_rename::init_schema(&conn).expect("Rename preset table could not be created");
-    // Albums virtuels (dossiers, albums manuels et intelligents) : voir albums.rs.
-    crate::albums::init_schema(&conn).expect("Album tables could not be created");
-    // Visages et personnes : voir faces.rs.
-    crate::faces::init_schema(&conn).expect("Face tables could not be created");
-    // Coordonnées GPS effacées (sauvegarde pour « Restaurer la géolocalisation ») : voir geolocation.rs.
-    crate::geolocation::init_schema(&conn).expect("Erased locations table could not be created");
-    // Cache of the file hashes used by the duplicate search: voir duplicates.rs (empty until a search is started).
-    crate::duplicates::init_schema(&conn).expect("Duplicate hash table could not be created");
-    // Cache of the perceptual hashes used by the similar-image search: voir similar.rs (empty until a search is started).
-    crate::similar::init_schema(&conn).expect("Perceptual hash table could not be created");
+    // Hierarchical keywords (tree and photo <-> keyword link): see keywords.rs.
+    crate::keywords::init_schema(&conn).map_err(|e| format!("Keyword tables could not be created: {e}"))?;
+    // Author presets (rights.rs).
+    crate::rights::init_schema(&conn).map_err(|e| format!("Author preset table could not be created: {e}"))?;
+    // Saved batch rename presets: see batch_rename.rs.
+    crate::batch_rename::init_schema(&conn).map_err(|e| format!("Rename preset table could not be created: {e}"))?;
+    // Virtual albums (folders, manual and smart albums): see albums.rs.
+    crate::albums::init_schema(&conn).map_err(|e| format!("Album tables could not be created: {e}"))?;
+    // Faces and persons: see faces.rs.
+    crate::faces::init_schema(&conn).map_err(|e| format!("Face tables could not be created: {e}"))?;
+    // Erased GPS coordinates (backup for "Restore geolocation"): see geolocation.rs.
+    crate::geolocation::init_schema(&conn).map_err(|e| format!("Erased locations table could not be created: {e}"))?;
+    // Cache of the file hashes used by the duplicate search: see duplicates.rs (empty until a search is started).
+    crate::duplicates::init_schema(&conn).map_err(|e| format!("Duplicate hash table could not be created: {e}"))?;
+    // Cache of the perceptual hashes used by the similar-image search: see similar.rs (empty until a search is started).
+    crate::similar::init_schema(&conn).map_err(|e| format!("Perceptual hash table could not be created: {e}"))?;
     // Embeddings of the semantic search (semantic.rs): empty until the user enables the feature and starts an analysis.
-    crate::semantic::init_schema(&conn).expect("Semantic search tables could not be created");
-    // Zones privées de la carte : voir private_maps.rs (chargées en mémoire dès l'ouverture, pour la règle par tuile).
-    crate::private_maps::init_schema(&conn).expect("Private zone table could not be created");
+    crate::semantic::init_schema(&conn).map_err(|e| format!("Semantic search tables could not be created: {e}"))?;
+    // Map private zones: see private_maps.rs (loaded in memory on open for the per-tile rule).
+    crate::private_maps::init_schema(&conn).map_err(|e| format!("Private zone table could not be created: {e}"))?;
     if let Err(error) = crate::private_maps::reload_zones(&conn) { eprintln!("Private zones unavailable: {error}"); }
     // Import history & removable media policies: see import.rs.
-    crate::import::init_schema(&conn).expect("Import tables could not be created");
+    crate::import::init_schema(&conn).map_err(|e| format!("Import tables could not be created: {e}"))?;
 
-    pool
+    Ok(pool)
 }
 
 pub fn get_folders(pool: &DbPool) -> Vec<TrackedFolder> {

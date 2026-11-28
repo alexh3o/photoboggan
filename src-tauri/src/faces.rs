@@ -381,14 +381,12 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
         DELETE FROM faces WHERE photo_id NOT IN (SELECT id FROM photos);
         DELETE FROM photo_face_scans WHERE photo_id NOT IN (SELECT id FROM photos);",
     )?;
-    // 5 points de repère de YuNet (yeux, nez, coins de la bouche), 10 flottants normalisés, repère de l'image stockée : alignement avant SFace (lot 3).
-    crate::db::add_column(conn, "faces", "landmarks BLOB");
-    // Personne que l'utilisateur a refusée pour ce visage (« Inconnu ») : l'attribution ne la lui propose plus (lot 3).
-    crate::db::add_column(conn, "faces", "rejected_person_id INTEGER");
-    // « Inconnu » demandé par l'utilisateur : le visage reste inconnu, l'attribution automatique ne le propose plus à personne (elle ne le
-    // reprendrait sinon qu'en excluant la dernière personne refusée, et le ferait revenir sur une autre, ou sur la précédente). Levé quand
-    // l'utilisateur nomme le visage.
-    crate::db::add_column(conn, "faces", "unknown_locked INTEGER NOT NULL DEFAULT 0");
+    // 5 YuNet landmarks (eyes, nose, mouth corners), 10 normalised floats in the stored image frame: alignment before SFace (batch 3).
+    crate::db::add_column(conn, "faces", "landmarks BLOB")?;
+    // Person rejected by the user for this face ("Unknown"): automatic matching will not suggest them again (batch 3).
+    crate::db::add_column(conn, "faces", "rejected_person_id INTEGER")?;
+    // "Unknown" requested by the user: the face stays unknown and automatic matching stops suggesting anyone until the user names it.
+    crate::db::add_column(conn, "faces", "unknown_locked INTEGER NOT NULL DEFAULT 0")?;
     // Écriture dans les fichiers (lot 4) :
     // - face_keywords : mots-clés activés sur une photo par la reconnaissance (et non par l'utilisateur) : seuls ceux-là sont retirés quand le
     //   dernier visage de la personne quitte la photo (spec §6.3). Le nœud de l'arbre n'est jamais supprimé par ces opérations ;
@@ -426,9 +424,8 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             PRIMARY KEY (merge_id, face_id, role)
         );",
     )?;
-    // Alias d'une personne (affichage seulement : vue de gestion, vue Personnes, section Personnes) ; jamais écrit dans les fichiers, le filtre
-    // Personnes garde le nom du mot-clé.
-    crate::db::add_column(conn, "persons", "alias TEXT");
+    // Person alias (display only: management view, People view, People section); never written to files, People filter keeps the keyword name.
+    crate::db::add_column(conn, "persons", "alias TEXT")?;
     unlink_missing_keywords(conn)
 }
 

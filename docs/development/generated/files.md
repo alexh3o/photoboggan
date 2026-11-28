@@ -12,7 +12,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `CLAUDE.md` | 2 |  |
 | `index.html` | 1849 |  |
 | `package.json` | 29 |  |
-| `README.md` | 217 |  |
+| `README.md` | 221 |  |
 | `TODO.md` | 85 |  |
 | `vite.config.js` | 15 |  |
 
@@ -34,8 +34,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `FEATURES.md` | 177 |  |
-| `USER_GUIDE.md` | 608 |  |
+| `FEATURES.md` | 184 |  |
+| `USER_GUIDE.md` | 639 |  |
 
 ## docs/development
 
@@ -68,8 +68,8 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `module-deps.md` | 127 |  |
 | `sections.md` | 494 |  |
 | `symbols-js.md` | 1888 |  |
-| `symbols-rust.md` | 1691 |  |
-| `tests.md` | 575 |  |
+| `symbols-rust.md` | 1703 |  |
+| `tests.md` | 580 |  |
 
 ## docs/development/modules
 
@@ -88,7 +88,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `main-window.md` | 91 |  |
 | `maps-and-geolocation.md` | 80 |  |
 | `metadata-read-write.md` | 126 |  |
-| `photo-operations.md` | 116 |  |
+| `photo-operations.md` | 117 |  |
 | `privacy.md` | 70 |  |
 | `private-zones.md` | 65 |  |
 | `semantic.md` | 66 |  |
@@ -249,42 +249,42 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | File | Lines | Leading comment |
 |---|---:|---|
 | `albums.rs` | 404 | Albums virtuels : arborescence de dossiers, d'albums manuels et d'albums intelligents, qui n'existent que dans la base (table `album_nodes`). Modèle (choisi avec l'utilisateur) : - trois types de nœuds : `folder` (dossi… |
-| `batch_rename.rs` | 873 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
-| `db.rs` | 782 |  |
+| `batch_rename.rs` | 870 | Batch rename (F2 on several photos, see docs/development/modules/photo-operations.md). The interface (src/batch-rename.js) evaluates the recipe and sends, for each photo, the new name WITHOUT the extension: this module … |
+| `db.rs` | 792 |  |
 | `duplicates.rs` | 1121 | Duplicate detection, "identical images" part (command `find_duplicates`). Two images are identical when their *image data* is identical, whatever their metadata. For JPEG, PNG and WebP the hashed bytes are the ones that… |
-| `exif.rs` | 2400 |  |
-| `exiftool.rs` | 1383 | Metadata writing via ExifTool (https://exiftool.org). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PATH. … |
-| `face_detect.rs` | 803 | Détection des visages (lot 2) : YuNet sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec dev_tools/Evolutions/feat face recognition v2.md, §3 … |
-| `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (YuNet, SFace) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepared by… |
-| `face_recognize.rs` | 320 | Reconnaissance des visages (lot 3) : alignement, empreinte SFace et attribution à une personne (spec dev_tools/Evolutions/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère de … |
-| `faces.rs` | 2082 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, ACDSee), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir dev_tools/Evolutions/feat face recognition v2.md) : … |
-| `geolocation.rs` | 265 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
+| `exif.rs` | 2396 |  |
+| `exiftool.rs` | 1384 | Metadata writing via `ExifTool` (<https://exiftool.org>). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PA… |
+| `face_detect.rs` | 803 | Détection des visages (lot 2) : `YuNet` sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec `dev_tools/Evolutions/feat` face recognition v2.md,… |
+| `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (`YuNet`, `SFace`) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepare… |
+| `face_recognize.rs` | 317 | Reconnaissance des visages (lot 3) : alignement, empreinte `SFace` et attribution à une personne (spec `dev_tools/Evolutions`/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère… |
+| `faces.rs` | 2079 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, `ACDSee`), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir `dev_tools/Evolutions/feat` face recognition v2.md… |
+| `geolocation.rs` | 262 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
 | `hash_tasks.rs` | 919 | Background duplicate hash precomputation, pre-flight work counting, settings stats, deletion, and list-view exact hash states. Runs in the shared low-priority background lane (`semantic::background_busy`), commits in ch… |
 | `heif.rs` | 286 | Support HEIC / HEIF (conteneur ISO BMFF : photos d'iPhone, d'Android récents, `.hif` de Canon…). - Décodage des pixels : crate `heic-rs` (Rust pur, sans bibliothèque native à distribuer). Elle applique déjà les rotation… |
-| `import.rs` | 2660 | SD card and external folder photo import: OS media detection, two-pass source scan, RAM-only thumbnail/preview streaming, chronological durable copy reusing existing file primitives, incremental import memory, and targe… |
-| `integrity.rs` | 782 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
-| `keywords.rs` | 985 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (parent_id = 0 : … |
-| `library_sync.rs` | 432 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 4110 |  |
+| `import.rs` | 2645 | SD card and external folder photo import: OS media detection, two-pass source scan, RAM-only thumbnail/preview streaming, chronological durable copy reusing existing file primitives, incremental import memory, and targe… |
+| `integrity.rs` | 778 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
+| `keywords.rs` | 976 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (`parent_id` = 0 … |
+| `library_sync.rs` | 429 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
+| `main.rs` | 4136 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
 | `phash.rs` | 201 | Perceptual hash (pHash) of an image, for the "similar images" search (similar.rs). The image is reduced to 32x32 grey levels, a 2D DCT keeps its 8x8 lowest frequencies, and each of the 63 AC coefficients becomes one bit… |
 | `place_search.rs` | 74 | Recherche d'un lieu par son nom (mode Carte, champ de recherche de la barre de la carte), pour aller y placer la carte. Fournisseur : Nominatim (OpenStreetMap), sans clé. Sa politique d'usage demande un User-Agent propr… |
 | `privacy.rs` | 251 | Photos privées : ensembles de confidentialité. Un ensemble actif masque, partout où le backend lit le catalogue, les photos qui répondent à AU MOINS UN de ses critères (OU entre critères) : - parties de chemin de dossie… |
-| `private_maps.rs` | 1156 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
+| `private_maps.rs` | 1152 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
 | `resize.rs` | 571 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `rights.rs` | 229 | Auteur et droits : préréglages d'auteur (table `author_presets`), lecture à la demande des champs de droits des photos et liste des auteurs du catalogue (filtre « Auteur »). Les cinq champs (auteur, mention de copyright… |
-| `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion into … |
-| `semantic_models.rs` | 339 | Files of the semantic search (SigLIP 2, spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by scripts… |
-| `semantic_search.rs` | 817 | Searches of the semantic search (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - Index … |
-| `semantic.rs` | 1343 | Semantic search with SigLIP 2 (spec dev_tools/Evolutions/feat semantic search SigLIP 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan task.… |
+| `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion i… |
+| `semantic_models.rs` | 339 | Files of the semantic search (`SigLIP` 2, spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by s… |
+| `semantic_search.rs` | 814 | Searches of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - In… |
+| `semantic.rs` | 1340 | Semantic search with `SigLIP` 2 (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan… |
 | `similar.rs` | 574 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `stats.rs` | 805 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
 | `thumbnails.rs` | 1409 | Génération des miniatures du cache en Rust (JPEG, RAW par leur aperçu intégré, HEIC / HEIF, image fixe des vidéos). Le décodage utilise la réduction d'échelle DCT de `jpeg-decoder` (1/2, 1/4 ou 1/8 selon la taille deman… |
 | `update_check.rs` | 357 | Updates (Settings > General > Internet, and the "Update available" dialog): lookup, download and launch of the installer. Source: the GitHub releases of the application repository. Requests are made by the backend (neve… |
-| `video.rs` | 213 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
+| `video.rs` | 212 | Prise en charge des vidéos (.mp4, .mov, .avi, .mkv) : détection et extraction ponctuelle d'une image fixe. Aucune lecture n'est faite dans l'application : une vidéo n'est lue que par le lecteur multimédia par défaut de … |
 
 ## src-tauri/src/tests
 
@@ -292,37 +292,37 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 |---|---:|---|
 | `albums.rs` | 205 | Tests des albums virtuels (albums.rs) : règles de parenté, unicité des noms, déplacement sans cycle, copie, suppression en cascade. |
 | `batch_rename.rs` | 358 | Tests of the batch rename: planning (collisions, sidecars, lengths), execution (swaps, catalogue update) and saved recipes. Files are made in a temporary folder, no real photo is used. |
-| `db.rs` | 486 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
+| `db.rs` | 506 | Tests du catalogue SQLite (db.rs) : mode WAL, mise à niveau idempotente, dossiers suivis, pagination. |
 | `duplicates.rs` | 521 | Tests of the identical-image search: metadata-insensitive hashing, scopes, cache and cancellation. Synthetic files in a temporary folder only. |
 | `exif_rights.rs` | 110 | Tests de l'auteur et des droits (exif.rs) : écriture XMP et IPTC d'un JPEG par le chemin interne, relecture, structure `CreatorContactInfo` conservée, langues alternatives effacées, vérification après écriture. Fichiers… |
-| `exif.rs` | 420 | Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs). Synthetic files in a temporary folder; ExifTool writes are tested in tests/exiftool.rs. |
-| `exiftool_rights.rs` | 67 | Tests des arguments ExifTool de l'auteur et des droits (exiftool.rs) : seuls les arguments sont vérifiés ici, ExifTool n'est pas lancé. Un JPEG reçoit aussi l'IPTC et l'EXIF ; les autres formats (sidecar XMP) ne reçoive… |
-| `exiftool.rs` | 1239 | Tests du chemin d'écriture ExifTool (exiftool.rs). Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus ExifTool n'est lancé. Intégration (`cargo test -- --ignored`) : écritures réel… |
-| `face_detect.rs` | 46 | Tests of face_detect.rs: orientation conversions of face rectangles, and the shared defaults file (faceSettings, keys the frontend reads). |
-| `face_recognize.rs` | 22 | Tests of face_recognize.rs: alignment on the SFace template and embedding blobs. |
+| `exif.rs` | 422 | Regression tests for metadata reading, normalization, priorities, and XMP helpers (exif.rs). Synthetic files in a temporary folder; `ExifTool` writes are tested in tests/exiftool.rs. |
+| `exiftool_rights.rs` | 67 | Tests des arguments `ExifTool` de l'auteur et des droits (exiftool.rs) : seuls les arguments sont vérifiés ici, `ExifTool` n'est pas lancé. Un JPEG reçoit aussi l'IPTC et l'EXIF ; les autres formats (sidecar XMP) ne reç… |
+| `exiftool.rs` | 1239 | Tests du chemin d'écriture `ExifTool` (exiftool.rs). Rapides : verrous par chemin, échappement des valeurs, choix de la cible. Aucun processus `ExifTool` n'est lancé. Intégration (`cargo test -- --ignored`) : écritures … |
+| `face_detect.rs` | 46 | Tests of `face_detect.rs`: orientation conversions of face rectangles, and the shared defaults file (faceSettings, keys the frontend reads). |
+| `face_recognize.rs` | 22 | Tests of `face_recognize.rs`: alignment on the `SFace` template and embedding blobs. |
 | `faces_db.rs` | 240 | Tests de l'enregistrement des visages en base (faces.rs) : une erreur de base est remontée, jamais avalée. (Reading regions from XMP packets is tested in tests/faces.rs.) |
-| `faces.rs` | 54 | Tests of faces.rs: reading face regions from XMP packets (MWG written by ExifTool or Exiv2, Microsoft, priority, unnamed faces). Database side: tests/faces_db.rs. |
+| `faces.rs` | 54 | Tests of faces.rs: reading face regions from XMP packets (MWG written by `ExifTool` or Exiv2, Microsoft, priority, unnamed faces). Database side: `tests/faces_db.rs`. |
 | `geolocation.rs` | 79 | Tests de l'effacement de la géolocalisation (geolocation.rs) : sauvegarde des coordonnées gardée à jour par les déclencheurs SQLite, refus des photos dont le GPS de l'EXIF ne peut pas être effacé. L'écriture elle-même e… |
 | `heif.rs` | 103 | Tests de non-régression de l'écriture XMP dans les conteneurs HEIC / HEIF (heif.rs). Aucun vrai HEIC : un conteneur minimal est fabriqué à la main (ftyp, meta, mdat). Son image n'est pas décodable, ce qui est voulu : le… |
 | `import.rs` | 1052 |  |
 | `integrity.rs` | 264 | Tests de la vérification d'intégrité (integrity.rs) : un fichier sain n'est jamais signalé, un fichier corrompu l'est toujours, et l'analyse ne modifie jamais le fichier examiné. |
 | `keywords.rs` | 507 | Tests de l'arbre des mots-clés et de leur association aux photos (keywords.rs) : le fichier fait foi, l'arbre ne rétrécit jamais. |
-| `library_sync.rs` | 275 | Tests de la synchronisation incrémentale (library_sync.rs) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
-| `main.rs` | 809 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (keep_cached_images). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fich… |
-| `orientation.rs` | 98 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the ExifTool path is covered by the ignored tests of exiftool.rs. |
+| `library_sync.rs` | 275 | Tests de la synchronisation incrémentale (`library_sync.rs`) : détection des ajouts, modifications et suppressions, sans jamais prendre un disque absent pour une suppression. |
+| `main.rs` | 809 | Tests de main.rs : cache des miniatures et des aperçus après une écriture de métadonnées (`keep_cached_images`). Fichiers synthétiques dans un dossier temporaire ; aucune écriture de métadonnées réelle (le contenu du fi… |
+| `orientation.rs` | 98 | Regression tests of the lossless rotation (orientation.rs): orientation arithmetic, which tag wins at reading, internal XMP writing. Synthetic files only; the `ExifTool` path is covered by the ignored tests of exiftool.… |
 | `phash.rs` | 62 | Tests of the perceptual hash: stability under resizing and recompression, difference between pictures, rotations, mirrors and flat pictures. |
-| `place_search.rs` | 25 | Tests de la recherche de lieux (place_search.rs) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |
-| `private_maps.rs` | 358 | Tests des zones privées (private_maps.rs) : géométrie des zones et des tuiles, fichiers MBTiles, règle par tuile, import, refus hors ligne. Aucune requête réseau : les téléchargements sont testés avec Internet refusé (r… |
+| `place_search.rs` | 25 | Tests de la recherche de lieux (`place_search.rs`) : encodage de la requête et lecture de la réponse. Aucun accès au réseau. |
+| `private_maps.rs` | 358 | Tests des zones privées (`private_maps.rs`) : géométrie des zones et des tuiles, fichiers `MBTiles`, règle par tuile, import, refus hors ligne. Aucune requête réseau : les téléchargements sont testés avec Internet refus… |
 | `resize.rs` | 172 | Tests of resize.rs: output size (never enlarged), formats, metadata copy, conflict policies, refusals. Synthetic files only; the "Replace" policy is not tested here because it sends the existing file to the real trash. |
 | `rights.rs` | 125 | Tests des préréglages d'auteur, de la lecture des droits d'une sélection, de la liste des auteurs et du préfiltre « Auteur » (rights.rs, db.rs). |
 | `semantic_keywords.rs` | 1069 | Tests of the keyword suggestions: scores, thresholds, exclusions, invalidation, gating. Fake vectors only, no model. The measure that chose the score and the thresholds (§23) reads a copy of a real catalogue and needs t… |
 | `semantic_models.rs` | 80 | Tests of the semantic model files: manifest, status, deletion, gating. No download, no real model: empty or fake files only. |
 | `semantic_search.rs` | 644 | Tests of the semantic searches: ranking, relative threshold and cap, stable order, scopes, index updates and release. Fake vectors only, no model. Parity of the text search with the reference model is `#[ignore]`: run i… |
-| `semantic.rs` | 873 | Tests of the semantic search, model side: fp16 storage, image preprocessing (parity with PIL on the Phase 0 fixtures), query normalisation. Synthetic images only (the PNG fixtures are generated by dev_tools/semantic/mak… |
+| `semantic.rs` | 873 | Tests of the semantic search, model side: fp16 storage, image preprocessing (parity with PIL on the Phase 0 fixtures), query normalisation. Synthetic images only (the PNG fixtures are generated by `dev_tools/semantic/ma… |
 | `similar.rs` | 249 | Tests of the similar-image search: grouping, rotations, bursts, flat pictures, cache and cancellation. Synthetic files in a temporary folder only. |
 | `stats.rs` | 67 | Tests for collection statistics coverage counts (content analysis and duplicate hashes). |
 | `thumbnails.rs` | 147 | Tests de non-régression de l'orientation et de l'EXIF des RAW (thumbnails.rs). Aucun vrai RAW : un CR3 minimal (boîtes CMT1 / CMT2) et des JPEG synthétiques sont fabriqués à la main. |
-| `update_check.rs` | 189 | Tests de la vérification des mises à jour (update_check.rs) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
+| `update_check.rs` | 189 | Tests de la vérification des mises à jour (`update_check.rs`) : lecture des versions et choix de la release dans une réponse GitHub. Aucun accès au réseau. |
 
 ## src-tauri/src/tests/fixtures
 

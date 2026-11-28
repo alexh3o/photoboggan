@@ -109,12 +109,12 @@ fn the_catalog_upgrade_adds_the_rights_columns_once() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("catalog.db").to_string_lossy().to_string();
     {
-        let pool = crate::db::init_db(&file);
+        let pool = crate::db::init_db(&file).expect("init db");
         let conn = pool.get().unwrap();
         create_preset(&conn, "Garde-moi").unwrap();
         insert_photo(&conn, "C:/P/a.jpg");
     }
-    let pool = crate::db::init_db(&file);
+    let pool = crate::db::init_db(&file).expect("reopen db");
     let conn = pool.get().unwrap();
     assert_eq!(list_presets(&conn).unwrap().len(), 1, "presets survive a reopening");
     let columns: Vec<String> = conn.prepare("SELECT name FROM pragma_table_info('photos')").unwrap().query_map([], |row| row.get(0)).unwrap().map(|name| name.unwrap()).collect();
