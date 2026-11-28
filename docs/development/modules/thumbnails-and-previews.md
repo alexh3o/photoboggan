@@ -1,4 +1,4 @@
-<!-- verified: 566e04d | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
+<!-- verified: 2a84306 | sources: src-tauri/src/thumbnails.rs, src-tauri/src/heif.rs, src-tauri/src/video.rs, src-tauri/src/orientation.rs, src-tauri/src/main.rs -->
 
 # Thumbnails, RAW/HEIC/video previews, orientation
 
@@ -25,7 +25,7 @@ The file name is the 64-bit FNV-1a hash of **source path + file size + modificat
 - A file that changes (any write) gets a new name; a missing source gives an error (no name).
 - Changing what a thumbnail or preview *contains* needs a bump of `PREVIEW_VERSION` (currently `[2]`, a local const in `thumbnail_cache_file`, raised when the EXIF orientation was rewritten into previews). Old files become orphans.
 - Listing must use `cache_files` (depth 1–2), writing must create the parent (`write_cache_file`, `write_jpeg_with_quality` do it). No migration from the old flat layout.
-- `keep_cached_images(dirs, path, write)` wraps every metadata write: names before and after are computed, and when they differ the files are **renamed** (`carry_cache_file`; deleted if the rename fails) instead of regenerated. A sidecar write changes nothing, so nothing is moved. It also holds a `semantic::PriorityGuard`. ⚠ sensitive: a new write path that skips it forces regeneration of every edited photo.
+- `keep_cached_images(dirs, path, write)` wraps every metadata write: names before and after are computed, and when they differ the files are **renamed** (`carry_cache_file`; deleted if the rename fails) instead of regenerated. A sidecar write changes nothing, so nothing is moved. It also holds a `runtime::PriorityGuard`. ⚠ sensitive: a new write path that skips it forces regeneration of every edited photo.
 - `purge_orphan_cache` (button "Delete orphan thumbnails" and end of a full rescan): recomputes the expected names of all catalogue photos (one `metadata` per file, no decoding) and deletes `.jpg` files not in that set, in both folders. It is **postponed with an error** if any tracked folder is unreachable or any catalogue file is unreadable for a reason other than absence (otherwise an unplugged drive would wipe its cache). `clear_thumbnail_cache` empties `thumbnails/` only, counting files it could not delete.
 
 ### Grid thumbnail
@@ -76,7 +76,7 @@ Shared with metadata reading: CR3 uses boxes CMT2 (shooting data, wrapped by `ti
 
 ## Dependencies
 
-- Uses: `exif.rs` (XMP orientation read, regions), `exiftool.rs` (writer), `heif.rs`, `video.rs`, `semantic::PriorityGuard`, `db` pool.
+- Uses: `exif.rs` (XMP orientation read, regions), `exiftool.rs` (writer), `heif.rs`, `video.rs`, `runtime::PriorityGuard`, `db` pool.
 - Used by: grid and viewer (all thumbnail commands), `exif::read_exif` (`read_exif_sources`, `orientation::resolve`), `integrity.rs` (decoding), the semantic scan (`render_thumbnail`), face detection (reads cached thumbnails), `similar.rs` (reads cached thumbnails, never writes), every metadata writer (`keep_cached_images`).
 
 ## Invariants and sensitive areas

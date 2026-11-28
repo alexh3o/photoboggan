@@ -436,7 +436,7 @@ fn a_panic_while_reading_a_photo_fails_that_photo_only() {
 fn the_scan_gives_way_to_foreground_work_and_stops_when_asked() {
     // Foreground work running and a stop requested: the wait ends at once with "stop".
     let guard = PriorityGuard::new();
-    assert!(foreground_busy());
+    assert!(crate::runtime::foreground_busy());
     assert!(!wait_for_foreground(&AtomicBool::new(true), &mut || {}));
     // Work that ends while the scan waits: the scan goes on after it, the pause announced once.
     let release = std::thread::spawn(move || {

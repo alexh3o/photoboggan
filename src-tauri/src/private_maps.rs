@@ -753,7 +753,7 @@ fn download_tiles(
             let sender = sender.clone();
             let (next, stop) = (&next, &stop);
             scope.spawn(move || loop {
-                if stop.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) || !crate::face_models::internet_allowed() { break; }
+                if stop.load(Ordering::Relaxed) || cancel.load(Ordering::Relaxed) || !crate::runtime::internet_allowed() { break; }
                 let index = next.fetch_add(1, Ordering::Relaxed);
                 let Some(&(z, x, y)) = tiles.get(index) else { break; };
                 let url = template.replace("{z}", &z.to_string()).replace("{x}", &x.to_string()).replace("{y}", &y.to_string());
@@ -785,7 +785,7 @@ fn download_tiles(
         tx.commit().map_err(|e| e.to_string())
     })?;
     if cancel.load(Ordering::Relaxed) { return Err("cancelled".to_string()); }
-    if !crate::face_models::internet_allowed() { return Err("internet_disabled".to_string()); }
+    if !crate::runtime::internet_allowed() { return Err("internet_disabled".to_string()); }
     // Tuiles jamais demandées (arrêt pour taille) : comptées comme manquantes.
     outcome.missing = tiles.len() - outcome.stored;
     Ok(outcome)
@@ -862,7 +862,7 @@ pub async fn download_private_zone(app: tauri::AppHandle, state: State<'_, AppSt
     let cancel = crate::scan_cancel_flag(&task_id);
     let worker_task_id = task_id.clone();
     let outcome = tokio::task::spawn_blocking(move || -> Result<PrivateZone, String> {
-        if !crate::face_models::internet_allowed() { return Err("internet_disabled".to_string()); }
+        if !crate::runtime::internet_allowed() { return Err("internet_disabled".to_string()); }
         let conn = pool.get().map_err(|e| e.to_string())?;
         let zone = get_zone(&conn, zone_id)?;
         if zone.source == "import" { return Err("imported_zone".to_string()); }

@@ -113,7 +113,7 @@ function render() {
   const offline = isOffline();
   toggle.disabled = offline;
   preToggle.disabled = offline;
-  checkButton.disabled = offline || checking;
+  checkButton.disabled = checking;
   showButton.hidden = offline || !info?.update_available;
   statusLine.textContent = statusText();
 
@@ -170,7 +170,7 @@ function renderNotes(container, markdown) {
 // Codes d'erreur du backend (update_check.rs) traduits ; les autres messages sont affichés tels quels.
 function updateErrorMessage(error) {
   const text = String(error);
-  if (text === 'internet_disabled') return t('Offline mode is on (Settings > General)');
+  if (text === 'internet_disabled') return t('Offline mode is on: cannot download');
   if (text === 'update_corrupted') return t('The downloaded file is corrupted');
   if (text === 'update_no_installer') return t('No installer is published for this system');
   if (text === 'update_not_downloaded') return t('The update has not been downloaded');
@@ -207,6 +207,10 @@ function closeDialog() {
 
 function downloadUpdate() {
   if (!info?.update_available || !info.asset || downloadState === 'downloading') return;
+  if (isOffline()) {
+    showToast(t('Offline mode is on: cannot download'));
+    return;
+  }
   const version = info.latest;
   const queued = enqueueTask({
     kind: 'update',
@@ -279,7 +283,11 @@ async function openReleasePage() {
  * sans lui (activation de la case…) seule la ligne d'état est mise à jour.
  */
 async function runCheck({ announce = null } = {}) {
-  if (isOffline() || checking) return;
+  if (isOffline()) {
+    if (announce === 'dialog') showToast(t('Offline mode is on: cannot check for updates'));
+    return;
+  }
+  if (checking) return;
   checking = true;
   lastError = false;
   render();
@@ -289,6 +297,9 @@ async function runCheck({ announce = null } = {}) {
     writeStored(KEY_LAST_CHECK, Date.now());
   } catch (error) {
     console.error('Update check failed', error);
+    if (String(error) === 'internet_disabled' && announce === 'dialog') {
+      showToast(t('Offline mode is on: cannot check for updates'));
+    }
     lastError = announce !== null; // au démarrage, un échec reste silencieux
   } finally {
     checking = false;

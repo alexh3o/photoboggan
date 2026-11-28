@@ -427,7 +427,7 @@ fn run_write(
     cancel: Option<Arc<AtomicBool>>,
 ) -> Result<KeywordWriteResult, String> {
     let _write_guard = WRITE_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _priority = crate::semantic::PriorityGuard::new(); // the semantic scan waits while files are written
+    let _priority = crate::runtime::PriorityGuard::new(); // the semantic scan waits while files are written
     let conn = pool.get().map_err(|error| error.to_string())?;
     let cache_dirs = &env.cache_dirs; // miniatures et aperçus qui suivent les fichiers réécrits
     let mut nodes: HashMap<i64, (i64, String)> = HashMap::new();

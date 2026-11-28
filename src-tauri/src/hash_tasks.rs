@@ -343,8 +343,8 @@ pub(crate) fn run_precompute(
         return Ok(report);
     }
 
-    let worker_threads = crate::semantic::resolve_hash_threads(threads, false);
-    let workers = crate::semantic::build_low_priority_pool(worker_threads)?;
+    let worker_threads = crate::runtime::resolve_hash_threads(threads, false);
+    let workers = crate::runtime::build_low_priority_pool(worker_threads)?;
 
     let pending_total = pending.len();
     let mut done = 0usize;
@@ -352,7 +352,7 @@ pub(crate) fn run_precompute(
     let mut failures: Vec<HashFailure> = Vec::new();
 
     for chunk in pending.chunks(HASH_CHUNK_SIZE) {
-        if !crate::semantic::wait_while_busy(crate::semantic::background_busy, cancel, &mut || {
+        if !crate::semantic::wait_while_busy(crate::runtime::background_busy, cancel, &mut || {
             emit(PrecomputeProgress {
                 task_id: String::new(),
                 percent: (done * 100 / pending_total) as u32,
@@ -561,7 +561,7 @@ pub async fn precompute_hashes(
             .name("hash-precompute".to_string())
             .spawn(move || {
                 let _slot = slot;
-                crate::semantic::lower_thread_priority();
+                crate::runtime::lower_thread_priority();
                 let emit = |mut progress: PrecomputeProgress| {
                     progress.task_id.clone_from(&worker_task_id);
                     let _ = app.emit("scan-progress", progress);

@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-results.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js, src/task-queue.js -->
+<!-- verified: 2a84306 | sources: src-tauri/src/semantic.rs, src-tauri/src/semantic_models.rs, src-tauri/src/semantic_search.rs, src-tauri/src/semantic_keywords.rs, src/semantic.js, src/semantic-results.js, src/semantic-settings.js, src/semantic-tagging.js, src/semantic-keywords.js, src/semantic-exclusions.js, src/main.js, src/task-queue.js -->
 # Semantic search and automatic keywords
 
 ## Purpose
@@ -7,7 +7,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 ## Files
 | File | Role |
 |---|---|
-| `semantic.rs` | Image preprocessing (PIL-exact bilinear), tokenizer, `VisionEncoder` / `TextEncoder`, fp16 storage, tables, low-priority scan task (`semantic_scan`), `PriorityGuard`, stats, `delete_semantic_data`. |
+| `semantic.rs` | Image preprocessing (PIL-exact bilinear), tokenizer, `VisionEncoder` / `TextEncoder`, fp16 storage, tables, low-priority scan task (`semantic_scan`), `wait_while_busy`, stats, `delete_semantic_data`. |
 | `semantic_search.rs` | In-memory index (`SearchCache`, half floats), text / image search, `relevance_cut`, idle release (`IDLE_RELEASE`, 5 min), `keyword_photo_ids`. |
 | `semantic_keywords.rs` | Keyword → photos (`keyword_candidates`) and photo → keywords (`photo_suggestions`), rejections. |
 | `semantic_models.rs` | Manifest `semantic_models.json`, `ENABLED` gate, status / download / import / delete of model files. |
@@ -42,7 +42,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 - Settings: `semanticSearch`, `semanticScanRaw`, `semanticWriteThumbnails`, `semanticScanThreads`, `semanticRelevance`, `semanticInKeywordSearch`, `semanticKeywordsInSearch`, `semanticKeywordSort`, `semanticShowScore`, `semanticScope`, `semanticExcludedKeywords`, `keywordSuggestionsOpen` (`generated/config.md`). Error keys: `semantic_disabled`, `semantic_scan_running`, `semantic_model_missing`, `semantic_unsupported_platform`, `semantic_photo_not_analysed`, `semantic_empty_query`, `unknown_keyword`, `internet_disabled`.
 
 ## Dependencies
-- Uses: `duplicates.rs` (image-data hash: `LAYOUT_VERSION`), thumbnails cache, `onnx_runtime.rs`, `model_files.rs`, `face_models.rs` (`models_dir`, `internet_allowed`, runtime file), `keywords.rs` (`collect_rows`, tree), `keywords-panel.js` (`addPendingKeyword`).
+- Uses: `duplicates.rs` (image-data hash: `LAYOUT_VERSION`), thumbnails cache, `onnx_runtime.rs`, `model_files.rs`, `face_models.rs` (`models_dir`, runtime file), `runtime.rs` (`internet_allowed`, `PriorityGuard`, `BackgroundPauseGuard`), `keywords.rs` (`collect_rows`, tree), `keywords-panel.js` (`addPendingKeyword`).
 - Used by: `task-queue.js` (semantic lane), `semantic-results.js` (results mode, wired via `initSemanticResults` in `main.js`), `main.js` (grid, sorting, context menus), `keywords-panel.js` (Suggestions block); other tasks call `PriorityGuard::new()`.
 
 ## Invariants and sensitive areas
@@ -59,7 +59,7 @@ Optional "content search" (Settings > Search, off by default): a local SigLIP 2 
 1. New model: add a manifest entry (`scripts/prepare-semantic-models.mjs`), new id; old embeddings are ignored.
 2. New search entry point: command in `semantic_search.rs` using `ensure_enabled`, counter pattern on the frontend, register in `generate_handler!`.
 3. New setting: `defaults.jsonc` + settings UI + `locales/`; keep it idle when disabled.
-4. New foreground task: add `let _priority = crate::semantic::PriorityGuard::new();`.
+4. New foreground task: add `let _priority = crate::runtime::PriorityGuard::new();`.
 
 ## Open questions
 none. Holders of `PriorityGuard` (checked): in `main.rs` `generate_thumbnail`, `keep_cached_images` (every metadata write), `purge_orphan_cache`, `run_scan`, `integrity_scan`, `find_duplicates`, `find_similar_images`, `rotate_photo`, `sync_library`, `move_photos`, `copy_photos_with_progress`, `resize_photo`; plus `keywords::run_write` and `face_detect::detect_faces`. Restart: a semantic task is not in `RESUMABLE_TASK_KINDS` and is not restored; running the analysis again skips photos already `Analysed`, so nothing is recomputed.

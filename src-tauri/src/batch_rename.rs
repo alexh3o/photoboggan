@@ -765,7 +765,7 @@ pub fn preview_rename_batch(state: State<'_, AppState>, items: Vec<RenameItem>) 
 #[tauri::command(async)]
 pub fn rename_photos(app: tauri::AppHandle, state: State<'_, AppState>, items: Vec<RenameItem>, task_id: Option<String>) -> Result<RenameBatchResult, String> {
     // The semantic scan waits: it would read photos at the paths they are leaving.
-    let _priority = crate::semantic::PriorityGuard::new();
+    let _priority = crate::runtime::PriorityGuard::new();
     let paths: Vec<String> = items.iter().map(|item| item.path.clone()).collect();
     let mut progress = crate::FileTaskProgress::new(app, task_id, &paths);
     let pool = state.pool();

@@ -63,13 +63,13 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 685 |  |
 | `db-schema.md` | 340 |  |
 | `events.md` | 13 |  |
-| `files.md` | 356 |  |
+| `files.md` | 357 |  |
 | `ipc-commands.md` | 225 |  |
-| `module-deps.md` | 128 |  |
-| `sections.md` | 494 |  |
+| `module-deps.md` | 129 |  |
+| `sections.md` | 500 |  |
 | `symbols-js.md` | 1888 |  |
-| `symbols-rust.md` | 1709 |  |
-| `tests.md` | 586 |  |
+| `symbols-rust.md` | 1712 |  |
+| `tests.md` | 587 |  |
 
 ## docs/development/modules
 
@@ -131,7 +131,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `duplicates.css` | 61 | Banner of the duplicate search results (main.js, section "DUPLICATES"): same bar as "Find the RAW", with the group sort button on the right. |
 | `duplicates.js` | 262 | Duplicate search: pure helpers for the results view (the mode itself, the banner and the way back are in main.js, section "DUPLICATES"). The backend (duplicates.rs) returns groups of paths; here a group is { id, members… |
 | `faces-grid.js` | 1121 | Vue Visages (lot 3) : grille virtuelle des visages des photos affichées, à la place de la grille des photos (spec §9.3). - Vignettes carrées découpées dans les miniatures en cache (CSS), regroupées : à valider (par pers… |
-| `faces-panel.js` | 1943 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
+| `faces-panel.js` | 1949 | Visages (lot 1, lecture seule) : réglage « Lire les données de visages » (Paramètres > Visages), section Personnes de la barre latérale, filtre « Personnes (&) » et zones de visage en plein écran (touche V). Les section… |
 | `faces.css` | 273 | Visages (faces-panel.js) : sections repliables de la barre latérale, section Personnes, filtre Personnes, zones en plein écran. |
 | `file-dates.js` | 44 | Tooltip of the "Date taken" row of the Info tab: the creation and modification dates of the active photo's file. The dates are read from the disk (get_file_dates in main.rs) only when the row is hovered, so nothing is r… |
 | `file-kinds.js` | 16 | File kinds from the extension: RAW and video. Pure code: no state, no DOM. The extension lists themselves live in format-filters.js. Leaf module (imports nothing from main.js), so that modules such as photo-actions.js d… |
@@ -176,7 +176,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `preview-zoom.js` | 724 | Preview panel (zoom, pan, compare mode up to 4 photos, sub-selection) and instant zoom (hold Z), plus the shared slot layout and zoom primitives reused by fullscreen. `main.js` wires host callbacks via `initPreviewZoom(… |
 | `privacy.css` | 58 | Photos privées (privacy.js) : bouclier du panneau Filtres, liste des ensembles et zone de réglage de Paramètres > Divers. |
 | `privacy.js` | 515 | Photos privées : ensembles de confidentialité dont les photos restent masquées (le masquage lui-même est fait côté Rust, voir privacy.rs). Un ensemble = un nom + des critères, tous insensibles à la casse (une photo est … |
-| `private-zones-modal.js` | 514 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
+| `private-zones-modal.js` | 518 | Fenêtre « Zones privées et cartes hors ligne » : liste des zones à gauche ; à droite, accueil, détail d'une zone (aperçu local, informations, actions) ou création d'une zone (dessin, nom, niveau de détail, estimation). … |
 | `private-zones.js` | 139 | Zones privées de la carte (côté interface) : liste des zones (lue dans le backend, private_maps.rs), lieux privés, contours à dessiner et niveaux de détail. Partagé par le panneau Info, la fenêtre de gestion des zones e… |
 | `raw-settings.css` | 15 | Settings > Search > RAW search (raw-settings.js) |
 | `raw-settings.js` | 154 | Paramètres > Recherche > Recherche des RAW : critères de la recherche du RAW qui correspond à une image raster (« Trouver le RAW », voir main.js). Chaque utilisateur nomme et range ses RAW et ses JPEG à sa façon : il co… |
@@ -184,7 +184,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `semantic-exclusions.js` | 154 | Content search: keywords never suggested (Settings > Content search). Camera gear, lenses and other keywords that the content of a photo cannot tell give poor suggestions: the user lists them here, and neither they nor … |
 | `semantic-keywords.js` | 200 | Content search, keyword filter side (SigLIP 2, Phase 5): photos suggested for the keywords of the filter. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7.3, §25). Idle unless the setting "Include suggestio… |
 | `semantic-results.js` | 279 | Content search results mode: relevance cut, banner rendering, keyword-candidate actions, similar-content / keyword-candidate entry points, and view snapshot entry/exit. `main.js` wires host state and callbacks via `init… |
-| `semantic-settings.js` | 462 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
+| `semantic-settings.js` | 466 | Content search (local AI, SigLIP 2): the setting, the gating of every semantic element, the Settings section and the launch of the analysis. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§9). Nothing here t… |
 | `semantic-tagging.js` | 161 | Content search, tagging help (SigLIP 2, Phase 6): keyword -> photos and photo -> keywords. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§8, §23.5, §26). Nothing here writes anything: accepting a suggestion… |
 | `semantic.css` | 73 | Content search (semantic-settings.js): invisible while the feature is off or its model is not installed. |
 | `semantic.js` | 112 | Content search, search side (SigLIP 2): the toolbar field, its scope toggle and the requests to the backend. See dev_tools/Evolutions/feat semantic search SigLIP 2.md (§7, §9, §18). Everything here stays idle while the … |
@@ -204,7 +204,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `toolbar-a11y.js` | 18 | Keeps aria-pressed in sync with the "active" class on the toolbar toggle buttons. The class is toggled from many modules (main.js, faces-grid.js, map-mode.js...), so a single observer here avoids touching each of them. |
 | `undo.css` | 25 | Undo history modal (Ctrl+U, undo.js): uses global modal shell and theme tokens |
 | `undo.js` | 502 | Session undo stacks ("common" for the main/fullscreen view and "faces" for the Faces management view), unified toast formatting, photo/video/file item-kind naming, and the Undo history modal (Ctrl+U). |
-| `update-check.js` | 384 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
+| `update-check.js` | 395 | Mises à jour : Paramètres > Général > Internet (« Vérifier les mises à jour », « Inclure les pré-versions »), ligne des versions, fenêtre « Mise à jour disponible » et ligne de la fenêtre À propos. La recherche elle-mêm… |
 | `zone-drawing.js` | 144 | Dessin d'une zone privée sur une carte MapLibre, sans bibliothèque supplémentaire : - cercle : appuyer sur le centre, glisser jusqu'au rayon voulu, relâcher (un nouveau glissement le redessine) ; - polygone : un clic pa… |
 
 ## src-tauri
@@ -256,7 +256,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `exif.rs` | 2396 |  |
 | `exiftool.rs` | 1384 | Metadata writing via `ExifTool` (<https://exiftool.org>). Executable, in order: user-chosen path in Settings, bundled version (`exiftool` folder in app resources, see scripts/fetch-exiftool.mjs), then `exiftool` from PA… |
 | `face_detect.rs` | 803 | Détection des visages (lot 2) : `YuNet` sur la miniature en cache de chaque photo, mesures de qualité, enregistrement en base avec fusion des visages déjà connus (spec `dev_tools/Evolutions/feat` face recognition v2.md,… |
-| `face_models.rs` | 188 | Files of face detection and recognition: ONNX models (`YuNet`, `SFace`) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepare… |
+| `face_models.rs` | 173 | Files of face detection and recognition: ONNX models (`YuNet`, `SFace`) and the ONNX Runtime library of the platform. They are downloaded on demand from a photoboggan GitHub release (manifest `face_models.json`, prepare… |
 | `face_recognize.rs` | 317 | Reconnaissance des visages (lot 3) : alignement, empreinte `SFace` et attribution à une personne (spec `dev_tools/Evolutions`/ feat face recognition v2.md, §3 étapes 5 à 7 et §5.1). - Alignement : les 5 points de repère… |
 | `faces.rs` | 2079 | Visages : zones de visage lues dans les fichiers (MWG Regions, Microsoft MP, `ACDSee`), personnes et association photo ↔ visage. Modèle (choisi avec l'utilisateur, voir `dev_tools/Evolutions/feat` face recognition v2.md… |
 | `geolocation.rs` | 262 | Effacement et restauration de la géolocalisation des photos (menu contextuel) : seules écritures du GPS dans les fichiers. - Effacer : les coordonnées sont d'abord sauvegardées en base (table `erased_locations`), puis r… |
@@ -266,7 +266,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `integrity.rs` | 778 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 976 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (`parent_id` = 0 … |
 | `library_sync.rs` | 429 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 4132 |  |
+| `main.rs` | 4135 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -276,10 +276,11 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `private_maps.rs` | 1152 | Zones privées de la carte : lieux (cercle ou polygone) dont les tuiles sont téléchargées à l'avance et lues uniquement sur le disque. - Les zones sont en base (table `private_zones`) ; les tuiles de chacune dans un fich… |
 | `resize.rs` | 571 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `rights.rs` | 229 | Auteur et droits : préréglages d'auteur (table `author_presets`), lecture à la demande des champs de droits des photos et liste des auteurs du catalogue (filtre « Auteur »). Les cinq champs (auteur, mention de copyright… |
+| `runtime.rs` | 110 | Cross-cutting runtime primitives: offline gate (`INTERNET_ALLOWED`) and task priority coordination. |
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion i… |
 | `semantic_models.rs` | 339 | Files of the semantic search (`SigLIP` 2, spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by s… |
 | `semantic_search.rs` | 814 | Searches of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - In… |
-| `semantic.rs` | 1340 | Semantic search with `SigLIP` 2 (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan… |
+| `semantic.rs` | 1255 | Semantic search with `SigLIP` 2 (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md): tokenizer, image preprocessing, image and text encoders, fp16 storage of the embeddings, tables and the low-priority scan… |
 | `similar.rs` | 574 | Duplicate detection, "similar images" part (command `find_similar_images`): photos that look alike (resized, recompressed, lightly edited, and optionally rotated or mirrored), found with the perceptual hash of phash.rs.… |
 | `stats.rs` | 805 | Statistics of the catalogue for the "Collection statistics" window (stats.js). Read-only: every figure comes from the `photos`, `photo_keywords`, `keyword_nodes`, `faces`, `persons` and `photo_embeddings` tables, comput… |
 | `test_support.rs` | 160 | Aides communes aux tests (compilées uniquement par `cargo test`) : images synthétiques et recherche d'octets. Aucun test ne touche à une vraie photo : tout est fabriqué en mémoire puis écrit dans un dossier temporaire. |
@@ -344,9 +345,9 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 
 | File | Lines | Leading comment |
 |---|---:|---|
-| `en.json` | 2287 |  |
-| `es.json` | 2287 |  |
-| `fr.json` | 2287 |  |
+| `en.json` | 2290 |  |
+| `es.json` | 2290 |  |
+| `fr.json` | 2290 |  |
 
 ## webpage
 

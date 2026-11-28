@@ -838,7 +838,7 @@ fn fill_hashes(
     let mut done = 0usize;
     let mut busy = Duration::ZERO;
     for chunk in wanted.chunks(HASH_CHUNK_SIZE) {
-        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+        if !crate::semantic::wait_while_busy(crate::runtime::foreground_busy, cancel, &mut || {
             let frac = range.0 + (range.1 - range.0) * done as f64 / total as f64;
             progress(RichProgress {
                 percent: (frac * 100.0).round() as u32,
@@ -940,8 +940,8 @@ pub fn run_with_options(
     let cache = load_cache(&conn, mode)?;
     let failure_cache = load_failure_cache(&conn, mode)?;
 
-    let threads = crate::semantic::resolve_hash_threads(request.threads.as_deref(), true);
-    let workers = crate::semantic::build_low_priority_pool(threads)?;
+    let threads = crate::runtime::resolve_hash_threads(request.threads.as_deref(), true);
+    let workers = crate::runtime::build_low_priority_pool(threads)?;
 
     // Stage 0: separate already-cached entries from uncached candidates so we only chunk and hash the missing ones.
     let mut entries: Vec<Entry> = Vec::with_capacity(candidates.len());
@@ -989,7 +989,7 @@ pub fn run_with_options(
     let mut stage0_done = 0usize;
     let mut stage0_busy = Duration::ZERO;
     for chunk in uncached.chunks(HASH_CHUNK_SIZE) {
-        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+        if !crate::semantic::wait_while_busy(crate::runtime::foreground_busy, cancel, &mut || {
             let frac = if stage0_total > 0 { 0.3 * stage0_done as f64 / stage0_total as f64 } else { 0.3 };
             progress(RichProgress {
                 percent: (frac * 100.0).round() as u32,

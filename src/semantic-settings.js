@@ -86,7 +86,7 @@ export function semanticErrorMessage(error) {
     semantic_scan_running: 'A content analysis is already running',
     semantic_model_missing: 'Install the content search model first (Settings > Content search)',
     semantic_unsupported_platform: 'Content search is not available on this system',
-    internet_disabled: 'Offline mode is on (Settings > General)',
+    internet_disabled: 'Offline mode is on: cannot download',
   };
   return text in messages ? t(messages[text]) : text;
 }
@@ -138,8 +138,8 @@ function renderModelStatus() {
   const name = `${modelStatus.label} (${formatMegabytes(modelStatus.modelSize)})`;
   importButton.hidden = !modelStatus.supported;
   download.hidden = !modelStatus.supported || modelStatus.installed;
-  // Offline mode: the button stays visible but greyed, with the offline explanation; the files to fetch by hand are listed open.
-  download.disabled = offline;
+  // Offline mode: keep the button clickable so clicking it shows the offline toast; the files to fetch by hand are listed open.
+  download.disabled = modelDownloading;
   download.title = offline ? t('Offline mode is on (Settings > General)') : '';
   // The "Installing without Internet" help only matters in offline mode: hidden otherwise.
   list.closest('details').hidden = !offline;
@@ -236,6 +236,10 @@ async function importModel() {
 
 export function downloadSemanticModel() {
   if (modelDownloading) return;
+  if (isOffline()) {
+    host.showToast(t('Offline mode is on: cannot download'));
+    return;
+  }
   const queued = host.enqueueTask({
     kind: 'semantic-models',
     path: null,

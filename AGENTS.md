@@ -12,7 +12,7 @@
 * **Performance** : défilement virtuel, lecture multithreadée, miniatures en DCT réduit, RAW via l'aperçu JPEG intégré.
 * **Interopérabilité** : les métadonnées sont écrites dans les fichiers (ou en sidecars `.xmp` standards pour RAW, PNG, vidéos…), compatibles digiKam, Lightroom et l'Explorateur Windows.
 * **Multiplateforme** : Windows et Linux distribués ; rien qui bloquerait un autre OS.
-* **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau part du backend, vérifie `internet_allowed()` (`face_models.rs`) et renvoie `internet_disabled` en mode hors ligne. Seule exception : les tuiles de carte, via le protocole `pbmap://` (`map-tile-protocol.js`, seul code autorisé à joindre `tiles.openfreemap.org`, aussi dans la CSP `connect-src`), sous condition de `isMapNetworkAllowed()`. Tout nouvel accès réseau suit la même règle et est mentionné dans l'infobulle « Mode hors ligne ».
+* **Hors ligne possible** : aucune ressource chargée depuis Internet (polices, scripts… embarqués). Tout accès réseau part du backend, vérifie `internet_allowed()` (`runtime.rs`) et renvoie `internet_disabled` en mode hors ligne. Seule exception : les tuiles de carte, via le protocole `pbmap://` (`map-tile-protocol.js`, seul code autorisé à joindre `tiles.openfreemap.org`, aussi dans la CSP `connect-src`), sous condition de `isMapNetworkAllowed()`. Tout nouvel accès réseau suit la même règle et est mentionné dans l'infobulle « Mode hors ligne ».
 
 ## 2. Pile Technologique
 

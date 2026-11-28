@@ -1490,7 +1490,7 @@ function faceErrorMessage(error) {
   const text = String(error);
   if (text === 'face_models_missing') return isOffline() ? t('Install the face model first (Settings > Faces)') : t('Download the face model first (Settings > Faces)');
   if (text === 'faces_unsupported_platform') return t('Face detection is not available on this system');
-  if (text === 'internet_disabled') return t('Offline mode is on (Settings > General)');
+  if (text === 'internet_disabled') return t('Offline mode is on: cannot download');
   return text;
 }
 
@@ -1544,8 +1544,9 @@ function renderModelStatus() {
   }
   const offline = isOffline();
   importButton.hidden = !modelStatus.supported;
-  // Mode hors ligne : pas de téléchargement, la liste des fichiers à récupérer à la main est dépliée.
-  download.hidden = offline || !modelStatus.supported || modelStatus.installed;
+  // Offline mode: keep the button clickable so clicking it shows the offline toast; the files to fetch by hand are listed open.
+  download.hidden = !modelStatus.supported || modelStatus.installed;
+  download.title = offline ? t('Offline mode is on (Settings > General)') : '';
   // The "Installing without Internet" help only matters in offline mode: hidden otherwise.
   list.closest('details').hidden = !offline;
   if (offline && modelStatus.supported && !modelStatus.installed) list.closest('details').open = true;
@@ -1570,6 +1571,10 @@ function renderModelStatus() {
 
 export function downloadFaceModels() {
   if (modelDownloading) return;
+  if (isOffline()) {
+    host.showToast(t('Offline mode is on: cannot download'));
+    return;
+  }
   const queued = host.enqueueTask({
     kind: 'face-models',
     path: null,
@@ -1587,6 +1592,8 @@ export function downloadFaceModels() {
   if (queued) {
     modelDownloading = true;
     notifyFaceModelStatus();
+    // Immediate feedback: the progress toast of the task is not always seen behind the Settings or Wizard window.
+    host.showToast(t('Downloading the face model ({size})…', { size: formatMegabytes(modelStatus?.missing_size ?? 0) }));
   }
 }
 const downloadModels = downloadFaceModels;

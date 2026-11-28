@@ -263,7 +263,7 @@ pub async fn download_semantic_model(app: tauri::AppHandle, state: State<'_, App
         let mut last_percent = u32::MAX;
         for item in missing {
             // Checked before each file: going offline does not stop the current file (it completes), but the next ones are refused.
-            if !crate::face_models::internet_allowed() { return Err("internet_disabled".to_string()); }
+            if !crate::runtime::internet_allowed() { return Err("internet_disabled".to_string()); }
             ensure_enabled()?;
             let url = format!("{}{}", item.base_url, item.file.asset);
             model_files::download(&url, &item.dir, &item.file, body_timeout(item.file.size), &cancel, &mut |bytes| {

@@ -169,7 +169,7 @@ fn pick_latest(body: &[u8], installed: &Version, installed_text: &str, include_p
 
 /// Interroge GitHub (bloquant : à appeler hors du fil principal).
 fn fetch_info(installed_text: &str, include_prereleases: bool) -> Result<UpdateInfo, String> {
-    if !crate::face_models::internet_allowed() { return Err("internet_disabled".to_string()); }
+    if !crate::runtime::internet_allowed() { return Err("internet_disabled".to_string()); }
     let installed = parse_version(installed_text).ok_or_else(|| format!("Version installée illisible : {installed_text}"))?;
     let response = ureq::get(RELEASES_URL)
         .header("User-Agent", &format!("photoboggan/{installed_text} (update check)"))

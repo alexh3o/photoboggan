@@ -462,19 +462,19 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `export refreshFaceModelStatus()` · L1520
 - `renderModelStatus()` · L1533 — État des fichiers du modèle, bouton de téléchargement et liste des fichiers (liens et sommes SHA-256 pour une installation sans Internet).
 - `export downloadFaceModels()` · L1571
-- `importModels()` · L1594
-- `sendFaceSettings()` · L1607
-- `scheduleReclassify()` · L1612 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
-- `initDetectionSettings()` · L1626
-- `applyDetectionEnabled()` · L1677 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
-- `setDetectionEnabled(enabled)` · L1691
-- `export setFaceDetectionEnabled(wanted)` · L1698
-- `checkbox(label, checked)` · L1707
-- `dialogButton(label, className, onClick)` · L1719
-- `enqueueFaceScan(scope, recursive)` · L1730 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
-- `export openFaceScanDialog(scope)` · L1763 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
-- `applyReadingEnabled()` · L1842 — ==========================================
-- `export initFacesPanel(hostApi)` · L1862 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
+- `importModels()` · L1600
+- `sendFaceSettings()` · L1613
+- `scheduleReclassify()` · L1618 — Un seuil a changé : les visages déjà détectés sont reclassés (inconnu / filtré) sans nouveau scan, un court instant après la dernière saisi…
+- `initDetectionSettings()` · L1632
+- `applyDetectionEnabled()` · L1683 — Détection activée : réglages du modèle, bouton « Visages » de la barre du haut, filtre du statut de scan, raccourcis de la section Personne…
+- `setDetectionEnabled(enabled)` · L1697
+- `export setFaceDetectionEnabled(wanted)` · L1704
+- `checkbox(label, checked)` · L1713
+- `dialogButton(label, className, onClick)` · L1725
+- `enqueueFaceScan(scope, recursive)` · L1736 — Met le scan en file : `recursive` = sous-dossiers compris (dossier seulement).
+- `export openFaceScanDialog(scope)` · L1769 — Fenêtre de lancement d'un scan (menu contextuel > Visages) : `scope` = { folder } ou { photoIds }, et `onlyUnscanned`.
+- `applyReadingEnabled()` · L1848 — ==========================================
+- `export initFacesPanel(hostApi)` · L1868 — hostApi : getThumbnailUrl(path) -> Promise<url>, onFilterChange(options), getFullscreenSlot(), isFullscreen(), showToast(message),
 
 ## src/file-dates.js (3)
 
@@ -1513,7 +1513,7 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `button(label, className = '', onClick = null)` · L78
 - `privacyCheckbox(checked, onChange)` · L86 — Case « Privée » (création et détail d'une zone) avec son explication.
 - `enqueueDownload(zone)` · L99 — Télécharge (ou met à jour) une zone : tâche de la file.
-- `export openPrivateZonesModal()` · L120 — Ouvre la fenêtre de gestion des zones privées.
+- `export openPrivateZonesModal()` · L124 — Ouvre la fenêtre de gestion des zones privées.
 
 ## src/private-zones.js (14)
 
@@ -1621,17 +1621,17 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `renderSection()` · L208
 - `importModel()` · L216 — Messages of the import: one line per problem (a file missing or with a wrong checksum).
 - `export downloadSemanticModel()` · L237
-- `deleteAnalysisData()` · L263
-- `deleteModelFiles()` · L282
-- `hasStoredData()` · L306 — ==========================================
-- `export setSemanticEnabled(wanted)` · L311
-- `bindCheckbox(id, key)` · L353
-- `export analyseContent({ folder = null, recursive = false, photoIds = null } = {})` · L367 — ==========================================
-- `reportAnalysis(report, stopped, error)` · L384 — End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
-- `scanRaw()` · L412 — Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts.
-- `export semanticScanThreads()` · L415 — Scan speed (ONNX Runtime threads): 1, 2 or 4.
-- `export onSemanticOfflineChanged()` · L420 — Offline mode changed (main.js): the Download button follows.
-- `export initSemanticSettings(hostApi)` · L427 — hostApi: enqueueTask(task) and showToast(message), as faces-panel.js; stopTasks() stops the analyses of the queue.
+- `deleteAnalysisData()` · L267
+- `deleteModelFiles()` · L286
+- `hasStoredData()` · L310 — ==========================================
+- `export setSemanticEnabled(wanted)` · L315
+- `bindCheckbox(id, key)` · L357
+- `export analyseContent({ folder = null, recursive = false, photoIds = null } = {})` · L371 — ==========================================
+- `reportAnalysis(report, stopped, error)` · L388 — End of an analysis: a toast with the counts, the failed photos (path and reason) in the console as the face scan does.
+- `scanRaw()` · L416 — Setting "Analyse RAW files": when off, the backend leaves them out of every analysis and of the counts.
+- `export semanticScanThreads()` · L419 — Scan speed (ONNX Runtime threads): 1, 2 or 4.
+- `export onSemanticOfflineChanged()` · L424 — Offline mode changed (main.js): the Download button follows.
+- `export initSemanticSettings(hostApi)` · L431 — hostApi: enqueueTask(task) and showToast(message), as faces-panel.js; stopTasks() stops the analyses of the queue.
 
 ## src/semantic-tagging.js (10)
 
@@ -1875,12 +1875,12 @@ Top-level functions and classes of each `src/*.js` file, in file order (so the l
 - `openDialog()` · L194 — ---- Fenêtre « Mise à jour disponible » ----
 - `closeDialog()` · L204
 - `downloadUpdate()` · L208
-- `installUpdate()` · L244
-- `onDownloadButton()` · L260
-- `openReleasePage()` · L268
-- `runCheck({ announce = null } = {})` · L281
-- `forgetResult()` · L306 — Une nouvelle recherche est nécessaire (réglage modifié ou version installée changée) : oublie le résultat mémorisé.
-- `export initUpdateCheck({ showToast: toast, enqueueTask: enqueue, canQuit: quitAllo…)` · L314
+- `installUpdate()` · L248
+- `onDownloadButton()` · L264
+- `openReleasePage()` · L272
+- `runCheck({ announce = null } = {})` · L285
+- `forgetResult()` · L317 — Une nouvelle recherche est nécessaire (réglage modifié ou version installée changée) : oublie le résultat mémorisé.
+- `export initUpdateCheck({ showToast: toast, enqueueTask: enqueue, canQuit: quitAllo…)` · L325
 
 ## src/zone-drawing.js (1)
 

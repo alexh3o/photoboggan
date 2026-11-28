@@ -71,7 +71,7 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L765–L1015 | 251 | BARRE D'OUTILS : FILTRE PAR STATUT, ACTIONS |
 | L1016–L1121 | 106 | INITIALISATION |
 
-## src/faces-panel.js (1943 lines)
+## src/faces-panel.js (1949 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -81,8 +81,8 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L439–L983 | 545 | SECTION PERSONNES (barre latérale) |
 | L984–L1009 | 26 | SECTIONS REPLIABLES (Dossiers, Personnes, Filtres) |
 | L1010–L1480 | 471 | ZONES DE VISAGE EN PLEIN ÉCRAN (touche V) |
-| L1481–L1837 | 357 | DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT |
-| L1838–L1943 | 106 | RÉGLAGE ET INITIALISATION |
+| L1481–L1843 | 363 | DÉTECTION : MODÈLE, RÉGLAGES, LANCEMENT |
+| L1844–L1949 | 106 | RÉGLAGE ET INITIALISATION |
 
 ## src/find-raw-mode.js (127 lines)
 
@@ -254,13 +254,13 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L18–L193 | 176 | CONTENT SEARCH RESULTS |
 | L194–L279 | 86 | INITIALIZATION |
 
-## src/semantic-settings.js (462 lines)
+## src/semantic-settings.js (466 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L119–L301 | 183 | SETTINGS SECTION |
-| L302–L360 | 59 | ENABLING AND DISABLING |
-| L361–L462 | 102 | ANALYSIS LAUNCH |
+| L119–L305 | 187 | SETTINGS SECTION |
+| L306–L364 | 59 | ENABLING AND DISABLING |
+| L365–L466 | 102 | ANALYSIS LAUNCH |
 
 ## src/semantic-tagging.js (161 lines)
 
@@ -414,11 +414,11 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L249–L686 | 438 | Écriture des mots-clés dans les fichiers |
 | L687–L972 | 286 | Gestion de l'arborescence : création et suppression de mots-clés |
 
-## src-tauri/src/main.rs (4132 lines)
+## src-tauri/src/main.rs (4135 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
-| L3330–L4128 | 799 | Programs allowed for "Open with" |
+| L3331–L4131 | 801 | Programs allowed for "Open with" |
 
 ## src-tauri/src/phash.rs (201 lines)
 
@@ -443,7 +443,13 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L243–L433 | 191 | Décodage, redimensionnement, encodage |
 | L434–L567 | 134 | Métadonnées JPEG : lecture des segments APPn de la source et mise à jour pour l'image redimensionnée |
 
-## src-tauri/src/semantic.rs (1340 lines)
+## src-tauri/src/runtime.rs (110 lines)
+
+| Lines | Size | Section |
+|---|---:|---|
+| L19–L110 | 92 | Priority: background tasks give way to every foreground task |
+
+## src-tauri/src/semantic.rs (1255 lines)
 
 | Lines | Size | Section |
 |---|---:|---|
@@ -451,13 +457,13 @@ Boxed section banners (`// ====` / `// ----`) found in `src/*.js` and `src-tauri
 | L101–L206 | 106 | Image preprocessing |
 | L207–L245 | 39 | Text |
 | L246–L319 | 74 | Encoders |
-| L320–L414 | 95 | Priority: the scan gives way to every foreground task (§6.2) |
-| L415–L465 | 51 | Tables (§5.1) |
-| L466–L596 | 131 | Photos of a scan |
-| L597–L700 | 104 | Pixels of a photo |
-| L701–L780 | 80 | Storage |
-| L781–L1243 | 463 | Scan task (§6) |
-| L1244–L1336 | 93 | Statistics and deletion |
+| L320–L329 | 10 | Priority: the scan gives way to every foreground task (§6.2) |
+| L330–L380 | 51 | Tables (§5.1) |
+| L381–L511 | 131 | Photos of a scan |
+| L512–L615 | 104 | Pixels of a photo |
+| L616–L695 | 80 | Storage |
+| L696–L1158 | 463 | Scan task (§6) |
+| L1159–L1251 | 93 | Statistics and deletion |
 
 ## src-tauri/src/semantic_keywords.rs (408 lines)
 

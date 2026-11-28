@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/face_detect.rs, src-tauri/src/face_recognize.rs, src-tauri/src/face_models.rs, src-tauri/src/model_files.rs, src-tauri/src/onnx_runtime.rs, src-tauri/face_models.json -->
+<!-- verified: 2a84306 | sources: src-tauri/src/face_detect.rs, src-tauri/src/face_recognize.rs, src-tauri/src/face_models.rs, src-tauri/src/model_files.rs, src-tauri/src/onnx_runtime.rs, src-tauri/face_models.json -->
 # Face detection and recognition (detector, embeddings, models)
 
 ## Purpose

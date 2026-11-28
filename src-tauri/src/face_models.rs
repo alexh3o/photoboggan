@@ -8,7 +8,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use tauri::{Emitter, State};
 
@@ -39,20 +38,6 @@ impl ModelFile {
 struct Manifest {
     base_url: String,
     files: Vec<ModelFile>,
-}
-
-/// Accès à Internet autorisé (Paramètres > Général, « Mode hors ligne » décoché) ; envoyé par l'interface au démarrage puis à chaque changement.
-/// Refusé tant que l'interface ne l'a pas envoyé : aucun téléchargement ne peut partir avant que le réglage soit connu.
-static INTERNET_ALLOWED: AtomicBool = AtomicBool::new(false);
-
-#[tauri::command]
-pub fn set_internet_allowed(allowed: bool) {
-    INTERNET_ALLOWED.store(allowed, Ordering::Relaxed);
-}
-
-/// Accès à Internet autorisé : vérifié aussi par les téléchargements des zones privées (`private_maps.rs`).
-pub fn internet_allowed() -> bool {
-    INTERNET_ALLOWED.load(Ordering::Relaxed)
 }
 
 fn manifest() -> &'static Manifest {
@@ -152,7 +137,7 @@ pub async fn download_face_models(app: tauri::AppHandle, state: State<'_, AppSta
         let mut last_percent = u32::MAX;
         for file in missing {
             // Vérifié avant chaque fichier : passer en mode hors ligne n'interrompt pas le fichier en cours (il va jusqu'au bout), mais les suivants sont refusés.
-            if !INTERNET_ALLOWED.load(Ordering::Relaxed) { return Err("internet_disabled".to_string()); }
+            if !crate::runtime::internet_allowed() { return Err("internet_disabled".to_string()); }
             let url = format!("{}{}", manifest().base_url, file.asset);
             model_files::download(&url, &dir, &file.expected(), BODY_TIMEOUT, &cancel, &mut |bytes| {
                 done += bytes;

@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/private_maps.rs, src/private-zones.js, src/private-zones-modal.js, src/zone-drawing.js -->
+<!-- verified: 2a84306 | sources: src-tauri/src/private_maps.rs, src/private-zones.js, src/private-zones-modal.js, src/zone-drawing.js -->
 # Private zones and offline maps
 
 ## Purpose
@@ -41,7 +41,7 @@ A request outside `z ≤ 22` / valid range gets `1` (empty). Zones are loaded in
 - Settings: `mapStyleRefresh`, `showMap`, `offlineMode`; error codes `internet_disabled`, `zone_too_large`, `imported_zone`, `invalid_zone_name`, `mbtiles_without_bounds`.
 
 ## Dependencies
-- Uses: `face_models::internet_allowed`, the catalogue pool (rows only), `ureq`, `rusqlite` (MBTiles), `main.rs` (startup migration, data folder move).
+- Uses: `runtime::internet_allowed`, the catalogue pool (rows only), `ureq`, `rusqlite` (MBTiles), `main.rs` (startup migration, data folder move).
 - Used by: `map-tile-protocol.js` (`get_private_tile`, `get_private_resource`), `location-panel.js`, `map-mode.js`, `map-view.js` (strict mode), `maps-settings.js`.
 
 ## Invariants and sensitive areas

@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
+<!-- verified: 2a84306 | sources: src-tauri/src/geolocation.rs, src-tauri/src/place_search.rs, src/map-view.js, src/map-mode.js, src/map-config.js, src/map-tile-protocol.js, src/maps-settings.js, src/location-panel.js, src/geo-tools.js, src/place-search.js -->
 
 # Maps, map mode, location panel, geolocation editing, place search
 
@@ -53,7 +53,7 @@ Shows where photos were taken (small map in the Info panel, full map mode), lets
 
 ## Dependencies
 
-- Uses: MapLibre GL (bundled, worker file via Vite `?url`), `private-zones.js`, `metadata-writes.js` (`runLocked`, apply circuit), `keywords.rs` (`run_write`), `exiftool.rs` (`writes_in_file`), `face_models::internet_allowed`.
+- Uses: MapLibre GL (bundled, worker file via Vite `?url`), `private-zones.js`, `metadata-writes.js` (`runLocked`, apply circuit), `keywords.rs` (`run_write`), `exiftool.rs` (`writes_in_file`), `runtime::internet_allowed`.
 - Used by: `main.js` (filters, close confirmation), `drag-drop.js` (drag and drop onto the map), `private-zones-modal.js` (`createMapView`).
 
 ## Invariants and sensitive areas

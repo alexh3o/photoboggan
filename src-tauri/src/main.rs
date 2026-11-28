@@ -33,6 +33,7 @@ mod library_sync;
 mod orientation;
 mod resize;
 mod rights;
+mod runtime;
 mod stats;
 mod thumbnails;
 mod video;
@@ -459,7 +460,7 @@ async fn generate_thumbnail(state: State<'_, AppState>, source_path: String, max
         let size = if destination.is_file() {
             thumbnails::jpeg_size(&destination)?
         } else {
-            let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the grid needs thumbnails
+            let _priority = runtime::PriorityGuard::new(); // the semantic scan waits while the grid needs thumbnails
             thumbnails::generate_thumbnail(std::path::Path::new(&source_path), &destination, max_side)?
         };
         Ok(GeneratedThumbnail { path: destination.to_string_lossy().into_owned(), width: size.width, height: size.height })
@@ -490,7 +491,7 @@ impl ImageCacheDirs {
 /// fichier, dont dépend le nom de sa miniature et de son aperçu en cache, si. Ceux-ci sont renommés pour suivre le fichier réécrit, au lieu
 /// d'être régénérés au prochain affichage (redémarrage compris). Un sidecar écrit ne change pas le fichier : rien à faire.
 pub(crate) fn keep_cached_images<T>(dirs: &ImageCacheDirs, path: &str, write: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
-    let _priority = semantic::PriorityGuard::new(); // every metadata write goes through here: the semantic scan waits meanwhile
+    let _priority = runtime::PriorityGuard::new(); // every metadata write goes through here: the semantic scan waits meanwhile
     let before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
     let result = write()?;
     let after = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
@@ -607,7 +608,7 @@ fn clear_thumbnail_cache(state: State<'_, AppState>) -> Result<(), String> {
 // seraient supprimés) ou quand un fichier du catalogue est illisible pour une autre raison qu'une absence.
 fn purge_orphan_cache(pool: &DbPool, thumbnails_dir: &Path, raw_previews_dir: &Path) -> Result<usize, String> {
     use rayon::prelude::*;
-    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while every catalogue file is checked
+    let _priority = runtime::PriorityGuard::new(); // the semantic scan waits while every catalogue file is checked
     if db::get_folders(pool).iter().any(|folder| !tracked_root_is_reachable(&folder.path)) {
         return Err("Un dossier suivi est injoignable (disque débranché ?) : nettoyage des miniatures reporté".to_string());
     }
@@ -794,7 +795,7 @@ async fn run_scan(app: tauri::AppHandle, pool: DbPool, scan_path: String, scan_m
         }
         None => HashMap::new(),
     };
-    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while the catalogue is read
+    let _priority = runtime::PriorityGuard::new(); // the semantic scan waits while the catalogue is read
     // Chaque photo arrive avec la date de modification de son fichier, enregistrée en base avec les métadonnées
     // pour que la synchronisation automatique ne la relise pas inutilement.
     let (tx, mut rx) = mpsc::channel::<(Photo, i64, Vec<Vec<String>>, faces::PhotoFaces)>(100);
@@ -1023,7 +1024,7 @@ async fn integrity_scan(
         let publish_folder = |folder_label: &str| {
             let _ = app.emit("scan-detail", ScanDetail { task_id: worker_task_id.clone(), detail: folder_label.to_string() });
         };
-        let _priority = semantic::PriorityGuard::new();
+        let _priority = runtime::PriorityGuard::new();
         integrity::run_with_options(
             &folder,
             resolved_paths.as_deref(),
@@ -1072,7 +1073,7 @@ async fn find_duplicates(app: tauri::AppHandle, state: State<'_, AppState>, requ
                 phase: rich.phase,
             });
         };
-        let _bg_pause = semantic::BackgroundPauseGuard::new();
+        let _bg_pause = runtime::BackgroundPauseGuard::new();
         hash_tasks::wait_for_precompute_chunk(&cancel);
         duplicates::run_with_options(&pool, Some(&base_dir), &request, &cancel, &publish)
     }).await;
@@ -1107,7 +1108,7 @@ async fn find_similar_images(app: tauri::AppHandle, state: State<'_, AppState>, 
                 phase: rich.phase,
             });
         };
-        let _bg_pause = semantic::BackgroundPauseGuard::new();
+        let _bg_pause = runtime::BackgroundPauseGuard::new();
         hash_tasks::wait_for_precompute_chunk(&cancel);
         similar::run_with_options(&pool, &thumbnails_dir, Some(&base_dir), &request, &cancel, &publish)
     }).await;
@@ -1549,7 +1550,7 @@ fn rotate_photo_with(
     // Hold one non-reentrant `path_lock` across read, write, read-back, and DB update so concurrent rotations compose cleanly.
     let guard = exiftool::path_lock(source);
     let wanted = orientation::rotate(orientation::read(source).stored, quarter_turns);
-    let _priority = semantic::PriorityGuard::new(); // like every metadata write (keep_cached_images): the semantic scan waits meanwhile
+    let _priority = runtime::PriorityGuard::new(); // like every metadata write (keep_cached_images): the semantic scan waits meanwhile
     let cached_before = [thumbnail_cache_file(&dirs.thumbnails, path).ok(), raw_preview_cache_file(&dirs.raw_previews, path).ok()];
     write_fn(source, &guard, wanted).map_err(|error| error.to_string())?;
     // The thumbnail and the preview are stored turned: both are dropped, under the old name (file rewritten) and the current one (sidecar
@@ -2421,7 +2422,7 @@ async fn sync_library(state: State<'_, AppState>, excluded: Option<Vec<String>>)
     let pool = state.pool();
     let base_dir = state.base_dir();
     tokio::task::spawn_blocking(move || {
-        let _priority = semantic::PriorityGuard::new();
+        let _priority = runtime::PriorityGuard::new();
         let mut changes = library_sync::sync_library(&pool, &excluded.unwrap_or_default())?;
         if !changes.temp_leftovers.is_empty() {
             changes.temp_leftovers_log = log_temp_leftovers(&base_dir, &changes.temp_leftovers, changes.temp_leftovers_total);
@@ -3034,7 +3035,7 @@ fn carry_cache_file(old: Option<PathBuf>, new: Option<PathBuf>) {
 #[tauri::command(async)]
 fn move_photos(app: tauri::AppHandle, state: State<'_, AppState>, paths: Vec<String>, destination: String, task_id: Option<String>) -> Result<MoveResult, String> {
     // The semantic scan waits: it would read photos at the paths they are leaving.
-    let _priority = semantic::PriorityGuard::new();
+    let _priority = runtime::PriorityGuard::new();
     let mut progress = FileTaskProgress::new(app, task_id, &paths);
     let pool = state.pool();
     let destination_dir = resolve_tracked_folder(&pool, &destination).ok_or_else(|| format!("Dossier non suivi : {destination}"))?;
@@ -3225,7 +3226,7 @@ fn copy_photos_with_progress(
     resolutions: &std::collections::HashMap<String, String>,
     mut progress: FileTaskProgress,
 ) -> Result<CopyResult, String> {
-    let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while files are copied (disk bound)
+    let _priority = runtime::PriorityGuard::new(); // the semantic scan waits while files are copied (disk bound)
     if !destination.is_dir() { return Err(format!("Dossier de destination introuvable : {}", destination.display())); }
     let destination_segments = lowercase_segments(destination);
     let mut copied = 0;
@@ -3320,7 +3321,7 @@ fn copy_photos_to_tracked_folder(app: tauri::AppHandle, state: State<'_, AppStat
 #[tauri::command]
 async fn resize_photo(path: String, options: resize::ResizeOptions) -> Result<resize::ResizeOutcome, String> {
     tokio::task::spawn_blocking(move || {
-        let _priority = semantic::PriorityGuard::new(); // the semantic scan waits while photos are resized
+        let _priority = runtime::PriorityGuard::new(); // the semantic scan waits while photos are resized
         resize::resize_photo(Path::new(&path), &options)
     })
         .await
@@ -3796,7 +3797,7 @@ fn main() {
             face_models::get_face_model_status,
             face_models::download_face_models,
             face_models::import_face_models,
-            face_models::set_internet_allowed,
+            runtime::set_internet_allowed,
             semantic_models::set_semantic_enabled,
             semantic_models::get_semantic_model_status,
             semantic_models::download_semantic_model,
@@ -3881,9 +3882,9 @@ fn main() {
         .build(tauri::generate_context!())
     {
         Ok(app) => app,
-        Err(error) => {
+        Err(_error) => {
             #[cfg(debug_assertions)]
-            eprintln!("Startup failed: {error}");
+            eprintln!("Startup failed: {_error}");
             std::process::exit(1);
         }
     };
@@ -4073,6 +4074,8 @@ fn change_storage_location(
     let current_pool = pool_guard.clone();
     // Fichiers de tuiles des zones privées fermés : copiés puis supprimés de l'ancien emplacement sans connexion ouverte.
     private_maps::close_all_tile_files();
+    // Free the semantic text model and embedding index before copying/removing the old storage folder.
+    semantic_search::release_all();
     if let Err(error) = copy_storage(&current_pool, &current_base, &target_dir) {
         remove_storage(&target_dir);
         return Err(error);

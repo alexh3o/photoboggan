@@ -48,7 +48,7 @@ fn parse_places(body: &[u8]) -> Result<Vec<Place>, String> {
 pub async fn search_places(query: String) -> Result<Vec<Place>, String> {
     let query = query.trim().to_string();
     if query.is_empty() { return Ok(Vec::new()); }
-    if !crate::face_models::internet_allowed() { return Err("internet_disabled".to_string()); }
+    if !crate::runtime::internet_allowed() { return Err("internet_disabled".to_string()); }
     tokio::task::spawn_blocking(move || {
         let url = format!("{SEARCH_URL}?q={}&format=jsonv2&limit={MAX_RESULTS}", percent_encode(&query));
         let response = ureq::get(&url)

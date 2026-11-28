@@ -274,8 +274,8 @@ pub fn run_with_options(
     let cache = load_cache(&conn)?;
     let failure_cache = load_failure_cache(&conn)?;
 
-    let threads = crate::semantic::resolve_hash_threads(request.threads.as_deref(), true);
-    let workers = crate::semantic::build_low_priority_pool(threads)?;
+    let threads = crate::runtime::resolve_hash_threads(request.threads.as_deref(), true);
+    let workers = crate::runtime::build_low_priority_pool(threads)?;
 
     // Step 1: separate already-cached, unsupported, and known failures from photos that actually need fingerprinting.
     let mut items: Vec<Item> = Vec::with_capacity(candidates.len());
@@ -324,7 +324,7 @@ pub fn run_with_options(
     let mut hash_done = 0usize;
     let mut hash_busy = Duration::ZERO;
     for chunk in to_compute.chunks(HASH_CHUNK_SIZE) {
-        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+        if !crate::semantic::wait_while_busy(crate::runtime::foreground_busy, cancel, &mut || {
             let frac = if hash_total > 0 { 0.8 * hash_done as f64 / hash_total as f64 } else { 0.8 };
             progress(RichProgress {
                 percent: (frac * 100.0).round() as u32,
@@ -419,7 +419,7 @@ pub fn run_with_options(
     let mut compared_done = 0usize;
     let mut edges: Vec<(usize, usize)> = Vec::new();
     for chunk in scope_indices.chunks(256) {
-        if !crate::semantic::wait_while_busy(crate::semantic::foreground_busy, cancel, &mut || {
+        if !crate::semantic::wait_while_busy(crate::runtime::foreground_busy, cancel, &mut || {
             let frac = if scope_total > 0 { 0.8 + 0.2 * compared_done as f64 / scope_total as f64 } else { 1.0 };
             progress(RichProgress {
                 percent: (frac * 100.0).round() as u32,

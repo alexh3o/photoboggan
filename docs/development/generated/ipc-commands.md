@@ -29,7 +29,6 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `apply_face_thresholds` | `face_detect.rs` | — | `usize` | async pool | faces-panel.js |
 | `count_face_scan_targets` | `face_detect.rs` | `photo_ids: Option<Vec<i64>>, folder: Option<String>, recursive: bool` | `ScanTargetCount` | async pool | faces-panel.js |
 | `detect_faces` | `face_detect.rs` | `photo_ids: Option<Vec<i64>>, folder: Option<String>, recursive: bool, only_unscanned: bool, task_id: String` | `DetectionReport` | async pool | faces-panel.js, import-view.js |
-| `set_internet_allowed` | `face_models.rs` | `allowed: bool` | `()` | main thread | main.js |
 | `get_face_model_status` | `face_models.rs` | — | `ModelStatus` | async pool | faces-panel.js |
 | `download_face_models` | `face_models.rs` | `task_id: String` | `()` | async pool | faces-panel.js |
 | `import_face_models` | `face_models.rs` | `directory: String` | `ModelStatus` | async pool | faces-panel.js |
@@ -195,6 +194,7 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `delete_author_preset` | `rights.rs` | `id: i64` | `()` | async pool | rights-presets.js |
 | `get_photo_rights` | `rights.rs` | `photo_ids: Vec<i64>` | `Vec<PhotoRights>` | async pool | description-panel.js, info-author.js |
 | `get_authors` | `rights.rs` | — | `Vec<AuthorCount>` | async pool | author-filters.js |
+| `set_internet_allowed` | `runtime.rs` | `allowed: bool` | `()` | main thread | main.js |
 | `semantic_keyword_candidates` | `semantic_keywords.rs` | `keyword_id: i64, scope: SearchScope` | `KeywordCandidates` | async pool | semantic-keywords.js, semantic-tagging.js |
 | `semantic_photo_suggestions` | `semantic_keywords.rs` | `photo_id: i64, excluded_keyword_ids: Option<Vec<i64>>` | `PhotoSuggestions` | async pool | semantic-tagging.js |
 | `reject_keyword_suggestion` | `semantic_keywords.rs` | `photo_ids: Vec<i64>, keyword_id: i64` | `usize` | async pool | semantic-tagging.js |

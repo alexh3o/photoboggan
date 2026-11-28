@@ -1,4 +1,4 @@
-<!-- verified: 4b5d375 | sources: src-tauri/src/update_check.rs, src/update-check.js -->
+<!-- verified: 2a84306 | sources: src-tauri/src/update_check.rs, src/update-check.js -->
 # Update check and installer
 
 ## Purpose
@@ -14,7 +14,7 @@ Tells the user when a newer release exists on GitHub, and (optionally) downloads
 ## How it works
 
 ### Checking (`check_for_update`)
-1. `fetch_info` first tests `face_models::internet_allowed()` and returns the error code `internet_disabled` when offline.
+1. `fetch_info` first tests `runtime::internet_allowed()` and returns the error code `internet_disabled` when offline.
 2. It parses the installed version (`app.package_info().version`, e.g. `0.6.2` or `0.6.2-beta`) with `parse_version` (`1.2.3`, `v1.2.3`, `1.2.3-beta.1`; build metadata after `+` ignored; anything else, such as `face-models-1`, is not a version).
 3. One GET on the repository releases API (30 most recent, 10 s connect / 15 s response timeouts, body capped at 4 MB, `User-Agent: photoboggan/<version> (update check)`: nothing else is sent). A non-200 status is an error.
 4. `pick_latest`: drafts are ignored; pre-releases are considered only when `includePrereleases` is true; tags that are not `v<x>.<y>.<z>` are ignored; the highest by the **three numbers only** wins (the `-beta` suffix of the Linux `.deb` is therefore ignored). The version always comes from the tag, never from file names (a release can hold files named after an older version). `update_available` = latest numbers strictly greater than installed. With no eligible release it returns "no update" with `latest = current`.
@@ -44,7 +44,7 @@ Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re
 - Settings: `checkUpdates`, `includePrereleases`, `lastUpdateCheck`, `updateInfo`, `ignoredUpdateVersion`, `offlineMode` (read) (`../generated/config.md`).
 
 ## Dependencies
-- Uses: `face_models::internet_allowed` (global offline flag), `model_files` (timeouts, `IdleReader`, `hex`), `scan_cancel_flag` / `release_scan_cancel_flag` (main.rs), `ureq`, `sha2`.
+- Uses: `runtime::internet_allowed` (global offline flag), `model_files` (timeouts, `IdleReader`, `hex`), `scan_cancel_flag` / `release_scan_cancel_flag` (main.rs), `ureq`, `sha2`.
 - Used by: `main.js` (init, task queue, `canQuit`), the Settings and About dialogs.
 
 ## Invariants and sensitive areas

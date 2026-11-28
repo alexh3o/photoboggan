@@ -6,7 +6,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { t, tp, getLanguage, formatBytes } from './i18n.js';
-import { readStored, writeStored } from './settings-defaults.js';
+import { isOffline, readStored, writeStored } from './settings-defaults.js';
 import { createModal, confirmDialog, promptDialog } from './photo-actions.js';
 import { createMapView, reloadAllMaps } from './map-view.js';
 import { isMapNetworkAllowed } from './map-config.js';
@@ -37,7 +37,7 @@ export async function offerPrivateZonesWelcome() {
 }
 
 const ERROR_KEYS = {
-  internet_disabled: 'Offline mode is on (Settings > General)',
+  internet_disabled: 'Offline mode is on: cannot download',
   zone_too_large: 'The zone is too large for this detail level.',
   invalid_zone_geometry: 'The zone is not valid.',
   invalid_zone_name: 'Enter a name for the zone.',
@@ -97,6 +97,10 @@ function privacyCheckbox(checked, onChange) {
 
 /** Télécharge (ou met à jour) une zone : tâche de la file. */
 function enqueueDownload(zone) {
+  if (isOffline()) {
+    host.showToast(t('Offline mode is on: cannot download'));
+    return;
+  }
   downloading.add(zone.id);
   const queued = host.enqueueTask({
     kind: 'private-map',
@@ -256,7 +260,7 @@ export async function openPrivateZonesModal() {
       enqueueDownload(zone);
       render();
     });
-    update.disabled = zone.source === 'import' || downloading.has(zone.id) || !isMapNetworkAllowed();
+    update.disabled = zone.source === 'import' || downloading.has(zone.id) || (!isMapNetworkAllowed() && !isOffline());
     update.title = zone.source === 'import' ? t(ERROR_KEYS.imported_zone)
       : !isMapNetworkAllowed() ? t('Downloading needs the map enabled and offline mode off (Settings > General).')
       : t('Update help');
