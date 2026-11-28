@@ -1,4 +1,4 @@
-<!-- verified: f35fbde | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
+<!-- verified: 97bad78 | sources: src-tauri/src/duplicates.rs, src-tauri/src/similar.rs, src-tauri/src/phash.rs, src-tauri/src/hash_tasks.rs, src/duplicates.js, src/duplicate-names.js, src/duplicates-modal.js, src/duplicates-view.js, src/duplicates-settings.js, src-tauri/src/main.rs, src/main.js -->
 # Duplicates (identical, similar, by name)
 
 ## Purpose
@@ -16,7 +16,7 @@ Finds groups of photos that are the same picture: identical image data (metadata
 | `duplicate-names.js` | Name search in JS (`findNameGroups`). |
 | `duplicates-modal.js` | "More…" window: kind, settings, scope, keep-order panel. |
 | `duplicates-view.js` | Results mode (`duplicateSearch`), banner, group indexing/separators, `selectDuplicatesExceptBest`, task runners (`initDuplicatesView`), `onPhashChanged` listener hook. |
-| `main.js` | Wires `initDuplicatesView`, grid medal/metadata, group sort, `Escape` exit, and backend entry commands (`find_duplicates`, `find_similar_images`, `list_duplicate_candidates` in `main.rs`). |
+| `main.js` | Wires `initDuplicatesView`, grid medal/metadata, group sort, `Escape` exit, and backend entry commands (`find_duplicates`, `find_similar_images`, `list_duplicate_candidates` in `scan.rs`). |
 
 ## How it works
 

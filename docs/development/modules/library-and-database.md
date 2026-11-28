@@ -1,4 +1,4 @@
-<!-- verified: f35fbde | sources: src-tauri/src/db.rs, src-tauri/src/library_sync.rs, src-tauri/src/main.rs, src-tauri/src/tests/db.rs, src-tauri/src/tests/library_sync.rs -->
+<!-- verified: 97bad78 | sources: src-tauri/src/db.rs, src-tauri/src/library_sync.rs, src-tauri/src/scan.rs, src-tauri/src/main.rs, src-tauri/src/tests/db.rs, src-tauri/src/tests/library_sync.rs -->
 # Library, scan and database
 
 ## Purpose
@@ -9,7 +9,8 @@ Keeps the SQLite catalogue (`photos_library.db`) in step with the tracked folder
 |---|---|
 | `db.rs` | `init_core` (pool, pragmas, `folders`, `photos`, migrations), `Photo`, `TrackedFolder`, `PHOTO_COLUMNS` / `photo_from_row`, listing / counting / prefilter SQL |
 | `library_sync.rs` | `read_photo` (file → `Photo`), `store_read_batch`, `sync_library`, resume helpers (`read_since`, `already_read`), `is_photo_file`, `SUPPORTED_EXTENSIONS` |
-| `main.rs` (region) | Folder commands, scan commands and cancel flags, `run_scan`, `insert_batch`, listing commands, `remove_missing_photos`, `sync_library` command, `is_inside_folder`, `tracked_root_is_reachable` |
+| `main.rs` (region) | Folder commands, `insert_batch`, listing commands, `remove_missing_photos`, `sync_library` command, `is_inside_folder`, `tracked_root_is_reachable` |
+| `scan.rs` | Scan commands (`scan_folder`, `rescan_folder`, `rescan_all_folders`), `run_scan`, cancel flags (`scan_cancel_flag` / `release_scan_cancel_flag` / `running_tasks`, re-exported from `main.rs`), `integrity_scan`, duplicate entry commands |
 
 ## How it works
 

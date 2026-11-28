@@ -12,7 +12,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `albums` | db, main, privacy | — |
 | `app_log` | — | db |
 | `batch_rename` | exiftool, main, runtime | — |
-| `db` | app_log, keywords, main, privacy | albums, duplicates, faces, geolocation, hash_tasks, import, integrity, keywords, library_sync, private_maps, semantic, similar, stats, test_support |
+| `db` | app_log, keywords, main, privacy | albums, duplicates, faces, geolocation, hash_tasks, import, integrity, keywords, library_sync, private_maps, scan, semantic, similar, stats, test_support |
 | `duplicates` | db, privacy, runtime, semantic, thumbnails, video | hash_tasks, import, integrity, semantic, similar, stats |
 | `exif` | exiftool, face_detect, faces, heif, library_sync, orientation, thumbnails, video | exiftool, faces, geolocation, keywords, library_sync, orientation, place_search, resize, rights, thumbnails |
 | `exiftool` | exif, faces, heif, main | batch_rename, exif, geolocation, orientation |
@@ -39,6 +39,7 @@ Static dependency graph, to evaluate the consequences of a change before making 
 | `resize` | exif, heif, main, thumbnails | — |
 | `rights` | exif, main, privacy | — |
 | `runtime` | — | batch_rename, duplicates, face_detect, face_models, hash_tasks, keywords, place_search, private_maps, semantic, semantic_models, similar, update_check |
+| `scan` | db | — |
 | `semantic` | db, duplicates, face_models, integrity, keywords, main, onnx_runtime, phash, runtime, semantic_models, semantic_search, similar, thumbnails | duplicates, hash_tasks, semantic_models, semantic_search, similar |
 | `semantic_keywords` | face_models, keywords, main, semantic_models, semantic_search | keywords, semantic_search |
 | `semantic_models` | face_models, main, model_files, runtime, semantic, semantic_search | semantic, semantic_keywords, semantic_search, stats |

@@ -45,7 +45,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `_TEMPLATE.md` | 62 |  |
 | `architecture.md` | 109 |  |
 | `build-release.md` | 88 |  |
-| `code-map.md` | 91 |  |
+| `code-map.md` | 93 |  |
 | `configuration.md` | 61 |  |
 | `glossary.md` | 83 |  |
 | `invariants.md` | 90 |  |
@@ -63,12 +63,12 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `css.md` | 685 |  |
 | `db-schema.md` | 340 |  |
 | `events.md` | 13 |  |
-| `files.md` | 357 |  |
+| `files.md` | 359 |  |
 | `ipc-commands.md` | 225 |  |
-| `module-deps.md` | 129 |  |
-| `sections.md` | 500 |  |
+| `module-deps.md` | 131 |  |
+| `sections.md` | 506 |  |
 | `symbols-js.md` | 1888 |  |
-| `symbols-rust.md` | 1713 |  |
+| `symbols-rust.md` | 1721 |  |
 | `tests.md` | 587 |  |
 
 ## docs/development/modules
@@ -84,7 +84,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `grid-and-viewer.md` | 122 |  |
 | `import.md` | 63 |  |
 | `keywords.md` | 94 |  |
-| `library-and-database.md` | 83 |  |
+| `library-and-database.md` | 84 |  |
 | `main-window.md` | 91 |  |
 | `maps-and-geolocation.md` | 80 |  |
 | `metadata-read-write.md` | 126 |  |
@@ -267,7 +267,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `integrity.rs` | 778 | Vérification d'intégrité d'un dossier (commande `integrity_scan`), couplée à la génération des miniatures manquantes. Pour chaque fichier : 1. Intégrité (toujours) : le fichier est décodé. JPEG, HEIC / HEIF : décodeurs … |
 | `keywords.rs` | 976 | Mots-clés hiérarchiques : arborescence (table `keyword_nodes`) et association photo ↔ mot-clé (table `photo_keywords`). Modèle (choisi avec l'utilisateur) : - un nœud de l'arbre = un nom sous un parent (`parent_id` = 0 … |
 | `library_sync.rs` | 429 | Synchronisation incrémentale du catalogue avec le disque : fichiers ajoutés, modifiés ou supprimés hors de l'application. Le parcours des dossiers ne lit que la taille et la date de modification (fournies par l'énumérat… |
-| `main.rs` | 4167 |  |
+| `main.rs` | 3806 |  |
 | `model_files.rs` | 177 | Generic handling of downloadable model files (face models, semantic search models, ONNX Runtime library). Each file is described by its release name (`asset`), its local name, its size and its SHA-256 (pinned in a manif… |
 | `onnx_runtime.rs` | 41 | Shared ONNX Runtime environment and session builder (face detection / recognition, semantic search). The library is loaded dynamically (`ort` with `load-dynamic`) from the file downloaded with the models: nothing is loa… |
 | `orientation.rs` | 161 | Lossless rotation: only the orientation tag changes, never the image data (no decoding, no recompression). Orientation values (EXIF 0x0112 and XMP `tiff:Orientation`, 1 to 8) describe how the stored pixels must be turne… |
@@ -278,6 +278,7 @@ Text files of the repository (vendored files, icons, lock files and `dev_tools/`
 | `resize.rs` | 571 | Redimensionnement par lot des photos (commande `resize_photo`). Crates en Rust pur déjà utilisées par l'application : `jpeg-decoder` / `jpeg-encoder` (JPEG) et `png` (PNG, déjà présente dans l'arbre de dépendances via T… |
 | `rights.rs` | 229 | Auteur et droits : préréglages d'auteur (table `author_presets`), lecture à la demande des champs de droits des photos et liste des auteurs du catalogue (filtre « Auteur »). Les cinq champs (auteur, mention de copyright… |
 | `runtime.rs` | 110 | Cross-cutting runtime primitives: offline gate (`INTERNET_ALLOWED`) and task priority coordination. |
+| `scan.rs` | 381 | Scan, integrity check, duplicate search orchestration, and task cancellation flags. |
 | `semantic_keywords.rs` | 408 | Keyword suggestions of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §8; decisions and measures in §23). Nothing here writes a keyword: the interface turns an accepted suggestion i… |
 | `semantic_models.rs` | 339 | Files of the semantic search (`SigLIP` 2, spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §3): manifest, status, download, import from a folder, deletion. - Manifest `semantic_models.json` (prepared by s… |
 | `semantic_search.rs` | 814 | Searches of the semantic search (spec `dev_tools/Evolutions/feat` semantic search `SigLIP` 2.md, §5.2, §7, §18): in-memory index of the embeddings, text encoder, ranking, relative relevance threshold, idle release. - In… |

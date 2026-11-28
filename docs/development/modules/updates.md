@@ -44,7 +44,7 @@ Takes no argument. It uses `DOWNLOADED` (`update_not_downloaded` if empty), **re
 - Settings: `checkUpdates`, `includePrereleases`, `lastUpdateCheck`, `updateInfo`, `ignoredUpdateVersion`, `offlineMode` (read) (`../generated/config.md`).
 
 ## Dependencies
-- Uses: `runtime::internet_allowed` (global offline flag), `model_files` (timeouts, `IdleReader`, `hex`), `scan_cancel_flag` / `release_scan_cancel_flag` (main.rs), `ureq`, `sha2`.
+- Uses: `runtime::internet_allowed` (global offline flag), `model_files` (timeouts, `IdleReader`, `hex`), `scan_cancel_flag` / `release_scan_cancel_flag` (`scan.rs`, re-exported in `main.rs`), `ureq`, `sha2`.
 - Used by: `main.js` (init, task queue, `canQuit`), the Settings and About dialogs.
 
 ## Invariants and sensitive areas

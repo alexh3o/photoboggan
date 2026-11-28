@@ -1,4 +1,4 @@
-<!-- verified: f35fbde | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/runtime.rs, src/metadata-writes.js -->
+<!-- verified: 97bad78 | sources: src-tauri/src/main.rs, src-tauri/src/db.rs, src/main.js, src/task-queue.js, src-tauri/tauri.conf.json, index.html, src-tauri/src/runtime.rs, src/metadata-writes.js -->
 
 # Architecture
 
@@ -54,7 +54,7 @@ Startup (`fn main` → `.setup`): `exiftool::init` and `private_maps::init_bundl
 **1. Add a folder, scan, show the grid**
 
 1. Settings > folders: `main.js` calls `add_folder` (stores the folder, does not scan), then `enqueueScanTask({ kind: 'add', command: 'scan_folder' })` (`task-queue.js`).
-2. `scan_folder` → `run_scan` (main.rs): `WalkDir` + `library_sync::is_photo_file` on a blocking thread, `rayon` `par_iter` over the files, `library_sync::read_photo` per file (EXIF/XMP/keywords/faces), results sent through an `mpsc` channel to a writer task that stores batches of 500 (`library_sync::store_read_batch`). Progress → `scan-progress`; stop → `cancel_scan` sets the task's flag.
+2. `scan_folder` → `run_scan` (`scan.rs`): `WalkDir` + `library_sync::is_photo_file` on a blocking thread, `rayon` `par_iter` over the files, `library_sync::read_photo` per file (EXIF/XMP/keywords/faces), results sent through an `mpsc` channel to a writer task that stores batches of 500 (`library_sync::store_read_batch`). Progress → `scan-progress`; stop → `cancel_scan` sets the task's flag.
 3. When the task ends, `runScanTask` (`task-queue.js`) calls `onRescanComplete` → `reloadPhotosAfterRescan` (`main.js`); the grid pages through `get_photos_paginated` and renders with virtual scrolling (`main.js`, section "VIRTUAL SCROLLING").
 
 **2. Thumbnail request**

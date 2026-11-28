@@ -1,4 +1,4 @@
-<!-- verified: f35fbde | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
+<!-- verified: 97bad78 | sources: src-tauri/src/resize.rs, src-tauri/src/integrity.rs, src/photo-actions.js, src-tauri/src/main.rs, src-tauri/src/batch_rename.rs, src/batch-rename.js, src/batch-rename-engine.js -->
 
 # Photo operations: menus, copy / move / delete / rename, resize, integrity, marking and rotation commands
 
@@ -10,7 +10,7 @@ Everything the user does to photo *files* from menus and drag-and-drop: rename, 
 
 | File               | Role                                                                                                                                                                                                                              |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `main.rs` (region) | `update_photos_marking`, `rename_photo`, `rename_folder`, `delete_photos`, `delete_folder`, `move_photos`, `copy_photos*`, `resize_photo`, "Open with", clipboard, `integrity_scan`, sidecar helpers, durable copy / move helpers |
+| `main.rs` (region) | `update_photos_marking`, `rename_photo`, `rename_folder`, `delete_photos`, `delete_folder`, `move_photos`, `copy_photos*`, `resize_photo`, "Open with", clipboard, sidecar helpers, durable copy / move helpers (`integrity_scan` lives in `scan.rs`) |
 | `resize.rs`        | One-photo resize to a new JPEG / PNG, keeping selected metadata                                                                                                                                                                   |
 | `integrity.rs`     | Decodes every file of a folder to detect corruption and fills missing thumbnails; report and CSV export                                                                                                                           |
 | `batch_rename.rs`  | Batch rename backend: planning (collisions, sidecars, lengths), execution (swaps, undo), saved recipes table and commands                                                                                                         |

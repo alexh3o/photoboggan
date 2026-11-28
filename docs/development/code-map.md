@@ -1,4 +1,4 @@
-<!-- verified: f35fbde | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
+<!-- verified: 97bad78 | sources: src/, src-tauri/src/, scripts/, .github/workflows/, src-tauri/Cargo.toml, package.json, vite.config.js -->
 
 # Code map
 
@@ -70,7 +70,9 @@ Backend (`src-tauri/src/`) and frontend (`src/`) files, grouped by the module do
 - "SYNCHRONISATION AVEC LES MODIFICATIONS EXTERNES" (`syncLibraryWithDisk`, on startup and window focus), "DEMARRAGE", "EMPLACEMENT DES DONNÉES ET DU CACHE".
   Module-level mutable state (`loadedPhotos`, `photos`, `selectedIndices`…) is shared by all sections: a change in one section can break another.
 
-**`src-tauri/src/main.rs`** (~3200 lines): `AppState` and `AppDataPaths`; `config.json` load/save; thumbnail cache naming (`thumbnail_cache_file`, `cache_files`) and cache commands; scans (`run_scan`, cancel flags `scan_cancel_flag` / `release_scan_cancel_flag`, shared by every module's tasks); integrity and duplicate entry commands; folder commands; photo listing (`get_photos_paginated`…); marking and rotation; rename / delete / move / copy (with sidecars) and clipboard; "Open with"; write-recovery reporting; `fn main`; storage location change.
+**`src-tauri/src/main.rs`** (~2800 lines): `AppState` and `AppDataPaths`; `config.json` load/save; thumbnail cache naming (`thumbnail_cache_file`, `cache_files`) and cache commands; folder commands; photo listing (`get_photos_paginated`…); marking and rotation; rename / delete / move / copy (with sidecars) and clipboard; "Open with"; write-recovery reporting; `fn main`; storage location change.
+
+**`src-tauri/src/scan.rs`** (~390 lines): scans (`run_scan`, `scan_folder`, `rescan_folder`, `rescan_all_folders`), cancel flags (`scan_cancel_flag` / `release_scan_cancel_flag` / `running_tasks`, re-exported from `main.rs` and shared by every module's tasks), and integrity / duplicate entry commands (`integrity_scan`, `find_duplicates`, `list_duplicate_candidates`, `find_similar_images`).
 
 **`src-tauri/src/exif.rs`** (~3200 lines): reading (`read_exif`, `read_marking`, priorities `set_read_priority`, keyword hierarchy parsing), XMP text editing helpers (`update_xmp_*`), JPEG segment rewriting (XMP, IPTC, comment), sidecar targeting (`sidecar_target`, `read_sidecar`, `sidecar_candidates`), write entry points (`write_metadata`, `write_xmp_metadata`, `write_xmp_orientation`), atomic file replacement (`write_file_atomically`), "show all metadata" (`read_metadata_details`).
 

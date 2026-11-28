@@ -8,5 +8,5 @@ Events emitted with `emit` / `emit_to` and listened to with `listen` / `once`. P
 | `import-exif-progress` | import.rs | import-view.js |
 | `import-media-changed` | import.rs | import-settings.js |
 | `load` | — | map-view.js |
-| `scan-detail` | main.rs | task-queue.js |
-| `scan-progress` | face_detect.rs, face_models.rs, geolocation.rs, hash_tasks.rs, import.rs, keywords.rs, main.rs, private_maps.rs, semantic.rs, semantic_models.rs, update_check.rs | task-queue.js |
+| `scan-detail` | scan.rs | task-queue.js |
+| `scan-progress` | scan.rs, face_detect.rs, face_models.rs, geolocation.rs, hash_tasks.rs, import.rs, keywords.rs, main.rs, private_maps.rs, semantic.rs, semantic_models.rs, update_check.rs | task-queue.js |

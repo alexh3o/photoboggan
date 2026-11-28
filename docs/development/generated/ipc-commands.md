@@ -121,14 +121,6 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `get_folders` | `main.rs` | — | `Vec<TrackedFolder>` | async pool | main.js |
 | `add_folder` | `main.rs` | `path: String` | `Vec<TrackedFolder>` | async pool | main.js |
 | `remove_folder` | `main.rs` | `id: i64, path: String` | `Vec<TrackedFolder>` | async pool | main.js |
-| `cancel_scan` | `main.rs` | `task_id: String` | `()` | main thread | import-view.js ×2, task-queue.js ×2 |
-| `scan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | main.js |
-| `rescan_all_folders` | `main.rs` | `task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
-| `rescan_folder` | `main.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
-| `integrity_scan` | `main.rs` | `path: String, task_id: String, compute_hashes: Option<bool>, paths: Option<Vec<String>>` | `integrity::IntegrityReport` | async pool | import-view.js, task-queue.js |
-| `find_duplicates` | `main.rs` | `request: duplicates::Request, task_id: String` | `duplicates::Report` | async pool | duplicates-view.js |
-| `list_duplicate_candidates` | `main.rs` | `scope: duplicates::Scope, compare_with_library: bool` | `Vec<(String, String, bool)>` | async pool | duplicates-view.js |
-| `find_similar_images` | `main.rs` | `request: similar::Request, task_id: String` | `duplicates::Report` | async pool | duplicates-view.js, duplicates.js |
 | `export_integrity_report` | `main.rs` | `directory: String, preamble: String, headers: Vec<String>, rows: Vec<integrity::IntegrityIssue>` | `String` | async pool | photo-actions.js |
 | `open_folder_in_file_manager` | `main.rs` | `path: String` | `()` | async pool | photo-actions.js |
 | `create_subfolder` | `main.rs` | `parent: String, name: String` | `()` | async pool | import-view.js, photo-actions.js |
@@ -195,6 +187,14 @@ Every `#[tauri::command]` of the backend, with its frontend callers. "Runs on": 
 | `get_photo_rights` | `rights.rs` | `photo_ids: Vec<i64>` | `Vec<PhotoRights>` | async pool | description-panel.js, info-author.js |
 | `get_authors` | `rights.rs` | — | `Vec<AuthorCount>` | async pool | author-filters.js |
 | `set_internet_allowed` | `runtime.rs` | `allowed: bool` | `()` | main thread | main.js |
+| `cancel_scan` | `scan.rs` | `task_id: String` | `()` | main thread | import-view.js ×2, task-queue.js ×2 |
+| `scan_folder` | `scan.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | main.js |
+| `rescan_all_folders` | `scan.rs` | `task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
+| `rescan_folder` | `scan.rs` | `path: String, task_id: String, resume_since: Option<i64>` | `()` | async pool | task-queue.js |
+| `integrity_scan` | `scan.rs` | `path: String, task_id: String, compute_hashes: Option<bool>, paths: Option<Vec<String>>` | `integrity::IntegrityReport` | async pool | import-view.js, task-queue.js |
+| `find_duplicates` | `scan.rs` | `request: duplicates::Request, task_id: String` | `duplicates::Report` | async pool | duplicates-view.js |
+| `list_duplicate_candidates` | `scan.rs` | `scope: duplicates::Scope, compare_with_library: bool` | `Vec<(String, String, bool)>` | async pool | duplicates-view.js |
+| `find_similar_images` | `scan.rs` | `request: similar::Request, task_id: String` | `duplicates::Report` | async pool | duplicates-view.js, duplicates.js |
 | `semantic_keyword_candidates` | `semantic_keywords.rs` | `keyword_id: i64, scope: SearchScope` | `KeywordCandidates` | async pool | semantic-keywords.js, semantic-tagging.js |
 | `semantic_photo_suggestions` | `semantic_keywords.rs` | `photo_id: i64, excluded_keyword_ids: Option<Vec<i64>>` | `PhotoSuggestions` | async pool | semantic-tagging.js |
 | `reject_keyword_suggestion` | `semantic_keywords.rs` | `photo_ids: Vec<i64>, keyword_id: i64` | `usize` | async pool | semantic-tagging.js |
