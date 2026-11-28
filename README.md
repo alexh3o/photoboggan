@@ -35,7 +35,7 @@ After 25 years of photographing as a hobbyist and then a dad, I wanted less time
 - **Windows**: tested, stable, and used daily.
 - **Linux (`.deb`, `AppImage`)**: works, but I only test it quickly on some releases: it needs testing—give it a try and tell me!
 
-Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English, French and Spanish; ignore the SmartScreen warning) and `.deb` / `AppImage`for Ubuntu-Debian / Linux. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
+Downloads are available on the [Releases page](https://github.com/alexh3o/photoboggan/releases): `.msi` installer for Windows (English, French and Spanish; ignore the SmartScreen warning) and `.deb` / `AppImage` for Ubuntu-Debian / Linux. photoboggan can also **check for updates** on GitHub and verify the installer checksum before launching it (optional, disabled in Offline mode).
 
 #### Building from Source
 
@@ -47,13 +47,13 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
 ### Core Strengths
 
 - 📁 **Zero-copy, zero lock-in**
-  Works directly on your existing folders on disk—no import step, no proprietary vault, no duplicated library.
+  Works directly on your existing folders on disk — no import step, no proprietary vault, no duplicated library. 
 
 - 🛡️ **Your files stay safe (and standard)**
   Only metadata is ever written; image content is never altered. Every write goes through a temporary file and is **verified by reading it back** before the catalog updates.
 
   - Cross-drive moves are **checksum-verified** before removing originals (toggleable in Settings).
-  - Built-in **Integrity Check** scans folders for corrupted files (JPEG, PNG, WebP, HEIC, RAW previews) while generating missing thumbnails in the same pass.
+  - Built-in **Integrity Check** scans folders for corrupted files (JPEG, PNG, WebP, HEIC, RAW previews) while generating missing thumbnails in the same pass; it can also compute duplicate hashes while files are already decoded.
   - Full interoperability with **digiKam, Lightroom, ACDSee, Windows Photos**, and OS file managers: writes standard embedded XMP/IPTC (JPEG), **in-place XMP in HEIC/HEIF**, or `.xmp` sidecars (RAW, PNG, video), with configurable read priority between formats and writes handled by **ExifTool**.
 
 - 🔒 **100% local by default, with an explicit Offline Mode**
@@ -82,7 +82,11 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
   - **Visually similar photos** (handles resizing, rotations, and mirrors while **ignoring burst sequences**);
   - **Matching filenames** (with optional regex key extraction and date matching).
   - Rank groups with your own **"Best Copy"** rules (preferred/avoided paths, pixels, file size, rating, date) to cull duplicates safely.
+  - Hashes are cached once per photo and reused after metadata-only edits. A **pre-flight estimate** warns before a long first search; precomputation can run in the background and can also ride along with content analysis or integrity checks.
   - **Find the RAW**: jump from any edited JPEG straight to its matching RAW file (by name pattern, shooting time, gear, and exposure settings).
+
+- 💾 **SD card & folder import**
+  Plug in a card (or point at any folder) and import only what you need into a folder already tracked by photoboggan. The import view offers a source tree, type/date filters, **Since last import**, date-based or custom subfolders, collision handling, saved recipes, and chained post-import tasks (batch rename, integrity check, faces, duplicate hashes, content analysis). Source files are never modified or deleted.
 
 - 🗺️ **Privacy-first Maps & Geolocation**
   Browse geotagged photos on a map, filter the grid by the visible map area, search places, and geotag selections by dragging them onto the map.
@@ -105,7 +109,7 @@ See [BUILDING.md](BUILDING.md) for prerequisites, platform-specific dependencies
   Organize with virtual folders, manual albums (without duplicating files), and **nestable smart albums** based on saved filters—a smart album placed inside another album inherits and refines its parent's rules.
 
 - 🛠️ **Complete toolkit & customizable UI**
-  Choose square, framed, **justified** (uncropped), or waterfall layouts; a **List panel** with customizable columns and up to 9 sort levels, synchronized with the grid; adjustable text, UI font, thumbnail, and panel sizes; dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch rename** filenames with templates and variables, **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; a **movable data folder** (database, thumbnails, models, offline maps — put it on an SSD!); and a full task queue manager with pause/cancel/ETA.
+  Choose square, framed, **justified** (uncropped), or waterfall layouts; a **List panel** with customizable columns and up to 9 sort levels, synchronized with the grid; adjustable text, UI font, thumbnail, and panel sizes (consistent across dialogs); dark/light themes; fullscreen info overlay; **live histogram & clipped shadows/highlights**; **batch rename** filenames with templates and variables, **batch resize** (keeping color profiles, metadata, and rotating face regions to match); per-type **"Open with"**; **Collection Statistics**; slideshow; a **movable data folder** (database, thumbnails, models, offline maps — put it on an SSD!); and a full task queue manager with pause/cancel/ETA and a low-priority background lane for analysis and hashing.
 
 See [Screenshots](#screenshots) for a closer look.  
 Available languages: 🇬🇧 *English*, 🇫🇷 *French* and 🇪🇸 *Spanish* (more welcome!).

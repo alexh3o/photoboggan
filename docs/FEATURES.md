@@ -42,7 +42,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
     - gear (camera, lens)
     - shoot settings (iso, aperture, focal length, shutter speed)
     - ratings (stars, color and pick/reject flags)
-    - file state: analysed for semantic search, phash calculated for similar duplicate search
+    - file state: analysed for semantic search, similarity hash (yes, expired or none), exact hash (complete, pre-pass, expired or none)
     - geolocation
     - faces quantity or scan status
     - author
@@ -94,10 +94,17 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
   - Natural-language **text search** (with relevance cut slider)
   - **Find similar images** (same place, type of photo, mood...)
   - **Keyword suggestions** based on similar keyworded photos (remembering rejected suggestions)
-- **Duplicate & similar photo search** *(requires initial pHash/hash scan)*:
+  - **Coverage statistics** separating up-to-date, expired (pixels changed since the analysis) and not-yet-analysed photos
+- **Duplicate & similar photo search** *(hashes computed once, cached and resumable)*:
   - **Exact duplicates** (same pixel data, metadata excluded)
   - **Very similar photos** (perceptual hash, with optional burst exclusion)
   - **Duplicates by filename**
+  - **Pre-flight estimate** before a long first search: number of photos to hash, RAW share and cached-thumbnail fast estimate
+  - **Background precomputation** from Settings > Search > Duplicates: exact hashes in pre-pass (headers) or full pass (whole image data), similarity hashes, or both, with RAW included or excluded, adjustable speed, and optional automatic hashing of new photos
+  - **Shared low-priority lane** with content analysis; hashing pauses during foreground work and interactive duplicate searches, saves progress in chunks and resumes where it stopped
+  - **Unreadable files** are excluded from later attempts and reported with a log; hashes stay valid after metadata-only edits made in photoboggan
+  - **Results stay in the task list** until shown or dismissed, even when no duplicate is found
+  - **Coverage in statistics and list columns**: exact hash state (complete, pre-pass, expired, none), similarity hash state, and hash coverage in Collection statistics
 
 ## People & Faces *(optional, 100% local AI, disabled by default)*
 
@@ -133,9 +140,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 
 ## Metadata Engine & File Safety
 
-- **Embedded metadata writing**, selectable between:
-  - **ExifTool** (recommended & default): writes XMP, IPTC, and EXIF across formats
-  - **Internal native writer**: faster Rust writer limited to XMP & IPTC (never writes/erases risky EXIF tags)
+- **Embedded metadata writing with ExifTool** (bundled): writes XMP, IPTC, and EXIF across formats
 - **Metadata reading** across major standards (EXIF, IPTC, XMP) and schemas (digiKam, Lightroom, Media Pro, Microsoft, ACDSee...) with user-editable per-field reading priority
 - Reads xmp embedded data first with fallback on xmp sidecar. If deleting metadata fails because of persistence in sidecar, user is offered to view the sidecar for action.
 - **Safe sidecar targeting** (avoids overwriting shared sidecars in RAW+JPEG / RAW+DNG pairs, logs conflicts)
@@ -148,6 +153,7 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 ## File Operations & Maintenance
 
 - **Batch copy & move** (via dialogs or drag-and-drop onto folders, carrying sidecars safely and optionally verifying cross-drive moves)
+- **SD card & folder import** into a tracked library folder: event-driven card detection with a toolbar badge, source tree with type/date filters and *Since last import*, date-based or custom subfolders (optionally split by type), collision policy (skip / rename / ask), saved recipes, and chained post-import tasks (batch rename, integrity check, faces, duplicate hashes, content analysis). Source files are never modified or deleted.
 - **Batch resize** to a folder
 - **Batch lossless rotation** (no recompression, via orientation metadata only; pixel data is never modified)
 - **Undo** support for markings (rating, color label, pick/reject flag), renaming, rotations, faces review operations with a history modal with up to 20 last operations
@@ -155,8 +161,8 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
 - **Delete to OS trash** (with upfront warnings when a drive has no trash and deletion will be permanent)
 - **Open with**: editable list of external apps per file type (Raster / RAW / Video)
 - **Show in OS explorer** and **Show in its folder** (from albums, search results, or whole-collection views)
-- **Integrity check scan** to detect corrupted files
-- **Collection statistics**: explore your library by gear, exposure settings, date ranges, ratings, and time
+- **Integrity check scan** to detect corrupted files, generate missing thumbnails and, optionally, compute duplicate hashes in the same pass
+- **Collection statistics**: explore your library by gear, exposure settings, date ranges, ratings, time, content-analysis coverage, and duplicate-hash coverage
 
 ## Interface, Performance & Offline Control
 
@@ -168,9 +174,10 @@ So photoboggan is made for the hobbyist and family photographer and intends to o
   - dark or light theme;
   - custom fonts, UI/text scaling,
   - selection/button colors
+- **First-launch setup wizard** (language, interface size, Internet access, optional AI/map features with model downloads, photo folders, tips), relaunchable from Settings > General
 - **Shortcuts everywhere**, with an **in-app shortcut guide** and informative tooltips
-- **UI responsiveness first**: all heavy operations run at low priority in a cancellable/pausable **task queue** (with background content analysis auto-pausing for foreground tasks)
+- **UI responsiveness first**: all heavy operations run at low priority in a cancellable/pausable **task queue**, with a dedicated background lane for content analysis and duplicate hash precomputation that pauses for foreground tasks
 - **Customizable storage location** for database, thumbnails, previews, models, and offline maps (choose an SSD!), plus configurable thumbnail cache resolution & quality
 - **100% Offline mode**: blocks all outbound requests while keeping all core & AI features usable via manual import of face models, content analysis models, and map zones
-- **In-app update checker** with SHA-256 verified downloads *(disabled in Offline mode)*
+- **In-app update checker** with SHA-256 verified downloads, a persistent update notification, a manual **Check now** even when automatic checks are off, and an opt-in beta channel *(disabled in Offline mode)*
 - Available in **English, French and Spanish** (Windows & Linux)
