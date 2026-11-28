@@ -1,4 +1,4 @@
-<!-- verified: 33d0978 | sources: src-tauri/src/faces.rs, src/faces-panel.js, src/faces-grid.js, src/persons-view.js, src/sidebar-search.js -->
+<!-- verified: 4b5d375 | sources: src-tauri/src/faces.rs, src/faces-panel.js, src/faces-grid.js, src/persons-view.js, src/sidebar-search.js -->
 # Faces: data, review, people (faces.rs and UI)
 
 ## Purpose

@@ -1,4 +1,4 @@
-<!-- verified: 173c95e | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
+<!-- verified: 4b5d375 | sources: package.json, vite.config.js, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/build.rs, .github/workflows/release.yml, .github/workflows/tests.yml, scripts/fetch-exiftool.mjs, scripts/prepare-face-models.mjs, scripts/prepare-semantic-models.mjs, scripts/fetch-map-style.mjs -->
 # Build, packaging and release
 
 ## Purpose

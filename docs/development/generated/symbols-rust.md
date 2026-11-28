@@ -1086,13 +1086,13 @@ Functions (free and `impl` methods), structs, enums and traits of each `src-taur
 - `clipboard_entry` · L3554
 - `file_uri` · L3560 — URI « file:/// » avec caractères spéciaux encodés en %XX (ex. /home/x/a b.jpg -> file:///home/x/a%20b.jpg).
 - `main` · L3574
-- `move_file_or_copy` · L3939 — Fonctions de déplacmeents des fichiers de base
-- `copy_dir_recursive` · L3960 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
-- `remove_storage` · L3978 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
-- `copy_storage` · L3995 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
-- *struct* `StorageLocationInfo` · L4023
-- `get_storage_location` · L4030
-- `change_storage_location` · L4040
+- `move_file_or_copy` · L3933 — Fonctions de déplacmeents des fichiers de base
+- `copy_dir_recursive` · L3954 — `durable`: each copy is flushed to the disk (see `copy_durably`), for data that cannot be rebuilt once the old location is removed.
+- `remove_storage` · L3972 — Supprime les fichiers et dossiers de données d'un dossier de stockage (au mieux : un échec est tracé, rien n'est jamais bloquant).
+- `copy_storage` · L3989 — Copie (sans rien supprimer à la source) la base et les dossiers de données vers `to`. La base est copiée pendant qu'une transaction d'écrit…
+- *struct* `StorageLocationInfo` · L4017
+- `get_storage_location` · L4024
+- `change_storage_location` · L4034
 
 ## model_files.rs (11)
 

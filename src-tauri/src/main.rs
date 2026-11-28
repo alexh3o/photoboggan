@@ -3587,31 +3587,25 @@ fn main() {
             let handle = app.handle();
             exiftool::init(handle.path().resource_dir().ok());
             private_maps::init_bundled_style(handle.path().resource_dir().ok());
-            let show_startup_error = |message: &str| {
+            let fail_startup = |message: &str| -> ! {
                 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+                #[cfg(debug_assertions)]
+                eprintln!("Startup failed: {message}");
                 handle
                     .dialog()
                     .message(message)
                     .title("photoboggan")
                     .kind(MessageDialogKind::Error)
                     .blocking_show();
+                // Exit directly: returning Err from Tauri's setup hook panics inside tauri::app.
+                std::process::exit(1);
             };
-            let paths = match resolve_app_paths(handle) {
-                Ok(paths) => paths,
-                Err(error) => {
-                    let msg = format!("Impossible d'initialiser les chemins de l'application :\n{error}");
-                    show_startup_error(&msg);
-                    return Err(msg.into());
-                }
-            };
-            let db_pool = match db::init_db(&paths.db_path.to_string_lossy()) {
-                Ok(pool) => pool,
-                Err(error) => {
-                    let msg = format!("Impossible d'ouvrir le catalogue ({}) :\n{error}", paths.db_path.display());
-                    show_startup_error(&msg);
-                    return Err(msg.into());
-                }
-            };
+            let paths = resolve_app_paths(handle).unwrap_or_else(|error| {
+                fail_startup(&format!("Impossible d'initialiser les chemins de l'application :\n{error}"))
+            });
+            let db_pool = db::init_db(&paths.db_path.to_string_lossy()).unwrap_or_else(|error| {
+                fail_startup(&format!("Impossible d'ouvrir le catalogue ({}) :\n{error}", paths.db_path.display()))
+            });
             if let Ok(conn) = db_pool.get() { private_maps::migrate_legacy_files(&paths.base_dir.join("private_maps"), &conn); }
             let config = load_config_at_startup(handle);
             let cache_size = startup_thumbnail_cache_size(config.thumbnail_cache_size);

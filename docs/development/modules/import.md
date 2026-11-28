@@ -1,4 +1,4 @@
-<!-- verified: 5daf187 | sources: src-tauri/src/import.rs, src/import-view.js, src/import-settings.js, src/import-view.css -->
+<!-- verified: 4b5d375 | sources: src-tauri/src/import.rs, src/import-view.js, src/import-settings.js, src/import-view.css -->
 # SD Card and Folder Import
 
 ## Purpose
